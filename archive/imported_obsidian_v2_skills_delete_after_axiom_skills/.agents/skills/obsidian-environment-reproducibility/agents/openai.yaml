@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Environment Reproducibility"
+  short_description: "Check clean checkout, dependency surface, Python or MT5 environment, entry command, local assumptions, recovery instruction, and reproducibility judgment."
+  default_prompt: "Use $obsidian-environment-reproducibility for tests, README commands, dependency setup, CI, clean checkout behavior, MT5 terminal paths, local absolute paths, external artifacts, or another-machine instructions; record environment, dependencies, command, assumptions, recovery, and reproducibility judgment."
+policy:
+  allow_implicit_invocation: true

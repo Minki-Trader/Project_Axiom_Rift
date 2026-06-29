@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Stage Transition"
+  short_description: "Sync stage transition(단계 전환), active_stage(활성 단계), handoff(인계), workspace_state(작업공간 상태), selection status(선택 상태), and registry(등록부)"
+  default_prompt: "Use $obsidian-stage-transition for any stage transition(단계 전환), active_stage(활성 단계) change, handoff(인계), workspace_state(작업공간 상태), selection status(선택 상태), decision memo(결정 메모), or registry(등록부) sync."
+policy:
+  allow_implicit_invocation: true

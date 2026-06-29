@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Work Packet Router"
+  short_description: "Route a request across multi-phase work packet lifecycle, skill selection, phase plan, stop conditions, and final answer filter."
+  default_prompt: "Use $obsidian-work-packet-router after session intake to consider all repo-scoped skills, select phase-by-phase skills for design, code, experiment, evidence, judgment, report, or publish work, record unused-skill reasons, and keep the final answer filtered by answer clarity and claim discipline."
+policy:
+  allow_implicit_invocation: true

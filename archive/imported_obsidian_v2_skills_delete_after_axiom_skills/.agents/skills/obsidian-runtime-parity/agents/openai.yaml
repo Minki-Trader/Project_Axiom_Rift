@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Runtime Parity"
+  short_description: "Check Python research path, MT5 runtime path, shared contract, parity check, hashes, tester output, and runtime claim boundary."
+  default_prompt: "Use $obsidian-runtime-parity when work touches MT5, EA modules, runtime packages, model bundles, .set files, tester output, handoff files, or Python-to-runtime comparisons; record shared contract, known differences, parity check, identity hashes, and runtime claim boundary."
+policy:
+  allow_implicit_invocation: true

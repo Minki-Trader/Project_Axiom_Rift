@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Experiment Design"
+  short_description: "Define hypothesis, baseline, controls, sample scope, criteria, invalid conditions, stop conditions, and evidence before trading research runs."
+  default_prompt: "Use $obsidian-experiment-design for project-wide trading experiments; define hypothesis, comparison baseline, controls, changed variables, sample scope, success and failure criteria, invalid conditions, stop conditions, and evidence plan before code or runs."
+policy:
+  allow_implicit_invocation: true

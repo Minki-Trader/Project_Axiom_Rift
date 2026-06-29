@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Data Integrity"
+  short_description: "Check data source, time axis, timezone, sample scope, missing or duplicate rows, feature-label boundary, split boundary, leakage risk, and data identity."
+  default_prompt: "Use $obsidian-data-integrity when work touches datasets, features, labels, splits, bars, timestamps, joins, runtime inputs, or KPI interpretation; record time axis, sample scope, leakage risk, split boundary, and integrity judgment."
+policy:
+  allow_implicit_invocation: true

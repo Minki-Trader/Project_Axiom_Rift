@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Answer Clarity"
+  short_description: "Shape user-facing(사용자용) status summary(상태 요약), result report(결과 보고), completion report(완료 보고), PR summary, plain meaning(쉬운 의미), current meaning(현재 의미), and next action(다음 행동)"
+  default_prompt: "Use $obsidian-answer-clarity as the final user-facing(사용자용) pass for a status summary(상태 요약), result report(결과 보고), completion report(완료 보고), PR summary, current meaning(현재 의미), plain beginner-readable meaning(초보자도 읽을 수 있는 쉬운 의미), not-yet-true boundary, evidence, and next action(다음 행동)."
+policy:
+  allow_implicit_invocation: true

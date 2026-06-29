@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Code Quality"
+  short_description: "Review code quality(코드 품질), responsibility(책임), flow(흐름), contract(계약), and test intent(검증 의도) for non-trivial implementation"
+  default_prompt: "Use $obsidian-code-quality after code-surface guard(코드 표면 가드) for non-trivial implementation(비사소 구현) that must keep code quality(코드 품질), responsibility(책임), flow(흐름), contract(계약), and test intent(검증 의도) visible."
+policy:
+  allow_implicit_invocation: true

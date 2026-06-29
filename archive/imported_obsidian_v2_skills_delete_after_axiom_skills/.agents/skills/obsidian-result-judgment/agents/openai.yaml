@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Result Judgment"
+  short_description: "Judge evidence, missing evidence, result label, claim boundary, next condition, and plain-language meaning before user-facing claims."
+  default_prompt: "Use $obsidian-result-judgment for run, experiment, model, package, backtest, PR, or stage outcomes; read result and promotion policies, record evidence available and missing, judgment label, claim boundary, next condition, and answer-clarity hook."
+policy:
+  allow_implicit_invocation: true

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Architecture Guard"
+  short_description: "Guard architecture(구조), agent settings(에이전트 설정), repo-scoped skills(저장소 전용 스킬), skill routing(스킬 배치), policy(정책), artifact(산출물), path(경로), and encoding(인코딩) discipline"
+  default_prompt: "Use $obsidian-architecture-guard when architecture(구조), agent settings(에이전트 설정), repo-scoped skills(저장소 전용 스킬), skill routing(스킬 배치), policy(정책), artifact(산출물), path(경로), or encoding(인코딩) work could create drift."
+policy:
+  allow_implicit_invocation: true

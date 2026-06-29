@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Lane Classifier"
+  short_description: "Classify lane(레인), exploration(탐색), evidence(근거), promotion(승격), runtime(런타임), and hard gate(강한 게이트) meaning"
+  default_prompt: "Use $obsidian-lane-classifier when lane(레인), exploration(탐색), evidence(근거), promotion(승격), runtime(런타임), Tier(티어), or hard gate(강한 게이트) wording could change the required discipline."
+policy:
+  allow_implicit_invocation: true

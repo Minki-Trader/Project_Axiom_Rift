@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Workflow Drift Guard"
+  short_description: "Recover from blocker(차단 사유) by separating source material(원재료), tool(도구), environment(환경), recovery(복구), retry(재시도), and pre-block evidence(차단 전 근거)"
+  default_prompt: "Use $obsidian-workflow-drift-guard when a blocker(차단 사유) involves missing source material(원재료), tool(도구), environment(환경), permission(권한), recovery(복구), retry(재시도), external verification(외부 검증), terminal action(터미널 행동), or pre-block evidence(차단 전 근거)."
+policy:
+  allow_implicit_invocation: true

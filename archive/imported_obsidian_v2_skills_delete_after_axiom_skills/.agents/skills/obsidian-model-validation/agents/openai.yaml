@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Model Validation"
+  short_description: "Validate model family, target, split, WFO, threshold, calibration, baseline, overfit risk, and selection metric before model claims harden."
+  default_prompt: "Use $obsidian-model-validation for model training, threshold selection, ranking, calibration, split, WFO, overfit, or model comparison work; record target, split method, selection metric, threshold policy, calibration risk, baseline, and validation judgment."
+policy:
+  allow_implicit_invocation: true

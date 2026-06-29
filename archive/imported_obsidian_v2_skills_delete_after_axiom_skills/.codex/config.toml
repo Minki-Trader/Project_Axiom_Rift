@@ -1,0 +1,5 @@
+service_tier = "priority"
+
+[agents]
+max_threads = 8
+max_depth = 1

@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Artifact Lineage"
+  short_description: "Track source inputs, producer, consumer, artifact paths, hashes, registry links, availability, and lineage judgment."
+  default_prompt: "Use $obsidian-artifact-lineage when work creates, consumes, moves, ignores, packages, releases, or reports artifacts; record source inputs, producer, consumer, repo-relative paths, hashes, registry links, availability, and lineage judgment."
+policy:
+  allow_implicit_invocation: true

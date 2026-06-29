@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Exploration Mandate"
+  short_description: "Preserve project-wide exploration discipline across stages without letting operating gates block research too early."
+  default_prompt: "Use $obsidian-exploration-mandate for exploration, idea variants, Tier A/B/C research, WFO planning, extreme sweeps, negative-result closure, or reopening an idea; keep exploration permission separate from operating promotion and runtime authority."
+policy:
+  allow_implicit_invocation: true

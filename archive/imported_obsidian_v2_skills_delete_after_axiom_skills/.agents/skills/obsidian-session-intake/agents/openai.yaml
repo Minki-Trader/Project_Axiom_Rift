@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Session Intake"
+  short_description: "Start a turn by establishing current truth, cold or warm re-entry, work packet lifecycle, scope, and required skill routing."
+  default_prompt: "Use $obsidian-session-intake at the start of repository work to establish current truth, decide cold or warm re-entry, identify the work packet lifecycle, hand routing to $obsidian-work-packet-router, and name required final answer filters."
+policy:
+  allow_implicit_invocation: true

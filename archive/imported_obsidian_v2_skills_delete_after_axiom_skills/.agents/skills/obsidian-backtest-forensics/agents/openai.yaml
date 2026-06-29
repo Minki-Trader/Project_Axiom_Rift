@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Backtest Forensics"
+  short_description: "Inspect Strategy Tester identity, EA identity, report path, trade evidence, spread, commission, slippage, deposit, leverage, modeling mode, and backtest judgment."
+  default_prompt: "Use $obsidian-backtest-forensics for MT5 Strategy Tester, broker terminal, or backtest outputs; record tester identity, EA identity, report identity, trade evidence, cost assumptions, forensic checks, and backtest judgment."
+policy:
+  allow_implicit_invocation: true

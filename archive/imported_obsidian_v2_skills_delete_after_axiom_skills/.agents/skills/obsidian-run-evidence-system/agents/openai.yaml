@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Run Evidence System"
+  short_description: "Guard run evidence(실행 근거), measurement(측정), identity(정체성), EA/MT5 tester identity(EA/MT5 테스터 정체성), judgment(판정), run registry(실행 등록부), and external verification(외부 검증)"
+  default_prompt: "Use $obsidian-run-evidence-system for run evidence(실행 근거), measurement(측정), identity(정체성), judgment(판정), run registry(실행 등록부), and external verification(외부 검증) before calling a run reviewed(검토됨), selected(선택됨), positive(긍정), or blocked(차단). For EA/MT5 tester runs, require ea_entrypoint(EA 진입점), .set/config identity(설정 정체성), input_params_hash(입력 파라미터 해시), module_hashes(모듈 해시), model_or_bundle_hash(모델/번들 해시), tester_identity(테스터 정체성), and tester_output_path(테스터 출력 경로), or explicit not_applicable(해당 없음) reasons."
+policy:
+  allow_implicit_invocation: true

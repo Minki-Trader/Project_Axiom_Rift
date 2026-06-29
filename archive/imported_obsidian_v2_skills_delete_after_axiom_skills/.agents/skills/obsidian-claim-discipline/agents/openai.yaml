@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Claim Discipline"
+  short_description: "Keep claim(주장) boundary(경계) precise around runtime authority(런타임 권위), operating promotion(운영 승격), positive(긍정), and blocked(차단) states"
+  default_prompt: "Use $obsidian-claim-discipline to keep every claim(주장) within its boundary(경계), especially runtime authority(런타임 권위), operating promotion(운영 승격), positive(긍정), inconclusive(불충분), invalid(무효), or blocked(차단) wording."
+policy:
+  allow_implicit_invocation: true

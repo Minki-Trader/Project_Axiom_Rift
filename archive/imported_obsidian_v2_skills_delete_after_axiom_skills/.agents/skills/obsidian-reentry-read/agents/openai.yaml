@@ -1,0 +1,6 @@
+interface:
+  display_name: "Obsidian Reentry Read"
+  short_description: "Re-enter the repository by reading current truth sources in order and avoiding stale stage, foundation, or evidence assumptions."
+  default_prompt: "Use $obsidian-reentry-read when starting or resuming Project Obsidian Prime v2 work; read AGENTS.md, reentry_order, workspace state, current working state, active stage status, and relevant policy or register files before acting."
+policy:
+  allow_implicit_invocation: true

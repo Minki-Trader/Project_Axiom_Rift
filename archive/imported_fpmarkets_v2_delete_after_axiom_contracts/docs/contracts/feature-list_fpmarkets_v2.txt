@@ -1,0 +1,77 @@
+﻿features_fpmarkets_v2 = [
+
+    # 1. 기본 가격 / Return / Range
+    "log_return_1",
+    "log_return_3",
+    "hl_range",
+    "close_open_ratio",
+    "gap_percent",
+    "close_prev_close_ratio",
+    "return_zscore_20",
+    "hl_zscore_50",
+    "overnight_return",
+    "return_1_over_atr_14",
+
+    # 2. 가격-이동평균 위치 / 추세 구조
+    "close_ema20_ratio",
+    "close_ema50_ratio",
+    "ema9_ema20_diff",
+    "ema20_ema50_diff",
+    "ema50_ema200_diff",
+    "ema20_ema50_spread_zscore_50",
+    "sma50_sma200_ratio",
+
+    # 3. 모멘텀 오실레이터
+    "rsi_14",
+    "rsi_50",
+    "rsi_14_slope_3",
+    "rsi_14_minus_50",
+    "stoch_kd_diff",
+    "stochrsi_kd_diff",
+    "ppo_hist_12_26_9",
+    "roc_12",
+    "trix_15",
+
+    # 4. 변동성 / 레짐
+    "atr_14",
+    "atr_50",
+    "atr_14_over_atr_50",
+    "bollinger_width_20",
+    "bb_position_20",
+    "bb_squeeze",
+    "historical_vol_20",
+    "historical_vol_5_over_20",
+
+    # 5. 추세 강도 / 방향
+    "adx_14",
+    "di_spread_14",
+    "supertrend_10_3",
+    "vortex_indicator",
+
+    # 6. 세션 / 시간대 구조
+    "is_us_cash_open",
+    "minutes_from_cash_open",
+    "is_first_30m_after_open",
+    "is_last_30m_before_cash_close",
+
+    # 7. 외부 리스크 프록시 (FPMarkets broker-native)
+    "vix_change_1",
+    "vix_zscore_20",
+    "us10yr_change_1",
+    "us10yr_zscore_20",
+    "usdx_change_1",
+    "usdx_zscore_20",
+
+    # 8. 리더 종목 raw + 집계형 breadth / dispersion
+    "nvda_xnas_log_return_1",
+    "aapl_xnas_log_return_1",
+    "msft_xnas_log_return_1",
+    "amzn_xnas_log_return_1",
+    "mega8_equal_return_1",
+    "top3_weighted_return_1",
+    "mega8_pos_breadth_1",
+    "mega8_dispersion_5",
+    "us100_minus_mega8_equal_return_1",
+    "us100_minus_top3_weighted_return_1",
+
+]

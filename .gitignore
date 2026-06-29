@@ -1,0 +1,45 @@
+# Python and local tooling
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# Editors
+.vscode/
+.idea/
+
+# Heavy data and generated artifacts
+data/raw/**
+data/processed/**
+data/snapshots/**
+!data/**/
+!data/**/README.md
+
+stages/*/02_runs/
+**/mt5_attempts/
+**/artifacts/
+
+*.parquet
+*.joblib
+*.onnx
+*.bin
+*.npy
+*.npz
+*.xml
+*.html
+*.svg
+*.ex5
+
+# Runtime logs and local process files
+*.log
+*.pid
+*_stdout.log
+*_stderr.log
+*_shadow.csv
+*_trades.csv
+
+# OS noise
+Thumbs.db
+Desktop.ini
