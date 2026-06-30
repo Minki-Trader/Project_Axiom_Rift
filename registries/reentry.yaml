@@ -86,6 +86,13 @@ data_state:
     last_time: 2026-06-26 23:50:00
     gap_count: 2935
     duplicate_count: 0
+  clean_period_candidate:
+    registry: registries/clean_periods.yaml
+    start: 2024-06-03 01:00:00
+    end: 2025-10-24 23:55:00
+    row_count: 99102
+    policy: practical_clean_single_missing_m5_bar_tolerated
+    split_frozen: false
 
 next_work:
   campaign: null
@@ -93,6 +100,7 @@ next_work:
     - fresh_export_us100_m5_max_available
     - record_source_path_decision_fresh_export
     - build_us100_m5_base_frame
+    - derive_us100_m5_clean_period_candidate
   tasks:
     - draft_active_axiom_contract_plan
     - define_first_discovery_campaign_manifest

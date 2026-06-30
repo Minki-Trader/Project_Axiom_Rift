@@ -56,6 +56,13 @@ data_state:
     row_count: 571771
     gap_count: 2935
     duplicate_count: 0
+  clean_period_candidate:
+    status: completed
+    registry: registries/clean_periods.yaml
+    start: 2024-06-03 01:00:00
+    end: 2025-10-24 23:55:00
+    row_count: 99102
+    split_frozen: false
 
 claim_boundary:
   axiom_contracts_complete: false

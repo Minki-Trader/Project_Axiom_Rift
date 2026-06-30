@@ -14,6 +14,7 @@ class ImportTest(unittest.TestCase):
         choices = command_actions[0].choices
         self.assertIn("export-mt5-max-bars", choices)
         self.assertIn("build-us100-base-frame", choices)
+        self.assertIn("derive-us100-clean-periods", choices)
 
 
 if __name__ == "__main__":
