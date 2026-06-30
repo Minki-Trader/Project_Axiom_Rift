@@ -15,6 +15,7 @@ class ImportTest(unittest.TestCase):
         self.assertIn("export-mt5-max-bars", choices)
         self.assertIn("build-us100-base-frame", choices)
         self.assertIn("derive-us100-clean-periods", choices)
+        self.assertIn("build-us100-rolling-windows", choices)
 
 
 if __name__ == "__main__":

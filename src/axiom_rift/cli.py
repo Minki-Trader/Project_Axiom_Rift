@@ -10,6 +10,7 @@ from .collectors.mt5_fresh_export import run_terminal_export
 from .paths import CAMPAIGN_DIR, CONFIG_DIR, CONTRACT_DIR, PROJECT_ROOT, REGISTRY_DIR
 from .pipelines.base_frame import build_us100_m5_base_frame
 from .pipelines.clean_periods import derive_clean_periods
+from .pipelines.rolling_windows import build_rolling_windows
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -22,6 +23,7 @@ def build_parser() -> argparse.ArgumentParser:
     export_parser.add_argument("--timeout-seconds", type=int, default=240)
     subparsers.add_parser("build-us100-base-frame", help="build US100 M5 base frame from raw CSV")
     subparsers.add_parser("derive-us100-clean-periods", help="derive clean period candidates")
+    subparsers.add_parser("build-us100-rolling-windows", help="build rolling-window split registry")
     return parser
 
 
@@ -66,6 +68,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "derive-us100-clean-periods":
         payload = derive_clean_periods()
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if args.command == "build-us100-rolling-windows":
+        payload = build_rolling_windows()
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
     parser.print_help()

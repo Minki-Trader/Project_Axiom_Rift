@@ -1,0 +1,39 @@
+schema: axiom_rift_rolling_windows_v1
+created_at_utc: 2026-06-30T02:01:44Z
+source_base_frame: data/processed/datasets/us100_m5_base_frame.csv
+policy:
+  split_method: rolling_window
+  fold_anchor: calendar_month
+  train_is_months: 18
+  validation_oos_months: 3
+  test_oos_months: 3
+  step_months: 3
+  complete_test_oos_required: true
+  tail_holdout_policy: record_partial_tail_outside_full_folds
+observed:
+  first_time: 2022-05-02 01:00:00
+  last_time: 2026-06-26 23:50:00
+  row_count: 293935
+  suspicious_gap_count: 15
+  large_suspicious_gap_count: 6
+fold_count: 9
+fold_range:
+  first_fold_id: rw_001
+  first_train_start: 2022-05-02 01:00:00
+  last_fold_id: rw_009
+  last_test_end: 2026-04-30 23:55:00
+tail_holdout_partial:
+  start: 2026-05-01 01:00:00
+  end: 2026-06-26 23:50:00
+  row_count: 11219
+artifacts:
+  rolling_windows_json: data/processed/coverage_audits/us100_m5_rolling_windows.json
+  rolling_windows_csv: data/processed/coverage_audits/us100_m5_rolling_windows.csv
+claim_boundary:
+  split_policy_adopted: true
+  split_boundaries_frozen: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_authority: false
+  live_ready: false

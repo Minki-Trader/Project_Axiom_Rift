@@ -69,6 +69,21 @@ data_state:
     longest_practical_continuous_start: 2024-06-03 01:00:00
     longest_practical_continuous_end: 2025-10-24 23:55:00
     split_frozen: false
+  split_policy:
+    status: adopted
+    method: rolling_window
+    registry: registries/rolling_windows.yaml
+    train_is_months: 18
+    validation_oos_months: 3
+    test_oos_months: 3
+    step_months: 3
+    fold_count: 9
+    first_fold_id: rw_001
+    last_fold_id: rw_009
+    last_test_end: 2026-04-30 23:55:00
+    tail_holdout_partial_start: 2026-05-01 01:00:00
+    tail_holdout_partial_end: 2026-06-26 23:50:00
+    split_boundaries_frozen: false
 
 claim_boundary:
   axiom_contracts_complete: false
