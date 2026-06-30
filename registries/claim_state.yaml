@@ -42,6 +42,21 @@ market_surface:
   timeframe: M5
   practical_modeling_start: 2022-09-01
 
+data_state:
+  source_strategy: fresh_export
+  us100_m5_raw:
+    status: completed
+    path: data/raw/mt5_bars/m5/US100_M5_max.csv
+    row_count: 571771
+    first_time: 2018-05-07 01:00:00
+    last_time: 2026-06-26 23:50:00
+  us100_m5_base_frame:
+    status: completed
+    path: data/processed/datasets/us100_m5_base_frame.csv
+    row_count: 571771
+    gap_count: 2935
+    duplicate_count: 0
+
 claim_boundary:
   axiom_contracts_complete: false
   axiom_skills_complete: false

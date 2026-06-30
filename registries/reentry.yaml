@@ -71,13 +71,31 @@ claim_boundary:
   runtime_authority: false
   live_ready: false
 
+data_state:
+  source_strategy: fresh_export
+  us100_m5_raw:
+    path: data/raw/mt5_bars/m5/US100_M5_max.csv
+    row_count: 571771
+    first_time: 2018-05-07 01:00:00
+    last_time: 2026-06-26 23:50:00
+    sha256: 80938f8f37fa0ef4fff7c2b5adfe45186153bc0bbc54d7544fec3d44e2c34ee3
+  us100_m5_base_frame:
+    path: data/processed/datasets/us100_m5_base_frame.csv
+    row_count: 571771
+    first_time: 2018-05-07 01:00:00
+    last_time: 2026-06-26 23:50:00
+    gap_count: 2935
+    duplicate_count: 0
+
 next_work:
   campaign: null
+  completed:
+    - fresh_export_us100_m5_max_available
+    - record_source_path_decision_fresh_export
+    - build_us100_m5_base_frame
   tasks:
-    - inventory_available_mt5_m5_bars_and_us100_real_ticks
-    - choose_link_copy_or_fresh_export_for_raw_data
-    - rebuild_us100_m5_base_frame
     - draft_active_axiom_contract_plan
+    - define_first_discovery_campaign_manifest
   not_yet:
     - label_freeze
     - feature_set_freeze

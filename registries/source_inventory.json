@@ -1,0 +1,29 @@
+{
+  "broker": "FPMarkets",
+  "claim_boundary": {
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "model_selected": false,
+    "runtime_authority": false
+  },
+  "created_at_utc": "2026-06-30T01:23:47Z",
+  "mt5_bars": {
+    "available": true,
+    "first_time": "2018-05-07 01:00:00",
+    "last_time": "2026-06-26 23:50:00",
+    "path": "data/raw/mt5_bars/m5/US100_M5_max.csv",
+    "row_count": 571771,
+    "sha256": "80938f8f37fa0ef4fff7c2b5adfe45186153bc0bbc54d7544fec3d44e2c34ee3",
+    "status_path": "data/raw/mt5_bars/m5/US100_M5_max_status.csv"
+  },
+  "real_ticks": {
+    "available_in_terminal_cache": true,
+    "exported": false,
+    "note": "tick export intentionally not run in this first pass"
+  },
+  "schema": "axiom_rift_source_inventory_v1",
+  "source_strategy": "fresh_export",
+  "symbol": "US100",
+  "timeframe": "M5"
+}
