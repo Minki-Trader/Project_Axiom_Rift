@@ -1,0 +1,71 @@
+project:
+  name: Project Axiom Rift
+  folder: Project_Axiom_Rift
+  initialized_local_date: 2026-06-29
+  layout_migrated_local_date: 2026-06-30
+  purpose: clean_restart_fpmarkets_us100_m5
+  audience: codex_only
+  layout_mode: developer_campaign_manifest
+
+text_policy:
+  active_project_files: ascii_only
+  human_friendly_text: chat_only
+  archive_exception_may_contain_non_ascii: true
+
+boot:
+  reentry_file: registries/reentry.yaml
+  agent_rules: AGENTS.md
+  skip_archive_by_default: true
+
+restart_boundary:
+  reference_archive_root: C:/Obsidian_Restore/Project_Obsidian_Prime_v2
+  imported_reference_archive: archive/imported_fpmarkets_v2_delete_after_axiom_contracts
+  imported_skill_agent_archive: archive/imported_obsidian_v2_skills_delete_after_axiom_skills
+  archived_reference_only:
+    - archive/imported_fpmarkets_v2_delete_after_axiom_contracts/docs/contracts
+    - archive/imported_fpmarkets_v2_delete_after_axiom_contracts/foundation/config
+    - archive/imported_obsidian_v2_skills_delete_after_axiom_skills/.agents/skills
+    - archive/imported_obsidian_v2_skills_delete_after_axiom_skills/.codex/agents
+  delete_archive_after_axiom_contracts_complete: true
+  delete_skill_archive_after_axiom_skills_complete: true
+  not_inherited:
+    - historical_stages
+    - raw_data
+    - processed_data
+    - model_artifacts
+    - mt5_tester_reports
+    - old_git_history
+
+market_surface:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+  practical_modeling_start: 2022-09-01
+
+claim_boundary:
+  axiom_contracts_complete: false
+  axiom_skills_complete: false
+  active_runtime_config_complete: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  live_ready: false
+
+research_mode:
+  label_policy: autonomous_discovery_until_frozen
+  feature_policy: autonomous_discovery_until_frozen
+  imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
+  imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
+
+active_campaign: campaigns/frontier_001_clean_market_data_baseline
+
+active_truth:
+  contracts_dir: contracts
+  configs_dir: configs
+  registries_dir: registries
+  campaigns_dir: campaigns
+  source_package: src/axiom_rift

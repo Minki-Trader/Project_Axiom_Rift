@@ -1,0 +1,19 @@
+schema: axiom_rift_decision_registry_v1
+encoding: ascii_only
+
+decisions:
+  - decision_id: dec_20260630_developer_campaign_layout
+    created_local_date: 2026-06-30
+    status: active
+    decision: use_developer_campaign_manifest_layout
+    replaces:
+      - stage_layout_as_active_operating_model
+    rationale:
+      - campaign_names_match_research_iterations_better_than_stage_names
+      - manifests_are_more_machine_friendly_than_narrative_stage_docs
+      - frontier_extra_mixing_can_be_modeled_as_campaign_inputs_and_queues
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false

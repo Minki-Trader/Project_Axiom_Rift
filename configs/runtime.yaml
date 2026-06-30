@@ -1,0 +1,21 @@
+schema: axiom_rift_runtime_config_v1
+status: pending_runtime_config
+encoding: ascii_only
+
+mt5:
+  symbol: US100
+  timeframe: M5
+  tester_model: real_ticks
+  deposit: null
+  leverage: null
+  terminal_mode: null
+
+execution:
+  signal_timing: closed_m5_bar
+  position_management: tick_runtime
+  cost_behavior: broker_native_until_contract_says_otherwise
+
+claim_boundary:
+  active_runtime_config_complete: false
+  runtime_authority: false
+  live_ready: false

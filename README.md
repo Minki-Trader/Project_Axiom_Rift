@@ -1,31 +1,34 @@
 # Project Axiom Rift
 
-schema: axiom_rift_readme_v1
+schema: axiom_rift_readme_v2
 audience: codex_only
-human_friendly_text_policy: chat_only
-active_text_encoding: ascii_only
+encoding: ascii_only
 
 ## Pointers
 
 - agent rules: `AGENTS.md`
-- boot summary: `docs/workspace/reentry.yaml`
-- state: `docs/workspace/workspace_state.yaml`
-- active contracts: `docs/contracts/`
-- active config: `foundation/config/`
-- legacy archive: `archive/imported_fpmarkets_v2_delete_after_axiom_contracts/`
-- legacy skill archive: `archive/imported_obsidian_v2_skills_delete_after_axiom_skills/`
+- boot summary: `registries/reentry.yaml`
+- claim state: `registries/claim_state.yaml`
+- active contracts: `contracts/`
+- active config: `configs/`
+- source package: `src/axiom_rift/`
+- campaigns: `campaigns/`
+- legacy archive: `archive/`
 
-## Status
+## Operating Model
 
-- clean_restart: true
-- active_contracts_complete: false
-- active_skills_complete: false
-- active_runtime_config_complete: false
-- label_selected: false
-- feature_set_selected: false
-- model_selected: false
-- runtime_authority: false
+This repository uses developer-style campaign manifests instead of narrative stages.
 
-## Rule
+- `campaigns/`: reproducible research campaigns and frontier-extra mixing campaigns
+- `src/axiom_rift/`: reusable code
+- `contracts/`: active interfaces and claim rules
+- `configs/`: environment, market, and runtime settings
+- `registries/`: state, decisions, runs, and artifacts
+- `artifacts/`: reusable generated outputs, ignored by default except README files
 
-Do not use this README for detailed project context. Use `AGENTS.md` and `docs/workspace/reentry.yaml`.
+## Claim Boundary
+
+At restart, no label, feature set, model, runtime authority, operating promotion, or live-readiness
+claim is inherited from archived Obsidian Prime v2 material.
+
+Use `registries/claim_state.yaml` as the current truth.

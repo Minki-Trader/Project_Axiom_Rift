@@ -1,6 +1,6 @@
 # AGENTS
 
-schema: axiom_rift_agent_rules_v1
+schema: axiom_rift_agent_rules_v2
 project_id: project_axiom_rift
 audience: codex_only
 human_friendly_text_policy: chat_only
@@ -11,9 +11,9 @@ active_text_encoding: ascii_only
 Read order for any new session or compacted context:
 
 1. `AGENTS.md`
-2. `docs/workspace/reentry.yaml`
-3. `docs/workspace/workspace_state.yaml`
-4. Active stage brief only when stage work is requested.
+2. `registries/reentry.yaml`
+3. `registries/claim_state.yaml`
+4. Active campaign manifest only when campaign work is requested.
 5. Active contracts only when the task touches their surface.
 
 Do not read archive files during boot.
@@ -25,15 +25,16 @@ Do not read archive files during boot.
 - Archive files are legacy references, not active truth.
 - No old winner, selected baseline, promotion, runtime authority, or live-readiness claim is inherited.
 - No label, feature set, model family, objective, or trade shape is frozen at restart.
-- Claims must be no stronger than current evidence in `docs/workspace/workspace_state.yaml`.
+- Claims must be no stronger than current evidence in `registries/claim_state.yaml`.
 
 ## Current Active Truth
 
-- Active contracts live in `docs/contracts/`.
-- Active config lives in `foundation/config/`.
-- Current state lives in `docs/workspace/workspace_state.yaml`.
-- Reentry summary lives in `docs/workspace/reentry.yaml`.
-- Active stage is declared by `active_stage` in `docs/workspace/workspace_state.yaml`.
+- Active contracts live in `contracts/`.
+- Active config lives in `configs/`.
+- Current claim state lives in `registries/claim_state.yaml`.
+- Reentry summary lives in `registries/reentry.yaml`.
+- Campaign work lives in `campaigns/`.
+- Source code lives in `src/axiom_rift/`.
 
 If active contracts/config are missing, do not substitute archive files as active truth.
 
@@ -84,33 +85,37 @@ Freeze requires an active Axiom Rift contract or decision record with:
 
 ## Placement
 
-- contracts: `docs/contracts/`
-- state: `docs/workspace/`
-- policies: `docs/policies/`
+- source package: `src/axiom_rift/`
+- contracts: `contracts/`
+- config: `configs/`
+- registries: `registries/`
 - raw data: `data/raw/`
 - processed reusable data: `data/processed/`
-- reusable collectors: `foundation/collectors/`
-- reusable features: `foundation/features/`
-- reusable pipelines: `foundation/pipelines/`
-- active config: `foundation/config/`
-- stage work: `stages/<stage_id>/`
+- reusable artifacts: `artifacts/`
+- campaign work: `campaigns/<campaign_id>/`
 - tests: `tests/`
 
-Do not create top-level scratch, notes, scripts, or experiment folders.
+Do not create top-level scratch, notes, scripts, experiment, or stage folders.
 
-## Stage Layout
+## Campaign Layout
 
-Every stage uses:
+Every campaign uses:
 
-- `00_spec/`
-- `01_inputs/`
-- `02_runs/active/`
-- `02_runs/archived/`
-- `03_reviews/`
-- `04_selected/`
+- `campaign.yaml`
+- `inputs.yaml`
+- `runs/<run_id>/`
+- `selected.yaml`
 
-Do not put raw data in stage folders.
-Do not dump run artifacts directly in a stage root.
+Frontier-extra campaigns may additionally use:
+
+- `ingredients.csv`
+- `ingredients.json`
+- `mix_queue.csv`
+- `mix_queue.json`
+
+Do not put raw data in campaign folders.
+Do not dump run artifacts directly in a campaign root.
+Record durable artifact identity as repo-relative paths plus hashes.
 
 ## Runtime Claims
 
@@ -121,14 +126,14 @@ or archived FPMarkets v2 configs are not enough.
 ## Filesystem
 
 - Prefer `rg --files` and targeted `rg` for discovery.
-- Avoid wide recursive PowerShell scans on deep stage/output trees.
+- Avoid wide recursive PowerShell scans on deep output trees.
 - If deep paths fail, use long-path-aware helpers or `\\?\` only as local execution plumbing.
 - Record durable artifact identity as repo-relative paths plus hashes, not local helper prefixes.
 
 ## Editing
 
 - Keep active docs concise.
-- Prefer YAML/CSV/JSON/short Markdown tables over narrative prose.
+- Prefer YAML/CSV/JSON/JSONL over narrative prose.
 - Keep project files ASCII unless a binary/source format requires otherwise.
 - Do not add bilingual glossaries to project files.
 - Chat can be Korean and user-friendly.

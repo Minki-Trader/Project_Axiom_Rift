@@ -17,9 +17,16 @@ data/snapshots/**
 !data/**/
 !data/**/README.md
 
-stages/*/02_runs/
+campaigns/*/runs/**
+!campaigns/*/runs/
+!campaigns/*/runs/.gitkeep
+
+artifacts/**
+!artifacts/**/
+!artifacts/**/README.md
+
 **/mt5_attempts/
-**/artifacts/
+campaigns/**/artifacts/
 
 *.parquet
 *.joblib

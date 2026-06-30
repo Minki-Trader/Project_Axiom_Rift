@@ -1,0 +1,25 @@
+schema: axiom_rift_runtime_contract_v1
+status: draft_incomplete
+encoding: ascii_only
+
+surface:
+  symbol: US100
+  timeframe: M5
+  tester_model: real_ticks
+  closed_bar_signal_generation: true
+  tick_execution_management: true
+
+authority:
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  live_ready: false
+
+runtime_claim_requires:
+  - active_runtime_config
+  - deterministic_or_full_period_sparse_decision_surface
+  - completed_validation_report
+  - completed_oos_report
+  - artifact_identity_hashes
+  - mismatch_policy

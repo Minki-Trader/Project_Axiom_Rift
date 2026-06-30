@@ -1,0 +1,11 @@
+schema: axiom_rift_market_config_v1
+status: active_default
+encoding: ascii_only
+
+broker: FPMarkets
+symbol: US100
+timeframe: M5
+base_frame: US100 closed M5 bars
+practical_modeling_start: 2022-09-01
+external_alignment: own_closed_m5_series_merged_to_us100_close_timestamp
+leakage_policy: no_future_leakage

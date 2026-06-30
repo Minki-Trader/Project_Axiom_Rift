@@ -1,0 +1,26 @@
+schema: axiom_rift_feature_contract_v1
+status: draft_active
+encoding: ascii_only
+
+selection:
+  feature_set_selected: false
+  feature_order_frozen: false
+  model_input_schema_frozen: false
+
+exploration:
+  feature_families_are_variables: true
+  external_inputs_are_variables: true
+  objectives_are_variables: true
+
+guardrails:
+  closed_bar_only: true
+  no_future_leakage: true
+  external_alignment: own_closed_m5_to_us100_closed_timestamp
+
+freeze_requires:
+  - dataset_identity
+  - split_boundaries
+  - feature_list
+  - feature_order_hash
+  - parser_contract
+  - artifact_registry_entries

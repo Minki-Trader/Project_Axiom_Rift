@@ -1,0 +1,85 @@
+schema: axiom_rift_reentry_v2
+updated_local_date: 2026-06-30
+
+read_budget:
+  boot_files:
+    - AGENTS.md
+    - registries/reentry.yaml
+    - registries/claim_state.yaml
+  conditional_files:
+    active_campaign: campaigns/frontier_001_clean_market_data_baseline/campaign.yaml
+    active_contracts: contracts/
+    active_config: configs/
+  skip_by_default:
+    - archive/**
+    - data/raw/**
+    - data/processed/**
+    - artifacts/**
+    - campaigns/*/runs/**
+
+project:
+  id: project_axiom_rift
+  root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
+  purpose: clean_restart_fpmarkets_us100_m5
+  layout_mode: developer_campaign_manifest
+  active_campaign: campaigns/frontier_001_clean_market_data_baseline
+
+active_truth:
+  contracts_dir: contracts
+  config_dir: configs
+  registries_dir: registries
+  source_package: src/axiom_rift
+  campaigns_dir: campaigns
+  skills_dir: .agents/skills
+  contracts_complete: false
+  runtime_config_complete: false
+  skills_complete: false
+  archive_is_active_truth: false
+
+archive:
+  role: temporary_reference_only
+  may_contain_non_ascii: true
+  read_only_when_needed: true
+  paths:
+    imported_fpmarkets_v2_contracts:
+      path: archive/imported_fpmarkets_v2_delete_after_axiom_contracts
+      delete_when: active_axiom_contract_set_complete
+    imported_obsidian_v2_skills:
+      path: archive/imported_obsidian_v2_skills_delete_after_axiom_skills
+      delete_when: active_axiom_skill_set_complete
+
+market_defaults:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+  base_frame: closed_m5_us100
+  practical_modeling_start: 2022-09-01
+
+research_mode:
+  label_policy: autonomous_discovery_until_explicit_freeze
+  feature_policy: autonomous_discovery_until_explicit_freeze
+  prior_fpmarkets_v2_label: archived_reference_not_selection
+  prior_fpmarkets_v2_feature_set: archived_reference_not_selection
+
+claim_boundary:
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  live_ready: false
+
+next_work:
+  campaign: frontier_001_clean_market_data_baseline
+  tasks:
+    - inventory_available_mt5_m5_bars_and_us100_real_ticks
+    - choose_link_copy_or_fresh_export_for_raw_data
+    - rebuild_us100_m5_base_frame
+    - draft_active_axiom_contract_plan
+  not_yet:
+    - label_freeze
+    - feature_set_freeze
+    - model_training
+    - mt5_runtime_claim

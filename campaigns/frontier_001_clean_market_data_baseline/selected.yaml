@@ -1,0 +1,13 @@
+schema: axiom_rift_campaign_selection_v1
+campaign_id: frontier_001_clean_market_data_baseline
+status: none_selected
+encoding: ascii_only
+
+selected_artifacts: []
+
+claim_boundary:
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_authority: false
+  live_ready: false

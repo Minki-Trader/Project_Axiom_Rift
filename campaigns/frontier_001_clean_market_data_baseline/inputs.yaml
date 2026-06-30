@@ -1,0 +1,16 @@
+schema: axiom_rift_campaign_inputs_v1
+campaign_id: frontier_001_clean_market_data_baseline
+encoding: ascii_only
+
+required_inputs:
+  raw_m5_bars_dir: data/raw/mt5_bars/m5
+  us100_real_ticks_dir: data/raw/real_ticks/us100
+
+reference_only_inputs:
+  fpmarkets_v2_contract_archive: archive/imported_fpmarkets_v2_delete_after_axiom_contracts/docs/contracts
+  obsidian_v2_skill_archive: archive/imported_obsidian_v2_skills_delete_after_axiom_skills/.agents/skills
+
+input_policy:
+  archive_is_active_truth: false
+  raw_data_in_campaign_dir: false
+  no_future_leakage: true
