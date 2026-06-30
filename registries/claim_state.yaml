@@ -61,7 +61,7 @@ research_mode:
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
 
-active_campaign: campaigns/frontier_001_clean_market_data_baseline
+active_campaign: null
 
 active_truth:
   contracts_dir: contracts

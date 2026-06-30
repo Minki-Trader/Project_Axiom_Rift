@@ -7,7 +7,7 @@ read_budget:
     - registries/reentry.yaml
     - registries/claim_state.yaml
   conditional_files:
-    active_campaign: campaigns/frontier_001_clean_market_data_baseline/campaign.yaml
+    active_campaign: null
     active_contracts: contracts/
     active_config: configs/
   skip_by_default:
@@ -22,7 +22,7 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: campaigns/frontier_001_clean_market_data_baseline
+  active_campaign: null
 
 active_truth:
   contracts_dir: contracts
@@ -72,7 +72,7 @@ claim_boundary:
   live_ready: false
 
 next_work:
-  campaign: frontier_001_clean_market_data_baseline
+  campaign: null
   tasks:
     - inventory_available_mt5_m5_bars_and_us100_real_ticks
     - choose_link_copy_or_fresh_export_for_raw_data
