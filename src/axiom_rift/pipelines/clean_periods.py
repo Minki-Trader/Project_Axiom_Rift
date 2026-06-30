@@ -12,7 +12,8 @@ from pathlib import Path
 from axiom_rift.paths import DATA_DIR, PROJECT_ROOT, REGISTRY_DIR
 
 
-PRACTICAL_START = datetime(2022, 9, 1)
+BROAD_MODELING_START = datetime(2022, 5, 1)
+LEGACY_PRACTICAL_START = datetime(2022, 9, 1)
 EXPECTED_STEP_MINUTES = 5
 PRACTICAL_SPLIT_MISSING_BARS = 2
 
@@ -73,10 +74,10 @@ def read_times(path: Path) -> list[datetime]:
         reader = csv.DictReader(handle)
         for row in reader:
             timestamp = parse_time(row["time"])
-            if timestamp >= PRACTICAL_START:
+            if timestamp >= BROAD_MODELING_START:
                 rows.append(timestamp)
     if not rows:
-        raise ValueError(f"No rows at or after {time_text(PRACTICAL_START)}")
+        raise ValueError(f"No rows at or after {time_text(BROAD_MODELING_START)}")
     return rows
 
 
@@ -179,13 +180,25 @@ def trim_to_full_days(times: list[datetime], source: Window) -> Window:
     return window(times, start, end)
 
 
-def window_dict(item: Window) -> dict[str, object]:
+def window_gap_counts(item: Window, suspicious_gaps: list[GapEvent]) -> dict[str, int]:
+    in_window = [gap for gap in suspicious_gaps if item.start <= gap.from_time and gap.to_time <= item.end]
     return {
+        "suspicious_gap_count": len(in_window),
+        "large_suspicious_gap_count": sum(1 for gap in in_window if gap.missing_bars >= PRACTICAL_SPLIT_MISSING_BARS),
+        "single_missing_m5_gap_count": sum(1 for gap in in_window if gap.missing_bars == 1),
+    }
+
+
+def window_dict(item: Window, suspicious_gaps: list[GapEvent] | None = None) -> dict[str, object]:
+    result: dict[str, object] = {
         "start": time_text(item.start),
         "end": time_text(item.end),
         "row_count": item.row_count,
         "calendar_days": item.calendar_days,
     }
+    if suspicious_gaps is not None:
+        result.update(window_gap_counts(item, suspicious_gaps))
+    return result
 
 
 def gap_dict(item: GapEvent) -> dict[str, object]:
@@ -211,15 +224,17 @@ def derive_clean_periods(
     suspicious = [event for event in events if event.classification == "suspicious"]
     strict_windows = split_windows(times, suspicious, missing_bar_threshold=1)
     practical_windows = split_windows(times, suspicious, missing_bar_threshold=PRACTICAL_SPLIT_MISSING_BARS)
-    recommended_raw = max(practical_windows, key=lambda item: (item.calendar_days, item.row_count))
-    recommended = trim_to_full_days(times, recommended_raw)
-    suggested_splits = build_suggested_splits(times, recommended)
+    continuous_raw = max(practical_windows, key=lambda item: (item.calendar_days, item.row_count))
+    continuous_trimmed = trim_to_full_days(times, continuous_raw)
+    recommended = window(times, times[0], times[-1])
+    suggested_splits = build_suggested_splits(times, recommended, suspicious)
     payload = {
         "schema": "axiom_rift_clean_periods_v1",
         "created_at_utc": utc_now(),
         "source_base_frame": rel(base_frame_csv),
         "policy": {
-            "practical_start": time_text(PRACTICAL_START),
+            "broad_modeling_start": time_text(BROAD_MODELING_START),
+            "legacy_practical_start": time_text(LEGACY_PRACTICAL_START),
             "expected_step_minutes": EXPECTED_STEP_MINUTES,
             "regular_gap_policy": [
                 "daily_close",
@@ -229,7 +244,8 @@ def derive_clean_periods(
             ],
             "strict_windows_split_on_suspicious_missing_bars_gte": 1,
             "practical_windows_split_on_suspicious_missing_bars_gte": PRACTICAL_SPLIT_MISSING_BARS,
-            "practical_policy_note": "single missing M5 bar is tolerated for first research window selection",
+            "recommended_window_policy": "keep broad US100 span and treat suspicious gaps as audit or blackout events",
+            "continuous_window_policy": "single missing M5 bar is tolerated for continuous-window ranking",
         },
         "observed": {
             "first_time": time_text(times[0]),
@@ -238,10 +254,13 @@ def derive_clean_periods(
             "gap_event_count": len(events),
             "suspicious_gap_count": len(suspicious),
         },
-        "recommended_modeling_window": window_dict(recommended),
-        "recommended_raw_window": window_dict(recommended_raw),
+        "recommended_modeling_window": window_dict(recommended, suspicious),
+        "longest_practical_continuous_window": window_dict(continuous_trimmed, suspicious),
+        "longest_raw_continuous_window": window_dict(continuous_raw, suspicious),
         "suggested_initial_splits": suggested_splits,
-        "strict_windows_top": [window_dict(item) for item in sorted(strict_windows, key=lambda x: x.calendar_days, reverse=True)[:8]],
+        "strict_windows_top": [
+            window_dict(item) for item in sorted(strict_windows, key=lambda x: x.calendar_days, reverse=True)[:8]
+        ],
         "practical_windows_top": [
             window_dict(item) for item in sorted(practical_windows, key=lambda x: x.calendar_days, reverse=True)[:8]
         ],
@@ -271,6 +290,8 @@ def derive_clean_periods(
             "source_base_frame": rel(base_frame_csv),
             "recommended_start": payload["recommended_modeling_window"]["start"],
             "recommended_end": payload["recommended_modeling_window"]["end"],
+            "longest_continuous_start": payload["longest_practical_continuous_window"]["start"],
+            "longest_continuous_end": payload["longest_practical_continuous_window"]["end"],
             "suspicious_gap_count": len(suspicious),
             "claim_authority": False,
         }
@@ -278,11 +299,13 @@ def derive_clean_periods(
     return payload
 
 
-def build_suggested_splits(times: list[datetime], recommended: Window) -> dict[str, dict[str, object]]:
+def build_suggested_splits(
+    times: list[datetime], recommended: Window, suspicious_gaps: list[GapEvent]
+) -> dict[str, dict[str, object]]:
     split_bounds = {
-        "train": (recommended.start, datetime(2025, 3, 31, 23, 55)),
-        "validation": (datetime(2025, 4, 1, 1, 0), datetime(2025, 7, 31, 23, 55)),
-        "backtest": (datetime(2025, 8, 1, 1, 0), recommended.end),
+        "train": (recommended.start, datetime(2024, 12, 31, 23, 55)),
+        "validation": (datetime(2025, 1, 2, 1, 0), datetime(2025, 9, 30, 23, 55)),
+        "backtest": (datetime(2025, 10, 1, 1, 0), recommended.end),
     }
     splits: dict[str, dict[str, object]] = {}
     for split, (start, end) in split_bounds.items():
@@ -290,7 +313,7 @@ def build_suggested_splits(times: list[datetime], recommended: Window) -> dict[s
             start = recommended.start
         if end > recommended.end:
             end = recommended.end
-        splits[split] = window_dict(window(times, start, end))
+        splits[split] = window_dict(window(times, start, end), suspicious_gaps)
     return splits
 
 
@@ -309,17 +332,20 @@ def write_clean_windows_csv(path: Path, strict_windows: list[Window], practical_
 def write_clean_period_registry(payload: dict[str, object], json_path: Path, windows_path: Path) -> None:
     observed = payload["observed"]
     recommended = payload["recommended_modeling_window"]
+    continuous = payload["longest_practical_continuous_window"]
     splits = payload["suggested_initial_splits"]
     lines = [
         "schema: axiom_rift_clean_periods_v1",
         "created_at_utc: " + str(payload["created_at_utc"]),
         "source_base_frame: " + str(payload["source_base_frame"]),
         "policy:",
-        "  practical_start: " + str(payload["policy"]["practical_start"]),
+        "  broad_modeling_start: " + str(payload["policy"]["broad_modeling_start"]),
+        "  legacy_practical_start: " + str(payload["policy"]["legacy_practical_start"]),
         "  regular_gap_policy: daily_close_weekend_holiday_dst",
         "  practical_windows_split_on_suspicious_missing_bars_gte: "
         + str(payload["policy"]["practical_windows_split_on_suspicious_missing_bars_gte"]),
         "  single_missing_m5_bar_tolerated: true",
+        "  recommended_window_policy: broad_span_with_gap_audit",
         "observed:",
         "  first_time: " + str(observed["first_time"]),
         "  last_time: " + str(observed["last_time"]),
@@ -330,6 +356,13 @@ def write_clean_period_registry(payload: dict[str, object], json_path: Path, win
         "  end: " + str(recommended["end"]),
         "  row_count: " + str(recommended["row_count"]),
         "  calendar_days: " + str(recommended["calendar_days"]),
+        "  suspicious_gap_count: " + str(recommended["suspicious_gap_count"]),
+        "  large_suspicious_gap_count: " + str(recommended["large_suspicious_gap_count"]),
+        "longest_practical_continuous_window:",
+        "  start: " + str(continuous["start"]),
+        "  end: " + str(continuous["end"]),
+        "  row_count: " + str(continuous["row_count"]),
+        "  calendar_days: " + str(continuous["calendar_days"]),
         "suggested_initial_splits:",
     ]
     for split_name, split in splits.items():
@@ -339,6 +372,8 @@ def write_clean_period_registry(payload: dict[str, object], json_path: Path, win
                 "    start: " + str(split["start"]),
                 "    end: " + str(split["end"]),
                 "    row_count: " + str(split["row_count"]),
+                "    suspicious_gap_count: " + str(split["suspicious_gap_count"]),
+                "    large_suspicious_gap_count: " + str(split["large_suspicious_gap_count"]),
             ]
         )
     lines.extend(

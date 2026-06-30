@@ -53,6 +53,7 @@ market_defaults:
   symbol: US100
   timeframe: M5
   base_frame: closed_m5_us100
+  broad_modeling_start: 2022-05-01
   practical_modeling_start: 2022-09-01
 
 research_mode:
@@ -88,10 +89,14 @@ data_state:
     duplicate_count: 0
   clean_period_candidate:
     registry: registries/clean_periods.yaml
-    start: 2024-06-03 01:00:00
-    end: 2025-10-24 23:55:00
-    row_count: 99102
-    policy: practical_clean_single_missing_m5_bar_tolerated
+    start: 2022-05-02 01:00:00
+    end: 2026-06-26 23:50:00
+    row_count: 293935
+    policy: broad_span_with_gap_audit
+    suspicious_gap_count: 15
+    large_suspicious_gap_count: 6
+    longest_practical_continuous_start: 2024-06-03 01:00:00
+    longest_practical_continuous_end: 2025-10-24 23:55:00
     split_frozen: false
 
 next_work:

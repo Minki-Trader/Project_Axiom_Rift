@@ -1,34 +1,49 @@
 schema: axiom_rift_clean_periods_v1
-created_at_utc: 2026-06-30T01:38:03Z
+created_at_utc: 2026-06-30T01:43:30Z
 source_base_frame: data/processed/datasets/us100_m5_base_frame.csv
 policy:
-  practical_start: 2022-09-01 00:00:00
+  broad_modeling_start: 2022-05-01 00:00:00
+  legacy_practical_start: 2022-09-01 00:00:00
   regular_gap_policy: daily_close_weekend_holiday_dst
   practical_windows_split_on_suspicious_missing_bars_gte: 2
   single_missing_m5_bar_tolerated: true
+  recommended_window_policy: broad_span_with_gap_audit
 observed:
-  first_time: 2022-09-01 01:00:00
+  first_time: 2022-05-02 01:00:00
   last_time: 2026-06-26 23:50:00
-  row_count: 269808
+  row_count: 293935
   suspicious_gap_count: 15
 recommended_modeling_window:
+  start: 2022-05-02 01:00:00
+  end: 2026-06-26 23:50:00
+  row_count: 293935
+  calendar_days: 1516.951
+  suspicious_gap_count: 15
+  large_suspicious_gap_count: 6
+longest_practical_continuous_window:
   start: 2024-06-03 01:00:00
   end: 2025-10-24 23:55:00
   row_count: 99102
   calendar_days: 508.955
 suggested_initial_splits:
   train:
-    start: 2024-06-03 01:00:00
-    end: 2025-03-31 23:55:00
-    row_count: 58504
+    start: 2022-05-02 01:00:00
+    end: 2024-12-31 23:55:00
+    row_count: 188983
+    suspicious_gap_count: 9
+    large_suspicious_gap_count: 3
   validation:
-    start: 2025-04-01 01:00:00
-    end: 2025-07-31 23:55:00
-    row_count: 23822
+    start: 2025-01-02 01:00:00
+    end: 2025-09-30 23:55:00
+    row_count: 52808
+    suspicious_gap_count: 1
+    large_suspicious_gap_count: 0
   backtest:
-    start: 2025-08-01 01:00:00
-    end: 2025-10-24 23:55:00
-    row_count: 16776
+    start: 2025-10-01 01:00:00
+    end: 2026-06-26 23:50:00
+    row_count: 52144
+    suspicious_gap_count: 5
+    large_suspicious_gap_count: 3
 artifacts:
   clean_periods_json: data/processed/coverage_audits/us100_m5_clean_periods.json
   clean_windows_csv: data/processed/coverage_audits/us100_m5_clean_windows.csv
