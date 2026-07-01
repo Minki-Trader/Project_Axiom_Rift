@@ -106,12 +106,20 @@ Every campaign uses:
 - `runs/<run_id>/`
 - `selected.yaml`
 
-Frontier-extra campaigns may additionally use:
+Synthesis work units under `campaigns/SC0001_short_slug/` use:
+
+- `synthesis.yaml`
+- `ingredient_refs.yaml`
+- `synthesis_queue.yaml`
+- `runs/<synthesis_run_id>/`
+- `selected.yaml`
+
+Optional synthesis queue mirrors may use:
 
 - `ingredients.csv`
 - `ingredients.json`
-- `mix_queue.csv`
-- `mix_queue.json`
+- `synthesis_queue.csv`
+- `synthesis_queue.json`
 
 Do not put raw data in campaign folders.
 Do not dump run artifacts directly in a campaign root.

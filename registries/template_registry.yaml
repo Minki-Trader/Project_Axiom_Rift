@@ -1,0 +1,91 @@
+schema: axiom_rift_template_registry_v1
+status: draft_active
+encoding: ascii_only
+
+source_of_truth_scope: template_index_only
+no_active_truth_for_external_refs: true
+
+purpose: index repo-local Axiom templates for campaign, run, KPI, gate, artifact lineage, and synthesis work units
+
+template_root: campaigns/_templates
+
+template_sets:
+  campaign_base:
+    purpose: open a regular C campaign shell
+    required_templates:
+      - path: campaigns/_templates/campaign.yaml
+        role: campaign_manifest
+      - path: campaigns/_templates/inputs.yaml
+        role: campaign_inputs
+      - path: campaigns/_templates/selected.yaml
+        role: no_selection_boundary
+    governing_contracts:
+      - contracts/campaign_lifecycle.yaml
+      - contracts/work_unit_creation.yaml
+      - contracts/discovery_policy.yaml
+      - contracts/claims.yaml
+
+  run_base:
+    purpose: open a run under a C campaign or SR run under an SC synthesis work unit
+    required_templates:
+      - path: campaigns/_templates/run_manifest.json
+        role: run_manifest
+      - path: campaigns/_templates/gate_report.json
+        role: lightweight_decision_receipt
+      - path: campaigns/_templates/artifact_lineage.json
+        role: artifact_lineage
+    governing_contracts:
+      - contracts/campaign_lifecycle.yaml
+      - contracts/work_unit_creation.yaml
+      - contracts/artifact_lineage.yaml
+
+  kpi_base:
+    purpose: record run KPI evidence in three non-overwriting families
+    required_templates:
+      - path: campaigns/_templates/kpi/proxy.json
+        role: proxy_kpi
+      - path: campaigns/_templates/kpi/mt5.json
+        role: mt5_kpi
+      - path: campaigns/_templates/kpi/proxy_vs_mt5.json
+        role: proxy_vs_mt5_kpi
+    governing_contracts:
+      - contracts/kpi_ledger_contract.md
+      - contracts/campaign_lifecycle.yaml
+      - contracts/work_unit_creation.yaml
+
+  synthesis_base:
+    purpose: open a top-level SC synthesis work unit under campaigns/
+    required_templates:
+      - path: campaigns/_templates/synthesis.yaml
+        role: synthesis_manifest
+      - path: campaigns/_templates/ingredient_refs.yaml
+        role: synthesis_ingredient_refs
+      - path: campaigns/_templates/synthesis_queue.yaml
+        role: synthesis_queue
+      - path: campaigns/_templates/selected.yaml
+        role: no_selection_boundary
+    governing_contracts:
+      - contracts/campaign_lifecycle.yaml
+      - contracts/work_unit_creation.yaml
+      - contracts/claims.yaml
+
+usage_policy:
+  copy_templates_before_use: true
+  fill_placeholders_before_run_execution: true
+  do_not_edit_template_files_for_specific_campaign_values: true
+  do_not_create_runtime_or_live_claims_from_templates: true
+  do_not_treat_templates_as_completed_evidence: true
+
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

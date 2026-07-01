@@ -1,0 +1,29 @@
+schema: axiom_rift_synthesis_queue_template_v1
+template: true
+status: draft
+
+synthesis_id: SC0000
+
+queue:
+  - synthesis_run_id: SR0000
+    status: draft
+    source_ingredient_ids: []
+    synthesis_variant_question: placeholder_synthesis_run_question
+    surfaces:
+      model: placeholder_model_surface
+      feature: placeholder_feature_surface
+      trade_logic: placeholder_trade_logic_surface
+      label: placeholder_label_surface
+    planned_outputs:
+      run_manifest: runs/SR0000/run_manifest.json
+      proxy_kpi: runs/SR0000/kpi/proxy.json
+      mt5_kpi: runs/SR0000/kpi/mt5.json
+      proxy_vs_mt5_kpi: runs/SR0000/kpi/proxy_vs_mt5.json
+      gate_report: runs/SR0000/gate_report.json
+      artifact_lineage: runs/SR0000/artifact_lineage.json
+
+claim_boundary:
+  claim_authority: false
+  selected: false
+  runtime_authority: false
+  live_ready: false

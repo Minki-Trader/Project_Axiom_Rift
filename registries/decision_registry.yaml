@@ -11,9 +11,29 @@ decisions:
     rationale:
       - campaign_names_match_research_iterations_better_than_stage_names
       - manifests_are_more_machine_friendly_than_narrative_stage_docs
-      - frontier_extra_mixing_can_be_modeled_as_campaign_inputs_and_queues
+      - synthesis_work_units_can_live_under_campaigns_root_without_reintroducing_stage_layout
     claim_boundary:
       runtime_authority: false
       live_ready: false
       label_selected: false
       feature_set_selected: false
+  - decision_id: dec_20260701_top_level_synthesis_units
+    created_local_date: 2026-07-01
+    status: active
+    decision: use_top_level_sc_synthesis_units_under_campaigns_root
+    refines:
+      - dec_20260630_developer_campaign_layout
+    rationale:
+      - synthesis_units_must_be_distinct_from_campaign_runs
+      - c_campaigns_hold_major_hypotheses
+      - sc_synthesis_units_open_from_accumulated_synthesis_readiness
+      - sc_units_must_not_be_nested_inside_c_campaign_folders
+      - c_and_sc_streams_are_independent
+      - sc_closeout_does_not_force_next_c
+      - sc_sequence_is_tracked_inside_synthesis_stream
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false

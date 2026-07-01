@@ -1,0 +1,68 @@
+schema: axiom_rift_bootstrap_vendor_sources_v1
+status: bootstrap_only
+encoding: ascii_only
+updated_local_date: 2026-07-01
+
+sources:
+  - repo_name: wshobson/agents
+    local_path_inspected: C:/Axiom_Bootstrap_Refs/wshobson-agents
+    local_path_status: not_found_on_current_machine
+    fallback_inspected: public_upstream_github_read_only
+    intended_use:
+      - Codex-compatible plugin and skill packaging patterns
+      - progressive disclosure for SKILL.md plus references
+      - skill cap and static validation ideas
+      - garden-style drift and quality checks
+      - Python, testing, security, data, ML, quant, and plugin-eval structure cues
+    excluded_surfaces:
+      - all-install workflows
+      - external memory integration
+      - MCP auto-wiring
+      - generic web, business, SEO, and marketing agents
+      - runtime model tier claims
+      - vendor marketplace as active truth
+    no_active_truth: true
+    no_script_execution: true
+    remove_after: axiom_native_skills_complete
+
+  - repo_name: automazeio/ccpm
+    local_path_inspected: C:/Axiom_Bootstrap_Refs/ccpm
+    local_path_status: not_found_on_current_machine
+    fallback_inspected: public_upstream_github_read_only
+    intended_use:
+      - PRD to epic to task decomposition ideas
+      - No Vibe Coding style spec traceability
+      - progress, status, blocked, and next reporting concepts
+      - file-based planning discipline
+    excluded_surfaces:
+      - GitHub Issues as Axiom source of truth
+      - "`.claude/prds` path assumptions"
+      - "`.claude/epics` path assumptions"
+      - GitHub sync
+      - worktree automation
+      - autonomous PR flow
+      - external scripts
+    no_active_truth: true
+    no_script_execution: true
+    remove_after: axiom_native_skills_complete
+
+  - repo_name: Wirasm/PRPs-agentic-eng
+    local_path_inspected: C:/Axiom_Bootstrap_Refs/PRPs-agentic-eng
+    local_path_status: not_found_on_current_machine
+    fallback_inspected: public_upstream_github_read_only
+    intended_use:
+      - PRP as requirements plus codebase intelligence plus runbook
+      - plan, implement, review, and validation-loop separation
+      - bounded scope and mandatory reading ideas
+      - codebase intelligence before implementation recommendations
+    excluded_surfaces:
+      - "`.claude/PRPs` path assumptions"
+      - autonomous PRP loop
+      - direct PR creation flow
+      - PR review posting
+      - external memory integration
+      - MCP assumptions
+      - runtime, model, ONNX, live, or promotion claims
+    no_active_truth: true
+    no_script_execution: true
+    remove_after: axiom_native_skills_complete

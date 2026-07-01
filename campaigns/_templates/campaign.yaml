@@ -1,0 +1,63 @@
+schema: axiom_rift_campaign_template_v1
+template: true
+status: draft
+
+campaign_id: C0000
+campaign_slug: placeholder_campaign_slug
+campaign_type: campaign
+opened_at_utc: null
+closed_at_utc: null
+
+hypothesis:
+  summary: placeholder_major_hypothesis
+  boundary: placeholder_hypothesis_boundary
+  not_in_scope:
+    - selected_claim
+    - runtime_authority
+    - live_readiness
+
+required_surfaces:
+  model:
+    status: variable
+    summary: placeholder_model_surface
+  feature:
+    status: variable
+    summary: placeholder_feature_surface
+  trade_logic:
+    status: variable
+    summary: placeholder_trade_logic_surface
+  label:
+    status: variable
+    summary: placeholder_label_surface
+
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs: []
+
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_checked
+  usable_ingredient_group_count: 0
+  readiness_notes: []
+
+closeout:
+  status: open
+  close_reason: null
+  evidence_paths: []
+  remaining_question: null
+
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

@@ -1,0 +1,30 @@
+{
+  "schema": "axiom_rift_artifact_lineage_template_v1",
+  "template": true,
+  "work_unit_id": "C0000",
+  "run_id": "R0000",
+  "lineage_id": "L0000",
+  "created_at_utc": null,
+  "artifact_records": [
+    {
+      "artifact_id": "A0000",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "repo_relative_path": "campaigns/C0000_placeholder/runs/R0000/kpi/proxy.json",
+      "sha256": null,
+      "produced_by": "placeholder",
+      "source_inputs": [],
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "claim_authority": false
+    }
+  ],
+  "deferred_with_reason": [],
+  "claim_boundary": {
+    "claim_authority": false,
+    "selected": false,
+    "runtime_authority": false,
+    "onnx_ready": false,
+    "live_ready": false
+  }
+}

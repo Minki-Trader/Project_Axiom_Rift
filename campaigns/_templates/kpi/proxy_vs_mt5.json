@@ -1,0 +1,51 @@
+{
+  "schema": "axiom_rift_proxy_vs_mt5_kpi_template_v1",
+  "template": true,
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "work_unit_id": "C0000",
+  "campaign_id": "C0000",
+  "synthesis_id_when_applicable": null,
+  "run_id": "R0000",
+  "parity_id": "P0000",
+  "proxy_id": "PX0000",
+  "mt5_probe_id": "MT50000",
+  "compared_period": {
+    "start": null,
+    "end": null
+  },
+  "required_kpis": {
+    "trade_count_delta": null,
+    "entry_time_match_rate": null,
+    "exit_time_match_rate": null,
+    "mechanical_parity_status": "not_checked",
+    "intent_parity_status": "not_checked",
+    "mismatch_count": null,
+    "mismatch_summary": null,
+    "repair_required": false,
+    "next_action": "fill_template_with_comparison_evidence"
+  },
+  "mechanical_checks": {
+    "sl_tp_point_unit_match": "not_checked",
+    "bid_ask_mid_basis_match": "not_checked",
+    "closed_bar_timestamp_match": "not_checked",
+    "spread_slippage_semantics_match": "not_checked",
+    "entry_exit_order_match": "not_checked",
+    "position_lifecycle_match": "not_checked"
+  },
+  "conditional_profiles": {
+    "trade_match_detail_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "cost_execution_profile": {
+      "applies": false,
+      "fields": {}
+    }
+  },
+  "deferred_with_reason": [],
+  "claim_boundary": {
+    "claim_authority": false,
+    "runtime_authority": false,
+    "live_ready": false
+  }
+}

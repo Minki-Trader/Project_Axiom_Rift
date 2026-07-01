@@ -1,0 +1,65 @@
+{
+  "schema": "axiom_rift_run_manifest_template_v1",
+  "template": true,
+  "status": "draft",
+  "work_unit_id": "C0000",
+  "run_id": "R0000",
+  "parent_type": "campaign",
+  "hypothesis_variant": {
+    "summary": "placeholder_run_variant",
+    "variant_boundary": "placeholder_why_this_is_not_repair_or_micro_tuning"
+  },
+  "surfaces": {
+    "model": {
+      "summary": "placeholder_model_surface",
+      "changed_from_campaign_default": false
+    },
+    "feature": {
+      "summary": "placeholder_feature_surface",
+      "changed_from_campaign_default": false
+    },
+    "trade_logic": {
+      "summary": "placeholder_trade_logic_surface",
+      "changed_from_campaign_default": false
+    },
+    "label": {
+      "summary": "placeholder_label_surface",
+      "changed_from_campaign_default": false
+    }
+  },
+  "proxy_plan": {
+    "required": true,
+    "kpi_path": "kpi/proxy.json",
+    "notes": []
+  },
+  "mt5_probe_plan": {
+    "required": true,
+    "kpi_path": "kpi/mt5.json",
+    "notes": []
+  },
+  "proxy_vs_mt5_plan": {
+    "required": true,
+    "kpi_path": "kpi/proxy_vs_mt5.json",
+    "notes": []
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "evidence_paths": {
+    "proxy_kpi": "kpi/proxy.json",
+    "mt5_kpi": "kpi/mt5.json",
+    "proxy_vs_mt5_kpi": "kpi/proxy_vs_mt5.json",
+    "gate_report": "gate_report.json",
+    "artifact_lineage": "artifact_lineage.json"
+  },
+  "claim_boundary": {
+    "claim_authority": false,
+    "selected": false,
+    "runtime_authority": false,
+    "onnx_ready": false,
+    "live_ready": false
+  }
+}

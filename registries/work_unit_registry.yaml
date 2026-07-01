@@ -1,0 +1,64 @@
+schema: axiom_rift_work_unit_registry_v1
+status: draft_active
+encoding: ascii_only
+
+source_of_truth_scope: work_unit_numbering_index
+no_active_truth_for_external_refs: true
+
+purpose: track Axiom C campaign and SC synthesis numbering without creating campaign completion, selected, runtime, promotion, ONNX, or live claims
+
+template_registry: registries/template_registry.yaml
+governing_contracts:
+  - contracts/campaign_lifecycle.yaml
+  - contracts/work_unit_preflight.yaml
+  - contracts/work_unit_creation.yaml
+  - contracts/claims.yaml
+
+streams:
+  campaign_stream:
+    id_prefix: C
+    role: major_hypothesis_discovery
+    next_id: C0001
+    active_work_unit: null
+    open_work_units: []
+    closed_work_units: []
+    numbering_policy:
+      width: 4
+      example: C0001
+      independent_from_synthesis_stream: true
+
+  synthesis_stream:
+    id_prefix: SC
+    role: accumulated_ingredient_synthesis
+    next_id: SC0001
+    active_work_unit: null
+    open_work_units: []
+    closed_work_units: []
+    numbering_policy:
+      width: 4
+      example: SC0001
+      independent_from_campaign_stream: true
+
+rules:
+  campaigns_root: campaigns/
+  campaign_folder_format: campaigns/C0001_short_slug
+  synthesis_folder_format: campaigns/SC0001_short_slug
+  sc_must_not_be_nested_inside_c_folder: true
+  c_stream_and_sc_stream_are_independent: true
+  registry_rows_are_indexes_only: true
+  templates_are_not_completed_evidence: true
+  external_refs_are_not_active_truth: true
+
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

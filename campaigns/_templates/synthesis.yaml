@@ -1,0 +1,38 @@
+schema: axiom_rift_synthesis_template_v1
+template: true
+status: draft
+
+synthesis_id: SC0000
+synthesis_slug: placeholder_synthesis_slug
+synthesis_level: synthesis_2
+opened_at_utc: null
+closed_at_utc: null
+
+synthesis_question:
+  summary: placeholder_synthesis_question
+  boundary: placeholder_synthesis_boundary
+
+source_campaign_ids: []
+readiness:
+  closed_campaign_count: 0
+  usable_ingredient_group_count: 0
+  required_surface_count: 0
+  has_mt5_or_proxy_vs_mt5_evidence: false
+  unresolved_mechanical_parity_as_main_blocker: false
+
+ingredient_refs_path: ingredient_refs.yaml
+synthesis_queue_path: synthesis_queue.yaml
+runs_root: runs/
+synthesis_run_id_format: SR0001
+
+stream_policy:
+  stream: synthesis
+  independent_from_campaign_stream: true
+  does_not_set_next_campaign_id: true
+
+claim_boundary:
+  claim_authority: false
+  selected: false
+  runtime_authority: false
+  onnx_ready: false
+  live_ready: false

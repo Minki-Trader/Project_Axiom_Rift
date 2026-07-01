@@ -1,0 +1,44 @@
+{
+  "schema": "axiom_rift_gate_report_template_v1",
+  "template": true,
+  "role": "lightweight_decision_receipt",
+  "work_unit_id": "C0000",
+  "run_id": "R0000",
+  "gate_report_id": "G0000",
+  "evidence_gate": {
+    "status": "not_checked",
+    "checks": {
+      "proxy_kpi_path_recorded": false,
+      "mt5_kpi_path_recorded": false,
+      "proxy_vs_mt5_kpi_path_recorded": false,
+      "artifact_lineage_path_recorded": false
+    }
+  },
+  "parity_gate": {
+    "status": "not_checked",
+    "mechanical_parity_status": "not_checked",
+    "intent_parity_status": "not_checked",
+    "repair_required": false,
+    "non_portable_status": "not_checked"
+  },
+  "claim_gate": {
+    "status": "not_checked",
+    "claim_authority": false,
+    "label_selected": false,
+    "feature_set_selected": false,
+    "model_selected": false,
+    "runtime_authority": false,
+    "live_ready": false
+  },
+  "decision": "defer_with_reason",
+  "next_action": "fill_template_with_run_evidence",
+  "evidence_paths": [],
+  "deferred_with_reason": [],
+  "must_not": [
+    "run_tests",
+    "recalculate_kpi",
+    "sync_registry",
+    "claim_selected",
+    "claim_runtime_authority"
+  ]
+}

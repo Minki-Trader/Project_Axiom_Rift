@@ -1,0 +1,149 @@
+schema: axiom_rift_work_unit_creation_contract_v1
+status: draft_active
+encoding: ascii_only
+
+purpose: define safe creation flow for C campaigns, SC synthesis work units, R runs, and SR synthesis runs from repo-local templates
+
+allowed_use:
+  - create new C campaign folders from campaigns/_templates
+  - create new SC synthesis folders from campaigns/_templates
+  - create R run folders under C campaign folders
+  - create SR run folders under SC synthesis folders
+  - update work_unit_registry numbering after files are created and syntax checked
+  - keep selected and runtime claim flags false during creation
+
+forbidden_use:
+  - create stage, scratch, notes, experiment, experiments, or scripts folders
+  - create SC folders inside C folders
+  - treat templates as completed evidence
+  - mark a campaign, synthesis work unit, run, or gate as complete at creation
+  - update claim_state as complete
+  - create selected label, selected feature set, selected model, runtime authority, ONNX, promotion, economics, or live readiness claims
+  - run data, model, MT5, ONNX, installer, MCP, GitHub issue, worktree, PR, or external memory automation during creation
+
+required_sources:
+  - registries/work_unit_registry.yaml
+  - registries/template_registry.yaml
+  - contracts/work_unit_preflight.yaml
+  - contracts/campaign_lifecycle.yaml
+  - contracts/claims.yaml
+
+preflight_required: true
+preflight_contract: contracts/work_unit_preflight.yaml
+
+creation_flows:
+  create_campaign:
+    id_source: registries/work_unit_registry.yaml:streams.campaign_stream.next_id
+    folder_format: campaigns/C0001_short_slug
+    template_set: campaign_base
+    required_files:
+      - campaign.yaml
+      - inputs.yaml
+      - selected.yaml
+    required_edits:
+      - replace_campaign_id
+      - replace_campaign_slug
+      - fill_hypothesis_summary
+      - fill_hypothesis_boundary
+      - preserve_selected_false
+      - preserve_claim_authority_false
+    registry_update_after_success:
+      - add_to_open_work_units
+      - set_active_work_unit_when_requested
+      - advance_campaign_stream_next_id
+
+  create_synthesis:
+    id_source: registries/work_unit_registry.yaml:streams.synthesis_stream.next_id
+    folder_format: campaigns/SC0001_short_slug
+    template_set: synthesis_base
+    required_files:
+      - synthesis.yaml
+      - ingredient_refs.yaml
+      - synthesis_queue.yaml
+      - selected.yaml
+    required_edits:
+      - replace_synthesis_id
+      - replace_synthesis_slug
+      - fill_synthesis_question
+      - record_source_campaign_ids
+      - preserve_selected_false
+      - preserve_claim_authority_false
+    registry_update_after_success:
+      - add_to_open_work_units
+      - set_active_work_unit_when_requested
+      - advance_synthesis_stream_next_id
+
+  create_campaign_run:
+    parent_required: campaigns/C0001_short_slug
+    run_id_format: R0001
+    folder_format: campaigns/C0001_short_slug/runs/R0001
+    template_sets:
+      - run_base
+      - kpi_base
+    required_files:
+      - run_manifest.json
+      - gate_report.json
+      - artifact_lineage.json
+      - kpi/proxy.json
+      - kpi/mt5.json
+      - kpi/proxy_vs_mt5.json
+    required_edits:
+      - replace_work_unit_id
+      - replace_run_id
+      - fill_hypothesis_variant
+      - declare_model_feature_trade_logic_label
+      - preserve_proxy_requires_mt5_pair
+      - preserve_claim_authority_false
+
+  create_synthesis_run:
+    parent_required: campaigns/SC0001_short_slug
+    run_id_format: SR0001
+    folder_format: campaigns/SC0001_short_slug/runs/SR0001
+    template_sets:
+      - run_base
+      - kpi_base
+    required_files:
+      - run_manifest.json
+      - gate_report.json
+      - artifact_lineage.json
+      - kpi/proxy.json
+      - kpi/mt5.json
+      - kpi/proxy_vs_mt5.json
+    required_edits:
+      - replace_work_unit_id
+      - replace_run_id
+      - record_source_ingredient_ids
+      - declare_model_feature_trade_logic_label
+      - preserve_proxy_requires_mt5_pair
+      - preserve_claim_authority_false
+
+validation_before_registry_update:
+  - required_files_exist
+  - yaml_or_json_syntax_ok
+  - active_files_ascii_only
+  - selected_false
+  - claim_authority_false
+  - no_runtime_authority_claim
+  - no_live_ready_claim
+  - no_onnx_ready_claim
+
+registry_policy:
+  registry_rows_are_indexes_only: true
+  advance_next_id_only_after_successful_creation: true
+  do_not_mark_closed_at_creation: true
+  do_not_write_run_registry_event_unless_supported_by_existing_convention: true
+  do_not_update_claim_state: true
+
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

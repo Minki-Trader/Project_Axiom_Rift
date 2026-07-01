@@ -1,0 +1,22 @@
+schema: axiom_rift_ingredient_refs_template_v1
+template: true
+status: draft
+
+synthesis_id: SC0000
+
+ingredient_groups: []
+
+blocked_ingredients: []
+
+deferred_with_reason: []
+
+rules:
+  unresolved_mechanical_parity_as_main_blocker_allowed: false
+  adjacent_tuning_as_ingredient_allowed: false
+  evidence_gap_disguised_as_ingredient_allowed: false
+
+claim_boundary:
+  claim_authority: false
+  selected: false
+  runtime_authority: false
+  live_ready: false

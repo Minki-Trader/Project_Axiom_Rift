@@ -1,0 +1,57 @@
+{
+  "schema": "axiom_rift_mt5_kpi_template_v1",
+  "template": true,
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "work_unit_id": "C0000",
+  "campaign_id": "C0000",
+  "synthesis_id_when_applicable": null,
+  "run_id": "R0000",
+  "mt5_probe_id": "MT50000",
+  "mt5_terminal_identity": null,
+  "mt5_symbol": "US100",
+  "mt5_timeframe": "M5",
+  "mt5_tester_model": null,
+  "mt5_date_start": null,
+  "mt5_date_end": null,
+  "mt5_report_paths": [],
+  "mt5_report_hashes": [],
+  "required_kpis": {
+    "mt5_trade_count": null,
+    "mt5_net_pnl": null,
+    "mt5_profit_factor": null,
+    "mt5_max_drawdown_percent": null,
+    "mt5_expectancy_per_entry": null,
+    "mt5_win_rate": null
+  },
+  "conditional_profiles": {
+    "trade_excursion_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "direction_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "stability_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "cost_execution_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "runtime_reproducibility_profile": {
+      "applies": false,
+      "fields": {}
+    }
+  },
+  "mt5_probe_status": "not_run",
+  "mt5_known_blockers": [],
+  "deferred_with_reason": [],
+  "claim_boundary": {
+    "claim_authority": false,
+    "runtime_probe_completed": false,
+    "runtime_authority": false,
+    "live_ready": false
+  }
+}

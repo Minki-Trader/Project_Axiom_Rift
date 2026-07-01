@@ -19,7 +19,7 @@ encoding: ascii_only
 
 This repository uses developer-style campaign manifests instead of narrative stages.
 
-- `campaigns/`: reproducible research campaigns and frontier-extra mixing campaigns
+- `campaigns/`: reproducible research campaigns and top-level synthesis work units
 - `src/axiom_rift/`: reusable code
 - `contracts/`: active interfaces and claim rules
 - `configs/`: environment, market, and runtime settings
