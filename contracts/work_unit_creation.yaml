@@ -24,6 +24,7 @@ forbidden_use:
 required_sources:
   - registries/work_unit_registry.yaml
   - registries/template_registry.yaml
+  - registries/decision_registry.yaml
   - contracts/work_unit_preflight.yaml
   - contracts/campaign_lifecycle.yaml
   - contracts/claims.yaml
@@ -93,6 +94,7 @@ creation_flows:
       - fill_hypothesis_variant
       - declare_model_feature_trade_logic_label
       - preserve_proxy_requires_mt5_pair
+      - preserve_proxy_only_scout_disallowed
       - preserve_claim_authority_false
 
   create_synthesis_run:
@@ -115,17 +117,21 @@ creation_flows:
       - record_source_ingredient_ids
       - declare_model_feature_trade_logic_label
       - preserve_proxy_requires_mt5_pair
+      - preserve_proxy_only_scout_disallowed
       - preserve_claim_authority_false
 
 validation_before_registry_update:
   - required_files_exist
   - yaml_or_json_syntax_ok
   - active_files_ascii_only
+  - template_required_fields_match_governing_contracts
   - selected_false
   - claim_authority_false
   - no_runtime_authority_claim
   - no_live_ready_claim
   - no_onnx_ready_claim
+  - proxy_only_scout_disallowed
+  - proxy_mt5_and_proxy_vs_mt5_templates_present
 
 registry_policy:
   registry_rows_are_indexes_only: true

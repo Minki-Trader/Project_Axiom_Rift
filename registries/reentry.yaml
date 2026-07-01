@@ -1,5 +1,5 @@
 schema: axiom_rift_reentry_v2
-updated_local_date: 2026-06-30
+updated_local_date: 2026-07-01
 
 read_budget:
   boot_files:
@@ -34,6 +34,7 @@ active_truth:
   contracts_complete: false
   runtime_config_complete: false
   skills_complete: false
+  bootstrap_skills_role: temporary_planning_aids_not_complete_official_skills
   archive_is_active_truth: false
 
 archive:
@@ -61,6 +62,8 @@ research_mode:
   feature_policy: autonomous_discovery_until_explicit_freeze
   prior_fpmarkets_v2_label: archived_reference_not_selection
   prior_fpmarkets_v2_feature_set: archived_reference_not_selection
+  proxy_only_scout_allowed: false
+  run_validation_policy: proxy_mt5_and_proxy_vs_mt5_required_before_run_closeout
 
 claim_boundary:
   label_selected: false
@@ -122,9 +125,15 @@ next_work:
     - build_us100_m5_base_frame
     - derive_us100_m5_clean_period_candidate
     - adopt_rolling_window_split_policy
+    - add_active_axiom_contract_drafts
+    - add_campaign_operating_skeleton
+    - align_campaign_contract_required_fields_with_templates
+    - adopt_mandatory_mt5_paired_run_validation
+    - clarify_bootstrap_skill_boundary
+    - tighten_work_unit_preflight_and_creation_checks
   tasks:
-    - draft_active_axiom_contract_plan
-    - define_first_discovery_campaign_manifest
+    - keep_c0001_campaign_creation_on_hold
+    - define_first_discovery_campaign_manifest_when_user_resumes_campaign_creation
   not_yet:
     - label_freeze
     - feature_set_freeze

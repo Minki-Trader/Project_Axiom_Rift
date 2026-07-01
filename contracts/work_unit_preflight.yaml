@@ -43,6 +43,7 @@ preflight_checks:
     - required_template_paths_exist
     - template_files_parse_as_yaml_or_json
     - template_files_ascii_only
+    - template_required_fields_match_governing_contracts
 
   claim_boundary:
     - selected_false
@@ -69,6 +70,11 @@ preflight_checks:
     - no_installer_execution
     - no_mcp_invocation
     - no_github_issue_or_pr_automation
+
+  run_policy:
+    - proxy_only_scout_allowed_false
+    - run_creation_templates_include_proxy_mt5_and_proxy_vs_mt5_kpi
+    - run_closeout_requires_proxy_mt5_and_proxy_vs_mt5_evidence
 
 preflight_results:
   allowed:

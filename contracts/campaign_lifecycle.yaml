@@ -196,9 +196,12 @@ stream_policy:
 
 run_policy:
   run_is_hypothesis_variant: true
+  proxy_only_scout_allowed: false
   proxy_requires_matching_mt5_probe: true
   proxy_kpi_is_not_screening_gate_for_mt5: true
   run_completion_requires_proxy_mt5_and_proxy_vs_mt5_kpi: true
+  run_may_close_without_mt5_pair: false
+  weak_proxy_result_may_skip_mt5_probe: false
   every_run_must_declare_all_surfaces:
     - model
     - feature

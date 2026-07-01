@@ -53,8 +53,13 @@ Archive role:
 - do not edit unless user explicitly asks
 - do not cite as active contract, config, skill, or agent
 
-Official Axiom skills do not exist yet. Legacy Obsidian skills may be inspected only when designing
-new ASCII-only Axiom skills.
+Official Axiom skills are not complete yet.
+
+Bootstrap-only Axiom skills may exist under `.agents/skills/` as temporary local planning aids.
+They are not evidence that `axiom_skills_complete` is true, and they must not create runtime,
+promotion, ONNX, or live-readiness claims.
+
+Legacy Obsidian skills may be inspected only when designing new ASCII-only Axiom skills.
 
 ## Research Mode
 

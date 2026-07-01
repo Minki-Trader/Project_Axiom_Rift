@@ -37,3 +37,38 @@ decisions:
       label_selected: false
       feature_set_selected: false
       model_selected: false
+  - decision_id: dec_20260701_mandatory_mt5_paired_run_validation
+    created_local_date: 2026-07-01
+    status: active
+    decision: disallow_proxy_only_scouts_and_require_mt5_paired_run_validation
+    refines:
+      - dec_20260630_developer_campaign_layout
+    rationale:
+      - every_run_must_have_proxy_mt5_and_proxy_vs_mt5_evidence_before_closeout
+      - weak_proxy_results_must_not_skip_mt5_probe_by_default
+      - proxy_evidence_is_not_enough_for_run_judgment
+      - mt5_probe_evidence_still_does_not_create_runtime_authority
+    claim_boundary:
+      runtime_probe_completed: false
+      economics_pass: false
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+  - decision_id: dec_20260701_bootstrap_skills_are_temporary
+    created_local_date: 2026-07-01
+    status: active
+    decision: treat_axiom_bootstrap_skills_as_temporary_planning_aids_not_complete_official_skills
+    rationale:
+      - bootstrap_skills_help_structure_campaign_and_prp_like_planning
+      - bootstrap_skills_do_not_make_axiom_skills_complete
+      - bootstrap_skills_must_not_create_runtime_promotion_onnx_or_live_claims
+      - replace_bootstrap_skills_after_native_axiom_skills_are_complete
+    claim_boundary:
+      axiom_skills_complete: false
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
