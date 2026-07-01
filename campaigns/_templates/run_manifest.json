@@ -5,6 +5,7 @@
   "work_unit_id": "C0000",
   "run_id": "R0000",
   "parent_type": "campaign",
+  "source_ingredient_ids": [],
   "hypothesis_variant": {
     "summary": "placeholder_run_variant",
     "variant_boundary": "placeholder_why_this_is_not_repair_or_micro_tuning"
@@ -48,6 +49,7 @@
     "mechanical_parity_repairs_count_toward_limit": false,
     "repair_records": []
   },
+  "gate_status": "not_checked",
   "evidence_paths": {
     "proxy_kpi": "kpi/proxy.json",
     "mt5_kpi": "kpi/mt5.json",

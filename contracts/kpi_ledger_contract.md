@@ -94,7 +94,8 @@ Every completed run must record these baseline fields across the three KPI famil
 - repair_required
 - next_action
 - evidence_paths
-- artifact_hashes
+- proxy_artifact_hashes
+- mt5_report_hashes
 - deferred_with_reason
 - claim_authority: false
 

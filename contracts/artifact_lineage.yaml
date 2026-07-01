@@ -29,7 +29,7 @@ required_fields:
     - artifact_records
     - deferred_with_reason
     - claim_boundary
-  artifact_record:
+  artifact_records_item:
     - artifact_id
     - artifact_role
     - artifact_type

@@ -28,10 +28,10 @@ required_fields:
     - campaign_id
     - campaign_slug
     - status
-    - hypothesis
-    - hypothesis_boundary
+    - hypothesis.summary
+    - hypothesis.boundary
     - required_surfaces
-    - opened_at
+    - opened_at_utc
     - claim_boundary
   synthesis:
     - synthesis_id
@@ -39,38 +39,37 @@ required_fields:
     - status
     - source_campaign_ids
     - synthesis_level
-    - synthesis_question
-    - ingredient_refs
+    - synthesis_question.summary
+    - synthesis_question.boundary
+    - ingredient_refs_path
     - synthesis_queue_path
-    - opened_after_campaign_id
+    - opened_at_utc
     - claim_boundary
   run:
+    - work_unit_id
+    - parent_type
     - run_id
-    - parent_campaign_id
     - status
-    - hypothesis_variant
-    - variant_boundary
+    - hypothesis_variant.summary
+    - hypothesis_variant.variant_boundary
     - surfaces
     - proxy_plan
-    - proxy_kpi_path
     - mt5_probe_plan
-    - mt5_kpi_path
-    - proxy_vs_mt5_kpi_path
+    - proxy_vs_mt5_plan
     - evidence_paths
-    - repair_count
+    - repair.hypothesis_repair_count
     - gate_status
     - claim_boundary
   synthesis_run:
-    - synthesis_run_id
-    - parent_synthesis_id
+    - work_unit_id
+    - parent_type
+    - run_id
     - status
     - source_ingredient_ids
     - surfaces
     - proxy_plan
-    - proxy_kpi_path
     - mt5_probe_plan
-    - mt5_kpi_path
-    - proxy_vs_mt5_kpi_path
+    - proxy_vs_mt5_plan
     - evidence_paths
     - gate_status
     - claim_boundary
@@ -92,7 +91,8 @@ required_fields:
     - evidence_paths
   gate_report:
     - gate_report_id
-    - parent_run_id
+    - work_unit_id
+    - run_id
     - evidence_gate
     - parity_gate
     - claim_gate
