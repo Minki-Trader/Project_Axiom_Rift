@@ -131,6 +131,7 @@ next_work:
     - adopt_mandatory_mt5_paired_run_validation
     - clarify_bootstrap_skill_boundary
     - tighten_work_unit_preflight_and_creation_checks
+    - add_work_unit_preflight_validator
   tasks:
     - keep_c0001_campaign_creation_on_hold
     - define_first_discovery_campaign_manifest_when_user_resumes_campaign_creation

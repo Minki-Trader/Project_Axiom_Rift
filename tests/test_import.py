@@ -16,6 +16,8 @@ class ImportTest(unittest.TestCase):
         self.assertIn("build-us100-base-frame", choices)
         self.assertIn("derive-us100-clean-periods", choices)
         self.assertIn("build-us100-rolling-windows", choices)
+        self.assertIn("validate-templates", choices)
+        self.assertIn("validate-work-unit", choices)
 
 
 if __name__ == "__main__":

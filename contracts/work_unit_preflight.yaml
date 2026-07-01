@@ -31,6 +31,12 @@ required_sources:
   - contracts/campaign_lifecycle.yaml
   - contracts/claims.yaml
 
+validation_commands:
+  local_powershell_templates: "$env:PYTHONPATH='src'; python -m axiom_rift.cli validate-templates"
+  local_powershell_work_unit: "$env:PYTHONPATH='src'; python -m axiom_rift.cli validate-work-unit campaigns/C0001_short_slug"
+  installed_console_templates: axiom-rift validate-templates
+  installed_console_work_unit: axiom-rift validate-work-unit campaigns/C0001_short_slug
+
 preflight_checks:
   numbering:
     - next_id_present

@@ -11,6 +11,7 @@ from .paths import CAMPAIGN_DIR, CONFIG_DIR, CONTRACT_DIR, PROJECT_ROOT, REGISTR
 from .pipelines.base_frame import build_us100_m5_base_frame
 from .pipelines.clean_periods import derive_clean_periods
 from .pipelines.rolling_windows import build_rolling_windows
+from .validation.work_units import result_json, validate_templates, validate_work_unit
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -24,6 +25,9 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("build-us100-base-frame", help="build US100 M5 base frame from raw CSV")
     subparsers.add_parser("derive-us100-clean-periods", help="derive clean period candidates")
     subparsers.add_parser("build-us100-rolling-windows", help="build rolling-window split registry")
+    subparsers.add_parser("validate-templates", help="validate campaign templates and contract alignment")
+    work_unit_parser = subparsers.add_parser("validate-work-unit", help="validate a generated campaign work unit")
+    work_unit_parser.add_argument("path", help="path such as campaigns/C0001_short_slug")
     return parser
 
 
@@ -74,6 +78,14 @@ def main(argv: list[str] | None = None) -> int:
         payload = build_rolling_windows()
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
+    if args.command == "validate-templates":
+        result = validate_templates()
+        print(result_json(result))
+        return 0 if result.ok else 1
+    if args.command == "validate-work-unit":
+        result = validate_work_unit(Path(args.path))
+        print(result_json(result))
+        return 0 if result.ok else 1
     parser.print_help()
     return 0
 
