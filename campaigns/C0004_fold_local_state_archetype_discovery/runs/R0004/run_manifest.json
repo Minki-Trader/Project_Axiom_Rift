@@ -1,0 +1,162 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false
+  },
+  "closed_at_utc": "2026-07-02T23:19:28Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "close_reason": "fold_isolated_tick_negative_no_candidate",
+    "closed_at_utc": "2026-07-02T23:19:28Z",
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "hypothesis_tested": "fold-local train-only temporal-stability state archetype membership with abstention-first US100 M5 schedule replay",
+      "next_boundary": "next work must change to a new major hypothesis outside C0004; do not retry R0004 by nudging temporal segment count, minimum segment archetype count, stable segment count, top archetype count, daily max entries, stop, target, hold, or session thresholds",
+      "reason_not_candidate": "fold-isolated MT5 tick evidence completed with 8 losing folds, 1 profitable fold, negative total tick net PnL, and negative proxy plus MT5 tick profitability despite target-range entry frequency",
+      "supporting_lessons": [
+        {
+          "asset_type": "execution_divergence_lesson",
+          "summary": "Closed-bar schedule replay parity passed, while tick execution worsened total net PnL by 11.36 versus logic and changed total trade count by -3; tick execution remains the economic surface."
+        },
+        {
+          "asset_type": "negative_memory",
+          "summary": "Train-window temporal-stability archetype eligibility achieved 5.591379 entries per active day but did not fix fold instability or negative economics."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "entries_per_active_day": 5.591379,
+      "execution_divergence_by_fold_status": "completed",
+      "logic_parity_status": "passed",
+      "losing_fold_count": 8,
+      "profitable_fold_count": 1,
+      "proxy_net_pnl_points": -3841.25,
+      "proxy_profit_factor": 0.89026,
+      "proxy_trade_count": 3243,
+      "tick_better_fold_count": 2,
+      "tick_worse_fold_count": 7,
+      "total_tick_net_pnl": -40.42,
+      "total_tick_trade_count": 3240,
+      "worst_fold_id": "rw_006",
+      "worst_fold_net_pnl": -11.43
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0004_r0004_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0004_r0004_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "temporal_stability_archetype_summary": "artifacts/c0004_r0004_temporal_stability_archetype_summary.json"
+  },
+  "fixed_surfaces": {
+    "base_frame": "US100 closed M5 bars",
+    "commission_per_trade": 0,
+    "early_sizing": "fixed_lot",
+    "market": "FPMarkets US100 M5",
+    "proxy_is_screening_gate_for_mt5": false,
+    "split_policy": "rolling_window",
+    "synthetic_commission_allowed": false
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "test whether fold-local state archetypes become more useful when archetype eligibility requires train-window temporal stability across chronological subsegments instead of aggregate train edge alone",
+    "variant_boundary": "fourth C0004 true variant; changes the model fit and score interpretation from aggregate train-fold archetype edge, path-quality filtering, or adverse inversion to train-window temporal stability; not a label-weight, top-count, min-count, daily-entry, stop, target, hold, session, or retry nudge from R0001 through R0003"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_temporal_stability_archetype_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "notes": [
+      "closed-bar MT5 mode is required for proxy-vs-EA logic parity",
+      "tick-mode MT5 is required for execution KPI management",
+      "fold-isolated MT5 tick and execution divergence are required before closeout",
+      "weak proxy evidence cannot skip MT5 validation"
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-02T22:21:10Z",
+  "parent_type": "campaign",
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy must fit temporal-stability archetype rules only inside each rolling train window",
+      "proxy result cannot decide whether MT5 validation is attempted",
+      "proxy must report stability diagnostics without creating selected claims"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [
+      "mechanical parity must compare scheduled entries, directions, exits, exit reasons, and position lifecycle behavior",
+      "tick-vs-closed-bar differences are execution divergence, not automatic logic failure",
+      "repair mechanical parity before any hypothesis judgment when mismatch is found"
+    ],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0004",
+  "schema": "axiom_rift_run_manifest_v1",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "closed-bar state archetype features for volatility, trend, compression, range position, body, and session; no feature set is selected"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "directional forward target-before-stop plus path-quality labels used only inside train folds to score temporal stability; no label is selected"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "train-fold-local temporal-stability archetype model requiring evidence across chronological train subsegments; no model family or objective is selected"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "fixed-lot discovery schedule enters only temporally stable fold-local archetypes with abstention-first daily selection, then uses schedule replay for MT5 validation"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0004"
+}
