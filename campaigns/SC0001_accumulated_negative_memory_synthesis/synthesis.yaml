@@ -1,12 +1,12 @@
 schema: axiom_rift_synthesis_v1
 template: false
-status: open
+status: closed_no_candidate
 
 synthesis_id: SC0001
 synthesis_slug: accumulated_negative_memory_synthesis
 synthesis_level: synthesis_3
 opened_at_utc: 2026-07-02T17:25:24Z
-closed_at_utc: null
+closed_at_utc: 2026-07-02T18:44:49Z
 
 synthesis_question:
   summary: synthesize accumulated negative memory, parity lessons, and execution divergence from C0001 through C0003 before choosing the next non-adjacent campaign or synthesis-run hypothesis
@@ -37,14 +37,30 @@ run_index:
     - runs/SR0001
   next_run_candidate:
     run_id: null
-    direction: decide_sr0002_or_close_synthesis_after_sr0001
-    reason: SR0001 closed no candidate after completed fold-isolated MT5 tick evidence; remaining SC0001 work must be a meaningful non-adjacent synthesis-run hypothesis or a synthesis closeout, not an adjacent parameter retry.
-    status: pending_decision
+    direction: none_synthesis_closed
+    reason: SR0001 closed no candidate after completed fold-isolated MT5 tick evidence; remaining SC0001 work would be another negative-memory remix without a new edge surface, so campaign stream should continue with a new major hypothesis.
+    status: none_synthesis_closed
 
 stream_policy:
   stream: synthesis
   independent_from_campaign_stream: true
   does_not_set_next_campaign_id: true
+
+closeout:
+  status: closed_no_candidate
+  close_reason: sr0001_invalidated_negative_memory_constraint_replay_as_candidate_source
+  closed_at_utc: 2026-07-02T18:44:49Z
+  evidence_paths:
+    - runs/SR0001/run_manifest.json
+    - runs/SR0001/gate_report.json
+    - runs/SR0001/kpi/mt5_tick_by_fold.json
+    - runs/SR0001/kpi/execution_divergence_by_fold.json
+  remaining_question: open_c0004_fold_local_state_archetype_discovery
+  synthesis_lessons:
+    - sr0001_fold_isolated_tick_total_net_pnl_was_negative
+    - sr0001_had_eight_losing_folds_and_one_profitable_fold
+    - proxy_activity_was_below_target_frequency
+    - negative_memory_constraints_without_a_new_edge_surface_should_not_be_retried_as_sr0002
 
 must_not:
   - create_selected_claim

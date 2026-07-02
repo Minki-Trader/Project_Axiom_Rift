@@ -18,9 +18,10 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0004
-    active_work_unit: null
-    open_work_units: []
+    next_id: C0005
+    active_work_unit: campaigns/C0004_fold_local_state_archetype_discovery
+    open_work_units:
+      - campaigns/C0004_fold_local_state_archetype_discovery
     closed_work_units:
       - campaigns/C0001_regime_response_discovery
       - campaigns/C0002_score_conditioned_intraday_edge
@@ -34,10 +35,10 @@ streams:
     id_prefix: SC
     role: accumulated_ingredient_synthesis
     next_id: SC0002
-    active_work_unit: campaigns/SC0001_accumulated_negative_memory_synthesis
-    open_work_units:
+    active_work_unit: null
+    open_work_units: []
+    closed_work_units:
       - campaigns/SC0001_accumulated_negative_memory_synthesis
-    closed_work_units: []
     numbering_policy:
       width: 4
       example: SC0001

@@ -5,21 +5,6 @@ status: none
 selected: false
 selected_reason: null
 
-last_gate_result:
-  run_id: SR0001
-  status: closed_no_candidate
-  decision: close_no_candidate
-  evidence_paths:
-    - runs/SR0001/run_manifest.json
-    - runs/SR0001/gate_report.json
-  claim_authority: false
-
-synthesis_closeout:
-  status: closed_no_candidate
-  remaining_question: open_c0004_fold_local_state_archetype_discovery
-  selected: false
-  claim_authority: false
-
 surfaces:
   label_selected: false
   feature_set_selected: false
@@ -41,7 +26,6 @@ claim_boundary:
     - evidence
     - candidate_evidence
     - gate_result
-    - synthesis_ingredient_refs
   must_not_assert:
     - selected_model
     - selected_feature_set

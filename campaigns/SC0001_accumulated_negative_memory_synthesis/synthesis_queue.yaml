@@ -1,6 +1,6 @@
 schema: axiom_rift_synthesis_queue_v1
 template: false
-status: open
+status: closed_no_candidate
 synthesis_id: SC0001
 queue:
 - synthesis_run_id: SR0001
@@ -42,7 +42,7 @@ queue:
     - runs/SR0001/kpi/mt5_tick_by_fold.json
     - runs/SR0001/kpi/execution_divergence_by_fold.json
   last_completed_step: close_sc0001_sr0001_no_candidate
-  next_action: decide_sc0001_sr0002_or_close_synthesis_after_sr0001
+  next_action: open_c0004_fold_local_state_archetype_discovery
 claim_boundary:
   claim_authority: false
   selected: false

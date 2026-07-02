@@ -6,8 +6,8 @@ read_budget:
   - registries/reentry.yaml
   - registries/claim_state.yaml
   conditional_files:
-    active_campaign: null
-    active_synthesis: campaigns/SC0001_accumulated_negative_memory_synthesis/synthesis.yaml
+    active_campaign: campaigns/C0004_fold_local_state_archetype_discovery/campaign.yaml
+    active_synthesis: null
     active_contracts: contracts/
     active_config: configs/
   skip_by_default:
@@ -21,8 +21,8 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: null
-  active_synthesis: campaigns/SC0001_accumulated_negative_memory_synthesis
+  active_campaign: campaigns/C0004_fold_local_state_archetype_discovery
+  active_synthesis: null
 active_truth:
   contracts_dir: contracts
   config_dir: configs
@@ -111,8 +111,8 @@ data_state:
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
 next_work:
-  campaign: null
-  synthesis: campaigns/SC0001_accumulated_negative_memory_synthesis
+  campaign: campaigns/C0004_fold_local_state_archetype_discovery
+  synthesis: null
   completed:
   - fresh_export_us100_m5_max_available
   - record_source_path_decision_fresh_export
@@ -302,8 +302,11 @@ next_work:
   - produce_sc0001_sr0001_fold_isolated_execution_divergence
   - review_sc0001_sr0001_tick_execution_kpi_and_closeout
   - close_sc0001_sr0001_no_candidate
-  tasks:
   - decide_sc0001_sr0002_or_close_synthesis_after_sr0001
+  - close_sc0001_no_candidate_after_sr0001
+  - open_c0004_fold_local_state_archetype_discovery
+  tasks:
+  - design_c0004_r0001_fold_local_state_archetype_entry_run
   not_yet:
   - label_freeze
   - feature_set_freeze
