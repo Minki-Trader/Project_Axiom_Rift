@@ -4,7 +4,7 @@ status: open
 synthesis_id: SC0001
 queue:
 - synthesis_run_id: SR0001
-  status: execution_divergence_done
+  status: fold_isolated_evidence_done
   opened_run_path: runs/SR0001/run_manifest.json
   source_ingredient_ids:
   - c0001_ig004_execution_and_parity_lesson
@@ -33,8 +33,8 @@ queue:
   - skip_mt5_after_proxy
   - create_selected_claim
   - create_runtime_or_onnx_claim
-  last_completed_step: record_sc0001_sr0001_execution_divergence
-  next_action: produce_sc0001_sr0001_fold_isolated_mt5_tick_kpi
+  last_completed_step: produce_sc0001_sr0001_fold_isolated_execution_divergence
+  next_action: review_sc0001_sr0001_tick_execution_kpi_and_closeout
 claim_boundary:
   claim_authority: false
   selected: false

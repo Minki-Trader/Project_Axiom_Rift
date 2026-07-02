@@ -118,6 +118,7 @@ from .mt5.sc0001_sr0001_probe import (
     record_sc0001_sr0001_execution_divergence,
     record_sc0001_sr0001_parity,
     run_sc0001_sr0001_logic_parity_workflow,
+    run_sc0001_sr0001_mt5_tick_by_fold_workflow,
     run_sc0001_sr0001_mt5_tick_workflow,
 )
 from .proxies.r0001_volatility_expansion import run_r0001_proxy
@@ -398,6 +399,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="run SC0001 SR0001 MT5 tick execution KPI workflow",
     )
     sc0001_sr0001_mt5_tick_parser.add_argument("--timeout-seconds", type=int, default=1800)
+    sc0001_sr0001_mt5_tick_by_fold_parser = subparsers.add_parser(
+        "run-sc0001-sr0001-mt5-tick-by-fold",
+        help="run SC0001 SR0001 fold-isolated MT5 tick KPI and divergence workflow",
+    )
+    sc0001_sr0001_mt5_tick_by_fold_parser.add_argument("--timeout-seconds", type=int, default=1800)
     parse_sc0001_sr0001_mt5_parser = subparsers.add_parser(
         "parse-sc0001-sr0001-mt5",
         help="parse existing SC0001 SR0001 MT5 output files",
@@ -827,6 +833,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "run-sc0001-sr0001-mt5-tick":
         payload = run_sc0001_sr0001_mt5_tick_workflow(timeout_seconds=args.timeout_seconds)
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if args.command == "run-sc0001-sr0001-mt5-tick-by-fold":
+        payload = run_sc0001_sr0001_mt5_tick_by_fold_workflow(timeout_seconds=args.timeout_seconds)
         print(json.dumps(payload, indent=2, sort_keys=True))
         return 0
     if args.command == "parse-sc0001-sr0001-mt5":
