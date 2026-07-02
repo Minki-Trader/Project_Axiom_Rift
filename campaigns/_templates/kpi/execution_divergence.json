@@ -1,0 +1,57 @@
+{
+  "schema": "axiom_rift_execution_divergence_kpi_template_v1",
+  "template": true,
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "work_unit_id": "C0000",
+  "campaign_id": "C0000",
+  "synthesis_id_when_applicable": null,
+  "run_id": "R0000",
+  "divergence_id": "ED0000",
+  "logic_mt5_kpi_path": "campaigns/C0000_placeholder/runs/R0000/kpi/mt5_logic_parity.json",
+  "tick_mt5_kpi_path": "campaigns/C0000_placeholder/runs/R0000/kpi/mt5_tick.json",
+  "required_kpis": {
+    "logic_trade_count": null,
+    "tick_trade_count": null,
+    "tick_minus_logic_trade_count": null,
+    "logic_net_pnl": null,
+    "tick_net_pnl": null,
+    "tick_minus_logic_net_pnl": null,
+    "logic_max_drawdown_percent": null,
+    "tick_max_drawdown_percent": null,
+    "tick_minus_logic_max_drawdown_percent": null,
+    "entry_key_match_rate": null,
+    "exit_time_direction_match_rate": null,
+    "exit_reason_match_rate": null,
+    "execution_divergence_status": "not_checked",
+    "economics_shift_status": "not_checked"
+  },
+  "conditional_profiles": {
+    "entry_divergence_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "exit_divergence_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "run_closeout_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "score_model_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "spread_slippage_stress_profile": {
+      "applies": false,
+      "fields": {}
+    }
+  },
+  "missing_required_kpi_fields": [],
+  "deferred_with_reason": [],
+  "claim_boundary": {
+    "claim_authority": false,
+    "runtime_authority": false,
+    "live_ready": false
+  }
+}

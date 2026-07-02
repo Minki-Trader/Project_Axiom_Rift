@@ -1,0 +1,154 @@
+{
+  "campaign_id": "C0001",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false
+  },
+  "compared_period": {
+    "end": "2026-04-30",
+    "start": "2024-02-01"
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "commission_assumption": "broker_native",
+        "execution_source": "mt5_strategy_tester",
+        "slippage_source": "mt5_strategy_tester",
+        "spread_source": "mt5_strategy_tester"
+      }
+    },
+    "session_gap_exception_profile": {
+      "applies": true,
+      "blocking_condition": "",
+      "claim_boundary": {
+        "claim_authority": false,
+        "live_ready": false,
+        "runtime_authority": false
+      },
+      "exception_type": "session_gap_tick_availability",
+      "mismatch_samples": {
+        "mt5_only_entries": [],
+        "mt5_only_exits": [
+          {
+            "direction": -1,
+            "exit_time": "2025-03-12 00:55:00",
+            "reason": "target"
+          }
+        ],
+        "proxy_only_entries": [
+          {
+            "direction": -1,
+            "entry_time": "2025-03-12 00:00:00"
+          }
+        ],
+        "proxy_only_exits": [
+          {
+            "direction": -1,
+            "exit_time": "2025-03-11 23:55:00",
+            "reason": "target"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2025-03-12 00:10:00",
+            "reason": "stop"
+          }
+        ]
+      },
+      "reason": "single MT5 tester session-gap tick-availability case shifts one short trade exit from proxy 23:55/00:10 handling to MT5 00:55 handling",
+      "revisit_when": "if R0004 remains useful after tick execution evidence"
+    },
+    "trade_match_detail_profile": {
+      "applies": true,
+      "fields": {
+        "entry_mismatch_samples": [
+          {
+            "direction": -1,
+            "entry_time": "2025-03-12 00:00:00",
+            "side": "proxy_only"
+          }
+        ],
+        "entry_sequence_direction_match_rate": 0.778232,
+        "entry_sequence_time_match_rate": 0.486037,
+        "exit_mismatch_samples": [
+          {
+            "direction": -1,
+            "exit_time": "2025-03-11 23:55:00",
+            "reason": "target",
+            "side": "proxy_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2025-03-12 00:10:00",
+            "reason": "stop",
+            "side": "proxy_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2025-03-12 00:55:00",
+            "reason": "target",
+            "side": "mt5_only"
+          }
+        ],
+        "exit_sequence_reason_match_rate": 0.752895,
+        "exit_sequence_time_match_rate": 0.485901,
+        "mt5_entry_event_count": 7340,
+        "mt5_exit_event_count": 7340,
+        "mt5_trade_count": 7340,
+        "proxy_trade_count": 7341
+      }
+    }
+  },
+  "created_at_utc": "2026-07-02T05:50:45Z",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "entry and exit counts plus entry and exit timestamps must align before detailed price semantics can be trusted",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "sl_tp_point_unit_match,bid_ask_mid_basis_match,spread_slippage_semantics_match",
+      "reason": "detailed trade-by-trade price matching requires repaired count and timestamp sequence parity first",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "after mechanical parity repair or after sequence parity passes"
+    }
+  ],
+  "mechanical_checks": {
+    "bid_ask_mid_basis_match": "not_checked",
+    "closed_bar_timestamp_match": "passed_with_session_gap_exception",
+    "entry_direction_order_match": "passed_with_session_gap_exception",
+    "entry_exit_order_match": "passed_with_session_gap_exception",
+    "exit_reason_order_match": "passed_with_session_gap_exception",
+    "position_lifecycle_match": "passed",
+    "sl_tp_point_unit_match": "not_checked",
+    "spread_slippage_semantics_match": "not_checked"
+  },
+  "mt5_kpi_family": "mt5_logic_parity",
+  "mt5_probe_id": "MT50004",
+  "parity_id": "P0004",
+  "parity_mode": "logic_parity",
+  "proxy_id": "PX0004",
+  "required_kpis": {
+    "entry_count_delta": -1,
+    "entry_direction_match_rate": 0.999864,
+    "entry_key_match_rate": 0.999864,
+    "entry_time_match_rate": 0.999864,
+    "exit_count_delta": -1,
+    "exit_reason_match_rate": 0.999728,
+    "exit_time_direction_match_rate": 0.999728,
+    "exit_time_match_rate": 0.999728,
+    "intent_parity_status": "passed",
+    "mechanical_parity_status": "passed_with_session_gap_exception",
+    "mismatch_count": 6,
+    "mismatch_summary": "entry_key_match=0.999864 exit_time_direction_match=0.999728 exit_reason_match=0.999728 proxy_trades=7341 mt5_trades=7340",
+    "next_action": "review_intent_parity_and_close_or_repair",
+    "repair_required": false,
+    "trade_count_delta": -1
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0004",
+  "schema": "axiom_rift_proxy_vs_mt5_logic_parity_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0001"
+}

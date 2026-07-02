@@ -1,0 +1,143 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "runtime_authority": false,
+    "selected": false
+  },
+  "closeout": {
+    "claim_boundary": {
+      "claim_authority": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "close_reason": "no_candidate_fold_isolated_tick_economics_negative_all_folds",
+    "closed_at_utc": "2026-07-02T04:55:15Z",
+    "decision_basis": {
+      "completed_fold_count": 9,
+      "fold_count": 9,
+      "intent_parity_status": "passed",
+      "mechanical_parity_status": "passed",
+      "minimum_exit_reason_match_rate": 0.853333,
+      "minimum_exit_time_direction_match_rate": 0.893333,
+      "missing_required_fold_count": 0,
+      "tick_losing_fold_count": 9,
+      "tick_minus_logic_net_pnl": 2.11,
+      "tick_profitable_fold_count": 0,
+      "tick_total_net_pnl": -27.68,
+      "tick_total_trade_count": 1507,
+      "tick_worse_than_logic_fold_count": 5,
+      "worst_tick_fold_id": "rw_005",
+      "worst_tick_fold_net_pnl": -8.5
+    },
+    "evidence_paths": [
+      "kpi/proxy.json",
+      "kpi/mt5_logic_parity.json",
+      "kpi/proxy_vs_mt5_logic_parity.json",
+      "kpi/mt5_tick.json",
+      "kpi/execution_divergence.json",
+      "kpi/mt5_tick_by_fold.json",
+      "kpi/execution_divergence_by_fold.json",
+      "gate_report.json",
+      "artifact_lineage.json"
+    ],
+    "remaining_question": "decide_whether_to_open_r0004_or_pause_for_synthesis_after_three_negative_response_shapes",
+    "repair_assessment": {
+      "hypothesis_repair_count": 0,
+      "reason": "mechanical_parity_passed_but_fold_isolated_tick_economics_were_negative_in_all_folds",
+      "repair_path": "not_recommended"
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "test whether US100 M5 expansion breakouts that close back inside the prior breakout level produce repeatable failed-breakout reversal behavior across rolling windows",
+    "variant_boundary": "new response-shape run that requires breakout-level reclaim confirmation before reversal entry; not an R0002 repair because the signal definition changes from shallow pullback reversal to failed-breakout reclaim reversal before evidence is gathered"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_vs_ea_logic_parity_only",
+    "notes": [
+      "MT5 probe is mandatory even if proxy evidence is weak",
+      "logic parity uses closed-bar exit evaluation",
+      "tick execution KPI uses tick-price exit evaluation",
+      "MT5 probe is evidence only and does not create runtime authority"
+    ],
+    "required": true,
+    "tick_execution_purpose": "execution_kpi_only",
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "parent_type": "campaign",
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy must run on closed M5 bars only",
+      "proxy direction must reverse the expansion direction only after breakout-level reclaim confirmation",
+      "proxy result cannot close or judge the run without matching MT5 and proxy-vs-MT5 evidence"
+    ],
+    "required": true
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [
+      "compare proxy and MT5 mechanics before judging the hypothesis",
+      "repair mechanical parity before any intent judgment when mismatch is found"
+    ],
+    "required": true,
+    "tick_mode_policy": "record_execution_divergence_not_proxy_parity_failure"
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0003",
+  "schema": "axiom_rift_run_manifest_v1",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "closed-bar expansion, prior breakout level, reclaim close, recent range context, and session context remain exploration variables"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "candidate label treats failed breakout and reclaim into reversal as the tested response after expansion"
+    },
+    "model": {
+      "changed_from_campaign_default": false,
+      "summary": "use lightweight interpretable proxy logic first; model family remains variable and unselected"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "detect volatility expansion through a prior high or low, require a later close back inside that breakout level, then enter opposite the expansion direction"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0001"
+}

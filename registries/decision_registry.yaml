@@ -44,7 +44,7 @@ decisions:
     refines:
       - dec_20260630_developer_campaign_layout
     rationale:
-      - every_run_must_have_proxy_mt5_and_proxy_vs_mt5_evidence_before_closeout
+      - every_run_must_have_explicit_mt5_logic_tick_and_divergence_evidence_before_closeout
       - weak_proxy_results_must_not_skip_mt5_probe_by_default
       - proxy_evidence_is_not_enough_for_run_judgment
       - mt5_probe_evidence_still_does_not_create_runtime_authority
@@ -72,3 +72,130 @@ decisions:
       label_selected: false
       feature_set_selected: false
       model_selected: false
+  - decision_id: dec_20260702_close_c0001_no_candidate
+    created_local_date: 2026-07-02
+    status: active
+    decision: close_c0001_regime_response_discovery_no_candidate_after_r0001_to_r0007
+    rationale:
+      - all_seven_runs_closed_no_candidate_with_fold_isolated_mt5_tick_evidence
+      - every_run_total_fold_isolated_tick_net_pnl_was_negative
+      - positive_run_fold_cells_were_sparse_and_tiny
+      - remaining_work_inside_c0001_would_be_adjacent_tuning_or_a_new_major_campaign_hypothesis
+      - synthesis_readiness_remains_candidate_later_not_open_synthesis
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+  - decision_id: dec_20260702_goal_driven_operation_policy
+    created_local_date: 2026-07-02
+    status: active
+    decision: use_goal_operation_policy_and_operator_skill_for_short_goal_campaign_operation
+    refines:
+      - dec_20260701_mandatory_mt5_paired_run_validation
+      - dec_20260702_close_c0001_no_candidate
+    rationale:
+      - short_goal_prompts_need_a_stable_expansion_path_to_avoid_objective_drift
+      - top_level_project_target_must_remain_attached_to_campaign_operations
+      - failures_must_be_preserved_as_assets_not_hidden_as_missing_work
+      - proxy_results_must_not_become_scout_gates_that_skip_mt5
+      - closeout_must_be_evidence_based_and_fold_isolated_for_runs
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+      economics_pass: false
+  - decision_id: dec_20260702_broken_code_is_not_evidence
+    created_local_date: 2026-07-02
+    status: active
+    decision: disallow_record_and_quit_closeout_when_code_does_not_run
+    refines:
+      - dec_20260702_goal_driven_operation_policy
+    rationale:
+      - failed_code_execution_is_a_repair_or_blocker_surface_not_a_hypothesis_result
+      - missing_kpi_from_broken_code_must_not_be_counted_as_evidence
+      - failed_compile_parser_runner_or_mt5_config_must_be_triaged_repaired_and_rerun_when_in_scope
+      - blockers_require_root_cause_reproduction_command_failing_artifact_and_next_repair_step
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+      economics_pass: false
+  - decision_id: dec_20260702_goal_policy_discovery_and_sizing_guardrails
+    created_local_date: 2026-07-02
+    status: active
+    decision: preserve_unrestricted_discovery_and_defer_equity_sizing_in_goal_operation
+    refines:
+      - dec_20260702_goal_driven_operation_policy
+    rationale:
+      - short_goal_operation_must_not_accidentally_freeze_label_feature_model_objective_or_trade_shape
+      - feature_count_model_structure_ensembles_filters_and_score_surfaces_remain_exploration_variables
+      - early_fixed_lot_evaluation_preserves_signal_quality_comparison
+      - equity_percent_sizing_belongs_to_later_robustness_or_growth_validation_after_candidate_quality
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+      economics_pass: false
+  - decision_id: dec_20260702_run_closeout_requires_main_push
+    created_local_date: 2026-07-02
+    status: active
+    decision: require_each_run_closeout_to_be_committed_on_main_and_pushed_to_origin
+    refines:
+      - dec_20260702_goal_driven_operation_policy
+    rationale:
+      - run_closeout_evidence_should_not_remain_only_in_local_worktree
+      - short_goal_operation_needs_a_durable_remote_checkpoint_after_each_closed_run
+      - git_sync_must_preserve_unrelated_dirty_work_and_avoid_force_push_or_destructive_reset
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+      economics_pass: false
+  - decision_id: dec_20260702_open_c0002_score_conditioned_intraday_edge
+    created_local_date: 2026-07-02
+    status: active
+    decision: open_c0002_score_conditioned_intraday_edge_as_next_major_campaign
+    refines:
+      - dec_20260702_close_c0001_no_candidate
+      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+    rationale:
+      - c0001_closed_no_candidate_and_remaining_work_inside_c0001_would_be_adjacent_tuning
+      - c0001_synthesis_readiness_result_was_candidate_later_not_open_synthesis
+      - score_conditioned_candidate_selection_changes_the_major_axis_from_hand_built_regime_response_to_model_or_score_ranked_opportunity_quality
+      - campaign_open_preserves_unrestricted_label_feature_model_trade_logic_exploration_without_selected_claims
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+      economics_pass: false
+  - decision_id: dec_20260702_open_c0002_r0001_score_conditioned_candidate_selection
+    created_local_date: 2026-07-02
+    status: active
+    decision: open_r0001_score_conditioned_candidate_selection_variant_under_c0002
+    refines:
+      - dec_20260702_open_c0002_score_conditioned_intraday_edge
+      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+    rationale:
+      - first_c0002_run_must_define_a_true_variant_before_evidence_generation
+      - run_changes_all_required_surfaces_from_campaign_defaults_without_selecting_any_surface
+      - rolling_train_only_score_surface_tests_the_c0002_major_axis_without_reusing_c0001_deterministic_regime_response_as_a_micro_tune
+      - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+      economics_pass: false

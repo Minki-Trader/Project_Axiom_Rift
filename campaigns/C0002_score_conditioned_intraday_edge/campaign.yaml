@@ -1,0 +1,77 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: open_pending_next_run_decision
+campaign_id: C0002
+campaign_slug: score_conditioned_intraday_edge
+campaign_type: campaign
+opened_at_utc: 2026-07-02 10:53:23+00:00
+closed_at_utc: null
+hypothesis:
+  summary: discover whether US100 M5 contains repeatable conditional edge when candidate
+    trades are ranked or filtered by model or score surfaces instead of fixed deterministic
+    regime-response rules
+  boundary: use the existing closed M5 US100 base frame and rolling-window policy
+    to explore labels, features, model or score surfaces, and trade logic that rank
+    intraday opportunity quality; this is a new major hypothesis after C0001 because
+    it changes the selection mechanism from hand-built regime response variants to
+    evidence-trained or score-conditioned candidate selection
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+required_surfaces:
+  model:
+    status: variable
+    summary: unrestricted model and score-surface exploration; no model family, objective,
+      ensemble, or score threshold is selected
+  feature:
+    status: variable
+    summary: unrestricted feature exploration across closed-bar price context, session
+      context, volatility state, range structure, momentum, and allowed reproducible
+      external closed M5 inputs
+  trade_logic:
+    status: variable
+    summary: variable score-conditioned entry, filter, exit, and risk-shape logic
+      evaluated with fixed-lot discovery before any later equity-percent sizing
+  label:
+    status: variable
+    summary: variable forward outcome labels for excursion, adverse excursion, directional
+      asymmetry, rank quality, or path quality; no label selected
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: R0002
+    direction: new_score_conditioned_variant_or_campaign_close_review
+    reason: R0001 closed no candidate because all fold-isolated MT5 tick folds were
+      losing
+    status: candidate_pending_decision
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_checked
+  usable_ingredient_group_count: 0
+  readiness_notes:
+  - campaign_open_no_runs_yet
+  - c0001_synthesis_readiness_was_candidate_later_not_open_synthesis
+closeout:
+  status: open
+  close_reason: null
+  evidence_paths: []
+  remaining_question: decide_r0002_or_close_c0002_after_r0001
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

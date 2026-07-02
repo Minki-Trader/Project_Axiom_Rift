@@ -20,6 +20,20 @@ data/snapshots/**
 campaigns/*/runs/**
 !campaigns/*/runs/
 !campaigns/*/runs/.gitkeep
+!campaigns/*/runs/*/
+!campaigns/*/runs/*/run_manifest.json
+!campaigns/*/runs/*/gate_report.json
+!campaigns/*/runs/*/artifact_lineage.json
+!campaigns/*/runs/*/kpi/
+!campaigns/*/runs/*/kpi/proxy.json
+!campaigns/*/runs/*/kpi/mt5.json
+!campaigns/*/runs/*/kpi/proxy_vs_mt5.json
+!campaigns/*/runs/*/kpi/mt5_logic_parity.json
+!campaigns/*/runs/*/kpi/mt5_tick.json
+!campaigns/*/runs/*/kpi/mt5_tick_by_fold.json
+!campaigns/*/runs/*/kpi/proxy_vs_mt5_logic_parity.json
+!campaigns/*/runs/*/kpi/execution_divergence.json
+!campaigns/*/runs/*/kpi/execution_divergence_by_fold.json
 
 artifacts/**
 !artifacts/**/

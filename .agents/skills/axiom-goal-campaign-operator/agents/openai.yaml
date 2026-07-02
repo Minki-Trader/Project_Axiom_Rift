@@ -1,0 +1,4 @@
+interface:
+  display_name: "Axiom Goal Campaign Operator"
+  short_description: "Operate Axiom goals through campaign and MT5 evidence loops."
+  default_prompt: "Use the Axiom goal campaign operator to run the next project goal without drift."

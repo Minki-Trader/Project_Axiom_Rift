@@ -30,17 +30,25 @@
   },
   "proxy_plan": {
     "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false,
     "kpi_path": "kpi/proxy.json",
     "notes": []
   },
   "mt5_probe_plan": {
     "required": true,
-    "kpi_path": "kpi/mt5.json",
+    "required_even_when_proxy_is_weak": true,
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "tick_kpi_path": "kpi/mt5_tick.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
     "notes": []
   },
   "proxy_vs_mt5_plan": {
     "required": true,
-    "kpi_path": "kpi/proxy_vs_mt5.json",
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
     "notes": []
   },
   "repair": {
@@ -52,8 +60,12 @@
   "gate_status": "not_checked",
   "evidence_paths": {
     "proxy_kpi": "kpi/proxy.json",
-    "mt5_kpi": "kpi/mt5.json",
-    "proxy_vs_mt5_kpi": "kpi/proxy_vs_mt5.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
     "gate_report": "gate_report.json",
     "artifact_lineage": "artifact_lineage.json"
   },

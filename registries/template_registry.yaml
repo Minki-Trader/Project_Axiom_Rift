@@ -40,14 +40,18 @@ template_sets:
       - contracts/artifact_lineage.yaml
 
   kpi_base:
-    purpose: record run KPI evidence in three non-overwriting families
+    purpose: record run KPI evidence in explicit non-overwriting families
     required_templates:
       - path: campaigns/_templates/kpi/proxy.json
         role: proxy_kpi
-      - path: campaigns/_templates/kpi/mt5.json
-        role: mt5_kpi
-      - path: campaigns/_templates/kpi/proxy_vs_mt5.json
-        role: proxy_vs_mt5_kpi
+      - path: campaigns/_templates/kpi/mt5_logic_parity.json
+        role: mt5_logic_parity_kpi
+      - path: campaigns/_templates/kpi/mt5_tick.json
+        role: mt5_tick_kpi
+      - path: campaigns/_templates/kpi/proxy_vs_mt5_logic_parity.json
+        role: proxy_vs_mt5_logic_parity_kpi
+      - path: campaigns/_templates/kpi/execution_divergence.json
+        role: execution_divergence_kpi
     governing_contracts:
       - contracts/kpi_ledger_contract.md
       - contracts/campaign_lifecycle.yaml

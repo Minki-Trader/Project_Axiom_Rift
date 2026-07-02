@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from axiom_rift.mt5.terminal_hygiene import cleanup_headless_terminal, prepare_headless_terminal
 from axiom_rift.paths import DATA_DIR, PROJECT_ROOT, REGISTRY_DIR
 
 
@@ -163,19 +164,28 @@ def run_terminal_export(
 
     config_path = write_startup_config(symbol, timeframe)
     creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
-    proc = subprocess.Popen(
-        [str(terminal_exe), f"/config:{config_path}"],
-        cwd=str(PROJECT_ROOT),
-        creationflags=creationflags,
-    )
+    prepare_headless_terminal(terminal_data_dir())
+    proc = None
     try:
+        proc = subprocess.Popen(
+            [str(terminal_exe), f"/config:{config_path}"],
+            cwd=str(PROJECT_ROOT),
+            creationflags=creationflags,
+        )
         wait_for_file(terminal_status, timeout_seconds=timeout_seconds)
         wait_for_file(terminal_csv, timeout_seconds=timeout_seconds)
     finally:
-        try:
-            proc.wait(timeout=30)
-        except subprocess.TimeoutExpired:
-            proc.terminate()
+        if proc is not None:
+            try:
+                proc.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                proc.terminate()
+                try:
+                    proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=10)
+        cleanup_headless_terminal(terminal_data_dir())
 
     target_raw = raw_bar_dir() / terminal_csv.name
     raw_bar_dir().mkdir(parents=True, exist_ok=True)

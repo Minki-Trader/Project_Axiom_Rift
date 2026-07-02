@@ -52,18 +52,58 @@ class WorkUnitValidationTest(unittest.TestCase):
             codes = {issue.code for issue in result.issues}
             self.assertIn("template_sentinel_left", codes)
 
-    def test_generated_run_requires_mt5_kpi_file(self) -> None:
+    def test_generated_run_requires_mt5_logic_parity_kpi_file(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             campaign = make_campaign(root, leave_placeholder=False)
             make_run(campaign)
-            (campaign / "runs" / "R0001" / "kpi" / "mt5.json").unlink()
+            (campaign / "runs" / "R0001" / "kpi" / "mt5_logic_parity.json").unlink()
 
             result = validate_work_unit(campaign, root=root)
 
             self.assertFalse(result.ok)
             codes = {issue.code for issue in result.issues}
             self.assertIn("missing_required_file", codes)
+
+    def test_run_closeout_requires_fold_isolated_mt5_tick_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            campaign = make_campaign(root, leave_placeholder=False)
+            run = make_run(campaign)
+            manifest = load_json(run / "run_manifest.json")
+            manifest["status"] = "closed_no_candidate"
+            write_json(run / "run_manifest.json", manifest)
+            gate = load_json(run / "gate_report.json")
+            gate["decision"] = "close_no_candidate"
+            write_json(run / "gate_report.json", gate)
+
+            result = validate_work_unit(campaign, root=root)
+
+            self.assertFalse(result.ok)
+            codes = {issue.code for issue in result.issues}
+            self.assertIn("rolling_window_closeout_evidence_missing", codes)
+
+    def test_run_closeout_allows_complete_fold_isolated_exception(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            campaign = make_campaign(root, leave_placeholder=False)
+            run = make_run(campaign)
+            manifest = load_json(run / "run_manifest.json")
+            manifest["status"] = "closed_no_candidate"
+            write_json(run / "run_manifest.json", manifest)
+            gate = load_json(run / "gate_report.json")
+            gate["decision"] = "close_no_candidate"
+            gate["rolling_window_closeout_gate"]["fold_isolated_exception"] = {
+                "applies": True,
+                "reason": "unit test exception",
+                "blocking_condition": "fold isolated MT5 unavailable in unit test",
+                "revisit_when": "after runner support exists",
+            }
+            write_json(run / "gate_report.json", gate)
+
+            result = validate_work_unit(campaign, root=root)
+
+            self.assertTrue(result.ok, result.to_dict())
 
 
 def make_campaign(root: Path, leave_placeholder: bool) -> Path:
@@ -138,15 +178,23 @@ def make_run(campaign: Path) -> Path:
     proxy["proxy_engine"] = "unit_test_proxy"
     write_json(run / "kpi" / "proxy.json", proxy)
 
-    mt5 = load_json(template_root / "kpi" / "mt5.json")
-    mt5["template"] = False
-    mt5["work_unit_id"] = "C0001"
-    mt5["campaign_id"] = "C0001"
-    mt5["run_id"] = "R0001"
-    mt5["mt5_probe_id"] = "MT50001"
-    write_json(run / "kpi" / "mt5.json", mt5)
+    mt5_logic = load_json(template_root / "kpi" / "mt5_logic_parity.json")
+    mt5_logic["template"] = False
+    mt5_logic["work_unit_id"] = "C0001"
+    mt5_logic["campaign_id"] = "C0001"
+    mt5_logic["run_id"] = "R0001"
+    mt5_logic["mt5_probe_id"] = "MT50001"
+    write_json(run / "kpi" / "mt5_logic_parity.json", mt5_logic)
 
-    comparison = load_json(template_root / "kpi" / "proxy_vs_mt5.json")
+    mt5_tick = load_json(template_root / "kpi" / "mt5_tick.json")
+    mt5_tick["template"] = False
+    mt5_tick["work_unit_id"] = "C0001"
+    mt5_tick["campaign_id"] = "C0001"
+    mt5_tick["run_id"] = "R0001"
+    mt5_tick["mt5_probe_id"] = "MT50001"
+    write_json(run / "kpi" / "mt5_tick.json", mt5_tick)
+
+    comparison = load_json(template_root / "kpi" / "proxy_vs_mt5_logic_parity.json")
     comparison["template"] = False
     comparison["work_unit_id"] = "C0001"
     comparison["campaign_id"] = "C0001"
@@ -154,7 +202,19 @@ def make_run(campaign: Path) -> Path:
     comparison["parity_id"] = "P0001"
     comparison["proxy_id"] = "PX0001"
     comparison["mt5_probe_id"] = "MT50001"
-    write_json(run / "kpi" / "proxy_vs_mt5.json", comparison)
+    comparison["proxy_kpi_path"] = "campaigns/C0001_smoke/runs/R0001/kpi/proxy.json"
+    comparison["mt5_logic_parity_kpi_path"] = "campaigns/C0001_smoke/runs/R0001/kpi/mt5_logic_parity.json"
+    write_json(run / "kpi" / "proxy_vs_mt5_logic_parity.json", comparison)
+
+    divergence = load_json(template_root / "kpi" / "execution_divergence.json")
+    divergence["template"] = False
+    divergence["work_unit_id"] = "C0001"
+    divergence["campaign_id"] = "C0001"
+    divergence["run_id"] = "R0001"
+    divergence["divergence_id"] = "ED0001"
+    divergence["logic_mt5_kpi_path"] = "campaigns/C0001_smoke/runs/R0001/kpi/mt5_logic_parity.json"
+    divergence["tick_mt5_kpi_path"] = "campaigns/C0001_smoke/runs/R0001/kpi/mt5_tick.json"
+    write_json(run / "kpi" / "execution_divergence.json", divergence)
     return run
 
 

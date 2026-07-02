@@ -95,6 +95,7 @@ required_fields:
     - run_id
     - evidence_gate
     - parity_gate
+    - rolling_window_closeout_gate
     - claim_gate
     - decision
     - next_action
@@ -196,10 +197,14 @@ stream_policy:
 
 run_policy:
   run_is_hypothesis_variant: true
+  opened_run_commits_to_mt5_validation: true
   proxy_only_scout_allowed: false
   proxy_requires_matching_mt5_probe: true
   proxy_kpi_is_not_screening_gate_for_mt5: true
-  run_completion_requires_proxy_mt5_and_proxy_vs_mt5_kpi: true
+  proxy_result_may_stop_mt5_validation: false
+  run_completion_requires_explicit_mt5_evidence: true
+  run_closeout_requires_rolling_window_fold_isolated_mt5_tick: true
+  full_period_mt5_kpi_is_diagnostic_only_for_closeout: true
   run_may_close_without_mt5_pair: false
   weak_proxy_result_may_skip_mt5_probe: false
   every_run_must_declare_all_surfaces:
@@ -227,8 +232,8 @@ lifecycle:
     - proxy_diverse_probe
     - proxy_kpi_record
     - mt5_probe_attempt
-    - mt5_kpi_record
-    - proxy_vs_mt5_kpi_record
+    - explicit_mt5_kpi_record
+    - proxy_vs_mt5_logic_parity_record
     - mechanical_parity_check
     - mechanical_parity_repair_loop
     - intent_parity_check
@@ -270,10 +275,10 @@ lifecycle:
         - economics_pass
         - runtime_authority
         - live_ready
-    mt5_kpi_record:
-      purpose: record MT5 probe KPIs for the same run hypothesis
-    proxy_vs_mt5_kpi_record:
-      purpose: record comparison KPIs before parity judgment
+    explicit_mt5_kpi_record:
+      purpose: record MT5 logic parity and tick execution KPIs for the same run hypothesis
+    proxy_vs_mt5_logic_parity_record:
+      purpose: record closed-bar proxy-vs-MT5 logic parity KPIs before parity judgment
     mechanical_parity_check:
       purpose: confirm proxy and MT5 interpret the same rules the same way
     mechanical_parity_repair_loop:
@@ -388,8 +393,10 @@ gate_report_policy:
       purpose: confirm required evidence records exist
       checks:
         - proxy_kpi_path_recorded
-        - mt5_kpi_path_recorded
-        - proxy_vs_mt5_kpi_path_recorded
+        - mt5_logic_parity_kpi_path_recorded
+        - mt5_tick_kpi_path_recorded
+        - proxy_vs_mt5_logic_parity_kpi_path_recorded
+        - execution_divergence_kpi_path_recorded
         - artifact_lineage_path_recorded
     parity_gate:
       purpose: summarize parity status from proxy_vs_mt5 evidence
@@ -398,6 +405,13 @@ gate_report_policy:
         - intent_parity_status
         - repair_required
         - non_portable_status_when_applicable
+    rolling_window_closeout_gate:
+      purpose: prevent run closeout from aggregate full-period MT5 KPI alone
+      checks:
+        - aggregate_full_period_mt5_kpi_is_diagnostic_only
+        - fold_isolated_mt5_tick_path_recorded
+        - fold_isolated_execution_divergence_path_recorded
+        - fold_isolated_exception_recorded_when_applicable
     claim_gate:
       purpose: confirm the run did not exceed claim authority
       checks:
@@ -454,14 +468,33 @@ status_values:
     - proxy_repair_required
     - mt5_probe_ready
     - mt5_probe_attempted
+    - mt5_logic_parity_recorded_pending_parity
+    - mt5_tick_recorded_pending_execution_divergence
     - mechanical_parity_failed
     - intent_parity_failed
     - repair_required
     - parity_evidence_recorded
+    - execution_divergence_recorded_pending_closeout_review
     - closed_no_candidate
     - closed_with_candidate_evidence
+    - closed_non_portable
 
 closeout_policy:
+  rolling_window_run_closeout_gate:
+    aggregate_full_period_mt5_kpi_role: diagnostic_only
+    closeout_judgment_surface: rolling_window_fold_isolated_mt5_tick
+    closeout_decisions_require_one:
+      - fold_isolated_mt5_tick_evidence
+      - fold_isolated_exception_recorded_with_reason
+    required_fold_isolated_evidence_paths:
+      - kpi/mt5_tick_by_fold.json
+      - kpi/execution_divergence_by_fold.json
+    exception_record_path: gate_report.rolling_window_closeout_gate.fold_isolated_exception
+    exception_requires:
+      - applies
+      - reason
+      - blocking_condition
+      - revisit_when
   run_close_when_any:
     - useful_learning_path_exhausted
     - default_hypothesis_repair_limit_reached
@@ -504,15 +537,19 @@ artifact_policy:
   run_root_files:
     - run_manifest.json
     - kpi/proxy.json
-    - kpi/mt5.json
-    - kpi/proxy_vs_mt5.json
+    - kpi/mt5_logic_parity.json
+    - kpi/mt5_tick.json
+    - kpi/proxy_vs_mt5_logic_parity.json
+    - kpi/execution_divergence.json
     - gate_report.json
     - artifact_lineage.json
   synthesis_run_root_files:
     - run_manifest.json
     - kpi/proxy.json
-    - kpi/mt5.json
-    - kpi/proxy_vs_mt5.json
+    - kpi/mt5_logic_parity.json
+    - kpi/mt5_tick.json
+    - kpi/proxy_vs_mt5_logic_parity.json
+    - kpi/execution_divergence.json
     - gate_report.json
     - artifact_lineage.json
   evidence_policy:

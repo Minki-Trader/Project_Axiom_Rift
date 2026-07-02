@@ -1,0 +1,805 @@
+{
+  "campaign_id": "C0002",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false,
+    "selected": false
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "average_spread_cost_points": 1.01726,
+        "commission_per_trade": 0,
+        "round_trip_cost_model": "subtract_entry_spread_once",
+        "slippage_stress_test_allowed": true,
+        "spread_point_value": 0.01,
+        "spread_source": "entry_bar_spread_column",
+        "spread_stress_test_allowed": true,
+        "synthetic_commission_allowed": false,
+        "total_spread_cost_points": 3352.89
+      }
+    },
+    "direction_profile": {
+      "applies": true,
+      "fields": {
+        "long": {
+          "max_drawdown_points": 285.48,
+          "net_pnl_points": 633.38,
+          "profit_factor": 1.231605,
+          "trade_count": 204,
+          "win_rate": 0.47549
+        },
+        "short": {
+          "max_drawdown_points": 11252.67,
+          "net_pnl_points": -11158.5,
+          "profit_factor": 0.705882,
+          "trade_count": 3092,
+          "win_rate": 0.332471
+        }
+      }
+    },
+    "score_surface_profile": {
+      "applies": true,
+      "fields": {
+        "candidates_by_fold": {
+          "rw_001": {
+            "selected_candidate_count": 504,
+            "test_candidate_count": 11306,
+            "train_candidate_count": 69674
+          },
+          "rw_002": {
+            "selected_candidate_count": 528,
+            "test_candidate_count": 11778,
+            "train_candidate_count": 69317
+          },
+          "rw_003": {
+            "selected_candidate_count": 528,
+            "test_candidate_count": 11849,
+            "train_candidate_count": 68796
+          },
+          "rw_004": {
+            "selected_candidate_count": 512,
+            "test_candidate_count": 11395,
+            "train_candidate_count": 69138
+          },
+          "rw_005": {
+            "selected_candidate_count": 496,
+            "test_candidate_count": 11137,
+            "train_candidate_count": 69781
+          },
+          "rw_006": {
+            "selected_candidate_count": 528,
+            "test_candidate_count": 11813,
+            "train_candidate_count": 69412
+          },
+          "rw_007": {
+            "selected_candidate_count": 528,
+            "test_candidate_count": 11832,
+            "train_candidate_count": 68747
+          },
+          "rw_008": {
+            "selected_candidate_count": 504,
+            "test_candidate_count": 11157,
+            "train_candidate_count": 69278
+          },
+          "rw_009": {
+            "selected_candidate_count": 512,
+            "test_candidate_count": 11429,
+            "train_candidate_count": 69804
+          }
+        },
+        "entries_per_active_day": 5.682759,
+        "entry_count_per_active_day_target": "5_to_10",
+        "feature_count": 6,
+        "feature_family_summary": "closed_bar_price_session_volatility_momentum_path_context",
+        "feature_names": [
+          "ret_3_over_range",
+          "ret_12_over_range",
+          "range_ratio_48",
+          "body_fraction",
+          "close_position",
+          "session_position"
+        ],
+        "fold_models": [
+          {
+            "feature_names": [
+              "ret_3_over_range",
+              "ret_12_over_range",
+              "range_ratio_48",
+              "body_fraction",
+              "close_position",
+              "session_position"
+            ],
+            "fold_id": "rw_001",
+            "train_candidate_count": 69674,
+            "train_positive_label_rate": 0.45301,
+            "weights": [
+              -0.071657,
+              -0.104772,
+              -0.02482,
+              -0.031966,
+              -0.010084,
+              0.106412
+            ]
+          },
+          {
+            "feature_names": [
+              "ret_3_over_range",
+              "ret_12_over_range",
+              "range_ratio_48",
+              "body_fraction",
+              "close_position",
+              "session_position"
+            ],
+            "fold_id": "rw_002",
+            "train_candidate_count": 69317,
+            "train_positive_label_rate": 0.455184,
+            "weights": [
+              -0.04289,
+              -0.061127,
+              -0.024714,
+              -0.019113,
+              0.001366,
+              0.117703
+            ]
+          },
+          {
+            "feature_names": [
+              "ret_3_over_range",
+              "ret_12_over_range",
+              "range_ratio_48",
+              "body_fraction",
+              "close_position",
+              "session_position"
+            ],
+            "fold_id": "rw_003",
+            "train_candidate_count": 68796,
+            "train_positive_label_rate": 0.456872,
+            "weights": [
+              -0.037766,
+              -0.050602,
+              -0.043978,
+              -0.018333,
+              -0.004496,
+              0.128421
+            ]
+          },
+          {
+            "feature_names": [
+              "ret_3_over_range",
+              "ret_12_over_range",
+              "range_ratio_48",
+              "body_fraction",
+              "close_position",
+              "session_position"
+            ],
+            "fold_id": "rw_004",
+            "train_candidate_count": 69138,
+            "train_positive_label_rate": 0.453629,
+            "weights": [
+              -0.037058,
+              -0.041274,
+              -0.068511,
+              -0.001665,
+              0.005337,
+              0.12797
+            ]
+          },
+          {
+            "feature_names": [
+              "ret_3_over_range",
+              "ret_12_over_range",
+              "range_ratio_48",
+              "body_fraction",
+              "close_position",
+              "session_position"
+            ],
+            "fold_id": "rw_005",
+            "train_candidate_count": 69781,
+            "train_positive_label_rate": 0.454794,
+            "weights": [
+              -0.033295,
+              -0.05147,
+              -0.065584,
+              -0.004874,
+              0.009492,
+              0.074649
+            ]
+          },
+          {
+            "feature_names": [
+              "ret_3_over_range",
+              "ret_12_over_range",
+              "range_ratio_48",
+              "body_fraction",
+              "close_position",
+              "session_position"
+            ],
+            "fold_id": "rw_006",
+            "train_candidate_count": 69412,
+            "train_positive_label_rate": 0.458393,
+            "weights": [
+              -0.056184,
+              -0.089067,
+              -0.030019,
+              -0.027761,
+              -0.014203,
+              0.066127
+            ]
+          },
+          {
+            "feature_names": [
+              "ret_3_over_range",
+              "ret_12_over_range",
+              "range_ratio_48",
+              "body_fraction",
+              "close_position",
+              "session_position"
+            ],
+            "fold_id": "rw_007",
+            "train_candidate_count": 68747,
+            "train_positive_label_rate": 0.462886,
+            "weights": [
+              -0.054742,
+              -0.083162,
+              -0.01927,
+              -0.020304,
+              -0.000829,
+              0.065313
+            ]
+          },
+          {
+            "feature_names": [
+              "ret_3_over_range",
+              "ret_12_over_range",
+              "range_ratio_48",
+              "body_fraction",
+              "close_position",
+              "session_position"
+            ],
+            "fold_id": "rw_008",
+            "train_candidate_count": 69278,
+            "train_positive_label_rate": 0.46081,
+            "weights": [
+              -0.038763,
+              -0.069387,
+              -0.029356,
+              -0.010184,
+              -0.001339,
+              0.019886
+            ]
+          },
+          {
+            "feature_names": [
+              "ret_3_over_range",
+              "ret_12_over_range",
+              "range_ratio_48",
+              "body_fraction",
+              "close_position",
+              "session_position"
+            ],
+            "fold_id": "rw_009",
+            "train_candidate_count": 69804,
+            "train_positive_label_rate": 0.461879,
+            "weights": [
+              -0.036392,
+              -0.081627,
+              -0.039555,
+              -0.005313,
+              0.00629,
+              0.018008
+            ]
+          }
+        ],
+        "label_horizon": 18,
+        "max_entries_per_active_day": 8,
+        "min_score": 0.0,
+        "model_selected": false,
+        "score_distributions": {
+          "rw_001": {
+            "candidate_count": 11306,
+            "score_p10": -0.262793,
+            "score_p50": -0.004894,
+            "score_p90": 0.246958,
+            "selected_count": 504,
+            "selected_score_max": 1.543,
+            "selected_score_min": 0.158951
+          },
+          "rw_002": {
+            "candidate_count": 11778,
+            "score_p10": -0.198781,
+            "score_p50": -0.005219,
+            "score_p90": 0.199236,
+            "selected_count": 528,
+            "selected_score_max": 0.592133,
+            "selected_score_min": 0.134485
+          },
+          "rw_003": {
+            "candidate_count": 11849,
+            "score_p10": -0.1902,
+            "score_p50": -0.005009,
+            "score_p90": 0.215076,
+            "selected_count": 528,
+            "selected_score_max": 0.525995,
+            "selected_score_min": 0.179383
+          },
+          "rw_004": {
+            "candidate_count": 11395,
+            "score_p10": -0.179064,
+            "score_p50": -0.00079,
+            "score_p90": 0.214356,
+            "selected_count": 512,
+            "selected_score_max": 0.390088,
+            "selected_score_min": 0.105692
+          },
+          "rw_005": {
+            "candidate_count": 11137,
+            "score_p10": -0.12115,
+            "score_p50": 0.00488,
+            "score_p90": 0.14937,
+            "selected_count": 496,
+            "selected_score_max": 0.683181,
+            "selected_score_min": 0.127041
+          },
+          "rw_006": {
+            "candidate_count": 11813,
+            "score_p10": -0.184876,
+            "score_p50": -0.000658,
+            "score_p90": 0.17322,
+            "selected_count": 528,
+            "selected_score_max": 0.856309,
+            "selected_score_min": 0.128102
+          },
+          "rw_007": {
+            "candidate_count": 11832,
+            "score_p10": -0.167077,
+            "score_p50": 0.001847,
+            "score_p90": 0.173522,
+            "selected_count": 528,
+            "selected_score_max": 0.906958,
+            "selected_score_min": 0.122511
+          },
+          "rw_008": {
+            "candidate_count": 11157,
+            "score_p10": -0.108689,
+            "score_p50": 0.007352,
+            "score_p90": 0.113421,
+            "selected_count": 504,
+            "selected_score_max": 0.684176,
+            "selected_score_min": 0.046575
+          },
+          "rw_009": {
+            "candidate_count": 11429,
+            "score_p10": -0.112969,
+            "score_p50": 0.010096,
+            "score_p90": 0.115184,
+            "selected_count": 512,
+            "selected_score_max": 0.648302,
+            "selected_score_min": 0.077005
+          }
+        },
+        "score_type": "train_only_linear_correlation_score",
+        "training_scope": "rolling_train_is_only"
+      }
+    },
+    "stability_profile": {
+      "applies": true,
+      "fields": {
+        "fold_summary": [
+          {
+            "bucket": "rw_001",
+            "max_drawdown_points": 781.66,
+            "net_pnl_points": -597.39,
+            "profit_factor": 0.822819,
+            "trade_count": 411,
+            "win_rate": 0.357664
+          },
+          {
+            "bucket": "rw_002",
+            "max_drawdown_points": 1605.86,
+            "net_pnl_points": -1591.31,
+            "profit_factor": 0.591097,
+            "trade_count": 365,
+            "win_rate": 0.315068
+          },
+          {
+            "bucket": "rw_003",
+            "max_drawdown_points": 926.66,
+            "net_pnl_points": -712.09,
+            "profit_factor": 0.839486,
+            "trade_count": 303,
+            "win_rate": 0.372937
+          },
+          {
+            "bucket": "rw_004",
+            "max_drawdown_points": 525.66,
+            "net_pnl_points": -223.65,
+            "profit_factor": 0.934154,
+            "trade_count": 242,
+            "win_rate": 0.404959
+          },
+          {
+            "bucket": "rw_005",
+            "max_drawdown_points": 1986.36,
+            "net_pnl_points": -1377.83,
+            "profit_factor": 0.787144,
+            "trade_count": 292,
+            "win_rate": 0.342466
+          },
+          {
+            "bucket": "rw_006",
+            "max_drawdown_points": 1027.74,
+            "net_pnl_points": -977.07,
+            "profit_factor": 0.778156,
+            "trade_count": 442,
+            "win_rate": 0.355204
+          },
+          {
+            "bucket": "rw_007",
+            "max_drawdown_points": 1506.72,
+            "net_pnl_points": -1356.88,
+            "profit_factor": 0.686142,
+            "trade_count": 443,
+            "win_rate": 0.320542
+          },
+          {
+            "bucket": "rw_008",
+            "max_drawdown_points": 1820.93,
+            "net_pnl_points": -1738.28,
+            "profit_factor": 0.651725,
+            "trade_count": 415,
+            "win_rate": 0.308434
+          },
+          {
+            "bucket": "rw_009",
+            "max_drawdown_points": 2010.55,
+            "net_pnl_points": -1950.62,
+            "profit_factor": 0.637814,
+            "trade_count": 383,
+            "win_rate": 0.326371
+          }
+        ],
+        "losing_month_count": 25,
+        "month_summary": [
+          {
+            "bucket": "2024-02",
+            "max_drawdown_points": 607.3,
+            "net_pnl_points": -540.16,
+            "profit_factor": 0.543348,
+            "trade_count": 144,
+            "win_rate": 0.277778
+          },
+          {
+            "bucket": "2024-03",
+            "max_drawdown_points": 308.54,
+            "net_pnl_points": -160.06,
+            "profit_factor": 0.850572,
+            "trade_count": 130,
+            "win_rate": 0.376923
+          },
+          {
+            "bucket": "2024-04",
+            "max_drawdown_points": 221.3,
+            "net_pnl_points": 102.83,
+            "profit_factor": 1.092008,
+            "trade_count": 137,
+            "win_rate": 0.423358
+          },
+          {
+            "bucket": "2024-05",
+            "max_drawdown_points": 448.4,
+            "net_pnl_points": -433.79,
+            "profit_factor": 0.60448,
+            "trade_count": 129,
+            "win_rate": 0.325581
+          },
+          {
+            "bucket": "2024-06",
+            "max_drawdown_points": 391.82,
+            "net_pnl_points": -308.48,
+            "profit_factor": 0.723264,
+            "trade_count": 112,
+            "win_rate": 0.348214
+          },
+          {
+            "bucket": "2024-07",
+            "max_drawdown_points": 883.88,
+            "net_pnl_points": -849.04,
+            "profit_factor": 0.494676,
+            "trade_count": 124,
+            "win_rate": 0.274194
+          },
+          {
+            "bucket": "2024-08",
+            "max_drawdown_points": 631.0,
+            "net_pnl_points": -268.71,
+            "profit_factor": 0.840974,
+            "trade_count": 95,
+            "win_rate": 0.368421
+          },
+          {
+            "bucket": "2024-09",
+            "max_drawdown_points": 249.79,
+            "net_pnl_points": -137.52,
+            "profit_factor": 0.894353,
+            "trade_count": 93,
+            "win_rate": 0.397849
+          },
+          {
+            "bucket": "2024-10",
+            "max_drawdown_points": 498.96,
+            "net_pnl_points": -305.86,
+            "profit_factor": 0.788318,
+            "trade_count": 115,
+            "win_rate": 0.356522
+          },
+          {
+            "bucket": "2024-11",
+            "max_drawdown_points": 245.91,
+            "net_pnl_points": -65.62,
+            "profit_factor": 0.932287,
+            "trade_count": 77,
+            "win_rate": 0.402597
+          },
+          {
+            "bucket": "2024-12",
+            "max_drawdown_points": 241.38,
+            "net_pnl_points": -123.16,
+            "profit_factor": 0.878901,
+            "trade_count": 78,
+            "win_rate": 0.384615
+          },
+          {
+            "bucket": "2025-01",
+            "max_drawdown_points": 367.57,
+            "net_pnl_points": -34.87,
+            "profit_factor": 0.975277,
+            "trade_count": 87,
+            "win_rate": 0.425287
+          },
+          {
+            "bucket": "2025-02",
+            "max_drawdown_points": 654.3,
+            "net_pnl_points": -654.3,
+            "profit_factor": 0.565982,
+            "trade_count": 90,
+            "win_rate": 0.277778
+          },
+          {
+            "bucket": "2025-03",
+            "max_drawdown_points": 1063.33,
+            "net_pnl_points": -757.82,
+            "profit_factor": 0.654453,
+            "trade_count": 96,
+            "win_rate": 0.302083
+          },
+          {
+            "bucket": "2025-04",
+            "max_drawdown_points": 728.27,
+            "net_pnl_points": 34.29,
+            "profit_factor": 1.012368,
+            "trade_count": 106,
+            "win_rate": 0.433962
+          },
+          {
+            "bucket": "2025-05",
+            "max_drawdown_points": 497.53,
+            "net_pnl_points": -340.47,
+            "profit_factor": 0.808449,
+            "trade_count": 150,
+            "win_rate": 0.366667
+          },
+          {
+            "bucket": "2025-06",
+            "max_drawdown_points": 273.76,
+            "net_pnl_points": -218.33,
+            "profit_factor": 0.838797,
+            "trade_count": 129,
+            "win_rate": 0.341085
+          },
+          {
+            "bucket": "2025-07",
+            "max_drawdown_points": 536.95,
+            "net_pnl_points": -418.27,
+            "profit_factor": 0.671298,
+            "trade_count": 163,
+            "win_rate": 0.355828
+          },
+          {
+            "bucket": "2025-08",
+            "max_drawdown_points": 389.61,
+            "net_pnl_points": -270.0,
+            "profit_factor": 0.790309,
+            "trade_count": 146,
+            "win_rate": 0.349315
+          },
+          {
+            "bucket": "2025-09",
+            "max_drawdown_points": 630.84,
+            "net_pnl_points": -601.3,
+            "profit_factor": 0.522925,
+            "trade_count": 141,
+            "win_rate": 0.276596
+          },
+          {
+            "bucket": "2025-10",
+            "max_drawdown_points": 533.81,
+            "net_pnl_points": -485.58,
+            "profit_factor": 0.726469,
+            "trade_count": 156,
+            "win_rate": 0.333333
+          },
+          {
+            "bucket": "2025-11",
+            "max_drawdown_points": 927.37,
+            "net_pnl_points": -844.72,
+            "profit_factor": 0.591747,
+            "trade_count": 134,
+            "win_rate": 0.276119
+          },
+          {
+            "bucket": "2025-12",
+            "max_drawdown_points": 636.22,
+            "net_pnl_points": -574.6,
+            "profit_factor": 0.633244,
+            "trade_count": 153,
+            "win_rate": 0.294118
+          },
+          {
+            "bucket": "2026-01",
+            "max_drawdown_points": 444.29,
+            "net_pnl_points": -318.96,
+            "profit_factor": 0.764657,
+            "trade_count": 128,
+            "win_rate": 0.359375
+          },
+          {
+            "bucket": "2026-02",
+            "max_drawdown_points": 653.5,
+            "net_pnl_points": -547.47,
+            "profit_factor": 0.696756,
+            "trade_count": 131,
+            "win_rate": 0.328244
+          },
+          {
+            "bucket": "2026-03",
+            "max_drawdown_points": 1165.57,
+            "net_pnl_points": -1096.1,
+            "profit_factor": 0.489559,
+            "trade_count": 124,
+            "win_rate": 0.290323
+          },
+          {
+            "bucket": "2026-04",
+            "max_drawdown_points": 388.12,
+            "net_pnl_points": -307.05,
+            "profit_factor": 0.785722,
+            "trade_count": 128,
+            "win_rate": 0.359375
+          }
+        ],
+        "worst_month_pnl_points": -1096.1
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": true,
+      "fields": {
+        "average_capture_ratio": 0.232857,
+        "average_mae_points": 22.386817,
+        "average_mfe_points": 22.248437,
+        "median_mae_points": 17.75,
+        "median_mfe_points": 15.125
+      }
+    }
+  },
+  "created_at_utc": "2026-07-02T11:28:48Z",
+  "dataset_identity": "data/processed/datasets/us100_m5_base_frame.csv",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "record the matching MT5 symbol specification and fixed-lot sizing for the 500 USD account",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_net_pnl, proxy_max_drawdown_percent, proxy_expectancy_per_entry",
+      "reason": "proxy measures raw US100 index points only; USD conversion requires MT5 symbol contract, tick value, and fixed-lot discovery sizing",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "during C0002 R0001 MT5 evidence production"
+    },
+    {
+      "blocking_condition": "proxy.json content must be stable before hashing",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_artifact_hashes",
+      "reason": "self-hash is recorded in artifact_lineage after proxy.json is written",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "before C0002 R0001 closeout"
+    }
+  ],
+  "fold_ids": [
+    "rw_001",
+    "rw_002",
+    "rw_003",
+    "rw_004",
+    "rw_005",
+    "rw_006",
+    "rw_007",
+    "rw_008",
+    "rw_009",
+    "tail"
+  ],
+  "proxy_artifact_hashes": [],
+  "proxy_artifact_paths": [
+    "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/kpi/proxy.json"
+  ],
+  "proxy_code_version_or_commit": "uncommitted_local_worktree_at_proxy_creation",
+  "proxy_config": {
+    "bar_basis": "closed_m5",
+    "core_session_end_minute": 1260,
+    "core_session_start_minute": 360,
+    "entry_basis": "next_bar_open_after_scored_closed_bar",
+    "equity_percent_sizing": "deferred_until_candidate_quality",
+    "evaluation_splits": "rolling_windows_test_oos",
+    "gap_carried_entry_policy": "skip_when_next_bar_gap_exceeds_5_minutes",
+    "label_horizon_bars": 18,
+    "lookback_range_bars": 48,
+    "max_entries_per_active_day": 8,
+    "max_hold_bars": 18,
+    "min_score": 0.0,
+    "momentum_bars": 12,
+    "money_conversion_status": "deferred_until_mt5_symbol_spec_and_fixed_lot_size",
+    "price_precision_digits": 2,
+    "same_bar_stop_target_policy": "stop_first_conservative",
+    "sizing_mode": "fixed_lot_discovery",
+    "starting_balance_usd": 500.0,
+    "stop_range_multiple": 0.8,
+    "target_range_multiple": 1.2,
+    "training_splits": "rolling_windows_train_is"
+  },
+  "proxy_config_path": "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/run_manifest.json",
+  "proxy_engine": "axiom_rift.proxies.c0002_r0001_score_conditioned",
+  "proxy_id": "PX0001",
+  "proxy_summary": {
+    "active_day_count": 580,
+    "average_bars_in_trade": 2.228762,
+    "balance_after_proxy_usd": null,
+    "entries_per_active_day": 5.682759,
+    "entry_target_max": 10,
+    "entry_target_min": 5,
+    "evaluation_surface": "rolling_window_test_oos_only",
+    "gross_loss_points": -40673.58,
+    "gross_profit_points": 30148.46,
+    "long_trade_count": 204,
+    "max_hold_exit_count": 6,
+    "money_model_status": "deferred_until_mt5_symbol_spec_and_fixed_lot_size",
+    "net_pnl_points": -10525.12,
+    "net_pnl_usd": null,
+    "short_trade_count": 3092,
+    "signal_count": 3296,
+    "starting_balance_usd": 500.0,
+    "stop_exit_count": 2167,
+    "target_exit_count": 1123,
+    "trade_count": 3296
+  },
+  "required_kpis": {
+    "proxy_expectancy_per_entry": null,
+    "proxy_expectancy_points_per_entry": -3.193301,
+    "proxy_max_drawdown_percent": null,
+    "proxy_max_drawdown_points": 10619.29,
+    "proxy_net_pnl": null,
+    "proxy_net_pnl_points": -10525.12,
+    "proxy_profit_factor": 0.74123,
+    "proxy_signal_count": 3296,
+    "proxy_trade_count": 3296,
+    "proxy_win_rate": 0.341323
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "schema": "axiom_rift_proxy_kpi_v1",
+  "split_policy": "rolling_window_test_oos_only_with_train_is_score_fit",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0002"
+}

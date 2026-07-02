@@ -17,7 +17,7 @@ readiness:
   closed_campaign_count: 0
   usable_ingredient_group_count: 0
   required_surface_count: 0
-  has_mt5_or_proxy_vs_mt5_evidence: false
+  has_explicit_mt5_evidence: false
   unresolved_mechanical_parity_as_main_blocker: false
 
 ingredient_refs_path: ingredient_refs.yaml

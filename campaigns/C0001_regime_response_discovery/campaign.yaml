@@ -1,0 +1,170 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: closed_no_candidate
+
+campaign_id: C0001
+campaign_slug: regime_response_discovery
+campaign_type: campaign
+opened_at_utc: 2026-07-01T16:08:02Z
+closed_at_utc: 2026-07-02T10:06:02Z
+
+hypothesis:
+  summary: discover whether US100 M5 has repeatable regime-response patterns around volatility expansion, pullback, continuation, and reversal without selecting labels, features, models, or trade logic
+  boundary: use the existing closed M5 US100 base frame and rolling-window policy to design run variants that compare market response structures; every run must include proxy, MT5 logic parity, MT5 tick execution, and execution-divergence evidence before closeout
+  not_in_scope:
+    - selected_claim
+    - runtime_authority
+    - live_readiness
+
+required_surfaces:
+  model:
+    status: variable
+    summary: variable model families for response-pattern exploration; no model selected
+  feature:
+    status: variable
+    summary: variable features describing volatility, momentum, pullback, continuation, reversal, and session context; no feature set selected
+  trade_logic:
+    status: variable
+    summary: variable entry and exit response logic to be tested per run; no trade shape selected
+  label:
+    status: variable
+    summary: variable outcome definitions for regime-response behavior; no label selected
+
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+    - runs/R0001
+    - runs/R0002
+    - runs/R0003
+    - runs/R0004
+    - runs/R0005
+    - runs/R0006
+    - runs/R0007
+  next_run_candidate:
+    run_id: null
+    direction: not_applicable
+    reason: c0001_closed_no_meaningful_new_variant_remaining_inside_campaign_boundary
+    status: not_applicable_campaign_closed
+
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: candidate_later
+  checked_at_utc: 2026-07-02T10:06:02Z
+  closed_run_count: 7
+  observed_closed_campaign_count: 1
+  usable_ingredient_group_count: 5
+  minimums:
+    closed_campaign_count: 3
+    usable_ingredient_group_count: 8
+    required_surface_count: 3
+  open_synthesis_now: false
+  readiness_notes:
+    - all_r0001_to_r0007_closed_no_candidate
+    - fold_isolated_tick_total_net_negative_for_all_seven_runs
+    - only_six_positive_run_fold_cells_out_of_sixty_three_and_no_repeatable_family_strength
+    - no_label_feature_model_or_trade_logic_selected
+    - sc_synthesis_not_opened_minimums_not_met
+    - r0007_core_session_gate_reduced_trade_count_but_tick_execution_remained_negative
+    - c0001_closed_because_remaining_work_would_be_adjacent_tuning_or_new_major_campaign
+  ingredient_groups:
+    - group_id: c0001_ig001_expansion_pullback_response_negative_memory
+      source_runs:
+        - R0001
+        - R0002
+      group_type: negative_memory
+      summary: expansion_pullback_continuation_and_reversal_both_failed_fold_isolated_tick
+    - group_id: c0001_ig002_expansion_breakout_reversal_negative_memory
+      source_runs:
+        - R0003
+        - R0005
+      group_type: negative_memory
+      summary: failed_breakout_reclaim_and_immediate_expansion_reversal_both_failed_fold_isolated_tick
+    - group_id: c0001_ig003_compression_breakout_response_negative_memory
+      source_runs:
+        - R0004
+        - R0006
+      group_type: negative_memory
+      summary: compression_breakout_continuation_and_reversal_both_failed_fold_isolated_tick
+    - group_id: c0001_ig004_execution_and_parity_lesson
+      source_runs:
+        - R0001
+        - R0002
+        - R0003
+        - R0004
+        - R0005
+        - R0006
+        - R0007
+      group_type: parity_lesson
+      summary: tick_execution_divergence_and_session_gap_exceptions_are_recorded_but_do_not_create_candidate_economics
+    - group_id: c0001_ig005_core_session_context_gate_negative_memory
+      source_runs:
+        - R0001
+        - R0007
+      group_type: negative_memory
+      summary: core_session_filter_on_expansion_pullback_continuation_passed_logic_parity_but_remained_negative_on_fold_isolated_tick_with_only_tiny_positive_folds
+  recommended_next_action: open_c0002_only_if_new_major_hypothesis_is_chosen
+
+closeout:
+  status: closed_no_candidate
+  close_reason: no_meaningful_new_variant_remains_inside_regime_response_discovery_boundary_after_r0001_to_r0007_all_closed_no_candidate
+  evidence_paths:
+    - runs/R0001/run_manifest.json
+    - runs/R0001/gate_report.json
+    - runs/R0001/kpi/mt5_tick_by_fold.json
+    - runs/R0002/run_manifest.json
+    - runs/R0002/gate_report.json
+    - runs/R0002/kpi/mt5_tick_by_fold.json
+    - runs/R0003/run_manifest.json
+    - runs/R0003/gate_report.json
+    - runs/R0003/kpi/mt5_tick_by_fold.json
+    - runs/R0004/run_manifest.json
+    - runs/R0004/gate_report.json
+    - runs/R0004/kpi/mt5_tick_by_fold.json
+    - runs/R0005/run_manifest.json
+    - runs/R0005/gate_report.json
+    - runs/R0005/kpi/mt5_tick_by_fold.json
+    - runs/R0006/run_manifest.json
+    - runs/R0006/gate_report.json
+    - runs/R0006/kpi/mt5_tick_by_fold.json
+    - runs/R0007/run_manifest.json
+    - runs/R0007/gate_report.json
+    - runs/R0007/kpi/mt5_tick_by_fold.json
+    - selected.yaml
+  remaining_question: choose_c0002_new_major_hypothesis_or_wait_until_more_campaign_evidence_supports_synthesis
+  decision_basis:
+    closed_run_count: 7
+    closed_no_candidate_run_count: 7
+    fold_isolated_tick_total_net_negative_for_all_runs: true
+    positive_run_fold_cells: 6
+    total_run_fold_cells: 63
+    repeated_candidate_surface_found: false
+    remaining_work_classification: adjacent_tuning_or_new_major_campaign_not_c0001_variant
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

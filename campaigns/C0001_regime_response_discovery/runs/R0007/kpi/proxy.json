@@ -1,0 +1,456 @@
+{
+  "campaign_id": "C0001",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false,
+    "selected": false
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "average_spread_cost_points": 1.152323,
+        "round_trip_cost_model": "subtract_entry_spread_once",
+        "spread_point_value": 0.01,
+        "spread_source": "entry_bar_spread_column",
+        "total_spread_cost_points": 2232.05
+      }
+    },
+    "direction_profile": {
+      "applies": true,
+      "fields": {
+        "long": {
+          "max_drawdown_points": 1988.85,
+          "net_pnl_points": -1879.47,
+          "profit_factor": 0.712479,
+          "trade_count": 793,
+          "win_rate": 0.363178
+        },
+        "short": {
+          "max_drawdown_points": 2013.35,
+          "net_pnl_points": -1850.6,
+          "profit_factor": 0.800034,
+          "trade_count": 1144,
+          "win_rate": 0.388112
+        }
+      }
+    },
+    "score_surface_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "stability_profile": {
+      "applies": true,
+      "fields": {
+        "fold_summary": [
+          {
+            "bucket": "rw_001",
+            "max_drawdown_points": 272.41,
+            "net_pnl_points": -122.37,
+            "profit_factor": 0.880583,
+            "trade_count": 218,
+            "win_rate": 0.412844
+          },
+          {
+            "bucket": "rw_002",
+            "max_drawdown_points": 420.7,
+            "net_pnl_points": -369.01,
+            "profit_factor": 0.734918,
+            "trade_count": 245,
+            "win_rate": 0.387755
+          },
+          {
+            "bucket": "rw_003",
+            "max_drawdown_points": 822.12,
+            "net_pnl_points": -744.36,
+            "profit_factor": 0.645129,
+            "trade_count": 218,
+            "win_rate": 0.357798
+          },
+          {
+            "bucket": "rw_004",
+            "max_drawdown_points": 894.99,
+            "net_pnl_points": -849.72,
+            "profit_factor": 0.553658,
+            "trade_count": 224,
+            "win_rate": 0.330357
+          },
+          {
+            "bucket": "rw_005",
+            "max_drawdown_points": 650.8,
+            "net_pnl_points": -78.45,
+            "profit_factor": 0.968775,
+            "trade_count": 220,
+            "win_rate": 0.404545
+          },
+          {
+            "bucket": "rw_006",
+            "max_drawdown_points": 739.87,
+            "net_pnl_points": -642.98,
+            "profit_factor": 0.605793,
+            "trade_count": 209,
+            "win_rate": 0.339713
+          },
+          {
+            "bucket": "rw_007",
+            "max_drawdown_points": 558.74,
+            "net_pnl_points": -510.32,
+            "profit_factor": 0.686449,
+            "trade_count": 231,
+            "win_rate": 0.376623
+          },
+          {
+            "bucket": "rw_008",
+            "max_drawdown_points": 152.44,
+            "net_pnl_points": 17.36,
+            "profit_factor": 1.011209,
+            "trade_count": 184,
+            "win_rate": 0.434783
+          },
+          {
+            "bucket": "rw_009",
+            "max_drawdown_points": 476.71,
+            "net_pnl_points": -430.22,
+            "profit_factor": 0.790503,
+            "trade_count": 188,
+            "win_rate": 0.361702
+          }
+        ],
+        "losing_month_count": 21,
+        "month_summary": [
+          {
+            "bucket": "2024-02",
+            "max_drawdown_points": 265.56,
+            "net_pnl_points": -235.31,
+            "profit_factor": 0.487409,
+            "trade_count": 88,
+            "win_rate": 0.340909
+          },
+          {
+            "bucket": "2024-03",
+            "max_drawdown_points": 28.09,
+            "net_pnl_points": 105.7,
+            "profit_factor": 1.51174,
+            "trade_count": 63,
+            "win_rate": 0.539683
+          },
+          {
+            "bucket": "2024-04",
+            "max_drawdown_points": 82.64,
+            "net_pnl_points": 7.24,
+            "profit_factor": 1.02016,
+            "trade_count": 67,
+            "win_rate": 0.38806
+          },
+          {
+            "bucket": "2024-05",
+            "max_drawdown_points": 129.37,
+            "net_pnl_points": -30.11,
+            "profit_factor": 0.907796,
+            "trade_count": 85,
+            "win_rate": 0.435294
+          },
+          {
+            "bucket": "2024-06",
+            "max_drawdown_points": 179.85,
+            "net_pnl_points": -139.9,
+            "profit_factor": 0.641264,
+            "trade_count": 76,
+            "win_rate": 0.368421
+          },
+          {
+            "bucket": "2024-07",
+            "max_drawdown_points": 241.77,
+            "net_pnl_points": -199.0,
+            "profit_factor": 0.705412,
+            "trade_count": 84,
+            "win_rate": 0.357143
+          },
+          {
+            "bucket": "2024-08",
+            "max_drawdown_points": 690.6,
+            "net_pnl_points": -619.95,
+            "profit_factor": 0.423881,
+            "trade_count": 79,
+            "win_rate": 0.303797
+          },
+          {
+            "bucket": "2024-09",
+            "max_drawdown_points": 141.62,
+            "net_pnl_points": -80.81,
+            "profit_factor": 0.850027,
+            "trade_count": 67,
+            "win_rate": 0.38806
+          },
+          {
+            "bucket": "2024-10",
+            "max_drawdown_points": 120.27,
+            "net_pnl_points": -43.6,
+            "profit_factor": 0.909664,
+            "trade_count": 72,
+            "win_rate": 0.388889
+          },
+          {
+            "bucket": "2024-11",
+            "max_drawdown_points": 385.87,
+            "net_pnl_points": -345.11,
+            "profit_factor": 0.387016,
+            "trade_count": 69,
+            "win_rate": 0.275362
+          },
+          {
+            "bucket": "2024-12",
+            "max_drawdown_points": 248.99,
+            "net_pnl_points": -183.16,
+            "profit_factor": 0.64997,
+            "trade_count": 69,
+            "win_rate": 0.376812
+          },
+          {
+            "bucket": "2025-01",
+            "max_drawdown_points": 379.19,
+            "net_pnl_points": -321.45,
+            "profit_factor": 0.606775,
+            "trade_count": 86,
+            "win_rate": 0.337209
+          },
+          {
+            "bucket": "2025-02",
+            "max_drawdown_points": 172.43,
+            "net_pnl_points": -119.93,
+            "profit_factor": 0.779864,
+            "trade_count": 76,
+            "win_rate": 0.407895
+          },
+          {
+            "bucket": "2025-03",
+            "max_drawdown_points": 226.92,
+            "net_pnl_points": -146.18,
+            "profit_factor": 0.798559,
+            "trade_count": 67,
+            "win_rate": 0.402985
+          },
+          {
+            "bucket": "2025-04",
+            "max_drawdown_points": 379.28,
+            "net_pnl_points": 187.66,
+            "profit_factor": 1.151105,
+            "trade_count": 77,
+            "win_rate": 0.402597
+          },
+          {
+            "bucket": "2025-05",
+            "max_drawdown_points": 174.93,
+            "net_pnl_points": -107.47,
+            "profit_factor": 0.809281,
+            "trade_count": 66,
+            "win_rate": 0.393939
+          },
+          {
+            "bucket": "2025-06",
+            "max_drawdown_points": 528.55,
+            "net_pnl_points": -518.74,
+            "profit_factor": 0.215017,
+            "trade_count": 65,
+            "win_rate": 0.169231
+          },
+          {
+            "bucket": "2025-07",
+            "max_drawdown_points": 145.51,
+            "net_pnl_points": -16.77,
+            "profit_factor": 0.95877,
+            "trade_count": 78,
+            "win_rate": 0.435897
+          },
+          {
+            "bucket": "2025-08",
+            "max_drawdown_points": 294.77,
+            "net_pnl_points": -255.17,
+            "profit_factor": 0.508807,
+            "trade_count": 74,
+            "win_rate": 0.297297
+          },
+          {
+            "bucket": "2025-09",
+            "max_drawdown_points": 116.57,
+            "net_pnl_points": -38.32,
+            "profit_factor": 0.906868,
+            "trade_count": 78,
+            "win_rate": 0.448718
+          },
+          {
+            "bucket": "2025-10",
+            "max_drawdown_points": 262.24,
+            "net_pnl_points": -216.83,
+            "profit_factor": 0.688731,
+            "trade_count": 79,
+            "win_rate": 0.379747
+          },
+          {
+            "bucket": "2025-11",
+            "max_drawdown_points": 98.15,
+            "net_pnl_points": 108.28,
+            "profit_factor": 1.158743,
+            "trade_count": 63,
+            "win_rate": 0.444444
+          },
+          {
+            "bucket": "2025-12",
+            "max_drawdown_points": 97.66,
+            "net_pnl_points": 13.3,
+            "profit_factor": 1.03173,
+            "trade_count": 65,
+            "win_rate": 0.461538
+          },
+          {
+            "bucket": "2026-01",
+            "max_drawdown_points": 114.27,
+            "net_pnl_points": -104.22,
+            "profit_factor": 0.767075,
+            "trade_count": 56,
+            "win_rate": 0.392857
+          },
+          {
+            "bucket": "2026-02",
+            "max_drawdown_points": 442.33,
+            "net_pnl_points": -442.33,
+            "profit_factor": 0.383349,
+            "trade_count": 55,
+            "win_rate": 0.254545
+          },
+          {
+            "bucket": "2026-03",
+            "max_drawdown_points": 376.71,
+            "net_pnl_points": 49.82,
+            "profit_factor": 1.063857,
+            "trade_count": 65,
+            "win_rate": 0.415385
+          },
+          {
+            "bucket": "2026-04",
+            "max_drawdown_points": 157.27,
+            "net_pnl_points": -37.71,
+            "profit_factor": 0.932188,
+            "trade_count": 68,
+            "win_rate": 0.397059
+          }
+        ],
+        "worst_month_pnl_points": -619.95
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": true,
+      "fields": {
+        "average_capture_ratio": 0.237876,
+        "average_mae_points": 15.57699,
+        "average_mfe_points": 17.129912,
+        "median_mae_points": 10.5,
+        "median_mfe_points": 10.5
+      }
+    }
+  },
+  "created_at_utc": "2026-07-02T09:32:10Z",
+  "dataset_identity": "data/processed/datasets/us100_m5_base_frame.csv",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "record the matching MT5 symbol specification and fixed-lot sizing for the 500 USD account",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_net_pnl, proxy_max_drawdown_percent, proxy_expectancy_per_entry",
+      "reason": "R0007 proxy currently measures raw US100 index points only; USD conversion requires MT5 symbol contract, tick value, and fixed-lot discovery sizing",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "during R0007 MT5 probe evidence production"
+    },
+    {
+      "blocking_condition": "proxy.json content must be stable before hashing",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_artifact_hashes",
+      "reason": "self-hash is recorded in artifact_lineage after proxy.json is written",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "before R0007 closeout"
+    }
+  ],
+  "fold_ids": [
+    "rw_001",
+    "rw_002",
+    "rw_003",
+    "rw_004",
+    "rw_005",
+    "rw_006",
+    "rw_007",
+    "rw_008",
+    "rw_009"
+  ],
+  "proxy_artifact_hashes": [],
+  "proxy_artifact_paths": [
+    "campaigns/C0001_regime_response_discovery/runs/R0007/kpi/proxy.json"
+  ],
+  "proxy_code_version_or_commit": "uncommitted_local_worktree_at_proxy_creation",
+  "proxy_config": {
+    "bar_basis": "closed_m5",
+    "breakout_bars": 24,
+    "context_gate": "core_session",
+    "entry_basis": "next_bar_open_after_pullback_confirmation",
+    "evaluation_splits": "rolling_windows_test_oos",
+    "expansion_range_multiple": 1.8,
+    "lookback_range_bars": 48,
+    "max_hold_bars": 18,
+    "min_body_range_fraction": 0.55,
+    "money_conversion_status": "deferred_until_mt5_symbol_spec_and_fixed_lot_size",
+    "price_precision_digits": 2,
+    "pullback_max_ratio": 0.65,
+    "pullback_min_ratio": 0.2,
+    "pullback_search_bars": 6,
+    "same_bar_stop_target_policy": "stop_first_conservative",
+    "session_end_minute": 1260,
+    "session_filter_applies": true,
+    "session_start_minute": 360,
+    "starting_balance_usd": 500.0,
+    "stop_atr_multiple": 0.8,
+    "target_atr_multiple": 1.2
+  },
+  "proxy_config_path": "campaigns/C0001_regime_response_discovery/runs/R0007/run_manifest.json",
+  "proxy_engine": "axiom_rift.proxies.r0007_core_session_expansion_continuation",
+  "proxy_id": "PX0007",
+  "proxy_summary": {
+    "average_bars_in_trade": 1.832215,
+    "balance_after_proxy_usd": null,
+    "evaluation_surface": "rolling_window_test_oos_only",
+    "gross_loss_points": -15791.39,
+    "gross_profit_points": 12061.32,
+    "long_trade_count": 793,
+    "max_hold_exit_count": 0,
+    "money_model_status": "deferred_until_mt5_symbol_spec_and_fixed_lot_size",
+    "net_pnl_points": -3730.07,
+    "net_pnl_usd": null,
+    "short_trade_count": 1144,
+    "signal_count": 1937,
+    "starting_balance_usd": 500.0,
+    "stop_exit_count": 1205,
+    "target_exit_count": 732,
+    "trade_count": 1937
+  },
+  "required_kpis": {
+    "proxy_expectancy_per_entry": null,
+    "proxy_expectancy_points_per_entry": -1.925694,
+    "proxy_max_drawdown_percent": null,
+    "proxy_max_drawdown_points": 3801.69,
+    "proxy_net_pnl": null,
+    "proxy_net_pnl_points": -3730.07,
+    "proxy_profit_factor": 0.763791,
+    "proxy_signal_count": 1937,
+    "proxy_trade_count": 1937,
+    "proxy_win_rate": 0.377904
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0007",
+  "schema": "axiom_rift_proxy_kpi_v1",
+  "split_policy": "rolling_window_test_oos_only",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0001"
+}

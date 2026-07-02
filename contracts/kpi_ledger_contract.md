@@ -164,25 +164,33 @@ Required when applicable:
 
 ## Run KPI Families
 
-Each run should manage KPI evidence in three separate families:
+Each run should manage KPI evidence in explicit non-overwriting families:
 
 - proxy
-- mt5
-- proxy_vs_mt5
+- mt5_logic_parity
+- mt5_tick
+- proxy_vs_mt5_logic_parity
+- execution_divergence
 
-The three families must not overwrite each other.
+These families must not overwrite each other.
 
 `proxy` records what the Axiom proxy observed before MT5 probing.
 
-`mt5` records what the MT5 runtime probe attempt observed.
+`mt5_logic_parity` records closed-bar MT5 evidence for proxy-vs-EA logic parity.
 
-`proxy_vs_mt5` records comparison and parity evidence between the proxy and MT5 surfaces.
+`mt5_tick` records tick-mode MT5 execution KPI evidence.
+
+`proxy_vs_mt5_logic_parity` records comparison and parity evidence between the proxy and closed-bar MT5 surfaces.
+
+`execution_divergence` records the gap between closed-bar logic behavior and tick execution behavior.
 
 The default run-level layout is:
 
 - campaigns/<work_unit_id>/runs/<run_id>/kpi/proxy.json
-- campaigns/<work_unit_id>/runs/<run_id>/kpi/mt5.json
-- campaigns/<work_unit_id>/runs/<run_id>/kpi/proxy_vs_mt5.json
+- campaigns/<work_unit_id>/runs/<run_id>/kpi/mt5_logic_parity.json
+- campaigns/<work_unit_id>/runs/<run_id>/kpi/mt5_tick.json
+- campaigns/<work_unit_id>/runs/<run_id>/kpi/proxy_vs_mt5_logic_parity.json
+- campaigns/<work_unit_id>/runs/<run_id>/kpi/execution_divergence.json
 
 `work_unit_id` may be a campaign id such as `C0001` or a synthesis id such as `SC0001`.
 Campaign runs use `R0001` style ids. Synthesis runs may use `SR0001` style ids.
@@ -194,7 +202,7 @@ Conditional breakdown files may sit beside the three summaries when their profil
 - campaigns/<work_unit_id>/runs/<run_id>/kpi/mt5_by_period.csv
 - campaigns/<work_unit_id>/runs/<run_id>/kpi/proxy_vs_mt5_trade_match.csv
 
-The three KPI families are evidence records only. They do not create selected model, selected
+The KPI families are evidence records only. They do not create selected model, selected
 feature set, selected label, runtime authority, economics pass, or live readiness claims.
 
 ## Proxy KPI Family
@@ -259,9 +267,9 @@ The MT5 KPI family records MT5 probe-attempt evidence:
 MT5 KPI records in this contract are probe-attempt evidence only. They must not be used as
 runtime authority without the downstream runtime contract requirements.
 
-## Proxy Vs MT5 KPI Family
+## Proxy Vs MT5 Logic Parity KPI Family
 
-The proxy_vs_mt5 KPI family records comparison and parity evidence:
+The proxy_vs_mt5_logic_parity KPI family records closed-bar comparison and parity evidence:
 
 - campaign_id
 - run_id
@@ -529,8 +537,10 @@ Allowed seed formats:
 Default run-level KPI summary paths:
 
 - campaigns/<work_unit_id>/runs/<run_id>/kpi/proxy.json
-- campaigns/<work_unit_id>/runs/<run_id>/kpi/mt5.json
-- campaigns/<work_unit_id>/runs/<run_id>/kpi/proxy_vs_mt5.json
+- campaigns/<work_unit_id>/runs/<run_id>/kpi/mt5_logic_parity.json
+- campaigns/<work_unit_id>/runs/<run_id>/kpi/mt5_tick.json
+- campaigns/<work_unit_id>/runs/<run_id>/kpi/proxy_vs_mt5_logic_parity.json
+- campaigns/<work_unit_id>/runs/<run_id>/kpi/execution_divergence.json
 
 Conditional index paths:
 

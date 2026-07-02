@@ -58,9 +58,21 @@ RUN_REQUIRED_FILES = (
     "gate_report.json",
     "artifact_lineage.json",
     "kpi/proxy.json",
-    "kpi/mt5.json",
-    "kpi/proxy_vs_mt5.json",
+    "kpi/mt5_logic_parity.json",
+    "kpi/mt5_tick.json",
+    "kpi/proxy_vs_mt5_logic_parity.json",
+    "kpi/execution_divergence.json",
 )
+OPTIONAL_RUN_KPI_FILES = (
+    "kpi/mt5_tick_by_fold.json",
+    "kpi/execution_divergence_by_fold.json",
+)
+ROLLING_WINDOW_CLOSEOUT_REQUIRED_FILES = (
+    "kpi/mt5_tick_by_fold.json",
+    "kpi/execution_divergence_by_fold.json",
+)
+CLOSEOUT_DECISIONS = {"close_no_candidate", "close_with_candidate_evidence", "close_non_portable"}
+CLOSED_RUN_STATUSES = {"closed_no_candidate", "closed_with_candidate_evidence", "closed_non_portable"}
 
 
 @dataclass(frozen=True)
@@ -268,9 +280,14 @@ def check_mandatory_mt5_policy(issues: IssueCollector, root: Path) -> None:
         return
     run_policy = lifecycle.get("run_policy", {})
     expected = {
+        "full_period_mt5_kpi_is_diagnostic_only_for_closeout": True,
+        "opened_run_commits_to_mt5_validation": True,
+        "proxy_kpi_is_not_screening_gate_for_mt5": True,
+        "proxy_result_may_stop_mt5_validation": False,
         "proxy_only_scout_allowed": False,
         "proxy_requires_matching_mt5_probe": True,
-        "run_completion_requires_proxy_mt5_and_proxy_vs_mt5_kpi": True,
+        "run_closeout_requires_rolling_window_fold_isolated_mt5_tick": True,
+        "run_completion_requires_explicit_mt5_evidence": True,
         "run_may_close_without_mt5_pair": False,
         "weak_proxy_result_may_skip_mt5_probe": False,
     }
@@ -280,7 +297,7 @@ def check_mandatory_mt5_policy(issues: IssueCollector, root: Path) -> None:
     for rel_path in RUN_REQUIRED_FILES:
         path = root / "campaigns" / "_templates" / rel_path
         if not path.exists():
-            issues.add("run_template_missing_mt5_pair_file", path, "run template must include proxy, MT5, and parity files")
+            issues.add("run_template_missing_explicit_kpi_file", path, "run template must include explicit KPI files")
 
 
 def validate_campaign_root(issues: IssueCollector, target: Path, campaign_id: str, slug: str) -> None:
@@ -358,6 +375,7 @@ def validate_run_folder(
 ) -> None:
     require_child_files(issues, run_dir, RUN_REQUIRED_FILES)
     run_manifest = safe_load_structured(issues, run_dir / "run_manifest.json")
+    gate_report = safe_load_structured(issues, run_dir / "gate_report.json")
     if isinstance(run_manifest, dict):
         require_actual_file(issues, run_dir / "run_manifest.json", run_manifest)
         require_equal(issues, run_dir / "run_manifest.json", run_manifest.get("work_unit_id"), work_unit_id, "work_unit_id")
@@ -369,8 +387,25 @@ def validate_run_folder(
             require_non_empty_path(issues, run_dir / "run_manifest.json", run_manifest, f"surfaces.{surface}.summary")
         check_claim_false_values(issues, run_dir / "run_manifest.json", run_manifest)
 
-    for rel_path in ("gate_report.json", "artifact_lineage.json", "kpi/proxy.json", "kpi/mt5.json", "kpi/proxy_vs_mt5.json"):
+    for rel_path in RUN_REQUIRED_FILES:
         path = run_dir / rel_path
+        if rel_path == "run_manifest.json":
+            data = run_manifest
+        elif rel_path == "gate_report.json":
+            data = gate_report
+        else:
+            data = safe_load_structured(issues, path)
+        if isinstance(data, dict):
+            require_actual_file(issues, path, data)
+            check_claim_false_values(issues, path, data)
+            if "work_unit_id" in data:
+                require_equal(issues, path, data.get("work_unit_id"), work_unit_id, "work_unit_id")
+            if "run_id" in data:
+                require_equal(issues, path, data.get("run_id"), run_id, "run_id")
+    for rel_path in OPTIONAL_RUN_KPI_FILES:
+        path = run_dir / rel_path
+        if not path.exists():
+            continue
         data = safe_load_structured(issues, path)
         if isinstance(data, dict):
             require_actual_file(issues, path, data)
@@ -379,6 +414,66 @@ def validate_run_folder(
                 require_equal(issues, path, data.get("work_unit_id"), work_unit_id, "work_unit_id")
             if "run_id" in data:
                 require_equal(issues, path, data.get("run_id"), run_id, "run_id")
+    if isinstance(run_manifest, dict) and isinstance(gate_report, dict):
+        check_rolling_window_closeout_evidence(issues, run_dir, run_manifest, gate_report)
+
+
+def check_rolling_window_closeout_evidence(
+    issues: IssueCollector,
+    run_dir: Path,
+    run_manifest: dict[str, Any],
+    gate_report: dict[str, Any],
+) -> None:
+    decision = gate_report.get("decision")
+    status = run_manifest.get("status")
+    if decision not in CLOSEOUT_DECISIONS and status not in CLOSED_RUN_STATUSES:
+        return
+
+    exception = get_path(gate_report, "rolling_window_closeout_gate.fold_isolated_exception", default={})
+    if isinstance(exception, dict) and exception.get("applies") is True:
+        missing_exception_fields = [
+            field
+            for field in ("reason", "blocking_condition", "revisit_when")
+            if exception.get(field) in (None, "", [], {})
+        ]
+        if missing_exception_fields:
+            issues.add(
+                "rolling_window_closeout_exception_incomplete",
+                run_dir / "gate_report.json",
+                "fold-isolated closeout exception is missing: " + ", ".join(missing_exception_fields),
+            )
+        return
+
+    missing_files = [rel_path for rel_path in ROLLING_WINDOW_CLOSEOUT_REQUIRED_FILES if not (run_dir / rel_path).exists()]
+    if missing_files:
+        issues.add(
+            "rolling_window_closeout_evidence_missing",
+            run_dir / "gate_report.json",
+            "closeout requires fold-isolated MT5 tick evidence or a complete exception; missing "
+            + ", ".join(missing_files),
+        )
+        return
+
+    evidence_paths = collect_evidence_paths(run_manifest, gate_report)
+    missing_records = [rel_path for rel_path in ROLLING_WINDOW_CLOSEOUT_REQUIRED_FILES if rel_path not in evidence_paths]
+    if missing_records:
+        issues.add(
+            "rolling_window_closeout_path_not_recorded",
+            run_dir / "gate_report.json",
+            "fold-isolated closeout evidence exists but is not recorded in evidence paths: "
+            + ", ".join(missing_records),
+        )
+
+
+def collect_evidence_paths(*payloads: dict[str, Any]) -> set[str]:
+    paths: set[str] = set()
+    for payload in payloads:
+        evidence = payload.get("evidence_paths")
+        if isinstance(evidence, dict):
+            paths.update(str(value) for value in evidence.values() if isinstance(value, str))
+        elif isinstance(evidence, list):
+            paths.update(str(value) for value in evidence if isinstance(value, str))
+    return paths
 
 
 def require_child_files(issues: IssueCollector, base: Path, rel_paths: tuple[str, ...]) -> None:

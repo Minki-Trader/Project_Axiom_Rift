@@ -79,8 +79,8 @@ preflight_checks:
 
   run_policy:
     - proxy_only_scout_allowed_false
-    - run_creation_templates_include_proxy_mt5_and_proxy_vs_mt5_kpi
-    - run_closeout_requires_proxy_mt5_and_proxy_vs_mt5_evidence
+    - run_creation_templates_include_explicit_mt5_kpi
+    - run_closeout_requires_explicit_mt5_evidence
 
 preflight_results:
   allowed:

@@ -1,0 +1,123 @@
+{
+  "campaign_id": "C0001",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "commission_assumption": "broker_native",
+        "execution_source": "mt5_strategy_tester",
+        "slippage_source": "mt5_strategy_tester",
+        "spread_source": "mt5_strategy_tester"
+      }
+    },
+    "direction_profile": {
+      "applies": true,
+      "fields": {
+        "closed_deal_count": 7684,
+        "long_entry_count": 3895,
+        "short_entry_count": 3789
+      }
+    },
+    "runtime_reproducibility_profile": {
+      "applies": true,
+      "fields": {
+        "known_runtime_blockers": [],
+        "mt5_tester_status": "completed",
+        "runtime_data_availability_status": "tester_output_present"
+      }
+    },
+    "stability_profile": {
+      "applies": true,
+      "fields": {
+        "entry_count_by_fold": {
+          "rw_001": 795,
+          "rw_002": 817,
+          "rw_003": 866,
+          "rw_004": 869,
+          "rw_005": 883,
+          "rw_006": 874,
+          "rw_007": 863,
+          "rw_008": 837,
+          "rw_009": 880
+        },
+        "profit_count": 7684,
+        "trade_count_total": 7684
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": false,
+      "fields": {}
+    }
+  },
+  "created_at_utc": "2026-07-02T07:03:13Z",
+  "deferred_with_reason": [],
+  "missing_required_kpi_fields": [],
+  "mt5_date_end": "2026-04-30",
+  "mt5_date_start": "2024-02-01",
+  "mt5_execution_mode": "logic_parity_closed_bar_exit",
+  "mt5_known_blockers": [],
+  "mt5_kpi_family": "mt5_logic_parity",
+  "mt5_output_scope": null,
+  "mt5_probe_id": "MT50006",
+  "mt5_probe_status": "completed",
+  "mt5_report_hashes": [
+    "f69d881d93a42ae5c57a206827e98759fcf5dffea82c1c7865cc963364df0d99",
+    "5c5985240b56804175b03e6edfacde378f5782137faea2f2e408f53b340648cc",
+    "5fef2a8da651ddfa28f514a1007d6cee946ce086b11cc788bf10fbf97b87485c"
+  ],
+  "mt5_report_paths": [
+    "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0001/R0006/logic_parity/mt5_status.csv",
+    "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0001/R0006/logic_parity/mt5_events.csv",
+    "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0001/R0006/logic_parity/mt5_deals.csv"
+  ],
+  "mt5_status_fields": {
+    "balance": "419.52",
+    "created_at": "2026.04.30 23:59:59",
+    "currency": "USD",
+    "detail": "R0006 MT5 probe completed",
+    "entries": "7684",
+    "equity": "419.52",
+    "exit_evaluation": "closed_bar_ohlc",
+    "exits": "7684",
+    "leverage": "100",
+    "logical_entry_price_basis": "bar_open",
+    "lot": "0.0100",
+    "magic": "100001",
+    "output_mode": "logic_parity",
+    "output_scope": "",
+    "period_seconds": "300",
+    "response_mode": "compression_breakout_reversal",
+    "run_id": "R0006",
+    "signals": "7687",
+    "status": "completed",
+    "symbol": "US100"
+  },
+  "mt5_symbol": "US100",
+  "mt5_terminal_identity": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075",
+  "mt5_tester_model": "open_prices_model_2",
+  "mt5_tester_to_date": "2026-05-01",
+  "mt5_timeframe": "M5",
+  "required_kpis": {
+    "mt5_execution_mode": "logic_parity_closed_bar_exit",
+    "mt5_exit_evaluation": "closed_bar_ohlc",
+    "mt5_expectancy_per_entry": -0.010474,
+    "mt5_max_drawdown_percent": 16.932,
+    "mt5_net_pnl": -80.48,
+    "mt5_output_mode": "logic_parity",
+    "mt5_profit_factor": 0.890254,
+    "mt5_trade_count": 7684,
+    "mt5_win_rate": 0.425299
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0006",
+  "schema": "axiom_rift_mt5_logic_parity_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0001"
+}

@@ -9,8 +9,10 @@
     "status": "not_checked",
     "checks": {
       "proxy_kpi_path_recorded": false,
-      "mt5_kpi_path_recorded": false,
-      "proxy_vs_mt5_kpi_path_recorded": false,
+      "mt5_logic_parity_kpi_path_recorded": false,
+      "mt5_tick_kpi_path_recorded": false,
+      "proxy_vs_mt5_logic_parity_kpi_path_recorded": false,
+      "execution_divergence_kpi_path_recorded": false,
       "artifact_lineage_path_recorded": false
     }
   },
@@ -20,6 +22,19 @@
     "intent_parity_status": "not_checked",
     "repair_required": false,
     "non_portable_status": "not_checked"
+  },
+  "rolling_window_closeout_gate": {
+    "status": "not_checked",
+    "aggregate_full_period_mt5_kpi_role": "diagnostic_only",
+    "fold_isolated_mt5_tick_required": true,
+    "fold_isolated_mt5_tick_path_recorded": false,
+    "fold_isolated_execution_divergence_path_recorded": false,
+    "fold_isolated_exception": {
+      "applies": false,
+      "reason": "",
+      "blocking_condition": "",
+      "revisit_when": ""
+    }
   },
   "claim_gate": {
     "status": "not_checked",

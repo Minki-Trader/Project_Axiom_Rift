@@ -1,0 +1,126 @@
+{
+  "campaign_id": "C0001",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "commission_assumption": "broker_native",
+        "execution_source": "mt5_strategy_tester",
+        "slippage_source": "mt5_strategy_tester",
+        "spread_source": "mt5_strategy_tester"
+      }
+    },
+    "direction_profile": {
+      "applies": true,
+      "fields": {
+        "closed_deal_count": 1936,
+        "long_entry_count": 793,
+        "short_entry_count": 1143
+      }
+    },
+    "runtime_reproducibility_profile": {
+      "applies": true,
+      "fields": {
+        "known_runtime_blockers": [],
+        "mt5_tester_status": "completed",
+        "runtime_data_availability_status": "tester_output_present"
+      }
+    },
+    "stability_profile": {
+      "applies": true,
+      "fields": {
+        "entry_count_by_fold": {
+          "rw_001": 218,
+          "rw_002": 245,
+          "rw_003": 218,
+          "rw_004": 224,
+          "rw_005": 220,
+          "rw_006": 209,
+          "rw_007": 230,
+          "rw_008": 184,
+          "rw_009": 188
+        },
+        "profit_count": 1936,
+        "trade_count_total": 1936
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": false,
+      "fields": {}
+    }
+  },
+  "created_at_utc": "2026-07-02T09:37:20Z",
+  "deferred_with_reason": [],
+  "missing_required_kpi_fields": [],
+  "mt5_date_end": "2026-04-30",
+  "mt5_date_start": "2024-02-01",
+  "mt5_execution_mode": "tick_execution",
+  "mt5_known_blockers": [],
+  "mt5_kpi_family": "mt5_tick",
+  "mt5_output_scope": null,
+  "mt5_probe_id": "MT50007",
+  "mt5_probe_status": "completed",
+  "mt5_report_hashes": [
+    "95f3e5a1be7b02431cb01a4283e9c44fad58c6e06324bc9505027792a8cc5cab",
+    "f8ab5efb289f5f6bee0748b06fce8640349d293c9735dd884a69590820db5cd4",
+    "cf1fc5572490ac97399ca28ab8655b8a1164e7bd79984b7ee537a9dddc6f8c9c"
+  ],
+  "mt5_report_paths": [
+    "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0001/R0007/tick_execution/mt5_status.csv",
+    "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0001/R0007/tick_execution/mt5_events.csv",
+    "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0001/R0007/tick_execution/mt5_deals.csv"
+  ],
+  "mt5_status_fields": {
+    "balance": "469.83",
+    "created_at": "2026.04.30 23:59:58",
+    "currency": "USD",
+    "detail": "R0007 MT5 probe completed",
+    "entries": "1936",
+    "equity": "469.83",
+    "exit_evaluation": "tick_price",
+    "exits": "1936",
+    "leverage": "100",
+    "logical_entry_price_basis": "bar_open",
+    "lot": "0.0100",
+    "magic": "100001",
+    "output_mode": "tick_execution",
+    "output_scope": "",
+    "period_seconds": "300",
+    "response_mode": "core_session_expansion_continuation",
+    "run_id": "R0007",
+    "session_end_minute": "1260",
+    "session_filter_enabled": "true",
+    "session_start_minute": "360",
+    "signals": "1936",
+    "status": "completed",
+    "symbol": "US100"
+  },
+  "mt5_symbol": "US100",
+  "mt5_terminal_identity": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075",
+  "mt5_tester_model": "real_ticks_model_4",
+  "mt5_tester_to_date": "2026-05-01",
+  "mt5_timeframe": "M5",
+  "required_kpis": {
+    "mt5_execution_mode": "tick_execution",
+    "mt5_exit_evaluation": "tick_price",
+    "mt5_expectancy_per_entry": -0.015584,
+    "mt5_max_drawdown_percent": 6.33,
+    "mt5_net_pnl": -30.17,
+    "mt5_output_mode": "tick_execution",
+    "mt5_profit_factor": 0.807368,
+    "mt5_trade_count": 1936,
+    "mt5_win_rate": 0.356921
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0007",
+  "schema": "axiom_rift_mt5_tick_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0001"
+}

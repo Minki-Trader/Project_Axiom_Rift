@@ -8,7 +8,7 @@ allowed_use:
   - record repo-relative paths for run evidence artifacts
   - record hashes for durable artifacts
   - connect KPI records, MT5 reports, gate reports, and generated outputs to their parent run
-  - distinguish proxy, mt5, proxy_vs_mt5, gate, and diagnostic artifact roles
+  - distinguish proxy, explicit MT5 KPI, gate, and diagnostic artifact roles
   - support later audit, replay, or comparison by locating evidence files
 
 forbidden_use:
@@ -43,8 +43,10 @@ required_fields:
 
 artifact_roles:
   - proxy_kpi
-  - mt5_kpi
-  - proxy_vs_mt5_kpi
+  - mt5_logic_parity_kpi
+  - mt5_tick_kpi
+  - mt5_tick_by_fold_kpi
+  - proxy_vs_mt5_logic_parity_kpi
   - gate_report
   - mt5_report
   - diagnostic_output

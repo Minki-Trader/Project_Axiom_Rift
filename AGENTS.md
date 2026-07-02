@@ -18,6 +18,30 @@ Read order for any new session or compacted context:
 
 Do not read archive files during boot.
 
+## Goal Operation
+
+For short `/goal` prompts, next-work decisions, campaign/run operation, closeout,
+or keep-digging versus close decisions, read:
+
+- `.agents/skills/axiom-goal-campaign-operator/SKILL.md`
+
+Short goals inherit:
+
+- `contracts/project_goal_contract.md`
+- `contracts/evaluation_contract.md`
+- `contracts/goal_operation_policy.yaml`
+
+Top-level target:
+
+- FPMarkets US100 M5.
+- Approximately 5 to 10 entries per active trading day.
+- Controlled monthly drawdown.
+- Strong profitability after realistic spread and slippage.
+- EA and ONNX-ready pre-live handoff only.
+
+Failures are assets. Record negative memory, parity lessons, execution divergence
+lessons, evidence gaps, or non-portable lessons instead of erasing failed work.
+
 ## Hard Boundaries
 
 - Active project files must be machine-oriented and ASCII-only.
@@ -26,6 +50,16 @@ Do not read archive files during boot.
 - No old winner, selected baseline, promotion, runtime authority, or live-readiness claim is inherited.
 - No label, feature set, model family, objective, or trade shape is frozen at restart.
 - Claims must be no stronger than current evidence in `registries/claim_state.yaml`.
+- Short goal prompts do not weaken contracts, claim boundaries, or MT5 evidence rules.
+- Adjacent tuning, threshold nudges, window nudges, SL/TP nudges, or retry-only work must not be disguised as new runs.
+- Weak proxy results must not skip MT5 paired validation.
+- Code that does not run is a repair or blocker surface, not hypothesis evidence.
+- Do not record broken code as a completed failure and stop. First triage, repair in scope, rerun, and only then record evidence.
+- If broken code cannot be repaired in the current turn, record a blocker with root cause, reproduction command, failing artifact path, next concrete repair step, and the user or external state required.
+- Missing KPI caused by broken code, parser failure, compile failure, or runner failure must not close a run, campaign, or goal.
+- Every run closeout must be reflected on local `main` and pushed to `origin/main` after validation.
+- Do not report a run closeout as operationally complete when the closeout changes remain local only.
+- Do not force-push, reset, or discard unrelated work to satisfy run closeout git sync.
 
 ## Current Active Truth
 
@@ -70,6 +104,14 @@ Axiom Rift uses autonomous discovery until explicit freeze:
 - model families: exploration variables
 - objectives: exploration variables
 - trade shapes: exploration variables
+
+Feature count, feature families, model family, model count, ensembles, direction-specific models,
+score surfaces, filters, and exit models remain unrestricted exploration variables until an
+active contract or decision record freezes them with evidence.
+
+Early discovery uses fixed-lot evaluation by default. Equity-percent sizing is deferred to later
+robustness or growth validation after candidate quality is established; exact sizing rules are
+not frozen.
 
 Freeze requires an active Axiom Rift contract or decision record with:
 
@@ -135,6 +177,38 @@ Record durable artifact identity as repo-relative paths plus hashes.
 Runtime/economics/materialization/handoff/live claims require active Axiom Rift runtime contracts
 and completed evidence. Compile-only, preview rows, score samples, proxy samples, diagnostic samples,
 or archived FPMarkets v2 configs are not enough.
+
+## MT5 Validation Guardrails
+
+For any task touching MT5 EAs, MQH include modules, MQL5 scripts, tester configs, MT5 KPI parsers,
+proxy-vs-MT5 parity, execution-divergence evidence, or MT5-generated campaign evidence, read:
+
+- `.agents/skills/axiom-mt5-validation-guardrails/SKILL.md`
+
+Rules:
+
+- Opened runs are not proxy-only scouts.
+- Proxy KPI is a reference surface and must not be used as a go/no-go gate for MT5.
+- Weak, losing, or ugly proxy results must not skip MT5 logic parity, MT5 tick KPI, execution divergence, or fold-isolated closeout evidence.
+- Use closed-bar OHLC MT5 runs for proxy-vs-EA logic parity.
+- Use tick-mode MT5 runs for actual execution KPI management.
+- Record tick-vs-closed-bar differences as execution divergence, not as automatic logic failure.
+- Treat aggregate full-period MT5 KPI as diagnostic only for run closeout.
+- Require rolling-window fold-isolated MT5 tick KPI and fold-isolated execution divergence before run closeout, unless a complete exception is recorded.
+- Keep reusable EA, MQH, script, runner, parser, and proxy components in stable project source paths.
+- Do not rewrite shared/reusable EA, runner, parser, MQH, or helper components from scratch when a project source exists.
+- Run-specific EAs and variant-specific signal logic may be newly created, but must reuse existing shared helpers instead of copy-pasting or reinventing them.
+- Keep EA bodies thin; move reusable MQL logic into MQH includes and parser/ledger logic into Python helpers.
+- MT5 compile success is never enough when validation was requested; run or parse evidence and check missing KPI fields.
+
+Placement:
+
+- EA sources: `src/axiom_rift/mt5/experts/`
+- MQH include modules: `src/axiom_rift/mt5/include/`
+- MQL5 scripts: `src/axiom_rift/mt5/scripts/`
+- Python MT5 runners, compilers, and parsers: `src/axiom_rift/mt5/`
+- Proxy engines: `src/axiom_rift/proxies/`
+- Durable run KPI evidence: `campaigns/<campaign_id>/runs/<run_id>/kpi/`
 
 ## Filesystem
 

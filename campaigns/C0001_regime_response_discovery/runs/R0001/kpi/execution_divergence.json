@@ -1,0 +1,174 @@
+{
+  "campaign_id": "C0001",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false
+  },
+  "compared_period": {
+    "end": "2026-04-30",
+    "start": "2024-02-01"
+  },
+  "conditional_profiles": {
+    "entry_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "entry_direction_match_rate": 0.99958,
+        "entry_mismatch_samples": [
+          {
+            "direction": -1,
+            "entry_time": "2025-08-18 11:30:00",
+            "side": "logic_only"
+          }
+        ],
+        "entry_sequence_direction_match_rate": 0.884826,
+        "entry_sequence_time_match_rate": 0.701135,
+        "entry_time_match_rate": 0.99958,
+        "logic_entry_event_count": 2379,
+        "tick_entry_event_count": 2378
+      }
+    },
+    "exit_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "exit_mismatch_samples": [
+          {
+            "direction": -1,
+            "exit_time": "2024-02-12 01:25:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-12 16:25:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-15 12:00:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-16 08:25:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-19 04:05:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-12 01:20:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-12 16:20:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-15 11:55:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-16 08:05:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-19 05:20:00",
+            "reason": "max_hold",
+            "side": "tick_only"
+          }
+        ],
+        "exit_sequence_reason_match_rate": 0.812947,
+        "exit_sequence_time_match_rate": 0.640185,
+        "exit_time_match_rate": 0.918453,
+        "logic_exit_event_count": 2379,
+        "tick_exit_event_count": 2378
+      }
+    },
+    "run_closeout_profile": {
+      "applies": true,
+      "fields": {
+        "closeout_status": "ready_for_review",
+        "execution_divergence_required": true,
+        "logic_parity_required": true,
+        "tick_execution_kpi_required": true
+      }
+    },
+    "score_model_profile": {
+      "applies": false,
+      "deferred_with_reason": "R0001 is rule/proxy based and has no model score surface.",
+      "fields": {}
+    },
+    "spread_slippage_stress_profile": {
+      "applies": false,
+      "deferred_with_reason": "R0001 has baseline MT5 tick execution evidence only; spread and slippage stress sweeps are separate robustness work.",
+      "fields": {}
+    }
+  },
+  "created_at_utc": "2026-07-01T18:01:00Z",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "requires a separate controlled spread/slippage tester matrix",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "spread_slippage_stress_profile",
+      "reason": "baseline tick KPI is recorded; stress sweeps are not part of the current R0001 parity-to-tick split.",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "after R0001 closeout review if this hypothesis remains worth robustness testing"
+    }
+  ],
+  "divergence_id": "ED0001",
+  "logic_mt5_kpi_path": "campaigns/C0001_regime_response_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+  "missing_required_kpi_fields": [],
+  "required_kpis": {
+    "economics_shift_status": "tick_worse_than_logic",
+    "entry_count_delta": -1,
+    "entry_key_match_rate": 0.99958,
+    "execution_divergence_status": "recorded_with_divergence",
+    "exit_count_delta": -1,
+    "exit_reason_match_rate": 0.895755,
+    "exit_time_direction_match_rate": 0.918453,
+    "logic_expectancy_per_entry": -0.004498,
+    "logic_max_drawdown_percent": 5.142,
+    "logic_net_pnl": -10.7,
+    "logic_profit_factor": 0.952905,
+    "logic_trade_count": 2379,
+    "logic_win_rate": 0.441782,
+    "run_closeout_review_ready": true,
+    "tick_expectancy_per_entry": -0.014899,
+    "tick_max_drawdown_percent": 7.764,
+    "tick_minus_logic_expectancy_per_entry": -0.010401,
+    "tick_minus_logic_max_drawdown_percent": 2.622,
+    "tick_minus_logic_net_pnl": -24.73,
+    "tick_minus_logic_profit_factor": -0.128067,
+    "tick_minus_logic_trade_count": -1,
+    "tick_minus_logic_win_rate": -0.074246,
+    "tick_net_pnl": -35.43,
+    "tick_profit_factor": 0.824838,
+    "tick_trade_count": 2378,
+    "tick_win_rate": 0.367536
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "schema": "axiom_rift_execution_divergence_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "tick_mt5_kpi_path": "campaigns/C0001_regime_response_discovery/runs/R0001/kpi/mt5_tick.json",
+  "work_unit_id": "C0001"
+}

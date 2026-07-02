@@ -1,0 +1,166 @@
+{
+  "changed_surfaces": [
+    "model",
+    "feature",
+    "trade_logic",
+    "label"
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false
+  },
+  "closed_at_utc": "2026-07-02T12:11:29Z",
+  "closeout": {
+    "close_reason": "fold_isolated_tick_negative_no_candidate",
+    "closed_at_utc": "2026-07-02T12:11:29Z",
+    "evidence_paths": [
+      "kpi/proxy.json",
+      "kpi/mt5_logic_parity.json",
+      "kpi/proxy_vs_mt5_logic_parity.json",
+      "kpi/mt5_tick.json",
+      "kpi/execution_divergence.json",
+      "kpi/mt5_tick_by_fold.json",
+      "kpi/execution_divergence_by_fold.json"
+    ],
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "hypothesis_tested": "rolling train-only score surface selecting intraday US100 M5 candidates by score-conditioned schedule",
+      "next_boundary": "next C0002 run must change a meaningful score/model/feature/label/trade surface, not nudge thresholds or reuse R0001 as-is",
+      "reason_not_candidate": "all 9 fold-isolated MT5 tick folds were losing and no profitable fold was observed"
+    },
+    "required_kpi_summary": {
+      "execution_divergence_by_fold_status": "completed",
+      "logic_parity_status": "passed",
+      "losing_fold_count": 9,
+      "profitable_fold_count": 0,
+      "proxy_net_pnl_points": -10525.12,
+      "proxy_trade_count": 3296,
+      "total_tick_net_pnl": -83.27,
+      "total_tick_trade_count": 3241
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0002_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "fixed_surfaces": {
+    "base_frame": "US100 closed M5 bars",
+    "commission_per_trade": 0,
+    "early_sizing": "fixed_lot",
+    "market": "FPMarkets US100 M5",
+    "proxy_is_screening_gate_for_mt5": false,
+    "split_policy": "rolling_window",
+    "synthetic_commission_allowed": false
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "test whether a rolling train-only score surface can rank closed-bar US100 M5 candidate events into a tradable subset with approximately 5 to 10 entries per active day before any equity-percent sizing",
+    "variant_boundary": "first C0002 true variant; changes the selection mechanism from C0001 deterministic regime-response rules to score-conditioned candidate ranking, not a threshold nudge, repair, retry, or adjacent tuning of C0001"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "notes": [
+      "closed-bar MT5 mode is required for proxy-vs-EA logic parity",
+      "tick-mode MT5 is required for execution KPI management",
+      "fold-isolated MT5 tick and execution divergence are required before closeout"
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-02T10:56:20Z",
+  "parent_type": "campaign",
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy must train or fit score surfaces only inside each rolling train window",
+      "proxy must report score diagnostics with applies true",
+      "proxy must target entry frequency diagnostics around 5 to 10 entries per active day without treating the target as a selected gate"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [
+      "mechanical parity must compare candidate timestamps, score-filtered entries, direction, exits, and lifecycle behavior",
+      "tick-vs-closed-bar differences are execution divergence, not automatic logic failure"
+    ],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": [
+      {
+        "counts": {
+          "gap_carried_entries_removed": 4,
+          "post_repair_proxy_trade_count": 3296
+        },
+        "evidence_paths": [
+          "kpi/proxy.json",
+          "kpi/mt5_logic_parity.json",
+          "kpi/proxy_vs_mt5_logic_parity.json"
+        ],
+        "repair_type": "mechanical_parity_repair",
+        "status": "repaired",
+        "summary": "Skipped proxy entries when the next entry bar is separated from the signal bar by more than one M5 interval; MT5 rejected those gap-carried entries with trade retcode 10018.",
+        "surface": "proxy_entry_eligibility"
+      }
+    ]
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v1",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "closed-bar reproducible features for recent return, range, volatility state, session context, momentum persistence, pullback depth, and prior bar path context; no feature set selected"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "train-only candidate quality label based on forward path quality such as favorable excursion versus adverse excursion over a fixed closed-bar horizon; no label selected"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "rolling-window train-only score surface for candidate event quality; initial family may be transparent linear/logistic/rank scoring but no model family or score threshold is selected"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "generate broad closed-bar candidate events, rank them by score, trade a fixed-lot subset near the 5 to 10 entries-per-active-day target, and evaluate exits without claiming final runtime sizing"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0002"
+}
