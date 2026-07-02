@@ -1,0 +1,172 @@
+{
+  "changed_surfaces": [
+    "model",
+    "feature",
+    "trade_logic",
+    "label"
+  ],
+  "closed_at_utc": "2026-07-02T13:21:47Z",
+  "closeout": {
+    "closed_at_utc": "2026-07-02T13:21:47Z",
+    "close_reason": "fold_isolated_tick_negative_no_candidate",
+    "evidence_paths": [
+      "kpi/proxy.json",
+      "kpi/mt5_logic_parity.json",
+      "kpi/proxy_vs_mt5_logic_parity.json",
+      "kpi/mt5_tick.json",
+      "kpi/execution_divergence.json",
+      "kpi/mt5_tick_by_fold.json",
+      "kpi/execution_divergence_by_fold.json"
+    ],
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "hypothesis_tested": "rolling train-only exhaustion reversal score surface selecting intraday US100 M5 candidates by score-conditioned schedule",
+      "next_boundary": "next C0002 run must change a meaningful model, score, feature, label, or trade-shape surface, not nudge R0002 thresholds or reuse exhaustion reversal as-is",
+      "reason_not_candidate": "all 9 fold-isolated MT5 tick folds were losing and total fold-isolated tick net PnL was negative",
+      "supporting_lessons": [
+        {
+          "asset_type": "parity_lesson",
+          "summary": "Schedule replay must skip proxy trades whose scheduled exit bar is followed by a data gap greater than one M5 interval because MT5 can fail the delayed close with trade retcode 10018 and block subsequent replay."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "execution_divergence_by_fold_status": "completed",
+      "logic_parity_status": "passed",
+      "losing_fold_count": 9,
+      "profitable_fold_count": 0,
+      "proxy_net_pnl_points": -5399.66,
+      "proxy_trade_count": 3583,
+      "total_tick_net_pnl": -54.79,
+      "total_tick_trade_count": 3564
+    },
+    "status": "closed_no_candidate"
+  },
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0002_r0002_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "fixed_surfaces": {
+    "base_frame": "US100 closed M5 bars",
+    "commission_per_trade": 0,
+    "early_sizing": "fixed_lot",
+    "market": "FPMarkets US100 M5",
+    "proxy_is_screening_gate_for_mt5": false,
+    "split_policy": "rolling_window",
+    "synthetic_commission_allowed": false
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "test whether rolling train-only scores can select exhaustion reversal candidates after stretched intraday moves before any equity-percent sizing",
+    "variant_boundary": "second C0002 true variant; changes direction construction, label shape, feature family, score interpretation, and trade shape from R0001 momentum continuation selection rather than nudging R0001 thresholds"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "notes": [
+      "closed-bar MT5 mode is required for proxy-vs-EA logic parity",
+      "tick-mode MT5 is required for execution KPI management",
+      "fold-isolated MT5 tick and execution divergence are required before closeout"
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-02T12:20:37Z",
+  "parent_type": "campaign",
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy must fit score surfaces only inside each rolling train window",
+      "proxy must report score diagnostics with applies true",
+      "proxy result cannot decide whether MT5 is attempted"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [
+      "mechanical parity must compare scheduled entries, directions, exits, and lifecycle behavior",
+      "tick-vs-closed-bar differences are execution divergence, not automatic logic failure"
+    ],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": [
+      {
+        "counts": {
+          "gap_blocked_exits_removed": 2,
+          "post_repair_proxy_trade_count": 3583
+        },
+        "evidence_paths": [
+          "kpi/proxy.json",
+          "kpi/mt5_logic_parity.json",
+          "kpi/proxy_vs_mt5_logic_parity.json"
+        ],
+        "repair_type": "mechanical_parity_repair",
+        "status": "repaired",
+        "summary": "Skipped proxy trades when the scheduled exit bar is followed by a data gap greater than one M5 interval; MT5 could not close one gap-adjacent scheduled target with trade retcode 10018, which blocked subsequent schedule replay.",
+        "surface": "proxy_exit_eligibility"
+      }
+    ]
+  },
+  "run_id": "R0002",
+  "schema": "axiom_rift_run_manifest_v1",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "closed-bar stretch, reversal impulse, body alignment, extreme close, range state, and session-position features; no feature set selected"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "train-only target-before-stop plus forward path quality label over a 12-bar closed-bar horizon; no label selected"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "rolling train-only linear correlation score over exhaustion reversal candidates; no model family or score threshold is selected"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "enter opposite the prior 12-bar stretched move on the next closed-bar open, select up to eight scored candidates per active day, and evaluate fixed-lot stop-target-max-hold reversal paths"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0002"
+}

@@ -1,0 +1,155 @@
+{
+  "campaign_id": "C0002",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "commission_assumption": "broker_native",
+        "execution_source": "mt5_strategy_tester",
+        "lot": "0.0100",
+        "slippage_source": "mt5_strategy_tester",
+        "spread_source": "mt5_strategy_tester",
+        "starting_balance_usd": 500.0
+      }
+    },
+    "direction_profile": {
+      "applies": true,
+      "fields": {
+        "closed_deal_count": 3564,
+        "long_entry_count": 1487,
+        "short_entry_count": 2077
+      }
+    },
+    "runtime_reproducibility_profile": {
+      "applies": true,
+      "fields": {
+        "ea_mode": "schedule_replay_for_logic_parity",
+        "known_runtime_blockers": [],
+        "mt5_tester_status": "completed",
+        "runtime_data_availability_status": "tester_output_present"
+      }
+    },
+    "score_model_profile": {
+      "applies": true,
+      "fields": {
+        "model_selected": false,
+        "runtime_portability_claim": false,
+        "schedule_artifact_path": "campaigns/C0002_score_conditioned_intraday_edge/runs/R0002/artifacts/c0002_r0002_schedule.csv",
+        "schedule_rows": 3583,
+        "score_surface_source": "rolling_train_is_proxy_schedule"
+      }
+    },
+    "stability_profile": {
+      "applies": true,
+      "fields": {
+        "entry_count_by_fold": {
+          "rw_001": 419,
+          "rw_002": 404,
+          "rw_003": 359,
+          "rw_004": 367,
+          "rw_005": 406,
+          "rw_006": 407,
+          "rw_007": 412,
+          "rw_008": 384,
+          "rw_009": 406
+        },
+        "profit_count": 3564,
+        "trade_count_total": 3564
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": false,
+      "fields": {}
+    }
+  },
+  "created_at_utc": "2026-07-02T12:36:55Z",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "candidate quality must be established before materialization work freezes model export requirements",
+      "claim_boundary": {
+        "claim_authority": false,
+        "onnx_ready": false,
+        "runtime_authority": false
+      },
+      "field": "native_mql_score_training",
+      "reason": "C0002 R0002 logic parity replays the train-only score-selected schedule; native model or ONNX materialization is not claimed at this stage",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "after a score-conditioned candidate has fold-isolated MT5 tick evidence worth materializing"
+    }
+  ],
+  "missing_required_kpi_fields": [],
+  "mt5_date_end": "2026-04-30",
+  "mt5_date_start": "2024-02-01",
+  "mt5_execution_mode": "tick_execution",
+  "mt5_known_blockers": [],
+  "mt5_kpi_family": "mt5_tick",
+  "mt5_output_scope": null,
+  "mt5_probe_id": "MT5C0002R0002",
+  "mt5_probe_status": "completed",
+  "mt5_report_hashes": [
+    "4004c24b248b4fbbc63054457153a8ca2dfa271e3111fd0e652b7e2aba46d501",
+    "2dc00d7e5ce9daf61854142545963077f3e4a587f5a667c04e2e263a4bb31c61",
+    "402145ec8656b60955b61e3684b455bbf60ea9482c0712197093d3df1a621ef6",
+    "024b33b431b4d75c9bc3bbb4f507302c9d24692b92a2c376c0210584b70ed174"
+  ],
+  "mt5_report_paths": [
+    "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0002/R0002/tick_execution/mt5_status.csv",
+    "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0002/R0002/tick_execution/mt5_events.csv",
+    "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0002/R0002/tick_execution/mt5_deals.csv",
+    "campaigns/C0002_score_conditioned_intraday_edge/runs/R0002/artifacts/c0002_r0002_schedule.csv"
+  ],
+  "mt5_status_fields": {
+    "balance": "445.21",
+    "created_at": "2026.04.30 23:59:58",
+    "currency": "USD",
+    "detail": "R0002 MT5 schedule replay completed",
+    "entries": "3564",
+    "equity": "445.21",
+    "exit_evaluation": "tick_price",
+    "exits": "3564",
+    "leverage": "100",
+    "logical_entry_price_basis": "schedule_entry_bar_open",
+    "lot": "0.0100",
+    "magic": "200002",
+    "max_hold_bars": "12",
+    "output_mode": "tick_execution",
+    "output_scope": "",
+    "period_seconds": "300",
+    "response_mode": "score_conditioned_exhaustion_reversal_schedule_replay",
+    "run_id": "R0002",
+    "schedule_path": "AxiomRift\\C0002\\R0002\\schedule\\c0002_r0002_schedule.csv",
+    "schedule_rows": "3583",
+    "signals": "3564",
+    "skips": "19",
+    "status": "completed",
+    "symbol": "US100"
+  },
+  "mt5_symbol": "US100",
+  "mt5_terminal_identity": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075",
+  "mt5_tester_model": "real_ticks_model_4",
+  "mt5_tester_to_date": "2026-05-01",
+  "mt5_timeframe": "M5",
+  "required_kpis": {
+    "mt5_execution_mode": "tick_execution",
+    "mt5_exit_evaluation": "tick_price",
+    "mt5_expectancy_per_entry": -0.015373,
+    "mt5_max_drawdown_percent": 11.186,
+    "mt5_net_pnl": -54.79,
+    "mt5_output_mode": "tick_execution",
+    "mt5_profit_factor": 0.853424,
+    "mt5_trade_count": 3564,
+    "mt5_win_rate": 0.394501
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0002",
+  "schema": "axiom_rift_mt5_tick_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0002"
+}

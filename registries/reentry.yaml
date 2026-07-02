@@ -213,8 +213,20 @@ next_work:
   - produce_c0002_r0001_fold_isolated_execution_divergence
   - review_c0002_r0001_tick_execution_kpi_and_closeout
   - close_c0002_r0001_no_candidate
-  tasks:
   - decide_r0002_or_close_c0002_after_r0001
+  - open_c0002_r0002_exhaustion_reversal_score_variant
+  - produce_c0002_r0002_proxy_evidence
+  - repair_c0002_r0002_schedule_replay_parity
+  - record_c0002_r0002_proxy_vs_mt5_logic_parity_evidence
+  - produce_c0002_r0002_mt5_logic_parity_evidence
+  - produce_c0002_r0002_mt5_tick_execution_evidence
+  - record_c0002_r0002_execution_divergence
+  - produce_c0002_r0002_fold_isolated_mt5_tick_kpi
+  - produce_c0002_r0002_fold_isolated_execution_divergence
+  - review_c0002_r0002_tick_execution_kpi_and_closeout
+  - close_c0002_r0002_no_candidate
+  tasks:
+  - decide_r0003_or_close_c0002_after_r0002
   not_yet:
   - label_freeze
   - feature_set_freeze
