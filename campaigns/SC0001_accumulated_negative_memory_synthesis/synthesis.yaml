@@ -30,10 +30,16 @@ synthesis_queue_path: synthesis_queue.yaml
 runs_root: runs/
 synthesis_run_id_format: SR0001
 run_index:
-  active_run: runs/SR0001
+  active_run: null
   opened_runs:
     - runs/SR0001
-  closed_runs: []
+  closed_runs:
+    - runs/SR0001
+  next_run_candidate:
+    run_id: null
+    direction: decide_sr0002_or_close_synthesis_after_sr0001
+    reason: SR0001 closed no candidate after completed fold-isolated MT5 tick evidence; remaining SC0001 work must be a meaningful non-adjacent synthesis-run hypothesis or a synthesis closeout, not an adjacent parameter retry.
+    status: pending_decision
 
 stream_policy:
   stream: synthesis

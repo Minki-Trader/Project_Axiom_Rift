@@ -187,9 +187,9 @@
   "created_at_utc": "2026-07-02T17:32:58Z",
   "deferred_with_reason": [
     {
-      "field": "closeout_review",
-      "next_action": "review_sc0001_sr0001_tick_execution_kpi_and_closeout",
-      "reason": "fold-isolated tick and divergence artifacts are recorded; closeout review is next"
+      "field": "post_closeout_synthesis_decision",
+      "next_action": "decide_sc0001_sr0002_or_close_synthesis_after_sr0001",
+      "reason": "SR0001 is closed no candidate; SC0001 now needs a decision to open a meaningful non-adjacent SR0002 or close the synthesis stream"
     }
   ],
   "lineage_id": "L-SC0001-SR0001",

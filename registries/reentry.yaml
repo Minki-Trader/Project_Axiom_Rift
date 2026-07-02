@@ -300,8 +300,10 @@ next_work:
   - record_sc0001_sr0001_execution_divergence
   - produce_sc0001_sr0001_fold_isolated_mt5_tick_kpi
   - produce_sc0001_sr0001_fold_isolated_execution_divergence
-  tasks:
   - review_sc0001_sr0001_tick_execution_kpi_and_closeout
+  - close_sc0001_sr0001_no_candidate
+  tasks:
+  - decide_sc0001_sr0002_or_close_synthesis_after_sr0001
   not_yet:
   - label_freeze
   - feature_set_freeze

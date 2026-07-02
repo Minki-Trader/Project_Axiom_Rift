@@ -5,6 +5,15 @@ status: none
 selected: false
 selected_reason: null
 
+last_gate_result:
+  run_id: SR0001
+  status: closed_no_candidate
+  decision: close_no_candidate
+  evidence_paths:
+    - runs/SR0001/run_manifest.json
+    - runs/SR0001/gate_report.json
+  claim_authority: false
+
 surfaces:
   label_selected: false
   feature_set_selected: false
