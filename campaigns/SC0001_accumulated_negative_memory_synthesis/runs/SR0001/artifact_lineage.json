@@ -1,0 +1,119 @@
+{
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "template": false,
+  "work_unit_id": "SC0001",
+  "run_id": "SR0001",
+  "lineage_id": "L-SC0001-SR0001",
+  "created_at_utc": "2026-07-02T17:32:58Z",
+  "artifact_records": [
+    {
+      "artifact_id": "A-SC0001-SR0001-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "repo_relative_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/proxy.json",
+      "sha256": null,
+      "produced_by": "pending_sr0001_evidence_loop",
+      "source_inputs": [
+        "campaigns/SC0001_accumulated_negative_memory_synthesis/ingredient_refs.yaml",
+        "campaigns/SC0001_accumulated_negative_memory_synthesis/synthesis_queue.yaml"
+      ],
+      "linked_kpi_family": "proxy",
+      "mutable": true,
+      "claim_authority": false
+    },
+    {
+      "artifact_id": "A-SC0001-SR0001-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "json",
+      "repo_relative_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/mt5_logic_parity.json",
+      "sha256": null,
+      "produced_by": "pending_sr0001_evidence_loop",
+      "source_inputs": [
+        "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/proxy.json"
+      ],
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": true,
+      "claim_authority": false
+    },
+    {
+      "artifact_id": "A-SC0001-SR0001-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "json",
+      "repo_relative_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/mt5_tick.json",
+      "sha256": null,
+      "produced_by": "pending_sr0001_evidence_loop",
+      "source_inputs": [
+        "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/proxy.json"
+      ],
+      "linked_kpi_family": "mt5_tick",
+      "mutable": true,
+      "claim_authority": false
+    },
+    {
+      "artifact_id": "A-SC0001-SR0001-PARITY-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "json",
+      "repo_relative_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": null,
+      "produced_by": "pending_sr0001_evidence_loop",
+      "source_inputs": [
+        "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/proxy.json",
+        "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/mt5_logic_parity.json"
+      ],
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": true,
+      "claim_authority": false
+    },
+    {
+      "artifact_id": "A-SC0001-SR0001-EXEC-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "json",
+      "repo_relative_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/execution_divergence.json",
+      "sha256": null,
+      "produced_by": "pending_sr0001_evidence_loop",
+      "source_inputs": [
+        "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/mt5_logic_parity.json",
+        "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/mt5_tick.json"
+      ],
+      "linked_kpi_family": "execution_divergence",
+      "mutable": true,
+      "claim_authority": false
+    },
+    {
+      "artifact_id": "A-SC0001-SR0001-GATE",
+      "artifact_role": "gate_report",
+      "artifact_type": "json",
+      "repo_relative_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/gate_report.json",
+      "sha256": null,
+      "produced_by": "pending_sr0001_evidence_loop",
+      "source_inputs": [
+        "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/run_manifest.json"
+      ],
+      "linked_kpi_family": "gate",
+      "mutable": true,
+      "claim_authority": false
+    }
+  ],
+  "deferred_with_reason": [
+    {
+      "field": "artifact_records[].sha256",
+      "reason": "SR0001 evidence artifacts are scaffolds until the proxy and MT5 evidence loop produces final KPI records",
+      "blocking_condition": "evidence_generation_not_started",
+      "revisit_when": "after_produce_sc0001_sr0001_proxy_evidence_and_each_downstream_mt5_kpi_record"
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "selected": false,
+    "label_selected": false,
+    "feature_set_selected": false,
+    "model_selected": false,
+    "runtime_probe_completed": false,
+    "economics_pass": false,
+    "materialization_ready": false,
+    "runtime_authority": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "live_ready": false
+  }
+}

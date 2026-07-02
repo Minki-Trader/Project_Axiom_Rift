@@ -1,0 +1,83 @@
+{
+  "schema": "axiom_rift_proxy_kpi_v1",
+  "template": false,
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "work_unit_id": "SC0001",
+  "campaign_id": null,
+  "synthesis_id_when_applicable": "SC0001",
+  "run_id": "SR0001",
+  "proxy_id": "PX-SC0001-SR0001",
+  "dataset_identity": "data/processed/datasets/us100_m5_base_frame.csv",
+  "split_policy": "rolling_window",
+  "fold_ids": [],
+  "proxy_engine": "pending_sc0001_sr0001_synthesis_proxy",
+  "proxy_config_path": null,
+  "proxy_code_version_or_commit": null,
+  "proxy_artifact_paths": [],
+  "proxy_artifact_hashes": [],
+  "required_kpis": {
+    "proxy_trade_count": null,
+    "proxy_signal_count": null,
+    "proxy_net_pnl": null,
+    "proxy_profit_factor": null,
+    "proxy_max_drawdown_percent": null,
+    "proxy_expectancy_per_entry": null,
+    "proxy_win_rate": null
+  },
+  "conditional_profiles": {
+    "synthesis_constraint_profile": {
+      "applies": true,
+      "fields": {
+        "source_ingredient_ids": [
+          "c0001_ig004_execution_and_parity_lesson",
+          "c0002_ig004_score_conditioned_execution_and_parity_lesson",
+          "c0003_ig004_path_conditioned_execution_divergence_lesson",
+          "c0003_ig005_target_frequency_is_not_edge_negative_memory"
+        ],
+        "adjacent_retry_disallowed": true,
+        "proxy_is_screening_gate_for_mt5": false
+      }
+    },
+    "score_surface_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "trade_excursion_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "direction_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "stability_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "cost_execution_profile": {
+      "applies": false,
+      "fields": {}
+    }
+  },
+  "deferred_with_reason": [
+    {
+      "field": "required_kpis",
+      "reason": "SR0001 proxy evidence has not been generated yet",
+      "revisit_when": "produce_sc0001_sr0001_proxy_evidence"
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "selected": false,
+    "label_selected": false,
+    "feature_set_selected": false,
+    "model_selected": false,
+    "runtime_probe_completed": false,
+    "economics_pass": false,
+    "materialization_ready": false,
+    "runtime_authority": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "live_ready": false
+  }
+}

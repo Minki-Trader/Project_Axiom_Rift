@@ -423,3 +423,24 @@ decisions:
       feature_set_selected: false
       model_selected: false
       economics_pass: false
+  - decision_id: dec_20260703_open_sc0001_sr0001_synthesis_constraint_run
+    created_local_date: 2026-07-03
+    status: active
+    decision: open_sr0001_synthesis_constraint_run_under_sc0001
+    refines:
+      - dec_20260703_open_sc0001_accumulated_negative_memory_synthesis
+      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+      - dec_20260701_mandatory_mt5_paired_run_validation
+    rationale:
+      - sc0001_queue_identifies_sr0001_as_the_next_synthesis_run
+      - sr0001_uses_execution_and_parity_lessons_plus_target_frequency_without_edge_negative_memory
+      - sr0001_changes_the_question_from_another_adjacent_entry_score_or_exit_retry_to_non_adjacent_constraint_synthesis
+      - opened_synthesis_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+      - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+      economics_pass: false

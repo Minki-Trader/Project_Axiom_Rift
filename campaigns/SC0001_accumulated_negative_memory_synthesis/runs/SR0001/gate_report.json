@@ -1,0 +1,86 @@
+{
+  "schema": "axiom_rift_gate_report_v1",
+  "template": false,
+  "role": "lightweight_decision_receipt",
+  "work_unit_id": "SC0001",
+  "run_id": "SR0001",
+  "gate_report_id": "G-SC0001-SR0001",
+  "evidence_gate": {
+    "status": "planned_not_produced",
+    "checks": {
+      "proxy_kpi_path_recorded": true,
+      "mt5_logic_parity_kpi_path_recorded": true,
+      "mt5_tick_kpi_path_recorded": true,
+      "proxy_vs_mt5_logic_parity_kpi_path_recorded": true,
+      "execution_divergence_kpi_path_recorded": true,
+      "artifact_lineage_path_recorded": true
+    }
+  },
+  "parity_gate": {
+    "status": "not_checked",
+    "mechanical_parity_status": "not_checked",
+    "intent_parity_status": "not_checked",
+    "repair_required": false,
+    "non_portable_status": "not_checked"
+  },
+  "rolling_window_closeout_gate": {
+    "status": "not_checked",
+    "aggregate_full_period_mt5_kpi_role": "diagnostic_only",
+    "fold_isolated_mt5_tick_required": true,
+    "fold_isolated_mt5_tick_path_recorded": false,
+    "fold_isolated_execution_divergence_path_recorded": false,
+    "fold_isolated_exception": {
+      "applies": false,
+      "reason": "",
+      "blocking_condition": "",
+      "revisit_when": ""
+    }
+  },
+  "claim_gate": {
+    "status": "passed_for_creation",
+    "claim_authority": false,
+    "label_selected": false,
+    "feature_set_selected": false,
+    "model_selected": false,
+    "runtime_authority": false,
+    "live_ready": false
+  },
+  "decision": "defer_with_reason",
+  "next_action": "produce_sc0001_sr0001_proxy_evidence",
+  "evidence_paths": [
+    "run_manifest.json",
+    "artifact_lineage.json",
+    "kpi/proxy.json",
+    "kpi/mt5_logic_parity.json",
+    "kpi/proxy_vs_mt5_logic_parity.json",
+    "kpi/mt5_tick.json",
+    "kpi/execution_divergence.json"
+  ],
+  "deferred_with_reason": [
+    {
+      "item": "proxy_and_mt5_kpi_values",
+      "reason": "SR0001 is opened and planned; evidence generation is the next operation"
+    },
+    {
+      "item": "fold_isolated_closeout_evidence",
+      "reason": "required before SR0001 closeout, not at run creation"
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "selected": false,
+    "label_selected": false,
+    "feature_set_selected": false,
+    "model_selected": false,
+    "runtime_authority": false,
+    "onnx_ready": false,
+    "live_ready": false
+  },
+  "must_not": [
+    "claim_selected",
+    "claim_runtime_authority",
+    "skip_mt5_when_proxy_is_weak",
+    "close_from_aggregate_mt5",
+    "close_from_broken_code"
+  ]
+}

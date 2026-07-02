@@ -29,6 +29,11 @@ ingredient_refs_path: ingredient_refs.yaml
 synthesis_queue_path: synthesis_queue.yaml
 runs_root: runs/
 synthesis_run_id_format: SR0001
+run_index:
+  active_run: runs/SR0001
+  opened_runs:
+    - runs/SR0001
+  closed_runs: []
 
 stream_policy:
   stream: synthesis

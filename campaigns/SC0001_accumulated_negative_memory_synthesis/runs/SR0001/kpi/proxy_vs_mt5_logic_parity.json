@@ -1,0 +1,71 @@
+{
+  "schema": "axiom_rift_proxy_vs_mt5_logic_parity_kpi_v1",
+  "template": false,
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "work_unit_id": "SC0001",
+  "campaign_id": null,
+  "synthesis_id_when_applicable": "SC0001",
+  "run_id": "SR0001",
+  "parity_id": "P-SC0001-SR0001",
+  "proxy_id": "PX-SC0001-SR0001",
+  "mt5_probe_id": "MT5-SC0001-SR0001-LOGIC",
+  "proxy_kpi_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/proxy.json",
+  "mt5_logic_parity_kpi_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/mt5_logic_parity.json",
+  "compared_period": {
+    "start": null,
+    "end": null
+  },
+  "required_kpis": {
+    "trade_count_delta": null,
+    "entry_count_delta": null,
+    "exit_count_delta": null,
+    "entry_key_match_rate": null,
+    "exit_time_direction_match_rate": null,
+    "exit_reason_match_rate": null,
+    "mechanical_parity_status": "not_checked",
+    "intent_parity_status": "not_checked",
+    "mismatch_count": null,
+    "mismatch_summary": null,
+    "repair_required": false,
+    "next_action": "produce_sc0001_sr0001_proxy_vs_mt5_logic_parity_evidence"
+  },
+  "mechanical_checks": {
+    "entry_count_match": "not_checked",
+    "exit_count_match": "not_checked",
+    "entry_time_direction_match": "not_checked",
+    "exit_time_reason_order_match": "not_checked",
+    "entry_exit_order_match": "not_checked",
+    "position_lifecycle_match": "not_checked"
+  },
+  "conditional_profiles": {
+    "trade_match_detail_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "cost_execution_profile": {
+      "applies": false,
+      "fields": {}
+    }
+  },
+  "deferred_with_reason": [
+    {
+      "field": "required_kpis",
+      "reason": "proxy-vs-MT5 logic parity waits for proxy and MT5 logic parity evidence",
+      "revisit_when": "record_sc0001_sr0001_proxy_vs_mt5_logic_parity_evidence"
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "selected": false,
+    "label_selected": false,
+    "feature_set_selected": false,
+    "model_selected": false,
+    "runtime_probe_completed": false,
+    "economics_pass": false,
+    "materialization_ready": false,
+    "runtime_authority": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "live_ready": false
+  }
+}

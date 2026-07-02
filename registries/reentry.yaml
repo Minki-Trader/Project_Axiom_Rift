@@ -291,8 +291,10 @@ next_work:
   - close_c0003_no_candidate_after_r0003
   - record_c0003_synthesis_readiness_open_synthesis
   - open_sc0001_accumulated_negative_memory_synthesis
-  tasks:
   - design_sc0001_sr0001_synthesis_run_from_ingredient_queue
+  - open_sc0001_sr0001_synthesis_constraint_run
+  tasks:
+  - produce_sc0001_sr0001_proxy_evidence
   not_yet:
   - label_freeze
   - feature_set_freeze

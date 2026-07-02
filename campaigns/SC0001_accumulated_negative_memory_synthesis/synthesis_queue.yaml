@@ -6,7 +6,8 @@ synthesis_id: SC0001
 
 queue:
   - synthesis_run_id: SR0001
-    status: pending_design
+    status: proxy_planned
+    opened_run_path: runs/SR0001/run_manifest.json
     source_ingredient_ids:
       - c0001_ig004_execution_and_parity_lesson
       - c0002_ig004_score_conditioned_execution_and_parity_lesson
