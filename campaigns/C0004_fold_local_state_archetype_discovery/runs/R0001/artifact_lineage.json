@@ -6,10 +6,10 @@
       "artifact_type": "json",
       "claim_authority": false,
       "linked_kpi_family": "gate",
-      "mutable": true,
-      "produced_by": "pending_r0001_evidence_loop",
+      "mutable": false,
+      "produced_by": "close_c0004_r0001_no_candidate",
       "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/gate_report.json",
-      "sha256": null,
+      "sha256": "3b56e58cbe4302028c8aa1cb616da48ff2d14cb0d6d5ababa19d7c0bcc431ebf",
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/run_manifest.json"
       ]
@@ -164,6 +164,21 @@
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"
       ]
+    },
+    {
+      "artifact_id": "A-C0004-R0001-GATE-CLOSEOUT",
+      "artifact_role": "gate_report_closeout",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "run_closeout",
+      "mutable": false,
+      "produced_by": "close_c0004_r0001_no_candidate",
+      "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/gate_report.json",
+      "sha256": "3b56e58cbe4302028c8aa1cb616da48ff2d14cb0d6d5ababa19d7c0bcc431ebf",
+      "source_inputs": [
+        "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/execution_divergence_by_fold.json"
+      ]
     }
   ],
   "claim_boundary": {
@@ -176,9 +191,9 @@
   "created_at_utc": "2026-07-02T18:49:57Z",
   "deferred_with_reason": [
     {
-      "field": "closeout_review",
-      "next_action": "review_c0004_r0001_tick_execution_kpi_and_closeout",
-      "reason": "fold-isolated MT5 tick and execution divergence artifacts are recorded; closeout review is the next mandatory sequence step"
+      "field": "next_campaign_run_or_campaign_close_decision",
+      "next_action": "decide_c0004_r0002_or_close_c0004_after_r0001",
+      "reason": "C0004 R0001 is closed no candidate; the campaign remains open pending a true R0002 variant or C0004 close decision"
     }
   ],
   "lineage_id": "L-C0004-R0001",

@@ -44,14 +44,15 @@ required_surfaces:
 run_index:
   runs_root: runs/
   run_id_format: R0001
-  active_run: runs/R0001
-  closed_runs: []
+  active_run: null
+  closed_runs:
+  - runs/R0001
   next_run_candidate:
     run_id: null
-    direction: active_r0001_closeout_review
-    reason: R0001 fold-isolated MT5 tick KPI and fold-isolated execution divergence
-      are recorded; next work is closeout review.
-    status: active_run_open
+    direction: decide_c0004_r0002_or_close_c0004_after_r0001
+    reason: R0001 closed no candidate after fold-isolated MT5 tick evidence; next
+      work is to decide whether C0004 has a meaningful R0002 variant or should close.
+    status: pending_decision
 synthesis_readiness:
   check_required_at_closeout: true
   result: not_checked
@@ -60,8 +61,9 @@ synthesis_readiness:
 closeout:
   status: open
   close_reason: null
-  evidence_paths: []
-  remaining_question: review_c0004_r0001_tick_execution_kpi_and_closeout
+  evidence_paths:
+  - runs/R0001/gate_report.json
+  remaining_question: decide_c0004_r0002_or_close_c0004_after_r0001
 claim_boundary:
   claim_authority: false
   selected: false

@@ -16,17 +16,47 @@
     "live_ready": false,
     "model_selected": false,
     "runtime_authority": false,
-    "status": "passed_for_creation"
+    "status": "passed"
   },
-  "decision": "defer_with_reason",
-  "deferred_with_reason": [
-    {
-      "blocking_condition": "review_c0004_r0001_tick_execution_kpi_and_closeout",
-      "field": "run_closeout",
-      "reason": "fold-isolated MT5 tick KPI and fold-isolated execution divergence are recorded; closeout judgment was not performed in this step",
-      "revisit_when": "during C0004 R0001 closeout review"
-    }
-  ],
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "close_reason": "fold_isolated_tick_negative_no_candidate",
+    "closed_at_utc": "2026-07-02T20:20:00Z",
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "hypothesis_tested": "fold-local train-only market-state archetype membership with abstention-first US100 M5 schedule replay",
+      "next_boundary": "next C0004 work must change a meaningful state-archetype, feature, label, model, or trade-shape surface; do not retry R0001 by only nudging top archetype count, min archetype count, daily max entries, stop, target, hold, or session thresholds",
+      "reason_not_candidate": "fold-isolated MT5 tick evidence completed with 8 losing folds, 1 profitable fold, negative total tick net PnL, and negative proxy PnL despite entries per active day inside the 5 to 10 target range"
+    },
+    "required_kpi_summary": {
+      "entries_per_active_day": 5.602763,
+      "execution_divergence_by_fold_status": "completed",
+      "logic_parity_status": "passed",
+      "losing_fold_count": 8,
+      "profitable_fold_count": 1,
+      "proxy_net_pnl_points": -4009.66,
+      "proxy_profit_factor": 0.882438,
+      "proxy_trade_count": 3244,
+      "tick_better_fold_count": 3,
+      "tick_worse_fold_count": 6,
+      "total_tick_net_pnl": -40.95,
+      "total_tick_trade_count": 3241,
+      "worst_fold_id": "rw_006",
+      "worst_fold_net_pnl": -12.15
+    },
+    "status": "closed_no_candidate"
+  },
+  "decision": "close_no_candidate",
+  "deferred_with_reason": [],
   "evidence_gate": {
     "checks": {
       "artifact_lineage_path_recorded": true,
@@ -38,7 +68,7 @@
       "proxy_kpi_path_recorded": true,
       "proxy_vs_mt5_logic_parity_kpi_path_recorded": true
     },
-    "status": "fold_isolated_evidence_recorded"
+    "status": "passed_for_closeout"
   },
   "evidence_paths": [
     "run_manifest.json",
@@ -57,8 +87,8 @@
   "execution_gate": {
     "economics_shift_status": "tick_worse_than_logic",
     "missing_required_kpi_fields": [],
-    "run_closeout_review_ready": false,
-    "status": "recorded_with_divergence"
+    "run_closeout_review_ready": true,
+    "status": "closed_no_candidate"
   },
   "fold_isolated_execution_gate": {
     "execution_divergence_by_fold_status": "completed",
@@ -76,7 +106,7 @@
     "close_from_aggregate_mt5",
     "close_from_broken_code"
   ],
-  "next_action": "review_c0004_r0001_tick_execution_kpi_and_closeout",
+  "next_action": "decide_c0004_r0002_or_close_c0004_after_r0001",
   "parity_gate": {
     "intent_parity_status": "passed_schedule_replay_boundary",
     "mechanical_parity_status": "passed",
@@ -96,7 +126,7 @@
     "fold_isolated_execution_divergence_path_recorded": true,
     "fold_isolated_mt5_tick_path_recorded": true,
     "fold_isolated_mt5_tick_required": true,
-    "status": "fold_isolated_evidence_recorded_pending_closeout_review"
+    "status": "passed"
   },
   "run_id": "R0001",
   "schema": "axiom_rift_gate_report_v1",
