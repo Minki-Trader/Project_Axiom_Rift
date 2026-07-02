@@ -46,11 +46,12 @@ run_index:
   - runs/R0001
   - runs/R0002
   - runs/R0003
+  - runs/R0004
   next_run_candidate:
-    run_id: R0004
+    run_id: R0005
     direction: new_score_conditioned_variant_or_campaign_close_review
-    reason: R0003 closed no candidate because fold-isolated MT5 tick total net PnL
-      was negative and 6 of 9 folds were losing
+    reason: R0004 closed no candidate because all 9 fold-isolated MT5 tick folds were
+      losing
     status: candidate_pending_decision
 synthesis_readiness:
   check_required_at_closeout: true
@@ -63,7 +64,7 @@ closeout:
   status: open
   close_reason: null
   evidence_paths: []
-  remaining_question: decide_r0004_or_close_c0002_after_r0003
+  remaining_question: decide_r0005_or_close_c0002_after_r0004
 claim_boundary:
   claim_authority: false
   selected: false

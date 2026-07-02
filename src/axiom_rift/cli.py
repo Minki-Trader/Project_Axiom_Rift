@@ -103,6 +103,15 @@ from .mt5.c0002_r0003_probe import (
     run_c0002_r0003_mt5_tick_by_fold_workflow,
     run_c0002_r0003_mt5_tick_workflow,
 )
+from .mt5.c0002_r0004_probe import (
+    compile_c0002_r0004_ea,
+    parse_c0002_r0004_mt5,
+    record_c0002_r0004_execution_divergence,
+    record_c0002_r0004_parity,
+    run_c0002_r0004_mt5_logic_workflow,
+    run_c0002_r0004_mt5_tick_by_fold_workflow,
+    run_c0002_r0004_mt5_tick_workflow,
+)
 from .proxies.r0001_volatility_expansion import run_r0001_proxy
 from .proxies.r0002_failed_continuation_reversal import run_r0002_proxy
 from .proxies.r0003_failed_breakout_reclaim_reversal import run_r0003_proxy
@@ -113,6 +122,7 @@ from .proxies.r0007_core_session_expansion_continuation import run_r0007_proxy
 from .proxies.c0002_r0001_score_conditioned import run_c0002_r0001_proxy
 from .proxies.c0002_r0002_exhaustion_reversal import run_c0002_r0002_proxy
 from .proxies.c0002_r0003_dual_direction_cell_score import run_c0002_r0003_proxy
+from .proxies.c0002_r0004_stump_rank_ensemble import run_c0002_r0004_proxy
 from .validation.work_units import result_json, validate_templates, validate_work_unit
 
 
@@ -331,6 +341,37 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser(
         "record-c0002-r0003-execution-divergence",
         help="record C0002 R0003 closed-bar-vs-tick execution divergence",
+    )
+    c0002_r0004_proxy_parser = subparsers.add_parser(
+        "run-c0002-r0004-proxy",
+        help="run C0002 R0004 stump-rank ensemble proxy evidence",
+    )
+    c0002_r0004_proxy_parser.add_argument("--dry-run", action="store_true", help="print proxy payload without writing files")
+    subparsers.add_parser("compile-c0002-r0004-ea", help="compile C0002 generic MT5 schedule-replay EA for R0004")
+    c0002_r0004_mt5_logic_parser = subparsers.add_parser(
+        "run-c0002-r0004-mt5-logic",
+        help="run C0002 R0004 MT5 closed-bar logic parity workflow",
+    )
+    c0002_r0004_mt5_logic_parser.add_argument("--timeout-seconds", type=int, default=1800)
+    c0002_r0004_mt5_tick_parser = subparsers.add_parser(
+        "run-c0002-r0004-mt5-tick",
+        help="run C0002 R0004 MT5 tick execution KPI workflow",
+    )
+    c0002_r0004_mt5_tick_parser.add_argument("--timeout-seconds", type=int, default=1800)
+    c0002_r0004_mt5_tick_by_fold_parser = subparsers.add_parser(
+        "run-c0002-r0004-mt5-tick-by-fold",
+        help="run C0002 R0004 fold-isolated MT5 tick KPI and divergence workflow",
+    )
+    c0002_r0004_mt5_tick_by_fold_parser.add_argument("--timeout-seconds", type=int, default=1800)
+    parse_c0002_r0004_mt5_parser = subparsers.add_parser(
+        "parse-c0002-r0004-mt5",
+        help="parse existing C0002 R0004 MT5 output files",
+    )
+    parse_c0002_r0004_mt5_parser.add_argument("--mode", choices=(LOGIC_PARITY_MODE, TICK_EXECUTION_MODE), default=LOGIC_PARITY_MODE)
+    subparsers.add_parser("record-c0002-r0004-parity", help="record C0002 R0004 proxy-vs-MT5 logic parity")
+    subparsers.add_parser(
+        "record-c0002-r0004-execution-divergence",
+        help="record C0002 R0004 closed-bar-vs-tick execution divergence",
     )
     subparsers.add_parser("validate-templates", help="validate campaign templates and contract alignment")
     work_unit_parser = subparsers.add_parser("validate-work-unit", help="validate a generated campaign work unit")
@@ -703,6 +744,38 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "record-c0002-r0003-execution-divergence":
         payload = record_c0002_r0003_execution_divergence()
+        print(json.dumps(payload["required_kpis"], indent=2, sort_keys=True))
+        return 0
+    if args.command == "run-c0002-r0004-proxy":
+        payload = run_c0002_r0004_proxy(write=not args.dry_run)
+        print(json.dumps(payload["required_kpis"], indent=2, sort_keys=True))
+        return 0
+    if args.command == "compile-c0002-r0004-ea":
+        result = compile_c0002_r0004_ea()
+        print(json.dumps({"ex5": result.ex5.as_posix(), "log": result.log.as_posix()}, indent=2, sort_keys=True))
+        return 0
+    if args.command == "run-c0002-r0004-mt5-logic":
+        payload = run_c0002_r0004_mt5_logic_workflow(timeout_seconds=args.timeout_seconds)
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if args.command == "run-c0002-r0004-mt5-tick":
+        payload = run_c0002_r0004_mt5_tick_workflow(timeout_seconds=args.timeout_seconds)
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if args.command == "run-c0002-r0004-mt5-tick-by-fold":
+        payload = run_c0002_r0004_mt5_tick_by_fold_workflow(timeout_seconds=args.timeout_seconds)
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if args.command == "parse-c0002-r0004-mt5":
+        payload = parse_c0002_r0004_mt5(mode=args.mode)
+        print(json.dumps(payload["required_kpis"], indent=2, sort_keys=True))
+        return 0
+    if args.command == "record-c0002-r0004-parity":
+        payload = record_c0002_r0004_parity()
+        print(json.dumps(payload["required_kpis"], indent=2, sort_keys=True))
+        return 0
+    if args.command == "record-c0002-r0004-execution-divergence":
+        payload = record_c0002_r0004_execution_divergence()
         print(json.dumps(payload["required_kpis"], indent=2, sort_keys=True))
         return 0
     if args.command == "validate-templates":

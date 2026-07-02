@@ -243,3 +243,27 @@ decisions:
       feature_set_selected: false
       model_selected: false
       economics_pass: false
+  - decision_id: dec_20260702_open_c0002_r0004_stump_rank_ensemble_variant
+    created_local_date: 2026-07-02
+    status: active
+    decision: open_r0004_stump_rank_ensemble_variant_under_c0002
+    refines:
+      - dec_20260702_open_c0002_score_conditioned_intraday_edge
+      - dec_20260702_open_c0002_r0001_score_conditioned_candidate_selection
+      - dec_20260702_open_c0002_r0002_exhaustion_reversal_score_variant
+      - dec_20260702_open_c0002_r0003_dual_direction_cell_score_variant
+      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+    rationale:
+      - c0002_r0001_to_r0003_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+      - c0002_still_has_meaningful_model_score_variants_remaining
+      - r0004_changes_the_model_score_surface_to_a_train_only_supervised_stump_rank_ensemble
+      - r0004_uses_direction_aware_features_and_top_ranked_candidates_per_active_day_to_test_the_entry_frequency_target_more_directly
+      - r0004_is_not_a_threshold_window_sl_tp_nudge_or_retry_of_r0001_r0002_or_r0003
+      - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+      economics_pass: false
