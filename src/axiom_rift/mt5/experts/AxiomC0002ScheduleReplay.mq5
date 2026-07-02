@@ -4,6 +4,7 @@
 #include <Trade/Trade.mqh>
 
 input string InpRunId = "R0000";
+input string InpCampaignId = "C0002";
 input string InpOutputMode = "logic_parity";
 input string InpOutputScope = "";
 input string InpResponseMode = "score_conditioned_schedule_replay";
@@ -47,7 +48,7 @@ ulong g_skip_count = 0;
 
 string BaseFolder()
 {
-   string folder = "AxiomRift\\C0002\\" + InpRunId + "\\" + InpOutputMode;
+   string folder = "AxiomRift\\" + InpCampaignId + "\\" + InpRunId + "\\" + InpOutputMode;
    if(InpOutputScope != "")
       folder = folder + "\\" + InpOutputScope;
    return folder;
@@ -96,9 +97,9 @@ void EnsureFolders()
 {
    int common_flag = InpUseCommonFiles ? FILE_COMMON : 0;
    FolderCreate("AxiomRift", common_flag);
-   FolderCreate("AxiomRift\\C0002", common_flag);
-   FolderCreate("AxiomRift\\C0002\\" + InpRunId, common_flag);
-   FolderCreate("AxiomRift\\C0002\\" + InpRunId + "\\" + InpOutputMode, common_flag);
+   FolderCreate("AxiomRift\\" + InpCampaignId, common_flag);
+   FolderCreate("AxiomRift\\" + InpCampaignId + "\\" + InpRunId, common_flag);
+   FolderCreate("AxiomRift\\" + InpCampaignId + "\\" + InpRunId + "\\" + InpOutputMode, common_flag);
    FolderCreate(BaseFolder(), common_flag);
 }
 
@@ -111,6 +112,7 @@ void WriteStatus(string status, string detail)
    FileWrite(handle, "field", "value");
    FileWrite(handle, "status", status);
    FileWrite(handle, "detail", detail);
+   FileWrite(handle, "campaign_id", InpCampaignId);
    FileWrite(handle, "run_id", InpRunId);
    FileWrite(handle, "output_mode", InpOutputMode);
    FileWrite(handle, "output_scope", InpOutputScope);

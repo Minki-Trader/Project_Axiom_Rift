@@ -45,14 +45,15 @@ run_index:
   runs_root: runs/
   run_id_format: R0001
   active_run: null
-  closed_runs: []
+  closed_runs:
+  - runs/R0001
   next_run_candidate:
-    run_id: R0001
-    direction: first_path_conditioned_exit_risk_shape_variant
-    reason: C0001 and C0002 both closed no candidate, and the next major question
-      changes from finding better entries to testing whether exit and risk-shape
-      logic can change MT5 tick economics
-    status: candidate_pending_open
+    run_id: R0002
+    direction: decide_next_path_conditioned_exit_risk_shape_variant
+    reason: R0001 closed no candidate after all 9 fold-isolated MT5 tick folds
+      lost; C0003 may still have meaningful non-adjacent path-conditioned exit,
+      hold, risk-shape, label, model, or trade-shape variants
+    status: candidate_pending_decision
 synthesis_readiness:
   check_required_at_closeout: true
   result: not_checked
@@ -63,8 +64,12 @@ synthesis_readiness:
 closeout:
   status: open
   close_reason: null
-  evidence_paths: []
-  remaining_question: open_r0001_path_conditioned_exit_risk_shape_variant
+  evidence_paths:
+  - runs/R0001/run_manifest.json
+  - runs/R0001/gate_report.json
+  - runs/R0001/kpi/mt5_tick_by_fold.json
+  - runs/R0001/kpi/execution_divergence_by_fold.json
+  remaining_question: decide_c0003_r0002_or_close_c0003_after_r0001
 claim_boundary:
   claim_authority: false
   selected: false

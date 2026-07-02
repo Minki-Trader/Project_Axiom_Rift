@@ -312,3 +312,24 @@ decisions:
       feature_set_selected: false
       model_selected: false
       economics_pass: false
+  - decision_id: dec_20260703_open_c0003_r0001_path_conditioned_exit_risk_shape_variant
+    created_local_date: 2026-07-03
+    status: active
+    decision: open_r0001_path_conditioned_exit_risk_shape_variant_under_c0003
+    refines:
+      - dec_20260703_open_c0003_path_conditioned_exit_risk_shape
+      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+      - dec_20260701_mandatory_mt5_paired_run_validation
+    rationale:
+      - c0003_is_open_and_has_no_active_or_closed_runs
+      - r0001_is_the_first_true_variant_inside_the_path_conditioned_exit_risk_shape_boundary
+      - r0001_changes_model_feature_label_and_trade_logic_surfaces_toward_path_survival_exit_hold_stop_target_and_fixed_lot_risk_shape_logic
+      - r0001_is_not_a_threshold_window_sltp_nudge_repair_or_retry_of_c0001_or_c0002
+      - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+      economics_pass: false
