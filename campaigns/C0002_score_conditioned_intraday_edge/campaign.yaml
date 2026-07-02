@@ -45,24 +45,25 @@ run_index:
   closed_runs:
   - runs/R0001
   - runs/R0002
+  - runs/R0003
   next_run_candidate:
-    run_id: R0003
+    run_id: R0004
     direction: new_score_conditioned_variant_or_campaign_close_review
-    reason: R0002 closed no candidate because all fold-isolated MT5 tick folds were
-      losing
+    reason: R0003 closed no candidate because fold-isolated MT5 tick total net PnL
+      was negative and 6 of 9 folds were losing
     status: candidate_pending_decision
 synthesis_readiness:
   check_required_at_closeout: true
   result: not_checked
   usable_ingredient_group_count: 0
   readiness_notes:
-  - campaign_open_no_runs_yet
-  - c0001_synthesis_readiness_was_candidate_later_not_open_synthesis
+  - c0002_open_after_three_closed_no_candidate_runs
+  - synthesis_due_check_pending_until_campaign_close_review
 closeout:
   status: open
   close_reason: null
   evidence_paths: []
-  remaining_question: decide_r0003_or_close_c0002_after_r0002
+  remaining_question: decide_r0004_or_close_c0002_after_r0003
 claim_boundary:
   claim_authority: false
   selected: false
