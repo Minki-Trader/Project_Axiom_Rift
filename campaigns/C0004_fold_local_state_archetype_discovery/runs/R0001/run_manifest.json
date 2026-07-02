@@ -36,7 +36,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "logic_parity_evidence_recorded",
+  "gate_status": "logic_tick_and_divergence_recorded",
   "hypothesis_variant": {
     "summary": "test whether train-fold-local market-state archetypes can produce abstention-first US100 M5 entry events with enough activity for the 5 to 10 entries-per-active-day target before MT5 schedule replay",
     "variant_boundary": "first C0004 true variant; changes model, feature, label, and trade-logic surfaces toward fold-local state archetype membership and abstention-first entry generation, not a threshold, window, SLTP, hold, or retry nudge from prior C0001 through SC0001 failures"
@@ -89,7 +89,7 @@
   "run_id": "R0001",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "parity_evidence_recorded",
+  "status": "execution_divergence_recorded_pending_fold_isolated_tick",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

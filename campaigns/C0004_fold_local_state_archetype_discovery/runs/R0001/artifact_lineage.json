@@ -103,6 +103,36 @@
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/proxy.json",
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_logic_parity.json"
       ]
+    },
+    {
+      "artifact_id": "A-C0004-R0001-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0004_r0001_probe",
+      "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_tick.json",
+      "sha256": "44d92206213615d99f82be003f3e117cd0e223e65ef41c74e71b0a779e230300",
+      "source_inputs": [
+        "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/artifacts/c0004_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0004-R0001-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0004_r0001_probe",
+      "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/execution_divergence.json",
+      "sha256": "6006e619d16691e3302ff834c7c5ff2c6af381fc6405b07effb26408d88a30f9",
+      "source_inputs": [
+        "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+        "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_tick.json"
+      ]
     }
   ],
   "claim_boundary": {
@@ -115,9 +145,9 @@
   "created_at_utc": "2026-07-02T18:49:57Z",
   "deferred_with_reason": [
     {
-      "field": "mt5_tick_and_fold_isolated_artifact_hashes",
-      "next_action": "produce_c0004_r0001_mt5_tick_execution_evidence",
-      "reason": "logic parity artifacts are recorded; tick execution and fold-isolated evidence are later mandatory sequence steps"
+      "field": "fold_isolated_artifact_hashes",
+      "next_action": "produce_c0004_r0001_fold_isolated_mt5_tick_kpi",
+      "reason": "aggregate tick and execution divergence artifacts are recorded; fold-isolated evidence is the next mandatory sequence step"
     }
   ],
   "lineage_id": "L-C0004-R0001",

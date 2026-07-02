@@ -122,8 +122,10 @@ class ImportTest(unittest.TestCase):
         self.assertIn("run-c0004-r0001-proxy", choices)
         self.assertIn("compile-c0004-r0001-ea", choices)
         self.assertIn("run-c0004-r0001-mt5-logic", choices)
+        self.assertIn("run-c0004-r0001-mt5-tick", choices)
         self.assertIn("parse-c0004-r0001-mt5", choices)
         self.assertIn("record-c0004-r0001-parity", choices)
+        self.assertIn("record-c0004-r0001-execution-divergence", choices)
         self.assertIn("validate-templates", choices)
         self.assertIn("validate-work-unit", choices)
 
