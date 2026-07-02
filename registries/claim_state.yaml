@@ -6,43 +6,38 @@ project:
   purpose: clean_restart_fpmarkets_us100_m5
   audience: codex_only
   layout_mode: developer_campaign_manifest
-
 text_policy:
   active_project_files: ascii_only
   human_friendly_text: chat_only
   archive_exception_may_contain_non_ascii: true
-
 boot:
   reentry_file: registries/reentry.yaml
   agent_rules: AGENTS.md
   skip_archive_by_default: true
-
 restart_boundary:
   reference_archive_root: C:/Obsidian_Restore/Project_Obsidian_Prime_v2
   imported_reference_archive: archive/imported_fpmarkets_v2_delete_after_axiom_contracts
   imported_skill_agent_archive: archive/imported_obsidian_v2_skills_delete_after_axiom_skills
   archived_reference_only:
-    - archive/imported_fpmarkets_v2_delete_after_axiom_contracts/docs/contracts
-    - archive/imported_fpmarkets_v2_delete_after_axiom_contracts/foundation/config
-    - archive/imported_obsidian_v2_skills_delete_after_axiom_skills/.agents/skills
-    - archive/imported_obsidian_v2_skills_delete_after_axiom_skills/.codex/agents
+  - archive/imported_fpmarkets_v2_delete_after_axiom_contracts/docs/contracts
+  - archive/imported_fpmarkets_v2_delete_after_axiom_contracts/foundation/config
+  - archive/imported_obsidian_v2_skills_delete_after_axiom_skills/.agents/skills
+  - archive/imported_obsidian_v2_skills_delete_after_axiom_skills/.codex/agents
   delete_archive_after_axiom_contracts_complete: true
   delete_skill_archive_after_axiom_skills_complete: true
   not_inherited:
-    - historical_stages
-    - raw_data
-    - processed_data
-    - model_artifacts
-    - mt5_tester_reports
-    - old_git_history
-
+  - historical_stages
+  - raw_data
+  - processed_data
+  - model_artifacts
+  - mt5_tester_reports
+  - old_git_history
 market_surface:
   broker: FPMarkets
   symbol: US100
   timeframe: M5
   broad_modeling_start: 2022-05-01
   practical_modeling_start: 2022-09-01
-
 data_state:
   source_strategy: fresh_export
   us100_m5_raw:
@@ -84,7 +79,6 @@ data_state:
     tail_holdout_partial_start: 2026-05-01 01:00:00
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
-
 claim_boundary:
   axiom_contracts_complete: false
   axiom_skills_complete: false
@@ -97,27 +91,25 @@ claim_boundary:
   materialization_ready: false
   runtime_authority: false
   live_ready: false
-
 research_mode:
   label_policy: autonomous_discovery_until_frozen
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-
 active_campaign: campaigns/C0004_fold_local_state_archetype_discovery
 active_run: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001
-
 latest_operation:
-  id: produce_c0004_r0001_proxy_evidence
+  id: produce_c0004_r0001_mt5_logic_parity_evidence
   status: completed
-  recorded_at_source: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/proxy.json
-  evidence_status: proxy_recorded_pending_mt5
-  proxy_trade_count: 3244
-  proxy_net_pnl_points: -4009.66
-  proxy_profit_factor: 0.882438
-  proxy_expectancy_points_per_entry: -1.236023
-  proxy_interpretation: weak_proxy_result_not_hypothesis_closeout
-  next_required_action: produce_c0004_r0001_mt5_logic_parity_evidence
+  recorded_at_source: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_logic_parity.json
+  paired_parity_source: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json
+  evidence_status: logic_parity_evidence_recorded
+  mt5_trade_count: 3244
+  mt5_net_pnl: -20.75
+  mechanical_parity_status: passed
+  intent_parity_status: passed_schedule_replay_boundary
+  repair_required: false
+  next_required_action: produce_c0004_r0001_mt5_tick_execution_evidence
   claim_boundary:
     claim_authority: false
     selected: false
@@ -128,7 +120,6 @@ latest_operation:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
-
 active_truth:
   contracts_dir: contracts
   configs_dir: configs

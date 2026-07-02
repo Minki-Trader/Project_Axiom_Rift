@@ -308,8 +308,10 @@ next_work:
   - design_c0004_r0001_fold_local_state_archetype_entry_run
   - open_c0004_r0001_fold_local_state_archetype_entry_run
   - produce_c0004_r0001_proxy_evidence
-  tasks:
   - produce_c0004_r0001_mt5_logic_parity_evidence
+  - record_c0004_r0001_proxy_vs_mt5_logic_parity_evidence
+  tasks:
+  - produce_c0004_r0001_mt5_tick_execution_evidence
   not_yet:
   - label_freeze
   - feature_set_freeze

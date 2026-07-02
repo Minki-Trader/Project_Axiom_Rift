@@ -59,6 +59,50 @@
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/proxy.json"
       ]
+    },
+    {
+      "artifact_id": "A-C0004-R0001-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0004_r0001_probe",
+      "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/artifacts/c0004_r0001_schedule.csv",
+      "sha256": "bd44bae2cddec380a13bb9328df5d34cc1986fca579212100478216f91720669",
+      "source_inputs": [
+        "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0004-R0001-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0004_r0001_probe",
+      "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+      "sha256": "4b0398f449a1bde8f801b10af0108d7a5fe083ea07885c847cfa38910bfe7241",
+      "source_inputs": [
+        "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/artifacts/c0004_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0004-R0001-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0004_r0001_probe",
+      "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "e6bf43b7c71f763a18e9b1338fa1ab2f9e8251efee6aa303eb5a122f4c64b352",
+      "source_inputs": [
+        "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/proxy.json",
+        "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_logic_parity.json"
+      ]
     }
   ],
   "claim_boundary": {
@@ -71,9 +115,9 @@
   "created_at_utc": "2026-07-02T18:49:57Z",
   "deferred_with_reason": [
     {
-      "field": "mt5_artifact_hashes",
-      "next_action": "produce_c0004_r0001_mt5_logic_parity_evidence",
-      "reason": "MT5 artifacts are produced after proxy evidence in the mandatory paired validation sequence"
+      "field": "mt5_tick_and_fold_isolated_artifact_hashes",
+      "next_action": "produce_c0004_r0001_mt5_tick_execution_evidence",
+      "reason": "logic parity artifacts are recorded; tick execution and fold-isolated evidence are later mandatory sequence steps"
     }
   ],
   "lineage_id": "L-C0004-R0001",

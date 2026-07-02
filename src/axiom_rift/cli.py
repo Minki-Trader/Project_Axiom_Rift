@@ -121,6 +121,12 @@ from .mt5.sc0001_sr0001_probe import (
     run_sc0001_sr0001_mt5_tick_by_fold_workflow,
     run_sc0001_sr0001_mt5_tick_workflow,
 )
+from .mt5.c0004_r0001_probe import (
+    compile_c0004_r0001_ea,
+    parse_c0004_r0001_mt5,
+    record_c0004_r0001_parity,
+    run_c0004_r0001_mt5_logic_workflow,
+)
 from .proxies.r0001_volatility_expansion import run_r0001_proxy
 from .proxies.r0002_failed_continuation_reversal import run_r0002_proxy
 from .proxies.r0003_failed_breakout_reclaim_reversal import run_r0003_proxy
@@ -420,6 +426,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="run C0004 R0001 fold-local state archetype proxy evidence",
     )
     c0004_r0001_proxy_parser.add_argument("--dry-run", action="store_true", help="print proxy payload without writing files")
+    subparsers.add_parser("compile-c0004-r0001-ea", help="compile shared schedule replay EA for C0004 R0001")
+    c0004_r0001_mt5_logic_parser = subparsers.add_parser(
+        "run-c0004-r0001-mt5-logic",
+        help="run C0004 R0001 MT5 closed-bar logic parity workflow",
+    )
+    c0004_r0001_mt5_logic_parser.add_argument("--timeout-seconds", type=int, default=1800)
+    parse_c0004_r0001_mt5_parser = subparsers.add_parser(
+        "parse-c0004-r0001-mt5",
+        help="parse existing C0004 R0001 MT5 logic output files",
+    )
+    parse_c0004_r0001_mt5_parser.add_argument("--mode", choices=(LOGIC_PARITY_MODE,), default=LOGIC_PARITY_MODE)
+    subparsers.add_parser("record-c0004-r0001-parity", help="record C0004 R0001 proxy-vs-MT5 logic parity")
     subparsers.add_parser("validate-templates", help="validate campaign templates and contract alignment")
     work_unit_parser = subparsers.add_parser("validate-work-unit", help="validate a generated campaign work unit")
     work_unit_parser.add_argument("path", help="path such as campaigns/C0001_short_slug")
@@ -859,6 +877,22 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "run-c0004-r0001-proxy":
         payload = run_c0004_r0001_proxy(write=not args.dry_run)
+        print(json.dumps(payload["required_kpis"], indent=2, sort_keys=True))
+        return 0
+    if args.command == "compile-c0004-r0001-ea":
+        result = compile_c0004_r0001_ea()
+        print(json.dumps({"ex5": result.ex5.as_posix(), "log": result.log.as_posix()}, indent=2, sort_keys=True))
+        return 0
+    if args.command == "run-c0004-r0001-mt5-logic":
+        payload = run_c0004_r0001_mt5_logic_workflow(timeout_seconds=args.timeout_seconds)
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if args.command == "parse-c0004-r0001-mt5":
+        payload = parse_c0004_r0001_mt5(mode=args.mode)
+        print(json.dumps(payload["required_kpis"], indent=2, sort_keys=True))
+        return 0
+    if args.command == "record-c0004-r0001-parity":
+        payload = record_c0004_r0001_parity()
         print(json.dumps(payload["required_kpis"], indent=2, sort_keys=True))
         return 0
     if args.command == "validate-templates":
