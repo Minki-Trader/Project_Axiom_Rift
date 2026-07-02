@@ -1,0 +1,2417 @@
+{
+  "campaign_id": "C0003",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false,
+    "selected": false
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "average_spread_cost_points": 1.08091,
+        "commission_per_trade": 0,
+        "round_trip_cost_model": "subtract_entry_spread_once",
+        "slippage_stress_test_allowed": true,
+        "spread_point_value": 0.01,
+        "spread_source": "entry_bar_spread_column",
+        "spread_stress_test_allowed": true,
+        "synthetic_commission_allowed": false,
+        "total_spread_cost_points": 3171.39
+      }
+    },
+    "direction_profile": {
+      "applies": true,
+      "fields": {
+        "long": {
+          "max_drawdown_points": 2169.8,
+          "net_pnl_points": -1366.58,
+          "profit_factor": 0.936176,
+          "trade_count": 1835,
+          "win_rate": 0.446866
+        },
+        "short": {
+          "max_drawdown_points": 650.05,
+          "net_pnl_points": 243.35,
+          "profit_factor": 1.018548,
+          "trade_count": 1099,
+          "win_rate": 0.462238
+        }
+      }
+    },
+    "risk_shape_profile": {
+      "applies": true,
+      "fields": {
+        "final_sizing_rule_frozen": false,
+        "profiles": {
+          "abort_guard": {
+            "early_exit_bars": 2,
+            "max_hold_bars": 6,
+            "stop_range_multiple": 0.45,
+            "target_range_multiple": 0.7,
+            "trail_activation_range_multiple": null,
+            "trail_distance_range_multiple": null
+          },
+          "follow_through": {
+            "early_exit_bars": null,
+            "max_hold_bars": 14,
+            "stop_range_multiple": 0.7,
+            "target_range_multiple": 1.35,
+            "trail_activation_range_multiple": 0.85,
+            "trail_distance_range_multiple": 0.5
+          },
+          "survivor": {
+            "early_exit_bars": 3,
+            "max_hold_bars": 10,
+            "stop_range_multiple": 0.6,
+            "target_range_multiple": 0.95,
+            "trail_activation_range_multiple": null,
+            "trail_distance_range_multiple": null
+          }
+        },
+        "risk_profile_selection": "train_score_quantile_conditioned",
+        "risk_profile_summary": {
+          "abort_guard": {
+            "average_bars_in_trade": null,
+            "max_drawdown_points": null,
+            "net_pnl_points": 0,
+            "profit_factor": null,
+            "trade_count": 0,
+            "win_rate": null
+          },
+          "follow_through": {
+            "average_bars_in_trade": 3.72529,
+            "max_drawdown_points": 2210.73,
+            "net_pnl_points": -1123.23,
+            "profit_factor": 0.967473,
+            "trade_count": 2934,
+            "win_rate": 0.452624
+          },
+          "survivor": {
+            "average_bars_in_trade": null,
+            "max_drawdown_points": null,
+            "net_pnl_points": 0,
+            "profit_factor": null,
+            "trade_count": 0,
+            "win_rate": null
+          }
+        },
+        "sizing_mode": "fixed_lot_discovery"
+      }
+    },
+    "score_surface_profile": {
+      "applies": true,
+      "fields": {
+        "candidates_by_fold": {
+          "rw_001": {
+            "selected_candidate_count": 441,
+            "test_candidate_count": 7546,
+            "train_candidate_count": 46638
+          },
+          "rw_002": {
+            "selected_candidate_count": 462,
+            "test_candidate_count": 7874,
+            "train_candidate_count": 46424
+          },
+          "rw_003": {
+            "selected_candidate_count": 462,
+            "test_candidate_count": 7912,
+            "train_candidate_count": 46058
+          },
+          "rw_004": {
+            "selected_candidate_count": 448,
+            "test_candidate_count": 7618,
+            "train_candidate_count": 46274
+          },
+          "rw_005": {
+            "selected_candidate_count": 434,
+            "test_candidate_count": 7430,
+            "train_candidate_count": 46672
+          },
+          "rw_006": {
+            "selected_candidate_count": 462,
+            "test_candidate_count": 7890,
+            "train_candidate_count": 46400
+          },
+          "rw_007": {
+            "selected_candidate_count": 462,
+            "test_candidate_count": 7904,
+            "train_candidate_count": 45918
+          },
+          "rw_008": {
+            "selected_candidate_count": 441,
+            "test_candidate_count": 7458,
+            "train_candidate_count": 46270
+          },
+          "rw_009": {
+            "selected_candidate_count": 448,
+            "test_candidate_count": 7634,
+            "train_candidate_count": 46628
+          }
+        },
+        "entries_per_active_day": 5.058621,
+        "entry_count_per_active_day_target": "5_to_10",
+        "feature_count": 10,
+        "feature_family_summary": "directional_closed_bar_price_session_volatility_pullback_adverse_path_context",
+        "feature_names": [
+          "directional_ret_3_over_range",
+          "directional_ret_12_over_range",
+          "range_ratio_48",
+          "range_slope_48",
+          "directional_body_fraction",
+          "directional_close_position",
+          "directional_pullback_12",
+          "directional_adverse_wick_fraction",
+          "prior_adverse_probe_6_over_range",
+          "session_position"
+        ],
+        "fold_models": [
+          {
+            "defensive_threshold": -2.486086,
+            "feature_names": [
+              "directional_ret_3_over_range",
+              "directional_ret_12_over_range",
+              "range_ratio_48",
+              "range_slope_48",
+              "directional_body_fraction",
+              "directional_close_position",
+              "directional_pullback_12",
+              "directional_adverse_wick_fraction",
+              "prior_adverse_probe_6_over_range",
+              "session_position"
+            ],
+            "fold_id": "rw_001",
+            "global_mean": -2.437104,
+            "max_stumps": 18,
+            "runner_threshold": -2.333511,
+            "stump_count": 18,
+            "stumps": [
+              {
+                "effect": 1.152587,
+                "feature_name": "session_position",
+                "high_count": 9236,
+                "high_mean": -1.512772,
+                "low_count": 37402,
+                "low_mean": -2.665358,
+                "threshold": 0.746528
+              },
+              {
+                "effect": 1.058478,
+                "feature_name": "range_slope_48",
+                "high_count": 18654,
+                "high_mean": -1.801991,
+                "low_count": 27984,
+                "low_mean": -2.860468,
+                "threshold": 0.512706
+              },
+              {
+                "effect": 1.037506,
+                "feature_name": "range_slope_48",
+                "high_count": 9326,
+                "high_mean": -1.607064,
+                "low_count": 37312,
+                "low_mean": -2.64457,
+                "threshold": 0.931577
+              },
+              {
+                "effect": -0.941611,
+                "feature_name": "range_ratio_48",
+                "high_count": 9326,
+                "high_mean": -3.190426,
+                "low_count": 37312,
+                "low_mean": -2.248815,
+                "threshold": 1.551795
+              },
+              {
+                "effect": -0.864525,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 9327,
+                "high_mean": -3.128736,
+                "low_count": 37311,
+                "low_mean": -2.264211,
+                "threshold": 1.970443
+              },
+              {
+                "effect": -0.841448,
+                "feature_name": "range_ratio_48",
+                "high_count": 18654,
+                "high_mean": -2.941995,
+                "low_count": 27984,
+                "low_mean": -2.100547,
+                "threshold": 1.118302
+              },
+              {
+                "effect": -0.83806,
+                "feature_name": "range_ratio_48",
+                "high_count": 37310,
+                "high_mean": -2.604724,
+                "low_count": 9328,
+                "low_mean": -1.766664,
+                "threshold": 0.659447
+              },
+              {
+                "effect": -0.832576,
+                "feature_name": "range_ratio_48",
+                "high_count": 27982,
+                "high_mean": -2.770149,
+                "low_count": 18656,
+                "low_mean": -1.937573,
+                "threshold": 0.862571
+              },
+              {
+                "effect": -0.772786,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 18655,
+                "high_mean": -2.900779,
+                "low_count": 27983,
+                "low_mean": -2.127993,
+                "threshold": 1.449361
+              },
+              {
+                "effect": -0.759008,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 27982,
+                "high_mean": -2.740721,
+                "low_count": 18656,
+                "low_mean": -1.981712,
+                "threshold": 1.150252
+              },
+              {
+                "effect": 0.758305,
+                "feature_name": "range_slope_48",
+                "high_count": 27982,
+                "high_mean": -2.13377,
+                "low_count": 18656,
+                "low_mean": -2.892074,
+                "threshold": 0.154836
+              },
+              {
+                "effect": -0.742418,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 37310,
+                "high_mean": -2.585595,
+                "low_count": 9328,
+                "low_mean": -1.843176,
+                "threshold": 0.892477
+              },
+              {
+                "effect": -0.504986,
+                "feature_name": "session_position",
+                "high_count": 37302,
+                "high_mean": -2.538193,
+                "low_count": 9336,
+                "low_mean": -2.033207,
+                "threshold": 0.371528
+              },
+              {
+                "effect": -0.500337,
+                "feature_name": "directional_pullback_12",
+                "high_count": 9327,
+                "high_mean": -2.837381,
+                "low_count": 37311,
+                "low_mean": -2.337044,
+                "threshold": 3.187123
+              },
+              {
+                "effect": -0.376496,
+                "feature_name": "directional_ret_3_over_range",
+                "high_count": 9327,
+                "high_mean": -2.738306,
+                "low_count": 37311,
+                "low_mean": -2.36181,
+                "threshold": 0.981441
+              },
+              {
+                "effect": -0.350005,
+                "feature_name": "directional_pullback_12",
+                "high_count": 18655,
+                "high_mean": -2.647109,
+                "low_count": 27983,
+                "low_mean": -2.297104,
+                "threshold": 2.009504
+              },
+              {
+                "effect": 0.33331,
+                "feature_name": "directional_ret_3_over_range",
+                "high_count": 37310,
+                "high_mean": -2.37044,
+                "low_count": 9328,
+                "low_mean": -2.70375,
+                "threshold": -0.981441
+              },
+              {
+                "effect": -0.321011,
+                "feature_name": "session_position",
+                "high_count": 18582,
+                "high_mean": -2.630215,
+                "low_count": 28056,
+                "low_mean": -2.309204,
+                "threshold": 0.621528
+              }
+            ],
+            "train_candidate_count": 46638,
+            "train_positive_label_rate": 0.201145
+          },
+          {
+            "defensive_threshold": -2.533527,
+            "feature_names": [
+              "directional_ret_3_over_range",
+              "directional_ret_12_over_range",
+              "range_ratio_48",
+              "range_slope_48",
+              "directional_body_fraction",
+              "directional_close_position",
+              "directional_pullback_12",
+              "directional_adverse_wick_fraction",
+              "prior_adverse_probe_6_over_range",
+              "session_position"
+            ],
+            "fold_id": "rw_002",
+            "global_mean": -2.480906,
+            "max_stumps": 18,
+            "runner_threshold": -2.374326,
+            "stump_count": 18,
+            "stumps": [
+              {
+                "effect": 1.18154,
+                "feature_name": "session_position",
+                "high_count": 9190,
+                "high_mean": -1.533262,
+                "low_count": 37234,
+                "low_mean": -2.714801,
+                "threshold": 0.746528
+              },
+              {
+                "effect": 1.061152,
+                "feature_name": "range_slope_48",
+                "high_count": 18568,
+                "high_mean": -1.844178,
+                "low_count": 27856,
+                "low_mean": -2.905331,
+                "threshold": 0.553387
+              },
+              {
+                "effect": 1.04476,
+                "feature_name": "range_slope_48",
+                "high_count": 9284,
+                "high_mean": -1.645081,
+                "low_count": 37140,
+                "low_mean": -2.68984,
+                "threshold": 0.969977
+              },
+              {
+                "effect": -0.909939,
+                "feature_name": "range_ratio_48",
+                "high_count": 9284,
+                "high_mean": -3.208873,
+                "low_count": 37140,
+                "low_mean": -2.298934,
+                "threshold": 1.562824
+              },
+              {
+                "effect": -0.853223,
+                "feature_name": "range_ratio_48",
+                "high_count": 27854,
+                "high_mean": -2.822203,
+                "low_count": 18570,
+                "low_mean": -1.96898,
+                "threshold": 0.868072
+              },
+              {
+                "effect": -0.852196,
+                "feature_name": "range_ratio_48",
+                "high_count": 37138,
+                "high_mean": -2.651368,
+                "low_count": 9286,
+                "low_mean": -1.799171,
+                "threshold": 0.663103
+              },
+              {
+                "effect": -0.841629,
+                "feature_name": "range_ratio_48",
+                "high_count": 18568,
+                "high_mean": -2.985913,
+                "low_count": 27856,
+                "low_mean": -2.144284,
+                "threshold": 1.123919
+              },
+              {
+                "effect": -0.826956,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 9285,
+                "high_mean": -3.142467,
+                "low_count": 37139,
+                "low_mean": -2.315512,
+                "threshold": 1.989875
+              },
+              {
+                "effect": -0.790635,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 27854,
+                "high_mean": -2.797167,
+                "low_count": 18570,
+                "low_mean": -2.006532,
+                "threshold": 1.162083
+              },
+              {
+                "effect": -0.774727,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 37138,
+                "high_mean": -2.635872,
+                "low_count": 9286,
+                "low_mean": -1.861144,
+                "threshold": 0.898536
+              },
+              {
+                "effect": 0.768863,
+                "feature_name": "range_slope_48",
+                "high_count": 27854,
+                "high_mean": -2.173355,
+                "low_count": 18570,
+                "low_mean": -2.942217,
+                "threshold": 0.183382
+              },
+              {
+                "effect": -0.7597,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 18569,
+                "high_mean": -2.936736,
+                "low_count": 27855,
+                "low_mean": -2.177036,
+                "threshold": 1.469801
+              },
+              {
+                "effect": -0.511387,
+                "feature_name": "directional_pullback_12",
+                "high_count": 9285,
+                "high_mean": -2.890014,
+                "low_count": 37139,
+                "low_mean": -2.378627,
+                "threshold": 3.233669
+              },
+              {
+                "effect": -0.456897,
+                "feature_name": "session_position",
+                "high_count": 37112,
+                "high_mean": -2.572553,
+                "low_count": 9312,
+                "low_mean": -2.115657,
+                "threshold": 0.371528
+              },
+              {
+                "effect": -0.375641,
+                "feature_name": "directional_pullback_12",
+                "high_count": 18569,
+                "high_mean": -2.706295,
+                "low_count": 27855,
+                "low_mean": -2.330655,
+                "threshold": 2.04
+              },
+              {
+                "effect": -0.363056,
+                "feature_name": "directional_ret_3_over_range",
+                "high_count": 9285,
+                "high_mean": -2.77135,
+                "low_count": 37139,
+                "low_mean": -2.408293,
+                "threshold": 0.993292
+              },
+              {
+                "effect": 0.346943,
+                "feature_name": "directional_ret_3_over_range",
+                "high_count": 37138,
+                "high_mean": -2.411509,
+                "low_count": 9286,
+                "low_mean": -2.758452,
+                "threshold": -0.993292
+              },
+              {
+                "effect": 0.322259,
+                "feature_name": "directional_ret_12_over_range",
+                "high_count": 37138,
+                "high_mean": -2.416446,
+                "low_count": 9286,
+                "low_mean": -2.738705,
+                "threshold": -2.010663
+              }
+            ],
+            "train_candidate_count": 46424,
+            "train_positive_label_rate": 0.198647
+          },
+          {
+            "defensive_threshold": -2.561254,
+            "feature_names": [
+              "directional_ret_3_over_range",
+              "directional_ret_12_over_range",
+              "range_ratio_48",
+              "range_slope_48",
+              "directional_body_fraction",
+              "directional_close_position",
+              "directional_pullback_12",
+              "directional_adverse_wick_fraction",
+              "prior_adverse_probe_6_over_range",
+              "session_position"
+            ],
+            "fold_id": "rw_003",
+            "global_mean": -2.50933,
+            "max_stumps": 18,
+            "runner_threshold": -2.402574,
+            "stump_count": 18,
+            "stumps": [
+              {
+                "effect": 1.184818,
+                "feature_name": "session_position",
+                "high_count": 9114,
+                "high_mean": -1.558965,
+                "low_count": 36944,
+                "low_mean": -2.743783,
+                "threshold": 0.746528
+              },
+              {
+                "effect": 1.068868,
+                "feature_name": "range_slope_48",
+                "high_count": 18422,
+                "high_mean": -1.867982,
+                "low_count": 27636,
+                "low_mean": -2.93685,
+                "threshold": 0.587506
+              },
+              {
+                "effect": 1.03773,
+                "feature_name": "range_slope_48",
+                "high_count": 9210,
+                "high_mean": -1.679111,
+                "low_count": 36848,
+                "low_mean": -2.71684,
+                "threshold": 1.003788
+              },
+              {
+                "effect": -0.888748,
+                "feature_name": "range_ratio_48",
+                "high_count": 9210,
+                "high_mean": -3.22036,
+                "low_count": 36848,
+                "low_mean": -2.331612,
+                "threshold": 1.580753
+              },
+              {
+                "effect": -0.837496,
+                "feature_name": "range_ratio_48",
+                "high_count": 36846,
+                "high_mean": -2.676837,
+                "low_count": 9212,
+                "low_mean": -1.839341,
+                "threshold": 0.668731
+              },
+              {
+                "effect": -0.837296,
+                "feature_name": "range_ratio_48",
+                "high_count": 27634,
+                "high_mean": -2.844263,
+                "low_count": 18424,
+                "low_mean": -2.006968,
+                "threshold": 0.876712
+              },
+              {
+                "effect": -0.8092,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 27634,
+                "high_mean": -2.833024,
+                "low_count": 18424,
+                "low_mean": -2.023825,
+                "threshold": 1.173439
+              },
+              {
+                "effect": -0.80732,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 9211,
+                "high_mean": -3.155197,
+                "low_count": 36847,
+                "low_mean": -2.347877,
+                "threshold": 2.01193
+              },
+              {
+                "effect": -0.803614,
+                "feature_name": "range_ratio_48",
+                "high_count": 18422,
+                "high_mean": -2.99152,
+                "low_count": 27636,
+                "low_mean": -2.187906,
+                "threshold": 1.138776
+              },
+              {
+                "effect": -0.782203,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 18423,
+                "high_mean": -2.978656,
+                "low_count": 27635,
+                "low_mean": -2.196453,
+                "threshold": 1.483406
+              },
+              {
+                "effect": -0.769239,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 36846,
+                "high_mean": -2.663185,
+                "low_count": 9212,
+                "low_mean": -1.893946,
+                "threshold": 0.906667
+              },
+              {
+                "effect": 0.749643,
+                "feature_name": "range_slope_48",
+                "high_count": 27634,
+                "high_mean": -2.20946,
+                "low_count": 18424,
+                "low_mean": -2.959103,
+                "threshold": 0.200933
+              },
+              {
+                "effect": -0.561187,
+                "feature_name": "directional_pullback_12",
+                "high_count": 9211,
+                "high_mean": -2.958287,
+                "low_count": 36847,
+                "low_mean": -2.3971,
+                "threshold": 3.26107
+              },
+              {
+                "effect": -0.446392,
+                "feature_name": "session_position",
+                "high_count": 36818,
+                "high_mean": -2.598884,
+                "low_count": 9240,
+                "low_mean": -2.152492,
+                "threshold": 0.371528
+              },
+              {
+                "effect": -0.399342,
+                "feature_name": "directional_pullback_12",
+                "high_count": 18423,
+                "high_mean": -2.748937,
+                "low_count": 27635,
+                "low_mean": -2.349595,
+                "threshold": 2.056589
+              },
+              {
+                "effect": 0.371303,
+                "feature_name": "directional_ret_3_over_range",
+                "high_count": 36846,
+                "high_mean": -2.435067,
+                "low_count": 9212,
+                "low_mean": -2.80637,
+                "threshold": -1.000727
+              },
+              {
+                "effect": 0.351721,
+                "feature_name": "directional_ret_12_over_range",
+                "high_count": 36846,
+                "high_mean": -2.438983,
+                "low_count": 9212,
+                "low_mean": -2.790704,
+                "threshold": -2.031076
+              },
+              {
+                "effect": -0.320603,
+                "feature_name": "directional_ret_3_over_range",
+                "high_count": 9211,
+                "high_mean": -2.765817,
+                "low_count": 36847,
+                "low_mean": -2.445214,
+                "threshold": 1.000727
+              }
+            ],
+            "train_candidate_count": 46058,
+            "train_positive_label_rate": 0.197186
+          },
+          {
+            "defensive_threshold": -2.558859,
+            "feature_names": [
+              "directional_ret_3_over_range",
+              "directional_ret_12_over_range",
+              "range_ratio_48",
+              "range_slope_48",
+              "directional_body_fraction",
+              "directional_close_position",
+              "directional_pullback_12",
+              "directional_adverse_wick_fraction",
+              "prior_adverse_probe_6_over_range",
+              "session_position"
+            ],
+            "fold_id": "rw_004",
+            "global_mean": -2.512009,
+            "max_stumps": 18,
+            "runner_threshold": -2.4047,
+            "stump_count": 18,
+            "stumps": [
+              {
+                "effect": 1.161416,
+                "feature_name": "session_position",
+                "high_count": 9154,
+                "high_mean": -1.580346,
+                "low_count": 37120,
+                "low_mean": -2.741763,
+                "threshold": 0.746528
+              },
+              {
+                "effect": 1.028818,
+                "feature_name": "range_slope_48",
+                "high_count": 18508,
+                "high_mean": -1.894683,
+                "low_count": 27766,
+                "low_mean": -2.923501,
+                "threshold": 0.581253
+              },
+              {
+                "effect": 1.005644,
+                "feature_name": "range_slope_48",
+                "high_count": 9254,
+                "high_mean": -1.707477,
+                "low_count": 37020,
+                "low_mean": -2.713121,
+                "threshold": 1.009658
+              },
+              {
+                "effect": -0.947148,
+                "feature_name": "range_ratio_48",
+                "high_count": 9254,
+                "high_mean": -3.269744,
+                "low_count": 37020,
+                "low_mean": -2.322596,
+                "threshold": 1.594861
+              },
+              {
+                "effect": -0.864915,
+                "feature_name": "range_ratio_48",
+                "high_count": 18508,
+                "high_mean": -3.030989,
+                "low_count": 27766,
+                "low_mean": -2.166073,
+                "threshold": 1.144697
+              },
+              {
+                "effect": -0.856049,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 9255,
+                "high_mean": -3.196845,
+                "low_count": 37019,
+                "low_mean": -2.340796,
+                "threshold": 2.013878
+              },
+              {
+                "effect": -0.853704,
+                "feature_name": "range_ratio_48",
+                "high_count": 27764,
+                "high_mean": -2.853498,
+                "low_count": 18510,
+                "low_mean": -1.999794,
+                "threshold": 0.877564
+              },
+              {
+                "effect": -0.848353,
+                "feature_name": "range_ratio_48",
+                "high_count": 37018,
+                "high_mean": -2.681702,
+                "low_count": 9256,
+                "low_mean": -1.833349,
+                "threshold": 0.667615
+              },
+              {
+                "effect": -0.813401,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 18509,
+                "high_mean": -3.000061,
+                "low_count": 27765,
+                "low_mean": -2.18666,
+                "threshold": 1.485689
+              },
+              {
+                "effect": -0.809241,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 27763,
+                "high_mean": -2.83573,
+                "low_count": 18511,
+                "low_mean": -2.026489,
+                "threshold": 1.174551
+              },
+              {
+                "effect": -0.778103,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 37018,
+                "high_mean": -2.66765,
+                "low_count": 9256,
+                "low_mean": -1.889548,
+                "threshold": 0.905824
+              },
+              {
+                "effect": 0.733629,
+                "feature_name": "range_slope_48",
+                "high_count": 27764,
+                "high_mean": -2.218552,
+                "low_count": 18510,
+                "low_mean": -2.95218,
+                "threshold": 0.191089
+              },
+              {
+                "effect": -0.601259,
+                "feature_name": "directional_pullback_12",
+                "high_count": 9255,
+                "high_mean": -2.993014,
+                "low_count": 37019,
+                "low_mean": -2.391755,
+                "threshold": 3.276698
+              },
+              {
+                "effect": -0.4531,
+                "feature_name": "session_position",
+                "high_count": 36988,
+                "high_mean": -2.602935,
+                "low_count": 9286,
+                "low_mean": -2.149835,
+                "threshold": 0.371528
+              },
+              {
+                "effect": -0.41308,
+                "feature_name": "directional_pullback_12",
+                "high_count": 18509,
+                "high_mean": -2.759863,
+                "low_count": 27765,
+                "low_mean": -2.346783,
+                "threshold": 2.059244
+              },
+              {
+                "effect": 0.39062,
+                "feature_name": "directional_ret_3_over_range",
+                "high_count": 37018,
+                "high_mean": -2.433875,
+                "low_count": 9256,
+                "low_mean": -2.824495,
+                "threshold": -1.000514
+              },
+              {
+                "effect": -0.320838,
+                "feature_name": "directional_pullback_12",
+                "high_count": 27764,
+                "high_mean": -2.640347,
+                "low_count": 18510,
+                "low_mean": -2.319509,
+                "threshold": 1.271243
+              },
+              {
+                "effect": 0.319802,
+                "feature_name": "directional_ret_12_over_range",
+                "high_count": 37018,
+                "high_mean": -2.448041,
+                "low_count": 9256,
+                "low_mean": -2.767842,
+                "threshold": -2.042474
+              }
+            ],
+            "train_candidate_count": 46274,
+            "train_positive_label_rate": 0.195877
+          },
+          {
+            "defensive_threshold": -2.535543,
+            "feature_names": [
+              "directional_ret_3_over_range",
+              "directional_ret_12_over_range",
+              "range_ratio_48",
+              "range_slope_48",
+              "directional_body_fraction",
+              "directional_close_position",
+              "directional_pullback_12",
+              "directional_adverse_wick_fraction",
+              "prior_adverse_probe_6_over_range",
+              "session_position"
+            ],
+            "fold_id": "rw_005",
+            "global_mean": -2.488057,
+            "max_stumps": 18,
+            "runner_threshold": -2.382579,
+            "stump_count": 18,
+            "stumps": [
+              {
+                "effect": 1.153729,
+                "feature_name": "session_position",
+                "high_count": 9250,
+                "high_mean": -1.562987,
+                "low_count": 37422,
+                "low_mean": -2.716717,
+                "threshold": 0.746528
+              },
+              {
+                "effect": 1.007656,
+                "feature_name": "range_slope_48",
+                "high_count": 18668,
+                "high_mean": -1.883447,
+                "low_count": 28004,
+                "low_mean": -2.891102,
+                "threshold": 0.544366
+              },
+              {
+                "effect": 0.994394,
+                "feature_name": "range_slope_48",
+                "high_count": 9334,
+                "high_mean": -1.692534,
+                "low_count": 37338,
+                "low_mean": -2.686927,
+                "threshold": 0.9954
+              },
+              {
+                "effect": -0.960346,
+                "feature_name": "range_ratio_48",
+                "high_count": 9334,
+                "high_mean": -3.256342,
+                "low_count": 37338,
+                "low_mean": -2.295996,
+                "threshold": 1.585601
+              },
+              {
+                "effect": -0.867552,
+                "feature_name": "range_ratio_48",
+                "high_count": 18668,
+                "high_mean": -3.008604,
+                "low_count": 28004,
+                "low_mean": -2.141051,
+                "threshold": 1.139842
+              },
+              {
+                "effect": -0.851995,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 9334,
+                "high_mean": -3.169661,
+                "low_count": 37338,
+                "low_mean": -2.317665,
+                "threshold": 2.004347
+              },
+              {
+                "effect": -0.84538,
+                "feature_name": "range_ratio_48",
+                "high_count": 37336,
+                "high_mean": -2.657162,
+                "low_count": 9336,
+                "low_mean": -1.811782,
+                "threshold": 0.664676
+              },
+              {
+                "effect": -0.844819,
+                "feature_name": "range_ratio_48",
+                "high_count": 28002,
+                "high_mean": -2.826006,
+                "low_count": 18670,
+                "low_mean": -1.981188,
+                "threshold": 0.874696
+              },
+              {
+                "effect": -0.820256,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 18668,
+                "high_mean": -2.980225,
+                "low_count": 28004,
+                "low_mean": -2.159969,
+                "threshold": 1.478629
+              },
+              {
+                "effect": -0.815284,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 28003,
+                "high_mean": -2.814174,
+                "low_count": 18669,
+                "low_mean": -1.99889,
+                "threshold": 1.168831
+              },
+              {
+                "effect": -0.775337,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 37337,
+                "high_mean": -2.643135,
+                "low_count": 9335,
+                "low_mean": -1.867798,
+                "threshold": 0.90026
+              },
+              {
+                "effect": 0.687269,
+                "feature_name": "range_slope_48",
+                "high_count": 28002,
+                "high_mean": -2.213132,
+                "low_count": 18670,
+                "low_mean": -2.900401,
+                "threshold": 0.16465
+              },
+              {
+                "effect": -0.584837,
+                "feature_name": "directional_pullback_12",
+                "high_count": 9334,
+                "high_mean": -2.955932,
+                "low_count": 37338,
+                "low_mean": -2.371095,
+                "threshold": 3.260399
+              },
+              {
+                "effect": -0.46336,
+                "feature_name": "session_position",
+                "high_count": 37314,
+                "high_mean": -2.580963,
+                "low_count": 9358,
+                "low_mean": -2.117604,
+                "threshold": 0.371528
+              },
+              {
+                "effect": -0.404864,
+                "feature_name": "directional_pullback_12",
+                "high_count": 18668,
+                "high_mean": -2.730983,
+                "low_count": 28004,
+                "low_mean": -2.326118,
+                "threshold": 2.048818
+              },
+              {
+                "effect": 0.395795,
+                "feature_name": "directional_ret_3_over_range",
+                "high_count": 37337,
+                "high_mean": -2.408893,
+                "low_count": 9335,
+                "low_mean": -2.804688,
+                "threshold": -0.996736
+              },
+              {
+                "effect": -0.355142,
+                "feature_name": "session_position",
+                "high_count": 18608,
+                "high_mean": -2.701605,
+                "low_count": 28064,
+                "low_mean": -2.346463,
+                "threshold": 0.621528
+              },
+              {
+                "effect": 0.325562,
+                "feature_name": "directional_ret_12_over_range",
+                "high_count": 37337,
+                "high_mean": -2.422941,
+                "low_count": 9335,
+                "low_mean": -2.748502,
+                "threshold": -2.028104
+              }
+            ],
+            "train_candidate_count": 46672,
+            "train_positive_label_rate": 0.196649
+          },
+          {
+            "defensive_threshold": -2.524375,
+            "feature_names": [
+              "directional_ret_3_over_range",
+              "directional_ret_12_over_range",
+              "range_ratio_48",
+              "range_slope_48",
+              "directional_body_fraction",
+              "directional_close_position",
+              "directional_pullback_12",
+              "directional_adverse_wick_fraction",
+              "prior_adverse_probe_6_over_range",
+              "session_position"
+            ],
+            "fold_id": "rw_006",
+            "global_mean": -2.477319,
+            "max_stumps": 18,
+            "runner_threshold": -2.37472,
+            "stump_count": 18,
+            "stumps": [
+              {
+                "effect": 1.173691,
+                "feature_name": "session_position",
+                "high_count": 9180,
+                "high_mean": -1.535837,
+                "low_count": 37220,
+                "low_mean": -2.709528,
+                "threshold": 0.746528
+              },
+              {
+                "effect": 0.991926,
+                "feature_name": "range_slope_48",
+                "high_count": 9280,
+                "high_mean": -1.683779,
+                "low_count": 37120,
+                "low_mean": -2.675705,
+                "threshold": 0.982299
+              },
+              {
+                "effect": 0.985727,
+                "feature_name": "range_slope_48",
+                "high_count": 18560,
+                "high_mean": -1.885883,
+                "low_count": 27840,
+                "low_mean": -2.87161,
+                "threshold": 0.533439
+              },
+              {
+                "effect": -0.931931,
+                "feature_name": "range_ratio_48",
+                "high_count": 9280,
+                "high_mean": -3.222864,
+                "low_count": 37120,
+                "low_mean": -2.290933,
+                "threshold": 1.585477
+              },
+              {
+                "effect": -0.876109,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 9280,
+                "high_mean": -3.178207,
+                "low_count": 37120,
+                "low_mean": -2.302098,
+                "threshold": 1.996736
+              },
+              {
+                "effect": -0.857021,
+                "feature_name": "range_ratio_48",
+                "high_count": 18560,
+                "high_mean": -2.991532,
+                "low_count": 27840,
+                "low_mean": -2.134511,
+                "threshold": 1.139613
+              },
+              {
+                "effect": -0.851354,
+                "feature_name": "range_ratio_48",
+                "high_count": 37118,
+                "high_mean": -2.647627,
+                "low_count": 9282,
+                "low_mean": -1.796273,
+                "threshold": 0.663543
+              },
+              {
+                "effect": -0.836259,
+                "feature_name": "range_ratio_48",
+                "high_count": 27838,
+                "high_mean": -2.811859,
+                "low_count": 18562,
+                "low_mean": -1.9756,
+                "threshold": 0.876923
+              },
+              {
+                "effect": -0.824618,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 27839,
+                "high_mean": -2.807184,
+                "low_count": 18561,
+                "low_mean": -1.982567,
+                "threshold": 1.167163
+              },
+              {
+                "effect": -0.819795,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 18560,
+                "high_mean": -2.969196,
+                "low_count": 27840,
+                "low_mean": -2.149401,
+                "threshold": 1.475809
+              },
+              {
+                "effect": -0.776667,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 37119,
+                "high_mean": -2.63267,
+                "low_count": 9281,
+                "low_mean": -1.856003,
+                "threshold": 0.900266
+              },
+              {
+                "effect": 0.683665,
+                "feature_name": "range_slope_48",
+                "high_count": 27838,
+                "high_mean": -2.203824,
+                "low_count": 18562,
+                "low_mean": -2.887489,
+                "threshold": 0.161363
+              },
+              {
+                "effect": -0.630459,
+                "feature_name": "directional_pullback_12",
+                "high_count": 9280,
+                "high_mean": -2.981687,
+                "low_count": 37120,
+                "low_mean": -2.351228,
+                "threshold": 3.25349
+              },
+              {
+                "effect": -0.455285,
+                "feature_name": "session_position",
+                "high_count": 37090,
+                "high_mean": -2.568671,
+                "low_count": 9310,
+                "low_mean": -2.113386,
+                "threshold": 0.371528
+              },
+              {
+                "effect": 0.433879,
+                "feature_name": "directional_ret_3_over_range",
+                "high_count": 37119,
+                "high_mean": -2.390534,
+                "low_count": 9281,
+                "low_mean": -2.824413,
+                "threshold": -0.991568
+              },
+              {
+                "effect": -0.419845,
+                "feature_name": "directional_pullback_12",
+                "high_count": 18560,
+                "high_mean": -2.729227,
+                "low_count": 27840,
+                "low_mean": -2.309381,
+                "threshold": 2.037496
+              },
+              {
+                "effect": 0.396531,
+                "feature_name": "directional_ret_12_over_range",
+                "high_count": 37119,
+                "high_mean": -2.398005,
+                "low_count": 9281,
+                "low_mean": -2.794535,
+                "threshold": -2.015816
+              },
+              {
+                "effect": -0.33217,
+                "feature_name": "session_position",
+                "high_count": 18480,
+                "high_mean": -2.677194,
+                "low_count": 27920,
+                "low_mean": -2.345024,
+                "threshold": 0.621528
+              }
+            ],
+            "train_candidate_count": 46400,
+            "train_positive_label_rate": 0.197694
+          },
+          {
+            "defensive_threshold": -2.520982,
+            "feature_names": [
+              "directional_ret_3_over_range",
+              "directional_ret_12_over_range",
+              "range_ratio_48",
+              "range_slope_48",
+              "directional_body_fraction",
+              "directional_close_position",
+              "directional_pullback_12",
+              "directional_adverse_wick_fraction",
+              "prior_adverse_probe_6_over_range",
+              "session_position"
+            ],
+            "fold_id": "rw_007",
+            "global_mean": -2.476064,
+            "max_stumps": 18,
+            "runner_threshold": -2.378393,
+            "stump_count": 18,
+            "stumps": [
+              {
+                "effect": 1.146661,
+                "feature_name": "session_position",
+                "high_count": 9084,
+                "high_mean": -1.556248,
+                "low_count": 36834,
+                "low_mean": -2.702909,
+                "threshold": 0.746528
+              },
+              {
+                "effect": 0.976826,
+                "feature_name": "range_slope_48",
+                "high_count": 9182,
+                "high_mean": -1.69457,
+                "low_count": 36736,
+                "low_mean": -2.671396,
+                "threshold": 0.972204
+              },
+              {
+                "effect": 0.926241,
+                "feature_name": "range_slope_48",
+                "high_count": 18366,
+                "high_mean": -1.920296,
+                "low_count": 27552,
+                "low_mean": -2.846536,
+                "threshold": 0.509412
+              },
+              {
+                "effect": -0.912694,
+                "feature_name": "range_ratio_48",
+                "high_count": 9182,
+                "high_mean": -3.206252,
+                "low_count": 36736,
+                "low_mean": -2.293557,
+                "threshold": 1.583231
+              },
+              {
+                "effect": -0.836272,
+                "feature_name": "range_ratio_48",
+                "high_count": 36734,
+                "high_mean": -2.643326,
+                "low_count": 9184,
+                "low_mean": -1.807054,
+                "threshold": 0.666306
+              },
+              {
+                "effect": -0.825146,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 9183,
+                "high_mean": -3.136192,
+                "low_count": 36735,
+                "low_mean": -2.311046,
+                "threshold": 1.990355
+              },
+              {
+                "effect": -0.818924,
+                "feature_name": "range_ratio_48",
+                "high_count": 18366,
+                "high_mean": -2.96744,
+                "low_count": 27552,
+                "low_mean": -2.148516,
+                "threshold": 1.142353
+              },
+              {
+                "effect": -0.806365,
+                "feature_name": "range_ratio_48",
+                "high_count": 27550,
+                "high_mean": -2.798624,
+                "low_count": 18368,
+                "low_mean": -1.992259,
+                "threshold": 0.881863
+              },
+              {
+                "effect": -0.801108,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 27550,
+                "high_mean": -2.796521,
+                "low_count": 18368,
+                "low_mean": -1.995414,
+                "threshold": 1.170187
+              },
+              {
+                "effect": -0.771493,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 18367,
+                "high_mean": -2.938964,
+                "low_count": 27551,
+                "low_mean": -2.16747,
+                "threshold": 1.476923
+              },
+              {
+                "effect": -0.767534,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 36734,
+                "high_mean": -2.629578,
+                "low_count": 9184,
+                "low_mean": -1.862044,
+                "threshold": 0.90476
+              },
+              {
+                "effect": 0.605667,
+                "feature_name": "range_slope_48",
+                "high_count": 27550,
+                "high_mean": -2.233787,
+                "low_count": 18368,
+                "low_mean": -2.839454,
+                "threshold": 0.142547
+              },
+              {
+                "effect": -0.594804,
+                "feature_name": "directional_pullback_12",
+                "high_count": 9183,
+                "high_mean": -2.951916,
+                "low_count": 36735,
+                "low_mean": -2.357111,
+                "threshold": 3.245509
+              },
+              {
+                "effect": -0.445755,
+                "feature_name": "session_position",
+                "high_count": 36704,
+                "high_mean": -2.56551,
+                "low_count": 9214,
+                "low_mean": -2.119756,
+                "threshold": 0.371528
+              },
+              {
+                "effect": 0.426792,
+                "feature_name": "directional_ret_3_over_range",
+                "high_count": 36734,
+                "high_mean": -2.390702,
+                "low_count": 9184,
+                "low_mean": -2.817494,
+                "threshold": -0.986916
+              },
+              {
+                "effect": -0.408789,
+                "feature_name": "directional_pullback_12",
+                "high_count": 18367,
+                "high_mean": -2.721339,
+                "low_count": 27551,
+                "low_mean": -2.312551,
+                "threshold": 2.041347
+              },
+              {
+                "effect": 0.364973,
+                "feature_name": "directional_ret_12_over_range",
+                "high_count": 36734,
+                "high_mean": -2.403067,
+                "low_count": 9184,
+                "low_mean": -2.76804,
+                "threshold": -2.008072
+              },
+              {
+                "effect": -0.356749,
+                "feature_name": "session_position",
+                "high_count": 18288,
+                "high_mean": -2.690729,
+                "low_count": 27630,
+                "low_mean": -2.33398,
+                "threshold": 0.621528
+              }
+            ],
+            "train_candidate_count": 45918,
+            "train_positive_label_rate": 0.196502
+          },
+          {
+            "defensive_threshold": -2.464835,
+            "feature_names": [
+              "directional_ret_3_over_range",
+              "directional_ret_12_over_range",
+              "range_ratio_48",
+              "range_slope_48",
+              "directional_body_fraction",
+              "directional_close_position",
+              "directional_pullback_12",
+              "directional_adverse_wick_fraction",
+              "prior_adverse_probe_6_over_range",
+              "session_position"
+            ],
+            "fold_id": "rw_008",
+            "global_mean": -2.42087,
+            "max_stumps": 18,
+            "runner_threshold": -2.326875,
+            "stump_count": 18,
+            "stumps": [
+              {
+                "effect": 1.085844,
+                "feature_name": "session_position",
+                "high_count": 9148,
+                "high_mean": -1.549707,
+                "low_count": 37122,
+                "low_mean": -2.635552,
+                "threshold": 0.746528
+              },
+              {
+                "effect": 0.941294,
+                "feature_name": "range_slope_48",
+                "high_count": 9254,
+                "high_mean": -1.667835,
+                "low_count": 37016,
+                "low_mean": -2.609129,
+                "threshold": 0.905816
+              },
+              {
+                "effect": -0.905454,
+                "feature_name": "range_ratio_48",
+                "high_count": 9254,
+                "high_mean": -3.145234,
+                "low_count": 37016,
+                "low_mean": -2.23978,
+                "threshold": 1.582028
+              },
+              {
+                "effect": 0.875684,
+                "feature_name": "range_slope_48",
+                "high_count": 18508,
+                "high_mean": -1.89546,
+                "low_count": 27762,
+                "low_mean": -2.771144,
+                "threshold": 0.456703
+              },
+              {
+                "effect": -0.813019,
+                "feature_name": "range_ratio_48",
+                "high_count": 37014,
+                "high_mean": -2.583509,
+                "low_count": 9256,
+                "low_mean": -1.77049,
+                "threshold": 0.662948
+              },
+              {
+                "effect": -0.80647,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 9254,
+                "high_mean": -3.066046,
+                "low_count": 37016,
+                "low_mean": -2.259576,
+                "threshold": 1.964529
+              },
+              {
+                "effect": -0.797128,
+                "feature_name": "range_ratio_48",
+                "high_count": 18508,
+                "high_mean": -2.899147,
+                "low_count": 27762,
+                "low_mean": -2.102019,
+                "threshold": 1.142448
+              },
+              {
+                "effect": -0.769072,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 27761,
+                "high_mean": -2.728516,
+                "low_count": 18509,
+                "low_mean": -1.959444,
+                "threshold": 1.15928
+              },
+              {
+                "effect": -0.767143,
+                "feature_name": "range_ratio_48",
+                "high_count": 27760,
+                "high_mean": -2.727761,
+                "low_count": 18510,
+                "low_mean": -1.960618,
+                "threshold": 0.878992
+              },
+              {
+                "effect": -0.753468,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 18508,
+                "high_mean": -2.872951,
+                "low_count": 27762,
+                "low_mean": -2.119483,
+                "threshold": 1.46367
+              },
+              {
+                "effect": -0.732461,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 37015,
+                "high_mean": -2.567378,
+                "low_count": 9255,
+                "low_mean": -1.834917,
+                "threshold": 0.897154
+              },
+              {
+                "effect": -0.562739,
+                "feature_name": "directional_pullback_12",
+                "high_count": 9254,
+                "high_mean": -2.871061,
+                "low_count": 37016,
+                "low_mean": -2.308323,
+                "threshold": 3.191541
+              },
+              {
+                "effect": 0.543098,
+                "feature_name": "range_slope_48",
+                "high_count": 27760,
+                "high_mean": -2.203608,
+                "low_count": 18510,
+                "low_mean": -2.746706,
+                "threshold": 0.114612
+              },
+              {
+                "effect": -0.485005,
+                "feature_name": "session_position",
+                "high_count": 36984,
+                "high_mean": -2.518207,
+                "low_count": 9286,
+                "low_mean": -2.033202,
+                "threshold": 0.371528
+              },
+              {
+                "effect": 0.437804,
+                "feature_name": "directional_ret_3_over_range",
+                "high_count": 37015,
+                "high_mean": -2.3333,
+                "low_count": 9255,
+                "low_mean": -2.771104,
+                "threshold": -0.966394
+              },
+              {
+                "effect": -0.408667,
+                "feature_name": "session_position",
+                "high_count": 18424,
+                "high_mean": -2.666813,
+                "low_count": 27846,
+                "low_mean": -2.258145,
+                "threshold": 0.621528
+              },
+              {
+                "effect": -0.384827,
+                "feature_name": "directional_pullback_12",
+                "high_count": 18508,
+                "high_mean": -2.651767,
+                "low_count": 27762,
+                "low_mean": -2.26694,
+                "threshold": 2.009248
+              },
+              {
+                "effect": 0.362266,
+                "feature_name": "directional_ret_12_over_range",
+                "high_count": 37015,
+                "high_mean": -2.348409,
+                "low_count": 9255,
+                "low_mean": -2.710675,
+                "threshold": -1.958646
+              }
+            ],
+            "train_candidate_count": 46270,
+            "train_positive_label_rate": 0.199568
+          },
+          {
+            "defensive_threshold": -2.439847,
+            "feature_names": [
+              "directional_ret_3_over_range",
+              "directional_ret_12_over_range",
+              "range_ratio_48",
+              "range_slope_48",
+              "directional_body_fraction",
+              "directional_close_position",
+              "directional_pullback_12",
+              "directional_adverse_wick_fraction",
+              "prior_adverse_probe_6_over_range",
+              "session_position"
+            ],
+            "fold_id": "rw_009",
+            "global_mean": -2.396712,
+            "max_stumps": 18,
+            "runner_threshold": -2.303268,
+            "stump_count": 18,
+            "stumps": [
+              {
+                "effect": 1.082766,
+                "feature_name": "session_position",
+                "high_count": 9216,
+                "high_mean": -1.527954,
+                "low_count": 37412,
+                "low_mean": -2.61072,
+                "threshold": 0.746528
+              },
+              {
+                "effect": 0.955259,
+                "feature_name": "range_slope_48",
+                "high_count": 9324,
+                "high_mean": -1.632472,
+                "low_count": 37304,
+                "low_mean": -2.587731,
+                "threshold": 0.871741
+              },
+              {
+                "effect": -0.930237,
+                "feature_name": "range_ratio_48",
+                "high_count": 9324,
+                "high_mean": -3.140933,
+                "low_count": 37304,
+                "low_mean": -2.210696,
+                "threshold": 1.5873
+              },
+              {
+                "effect": 0.872805,
+                "feature_name": "range_slope_48",
+                "high_count": 18650,
+                "high_mean": -1.873006,
+                "low_count": 27978,
+                "low_mean": -2.745811,
+                "threshold": 0.421304
+              },
+              {
+                "effect": -0.839487,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 9325,
+                "high_mean": -3.068312,
+                "low_count": 37303,
+                "low_mean": -2.228825,
+                "threshold": 1.946533
+              },
+              {
+                "effect": -0.822011,
+                "feature_name": "range_ratio_48",
+                "high_count": 37302,
+                "high_mean": -2.561121,
+                "low_count": 9326,
+                "low_mean": -1.73911,
+                "threshold": 0.661112
+              },
+              {
+                "effect": -0.818151,
+                "feature_name": "range_ratio_48",
+                "high_count": 18650,
+                "high_mean": -2.887623,
+                "low_count": 27978,
+                "low_mean": -2.069473,
+                "threshold": 1.142114
+              },
+              {
+                "effect": -0.772535,
+                "feature_name": "range_ratio_48",
+                "high_count": 27976,
+                "high_mean": -2.705739,
+                "low_count": 18652,
+                "low_mean": -1.933204,
+                "threshold": 0.877555
+              },
+              {
+                "effect": -0.767732,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 18651,
+                "high_mean": -2.857354,
+                "low_count": 27977,
+                "low_mean": -2.089623,
+                "threshold": 1.454228
+              },
+              {
+                "effect": -0.767469,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 27976,
+                "high_mean": -2.703713,
+                "low_count": 18652,
+                "low_mean": -1.936244,
+                "threshold": 1.151808
+              },
+              {
+                "effect": -0.741095,
+                "feature_name": "prior_adverse_probe_6_over_range",
+                "high_count": 37302,
+                "high_mean": -2.544937,
+                "low_count": 9326,
+                "low_mean": -1.803842,
+                "threshold": 0.88987
+              },
+              {
+                "effect": 0.569943,
+                "feature_name": "range_slope_48",
+                "high_count": 27976,
+                "high_mean": -2.168725,
+                "low_count": 18652,
+                "low_mean": -2.738668,
+                "threshold": 0.092352
+              },
+              {
+                "effect": -0.545224,
+                "feature_name": "directional_pullback_12",
+                "high_count": 9325,
+                "high_mean": -2.832898,
+                "low_count": 37303,
+                "low_mean": -2.287674,
+                "threshold": 3.162597
+              },
+              {
+                "effect": -0.495584,
+                "feature_name": "session_position",
+                "high_count": 37270,
+                "high_mean": -2.496173,
+                "low_count": 9358,
+                "low_mean": -2.000589,
+                "threshold": 0.371528
+              },
+              {
+                "effect": -0.481312,
+                "feature_name": "session_position",
+                "high_count": 18566,
+                "high_mean": -2.686378,
+                "low_count": 28062,
+                "low_mean": -2.205067,
+                "threshold": 0.621528
+              },
+              {
+                "effect": 0.431733,
+                "feature_name": "directional_ret_3_over_range",
+                "high_count": 37302,
+                "high_mean": -2.310362,
+                "low_count": 9326,
+                "low_mean": -2.742094,
+                "threshold": -0.96021
+              },
+              {
+                "effect": -0.3758,
+                "feature_name": "directional_pullback_12",
+                "high_count": 18651,
+                "high_mean": -2.622194,
+                "low_count": 27977,
+                "low_mean": -2.246394,
+                "threshold": 1.999214
+              },
+              {
+                "effect": 0.351986,
+                "feature_name": "directional_ret_12_over_range",
+                "high_count": 37302,
+                "high_mean": -2.326312,
+                "low_count": 9326,
+                "low_mean": -2.678298,
+                "threshold": -1.944164
+              }
+            ],
+            "train_candidate_count": 46628,
+            "train_positive_label_rate": 0.20048
+          }
+        ],
+        "label_horizon": 18,
+        "label_shape": "adverse_first_avoidance_plus_survivability",
+        "max_entries_per_active_day": 7,
+        "model_family": "transparent_decision_stump_adverse_path_avoidance_surface",
+        "model_selected": false,
+        "score_distributions": {
+          "rw_001": {
+            "candidate_count": 7546,
+            "score_p10": -2.657071,
+            "score_p40": -2.489952,
+            "score_p50": -2.438191,
+            "score_p70": -2.333577,
+            "score_p90": -2.221723,
+            "selected_count": 441,
+            "selected_score_max": -2.103394,
+            "selected_score_min": -2.280109
+          },
+          "rw_002": {
+            "candidate_count": 7874,
+            "score_p10": -2.714979,
+            "score_p40": -2.533527,
+            "score_p50": -2.482692,
+            "score_p70": -2.380806,
+            "score_p90": -2.26013,
+            "selected_count": 462,
+            "selected_score_max": -2.126975,
+            "selected_score_min": -2.352326
+          },
+          "rw_003": {
+            "candidate_count": 7912,
+            "score_p10": -2.736284,
+            "score_p40": -2.561254,
+            "score_p50": -2.514738,
+            "score_p70": -2.420641,
+            "score_p90": -2.291796,
+            "selected_count": 462,
+            "selected_score_max": -2.156016,
+            "selected_score_min": -2.35572
+          },
+          "rw_004": {
+            "candidate_count": 7618,
+            "score_p10": -2.744998,
+            "score_p40": -2.564049,
+            "score_p50": -2.51143,
+            "score_p70": -2.416249,
+            "score_p90": -2.288731,
+            "selected_count": 448,
+            "selected_score_max": -2.150514,
+            "selected_score_min": -2.386876
+          },
+          "rw_005": {
+            "candidate_count": 7430,
+            "score_p10": -2.710163,
+            "score_p40": -2.53817,
+            "score_p50": -2.489973,
+            "score_p70": -2.397745,
+            "score_p90": -2.295726,
+            "selected_count": 434,
+            "selected_score_max": -2.152114,
+            "selected_score_min": -2.363219
+          },
+          "rw_006": {
+            "candidate_count": 7890,
+            "score_p10": -2.709351,
+            "score_p40": -2.533287,
+            "score_p50": -2.478563,
+            "score_p70": -2.381656,
+            "score_p90": -2.275333,
+            "selected_count": 462,
+            "selected_score_max": -2.138429,
+            "selected_score_min": -2.333577
+          },
+          "rw_007": {
+            "candidate_count": 7904,
+            "score_p10": -2.699868,
+            "score_p40": -2.52745,
+            "score_p50": -2.478122,
+            "score_p70": -2.381866,
+            "score_p90": -2.261918,
+            "selected_count": 462,
+            "selected_score_max": -2.150107,
+            "selected_score_min": -2.339517
+          },
+          "rw_008": {
+            "candidate_count": 7458,
+            "score_p10": -2.621257,
+            "score_p40": -2.454531,
+            "score_p50": -2.410566,
+            "score_p70": -2.333368,
+            "score_p90": -2.215553,
+            "selected_count": 441,
+            "selected_score_max": -2.111385,
+            "selected_score_min": -2.32445
+          },
+          "rw_009": {
+            "candidate_count": 7634,
+            "score_p10": -2.600705,
+            "score_p40": -2.428873,
+            "score_p50": -2.390374,
+            "score_p70": -2.308838,
+            "score_p90": -2.213487,
+            "selected_count": 448,
+            "selected_score_max": -2.087026,
+            "selected_score_min": -2.271797
+          }
+        },
+        "score_type": "train_only_adverse_path_avoidance_stump_score",
+        "selection_rule": "top_low_hazard_candidates_per_active_day_without_proxy_screening_gate_for_mt5",
+        "training_scope": "rolling_train_is_only"
+      }
+    },
+    "stability_profile": {
+      "applies": true,
+      "fields": {
+        "fold_summary": [
+          {
+            "bucket": "rw_001",
+            "max_drawdown_points": 532.7,
+            "net_pnl_points": -506.77,
+            "profit_factor": 0.822732,
+            "trade_count": 339,
+            "win_rate": 0.442478
+          },
+          {
+            "bucket": "rw_002",
+            "max_drawdown_points": 318.7,
+            "net_pnl_points": -199.59,
+            "profit_factor": 0.931922,
+            "trade_count": 352,
+            "win_rate": 0.471591
+          },
+          {
+            "bucket": "rw_003",
+            "max_drawdown_points": 482.87,
+            "net_pnl_points": 628.44,
+            "profit_factor": 1.170259,
+            "trade_count": 310,
+            "win_rate": 0.464516
+          },
+          {
+            "bucket": "rw_004",
+            "max_drawdown_points": 347.3,
+            "net_pnl_points": 574.14,
+            "profit_factor": 1.170258,
+            "trade_count": 321,
+            "win_rate": 0.479751
+          },
+          {
+            "bucket": "rw_005",
+            "max_drawdown_points": 792.98,
+            "net_pnl_points": -315.56,
+            "profit_factor": 0.947136,
+            "trade_count": 354,
+            "win_rate": 0.440678
+          },
+          {
+            "bucket": "rw_006",
+            "max_drawdown_points": 515.73,
+            "net_pnl_points": -241.96,
+            "profit_factor": 0.92341,
+            "trade_count": 313,
+            "win_rate": 0.453674
+          },
+          {
+            "bucket": "rw_007",
+            "max_drawdown_points": 506.56,
+            "net_pnl_points": -188.74,
+            "profit_factor": 0.943642,
+            "trade_count": 331,
+            "win_rate": 0.462236
+          },
+          {
+            "bucket": "rw_008",
+            "max_drawdown_points": 685.76,
+            "net_pnl_points": 9.04,
+            "profit_factor": 1.002198,
+            "trade_count": 301,
+            "win_rate": 0.438538
+          },
+          {
+            "bucket": "rw_009",
+            "max_drawdown_points": 1259.46,
+            "net_pnl_points": -882.23,
+            "profit_factor": 0.826639,
+            "trade_count": 313,
+            "win_rate": 0.41853
+          }
+        ],
+        "losing_month_count": 18,
+        "month_summary": [
+          {
+            "bucket": "2024-02",
+            "max_drawdown_points": 345.42,
+            "net_pnl_points": -281.07,
+            "profit_factor": 0.692598,
+            "trade_count": 108,
+            "win_rate": 0.388889
+          },
+          {
+            "bucket": "2024-03",
+            "max_drawdown_points": 164.66,
+            "net_pnl_points": -8.29,
+            "profit_factor": 0.990607,
+            "trade_count": 115,
+            "win_rate": 0.478261
+          },
+          {
+            "bucket": "2024-04",
+            "max_drawdown_points": 266.97,
+            "net_pnl_points": -217.41,
+            "profit_factor": 0.795263,
+            "trade_count": 116,
+            "win_rate": 0.456897
+          },
+          {
+            "bucket": "2024-05",
+            "max_drawdown_points": 253.1,
+            "net_pnl_points": -106.98,
+            "profit_factor": 0.870536,
+            "trade_count": 124,
+            "win_rate": 0.475806
+          },
+          {
+            "bucket": "2024-06",
+            "max_drawdown_points": 214.12,
+            "net_pnl_points": -44.46,
+            "profit_factor": 0.947134,
+            "trade_count": 103,
+            "win_rate": 0.466019
+          },
+          {
+            "bucket": "2024-07",
+            "max_drawdown_points": 146.69,
+            "net_pnl_points": -48.15,
+            "profit_factor": 0.96192,
+            "trade_count": 125,
+            "win_rate": 0.472
+          },
+          {
+            "bucket": "2024-08",
+            "max_drawdown_points": 170.27,
+            "net_pnl_points": 810.79,
+            "profit_factor": 1.615433,
+            "trade_count": 102,
+            "win_rate": 0.509804
+          },
+          {
+            "bucket": "2024-09",
+            "max_drawdown_points": 218.73,
+            "net_pnl_points": 213.9,
+            "profit_factor": 1.206537,
+            "trade_count": 96,
+            "win_rate": 0.5
+          },
+          {
+            "bucket": "2024-10",
+            "max_drawdown_points": 454.78,
+            "net_pnl_points": -396.25,
+            "profit_factor": 0.703849,
+            "trade_count": 112,
+            "win_rate": 0.392857
+          },
+          {
+            "bucket": "2024-11",
+            "max_drawdown_points": 157.12,
+            "net_pnl_points": 325.08,
+            "profit_factor": 1.363392,
+            "trade_count": 107,
+            "win_rate": 0.523364
+          },
+          {
+            "bucket": "2024-12",
+            "max_drawdown_points": 316.1,
+            "net_pnl_points": -207.49,
+            "profit_factor": 0.829343,
+            "trade_count": 107,
+            "win_rate": 0.411215
+          },
+          {
+            "bucket": "2025-01",
+            "max_drawdown_points": 243.65,
+            "net_pnl_points": 456.55,
+            "profit_factor": 1.36183,
+            "trade_count": 107,
+            "win_rate": 0.504673
+          },
+          {
+            "bucket": "2025-02",
+            "max_drawdown_points": 227.01,
+            "net_pnl_points": 100.6,
+            "profit_factor": 1.079871,
+            "trade_count": 108,
+            "win_rate": 0.481481
+          },
+          {
+            "bucket": "2025-03",
+            "max_drawdown_points": 373.76,
+            "net_pnl_points": -44.39,
+            "profit_factor": 0.977099,
+            "trade_count": 125,
+            "win_rate": 0.456
+          },
+          {
+            "bucket": "2025-04",
+            "max_drawdown_points": 544.27,
+            "net_pnl_points": -371.77,
+            "profit_factor": 0.865855,
+            "trade_count": 121,
+            "win_rate": 0.38843
+          },
+          {
+            "bucket": "2025-05",
+            "max_drawdown_points": 219.17,
+            "net_pnl_points": 94.25,
+            "profit_factor": 1.078952,
+            "trade_count": 101,
+            "win_rate": 0.485149
+          },
+          {
+            "bucket": "2025-06",
+            "max_drawdown_points": 288.44,
+            "net_pnl_points": -175.97,
+            "profit_factor": 0.830488,
+            "trade_count": 106,
+            "win_rate": 0.433962
+          },
+          {
+            "bucket": "2025-07",
+            "max_drawdown_points": 245.73,
+            "net_pnl_points": -160.24,
+            "profit_factor": 0.827194,
+            "trade_count": 106,
+            "win_rate": 0.443396
+          },
+          {
+            "bucket": "2025-08",
+            "max_drawdown_points": 226.25,
+            "net_pnl_points": -15.88,
+            "profit_factor": 0.986347,
+            "trade_count": 110,
+            "win_rate": 0.463636
+          },
+          {
+            "bucket": "2025-09",
+            "max_drawdown_points": 378.33,
+            "net_pnl_points": -207.0,
+            "profit_factor": 0.798548,
+            "trade_count": 109,
+            "win_rate": 0.431193
+          },
+          {
+            "bucket": "2025-10",
+            "max_drawdown_points": 243.17,
+            "net_pnl_points": 34.14,
+            "profit_factor": 1.029473,
+            "trade_count": 112,
+            "win_rate": 0.491071
+          },
+          {
+            "bucket": "2025-11",
+            "max_drawdown_points": 245.34,
+            "net_pnl_points": 481.21,
+            "profit_factor": 1.330854,
+            "trade_count": 97,
+            "win_rate": 0.515464
+          },
+          {
+            "bucket": "2025-12",
+            "max_drawdown_points": 421.51,
+            "net_pnl_points": -227.62,
+            "profit_factor": 0.818895,
+            "trade_count": 102,
+            "win_rate": 0.382353
+          },
+          {
+            "bucket": "2026-01",
+            "max_drawdown_points": 277.46,
+            "net_pnl_points": -244.55,
+            "profit_factor": 0.8254,
+            "trade_count": 102,
+            "win_rate": 0.421569
+          },
+          {
+            "bucket": "2026-02",
+            "max_drawdown_points": 734.15,
+            "net_pnl_points": -492.54,
+            "profit_factor": 0.720173,
+            "trade_count": 94,
+            "win_rate": 0.414894
+          },
+          {
+            "bucket": "2026-03",
+            "max_drawdown_points": 545.77,
+            "net_pnl_points": -394.78,
+            "profit_factor": 0.798134,
+            "trade_count": 108,
+            "win_rate": 0.398148
+          },
+          {
+            "bucket": "2026-04",
+            "max_drawdown_points": 230.51,
+            "net_pnl_points": 5.09,
+            "profit_factor": 1.003707,
+            "trade_count": 111,
+            "win_rate": 0.441441
+          }
+        ],
+        "worst_month_pnl_points": -492.54
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": true,
+      "fields": {
+        "average_capture_ratio": 0.271125,
+        "average_mae_points": 20.106844,
+        "average_mfe_points": 23.498234,
+        "median_mae_points": 16.5,
+        "median_mfe_points": 16.39
+      }
+    }
+  },
+  "created_at_utc": "2026-07-02T16:39:58Z",
+  "dataset_identity": "data/processed/datasets/us100_m5_base_frame.csv",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "record the matching MT5 symbol specification and fixed-lot sizing for the 500 USD account",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_net_pnl, proxy_max_drawdown_percent, proxy_expectancy_per_entry",
+      "reason": "proxy measures raw US100 index points only; USD conversion requires MT5 symbol contract, tick value, and fixed-lot discovery sizing",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "during C0003 R0002 MT5 evidence production"
+    },
+    {
+      "blocking_condition": "proxy.json content must be stable before hashing",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_artifact_hashes",
+      "reason": "self-hash is recorded in artifact_lineage after proxy.json is written",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "before C0003 R0002 closeout"
+    }
+  ],
+  "fold_ids": [
+    "rw_001",
+    "rw_002",
+    "rw_003",
+    "rw_004",
+    "rw_005",
+    "rw_006",
+    "rw_007",
+    "rw_008",
+    "rw_009",
+    "tail"
+  ],
+  "proxy_artifact_hashes": [
+    "d45d2729e000702fd360b8e9d057dee8b64867c5740ad97819fac3cb9cd8f31e"
+  ],
+  "proxy_artifact_paths": [
+    "campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0002/kpi/proxy.json",
+    "campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0002/artifacts/c0003_r0002_proxy_trades.csv"
+  ],
+  "proxy_code_version_or_commit": "uncommitted_local_worktree_at_proxy_creation",
+  "proxy_config": {
+    "bar_basis": "closed_m5",
+    "candidate_direction": "dual_direction_long_and_short_per_stride_closed_bar",
+    "candidate_stride_bars": 3,
+    "core_session_end_minute": 1260,
+    "core_session_start_minute": 360,
+    "entry_basis": "next_bar_open_after_scored_closed_bar",
+    "equity_percent_sizing": "deferred_until_candidate_quality",
+    "evaluation_splits": "rolling_windows_test_oos",
+    "gap_blocked_exit_policy": "skip_when_exit_bar_next_tick_gap_exceeds_5_minutes",
+    "gap_carried_entry_policy": "skip_when_next_bar_gap_exceeds_5_minutes",
+    "label_horizon_bars": 18,
+    "label_shape": "adverse_first_avoidance_plus_survivability",
+    "lookback_range_bars": 48,
+    "max_entries_per_active_day": 7,
+    "max_stumps": 18,
+    "min_stump_side_count": 200,
+    "momentum_bars": 12,
+    "money_conversion_status": "deferred_until_mt5_symbol_spec_and_fixed_lot_size",
+    "positive_score_gate": false,
+    "price_precision_digits": 2,
+    "pullback_bars": 12,
+    "risk_profile_thresholds": "train_score_quantiles_p40_p70",
+    "risk_profiles": {
+      "abort_guard": {
+        "early_exit_bars": 2,
+        "max_hold_bars": 6,
+        "stop_range_multiple": 0.45,
+        "target_range_multiple": 0.7,
+        "trail_activation_range_multiple": null,
+        "trail_distance_range_multiple": null
+      },
+      "follow_through": {
+        "early_exit_bars": null,
+        "max_hold_bars": 14,
+        "stop_range_multiple": 0.7,
+        "target_range_multiple": 1.35,
+        "trail_activation_range_multiple": 0.85,
+        "trail_distance_range_multiple": 0.5
+      },
+      "survivor": {
+        "early_exit_bars": 3,
+        "max_hold_bars": 10,
+        "stop_range_multiple": 0.6,
+        "target_range_multiple": 0.95,
+        "trail_activation_range_multiple": null,
+        "trail_distance_range_multiple": null
+      }
+    },
+    "same_bar_stop_target_policy": "stop_first_conservative",
+    "score_model": "train_only_adverse_path_avoidance_decision_stump_surface",
+    "sizing_mode": "fixed_lot_discovery",
+    "starting_balance_usd": 500.0,
+    "stump_quantiles": [
+      0.2,
+      0.4,
+      0.6,
+      0.8
+    ],
+    "training_splits": "rolling_windows_train_is"
+  },
+  "proxy_config_path": "campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0002/run_manifest.json",
+  "proxy_engine": "axiom_rift.proxies.c0003_r0002_adverse_path_avoidance",
+  "proxy_id": "PX-C0003-R0002",
+  "proxy_summary": {
+    "active_day_count": 580,
+    "average_bars_in_trade": 3.72529,
+    "balance_after_proxy_usd": null,
+    "early_adverse_time_stop_exit_count": 0,
+    "entries_per_active_day": 5.058621,
+    "entry_target_max": 10,
+    "entry_target_min": 5,
+    "evaluation_surface": "rolling_window_test_oos_only",
+    "gross_loss_points": -34532.12,
+    "gross_profit_points": 33408.89,
+    "long_trade_count": 1835,
+    "max_hold_exit_count": 31,
+    "money_model_status": "deferred_until_mt5_symbol_spec_and_fixed_lot_size",
+    "net_pnl_points": -1123.23,
+    "net_pnl_usd": null,
+    "short_trade_count": 1099,
+    "signal_count": 2934,
+    "starting_balance_usd": 500.0,
+    "stop_exit_count": 1598,
+    "target_exit_count": 571,
+    "trade_count": 2934,
+    "trail_stop_exit_count": 734
+  },
+  "required_kpis": {
+    "proxy_expectancy_per_entry": null,
+    "proxy_expectancy_points_per_entry": -0.382832,
+    "proxy_max_drawdown_percent": null,
+    "proxy_max_drawdown_points": 2210.73,
+    "proxy_net_pnl": null,
+    "proxy_net_pnl_points": -1123.23,
+    "proxy_profit_factor": 0.967473,
+    "proxy_signal_count": 2934,
+    "proxy_trade_count": 2934,
+    "proxy_win_rate": 0.452624
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0002",
+  "schema": "axiom_rift_proxy_kpi_v1",
+  "split_policy": "rolling_window_test_oos_only_with_train_is_path_surface_fit",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0003"
+}

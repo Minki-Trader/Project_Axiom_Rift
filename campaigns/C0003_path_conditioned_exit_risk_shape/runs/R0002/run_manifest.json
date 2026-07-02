@@ -1,0 +1,166 @@
+{
+  "changed_surfaces": [
+    "model",
+    "feature",
+    "trade_logic",
+    "label"
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false
+  },
+  "closed_at_utc": "2026-07-02T16:51:05Z",
+  "closeout": {
+    "close_reason": "fold_isolated_tick_negative_no_candidate",
+    "closed_at_utc": "2026-07-02T16:51:05Z",
+    "evidence_paths": [
+      "kpi/proxy.json",
+      "kpi/mt5_logic_parity.json",
+      "kpi/proxy_vs_mt5_logic_parity.json",
+      "kpi/mt5_tick.json",
+      "kpi/execution_divergence.json",
+      "kpi/mt5_tick_by_fold.json",
+      "kpi/execution_divergence_by_fold.json"
+    ],
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "hypothesis_tested": "train-only adverse-path avoidance and conditional early-abort score surface ranking closed-bar long and short candidates by low hazard before schedule replay",
+      "next_boundary": "next C0003 work must change a meaningful path-conditioned exit, hold, risk-shape, label, model, or trade-shape surface; do not retry R0002 by only nudging hazard quantiles, stop or target multiples, early-abort bars, max-hold, or daily entry count",
+      "reason_not_candidate": "fold-isolated MT5 tick evidence completed with 6 losing folds, 3 profitable folds, and negative total tick net PnL despite proxy entry frequency landing inside the target range",
+      "supporting_lessons": [
+        {
+          "asset_type": "execution_divergence_lesson",
+          "summary": "Closed-bar logic parity passed exactly, while tick execution dropped 312 trades, improved total net PnL by 1.48 versus logic, and still remained negative; tick remains the economic surface."
+        },
+        {
+          "asset_type": "negative_memory",
+          "summary": "Adverse-path avoidance improved R0001-like severity and produced 3 profitable folds, but total fold-isolated MT5 tick net PnL stayed negative."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "entries_per_active_day": 5.058621,
+      "execution_divergence_by_fold_status": "completed",
+      "logic_parity_status": "passed",
+      "losing_fold_count": 6,
+      "profitable_fold_count": 3,
+      "proxy_net_pnl_points": -1123.23,
+      "proxy_trade_count": 2934,
+      "tick_better_fold_count": 7,
+      "total_tick_net_pnl": -16.38,
+      "total_tick_trade_count": 2622,
+      "worst_fold_id": "rw_009",
+      "worst_fold_net_pnl": -8.55
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0003_r0002_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0003_r0002_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "fixed_surfaces": {
+    "base_frame": "US100 closed M5 bars",
+    "commission_per_trade": 0,
+    "early_sizing": "fixed_lot",
+    "market": "FPMarkets US100 M5",
+    "proxy_is_screening_gate_for_mt5": false,
+    "split_policy": "rolling_window",
+    "synthetic_commission_allowed": false
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "test whether train-only adverse-path avoidance and conditional early-abort scoring can improve US100 M5 MT5 tick economics by rejecting high-hazard candidate paths before entry and scheduling conservative exits for accepted paths",
+    "variant_boundary": "second C0003 true variant; changes the R0001 path-survival risk profiling question into adverse-first avoidance and conditional abort logic using different labels, adverse-path features, score interpretation, and trade-shape construction; it is not a score quantile, window, SLTP, trail, max-hold, or daily-entry nudge of R0001"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_adverse_path_avoidance_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "notes": [
+      "closed-bar MT5 mode is required for proxy-vs-EA logic parity",
+      "tick-mode MT5 is required for execution KPI management",
+      "fold-isolated MT5 tick and execution divergence are required before closeout",
+      "weak proxy evidence cannot skip MT5 validation"
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-02T16:35:08Z",
+  "parent_type": "campaign",
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy must derive adverse-path avoidance surfaces only inside each rolling train window",
+      "proxy must report entry frequency, adverse-path diagnostics, and conditional abort diagnostics without creating selected claims",
+      "proxy result cannot decide whether MT5 is attempted"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [
+      "mechanical parity must compare scheduled entries, directions, exits, exit reasons, and position lifecycle behavior",
+      "tick-vs-closed-bar differences are execution divergence, not automatic logic failure"
+    ],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0002",
+  "schema": "axiom_rift_run_manifest_v1",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "closed-bar adverse-path features for directional wick pressure, prior adverse probes, range shock state, pullback stress, momentum stall, close-position vulnerability, and session phase; no feature set is selected"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "train-only adverse-first and survivability labels penalizing stop-before-target, early adverse excursion, and poor terminal recovery while rewarding paths that avoid material adverse movement; no label is selected"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "rolling train-only adverse-path avoidance stump score surface for ranking candidates by low hazard and assigning conditional abort or follow-through profiles; no model family, objective, or score threshold is selected"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "evaluate broad closed-bar long and short candidate events with fixed-lot discovery, skip high-hazard candidate bars via daily low-hazard ranking, and schedule conservative stop, target, early-abort, and max-hold behavior for accepted paths"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0003"
+}
