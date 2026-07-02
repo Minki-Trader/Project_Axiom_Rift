@@ -123,6 +123,7 @@ from .proxies.c0002_r0001_score_conditioned import run_c0002_r0001_proxy
 from .proxies.c0002_r0002_exhaustion_reversal import run_c0002_r0002_proxy
 from .proxies.c0002_r0003_dual_direction_cell_score import run_c0002_r0003_proxy
 from .proxies.c0002_r0004_stump_rank_ensemble import run_c0002_r0004_proxy
+from .proxies.sc0001_sr0001_synthesis_constraints import run_sc0001_sr0001_proxy
 from .validation.work_units import result_json, validate_templates, validate_work_unit
 
 
@@ -373,6 +374,11 @@ def build_parser() -> argparse.ArgumentParser:
         "record-c0002-r0004-execution-divergence",
         help="record C0002 R0004 closed-bar-vs-tick execution divergence",
     )
+    sc0001_sr0001_proxy_parser = subparsers.add_parser(
+        "run-sc0001-sr0001-proxy",
+        help="run SC0001 SR0001 synthesis constraint proxy evidence",
+    )
+    sc0001_sr0001_proxy_parser.add_argument("--dry-run", action="store_true", help="print proxy payload without writing files")
     subparsers.add_parser("validate-templates", help="validate campaign templates and contract alignment")
     work_unit_parser = subparsers.add_parser("validate-work-unit", help="validate a generated campaign work unit")
     work_unit_parser.add_argument("path", help="path such as campaigns/C0001_short_slug")
@@ -776,6 +782,10 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "record-c0002-r0004-execution-divergence":
         payload = record_c0002_r0004_execution_divergence()
+        print(json.dumps(payload["required_kpis"], indent=2, sort_keys=True))
+        return 0
+    if args.command == "run-sc0001-sr0001-proxy":
+        payload = run_sc0001_sr0001_proxy(write=not args.dry_run)
         print(json.dumps(payload["required_kpis"], indent=2, sort_keys=True))
         return 0
     if args.command == "validate-templates":

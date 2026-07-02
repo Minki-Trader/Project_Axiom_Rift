@@ -1,52 +1,43 @@
 {
-  "schema": "axiom_rift_gate_report_v1",
-  "template": false,
-  "role": "lightweight_decision_receipt",
-  "work_unit_id": "SC0001",
-  "run_id": "SR0001",
-  "gate_report_id": "G-SC0001-SR0001",
-  "evidence_gate": {
-    "status": "planned_not_produced",
-    "checks": {
-      "proxy_kpi_path_recorded": true,
-      "mt5_logic_parity_kpi_path_recorded": true,
-      "mt5_tick_kpi_path_recorded": true,
-      "proxy_vs_mt5_logic_parity_kpi_path_recorded": true,
-      "execution_divergence_kpi_path_recorded": true,
-      "artifact_lineage_path_recorded": true
-    }
-  },
-  "parity_gate": {
-    "status": "not_checked",
-    "mechanical_parity_status": "not_checked",
-    "intent_parity_status": "not_checked",
-    "repair_required": false,
-    "non_portable_status": "not_checked"
-  },
-  "rolling_window_closeout_gate": {
-    "status": "not_checked",
-    "aggregate_full_period_mt5_kpi_role": "diagnostic_only",
-    "fold_isolated_mt5_tick_required": true,
-    "fold_isolated_mt5_tick_path_recorded": false,
-    "fold_isolated_execution_divergence_path_recorded": false,
-    "fold_isolated_exception": {
-      "applies": false,
-      "reason": "",
-      "blocking_condition": "",
-      "revisit_when": ""
-    }
+  "claim_boundary": {
+    "claim_authority": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "runtime_authority": false,
+    "selected": false
   },
   "claim_gate": {
-    "status": "passed_for_creation",
     "claim_authority": false,
-    "label_selected": false,
     "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
     "model_selected": false,
     "runtime_authority": false,
-    "live_ready": false
+    "status": "passed_for_creation"
   },
   "decision": "defer_with_reason",
-  "next_action": "produce_sc0001_sr0001_proxy_evidence",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "SR0001 cannot close until mandatory MT5 logic parity, MT5 tick, execution divergence, and fold-isolated evidence are recorded",
+      "field": "decision",
+      "reason": "proxy evidence is recorded but MT5 and proxy-vs-MT5 evidence are still missing",
+      "revisit_when": "after SC0001 SR0001 MT5 evidence files contain measured results"
+    }
+  ],
+  "evidence_gate": {
+    "checks": {
+      "artifact_lineage_path_recorded": true,
+      "execution_divergence_kpi_path_recorded": true,
+      "mt5_logic_parity_kpi_path_recorded": true,
+      "mt5_tick_kpi_path_recorded": true,
+      "proxy_kpi_path_recorded": true,
+      "proxy_vs_mt5_logic_parity_kpi_path_recorded": true
+    },
+    "status": "proxy_recorded_pending_mt5"
+  },
   "evidence_paths": [
     "run_manifest.json",
     "artifact_lineage.json",
@@ -54,33 +45,42 @@
     "kpi/mt5_logic_parity.json",
     "kpi/proxy_vs_mt5_logic_parity.json",
     "kpi/mt5_tick.json",
-    "kpi/execution_divergence.json"
+    "kpi/execution_divergence.json",
+    "artifacts/sc0001_sr0001_proxy_trades.csv",
+    "artifacts/sc0001_sr0001_constraint_summary.json"
   ],
-  "deferred_with_reason": [
-    {
-      "item": "proxy_and_mt5_kpi_values",
-      "reason": "SR0001 is opened and planned; evidence generation is the next operation"
-    },
-    {
-      "item": "fold_isolated_closeout_evidence",
-      "reason": "required before SR0001 closeout, not at run creation"
-    }
-  ],
-  "claim_boundary": {
-    "claim_authority": false,
-    "selected": false,
-    "label_selected": false,
-    "feature_set_selected": false,
-    "model_selected": false,
-    "runtime_authority": false,
-    "onnx_ready": false,
-    "live_ready": false
-  },
+  "gate_report_id": "G-SC0001-SR0001",
   "must_not": [
     "claim_selected",
     "claim_runtime_authority",
     "skip_mt5_when_proxy_is_weak",
     "close_from_aggregate_mt5",
     "close_from_broken_code"
-  ]
+  ],
+  "next_action": "produce_sc0001_sr0001_mt5_logic_parity_evidence",
+  "parity_gate": {
+    "intent_parity_status": "not_checked",
+    "mechanical_parity_status": "not_checked",
+    "non_portable_status": "not_checked",
+    "repair_required": false,
+    "status": "blocked_until_mt5"
+  },
+  "role": "lightweight_decision_receipt",
+  "rolling_window_closeout_gate": {
+    "aggregate_full_period_mt5_kpi_role": "diagnostic_only",
+    "fold_isolated_exception": {
+      "applies": false,
+      "blocking_condition": "",
+      "reason": "",
+      "revisit_when": ""
+    },
+    "fold_isolated_execution_divergence_path_recorded": false,
+    "fold_isolated_mt5_tick_path_recorded": false,
+    "fold_isolated_mt5_tick_required": true,
+    "status": "not_checked"
+  },
+  "run_id": "SR0001",
+  "schema": "axiom_rift_gate_report_v1",
+  "template": false,
+  "work_unit_id": "SC0001"
 }

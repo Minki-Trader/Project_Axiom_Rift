@@ -293,8 +293,9 @@ next_work:
   - open_sc0001_accumulated_negative_memory_synthesis
   - design_sc0001_sr0001_synthesis_run_from_ingredient_queue
   - open_sc0001_sr0001_synthesis_constraint_run
-  tasks:
   - produce_sc0001_sr0001_proxy_evidence
+  tasks:
+  - produce_sc0001_sr0001_mt5_logic_parity_evidence
   not_yet:
   - label_freeze
   - feature_set_freeze

@@ -1,82 +1,81 @@
 {
-  "schema": "axiom_rift_run_manifest_v1",
-  "template": false,
-  "status": "proxy_planned",
-  "work_unit_id": "SC0001",
-  "run_id": "SR0001",
-  "parent_type": "synthesis",
-  "source_ingredient_ids": [
-    "c0001_ig004_execution_and_parity_lesson",
-    "c0002_ig004_score_conditioned_execution_and_parity_lesson",
-    "c0003_ig004_path_conditioned_execution_divergence_lesson",
-    "c0003_ig005_target_frequency_is_not_edge_negative_memory"
-  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_constraint_summary": "artifacts/sc0001_sr0001_constraint_summary.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/sc0001_sr0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "fixed_surfaces": {
+    "base_frame": "US100 closed M5 bars",
+    "commission_per_trade": 0,
+    "early_sizing": "fixed_lot",
+    "market": "FPMarkets US100 M5",
+    "proxy_is_screening_gate_for_mt5": false,
+    "split_policy": "rolling_window",
+    "synthetic_commission_allowed": false
+  },
+  "gate_status": "proxy_recorded_pending_mt5",
   "hypothesis_variant": {
     "summary": "derive and test non-adjacent next-hypothesis constraints from repeated tick-execution divergence, schedule replay parity lessons, and target-frequency-without-edge failures before opening another major campaign",
     "variant_boundary": "first SC0001 synthesis run; it changes the operation from another entry, score, exit, or parameter variant into a constraint synthesis run over closed C0001 through C0003 evidence; it must produce a proxy plus MT5 paired evidence path for any derived trade-shape test and must not retry threshold, stop, target, trail, hold, or daily-entry nudges"
   },
-  "surfaces": {
-    "model": {
-      "summary": "unrestricted rule, score, model, ensemble, or direction-specific surface may be derived only after negative-memory constraints are explicit; no model family, objective, or score threshold is selected",
-      "changed_from_synthesis_queue": true
-    },
-    "feature": {
-      "summary": "closed-bar features may include failure-aware context from prior execution divergence, session gap, trade-count shift, path hazard, and target-frequency-without-edge lessons; no feature set is selected",
-      "changed_from_synthesis_queue": true
-    },
-    "trade_logic": {
-      "summary": "fixed-lot discovery trade shape must materially differ from prior regime-response, score-ranking, and path-conditioned exit retries; proxy evidence is not a MT5 skip gate and MT5 paired validation remains mandatory",
-      "changed_from_synthesis_queue": true
-    },
-    "label": {
-      "summary": "forward outcome or path-quality labels remain unrestricted and must be derived without freezing label shape, horizon, feature order, or model family; no label is selected",
-      "changed_from_synthesis_queue": true
-    }
-  },
-  "fixed_surfaces": {
-    "market": "FPMarkets US100 M5",
-    "base_frame": "US100 closed M5 bars",
-    "split_policy": "rolling_window",
-    "early_sizing": "fixed_lot",
-    "commission_per_trade": 0,
-    "synthetic_commission_allowed": false,
-    "proxy_is_screening_gate_for_mt5": false
-  },
-  "proxy_plan": {
-    "required": true,
-    "screening_gate_for_mt5": false,
-    "weak_result_may_skip_mt5": false,
-    "kpi_path": "kpi/proxy.json",
-    "notes": [
-      "proxy must synthesize source ingredient constraints before proposing any trade-shape test",
-      "proxy must explicitly reject adjacent retries of prior threshold, exit, score, or daily-entry tuning",
-      "proxy result cannot close or judge SR0001 without matching MT5 logic parity, MT5 tick, and execution divergence evidence"
-    ]
-  },
   "mt5_probe_plan": {
-    "required": true,
-    "required_even_when_proxy_is_weak": true,
-    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
-    "tick_kpi_path": "kpi/mt5_tick.json",
-    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
     "execution_divergence_kpi_path": "kpi/execution_divergence.json",
     "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
-    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
     "notes": [
       "closed-bar MT5 mode is required for proxy-vs-EA logic parity",
       "tick-mode MT5 is required for execution KPI management",
       "fold-isolated MT5 tick and execution divergence are required before closeout",
       "weak proxy evidence cannot skip MT5 validation"
-    ]
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "parent_type": "synthesis",
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy must synthesize source ingredient constraints before proposing any trade-shape test",
+      "proxy must explicitly reject adjacent retries of prior threshold, exit, score, or daily-entry tuning",
+      "proxy result cannot close or judge SR0001 without matching MT5 logic parity, MT5 tick, and execution divergence evidence"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
   },
   "proxy_vs_mt5_plan": {
-    "required": true,
     "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
     "notes": [
       "mechanical parity must compare scheduled entries, directions, exits, exit reasons, and position lifecycle behavior",
       "tick-vs-closed-bar differences are execution divergence, not automatic logic failure",
       "repair mechanical parity before any hypothesis judgment when mismatch is found"
-    ]
+    ],
+    "required": true
   },
   "repair": {
     "hypothesis_repair_count": 0,
@@ -84,30 +83,33 @@
     "mechanical_parity_repairs_count_toward_limit": false,
     "repair_records": []
   },
-  "gate_status": "not_checked",
-  "evidence_paths": {
-    "proxy_kpi": "kpi/proxy.json",
-    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
-    "mt5_tick_kpi": "kpi/mt5_tick.json",
-    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
-    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
-    "execution_divergence_kpi": "kpi/execution_divergence.json",
-    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
-    "gate_report": "gate_report.json",
-    "artifact_lineage": "artifact_lineage.json"
+  "run_id": "SR0001",
+  "schema": "axiom_rift_run_manifest_v1",
+  "source_ingredient_ids": [
+    "c0001_ig004_execution_and_parity_lesson",
+    "c0002_ig004_score_conditioned_execution_and_parity_lesson",
+    "c0003_ig004_path_conditioned_execution_divergence_lesson",
+    "c0003_ig005_target_frequency_is_not_edge_negative_memory"
+  ],
+  "status": "mt5_probe_ready",
+  "surfaces": {
+    "feature": {
+      "changed_from_synthesis_queue": true,
+      "summary": "closed-bar features may include failure-aware context from prior execution divergence, session gap, trade-count shift, path hazard, and target-frequency-without-edge lessons; no feature set is selected"
+    },
+    "label": {
+      "changed_from_synthesis_queue": true,
+      "summary": "forward outcome or path-quality labels remain unrestricted and must be derived without freezing label shape, horizon, feature order, or model family; no label is selected"
+    },
+    "model": {
+      "changed_from_synthesis_queue": true,
+      "summary": "unrestricted rule, score, model, ensemble, or direction-specific surface may be derived only after negative-memory constraints are explicit; no model family, objective, or score threshold is selected"
+    },
+    "trade_logic": {
+      "changed_from_synthesis_queue": true,
+      "summary": "fixed-lot discovery trade shape must materially differ from prior regime-response, score-ranking, and path-conditioned exit retries; proxy evidence is not a MT5 skip gate and MT5 paired validation remains mandatory"
+    }
   },
-  "claim_boundary": {
-    "claim_authority": false,
-    "selected": false,
-    "label_selected": false,
-    "feature_set_selected": false,
-    "model_selected": false,
-    "runtime_probe_completed": false,
-    "economics_pass": false,
-    "materialization_ready": false,
-    "runtime_authority": false,
-    "onnx_ready": false,
-    "promotion_ready": false,
-    "live_ready": false
-  }
+  "template": false,
+  "work_unit_id": "SC0001"
 }
