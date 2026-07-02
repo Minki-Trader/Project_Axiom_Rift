@@ -1,0 +1,2813 @@
+{
+  "campaign_id": "C0004",
+  "claim_boundary": {
+    "claim_authority": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "selected": false
+  },
+  "conditional_profiles": {
+    "adverse_inversion_profile": {
+      "applies": true,
+      "fields": {
+        "early_adverse_bars": 3,
+        "feature_set_selected": false,
+        "inverts_direction_for_execution": true,
+        "label_selected": false,
+        "model_selected": false,
+        "prior_adverse_pressure_state": true,
+        "prior_directional_follow_through_state": true,
+        "prior_path_bars": 12,
+        "prior_path_stability_state": true,
+        "score_interpretation": "higher_score_means_more_adverse_source_direction_selected_for_inversion",
+        "source_direction_state_key_preserved_with_invert_prefix": true
+      }
+    },
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "average_spread_cost_points": 1.149097,
+        "commission_per_trade": 0,
+        "round_trip_cost_model": "subtract_entry_spread_once",
+        "slippage_stress_test_allowed": true,
+        "spread_point_value": 0.01,
+        "spread_source": "entry_bar_spread_column",
+        "spread_stress_test_allowed": true,
+        "synthetic_commission_allowed": false,
+        "total_spread_cost_points": 3650.68
+      }
+    },
+    "direction_profile": {
+      "applies": true,
+      "fields": {
+        "long": {
+          "max_drawdown_points": 2333.39,
+          "net_pnl_points": -2293.87,
+          "profit_factor": 0.696269,
+          "trade_count": 916,
+          "win_rate": 0.367904
+        },
+        "short": {
+          "max_drawdown_points": 6290.88,
+          "net_pnl_points": -6289.7,
+          "profit_factor": 0.646025,
+          "trade_count": 2261,
+          "win_rate": 0.360018
+        }
+      }
+    },
+    "stability_profile": {
+      "applies": true,
+      "fields": {
+        "fold_summary": [
+          {
+            "bucket": "rw_001",
+            "max_drawdown_points": 614.48,
+            "net_pnl_points": -613.3,
+            "profit_factor": 0.639363,
+            "trade_count": 305,
+            "win_rate": 0.380328
+          },
+          {
+            "bucket": "rw_002",
+            "max_drawdown_points": 1002.09,
+            "net_pnl_points": -955.22,
+            "profit_factor": 0.464287,
+            "trade_count": 309,
+            "win_rate": 0.317152
+          },
+          {
+            "bucket": "rw_003",
+            "max_drawdown_points": 762.66,
+            "net_pnl_points": -676.44,
+            "profit_factor": 0.734142,
+            "trade_count": 351,
+            "win_rate": 0.384615
+          },
+          {
+            "bucket": "rw_004",
+            "max_drawdown_points": 952.96,
+            "net_pnl_points": -875.13,
+            "profit_factor": 0.66646,
+            "trade_count": 367,
+            "win_rate": 0.365123
+          },
+          {
+            "bucket": "rw_005",
+            "max_drawdown_points": 1331.03,
+            "net_pnl_points": -1217.01,
+            "profit_factor": 0.676535,
+            "trade_count": 352,
+            "win_rate": 0.377841
+          },
+          {
+            "bucket": "rw_006",
+            "max_drawdown_points": 1290.85,
+            "net_pnl_points": -1263.16,
+            "profit_factor": 0.518807,
+            "trade_count": 337,
+            "win_rate": 0.332344
+          },
+          {
+            "bucket": "rw_007",
+            "max_drawdown_points": 1308.26,
+            "net_pnl_points": -1261.42,
+            "profit_factor": 0.535606,
+            "trade_count": 387,
+            "win_rate": 0.356589
+          },
+          {
+            "bucket": "rw_008",
+            "max_drawdown_points": 1285.84,
+            "net_pnl_points": -1152.18,
+            "profit_factor": 0.658366,
+            "trade_count": 377,
+            "win_rate": 0.328912
+          },
+          {
+            "bucket": "rw_009",
+            "max_drawdown_points": 682.49,
+            "net_pnl_points": -569.71,
+            "profit_factor": 0.864127,
+            "trade_count": 392,
+            "win_rate": 0.410714
+          }
+        ],
+        "losing_month_count": 27,
+        "month_summary": [
+          {
+            "bucket": "2024-02",
+            "max_drawdown_points": 161.79,
+            "net_pnl_points": -157.96,
+            "profit_factor": 0.668701,
+            "trade_count": 103,
+            "win_rate": 0.407767
+          },
+          {
+            "bucket": "2024-03",
+            "max_drawdown_points": 298.53,
+            "net_pnl_points": -285.99,
+            "profit_factor": 0.497284,
+            "trade_count": 93,
+            "win_rate": 0.311828
+          },
+          {
+            "bucket": "2024-04",
+            "max_drawdown_points": 179.59,
+            "net_pnl_points": -169.35,
+            "profit_factor": 0.741419,
+            "trade_count": 109,
+            "win_rate": 0.412844
+          },
+          {
+            "bucket": "2024-05",
+            "max_drawdown_points": 288.97,
+            "net_pnl_points": -239.07,
+            "profit_factor": 0.557515,
+            "trade_count": 118,
+            "win_rate": 0.338983
+          },
+          {
+            "bucket": "2024-06",
+            "max_drawdown_points": 333.24,
+            "net_pnl_points": -318.7,
+            "profit_factor": 0.434839,
+            "trade_count": 95,
+            "win_rate": 0.294737
+          },
+          {
+            "bucket": "2024-07",
+            "max_drawdown_points": 416.75,
+            "net_pnl_points": -397.45,
+            "profit_factor": 0.41455,
+            "trade_count": 96,
+            "win_rate": 0.3125
+          },
+          {
+            "bucket": "2024-08",
+            "max_drawdown_points": 215.9,
+            "net_pnl_points": -104.44,
+            "profit_factor": 0.896255,
+            "trade_count": 119,
+            "win_rate": 0.411765
+          },
+          {
+            "bucket": "2024-09",
+            "max_drawdown_points": 246.55,
+            "net_pnl_points": -185.06,
+            "profit_factor": 0.727661,
+            "trade_count": 101,
+            "win_rate": 0.39604
+          },
+          {
+            "bucket": "2024-10",
+            "max_drawdown_points": 423.13,
+            "net_pnl_points": -386.94,
+            "profit_factor": 0.5491,
+            "trade_count": 131,
+            "win_rate": 0.351145
+          },
+          {
+            "bucket": "2024-11",
+            "max_drawdown_points": 238.04,
+            "net_pnl_points": -220.17,
+            "profit_factor": 0.703909,
+            "trade_count": 114,
+            "win_rate": 0.342105
+          },
+          {
+            "bucket": "2024-12",
+            "max_drawdown_points": 386.44,
+            "net_pnl_points": -374.93,
+            "profit_factor": 0.54729,
+            "trade_count": 127,
+            "win_rate": 0.362205
+          },
+          {
+            "bucket": "2025-01",
+            "max_drawdown_points": 387.76,
+            "net_pnl_points": -280.03,
+            "profit_factor": 0.733807,
+            "trade_count": 126,
+            "win_rate": 0.388889
+          },
+          {
+            "bucket": "2025-02",
+            "max_drawdown_points": 253.45,
+            "net_pnl_points": -117.3,
+            "profit_factor": 0.821876,
+            "trade_count": 108,
+            "win_rate": 0.425926
+          },
+          {
+            "bucket": "2025-03",
+            "max_drawdown_points": 431.68,
+            "net_pnl_points": -400.37,
+            "profit_factor": 0.661884,
+            "trade_count": 131,
+            "win_rate": 0.374046
+          },
+          {
+            "bucket": "2025-04",
+            "max_drawdown_points": 874.58,
+            "net_pnl_points": -699.34,
+            "profit_factor": 0.635717,
+            "trade_count": 113,
+            "win_rate": 0.336283
+          },
+          {
+            "bucket": "2025-05",
+            "max_drawdown_points": 638.92,
+            "net_pnl_points": -610.29,
+            "profit_factor": 0.471327,
+            "trade_count": 117,
+            "win_rate": 0.290598
+          },
+          {
+            "bucket": "2025-06",
+            "max_drawdown_points": 391.08,
+            "net_pnl_points": -345.72,
+            "profit_factor": 0.552622,
+            "trade_count": 97,
+            "win_rate": 0.350515
+          },
+          {
+            "bucket": "2025-07",
+            "max_drawdown_points": 320.83,
+            "net_pnl_points": -307.15,
+            "profit_factor": 0.5599,
+            "trade_count": 123,
+            "win_rate": 0.357724
+          },
+          {
+            "bucket": "2025-08",
+            "max_drawdown_points": 449.93,
+            "net_pnl_points": -372.28,
+            "profit_factor": 0.526108,
+            "trade_count": 123,
+            "win_rate": 0.382114
+          },
+          {
+            "bucket": "2025-09",
+            "max_drawdown_points": 428.67,
+            "net_pnl_points": -428.67,
+            "profit_factor": 0.468362,
+            "trade_count": 127,
+            "win_rate": 0.338583
+          },
+          {
+            "bucket": "2025-10",
+            "max_drawdown_points": 509.67,
+            "net_pnl_points": -460.47,
+            "profit_factor": 0.590464,
+            "trade_count": 137,
+            "win_rate": 0.350365
+          },
+          {
+            "bucket": "2025-11",
+            "max_drawdown_points": 377.54,
+            "net_pnl_points": -308.66,
+            "profit_factor": 0.76246,
+            "trade_count": 117,
+            "win_rate": 0.34188
+          },
+          {
+            "bucket": "2025-12",
+            "max_drawdown_points": 427.02,
+            "net_pnl_points": -326.77,
+            "profit_factor": 0.661002,
+            "trade_count": 138,
+            "win_rate": 0.362319
+          },
+          {
+            "bucket": "2026-01",
+            "max_drawdown_points": 589.88,
+            "net_pnl_points": -516.75,
+            "profit_factor": 0.534136,
+            "trade_count": 122,
+            "win_rate": 0.278689
+          },
+          {
+            "bucket": "2026-02",
+            "max_drawdown_points": 265.9,
+            "net_pnl_points": -150.23,
+            "profit_factor": 0.88946,
+            "trade_count": 129,
+            "win_rate": 0.44186
+          },
+          {
+            "bucket": "2026-03",
+            "max_drawdown_points": 401.14,
+            "net_pnl_points": -138.13,
+            "profit_factor": 0.914232,
+            "trade_count": 130,
+            "win_rate": 0.415385
+          },
+          {
+            "bucket": "2026-04",
+            "max_drawdown_points": 324.61,
+            "net_pnl_points": -281.35,
+            "profit_factor": 0.770026,
+            "trade_count": 133,
+            "win_rate": 0.37594
+          }
+        ],
+        "worst_month_pnl_points": -699.34
+      }
+    },
+    "state_archetype_profile": {
+      "applies": true,
+      "fields": {
+        "candidate_direction": "dual_direction_long_and_short_per_closed_bar",
+        "candidates_by_fold": {
+          "rw_001": {
+            "eligible_archetype_count": 28,
+            "observed_archetype_count": 17440,
+            "selected_candidate_count": 306,
+            "test_candidate_count": 22636,
+            "train_candidate_count": 139982
+          },
+          "rw_002": {
+            "eligible_archetype_count": 28,
+            "observed_archetype_count": 17250,
+            "selected_candidate_count": 311,
+            "test_candidate_count": 23616,
+            "train_candidate_count": 139268
+          },
+          "rw_003": {
+            "eligible_archetype_count": 28,
+            "observed_archetype_count": 17194,
+            "selected_candidate_count": 352,
+            "test_candidate_count": 23738,
+            "train_candidate_count": 138170
+          },
+          "rw_004": {
+            "eligible_archetype_count": 28,
+            "observed_archetype_count": 17243,
+            "selected_candidate_count": 367,
+            "test_candidate_count": 22852,
+            "train_candidate_count": 138812
+          },
+          "rw_005": {
+            "eligible_archetype_count": 28,
+            "observed_archetype_count": 17317,
+            "selected_candidate_count": 352,
+            "test_candidate_count": 22296,
+            "train_candidate_count": 140008
+          },
+          "rw_006": {
+            "eligible_archetype_count": 28,
+            "observed_archetype_count": 17211,
+            "selected_candidate_count": 338,
+            "test_candidate_count": 23670,
+            "train_candidate_count": 139192
+          },
+          "rw_007": {
+            "eligible_archetype_count": 28,
+            "observed_archetype_count": 17295,
+            "selected_candidate_count": 387,
+            "test_candidate_count": 23712,
+            "train_candidate_count": 137752
+          },
+          "rw_008": {
+            "eligible_archetype_count": 28,
+            "observed_archetype_count": 17474,
+            "selected_candidate_count": 377,
+            "test_candidate_count": 22368,
+            "train_candidate_count": 138808
+          },
+          "rw_009": {
+            "eligible_archetype_count": 28,
+            "observed_archetype_count": 17609,
+            "selected_candidate_count": 393,
+            "test_candidate_count": 22902,
+            "train_candidate_count": 139884
+          }
+        },
+        "entries_per_active_day": 5.477586,
+        "entry_count_per_active_day_target": "5_to_10",
+        "feature_count": 9,
+        "feature_names": [
+          "directional_ret_6_over_range",
+          "directional_ret_18_over_range",
+          "range_ratio_48",
+          "compression_ratio_12_over_48",
+          "directional_range_position_36",
+          "directional_body_fraction",
+          "prior_adverse_pressure",
+          "prior_against_close_ratio",
+          "prior_directional_follow_through"
+        ],
+        "feature_set_selected": false,
+        "fold_models": [
+          {
+            "eligible_archetype_count": 28,
+            "eligible_archetypes": [
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 93,
+                "mean_label": -4.963187,
+                "positive_rate": 0.311828,
+                "score": 8.311748
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 272,
+                "mean_label": -3.79482,
+                "positive_rate": 0.338235,
+                "score": 6.229158
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 590,
+                "mean_label": -3.608347,
+                "positive_rate": 0.327119,
+                "score": 5.995553
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 88,
+                "mean_label": -3.98243,
+                "positive_rate": 0.238636,
+                "score": 5.698577
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 159,
+                "mean_label": -2.8966,
+                "positive_rate": 0.301887,
+                "score": 5.555021
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 181,
+                "mean_label": -4.635845,
+                "positive_rate": 0.287293,
+                "score": 5.533977
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 209,
+                "mean_label": -4.040483,
+                "positive_rate": 0.263158,
+                "score": 5.084149
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 239,
+                "mean_label": -3.621158,
+                "positive_rate": 0.301255,
+                "score": 4.933292
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 105,
+                "mean_label": -3.684046,
+                "positive_rate": 0.247619,
+                "score": 4.860553
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 213,
+                "mean_label": -3.420732,
+                "positive_rate": 0.319249,
+                "score": 4.81652
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 101,
+                "mean_label": -3.564563,
+                "positive_rate": 0.287129,
+                "score": 4.776359
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 81,
+                "mean_label": -3.497505,
+                "positive_rate": 0.296296,
+                "score": 4.732108
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 97,
+                "mean_label": -3.582083,
+                "positive_rate": 0.278351,
+                "score": 4.707919
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 172,
+                "mean_label": -3.492564,
+                "positive_rate": 0.302326,
+                "score": 4.661257
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|normal|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 92,
+                "mean_label": -2.855497,
+                "positive_rate": 0.315217,
+                "score": 4.496297
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 153,
+                "mean_label": -3.022759,
+                "positive_rate": 0.313725,
+                "score": 4.38529
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 84,
+                "mean_label": -3.434945,
+                "positive_rate": 0.297619,
+                "score": 4.376072
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_low|prior_path_smooth|prior_follow_with",
+                "count": 138,
+                "mean_label": -2.750942,
+                "positive_rate": 0.253623,
+                "score": 4.361707
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 110,
+                "mean_label": -3.348125,
+                "positive_rate": 0.263636,
+                "score": 4.349293
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 399,
+                "mean_label": -3.333189,
+                "positive_rate": 0.275689,
+                "score": 4.263847
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_against|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 134,
+                "mean_label": -3.524507,
+                "positive_rate": 0.268657,
+                "score": 4.224878
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 135,
+                "mean_label": -3.112288,
+                "positive_rate": 0.333333,
+                "score": 4.203561
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 88,
+                "mean_label": -3.353888,
+                "positive_rate": 0.284091,
+                "score": 4.18037
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 113,
+                "mean_label": -3.187824,
+                "positive_rate": 0.300885,
+                "score": 4.089196
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 104,
+                "mean_label": -2.602277,
+                "positive_rate": 0.269231,
+                "score": 4.026859
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_with|expanded|directional_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 97,
+                "mean_label": -2.947516,
+                "positive_rate": 0.268041,
+                "score": 3.896478
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 135,
+                "mean_label": -2.155637,
+                "positive_rate": 0.274074,
+                "score": 3.815677
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 88,
+                "mean_label": -2.991479,
+                "positive_rate": 0.295455,
+                "score": 3.813829
+              }
+            ],
+            "feature_names": [
+              "directional_ret_6_over_range",
+              "directional_ret_18_over_range",
+              "range_ratio_48",
+              "compression_ratio_12_over_48",
+              "directional_range_position_36",
+              "directional_body_fraction",
+              "prior_adverse_pressure",
+              "prior_against_close_ratio",
+              "prior_directional_follow_through"
+            ],
+            "fold_id": "rw_001",
+            "global_mean": -1.788022,
+            "global_positive_rate": 0.339372,
+            "model_family": "fold_local_adverse_archetype_inversion",
+            "observed_archetype_count": 17440,
+            "score_interpretation": "higher_score_means_more_adverse_source_direction_selected_for_inversion",
+            "state_dimensions": [
+              "volatility_regime",
+              "trend_state",
+              "compression_state",
+              "range_position_state",
+              "body_state",
+              "session_phase",
+              "prior_adverse_state",
+              "prior_path_stability_state",
+              "prior_follow_through_state"
+            ],
+            "train_candidate_count": 139982
+          },
+          {
+            "eligible_archetype_count": 28,
+            "eligible_archetypes": [
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 94,
+                "mean_label": -4.856311,
+                "positive_rate": 0.265957,
+                "score": 8.218139
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_mixed|prior_follow_with",
+                "count": 82,
+                "mean_label": -3.109812,
+                "positive_rate": 0.317073,
+                "score": 6.455015
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 279,
+                "mean_label": -3.95023,
+                "positive_rate": 0.329749,
+                "score": 6.386899
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 171,
+                "mean_label": -3.552229,
+                "positive_rate": 0.274854,
+                "score": 6.21913
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 591,
+                "mean_label": -3.653342,
+                "positive_rate": 0.326565,
+                "score": 6.040135
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|normal|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 105,
+                "mean_label": -3.572191,
+                "positive_rate": 0.295238,
+                "score": 5.989607
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 193,
+                "mean_label": -4.419205,
+                "positive_rate": 0.253886,
+                "score": 5.32765
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 167,
+                "mean_label": -3.984022,
+                "positive_rate": 0.275449,
+                "score": 5.159768
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 105,
+                "mean_label": -3.851445,
+                "positive_rate": 0.247619,
+                "score": 5.074922
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 215,
+                "mean_label": -3.671392,
+                "positive_rate": 0.325581,
+                "score": 5.064808
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 224,
+                "mean_label": -3.711946,
+                "positive_rate": 0.299107,
+                "score": 5.023153
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 87,
+                "mean_label": -3.363275,
+                "positive_rate": 0.287356,
+                "score": 5.000044
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 103,
+                "mean_label": -3.58558,
+                "positive_rate": 0.23301,
+                "score": 4.765644
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 221,
+                "mean_label": -3.669622,
+                "positive_rate": 0.294118,
+                "score": 4.704206
+              },
+              {
+                "archetype_id": "short|vol_low|trend_against|normal|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 113,
+                "mean_label": -2.469061,
+                "positive_rate": 0.309735,
+                "score": 4.673987
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 163,
+                "mean_label": -3.285396,
+                "positive_rate": 0.288344,
+                "score": 4.655773
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 142,
+                "mean_label": -3.509888,
+                "positive_rate": 0.323944,
+                "score": 4.60401
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|normal|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 296,
+                "mean_label": -2.087907,
+                "positive_rate": 0.314189,
+                "score": 4.560498
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|normal|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 160,
+                "mean_label": -2.58354,
+                "positive_rate": 0.325,
+                "score": 4.543234
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_against|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 153,
+                "mean_label": -3.500882,
+                "positive_rate": 0.27451,
+                "score": 4.540558
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 87,
+                "mean_label": -3.536653,
+                "positive_rate": 0.287356,
+                "score": 4.480612
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 127,
+                "mean_label": -3.33805,
+                "positive_rate": 0.322835,
+                "score": 4.41792
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 109,
+                "mean_label": -3.279146,
+                "positive_rate": 0.321101,
+                "score": 4.39286
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 171,
+                "mean_label": -3.031543,
+                "positive_rate": 0.309942,
+                "score": 4.299094
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 410,
+                "mean_label": -3.251975,
+                "positive_rate": 0.287805,
+                "score": 4.178843
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_low|prior_path_smooth|prior_follow_with",
+                "count": 151,
+                "mean_label": -2.543207,
+                "positive_rate": 0.271523,
+                "score": 4.149151
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_with|expanded|directional_edge|body_with|europe_morning|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 123,
+                "mean_label": -3.040703,
+                "positive_rate": 0.276423,
+                "score": 4.06346
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 111,
+                "mean_label": -3.148043,
+                "positive_rate": 0.315315,
+                "score": 4.044268
+              }
+            ],
+            "feature_names": [
+              "directional_ret_6_over_range",
+              "directional_ret_18_over_range",
+              "range_ratio_48",
+              "compression_ratio_12_over_48",
+              "directional_range_position_36",
+              "directional_body_fraction",
+              "prior_adverse_pressure",
+              "prior_against_close_ratio",
+              "prior_directional_follow_through"
+            ],
+            "fold_id": "rw_002",
+            "global_mean": -1.833699,
+            "global_positive_rate": 0.337342,
+            "model_family": "fold_local_adverse_archetype_inversion",
+            "observed_archetype_count": 17250,
+            "score_interpretation": "higher_score_means_more_adverse_source_direction_selected_for_inversion",
+            "state_dimensions": [
+              "volatility_regime",
+              "trend_state",
+              "compression_state",
+              "range_position_state",
+              "body_state",
+              "session_phase",
+              "prior_adverse_state",
+              "prior_path_stability_state",
+              "prior_follow_through_state"
+            ],
+            "train_candidate_count": 139268
+          },
+          {
+            "eligible_archetype_count": 28,
+            "eligible_archetypes": [
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 154,
+                "mean_label": -3.837325,
+                "positive_rate": 0.279221,
+                "score": 6.501178
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 627,
+                "mean_label": -3.882885,
+                "positive_rate": 0.330144,
+                "score": 6.269315
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 91,
+                "mean_label": -4.57577,
+                "positive_rate": 0.252747,
+                "score": 5.722896
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 173,
+                "mean_label": -4.257104,
+                "positive_rate": 0.300578,
+                "score": 5.624281
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|normal|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 96,
+                "mean_label": -3.192712,
+                "positive_rate": 0.322917,
+                "score": 5.600492
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 192,
+                "mean_label": -4.338895,
+                "positive_rate": 0.265625,
+                "score": 5.243409
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 187,
+                "mean_label": -4.044056,
+                "positive_rate": 0.283422,
+                "score": 5.218632
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 91,
+                "mean_label": -4.051748,
+                "positive_rate": 0.285714,
+                "score": 5.095081
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 211,
+                "mean_label": -3.717234,
+                "positive_rate": 0.312796,
+                "score": 5.023124
+              },
+              {
+                "archetype_id": "short|vol_low|trend_against|normal|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 111,
+                "mean_label": -2.713934,
+                "positive_rate": 0.306306,
+                "score": 4.919345
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 98,
+                "mean_label": -3.758025,
+                "positive_rate": 0.255102,
+                "score": 4.890003
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 100,
+                "mean_label": -3.650184,
+                "positive_rate": 0.26,
+                "score": 4.821485
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_against|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 162,
+                "mean_label": -3.618206,
+                "positive_rate": 0.271605,
+                "score": 4.659175
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 118,
+                "mean_label": -3.402318,
+                "positive_rate": 0.262712,
+                "score": 4.62229
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 170,
+                "mean_label": -3.336156,
+                "positive_rate": 0.305882,
+                "score": 4.604509
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 124,
+                "mean_label": -3.488268,
+                "positive_rate": 0.306452,
+                "score": 4.572426
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|normal|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 294,
+                "mean_label": -2.071852,
+                "positive_rate": 0.278912,
+                "score": 4.554584
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 227,
+                "mean_label": -3.508877,
+                "positive_rate": 0.281938,
+                "score": 4.547173
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 121,
+                "mean_label": -3.110584,
+                "positive_rate": 0.247934,
+                "score": 4.542378
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 158,
+                "mean_label": -3.40749,
+                "positive_rate": 0.28481,
+                "score": 4.514408
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 82,
+                "mean_label": -2.839738,
+                "positive_rate": 0.304878,
+                "score": 4.470307
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 80,
+                "mean_label": -3.083097,
+                "positive_rate": 0.325,
+                "score": 4.30802
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|normal|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 351,
+                "mean_label": -2.712101,
+                "positive_rate": 0.304843,
+                "score": 4.126914
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_low|prior_path_smooth|prior_follow_with",
+                "count": 137,
+                "mean_label": -2.536132,
+                "positive_rate": 0.262774,
+                "score": 4.0707
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 399,
+                "mean_label": -3.124119,
+                "positive_rate": 0.315789,
+                "score": 4.059206
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 94,
+                "mean_label": -3.200998,
+                "positive_rate": 0.297872,
+                "score": 4.023103
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 1168,
+                "mean_label": -2.865589,
+                "positive_rate": 0.305651,
+                "score": 3.965822
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 111,
+                "mean_label": -2.57106,
+                "positive_rate": 0.306306,
+                "score": 3.960098
+              }
+            ],
+            "feature_names": [
+              "directional_ret_6_over_range",
+              "directional_ret_18_over_range",
+              "range_ratio_48",
+              "compression_ratio_12_over_48",
+              "directional_range_position_36",
+              "directional_body_fraction",
+              "prior_adverse_pressure",
+              "prior_against_close_ratio",
+              "prior_directional_follow_through"
+            ],
+            "fold_id": "rw_003",
+            "global_mean": -1.853971,
+            "global_positive_rate": 0.336223,
+            "model_family": "fold_local_adverse_archetype_inversion",
+            "observed_archetype_count": 17194,
+            "score_interpretation": "higher_score_means_more_adverse_source_direction_selected_for_inversion",
+            "state_dimensions": [
+              "volatility_regime",
+              "trend_state",
+              "compression_state",
+              "range_position_state",
+              "body_state",
+              "session_phase",
+              "prior_adverse_state",
+              "prior_path_stability_state",
+              "prior_follow_through_state"
+            ],
+            "train_candidate_count": 138170
+          },
+          {
+            "eligible_archetype_count": 28,
+            "eligible_archetypes": [
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 151,
+                "mean_label": -3.434147,
+                "positive_rate": 0.298013,
+                "score": 5.914629
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 180,
+                "mean_label": -4.273623,
+                "positive_rate": 0.294444,
+                "score": 5.643068
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 94,
+                "mean_label": -4.404691,
+                "positive_rate": 0.265957,
+                "score": 5.570728
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 233,
+                "mean_label": -3.872592,
+                "positive_rate": 0.334764,
+                "score": 5.263983
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 209,
+                "mean_label": -3.901239,
+                "positive_rate": 0.30622,
+                "score": 5.208845
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 294,
+                "mean_label": -3.942023,
+                "positive_rate": 0.309524,
+                "score": 5.085457
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 182,
+                "mean_label": -4.086122,
+                "positive_rate": 0.269231,
+                "score": 4.988686
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 196,
+                "mean_label": -3.765297,
+                "positive_rate": 0.311224,
+                "score": 4.932077
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 86,
+                "mean_label": -3.867482,
+                "positive_rate": 0.302326,
+                "score": 4.90512
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 81,
+                "mean_label": -3.582639,
+                "positive_rate": 0.320988,
+                "score": 4.808772
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|normal|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 303,
+                "mean_label": -2.283802,
+                "positive_rate": 0.254125,
+                "score": 4.774326
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 1189,
+                "mean_label": -2.883772,
+                "positive_rate": 0.312027,
+                "score": 4.638005
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 105,
+                "mean_label": -3.27761,
+                "positive_rate": 0.27619,
+                "score": 4.492061
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 123,
+                "mean_label": -2.919388,
+                "positive_rate": 0.211382,
+                "score": 4.489554
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 95,
+                "mean_label": -3.444246,
+                "positive_rate": 0.284211,
+                "score": 4.469606
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 100,
+                "mean_label": -2.988407,
+                "positive_rate": 0.29,
+                "score": 4.423118
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 92,
+                "mean_label": -3.58284,
+                "positive_rate": 0.293478,
+                "score": 4.405913
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 407,
+                "mean_label": -3.372719,
+                "positive_rate": 0.314496,
+                "score": 4.308407
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 228,
+                "mean_label": -3.269536,
+                "positive_rate": 0.298246,
+                "score": 4.302886
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_against|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 148,
+                "mean_label": -3.239652,
+                "positive_rate": 0.304054,
+                "score": 4.269576
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 148,
+                "mean_label": -3.309344,
+                "positive_rate": 0.304054,
+                "score": 4.236292
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 173,
+                "mean_label": -3.238673,
+                "positive_rate": 0.294798,
+                "score": 4.217456
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|normal|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 355,
+                "mean_label": -2.794,
+                "positive_rate": 0.312676,
+                "score": 4.206529
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 106,
+                "mean_label": -3.343041,
+                "positive_rate": 0.292453,
+                "score": 4.201892
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 82,
+                "mean_label": -3.344575,
+                "positive_rate": 0.292683,
+                "score": 4.145163
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 123,
+                "mean_label": -2.612479,
+                "positive_rate": 0.227642,
+                "score": 4.043987
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 132,
+                "mean_label": -2.896014,
+                "positive_rate": 0.325758,
+                "score": 3.975031
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|late_session|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 114,
+                "mean_label": -3.204216,
+                "positive_rate": 0.245614,
+                "score": 3.909108
+              }
+            ],
+            "feature_names": [
+              "directional_ret_6_over_range",
+              "directional_ret_18_over_range",
+              "range_ratio_48",
+              "compression_ratio_12_over_48",
+              "directional_range_position_36",
+              "directional_body_fraction",
+              "prior_adverse_pressure",
+              "prior_against_close_ratio",
+              "prior_directional_follow_through"
+            ],
+            "fold_id": "rw_004",
+            "global_mean": -1.85429,
+            "global_positive_rate": 0.335828,
+            "model_family": "fold_local_adverse_archetype_inversion",
+            "observed_archetype_count": 17243,
+            "score_interpretation": "higher_score_means_more_adverse_source_direction_selected_for_inversion",
+            "state_dimensions": [
+              "volatility_regime",
+              "trend_state",
+              "compression_state",
+              "range_position_state",
+              "body_state",
+              "session_phase",
+              "prior_adverse_state",
+              "prior_path_stability_state",
+              "prior_follow_through_state"
+            ],
+            "train_candidate_count": 138812
+          },
+          {
+            "eligible_archetype_count": 28,
+            "eligible_archetypes": [
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 168,
+                "mean_label": -3.814359,
+                "positive_rate": 0.27381,
+                "score": 6.303636
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 159,
+                "mean_label": -4.387143,
+                "positive_rate": 0.245283,
+                "score": 5.735389
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 192,
+                "mean_label": -4.193156,
+                "positive_rate": 0.302083,
+                "score": 5.561326
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|normal|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 100,
+                "mean_label": -2.953828,
+                "positive_rate": 0.33,
+                "score": 5.359928
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 290,
+                "mean_label": -4.20883,
+                "positive_rate": 0.293103,
+                "score": 5.357089
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 230,
+                "mean_label": -3.956134,
+                "positive_rate": 0.326087,
+                "score": 5.35005
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 84,
+                "mean_label": -4.119183,
+                "positive_rate": 0.25,
+                "score": 5.17239
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 93,
+                "mean_label": -3.976621,
+                "positive_rate": 0.268817,
+                "score": 5.141799
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 195,
+                "mean_label": -3.832676,
+                "positive_rate": 0.307692,
+                "score": 5.138962
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|normal|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 293,
+                "mean_label": -2.411234,
+                "positive_rate": 0.255973,
+                "score": 4.900789
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 122,
+                "mean_label": -3.258228,
+                "positive_rate": 0.303279,
+                "score": 4.661497
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_against|normal|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 87,
+                "mean_label": -2.663005,
+                "positive_rate": 0.310345,
+                "score": 4.591369
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_low|prior_path_smooth|prior_follow_with",
+                "count": 145,
+                "mean_label": -3.292621,
+                "positive_rate": 0.324138,
+                "score": 4.578867
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 90,
+                "mean_label": -3.051079,
+                "positive_rate": 0.288889,
+                "score": 4.485094
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 90,
+                "mean_label": -3.641624,
+                "positive_rate": 0.3,
+                "score": 4.462621
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 116,
+                "mean_label": -2.88028,
+                "positive_rate": 0.198276,
+                "score": 4.453791
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 1120,
+                "mean_label": -2.699303,
+                "positive_rate": 0.330357,
+                "score": 4.447034
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 128,
+                "mean_label": -2.917735,
+                "positive_rate": 0.226562,
+                "score": 4.350168
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 87,
+                "mean_label": -3.313507,
+                "positive_rate": 0.321839,
+                "score": 4.326758
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|normal|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 355,
+                "mean_label": -2.833724,
+                "positive_rate": 0.312676,
+                "score": 4.246367
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 225,
+                "mean_label": -3.171433,
+                "positive_rate": 0.297778,
+                "score": 4.204842
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_with|europe_morning|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 177,
+                "mean_label": -3.336171,
+                "positive_rate": 0.254237,
+                "score": 4.162053
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 163,
+                "mean_label": -2.506809,
+                "positive_rate": 0.312883,
+                "score": 4.144623
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 184,
+                "mean_label": -3.202848,
+                "positive_rate": 0.331522,
+                "score": 4.08924
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 101,
+                "mean_label": -2.863551,
+                "positive_rate": 0.29703,
+                "score": 4.071428
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 92,
+                "mean_label": -3.251986,
+                "positive_rate": 0.304348,
+                "score": 4.050387
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 99,
+                "mean_label": -2.980864,
+                "positive_rate": 0.323232,
+                "score": 3.950981
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 381,
+                "mean_label": -2.944428,
+                "positive_rate": 0.325459,
+                "score": 3.875844
+              }
+            ],
+            "feature_names": [
+              "directional_ret_6_over_range",
+              "directional_ret_18_over_range",
+              "range_ratio_48",
+              "compression_ratio_12_over_48",
+              "directional_range_position_36",
+              "directional_body_fraction",
+              "prior_adverse_pressure",
+              "prior_against_close_ratio",
+              "prior_directional_follow_through"
+            ],
+            "fold_id": "rw_005",
+            "global_mean": -1.827347,
+            "global_positive_rate": 0.336209,
+            "model_family": "fold_local_adverse_archetype_inversion",
+            "observed_archetype_count": 17317,
+            "score_interpretation": "higher_score_means_more_adverse_source_direction_selected_for_inversion",
+            "state_dimensions": [
+              "volatility_regime",
+              "trend_state",
+              "compression_state",
+              "range_position_state",
+              "body_state",
+              "session_phase",
+              "prior_adverse_state",
+              "prior_path_stability_state",
+              "prior_follow_through_state"
+            ],
+            "train_candidate_count": 140008
+          },
+          {
+            "eligible_archetype_count": 28,
+            "eligible_archetypes": [
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 170,
+                "mean_label": -3.653128,
+                "positive_rate": 0.270588,
+                "score": 6.143731
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 186,
+                "mean_label": -4.593688,
+                "positive_rate": 0.295699,
+                "score": 5.963526
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 227,
+                "mean_label": -4.198545,
+                "positive_rate": 0.325991,
+                "score": 5.739223
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 112,
+                "mean_label": -4.119932,
+                "positive_rate": 0.303571,
+                "score": 5.276967
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 83,
+                "mean_label": -4.052018,
+                "positive_rate": 0.277108,
+                "score": 4.953957
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 92,
+                "mean_label": -3.904577,
+                "positive_rate": 0.282609,
+                "score": 4.930385
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 291,
+                "mean_label": -3.625089,
+                "positive_rate": 0.285223,
+                "score": 4.721003
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|normal|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 312,
+                "mean_label": -2.221103,
+                "positive_rate": 0.272436,
+                "score": 4.706913
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 188,
+                "mean_label": -3.407621,
+                "positive_rate": 0.335106,
+                "score": 4.705366
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 87,
+                "mean_label": -3.688802,
+                "positive_rate": 0.264368,
+                "score": 4.689763
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 1141,
+                "mean_label": -2.840249,
+                "positive_rate": 0.319895,
+                "score": 4.591664
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 81,
+                "mean_label": -3.027624,
+                "positive_rate": 0.283951,
+                "score": 4.509486
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 157,
+                "mean_label": -2.844375,
+                "positive_rate": 0.312102,
+                "score": 4.482122
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 97,
+                "mean_label": -3.631951,
+                "positive_rate": 0.298969,
+                "score": 4.454264
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 163,
+                "mean_label": -3.093412,
+                "positive_rate": 0.300613,
+                "score": 4.425589
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 217,
+                "mean_label": -3.276019,
+                "positive_rate": 0.313364,
+                "score": 4.392782
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 550,
+                "mean_label": -3.126125,
+                "positive_rate": 0.316364,
+                "score": 4.366987
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 112,
+                "mean_label": -3.283662,
+                "positive_rate": 0.321429,
+                "score": 4.362309
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|normal|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 349,
+                "mean_label": -2.936626,
+                "positive_rate": 0.318052,
+                "score": 4.347578
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 114,
+                "mean_label": -2.879695,
+                "positive_rate": 0.315789,
+                "score": 4.278601
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 91,
+                "mean_label": -3.089396,
+                "positive_rate": 0.318681,
+                "score": 4.221076
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 112,
+                "mean_label": -2.647809,
+                "positive_rate": 0.232143,
+                "score": 4.210946
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 153,
+                "mean_label": -3.203352,
+                "positive_rate": 0.24183,
+                "score": 4.16456
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 132,
+                "mean_label": -2.735228,
+                "positive_rate": 0.265152,
+                "score": 4.156665
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_low|prior_path_smooth|prior_follow_with",
+                "count": 114,
+                "mean_label": -2.611064,
+                "positive_rate": 0.298246,
+                "score": 4.109732
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 158,
+                "mean_label": -3.074786,
+                "positive_rate": 0.278481,
+                "score": 4.057555
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|late_session|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 112,
+                "mean_label": -3.142263,
+                "positive_rate": 0.232143,
+                "score": 4.021867
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_with|europe_morning|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 190,
+                "mean_label": -3.127352,
+                "positive_rate": 0.252632,
+                "score": 3.954901
+              }
+            ],
+            "feature_names": [
+              "directional_ret_6_over_range",
+              "directional_ret_18_over_range",
+              "range_ratio_48",
+              "compression_ratio_12_over_48",
+              "directional_range_position_36",
+              "directional_body_fraction",
+              "prior_adverse_pressure",
+              "prior_against_close_ratio",
+              "prior_directional_follow_through"
+            ],
+            "fold_id": "rw_006",
+            "global_mean": -1.80555,
+            "global_positive_rate": 0.336873,
+            "model_family": "fold_local_adverse_archetype_inversion",
+            "observed_archetype_count": 17211,
+            "score_interpretation": "higher_score_means_more_adverse_source_direction_selected_for_inversion",
+            "state_dimensions": [
+              "volatility_regime",
+              "trend_state",
+              "compression_state",
+              "range_position_state",
+              "body_state",
+              "session_phase",
+              "prior_adverse_state",
+              "prior_path_stability_state",
+              "prior_follow_through_state"
+            ],
+            "train_candidate_count": 139192
+          },
+          {
+            "eligible_archetype_count": 28,
+            "eligible_archetypes": [
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 163,
+                "mean_label": -3.455493,
+                "positive_rate": 0.269939,
+                "score": 5.945985
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 221,
+                "mean_label": -4.197121,
+                "positive_rate": 0.321267,
+                "score": 5.739083
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 190,
+                "mean_label": -4.259121,
+                "positive_rate": 0.278947,
+                "score": 5.523979
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 124,
+                "mean_label": -3.859907,
+                "positive_rate": 0.330645,
+                "score": 5.010293
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 152,
+                "mean_label": -3.177765,
+                "positive_rate": 0.309211,
+                "score": 4.816215
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 87,
+                "mean_label": -3.617025,
+                "positive_rate": 0.298851,
+                "score": 4.638796
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 530,
+                "mean_label": -3.369513,
+                "positive_rate": 0.292453,
+                "score": 4.617165
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 267,
+                "mean_label": -3.524776,
+                "positive_rate": 0.314607,
+                "score": 4.610798
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|normal|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 320,
+                "mean_label": -2.111949,
+                "positive_rate": 0.253125,
+                "score": 4.604217
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 200,
+                "mean_label": -2.508384,
+                "positive_rate": 0.335,
+                "score": 4.563846
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 1078,
+                "mean_label": -2.814569,
+                "positive_rate": 0.333024,
+                "score": 4.561248
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 112,
+                "mean_label": -3.089205,
+                "positive_rate": 0.276786,
+                "score": 4.499867
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 200,
+                "mean_label": -3.242777,
+                "positive_rate": 0.325,
+                "score": 4.345163
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 161,
+                "mean_label": -3.489892,
+                "positive_rate": 0.26087,
+                "score": 4.289664
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 207,
+                "mean_label": -3.171359,
+                "positive_rate": 0.328502,
+                "score": 4.283158
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 99,
+                "mean_label": -2.722844,
+                "positive_rate": 0.262626,
+                "score": 4.275695
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 161,
+                "mean_label": -3.231188,
+                "positive_rate": 0.248447,
+                "score": 4.223479
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 96,
+                "mean_label": -3.089471,
+                "positive_rate": 0.333333,
+                "score": 4.217594
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|normal|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 358,
+                "mean_label": -2.775105,
+                "positive_rate": 0.307263,
+                "score": 4.18997
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_low|prior_path_smooth|prior_follow_with",
+                "count": 128,
+                "mean_label": -2.631905,
+                "positive_rate": 0.296875,
+                "score": 4.13264
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 277,
+                "mean_label": -3.15288,
+                "positive_rate": 0.32491,
+                "score": 4.081658
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 148,
+                "mean_label": -3.097147,
+                "positive_rate": 0.256757,
+                "score": 4.053705
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 158,
+                "mean_label": -2.725149,
+                "positive_rate": 0.329114,
+                "score": 4.048622
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 81,
+                "mean_label": -2.394878,
+                "positive_rate": 0.271605,
+                "score": 3.880706
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 426,
+                "mean_label": -2.619095,
+                "positive_rate": 0.323944,
+                "score": 3.880595
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 123,
+                "mean_label": -2.823401,
+                "positive_rate": 0.268293,
+                "score": 3.809306
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 123,
+                "mean_label": -2.352009,
+                "positive_rate": 0.284553,
+                "score": 3.767019
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|late_session|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 102,
+                "mean_label": -2.811812,
+                "positive_rate": 0.215686,
+                "score": 3.695545
+              }
+            ],
+            "feature_names": [
+              "directional_ret_6_over_range",
+              "directional_ret_18_over_range",
+              "range_ratio_48",
+              "compression_ratio_12_over_48",
+              "directional_range_position_36",
+              "directional_body_fraction",
+              "prior_adverse_pressure",
+              "prior_against_close_ratio",
+              "prior_directional_follow_through"
+            ],
+            "fold_id": "rw_007",
+            "global_mean": -1.791866,
+            "global_positive_rate": 0.337745,
+            "model_family": "fold_local_adverse_archetype_inversion",
+            "observed_archetype_count": 17295,
+            "score_interpretation": "higher_score_means_more_adverse_source_direction_selected_for_inversion",
+            "state_dimensions": [
+              "volatility_regime",
+              "trend_state",
+              "compression_state",
+              "range_position_state",
+              "body_state",
+              "session_phase",
+              "prior_adverse_state",
+              "prior_path_stability_state",
+              "prior_follow_through_state"
+            ],
+            "train_candidate_count": 137752
+          },
+          {
+            "eligible_archetype_count": 28,
+            "eligible_archetypes": [
+              {
+                "archetype_id": "long|vol_mid|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 175,
+                "mean_label": -4.232151,
+                "positive_rate": 0.297143,
+                "score": 5.490487
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 203,
+                "mean_label": -3.713546,
+                "positive_rate": 0.334975,
+                "score": 5.250241
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 125,
+                "mean_label": -3.798557,
+                "positive_rate": 0.32,
+                "score": 4.952314
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 158,
+                "mean_label": -3.304303,
+                "positive_rate": 0.329114,
+                "score": 4.937371
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_with|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 340,
+                "mean_label": -2.261304,
+                "positive_rate": 0.335294,
+                "score": 4.666422
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 80,
+                "mean_label": -3.635622,
+                "positive_rate": 0.3,
+                "score": 4.65627
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 186,
+                "mean_label": -3.487418,
+                "positive_rate": 0.311828,
+                "score": 4.602778
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 947,
+                "mean_label": -2.443403,
+                "positive_rate": 0.307286,
+                "score": 4.522127
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 1034,
+                "mean_label": -2.756964,
+                "positive_rate": 0.33559,
+                "score": 4.502176
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 86,
+                "mean_label": -2.949586,
+                "positive_rate": 0.267442,
+                "score": 4.499563
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 507,
+                "mean_label": -3.210333,
+                "positive_rate": 0.29783,
+                "score": 4.455682
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 258,
+                "mean_label": -3.348998,
+                "positive_rate": 0.333333,
+                "score": 4.428956
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 266,
+                "mean_label": -2.361286,
+                "positive_rate": 0.296992,
+                "score": 4.386659
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 281,
+                "mean_label": -3.439524,
+                "positive_rate": 0.298932,
+                "score": 4.376396
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 154,
+                "mean_label": -3.379086,
+                "positive_rate": 0.220779,
+                "score": 4.347035
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 230,
+                "mean_label": -3.122878,
+                "positive_rate": 0.326087,
+                "score": 4.227052
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 81,
+                "mean_label": -3.22024,
+                "positive_rate": 0.333333,
+                "score": 4.195895
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 453,
+                "mean_label": -2.096833,
+                "positive_rate": 0.331126,
+                "score": 4.057643
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 164,
+                "mean_label": -2.271471,
+                "positive_rate": 0.329268,
+                "score": 4.044484
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 157,
+                "mean_label": -3.166671,
+                "positive_rate": 0.292994,
+                "score": 3.95655
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 153,
+                "mean_label": -3.010216,
+                "positive_rate": 0.294118,
+                "score": 3.954421
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 82,
+                "mean_label": -2.93081,
+                "positive_rate": 0.231707,
+                "score": 3.939814
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_low|prior_path_smooth|prior_follow_with",
+                "count": 124,
+                "mean_label": -2.392953,
+                "positive_rate": 0.314516,
+                "score": 3.888085
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_mixed|prior_follow_with",
+                "count": 84,
+                "mean_label": -2.458689,
+                "positive_rate": 0.261905,
+                "score": 3.858302
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_neutral|late_session|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 207,
+                "mean_label": -2.734381,
+                "positive_rate": 0.304348,
+                "score": 3.826727
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 421,
+                "mean_label": -2.552348,
+                "positive_rate": 0.330166,
+                "score": 3.811861
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 116,
+                "mean_label": -2.311743,
+                "positive_rate": 0.318966,
+                "score": 3.710242
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|normal|middle_range|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 87,
+                "mean_label": -2.449566,
+                "positive_rate": 0.252874,
+                "score": 3.701672
+              }
+            ],
+            "feature_names": [
+              "directional_ret_6_over_range",
+              "directional_ret_18_over_range",
+              "range_ratio_48",
+              "compression_ratio_12_over_48",
+              "directional_range_position_36",
+              "directional_body_fraction",
+              "prior_adverse_pressure",
+              "prior_against_close_ratio",
+              "prior_directional_follow_through"
+            ],
+            "fold_id": "rw_008",
+            "global_mean": -1.74266,
+            "global_positive_rate": 0.338006,
+            "model_family": "fold_local_adverse_archetype_inversion",
+            "observed_archetype_count": 17474,
+            "score_interpretation": "higher_score_means_more_adverse_source_direction_selected_for_inversion",
+            "state_dimensions": [
+              "volatility_regime",
+              "trend_state",
+              "compression_state",
+              "range_position_state",
+              "body_state",
+              "session_phase",
+              "prior_adverse_state",
+              "prior_path_stability_state",
+              "prior_follow_through_state"
+            ],
+            "train_candidate_count": 138808
+          },
+          {
+            "eligible_archetype_count": 28,
+            "eligible_archetypes": [
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 192,
+                "mean_label": -3.883792,
+                "positive_rate": 0.333333,
+                "score": 5.457562
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 160,
+                "mean_label": -3.643733,
+                "positive_rate": 0.3,
+                "score": 5.285882
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_with|normal|directional_edge|body_neutral|us_overlap|prior_adverse_low|prior_path_smooth|prior_follow_with",
+                "count": 95,
+                "mean_label": -2.920258,
+                "positive_rate": 0.336842,
+                "score": 5.039155
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 1042,
+                "mean_label": -2.887299,
+                "positive_rate": 0.334933,
+                "score": 4.633031
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 531,
+                "mean_label": -3.324043,
+                "positive_rate": 0.299435,
+                "score": 4.585929
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 267,
+                "mean_label": -3.504734,
+                "positive_rate": 0.333333,
+                "score": 4.585396
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_smooth|prior_follow_with",
+                "count": 173,
+                "mean_label": -3.09831,
+                "positive_rate": 0.323699,
+                "score": 4.424935
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 240,
+                "mean_label": -3.041102,
+                "positive_rate": 0.333333,
+                "score": 4.419342
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_against|late_session|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 684,
+                "mean_label": -2.74954,
+                "positive_rate": 0.312865,
+                "score": 4.394964
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 859,
+                "mean_label": -2.304824,
+                "positive_rate": 0.307334,
+                "score": 4.381921
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_against|expanded|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 164,
+                "mean_label": -3.322406,
+                "positive_rate": 0.286585,
+                "score": 4.381556
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 156,
+                "mean_label": -2.985927,
+                "positive_rate": 0.320513,
+                "score": 4.378868
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 286,
+                "mean_label": -3.499444,
+                "positive_rate": 0.29021,
+                "score": 4.357126
+              },
+              {
+                "archetype_id": "short|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 84,
+                "mean_label": -2.797322,
+                "positive_rate": 0.22619,
+                "score": 4.297401
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_against|us_overlap|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 161,
+                "mean_label": -2.499807,
+                "positive_rate": 0.31677,
+                "score": 4.2765
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_low|prior_path_smooth|prior_follow_with",
+                "count": 126,
+                "mean_label": -2.833212,
+                "positive_rate": 0.301587,
+                "score": 4.222591
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_neutral|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 152,
+                "mean_label": -3.161695,
+                "positive_rate": 0.309211,
+                "score": 4.177191
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|opposite_edge|body_neutral|late_session|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 215,
+                "mean_label": -3.06117,
+                "positive_rate": 0.260465,
+                "score": 4.167409
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_smooth|prior_follow_with",
+                "count": 85,
+                "mean_label": -3.135587,
+                "positive_rate": 0.329412,
+                "score": 4.148206
+              },
+              {
+                "archetype_id": "long|vol_high|trend_with|expanded|directional_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_mixed|prior_follow_with",
+                "count": 80,
+                "mean_label": -2.595132,
+                "positive_rate": 0.325,
+                "score": 4.127284
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|normal|middle_range|body_against|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 87,
+                "mean_label": -2.777377,
+                "positive_rate": 0.218391,
+                "score": 4.040007
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|expanded|opposite_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 234,
+                "mean_label": -1.985254,
+                "positive_rate": 0.316239,
+                "score": 4.003091
+              },
+              {
+                "archetype_id": "short|vol_mid|trend_against|expanded|opposite_edge|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 443,
+                "mean_label": -2.019338,
+                "positive_rate": 0.322799,
+                "score": 3.982446
+              },
+              {
+                "archetype_id": "long|vol_mid|trend_with|normal|directional_edge|body_with|us_overlap|prior_adverse_mid|prior_path_mixed|prior_follow_with",
+                "count": 86,
+                "mean_label": -2.463932,
+                "positive_rate": 0.255814,
+                "score": 3.865793
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_with|us_overlap|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 120,
+                "mean_label": -2.461213,
+                "positive_rate": 0.308333,
+                "score": 3.863484
+              },
+              {
+                "archetype_id": "short|vol_high|trend_against|normal|opposite_edge|body_neutral|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 95,
+                "mean_label": -2.807843,
+                "positive_rate": 0.210526,
+                "score": 3.824924
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_with|late_session|prior_adverse_high|prior_path_mixed|prior_follow_against",
+                "count": 110,
+                "mean_label": -2.766374,
+                "positive_rate": 0.2,
+                "score": 3.655931
+              },
+              {
+                "archetype_id": "long|vol_high|trend_against|expanded|middle_range|body_against|europe_morning|prior_adverse_high|prior_path_unstable|prior_follow_against",
+                "count": 95,
+                "mean_label": -2.884021,
+                "positive_rate": 0.284211,
+                "score": 3.631986
+              }
+            ],
+            "feature_names": [
+              "directional_ret_6_over_range",
+              "directional_ret_18_over_range",
+              "range_ratio_48",
+              "compression_ratio_12_over_48",
+              "directional_range_position_36",
+              "directional_body_fraction",
+              "prior_adverse_pressure",
+              "prior_against_close_ratio",
+              "prior_directional_follow_through"
+            ],
+            "fold_id": "rw_009",
+            "global_mean": -1.72485,
+            "global_positive_rate": 0.338602,
+            "model_family": "fold_local_adverse_archetype_inversion",
+            "observed_archetype_count": 17609,
+            "score_interpretation": "higher_score_means_more_adverse_source_direction_selected_for_inversion",
+            "state_dimensions": [
+              "volatility_regime",
+              "trend_state",
+              "compression_state",
+              "range_position_state",
+              "body_state",
+              "session_phase",
+              "prior_adverse_state",
+              "prior_path_stability_state",
+              "prior_follow_through_state"
+            ],
+            "train_candidate_count": 139884
+          }
+        ],
+        "label_horizon_bars": 10,
+        "label_selected": false,
+        "label_shape": "directional_forward_path_quality_used_as_adverse_state_signal",
+        "max_entries_per_active_day": 8,
+        "min_train_archetype_count": 80,
+        "model_family": "fold_local_adverse_archetype_inversion",
+        "model_selected": false,
+        "selection_rule": "top_fold_local_adverse_directional_archetypes_inverted_per_active_day",
+        "state_dimensions": [
+          "volatility_regime",
+          "trend_state",
+          "compression_state",
+          "range_position_state",
+          "body_state",
+          "session_phase",
+          "prior_adverse_state",
+          "prior_path_stability_state",
+          "prior_follow_through_state"
+        ],
+        "state_distributions": {
+          "rw_001": {
+            "candidate_count": 22636,
+            "eligible_archetype_count": 28,
+            "eligible_candidate_count": 774,
+            "eligible_candidate_rate": 0.034193,
+            "score_p10": 4.089196,
+            "score_p50": 4.732108,
+            "score_p90": 5.995553,
+            "selected_count": 306,
+            "selected_score_max": 8.311748,
+            "selected_score_min": 3.813829
+          },
+          "rw_002": {
+            "candidate_count": 23616,
+            "eligible_archetype_count": 28,
+            "eligible_candidate_count": 874,
+            "eligible_candidate_rate": 0.037009,
+            "score_p10": 4.178843,
+            "score_p50": 4.704206,
+            "score_p90": 6.21913,
+            "selected_count": 311,
+            "selected_score_max": 8.218139,
+            "selected_score_min": 4.044268
+          },
+          "rw_003": {
+            "candidate_count": 23738,
+            "eligible_archetype_count": 28,
+            "eligible_candidate_count": 851,
+            "eligible_candidate_rate": 0.03585,
+            "score_p10": 3.965822,
+            "score_p50": 4.554584,
+            "score_p90": 6.269315,
+            "selected_count": 352,
+            "selected_score_max": 6.501178,
+            "selected_score_min": 3.960098
+          },
+          "rw_004": {
+            "candidate_count": 22852,
+            "eligible_archetype_count": 28,
+            "eligible_candidate_count": 945,
+            "eligible_candidate_rate": 0.041353,
+            "score_p10": 4.206529,
+            "score_p50": 4.638005,
+            "score_p90": 5.263983,
+            "selected_count": 367,
+            "selected_score_max": 5.914629,
+            "selected_score_min": 3.909108
+          },
+          "rw_005": {
+            "candidate_count": 22296,
+            "eligible_archetype_count": 28,
+            "eligible_candidate_count": 866,
+            "eligible_candidate_rate": 0.038841,
+            "score_p10": 4.08924,
+            "score_p50": 4.447034,
+            "score_p90": 5.359928,
+            "selected_count": 352,
+            "selected_score_max": 6.303636,
+            "selected_score_min": 3.875844
+          },
+          "rw_006": {
+            "candidate_count": 23670,
+            "eligible_archetype_count": 28,
+            "eligible_candidate_count": 834,
+            "eligible_candidate_rate": 0.035234,
+            "score_p10": 4.109732,
+            "score_p50": 4.482122,
+            "score_p90": 4.953957,
+            "selected_count": 338,
+            "selected_score_max": 6.143731,
+            "selected_score_min": 4.021867
+          },
+          "rw_007": {
+            "candidate_count": 23712,
+            "eligible_archetype_count": 28,
+            "eligible_candidate_count": 1069,
+            "eligible_candidate_rate": 0.045083,
+            "score_p10": 3.880595,
+            "score_p50": 4.561248,
+            "score_p90": 5.010293,
+            "selected_count": 387,
+            "selected_score_max": 5.945985,
+            "selected_score_min": 3.695545
+          },
+          "rw_008": {
+            "candidate_count": 22368,
+            "eligible_archetype_count": 28,
+            "eligible_candidate_count": 1047,
+            "eligible_candidate_rate": 0.046808,
+            "score_p10": 3.826727,
+            "score_p50": 4.428956,
+            "score_p90": 4.666422,
+            "selected_count": 377,
+            "selected_score_max": 5.490487,
+            "selected_score_min": 3.701672
+          },
+          "rw_009": {
+            "candidate_count": 22902,
+            "eligible_archetype_count": 28,
+            "eligible_candidate_count": 1068,
+            "eligible_candidate_rate": 0.046633,
+            "score_p10": 3.982446,
+            "score_p50": 4.381921,
+            "score_p90": 4.633031,
+            "selected_count": 393,
+            "selected_score_max": 5.457562,
+            "selected_score_min": 3.631986
+          }
+        },
+        "state_fit_scope": "rolling_train_is_only",
+        "top_archetypes_per_fold": 28
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": true,
+      "fields": {
+        "average_capture_ratio": 0.229208,
+        "average_mae_points": 15.151583,
+        "average_mfe_points": 15.064501,
+        "median_mae_points": 10.88,
+        "median_mfe_points": 9.75
+      }
+    }
+  },
+  "created_at_utc": "2026-07-02T21:29:04Z",
+  "dataset_identity": "data/processed/datasets/us100_m5_base_frame.csv",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "record the matching MT5 symbol specification and fixed-lot sizing for the 500 USD account",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_net_pnl, proxy_max_drawdown_percent, proxy_expectancy_per_entry",
+      "reason": "proxy measures raw US100 index points only; USD conversion requires MT5 symbol contract, tick value, and fixed-lot discovery sizing",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "during C0004 R0003 MT5 evidence production"
+    },
+    {
+      "blocking_condition": "proxy.json content must be stable before hashing",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_artifact_hashes",
+      "reason": "self-hash is recorded in artifact_lineage after proxy.json is written",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "before C0004 R0003 closeout"
+    }
+  ],
+  "fold_ids": [
+    "rw_001",
+    "rw_002",
+    "rw_003",
+    "rw_004",
+    "rw_005",
+    "rw_006",
+    "rw_007",
+    "rw_008",
+    "rw_009",
+    "tail"
+  ],
+  "proxy_artifact_hashes": [
+    "4569676501b0f9e1193053e50a03ec3c68bee0e15a91621c19035cd3be3194d4",
+    "9784225861e44203b278823f382d36d39b589dab0e8697fb862d8f538e2bf113"
+  ],
+  "proxy_artifact_paths": [
+    "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/kpi/proxy.json",
+    "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/artifacts/c0004_r0003_proxy_trades.csv",
+    "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/artifacts/c0004_r0003_adverse_archetype_inversion_summary.json"
+  ],
+  "proxy_code_version_or_commit": "uncommitted_local_worktree_at_proxy_creation",
+  "proxy_config": {
+    "bar_basis": "closed_m5",
+    "candidate_direction": "dual_direction_long_and_short_per_closed_bar",
+    "core_session_end_minute": 1260,
+    "core_session_start_minute": 360,
+    "early_adverse_bars": 3,
+    "entry_basis": "next_bar_open_after_scored_closed_bar",
+    "equity_percent_sizing": "deferred_until_candidate_quality",
+    "evaluation_splits": "rolling_windows_test_oos",
+    "feature_names": [
+      "directional_ret_6_over_range",
+      "directional_ret_18_over_range",
+      "range_ratio_48",
+      "compression_ratio_12_over_48",
+      "directional_range_position_36",
+      "directional_body_fraction",
+      "prior_adverse_pressure",
+      "prior_against_close_ratio",
+      "prior_directional_follow_through"
+    ],
+    "gap_blocked_exit_policy": "skip_when_exit_bar_next_tick_gap_exceeds_5_minutes",
+    "gap_carried_entry_policy": "skip_when_next_bar_gap_exceeds_5_minutes",
+    "inverts_direction_for_execution": true,
+    "label_horizon_bars": 10,
+    "label_shape": "directional_forward_path_quality_used_as_adverse_state_signal",
+    "lookback_range_bars": 48,
+    "max_entries_per_active_day": 8,
+    "max_hold_bars": 10,
+    "min_signal_spacing_bars": 6,
+    "min_train_archetype_count": 80,
+    "momentum_bars": 6,
+    "money_conversion_status": "deferred_until_mt5_symbol_spec_and_fixed_lot_size",
+    "position_bars": 36,
+    "positive_score_gate": false,
+    "price_precision_digits": 2,
+    "prior_path_bars": 12,
+    "same_bar_stop_target_policy": "stop_first_conservative",
+    "selection_rule": "top_fold_local_adverse_directional_archetypes_inverted_per_active_day",
+    "short_range_bars": 12,
+    "sizing_mode": "fixed_lot_discovery",
+    "starting_balance_usd": 500.0,
+    "state_dimensions": [
+      "volatility_regime",
+      "trend_state",
+      "compression_state",
+      "range_position_state",
+      "body_state",
+      "session_phase",
+      "prior_adverse_state",
+      "prior_path_stability_state",
+      "prior_follow_through_state"
+    ],
+    "state_model": "fold_local_adverse_archetype_inversion",
+    "stop_range_multiple": 0.8,
+    "target_range_multiple": 1.1,
+    "top_archetypes_per_fold": 28,
+    "training_splits": "rolling_windows_train_is",
+    "trend_bars": 18,
+    "variant_boundary": "adverse_archetype_direction_inversion_not_adjacent_r0001_or_r0002_nudge"
+  },
+  "proxy_config_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/run_manifest.json",
+  "proxy_engine": "axiom_rift.proxies.c0004_r0003_adverse_archetype_inversion",
+  "proxy_id": "PX-C0004-R0003",
+  "proxy_summary": {
+    "active_day_count": 580,
+    "average_bars_in_trade": 1.861505,
+    "balance_after_proxy_usd": null,
+    "entries_per_active_day": 5.477586,
+    "entry_target_max": 10,
+    "entry_target_min": 5,
+    "evaluation_surface": "rolling_window_test_oos_only",
+    "gross_loss_points": -25321.08,
+    "gross_profit_points": 16737.51,
+    "long_trade_count": 916,
+    "max_hold_exit_count": 8,
+    "money_model_status": "deferred_until_mt5_symbol_spec_and_fixed_lot_size",
+    "net_pnl_points": -8583.57,
+    "net_pnl_usd": null,
+    "short_trade_count": 2261,
+    "signal_count": 3177,
+    "starting_balance_usd": 500.0,
+    "stop_exit_count": 2022,
+    "target_exit_count": 1147,
+    "trade_count": 3177
+  },
+  "required_kpis": {
+    "proxy_expectancy_per_entry": null,
+    "proxy_expectancy_points_per_entry": -2.701785,
+    "proxy_max_drawdown_percent": null,
+    "proxy_max_drawdown_points": 8584.75,
+    "proxy_net_pnl": null,
+    "proxy_net_pnl_points": -8583.57,
+    "proxy_profit_factor": 0.661011,
+    "proxy_signal_count": 3177,
+    "proxy_trade_count": 3177,
+    "proxy_win_rate": 0.362291
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0003",
+  "schema": "axiom_rift_proxy_kpi_v1",
+  "split_policy": "rolling_window_test_oos_only_with_train_is_state_archetype_fit",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0004"
+}
