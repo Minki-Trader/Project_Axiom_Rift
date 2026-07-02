@@ -105,6 +105,29 @@ research_mode:
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
 
 active_campaign: campaigns/C0004_fold_local_state_archetype_discovery
+active_run: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001
+
+latest_operation:
+  id: produce_c0004_r0001_proxy_evidence
+  status: completed
+  recorded_at_source: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/proxy.json
+  evidence_status: proxy_recorded_pending_mt5
+  proxy_trade_count: 3244
+  proxy_net_pnl_points: -4009.66
+  proxy_profit_factor: 0.882438
+  proxy_expectancy_points_per_entry: -1.236023
+  proxy_interpretation: weak_proxy_result_not_hypothesis_closeout
+  next_required_action: produce_c0004_r0001_mt5_logic_parity_evidence
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
 
 active_truth:
   contracts_dir: contracts

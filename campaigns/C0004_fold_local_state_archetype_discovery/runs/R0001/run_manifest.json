@@ -23,7 +23,8 @@
     "mt5_tick_kpi": "kpi/mt5_tick.json",
     "proxy_kpi": "kpi/proxy.json",
     "proxy_trade_artifact": "artifacts/c0004_r0001_proxy_trades.csv",
-    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "state_archetype_summary": "artifacts/c0004_r0001_state_archetype_summary.json"
   },
   "fixed_surfaces": {
     "base_frame": "US100 closed M5 bars",
@@ -34,7 +35,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "proxy_planned",
+  "gate_status": "proxy_recorded_pending_mt5",
   "hypothesis_variant": {
     "summary": "test whether train-fold-local market-state archetypes can produce abstention-first US100 M5 entry events with enough activity for the 5 to 10 entries-per-active-day target before MT5 schedule replay",
     "variant_boundary": "first C0004 true variant; changes model, feature, label, and trade-logic surfaces toward fold-local state archetype membership and abstention-first entry generation, not a threshold, window, SLTP, hold, or retry nudge from prior C0001 through SC0001 failures"
@@ -87,7 +88,7 @@
   "run_id": "R0001",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "proxy_planned",
+  "status": "mt5_probe_ready",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

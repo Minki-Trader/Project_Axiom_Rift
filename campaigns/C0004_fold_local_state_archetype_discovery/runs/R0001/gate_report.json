@@ -21,10 +21,10 @@
   "decision": "defer_with_reason",
   "deferred_with_reason": [
     {
-      "blocking_condition": "produce_c0004_r0001_proxy_evidence",
-      "field": "proxy_kpi",
-      "reason": "R0001 is opened with a mandatory proxy plus MT5 paired evidence path; no hypothesis judgment is allowed before proxy and MT5 evidence are produced",
-      "revisit_when": "after C0004 R0001 proxy evidence exists"
+      "blocking_condition": "R0001 cannot close until mandatory MT5 logic parity, MT5 tick, execution divergence, and fold-isolated evidence are recorded",
+      "field": "decision",
+      "reason": "proxy evidence is recorded but MT5 and proxy-vs-MT5 evidence are still missing",
+      "revisit_when": "after C0004 R0001 MT5 evidence files contain measured results"
     }
   ],
   "evidence_gate": {
@@ -36,7 +36,7 @@
       "proxy_kpi_path_recorded": true,
       "proxy_vs_mt5_logic_parity_kpi_path_recorded": true
     },
-    "status": "planned"
+    "status": "proxy_recorded_pending_mt5"
   },
   "evidence_paths": [
     "run_manifest.json",
@@ -45,7 +45,9 @@
     "kpi/mt5_logic_parity.json",
     "kpi/proxy_vs_mt5_logic_parity.json",
     "kpi/mt5_tick.json",
-    "kpi/execution_divergence.json"
+    "kpi/execution_divergence.json",
+    "artifacts/c0004_r0001_proxy_trades.csv",
+    "artifacts/c0004_r0001_state_archetype_summary.json"
   ],
   "gate_report_id": "G-C0004-R0001",
   "must_not": [
@@ -55,13 +57,13 @@
     "close_from_aggregate_mt5",
     "close_from_broken_code"
   ],
-  "next_action": "produce_c0004_r0001_proxy_evidence",
+  "next_action": "produce_c0004_r0001_mt5_logic_parity_evidence",
   "parity_gate": {
     "intent_parity_status": "not_checked",
     "mechanical_parity_status": "not_checked",
     "non_portable_status": "not_checked",
     "repair_required": false,
-    "status": "not_checked"
+    "status": "blocked_until_mt5"
   },
   "role": "lightweight_decision_receipt",
   "rolling_window_closeout_gate": {

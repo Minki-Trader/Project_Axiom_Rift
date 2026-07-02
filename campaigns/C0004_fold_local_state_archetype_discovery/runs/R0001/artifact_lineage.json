@@ -13,6 +13,52 @@
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/run_manifest.json"
       ]
+    },
+    {
+      "artifact_id": "A-C0004-R0001-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0004_r0001_fold_local_state_archetype",
+      "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/proxy.json",
+      "sha256": "0de7403a83a761ae6e82a027ac089807e892505faf32145f917c15a32c0e2a0f",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0004-R0001-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0004_r0001_fold_local_state_archetype",
+      "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/artifacts/c0004_r0001_proxy_trades.csv",
+      "sha256": "8aa68cb3d43bb532aad1cc3255b1f4d15e919cd6e142018022214af5c0c4a0f0",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0004-R0001-STATE-ARCHETYPE-SUMMARY",
+      "artifact_role": "state_archetype_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0004_r0001_fold_local_state_archetype",
+      "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/artifacts/c0004_r0001_state_archetype_summary.json",
+      "sha256": "13dccd74ff84093a09ac537203cf3df27c07ed8c7a8bcf19b9aeb885ebf55ff8",
+      "source_inputs": [
+        "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/proxy.json"
+      ]
     }
   ],
   "claim_boundary": {
@@ -25,9 +71,9 @@
   "created_at_utc": "2026-07-02T18:49:57Z",
   "deferred_with_reason": [
     {
-      "field": "proxy_artifact_hashes",
-      "next_action": "produce_c0004_r0001_proxy_evidence",
-      "reason": "R0001 proxy artifacts are produced after the run shell is opened"
+      "field": "mt5_artifact_hashes",
+      "next_action": "produce_c0004_r0001_mt5_logic_parity_evidence",
+      "reason": "MT5 artifacts are produced after proxy evidence in the mandatory paired validation sequence"
     }
   ],
   "lineage_id": "L-C0004-R0001",
