@@ -21,10 +21,10 @@
   "decision": "defer_with_reason",
   "deferred_with_reason": [
     {
-      "blocking_condition": "SR0001 cannot close until mandatory MT5 logic parity, MT5 tick, execution divergence, and fold-isolated evidence are recorded",
-      "field": "decision",
-      "reason": "proxy evidence is recorded but MT5 and proxy-vs-MT5 evidence are still missing",
-      "revisit_when": "after SC0001 SR0001 MT5 evidence files contain measured results"
+      "blocking_condition": "kpi/mt5_tick_by_fold.json and kpi/execution_divergence_by_fold.json are not yet recorded",
+      "field": "fold_isolated_closeout_gate",
+      "reason": "logic parity, tick execution KPI, and aggregate execution divergence are recorded; run closeout still requires fold-isolated MT5 tick and divergence",
+      "revisit_when": "produce_sc0001_sr0001_fold_isolated_mt5_tick_kpi"
     }
   ],
   "evidence_gate": {
@@ -36,7 +36,7 @@
       "proxy_kpi_path_recorded": true,
       "proxy_vs_mt5_logic_parity_kpi_path_recorded": true
     },
-    "status": "proxy_recorded_pending_mt5"
+    "status": "logic_tick_and_divergence_recorded"
   },
   "evidence_paths": [
     "run_manifest.json",
@@ -47,8 +47,15 @@
     "kpi/mt5_tick.json",
     "kpi/execution_divergence.json",
     "artifacts/sc0001_sr0001_proxy_trades.csv",
-    "artifacts/sc0001_sr0001_constraint_summary.json"
+    "artifacts/sc0001_sr0001_constraint_summary.json",
+    "artifacts/sc0001_sr0001_schedule.csv"
   ],
+  "execution_gate": {
+    "economics_shift_status": "tick_better_than_logic",
+    "missing_required_kpi_fields": [],
+    "run_closeout_review_ready": false,
+    "status": "recorded_with_divergence"
+  },
   "gate_report_id": "G-SC0001-SR0001",
   "must_not": [
     "claim_selected",
@@ -57,13 +64,13 @@
     "close_from_aggregate_mt5",
     "close_from_broken_code"
   ],
-  "next_action": "produce_sc0001_sr0001_mt5_logic_parity_evidence",
+  "next_action": "produce_sc0001_sr0001_fold_isolated_mt5_tick_kpi",
   "parity_gate": {
-    "intent_parity_status": "not_checked",
-    "mechanical_parity_status": "not_checked",
+    "intent_parity_status": "passed_schedule_replay_boundary",
+    "mechanical_parity_status": "passed",
     "non_portable_status": "not_checked",
     "repair_required": false,
-    "status": "blocked_until_mt5"
+    "status": "passed"
   },
   "role": "lightweight_decision_receipt",
   "rolling_window_closeout_gate": {

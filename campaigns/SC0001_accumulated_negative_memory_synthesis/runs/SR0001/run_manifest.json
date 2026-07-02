@@ -19,6 +19,7 @@
     "execution_divergence_kpi": "kpi/execution_divergence.json",
     "gate_report": "gate_report.json",
     "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/sc0001_sr0001_schedule.csv",
     "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
     "mt5_tick_kpi": "kpi/mt5_tick.json",
     "proxy_constraint_summary": "artifacts/sc0001_sr0001_constraint_summary.json",
@@ -35,7 +36,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "proxy_recorded_pending_mt5",
+  "gate_status": "logic_tick_and_divergence_recorded",
   "hypothesis_variant": {
     "summary": "derive and test non-adjacent next-hypothesis constraints from repeated tick-execution divergence, schedule replay parity lessons, and target-frequency-without-edge failures before opening another major campaign",
     "variant_boundary": "first SC0001 synthesis run; it changes the operation from another entry, score, exit, or parameter variant into a constraint synthesis run over closed C0001 through C0003 evidence; it must produce a proxy plus MT5 paired evidence path for any derived trade-shape test and must not retry threshold, stop, target, trail, hold, or daily-entry nudges"
@@ -45,7 +46,9 @@
     "execution_divergence_kpi_path": "kpi/execution_divergence.json",
     "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
     "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
     "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_negative_memory_constraint_schedule_vs_ea_closed_bar_lifecycle_parity",
     "notes": [
       "closed-bar MT5 mode is required for proxy-vs-EA logic parity",
       "tick-mode MT5 is required for execution KPI management",
@@ -91,7 +94,7 @@
     "c0003_ig004_path_conditioned_execution_divergence_lesson",
     "c0003_ig005_target_frequency_is_not_edge_negative_memory"
   ],
-  "status": "mt5_probe_ready",
+  "status": "execution_divergence_recorded_pending_fold_isolated_evidence",
   "surfaces": {
     "feature": {
       "changed_from_synthesis_queue": true,

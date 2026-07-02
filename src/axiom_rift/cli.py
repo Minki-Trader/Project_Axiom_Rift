@@ -112,6 +112,14 @@ from .mt5.c0002_r0004_probe import (
     run_c0002_r0004_mt5_tick_by_fold_workflow,
     run_c0002_r0004_mt5_tick_workflow,
 )
+from .mt5.sc0001_sr0001_probe import (
+    compile_sc0001_sr0001_ea,
+    parse_sc0001_sr0001_mt5,
+    record_sc0001_sr0001_execution_divergence,
+    record_sc0001_sr0001_parity,
+    run_sc0001_sr0001_logic_parity_workflow,
+    run_sc0001_sr0001_mt5_tick_workflow,
+)
 from .proxies.r0001_volatility_expansion import run_r0001_proxy
 from .proxies.r0002_failed_continuation_reversal import run_r0002_proxy
 from .proxies.r0003_failed_breakout_reclaim_reversal import run_r0003_proxy
@@ -379,6 +387,27 @@ def build_parser() -> argparse.ArgumentParser:
         help="run SC0001 SR0001 synthesis constraint proxy evidence",
     )
     sc0001_sr0001_proxy_parser.add_argument("--dry-run", action="store_true", help="print proxy payload without writing files")
+    subparsers.add_parser("compile-sc0001-sr0001-ea", help="compile shared schedule replay EA for SC0001 SR0001")
+    sc0001_sr0001_mt5_logic_parser = subparsers.add_parser(
+        "run-sc0001-sr0001-mt5-logic",
+        help="run SC0001 SR0001 MT5 closed-bar logic parity workflow",
+    )
+    sc0001_sr0001_mt5_logic_parser.add_argument("--timeout-seconds", type=int, default=1800)
+    sc0001_sr0001_mt5_tick_parser = subparsers.add_parser(
+        "run-sc0001-sr0001-mt5-tick",
+        help="run SC0001 SR0001 MT5 tick execution KPI workflow",
+    )
+    sc0001_sr0001_mt5_tick_parser.add_argument("--timeout-seconds", type=int, default=1800)
+    parse_sc0001_sr0001_mt5_parser = subparsers.add_parser(
+        "parse-sc0001-sr0001-mt5",
+        help="parse existing SC0001 SR0001 MT5 output files",
+    )
+    parse_sc0001_sr0001_mt5_parser.add_argument("--mode", choices=(LOGIC_PARITY_MODE, TICK_EXECUTION_MODE), default=LOGIC_PARITY_MODE)
+    subparsers.add_parser("record-sc0001-sr0001-parity", help="record SC0001 SR0001 proxy-vs-MT5 logic parity")
+    subparsers.add_parser(
+        "record-sc0001-sr0001-execution-divergence",
+        help="record SC0001 SR0001 closed-bar-vs-tick execution divergence",
+    )
     subparsers.add_parser("validate-templates", help="validate campaign templates and contract alignment")
     work_unit_parser = subparsers.add_parser("validate-work-unit", help="validate a generated campaign work unit")
     work_unit_parser.add_argument("path", help="path such as campaigns/C0001_short_slug")
@@ -786,6 +815,30 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.command == "run-sc0001-sr0001-proxy":
         payload = run_sc0001_sr0001_proxy(write=not args.dry_run)
+        print(json.dumps(payload["required_kpis"], indent=2, sort_keys=True))
+        return 0
+    if args.command == "compile-sc0001-sr0001-ea":
+        result = compile_sc0001_sr0001_ea()
+        print(json.dumps({"ex5": result.ex5.as_posix(), "log": result.log.as_posix()}, indent=2, sort_keys=True))
+        return 0
+    if args.command == "run-sc0001-sr0001-mt5-logic":
+        payload = run_sc0001_sr0001_logic_parity_workflow(timeout_seconds=args.timeout_seconds)
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if args.command == "run-sc0001-sr0001-mt5-tick":
+        payload = run_sc0001_sr0001_mt5_tick_workflow(timeout_seconds=args.timeout_seconds)
+        print(json.dumps(payload, indent=2, sort_keys=True))
+        return 0
+    if args.command == "parse-sc0001-sr0001-mt5":
+        payload = parse_sc0001_sr0001_mt5(mode=args.mode)
+        print(json.dumps(payload["required_kpis"], indent=2, sort_keys=True))
+        return 0
+    if args.command == "record-sc0001-sr0001-parity":
+        payload = record_sc0001_sr0001_parity()
+        print(json.dumps(payload["required_kpis"], indent=2, sort_keys=True))
+        return 0
+    if args.command == "record-sc0001-sr0001-execution-divergence":
+        payload = record_sc0001_sr0001_execution_divergence()
         print(json.dumps(payload["required_kpis"], indent=2, sort_keys=True))
         return 0
     if args.command == "validate-templates":
