@@ -355,3 +355,26 @@ decisions:
       feature_set_selected: false
       model_selected: false
       economics_pass: false
+  - decision_id: dec_20260703_open_c0003_r0003_fast_favorable_capture_variant
+    created_local_date: 2026-07-03
+    status: active
+    decision: open_r0003_fast_favorable_capture_variant_under_c0003
+    refines:
+      - dec_20260703_open_c0003_path_conditioned_exit_risk_shape
+      - dec_20260703_open_c0003_r0001_path_conditioned_exit_risk_shape_variant
+      - dec_20260703_open_c0003_r0002_adverse_path_avoidance_variant
+      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+      - dec_20260701_mandatory_mt5_paired_run_validation
+    rationale:
+      - c0003_r0001_and_c0003_r0002_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+      - c0003_r0002_left_three_profitable_folds_but_negative_total_tick_net_pnl_so_it_is_not_candidate_evidence
+      - c0003_still_has_a_meaningful_non_adjacent_fast_favorable_excursion_capture_and_giveback_avoidance_axis_remaining_inside_the_path_conditioned_exit_risk_shape_boundary
+      - r0003_changes_label_shape_feature_family_score_interpretation_and_trade_logic_and_is_not_a_target_stop_max_hold_hazard_threshold_or_daily_entry_nudge_of_r0001_or_r0002
+      - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+      economics_pass: false

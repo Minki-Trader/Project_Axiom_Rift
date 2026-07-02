@@ -48,14 +48,15 @@ run_index:
   closed_runs:
   - runs/R0001
   - runs/R0002
+  - runs/R0003
   next_run_candidate:
-    run_id: R0003
+    run_id: R0004
     direction: decide_next_path_conditioned_exit_risk_shape_variant_or_close_c0003
-    reason: R0002 closed no candidate after fold-isolated MT5 tick evidence with
-      3 profitable folds but negative total tick net PnL; C0003 may still have
+    reason: R0003 closed no candidate after fold-isolated MT5 tick evidence with
+      2 profitable folds but negative total tick net PnL; C0003 may still have
       meaningful non-adjacent path-conditioned exit, hold, risk-shape, label,
-      model, or trade-shape variants, but R0002-style hazard threshold, stop,
-      target, early-abort, max-hold, or daily-entry nudges are adjacent tuning
+      model, or trade-shape variants, but R0003-style fast-capture target, stop,
+      trail, max-hold, or daily-entry nudges are adjacent tuning
     status: candidate_pending_decision
 synthesis_readiness:
   check_required_at_closeout: true
@@ -76,7 +77,11 @@ closeout:
   - runs/R0002/gate_report.json
   - runs/R0002/kpi/mt5_tick_by_fold.json
   - runs/R0002/kpi/execution_divergence_by_fold.json
-  remaining_question: decide_c0003_r0003_or_close_c0003_after_r0002
+  - runs/R0003/run_manifest.json
+  - runs/R0003/gate_report.json
+  - runs/R0003/kpi/mt5_tick_by_fold.json
+  - runs/R0003/kpi/execution_divergence_by_fold.json
+  remaining_question: decide_c0003_r0004_or_close_c0003_after_r0003
 claim_boundary:
   claim_authority: false
   selected: false
