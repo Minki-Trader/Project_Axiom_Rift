@@ -1,6 +1,6 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: mt5_probe_attempts
+status: open
 campaign_id: C0004
 campaign_slug: fold_local_state_archetype_discovery
 campaign_type: campaign
@@ -47,11 +47,12 @@ run_index:
   active_run: null
   closed_runs:
   - runs/R0001
+  - runs/R0002
   next_run_candidate:
     run_id: null
-    direction: decide_c0004_r0002_or_close_c0004_after_r0001
-    reason: R0001 closed no candidate after fold-isolated MT5 tick evidence; next
-      work is to decide whether C0004 has a meaningful R0002 variant or should close.
+    direction: decide_c0004_r0003_or_close_c0004_after_r0002
+    reason: R0002 closed no candidate after fold-isolated MT5 tick evidence; next
+      work is to decide whether C0004 has a meaningful R0003 variant or should close.
     status: pending_decision
 synthesis_readiness:
   check_required_at_closeout: true
@@ -63,7 +64,8 @@ closeout:
   close_reason: null
   evidence_paths:
   - runs/R0001/gate_report.json
-  remaining_question: decide_c0004_r0002_or_close_c0004_after_r0001
+  - runs/R0002/gate_report.json
+  remaining_question: decide_c0004_r0003_or_close_c0004_after_r0002
 claim_boundary:
   claim_authority: false
   selected: false

@@ -1,0 +1,191 @@
+{
+  "campaign_id": "C0004",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false
+  },
+  "compared_period": {
+    "end": "2026-04-30",
+    "start": "2024-02-01"
+  },
+  "conditional_profiles": {
+    "entry_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "entry_direction_match_rate": 0.998856,
+        "entry_mismatch_samples": [
+          {
+            "direction": -1,
+            "entry_time": "2024-05-01 07:40:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "entry_time": "2025-09-09 07:25:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "entry_time": "2026-01-27 18:55:00",
+            "side": "logic_only"
+          }
+        ],
+        "entry_sequence_direction_match_rate": 0.588863,
+        "entry_sequence_time_match_rate": 0.102975,
+        "entry_time_match_rate": 0.998856,
+        "logic_entry_event_count": 2622,
+        "tick_entry_event_count": 2619
+      }
+    },
+    "exit_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "exit_mismatch_samples": [
+          {
+            "direction": -1,
+            "exit_time": "2024-02-02 19:20:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 07:10:00",
+            "reason": "max_hold",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 07:30:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 09:55:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-08 19:40:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-02 19:15:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 07:00:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 07:25:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 09:50:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-08 19:25:00",
+            "reason": "stop",
+            "side": "tick_only"
+          }
+        ],
+        "exit_sequence_reason_match_rate": 0.504577,
+        "exit_sequence_time_match_rate": 0.077803,
+        "exit_time_match_rate": 0.88177,
+        "logic_exit_event_count": 2622,
+        "tick_exit_event_count": 2619
+      }
+    },
+    "run_closeout_profile": {
+      "applies": true,
+      "fields": {
+        "closeout_status": "blocked_until_fold_isolated_tick_and_divergence",
+        "execution_divergence_required": true,
+        "fold_isolated_closeout_required": true,
+        "logic_parity_required": true,
+        "tick_execution_kpi_required": true
+      }
+    },
+    "spread_slippage_stress_profile": {
+      "applies": false,
+      "deferred_with_reason": "Baseline tick KPI is recorded; spread/slippage stress sweeps are separate robustness work.",
+      "fields": {}
+    },
+    "state_archetype_schedule_profile": {
+      "applies": true,
+      "fields": {
+        "feature_set_selected": false,
+        "label_selected": false,
+        "model_selected": false,
+        "runtime_portability_claim": false,
+        "schedule_artifact_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0002/artifacts/c0004_r0002_schedule.csv",
+        "state_surface_source": "rolling_train_is_proxy_schedule"
+      }
+    }
+  },
+  "created_at_utc": "2026-07-02T20:41:35Z",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "rolling-window fold-isolated MT5 tick KPI and fold-isolated execution divergence are still required",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "run_closeout_review_ready",
+      "reason": "aggregate tick KPI and divergence are diagnostic only for closeout",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "after C0004 R0002 fold-isolated MT5 tick evidence"
+    }
+  ],
+  "divergence_id": "ED-C0004-R0002",
+  "logic_mt5_kpi_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0002/kpi/mt5_logic_parity.json",
+  "missing_required_kpi_fields": [],
+  "required_kpis": {
+    "economics_shift_status": "tick_worse_than_logic",
+    "entry_count_delta": -3,
+    "entry_key_match_rate": 0.998856,
+    "execution_divergence_status": "recorded_with_divergence",
+    "exit_count_delta": -3,
+    "exit_reason_match_rate": 0.869184,
+    "exit_time_direction_match_rate": 0.88177,
+    "logic_expectancy_per_entry": -0.007777,
+    "logic_max_drawdown_percent": 5.74,
+    "logic_net_pnl": -20.39,
+    "logic_profit_factor": 0.920963,
+    "logic_trade_count": 2622,
+    "logic_win_rate": 0.43402,
+    "run_closeout_review_ready": false,
+    "tick_expectancy_per_entry": -0.009313,
+    "tick_max_drawdown_percent": 6.46,
+    "tick_minus_logic_expectancy_per_entry": -0.001536,
+    "tick_minus_logic_max_drawdown_percent": 0.72,
+    "tick_minus_logic_net_pnl": -4.0,
+    "tick_minus_logic_profit_factor": -0.017941,
+    "tick_minus_logic_trade_count": -3,
+    "tick_minus_logic_win_rate": -0.029285,
+    "tick_net_pnl": -24.39,
+    "tick_profit_factor": 0.903022,
+    "tick_trade_count": 2619,
+    "tick_win_rate": 0.404735
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0002",
+  "schema": "axiom_rift_execution_divergence_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "tick_mt5_kpi_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0002/kpi/mt5_tick.json",
+  "work_unit_id": "C0004"
+}

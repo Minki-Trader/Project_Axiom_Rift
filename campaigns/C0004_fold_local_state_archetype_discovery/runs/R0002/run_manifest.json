@@ -1,0 +1,165 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false
+  },
+  "closed_at_utc": "2026-07-02T21:15:08Z",
+  "closeout": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "close_reason": "fold_isolated_tick_negative_no_candidate",
+    "closed_at_utc": "2026-07-02T21:15:08Z",
+    "evidence_paths": [
+      "kpi/proxy.json",
+      "kpi/mt5_logic_parity.json",
+      "kpi/proxy_vs_mt5_logic_parity.json",
+      "kpi/mt5_tick.json",
+      "kpi/execution_divergence.json",
+      "kpi/mt5_tick_by_fold.json",
+      "kpi/execution_divergence_by_fold.json"
+    ],
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "hypothesis_tested": "fold-local train-only path-quality and adverse-path state archetype membership with abstention-first US100 M5 schedule replay",
+      "next_boundary": "next C0004 work must change a meaningful state-archetype, feature, label, model, or trade-shape surface; do not retry R0002 by only nudging path-quality label weights, top archetype count, min archetype count, daily max entries, stop, target, hold, or session thresholds",
+      "reason_not_candidate": "fold-isolated MT5 tick evidence completed with 8 losing folds, 1 profitable fold, negative total tick net PnL, below-target proxy entries per active day, and negative proxy PnL",
+      "supporting_lessons": [
+        {
+          "asset_type": "execution_divergence_lesson",
+          "summary": "Closed-bar schedule replay parity passed, while tick execution worsened total net PnL by 4.00 versus logic and reduced trade count by 3; tick execution remains the economic surface."
+        },
+        {
+          "asset_type": "negative_memory",
+          "summary": "Path-quality state archetype labels reduced total tick loss versus R0001 but failed the target activity range and still lost 8 of 9 fold-isolated tick folds."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "entries_per_active_day": 4.536332,
+      "execution_divergence_by_fold_status": "completed",
+      "logic_parity_status": "passed",
+      "losing_fold_count": 8,
+      "profitable_fold_count": 1,
+      "proxy_net_pnl_points": -2061.6,
+      "proxy_profit_factor": 0.916713,
+      "proxy_trade_count": 2622,
+      "tick_better_fold_count": 6,
+      "tick_worse_fold_count": 3,
+      "total_tick_net_pnl": -24.39,
+      "total_tick_trade_count": 2619,
+      "worst_fold_id": "rw_007",
+      "worst_fold_net_pnl": -10.21
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0004_r0002_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "path_quality_archetype_summary": "artifacts/c0004_r0002_path_quality_archetype_summary.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0004_r0002_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "fixed_surfaces": {
+    "base_frame": "US100 closed M5 bars",
+    "commission_per_trade": 0,
+    "early_sizing": "fixed_lot",
+    "market": "FPMarkets US100 M5",
+    "proxy_is_screening_gate_for_mt5": false,
+    "split_policy": "rolling_window",
+    "synthetic_commission_allowed": false
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "test whether fold-local state archetypes become more useful when train-only labels and state keys penalize adverse excursion and unstable prior path behavior before schedule replay",
+    "variant_boundary": "second C0004 true variant; changes the label, feature, model-score interpretation, and entry-quality surface from simple state archetype membership to path-quality-aware state archetype filtering; not a top-archetype-count, min-count, daily-entry, stop, target, hold, session, or retry nudge from R0001"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_fold_local_state_archetype_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "notes": [
+      "closed-bar MT5 mode is required for proxy-vs-EA logic parity",
+      "tick-mode MT5 is required for execution KPI management",
+      "fold-isolated MT5 tick and execution divergence are required before closeout",
+      "weak proxy evidence cannot skip MT5 validation"
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-02T20:28:56Z",
+  "parent_type": "campaign",
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy must fit labels and archetype quality only inside each rolling train window",
+      "proxy result cannot decide whether MT5 validation is attempted",
+      "proxy must record path-quality and state-archetype diagnostics without creating selected claims"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [
+      "mechanical parity must compare scheduled entries, directions, exits, exit reasons, and position lifecycle behavior",
+      "tick-vs-closed-bar differences are execution divergence, not automatic logic failure",
+      "repair mechanical parity before any hypothesis judgment when mismatch is found"
+    ],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0002",
+  "schema": "axiom_rift_run_manifest_v1",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "closed-bar archetype features augmented with prior adverse pressure, path smoothness, and directional follow-through buckets; no feature set is selected"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "forward path-quality labels penalizing early adverse excursion and unstable path behavior while rewarding favorable excursion and terminal follow-through; no label is selected"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "train-fold-local path-quality-aware archetype membership and edge score; no model family, objective, threshold, or score surface is selected"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "fixed-lot discovery schedule enters only when train-fold-local path-quality archetype evidence survives abstention-first daily selection, then uses schedule replay for MT5 validation"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0004"
+}

@@ -1,551 +1,596 @@
 schema: axiom_rift_decision_registry_v1
 encoding: ascii_only
-
 decisions:
-  - decision_id: dec_20260630_developer_campaign_layout
-    created_local_date: 2026-06-30
-    status: active
-    decision: use_developer_campaign_manifest_layout
-    replaces:
-      - stage_layout_as_active_operating_model
-    rationale:
-      - campaign_names_match_research_iterations_better_than_stage_names
-      - manifests_are_more_machine_friendly_than_narrative_stage_docs
-      - synthesis_work_units_can_live_under_campaigns_root_without_reintroducing_stage_layout
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-  - decision_id: dec_20260701_top_level_synthesis_units
-    created_local_date: 2026-07-01
-    status: active
-    decision: use_top_level_sc_synthesis_units_under_campaigns_root
-    refines:
-      - dec_20260630_developer_campaign_layout
-    rationale:
-      - synthesis_units_must_be_distinct_from_campaign_runs
-      - c_campaigns_hold_major_hypotheses
-      - sc_synthesis_units_open_from_accumulated_synthesis_readiness
-      - sc_units_must_not_be_nested_inside_c_campaign_folders
-      - c_and_sc_streams_are_independent
-      - sc_closeout_does_not_force_next_c
-      - sc_sequence_is_tracked_inside_synthesis_stream
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-  - decision_id: dec_20260701_mandatory_mt5_paired_run_validation
-    created_local_date: 2026-07-01
-    status: active
-    decision: disallow_proxy_only_scouts_and_require_mt5_paired_run_validation
-    refines:
-      - dec_20260630_developer_campaign_layout
-    rationale:
-      - every_run_must_have_explicit_mt5_logic_tick_and_divergence_evidence_before_closeout
-      - weak_proxy_results_must_not_skip_mt5_probe_by_default
-      - proxy_evidence_is_not_enough_for_run_judgment
-      - mt5_probe_evidence_still_does_not_create_runtime_authority
-    claim_boundary:
-      runtime_probe_completed: false
-      economics_pass: false
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-  - decision_id: dec_20260701_bootstrap_skills_are_temporary
-    created_local_date: 2026-07-01
-    status: active
-    decision: treat_axiom_bootstrap_skills_as_temporary_planning_aids_not_complete_official_skills
-    rationale:
-      - bootstrap_skills_help_structure_campaign_and_prp_like_planning
-      - bootstrap_skills_do_not_make_axiom_skills_complete
-      - bootstrap_skills_must_not_create_runtime_promotion_onnx_or_live_claims
-      - replace_bootstrap_skills_after_native_axiom_skills_are_complete
-    claim_boundary:
-      axiom_skills_complete: false
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-  - decision_id: dec_20260702_close_c0001_no_candidate
-    created_local_date: 2026-07-02
-    status: active
-    decision: close_c0001_regime_response_discovery_no_candidate_after_r0001_to_r0007
-    rationale:
-      - all_seven_runs_closed_no_candidate_with_fold_isolated_mt5_tick_evidence
-      - every_run_total_fold_isolated_tick_net_pnl_was_negative
-      - positive_run_fold_cells_were_sparse_and_tiny
-      - remaining_work_inside_c0001_would_be_adjacent_tuning_or_a_new_major_campaign_hypothesis
-      - synthesis_readiness_remains_candidate_later_not_open_synthesis
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-  - decision_id: dec_20260702_goal_driven_operation_policy
-    created_local_date: 2026-07-02
-    status: active
-    decision: use_goal_operation_policy_and_operator_skill_for_short_goal_campaign_operation
-    refines:
-      - dec_20260701_mandatory_mt5_paired_run_validation
-      - dec_20260702_close_c0001_no_candidate
-    rationale:
-      - short_goal_prompts_need_a_stable_expansion_path_to_avoid_objective_drift
-      - top_level_project_target_must_remain_attached_to_campaign_operations
-      - failures_must_be_preserved_as_assets_not_hidden_as_missing_work
-      - proxy_results_must_not_become_scout_gates_that_skip_mt5
-      - closeout_must_be_evidence_based_and_fold_isolated_for_runs
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260702_broken_code_is_not_evidence
-    created_local_date: 2026-07-02
-    status: active
-    decision: disallow_record_and_quit_closeout_when_code_does_not_run
-    refines:
-      - dec_20260702_goal_driven_operation_policy
-    rationale:
-      - failed_code_execution_is_a_repair_or_blocker_surface_not_a_hypothesis_result
-      - missing_kpi_from_broken_code_must_not_be_counted_as_evidence
-      - failed_compile_parser_runner_or_mt5_config_must_be_triaged_repaired_and_rerun_when_in_scope
-      - blockers_require_root_cause_reproduction_command_failing_artifact_and_next_repair_step
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260702_goal_policy_discovery_and_sizing_guardrails
-    created_local_date: 2026-07-02
-    status: active
-    decision: preserve_unrestricted_discovery_and_defer_equity_sizing_in_goal_operation
-    refines:
-      - dec_20260702_goal_driven_operation_policy
-    rationale:
-      - short_goal_operation_must_not_accidentally_freeze_label_feature_model_objective_or_trade_shape
-      - feature_count_model_structure_ensembles_filters_and_score_surfaces_remain_exploration_variables
-      - early_fixed_lot_evaluation_preserves_signal_quality_comparison
-      - equity_percent_sizing_belongs_to_later_robustness_or_growth_validation_after_candidate_quality
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260702_run_closeout_requires_main_push
-    created_local_date: 2026-07-02
-    status: active
-    decision: require_each_run_closeout_to_be_committed_on_main_and_pushed_to_origin
-    refines:
-      - dec_20260702_goal_driven_operation_policy
-    rationale:
-      - run_closeout_evidence_should_not_remain_only_in_local_worktree
-      - short_goal_operation_needs_a_durable_remote_checkpoint_after_each_closed_run
-      - git_sync_must_preserve_unrelated_dirty_work_and_avoid_force_push_or_destructive_reset
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260702_open_c0002_score_conditioned_intraday_edge
-    created_local_date: 2026-07-02
-    status: active
-    decision: open_c0002_score_conditioned_intraday_edge_as_next_major_campaign
-    refines:
-      - dec_20260702_close_c0001_no_candidate
-      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
-    rationale:
-      - c0001_closed_no_candidate_and_remaining_work_inside_c0001_would_be_adjacent_tuning
-      - c0001_synthesis_readiness_result_was_candidate_later_not_open_synthesis
-      - score_conditioned_candidate_selection_changes_the_major_axis_from_hand_built_regime_response_to_model_or_score_ranked_opportunity_quality
-      - campaign_open_preserves_unrestricted_label_feature_model_trade_logic_exploration_without_selected_claims
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260702_open_c0002_r0001_score_conditioned_candidate_selection
-    created_local_date: 2026-07-02
-    status: active
-    decision: open_r0001_score_conditioned_candidate_selection_variant_under_c0002
-    refines:
-      - dec_20260702_open_c0002_score_conditioned_intraday_edge
-      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
-    rationale:
-      - first_c0002_run_must_define_a_true_variant_before_evidence_generation
-      - run_changes_all_required_surfaces_from_campaign_defaults_without_selecting_any_surface
-      - rolling_train_only_score_surface_tests_the_c0002_major_axis_without_reusing_c0001_deterministic_regime_response_as_a_micro_tune
-      - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260702_open_c0002_r0002_exhaustion_reversal_score_variant
-    created_local_date: 2026-07-02
-    status: active
-    decision: open_r0002_exhaustion_reversal_score_variant_under_c0002
-    refines:
-      - dec_20260702_open_c0002_score_conditioned_intraday_edge
-      - dec_20260702_open_c0002_r0001_score_conditioned_candidate_selection
-      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
-    rationale:
-      - c0002_r0001_closed_no_candidate_after_all_fold_isolated_mt5_tick_folds_lost
-      - c0002_still_has_meaningful_model_score_label_feature_trade_logic_variants_remaining
-      - r0002_changes_direction_construction_label_shape_feature_family_score_interpretation_and_trade_shape
-      - r0002_is_not_a_threshold_window_sl_tp_nudge_or_retry_of_r0001
-      - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260702_open_c0002_r0003_dual_direction_cell_score_variant
-    created_local_date: 2026-07-02
-    status: active
-    decision: open_r0003_dual_direction_cell_score_variant_under_c0002
-    refines:
-      - dec_20260702_open_c0002_score_conditioned_intraday_edge
-      - dec_20260702_open_c0002_r0001_score_conditioned_candidate_selection
-      - dec_20260702_open_c0002_r0002_exhaustion_reversal_score_variant
-      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
-    rationale:
-      - c0002_r0001_and_c0002_r0002_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
-      - c0002_still_has_meaningful_model_score_label_feature_trade_logic_variants_remaining
-      - r0003_changes_the_model_score_surface_from_linear_score_to_train_only_discrete_quantile_cell_scoring
-      - r0003_lets_the_score_choose_between_long_and_short_candidates_per_closed_bar
-      - r0003_is_not_a_threshold_window_sl_tp_nudge_or_retry_of_r0001_or_r0002
-      - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260702_open_c0002_r0004_stump_rank_ensemble_variant
-    created_local_date: 2026-07-02
-    status: active
-    decision: open_r0004_stump_rank_ensemble_variant_under_c0002
-    refines:
-      - dec_20260702_open_c0002_score_conditioned_intraday_edge
-      - dec_20260702_open_c0002_r0001_score_conditioned_candidate_selection
-      - dec_20260702_open_c0002_r0002_exhaustion_reversal_score_variant
-      - dec_20260702_open_c0002_r0003_dual_direction_cell_score_variant
-      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
-    rationale:
-      - c0002_r0001_to_r0003_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
-      - c0002_still_has_meaningful_model_score_variants_remaining
-      - r0004_changes_the_model_score_surface_to_a_train_only_supervised_stump_rank_ensemble
-      - r0004_uses_direction_aware_features_and_top_ranked_candidates_per_active_day_to_test_the_entry_frequency_target_more_directly
-      - r0004_is_not_a_threshold_window_sl_tp_nudge_or_retry_of_r0001_r0002_or_r0003
-      - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260703_close_c0002_no_candidate
-    created_local_date: 2026-07-03
-    status: active
-    decision: close_c0002_score_conditioned_intraday_edge_no_candidate_after_r0001_to_r0004
-    refines:
-      - dec_20260702_open_c0002_score_conditioned_intraday_edge
-      - dec_20260702_open_c0002_r0001_score_conditioned_candidate_selection
-      - dec_20260702_open_c0002_r0002_exhaustion_reversal_score_variant
-      - dec_20260702_open_c0002_r0003_dual_direction_cell_score_variant
-      - dec_20260702_open_c0002_r0004_stump_rank_ensemble_variant
-    rationale:
-      - all_four_c0002_runs_closed_no_candidate_with_fold_isolated_mt5_tick_evidence
-      - r0001_r0002_and_r0004_lost_all_nine_fold_isolated_mt5_tick_folds
-      - r0003_found_three_profitable_folds_but_total_fold_isolated_tick_net_was_negative_and_entry_frequency_was_below_target
-      - r0004_tested_the_frequency_target_more_directly_but_all_folds_lost
-      - remaining_work_inside_c0002_would_be_adjacent_score_model_threshold_tuning_or_a_new_major_campaign_hypothesis
-      - synthesis_readiness_remains_candidate_later_not_open_synthesis
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260703_open_c0003_path_conditioned_exit_risk_shape
-    created_local_date: 2026-07-03
-    status: active
-    decision: open_c0003_path_conditioned_exit_risk_shape_as_next_major_campaign
-    refines:
-      - dec_20260702_close_c0001_no_candidate
-      - dec_20260703_close_c0002_no_candidate
-      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
-    rationale:
-      - c0001_and_c0002_closed_no_candidate_and_sc_synthesis_minimums_are_not_met
-      - another_score_or_entry_selection_retry_would_be_adjacent_tuning_inside_c0002
-      - c0003_changes_the_major_axis_from_entry_selection_to_path_conditioned_exit_hold_stop_target_and_risk_shape_logic
-      - early_discovery_remains_fixed_lot_and_equity_percent_sizing_remains_deferred
-      - no_label_feature_model_trade_logic_selected_claim_is_created
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260703_open_c0003_r0001_path_conditioned_exit_risk_shape_variant
-    created_local_date: 2026-07-03
-    status: active
-    decision: open_r0001_path_conditioned_exit_risk_shape_variant_under_c0003
-    refines:
-      - dec_20260703_open_c0003_path_conditioned_exit_risk_shape
-      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
-      - dec_20260701_mandatory_mt5_paired_run_validation
-    rationale:
-      - c0003_is_open_and_has_no_active_or_closed_runs
-      - r0001_is_the_first_true_variant_inside_the_path_conditioned_exit_risk_shape_boundary
-      - r0001_changes_model_feature_label_and_trade_logic_surfaces_toward_path_survival_exit_hold_stop_target_and_fixed_lot_risk_shape_logic
-      - r0001_is_not_a_threshold_window_sltp_nudge_repair_or_retry_of_c0001_or_c0002
-      - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260703_open_c0003_r0002_adverse_path_avoidance_variant
-    created_local_date: 2026-07-03
-    status: active
-    decision: open_r0002_adverse_path_avoidance_variant_under_c0003
-    refines:
-      - dec_20260703_open_c0003_path_conditioned_exit_risk_shape
-      - dec_20260703_open_c0003_r0001_path_conditioned_exit_risk_shape_variant
-      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
-      - dec_20260701_mandatory_mt5_paired_run_validation
-    rationale:
-      - c0003_r0001_closed_no_candidate_after_all_nine_fold_isolated_mt5_tick_folds_lost
-      - c0003_still_has_meaningful_non_adjacent_path_conditioned_exit_hold_risk_shape_label_model_and_trade_shape_variants_remaining
-      - r0002_changes_the_question_from_after_entry_path_survival_risk_profiling_to_pre_entry_adverse_path_avoidance_and_conditional_early_abort
-      - r0002_changes_label_shape_feature_family_score_interpretation_and_trade_logic_and_is_not_a_score_quantile_window_sltp_trail_max_hold_or_daily_entry_nudge_of_r0001
-      - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260703_open_c0003_r0003_fast_favorable_capture_variant
-    created_local_date: 2026-07-03
-    status: active
-    decision: open_r0003_fast_favorable_capture_variant_under_c0003
-    refines:
-      - dec_20260703_open_c0003_path_conditioned_exit_risk_shape
-      - dec_20260703_open_c0003_r0001_path_conditioned_exit_risk_shape_variant
-      - dec_20260703_open_c0003_r0002_adverse_path_avoidance_variant
-      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
-      - dec_20260701_mandatory_mt5_paired_run_validation
-    rationale:
-      - c0003_r0001_and_c0003_r0002_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
-      - c0003_r0002_left_three_profitable_folds_but_negative_total_tick_net_pnl_so_it_is_not_candidate_evidence
-      - c0003_still_has_a_meaningful_non_adjacent_fast_favorable_excursion_capture_and_giveback_avoidance_axis_remaining_inside_the_path_conditioned_exit_risk_shape_boundary
-      - r0003_changes_label_shape_feature_family_score_interpretation_and_trade_logic_and_is_not_a_target_stop_max_hold_hazard_threshold_or_daily_entry_nudge_of_r0001_or_r0002
-      - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260703_close_c0003_no_candidate
-    created_local_date: 2026-07-03
-    status: active
-    decision: close_c0003_path_conditioned_exit_risk_shape_no_candidate_after_r0001_to_r0003
-    refines:
-      - dec_20260703_open_c0003_path_conditioned_exit_risk_shape
-      - dec_20260703_open_c0003_r0001_path_conditioned_exit_risk_shape_variant
-      - dec_20260703_open_c0003_r0002_adverse_path_avoidance_variant
-      - dec_20260703_open_c0003_r0003_fast_favorable_capture_variant
-    rationale:
-      - all_three_c0003_runs_closed_no_candidate_with_fold_isolated_mt5_tick_evidence
-      - r0001_lost_all_nine_fold_isolated_mt5_tick_folds
-      - r0002_left_three_profitable_folds_but_total_fold_isolated_tick_net_pnl_was_negative
-      - r0003_left_two_profitable_folds_but_total_fold_isolated_tick_net_pnl_was_negative
-      - remaining_work_inside_c0003_would_be_adjacent_stop_target_trail_hold_hazard_capture_or_daily_entry_tuning_or_a_new_major_campaign_hypothesis
-      - synthesis_readiness_is_open_synthesis_after_c0001_c0002_c0003_closed_no_candidate_with_sufficient_negative_memory_and_mt5_evidence
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260703_open_sc0001_accumulated_negative_memory_synthesis
-    created_local_date: 2026-07-03
-    status: active
-    decision: open_sc0001_accumulated_negative_memory_synthesis_after_c0001_c0002_c0003_closed_no_candidate
-    refines:
-      - dec_20260703_close_c0003_no_candidate
-      - dec_20260702_goal_driven_operation_policy
-      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
-      - dec_20260701_top_level_synthesis_units
-    rationale:
-      - c0001_c0002_c0003_are_closed_no_candidate_with_fold_isolated_mt5_tick_evidence
-      - c0003_campaign_closeout_recorded_synthesis_readiness_open_synthesis
-      - fourteen_usable_ingredient_groups_are_available_across_negative_memory_parity_lessons_and_execution_divergence_lessons
-      - synthesis_is_needed_before_opening_another_major_c_campaign_to_avoid_adjacent_retries
-      - sc0001_does_not_create_selected_runtime_economics_onnx_promotion_or_live_claims
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260703_open_sc0001_sr0001_synthesis_constraint_run
-    created_local_date: 2026-07-03
-    status: active
-    decision: open_sr0001_synthesis_constraint_run_under_sc0001
-    refines:
-      - dec_20260703_open_sc0001_accumulated_negative_memory_synthesis
-      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
-      - dec_20260701_mandatory_mt5_paired_run_validation
-    rationale:
-      - sc0001_queue_identifies_sr0001_as_the_next_synthesis_run
-      - sr0001_uses_execution_and_parity_lessons_plus_target_frequency_without_edge_negative_memory
-      - sr0001_changes_the_question_from_another_adjacent_entry_score_or_exit_retry_to_non_adjacent_constraint_synthesis
-      - opened_synthesis_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
-      - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260703_close_sc0001_sr0001_no_candidate
-    created_local_date: 2026-07-03
-    status: active
-    decision: close_sr0001_synthesis_constraint_run_no_candidate
-    refines:
-      - dec_20260703_open_sc0001_sr0001_synthesis_constraint_run
-      - dec_20260701_mandatory_mt5_paired_run_validation
-    rationale:
-      - sr0001_completed_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
-      - fold_isolated_mt5_tick_evidence_completed_all_nine_required_folds
-      - sr0001_had_eight_losing_folds_one_profitable_fold_and_negative_total_fold_isolated_tick_net_pnl
-      - proxy_entries_per_active_day_was_below_the_5_to_10_target
-      - sr0001_is_recorded_as_negative_memory_not_selected_candidate_economics_pass_runtime_onnx_promotion_or_live_claim
-      - next_work_is_decide_sc0001_sr0002_or_close_synthesis_after_sr0001
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260703_close_sc0001_no_candidate_after_sr0001
-    created_local_date: 2026-07-03
-    status: active
-    decision: close_sc0001_accumulated_negative_memory_synthesis_no_candidate_after_sr0001
-    refines:
-      - dec_20260703_close_sc0001_sr0001_no_candidate
-      - dec_20260703_open_sc0001_accumulated_negative_memory_synthesis
-    rationale:
-      - sr0001_completed_fold_isolated_mt5_tick_and_execution_divergence_closeout
-      - sr0001_showed_negative_memory_constraint_schedule_replay_was_not_a_candidate_source
-      - remaining_sc0001_sr0002_work_would_risk_adjacent_negative_memory_remix_without_new_edge_surface
-      - synthesis_closeout_returns_control_to_campaign_stream_without_selected_runtime_economics_onnx_promotion_or_live_claim
-      - next_major_question_should_open_c0004_fold_local_state_archetype_discovery
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260703_open_c0004_fold_local_state_archetype_discovery
-    created_local_date: 2026-07-03
-    status: active
-    decision: open_c0004_fold_local_state_archetype_discovery_after_sc0001_closeout
-    refines:
-      - dec_20260703_close_sc0001_no_candidate_after_sr0001
-      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
-      - dec_20260701_mandatory_mt5_paired_run_validation
-    rationale:
-      - c0004_is_a_new_major_campaign_hypothesis_not_a_threshold_window_sltp_or_retry_nudge
-      - hypothesis_changes_from_prior_response_score_rank_path_exit_and_negative_memory_replay_to_fold_local_state_archetype_discovery
-      - early_discovery_remains_fixed_lot_and_equity_percent_sizing_is_deferred
-      - labels_features_models_objectives_and_trade_shapes_remain_unrestricted_until_evidence_based_freeze
-      - opened_campaign_creates_no_selected_runtime_economics_onnx_promotion_or_live_claim
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260703_open_c0004_r0001_fold_local_state_archetype_entry_run
-    created_local_date: 2026-07-03
-    status: active
-    decision: open_r0001_fold_local_state_archetype_entry_run_under_c0004
-    refines:
-      - dec_20260703_open_c0004_fold_local_state_archetype_discovery
-      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
-      - dec_20260701_mandatory_mt5_paired_run_validation
-    rationale:
-      - r0001_is_the_first_true_variant_inside_the_c0004_fold_local_state_archetype_boundary
-      - r0001_changes_model_feature_label_and_trade_logic_surfaces_toward_fold_local_archetype_membership_edge_estimation_and_abstention_first_entry_generation
-      - r0001_is_not_a_threshold_window_sltp_hold_or_retry_nudge_from_prior_c0001_through_sc0001_failures
-      - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
-      - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
-  - decision_id: dec_20260703_close_c0004_r0001_no_candidate
-    created_local_date: 2026-07-03
-    status: active
-    decision: close_c0004_r0001_fold_local_state_archetype_entry_run_no_candidate
-    refines:
-      - dec_20260703_open_c0004_r0001_fold_local_state_archetype_entry_run
-      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
-      - dec_20260701_mandatory_mt5_paired_run_validation
-    rationale:
-      - r0001_completed_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
-      - fold_isolated_mt5_tick_evidence_completed_all_nine_required_folds
-      - r0001_had_eight_losing_folds_one_profitable_fold_and_negative_total_fold_isolated_tick_net_pnl
-      - r0001_met_target_activity_with_5_602763_entries_per_active_day_but_profitability_was_negative
-      - r0001_is_recorded_as_negative_memory_not_selected_candidate_economics_pass_runtime_onnx_promotion_or_live_claim
-      - next_work_is_decide_c0004_r0002_or_close_c0004_after_r0001
-    claim_boundary:
-      runtime_authority: false
-      live_ready: false
-      label_selected: false
-      feature_set_selected: false
-      model_selected: false
-      economics_pass: false
+- decision_id: dec_20260630_developer_campaign_layout
+  created_local_date: 2026-06-30
+  status: active
+  decision: use_developer_campaign_manifest_layout
+  replaces:
+  - stage_layout_as_active_operating_model
+  rationale:
+  - campaign_names_match_research_iterations_better_than_stage_names
+  - manifests_are_more_machine_friendly_than_narrative_stage_docs
+  - synthesis_work_units_can_live_under_campaigns_root_without_reintroducing_stage_layout
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+- decision_id: dec_20260701_top_level_synthesis_units
+  created_local_date: 2026-07-01
+  status: active
+  decision: use_top_level_sc_synthesis_units_under_campaigns_root
+  refines:
+  - dec_20260630_developer_campaign_layout
+  rationale:
+  - synthesis_units_must_be_distinct_from_campaign_runs
+  - c_campaigns_hold_major_hypotheses
+  - sc_synthesis_units_open_from_accumulated_synthesis_readiness
+  - sc_units_must_not_be_nested_inside_c_campaign_folders
+  - c_and_sc_streams_are_independent
+  - sc_closeout_does_not_force_next_c
+  - sc_sequence_is_tracked_inside_synthesis_stream
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+- decision_id: dec_20260701_mandatory_mt5_paired_run_validation
+  created_local_date: 2026-07-01
+  status: active
+  decision: disallow_proxy_only_scouts_and_require_mt5_paired_run_validation
+  refines:
+  - dec_20260630_developer_campaign_layout
+  rationale:
+  - every_run_must_have_explicit_mt5_logic_tick_and_divergence_evidence_before_closeout
+  - weak_proxy_results_must_not_skip_mt5_probe_by_default
+  - proxy_evidence_is_not_enough_for_run_judgment
+  - mt5_probe_evidence_still_does_not_create_runtime_authority
+  claim_boundary:
+    runtime_probe_completed: false
+    economics_pass: false
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+- decision_id: dec_20260701_bootstrap_skills_are_temporary
+  created_local_date: 2026-07-01
+  status: active
+  decision: treat_axiom_bootstrap_skills_as_temporary_planning_aids_not_complete_official_skills
+  rationale:
+  - bootstrap_skills_help_structure_campaign_and_prp_like_planning
+  - bootstrap_skills_do_not_make_axiom_skills_complete
+  - bootstrap_skills_must_not_create_runtime_promotion_onnx_or_live_claims
+  - replace_bootstrap_skills_after_native_axiom_skills_are_complete
+  claim_boundary:
+    axiom_skills_complete: false
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+- decision_id: dec_20260702_close_c0001_no_candidate
+  created_local_date: 2026-07-02
+  status: active
+  decision: close_c0001_regime_response_discovery_no_candidate_after_r0001_to_r0007
+  rationale:
+  - all_seven_runs_closed_no_candidate_with_fold_isolated_mt5_tick_evidence
+  - every_run_total_fold_isolated_tick_net_pnl_was_negative
+  - positive_run_fold_cells_were_sparse_and_tiny
+  - remaining_work_inside_c0001_would_be_adjacent_tuning_or_a_new_major_campaign_hypothesis
+  - synthesis_readiness_remains_candidate_later_not_open_synthesis
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+- decision_id: dec_20260702_goal_driven_operation_policy
+  created_local_date: 2026-07-02
+  status: active
+  decision: use_goal_operation_policy_and_operator_skill_for_short_goal_campaign_operation
+  refines:
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_close_c0001_no_candidate
+  rationale:
+  - short_goal_prompts_need_a_stable_expansion_path_to_avoid_objective_drift
+  - top_level_project_target_must_remain_attached_to_campaign_operations
+  - failures_must_be_preserved_as_assets_not_hidden_as_missing_work
+  - proxy_results_must_not_become_scout_gates_that_skip_mt5
+  - closeout_must_be_evidence_based_and_fold_isolated_for_runs
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260702_broken_code_is_not_evidence
+  created_local_date: 2026-07-02
+  status: active
+  decision: disallow_record_and_quit_closeout_when_code_does_not_run
+  refines:
+  - dec_20260702_goal_driven_operation_policy
+  rationale:
+  - failed_code_execution_is_a_repair_or_blocker_surface_not_a_hypothesis_result
+  - missing_kpi_from_broken_code_must_not_be_counted_as_evidence
+  - failed_compile_parser_runner_or_mt5_config_must_be_triaged_repaired_and_rerun_when_in_scope
+  - blockers_require_root_cause_reproduction_command_failing_artifact_and_next_repair_step
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  created_local_date: 2026-07-02
+  status: active
+  decision: preserve_unrestricted_discovery_and_defer_equity_sizing_in_goal_operation
+  refines:
+  - dec_20260702_goal_driven_operation_policy
+  rationale:
+  - short_goal_operation_must_not_accidentally_freeze_label_feature_model_objective_or_trade_shape
+  - feature_count_model_structure_ensembles_filters_and_score_surfaces_remain_exploration_variables
+  - early_fixed_lot_evaluation_preserves_signal_quality_comparison
+  - equity_percent_sizing_belongs_to_later_robustness_or_growth_validation_after_candidate_quality
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260702_run_closeout_requires_main_push
+  created_local_date: 2026-07-02
+  status: active
+  decision: require_each_run_closeout_to_be_committed_on_main_and_pushed_to_origin
+  refines:
+  - dec_20260702_goal_driven_operation_policy
+  rationale:
+  - run_closeout_evidence_should_not_remain_only_in_local_worktree
+  - short_goal_operation_needs_a_durable_remote_checkpoint_after_each_closed_run
+  - git_sync_must_preserve_unrelated_dirty_work_and_avoid_force_push_or_destructive_reset
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260702_open_c0002_score_conditioned_intraday_edge
+  created_local_date: 2026-07-02
+  status: active
+  decision: open_c0002_score_conditioned_intraday_edge_as_next_major_campaign
+  refines:
+  - dec_20260702_close_c0001_no_candidate
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - c0001_closed_no_candidate_and_remaining_work_inside_c0001_would_be_adjacent_tuning
+  - c0001_synthesis_readiness_result_was_candidate_later_not_open_synthesis
+  - score_conditioned_candidate_selection_changes_the_major_axis_from_hand_built_regime_response_to_model_or_score_ranked_opportunity_quality
+  - campaign_open_preserves_unrestricted_label_feature_model_trade_logic_exploration_without_selected_claims
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260702_open_c0002_r0001_score_conditioned_candidate_selection
+  created_local_date: 2026-07-02
+  status: active
+  decision: open_r0001_score_conditioned_candidate_selection_variant_under_c0002
+  refines:
+  - dec_20260702_open_c0002_score_conditioned_intraday_edge
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - first_c0002_run_must_define_a_true_variant_before_evidence_generation
+  - run_changes_all_required_surfaces_from_campaign_defaults_without_selecting_any_surface
+  - rolling_train_only_score_surface_tests_the_c0002_major_axis_without_reusing_c0001_deterministic_regime_response_as_a_micro_tune
+  - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260702_open_c0002_r0002_exhaustion_reversal_score_variant
+  created_local_date: 2026-07-02
+  status: active
+  decision: open_r0002_exhaustion_reversal_score_variant_under_c0002
+  refines:
+  - dec_20260702_open_c0002_score_conditioned_intraday_edge
+  - dec_20260702_open_c0002_r0001_score_conditioned_candidate_selection
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - c0002_r0001_closed_no_candidate_after_all_fold_isolated_mt5_tick_folds_lost
+  - c0002_still_has_meaningful_model_score_label_feature_trade_logic_variants_remaining
+  - r0002_changes_direction_construction_label_shape_feature_family_score_interpretation_and_trade_shape
+  - r0002_is_not_a_threshold_window_sl_tp_nudge_or_retry_of_r0001
+  - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260702_open_c0002_r0003_dual_direction_cell_score_variant
+  created_local_date: 2026-07-02
+  status: active
+  decision: open_r0003_dual_direction_cell_score_variant_under_c0002
+  refines:
+  - dec_20260702_open_c0002_score_conditioned_intraday_edge
+  - dec_20260702_open_c0002_r0001_score_conditioned_candidate_selection
+  - dec_20260702_open_c0002_r0002_exhaustion_reversal_score_variant
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - c0002_r0001_and_c0002_r0002_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - c0002_still_has_meaningful_model_score_label_feature_trade_logic_variants_remaining
+  - r0003_changes_the_model_score_surface_from_linear_score_to_train_only_discrete_quantile_cell_scoring
+  - r0003_lets_the_score_choose_between_long_and_short_candidates_per_closed_bar
+  - r0003_is_not_a_threshold_window_sl_tp_nudge_or_retry_of_r0001_or_r0002
+  - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260702_open_c0002_r0004_stump_rank_ensemble_variant
+  created_local_date: 2026-07-02
+  status: active
+  decision: open_r0004_stump_rank_ensemble_variant_under_c0002
+  refines:
+  - dec_20260702_open_c0002_score_conditioned_intraday_edge
+  - dec_20260702_open_c0002_r0001_score_conditioned_candidate_selection
+  - dec_20260702_open_c0002_r0002_exhaustion_reversal_score_variant
+  - dec_20260702_open_c0002_r0003_dual_direction_cell_score_variant
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - c0002_r0001_to_r0003_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - c0002_still_has_meaningful_model_score_variants_remaining
+  - r0004_changes_the_model_score_surface_to_a_train_only_supervised_stump_rank_ensemble
+  - r0004_uses_direction_aware_features_and_top_ranked_candidates_per_active_day_to_test_the_entry_frequency_target_more_directly
+  - r0004_is_not_a_threshold_window_sl_tp_nudge_or_retry_of_r0001_r0002_or_r0003
+  - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_close_c0002_no_candidate
+  created_local_date: 2026-07-03
+  status: active
+  decision: close_c0002_score_conditioned_intraday_edge_no_candidate_after_r0001_to_r0004
+  refines:
+  - dec_20260702_open_c0002_score_conditioned_intraday_edge
+  - dec_20260702_open_c0002_r0001_score_conditioned_candidate_selection
+  - dec_20260702_open_c0002_r0002_exhaustion_reversal_score_variant
+  - dec_20260702_open_c0002_r0003_dual_direction_cell_score_variant
+  - dec_20260702_open_c0002_r0004_stump_rank_ensemble_variant
+  rationale:
+  - all_four_c0002_runs_closed_no_candidate_with_fold_isolated_mt5_tick_evidence
+  - r0001_r0002_and_r0004_lost_all_nine_fold_isolated_mt5_tick_folds
+  - r0003_found_three_profitable_folds_but_total_fold_isolated_tick_net_was_negative_and_entry_frequency_was_below_target
+  - r0004_tested_the_frequency_target_more_directly_but_all_folds_lost
+  - remaining_work_inside_c0002_would_be_adjacent_score_model_threshold_tuning_or_a_new_major_campaign_hypothesis
+  - synthesis_readiness_remains_candidate_later_not_open_synthesis
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_open_c0003_path_conditioned_exit_risk_shape
+  created_local_date: 2026-07-03
+  status: active
+  decision: open_c0003_path_conditioned_exit_risk_shape_as_next_major_campaign
+  refines:
+  - dec_20260702_close_c0001_no_candidate
+  - dec_20260703_close_c0002_no_candidate
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - c0001_and_c0002_closed_no_candidate_and_sc_synthesis_minimums_are_not_met
+  - another_score_or_entry_selection_retry_would_be_adjacent_tuning_inside_c0002
+  - c0003_changes_the_major_axis_from_entry_selection_to_path_conditioned_exit_hold_stop_target_and_risk_shape_logic
+  - early_discovery_remains_fixed_lot_and_equity_percent_sizing_remains_deferred
+  - no_label_feature_model_trade_logic_selected_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_open_c0003_r0001_path_conditioned_exit_risk_shape_variant
+  created_local_date: 2026-07-03
+  status: active
+  decision: open_r0001_path_conditioned_exit_risk_shape_variant_under_c0003
+  refines:
+  - dec_20260703_open_c0003_path_conditioned_exit_risk_shape
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0003_is_open_and_has_no_active_or_closed_runs
+  - r0001_is_the_first_true_variant_inside_the_path_conditioned_exit_risk_shape_boundary
+  - r0001_changes_model_feature_label_and_trade_logic_surfaces_toward_path_survival_exit_hold_stop_target_and_fixed_lot_risk_shape_logic
+  - r0001_is_not_a_threshold_window_sltp_nudge_repair_or_retry_of_c0001_or_c0002
+  - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_open_c0003_r0002_adverse_path_avoidance_variant
+  created_local_date: 2026-07-03
+  status: active
+  decision: open_r0002_adverse_path_avoidance_variant_under_c0003
+  refines:
+  - dec_20260703_open_c0003_path_conditioned_exit_risk_shape
+  - dec_20260703_open_c0003_r0001_path_conditioned_exit_risk_shape_variant
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0003_r0001_closed_no_candidate_after_all_nine_fold_isolated_mt5_tick_folds_lost
+  - c0003_still_has_meaningful_non_adjacent_path_conditioned_exit_hold_risk_shape_label_model_and_trade_shape_variants_remaining
+  - r0002_changes_the_question_from_after_entry_path_survival_risk_profiling_to_pre_entry_adverse_path_avoidance_and_conditional_early_abort
+  - r0002_changes_label_shape_feature_family_score_interpretation_and_trade_logic_and_is_not_a_score_quantile_window_sltp_trail_max_hold_or_daily_entry_nudge_of_r0001
+  - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_open_c0003_r0003_fast_favorable_capture_variant
+  created_local_date: 2026-07-03
+  status: active
+  decision: open_r0003_fast_favorable_capture_variant_under_c0003
+  refines:
+  - dec_20260703_open_c0003_path_conditioned_exit_risk_shape
+  - dec_20260703_open_c0003_r0001_path_conditioned_exit_risk_shape_variant
+  - dec_20260703_open_c0003_r0002_adverse_path_avoidance_variant
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0003_r0001_and_c0003_r0002_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - c0003_r0002_left_three_profitable_folds_but_negative_total_tick_net_pnl_so_it_is_not_candidate_evidence
+  - c0003_still_has_a_meaningful_non_adjacent_fast_favorable_excursion_capture_and_giveback_avoidance_axis_remaining_inside_the_path_conditioned_exit_risk_shape_boundary
+  - r0003_changes_label_shape_feature_family_score_interpretation_and_trade_logic_and_is_not_a_target_stop_max_hold_hazard_threshold_or_daily_entry_nudge_of_r0001_or_r0002
+  - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_close_c0003_no_candidate
+  created_local_date: 2026-07-03
+  status: active
+  decision: close_c0003_path_conditioned_exit_risk_shape_no_candidate_after_r0001_to_r0003
+  refines:
+  - dec_20260703_open_c0003_path_conditioned_exit_risk_shape
+  - dec_20260703_open_c0003_r0001_path_conditioned_exit_risk_shape_variant
+  - dec_20260703_open_c0003_r0002_adverse_path_avoidance_variant
+  - dec_20260703_open_c0003_r0003_fast_favorable_capture_variant
+  rationale:
+  - all_three_c0003_runs_closed_no_candidate_with_fold_isolated_mt5_tick_evidence
+  - r0001_lost_all_nine_fold_isolated_mt5_tick_folds
+  - r0002_left_three_profitable_folds_but_total_fold_isolated_tick_net_pnl_was_negative
+  - r0003_left_two_profitable_folds_but_total_fold_isolated_tick_net_pnl_was_negative
+  - remaining_work_inside_c0003_would_be_adjacent_stop_target_trail_hold_hazard_capture_or_daily_entry_tuning_or_a_new_major_campaign_hypothesis
+  - synthesis_readiness_is_open_synthesis_after_c0001_c0002_c0003_closed_no_candidate_with_sufficient_negative_memory_and_mt5_evidence
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_open_sc0001_accumulated_negative_memory_synthesis
+  created_local_date: 2026-07-03
+  status: active
+  decision: open_sc0001_accumulated_negative_memory_synthesis_after_c0001_c0002_c0003_closed_no_candidate
+  refines:
+  - dec_20260703_close_c0003_no_candidate
+  - dec_20260702_goal_driven_operation_policy
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_top_level_synthesis_units
+  rationale:
+  - c0001_c0002_c0003_are_closed_no_candidate_with_fold_isolated_mt5_tick_evidence
+  - c0003_campaign_closeout_recorded_synthesis_readiness_open_synthesis
+  - fourteen_usable_ingredient_groups_are_available_across_negative_memory_parity_lessons_and_execution_divergence_lessons
+  - synthesis_is_needed_before_opening_another_major_c_campaign_to_avoid_adjacent_retries
+  - sc0001_does_not_create_selected_runtime_economics_onnx_promotion_or_live_claims
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_open_sc0001_sr0001_synthesis_constraint_run
+  created_local_date: 2026-07-03
+  status: active
+  decision: open_sr0001_synthesis_constraint_run_under_sc0001
+  refines:
+  - dec_20260703_open_sc0001_accumulated_negative_memory_synthesis
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - sc0001_queue_identifies_sr0001_as_the_next_synthesis_run
+  - sr0001_uses_execution_and_parity_lessons_plus_target_frequency_without_edge_negative_memory
+  - sr0001_changes_the_question_from_another_adjacent_entry_score_or_exit_retry_to_non_adjacent_constraint_synthesis
+  - opened_synthesis_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_close_sc0001_sr0001_no_candidate
+  created_local_date: 2026-07-03
+  status: active
+  decision: close_sr0001_synthesis_constraint_run_no_candidate
+  refines:
+  - dec_20260703_open_sc0001_sr0001_synthesis_constraint_run
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - sr0001_completed_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - fold_isolated_mt5_tick_evidence_completed_all_nine_required_folds
+  - sr0001_had_eight_losing_folds_one_profitable_fold_and_negative_total_fold_isolated_tick_net_pnl
+  - proxy_entries_per_active_day_was_below_the_5_to_10_target
+  - sr0001_is_recorded_as_negative_memory_not_selected_candidate_economics_pass_runtime_onnx_promotion_or_live_claim
+  - next_work_is_decide_sc0001_sr0002_or_close_synthesis_after_sr0001
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_close_sc0001_no_candidate_after_sr0001
+  created_local_date: 2026-07-03
+  status: active
+  decision: close_sc0001_accumulated_negative_memory_synthesis_no_candidate_after_sr0001
+  refines:
+  - dec_20260703_close_sc0001_sr0001_no_candidate
+  - dec_20260703_open_sc0001_accumulated_negative_memory_synthesis
+  rationale:
+  - sr0001_completed_fold_isolated_mt5_tick_and_execution_divergence_closeout
+  - sr0001_showed_negative_memory_constraint_schedule_replay_was_not_a_candidate_source
+  - remaining_sc0001_sr0002_work_would_risk_adjacent_negative_memory_remix_without_new_edge_surface
+  - synthesis_closeout_returns_control_to_campaign_stream_without_selected_runtime_economics_onnx_promotion_or_live_claim
+  - next_major_question_should_open_c0004_fold_local_state_archetype_discovery
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_open_c0004_fold_local_state_archetype_discovery
+  created_local_date: 2026-07-03
+  status: active
+  decision: open_c0004_fold_local_state_archetype_discovery_after_sc0001_closeout
+  refines:
+  - dec_20260703_close_sc0001_no_candidate_after_sr0001
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0004_is_a_new_major_campaign_hypothesis_not_a_threshold_window_sltp_or_retry_nudge
+  - hypothesis_changes_from_prior_response_score_rank_path_exit_and_negative_memory_replay_to_fold_local_state_archetype_discovery
+  - early_discovery_remains_fixed_lot_and_equity_percent_sizing_is_deferred
+  - labels_features_models_objectives_and_trade_shapes_remain_unrestricted_until_evidence_based_freeze
+  - opened_campaign_creates_no_selected_runtime_economics_onnx_promotion_or_live_claim
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_open_c0004_r0001_fold_local_state_archetype_entry_run
+  created_local_date: 2026-07-03
+  status: active
+  decision: open_r0001_fold_local_state_archetype_entry_run_under_c0004
+  refines:
+  - dec_20260703_open_c0004_fold_local_state_archetype_discovery
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0001_is_the_first_true_variant_inside_the_c0004_fold_local_state_archetype_boundary
+  - r0001_changes_model_feature_label_and_trade_logic_surfaces_toward_fold_local_archetype_membership_edge_estimation_and_abstention_first_entry_generation
+  - r0001_is_not_a_threshold_window_sltp_hold_or_retry_nudge_from_prior_c0001_through_sc0001_failures
+  - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_close_c0004_r0001_no_candidate
+  created_local_date: 2026-07-03
+  status: active
+  decision: close_c0004_r0001_fold_local_state_archetype_entry_run_no_candidate
+  refines:
+  - dec_20260703_open_c0004_r0001_fold_local_state_archetype_entry_run
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0001_completed_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - fold_isolated_mt5_tick_evidence_completed_all_nine_required_folds
+  - r0001_had_eight_losing_folds_one_profitable_fold_and_negative_total_fold_isolated_tick_net_pnl
+  - r0001_met_target_activity_with_5_602763_entries_per_active_day_but_profitability_was_negative
+  - r0001_is_recorded_as_negative_memory_not_selected_candidate_economics_pass_runtime_onnx_promotion_or_live_claim
+  - next_work_is_decide_c0004_r0002_or_close_c0004_after_r0001
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_open_c0004_r0002_path_quality_archetype_variant
+  created_local_date: '2026-07-03'
+  status: active
+  decision: open_r0002_path_quality_archetype_variant_under_c0004
+  refines:
+  - dec_20260703_open_c0004_fold_local_state_archetype_discovery
+  - dec_20260703_open_c0004_r0001_fold_local_state_archetype_entry_run
+  - dec_20260703_close_c0004_r0001_no_candidate
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0004_r0001_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - r0001_met_target_activity_but_profitability_was_negative_so_simple_state_archetype_membership_is_negative_memory
+  - c0004_still_has_a_meaningful_non_adjacent_path_quality_and_adverse_path_state_archetype_variant_remaining
+  - r0002_changes_label_shape_feature_family_model_score_interpretation_and_entry_quality_surface
+  - r0002_is_not_a_top_archetype_count_min_count_daily_entry_stop_target_hold_session_or_retry_nudge_of_r0001
+  - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_close_c0004_r0002_no_candidate
+  created_local_date: '2026-07-03'
+  status: active
+  decision: close_c0004_r0002_path_quality_archetype_variant_no_candidate
+  refines:
+  - dec_20260703_open_c0004_r0002_path_quality_archetype_variant
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - r0002_completed_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - fold_isolated_mt5_tick_evidence_completed_all_nine_required_folds
+  - r0002_had_eight_losing_folds_one_profitable_fold_and_negative_total_fold_isolated_tick_net_pnl
+  - r0002_proxy_entries_per_active_day_was_below_the_5_to_10_target
+  - r0002_is_recorded_as_negative_memory_not_selected_candidate_economics_pass_runtime_onnx_promotion_or_live_claim
+  - next_work_is_decide_c0004_r0003_or_close_c0004_after_r0002
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
