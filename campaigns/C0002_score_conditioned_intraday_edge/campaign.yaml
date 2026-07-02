@@ -1,11 +1,11 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: open_pending_next_run_decision
+status: closed_no_candidate
 campaign_id: C0002
 campaign_slug: score_conditioned_intraday_edge
 campaign_type: campaign
 opened_at_utc: 2026-07-02 10:53:23+00:00
-closed_at_utc: null
+closed_at_utc: 2026-07-02T15:37:37Z
 hypothesis:
   summary: discover whether US100 M5 contains repeatable conditional edge when candidate
     trades are ranked or filtered by model or score surfaces instead of fixed deterministic
@@ -48,23 +48,99 @@ run_index:
   - runs/R0003
   - runs/R0004
   next_run_candidate:
-    run_id: R0005
-    direction: new_score_conditioned_variant_or_campaign_close_review
-    reason: R0004 closed no candidate because all 9 fold-isolated MT5 tick folds were
-      losing
-    status: candidate_pending_decision
+    run_id: null
+    direction: not_applicable
+    reason: c0002_closed_no_meaningful_new_variant_remaining_inside_score_conditioned_boundary
+    status: not_applicable_campaign_closed
 synthesis_readiness:
   check_required_at_closeout: true
-  result: not_checked
-  usable_ingredient_group_count: 0
+  result: candidate_later
+  checked_at_utc: 2026-07-02T15:37:37Z
+  closed_run_count: 4
+  observed_closed_campaign_count: 2
+  usable_ingredient_group_count: 4
+  minimums:
+    closed_campaign_count: 3
+    usable_ingredient_group_count: 8
+    required_surface_count: 3
+  open_synthesis_now: false
   readiness_notes:
-  - c0002_open_after_three_closed_no_candidate_runs
-  - synthesis_due_check_pending_until_campaign_close_review
+  - all_r0001_to_r0004_closed_no_candidate
+  - fold_isolated_tick_total_net_negative_for_all_four_runs
+  - r0001_r0002_and_r0004_lost_all_nine_fold_isolated_mt5_tick_folds
+  - r0003_had_three_profitable_folds_but_total_tick_net_negative_and_entry_frequency_below_target
+  - no_label_feature_model_or_trade_logic_selected
+  - sc_synthesis_not_opened_minimums_not_met
+  - c0002_closed_because_remaining_work_would_be_adjacent_tuning_or_new_major_campaign
+  ingredient_groups:
+  - group_id: c0002_ig001_linear_score_rank_negative_memory
+    source_runs:
+    - R0001
+    - R0002
+    group_type: negative_memory
+    summary: linear_and_rank_score_conditioning_failed_fold_isolated_mt5_tick
+  - group_id: c0002_ig002_dual_direction_cell_score_negative_memory
+    source_runs:
+    - R0003
+    group_type: negative_memory
+    summary: train_only_quantile_cell_scoring_found_sparse_positive_folds_but_not_positive_or_frequent_enough
+  - group_id: c0002_ig003_stump_rank_frequency_negative_memory
+    source_runs:
+    - R0004
+    group_type: negative_memory
+    summary: supervised_stump_rank_ensemble_improved_frequency_focus_but_all_folds_lost
+  - group_id: c0002_ig004_score_conditioned_execution_and_parity_lesson
+    source_runs:
+    - R0001
+    - R0002
+    - R0003
+    - R0004
+    group_type: parity_lesson
+    summary: schedule_replay_and_tick_divergence_lessons_recorded_but_do_not_create_candidate_economics
+  recommended_next_action: open_c0003_only_if_new_major_hypothesis_is_chosen
 closeout:
-  status: open
-  close_reason: null
-  evidence_paths: []
-  remaining_question: decide_r0005_or_close_c0002_after_r0004
+  status: closed_no_candidate
+  close_reason: no_meaningful_new_variant_remains_inside_score_conditioned_intraday_edge_boundary_after_r0001_to_r0004_all_closed_no_candidate
+  evidence_paths:
+  - runs/R0001/run_manifest.json
+  - runs/R0001/gate_report.json
+  - runs/R0001/kpi/mt5_tick_by_fold.json
+  - runs/R0002/run_manifest.json
+  - runs/R0002/gate_report.json
+  - runs/R0002/kpi/mt5_tick_by_fold.json
+  - runs/R0003/run_manifest.json
+  - runs/R0003/gate_report.json
+  - runs/R0003/kpi/mt5_tick_by_fold.json
+  - runs/R0004/run_manifest.json
+  - runs/R0004/gate_report.json
+  - runs/R0004/kpi/mt5_tick_by_fold.json
+  - selected.yaml
+  remaining_question: choose_c0003_new_major_hypothesis_or_wait_until_more_campaign_evidence_supports_synthesis
+  decision_basis:
+    closed_run_count: 4
+    closed_no_candidate_run_count: 4
+    fold_isolated_tick_total_net_negative_for_all_runs: true
+    positive_run_fold_cells: 3
+    total_run_fold_cells: 36
+    repeated_candidate_surface_found: false
+    r0001_losing_fold_count: 9
+    r0002_losing_fold_count: 9
+    r0003_losing_fold_count: 6
+    r0004_losing_fold_count: 9
+    remaining_work_classification: adjacent_tuning_or_new_major_campaign_not_c0002_variant
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
 claim_boundary:
   claim_authority: false
   selected: false

@@ -1,12 +1,12 @@
 schema: axiom_rift_reentry_v2
-updated_local_date: '2026-07-02'
+updated_local_date: '2026-07-03'
 read_budget:
   boot_files:
   - AGENTS.md
   - registries/reentry.yaml
   - registries/claim_state.yaml
   conditional_files:
-    active_campaign: campaigns/C0002_score_conditioned_intraday_edge/campaign.yaml
+    active_campaign: null
     active_contracts: contracts/
     active_config: configs/
   skip_by_default:
@@ -20,7 +20,7 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: campaigns/C0002_score_conditioned_intraday_edge
+  active_campaign: null
 active_truth:
   contracts_dir: contracts
   config_dir: configs
@@ -247,8 +247,11 @@ next_work:
   - produce_c0002_r0004_fold_isolated_execution_divergence
   - review_c0002_r0004_tick_execution_kpi_and_closeout
   - close_c0002_r0004_no_candidate
-  tasks:
   - decide_r0005_or_close_c0002_after_r0004
+  - review_c0002_synthesis_readiness_after_r0004
+  - close_c0002_no_candidate_after_r0004
+  tasks:
+  - choose_c0003_new_major_hypothesis_or_wait_until_more_campaign_evidence_supports_synthesis
   not_yet:
   - label_freeze
   - feature_set_freeze
