@@ -1,0 +1,38 @@
+{
+  "artifact_records": [
+    {
+      "artifact_id": "A-C0004-R0001-GATE",
+      "artifact_role": "gate_report",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "gate",
+      "mutable": true,
+      "produced_by": "pending_r0001_evidence_loop",
+      "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/gate_report.json",
+      "sha256": null,
+      "source_inputs": [
+        "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/run_manifest.json"
+      ]
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "onnx_ready": false,
+    "runtime_authority": false,
+    "selected": false
+  },
+  "created_at_utc": "2026-07-02T18:49:57Z",
+  "deferred_with_reason": [
+    {
+      "field": "proxy_artifact_hashes",
+      "next_action": "produce_c0004_r0001_proxy_evidence",
+      "reason": "R0001 proxy artifacts are produced after the run shell is opened"
+    }
+  ],
+  "lineage_id": "L-C0004-R0001",
+  "run_id": "R0001",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "template": false,
+  "work_unit_id": "C0004"
+}

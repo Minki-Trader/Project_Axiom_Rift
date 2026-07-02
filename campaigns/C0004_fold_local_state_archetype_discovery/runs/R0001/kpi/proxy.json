@@ -1,0 +1,68 @@
+{
+  "campaign_id": "C0004",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false,
+    "selected": false
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "direction_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "score_surface_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "stability_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "state_archetype_profile": {
+      "applies": true,
+      "fields": {
+        "profile_status": "planned"
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": false,
+      "fields": {}
+    }
+  },
+  "dataset_identity": "data/processed/datasets/us100_m5_base_frame.csv",
+  "deferred_with_reason": [
+    {
+      "field": "required_kpis",
+      "reason": "proxy evidence has not been produced yet",
+      "revisit_when": "produce_c0004_r0001_proxy_evidence"
+    }
+  ],
+  "fold_ids": [],
+  "proxy_artifact_hashes": [],
+  "proxy_artifact_paths": [],
+  "proxy_code_version_or_commit": null,
+  "proxy_config_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/run_manifest.json",
+  "proxy_engine": "axiom_rift.proxies.c0004_r0001_fold_local_state_archetype",
+  "proxy_id": "PX-C0004-R0001",
+  "required_kpis": {
+    "proxy_expectancy_per_entry": null,
+    "proxy_max_drawdown_percent": null,
+    "proxy_net_pnl": null,
+    "proxy_profit_factor": null,
+    "proxy_signal_count": null,
+    "proxy_trade_count": null,
+    "proxy_win_rate": null
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "schema": "axiom_rift_proxy_kpi_v1",
+  "split_policy": "rolling_window",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0004"
+}

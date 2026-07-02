@@ -34,13 +34,13 @@ required_surfaces:
 run_index:
   runs_root: runs/
   run_id_format: R0001
-  active_run: null
+  active_run: runs/R0001
   closed_runs: []
   next_run_candidate:
-    run_id: R0001
-    direction: design_fold_local_state_archetype_entry_run
-    reason: C0004 opens a new major hypothesis after SC0001 showed that replaying accumulated negative-memory constraints without a new edge surface was not enough.
-    status: pending_design
+    run_id: null
+    direction: active_r0001_proxy_evidence
+    reason: R0001 is open; next work is producing proxy evidence before mandatory MT5 paired validation.
+    status: active_run_open
 
 synthesis_readiness:
   check_required_at_closeout: true

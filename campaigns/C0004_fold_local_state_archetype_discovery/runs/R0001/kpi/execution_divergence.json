@@ -1,0 +1,63 @@
+{
+  "campaign_id": "C0004",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false
+  },
+  "conditional_profiles": {
+    "entry_divergence_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "exit_divergence_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "run_closeout_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "score_model_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "spread_slippage_stress_profile": {
+      "applies": false,
+      "fields": {}
+    }
+  },
+  "deferred_with_reason": [
+    {
+      "field": "execution_divergence",
+      "reason": "execution divergence is recorded after MT5 closed-bar logic parity and tick execution evidence exist",
+      "revisit_when": "record_c0004_r0001_execution_divergence"
+    }
+  ],
+  "divergence_id": "ED-C0004-R0001",
+  "logic_mt5_kpi_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+  "missing_required_kpi_fields": [],
+  "required_kpis": {
+    "economics_shift_status": "not_checked",
+    "entry_key_match_rate": null,
+    "execution_divergence_status": "not_checked",
+    "exit_reason_match_rate": null,
+    "exit_time_direction_match_rate": null,
+    "logic_max_drawdown_percent": null,
+    "logic_net_pnl": null,
+    "logic_trade_count": null,
+    "tick_max_drawdown_percent": null,
+    "tick_minus_logic_max_drawdown_percent": null,
+    "tick_minus_logic_net_pnl": null,
+    "tick_minus_logic_trade_count": null,
+    "tick_net_pnl": null,
+    "tick_trade_count": null
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "schema": "axiom_rift_execution_divergence_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "tick_mt5_kpi_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_tick.json",
+  "work_unit_id": "C0004"
+}

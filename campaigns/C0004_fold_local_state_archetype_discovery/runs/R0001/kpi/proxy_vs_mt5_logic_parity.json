@@ -1,0 +1,62 @@
+{
+  "campaign_id": "C0004",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false
+  },
+  "compared_period": {
+    "end": null,
+    "start": null
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": false,
+      "fields": {}
+    },
+    "trade_match_detail_profile": {
+      "applies": false,
+      "fields": {}
+    }
+  },
+  "deferred_with_reason": [
+    {
+      "field": "proxy_vs_mt5_logic_parity",
+      "reason": "logic parity comparison runs after proxy and MT5 closed-bar evidence exist",
+      "revisit_when": "record_c0004_r0001_proxy_vs_mt5_logic_parity_evidence"
+    }
+  ],
+  "mechanical_checks": {
+    "entry_count_match": "not_checked",
+    "entry_exit_order_match": "not_checked",
+    "entry_time_direction_match": "not_checked",
+    "exit_count_match": "not_checked",
+    "exit_time_reason_order_match": "not_checked",
+    "position_lifecycle_match": "not_checked"
+  },
+  "mt5_logic_parity_kpi_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+  "mt5_probe_id": "MT5-C0004-R0001",
+  "parity_id": "P-C0004-R0001",
+  "proxy_id": "PX-C0004-R0001",
+  "proxy_kpi_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/proxy.json",
+  "required_kpis": {
+    "entry_count_delta": null,
+    "entry_key_match_rate": null,
+    "exit_count_delta": null,
+    "exit_reason_match_rate": null,
+    "exit_time_direction_match_rate": null,
+    "intent_parity_status": "not_checked",
+    "mechanical_parity_status": "not_checked",
+    "mismatch_count": null,
+    "mismatch_summary": null,
+    "next_action": "produce_c0004_r0001_mt5_tick_execution_evidence",
+    "repair_required": false,
+    "trade_count_delta": null
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "schema": "axiom_rift_proxy_vs_mt5_logic_parity_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0004"
+}

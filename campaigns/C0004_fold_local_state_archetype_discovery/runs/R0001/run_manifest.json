@@ -1,0 +1,111 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0004_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "fixed_surfaces": {
+    "base_frame": "US100 closed M5 bars",
+    "commission_per_trade": 0,
+    "early_sizing": "fixed_lot",
+    "market": "FPMarkets US100 M5",
+    "proxy_is_screening_gate_for_mt5": false,
+    "split_policy": "rolling_window",
+    "synthetic_commission_allowed": false
+  },
+  "gate_status": "proxy_planned",
+  "hypothesis_variant": {
+    "summary": "test whether train-fold-local market-state archetypes can produce abstention-first US100 M5 entry events with enough activity for the 5 to 10 entries-per-active-day target before MT5 schedule replay",
+    "variant_boundary": "first C0004 true variant; changes model, feature, label, and trade-logic surfaces toward fold-local state archetype membership and abstention-first entry generation, not a threshold, window, SLTP, hold, or retry nudge from prior C0001 through SC0001 failures"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_fold_local_state_archetype_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "notes": [
+      "closed-bar MT5 mode is required for proxy-vs-EA logic parity",
+      "tick-mode MT5 is required for execution KPI management",
+      "fold-isolated MT5 tick and execution divergence are required before closeout",
+      "weak proxy evidence cannot skip MT5 validation"
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "parent_type": "campaign",
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy must derive archetype, edge, and abstention rules only inside each rolling train window",
+      "proxy must report entry frequency, direction profile, fold activity, and state-archetype diagnostics without creating selected claims",
+      "proxy result cannot decide whether MT5 is attempted"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [
+      "mechanical parity must compare scheduled entries, directions, exits, exit reasons, and position lifecycle behavior",
+      "tick-vs-closed-bar differences are execution divergence, not automatic logic failure",
+      "repair mechanical parity before any hypothesis judgment when mismatch is found"
+    ],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v1",
+  "source_ingredient_ids": [],
+  "status": "proxy_planned",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "train-fold-local closed-bar state features for volatility regime, trend slope, compression, expansion, gap state, session phase, recent path stability, and range position; no feature set is selected"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "train-fold-local forward state-quality labels for directional excursion, adverse excursion, path stability, time-to-opportunity, and abstention quality; no label is selected"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "unrestricted fold-local archetype membership and edge-estimation surface using rules, clustering, ranking, classifiers, or ensembles; no model family, objective, threshold, or score surface is selected"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "fixed-lot discovery schedule that only enters when fold-local archetype evidence clears abstention-first activity controls, then uses simple initial exit semantics for MT5 schedule replay"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0004"
+}
