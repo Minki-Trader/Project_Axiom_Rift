@@ -6,7 +6,7 @@ read_budget:
   - registries/reentry.yaml
   - registries/claim_state.yaml
   conditional_files:
-    active_campaign: null
+    active_campaign: campaigns/C0003_path_conditioned_exit_risk_shape/campaign.yaml
     active_contracts: contracts/
     active_config: configs/
   skip_by_default:
@@ -20,7 +20,7 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: null
+  active_campaign: campaigns/C0003_path_conditioned_exit_risk_shape
 active_truth:
   contracts_dir: contracts
   config_dir: configs
@@ -250,8 +250,10 @@ next_work:
   - decide_r0005_or_close_c0002_after_r0004
   - review_c0002_synthesis_readiness_after_r0004
   - close_c0002_no_candidate_after_r0004
-  tasks:
   - choose_c0003_new_major_hypothesis_or_wait_until_more_campaign_evidence_supports_synthesis
+  - open_c0003_path_conditioned_exit_risk_shape
+  tasks:
+  - open_c0003_r0001_path_conditioned_exit_risk_shape_variant
   not_yet:
   - label_freeze
   - feature_set_freeze

@@ -18,12 +18,13 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0003
-    active_work_unit: campaigns/C0002_score_conditioned_intraday_edge
+    next_id: C0004
+    active_work_unit: campaigns/C0003_path_conditioned_exit_risk_shape
     open_work_units:
-      - campaigns/C0002_score_conditioned_intraday_edge
+      - campaigns/C0003_path_conditioned_exit_risk_shape
     closed_work_units:
       - campaigns/C0001_regime_response_discovery
+      - campaigns/C0002_score_conditioned_intraday_edge
     numbering_policy:
       width: 4
       example: C0001

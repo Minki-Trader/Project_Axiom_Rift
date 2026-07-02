@@ -1,0 +1,80 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: open
+campaign_id: C0003
+campaign_slug: path_conditioned_exit_risk_shape
+campaign_type: campaign
+opened_at_utc: 2026-07-02T15:41:20Z
+closed_at_utc: null
+hypothesis:
+  summary: discover whether US100 M5 can produce repeatable edge when trade exits,
+    holding rules, and risk shape are conditioned on forward path behavior instead
+    of adding another entry-selection retry
+  boundary: use the existing closed M5 US100 base frame and rolling-window policy
+    to explore path-conditioned exit, hold, stop, target, and risk-shape logic after
+    C0001 regime-response entries and C0002 score-conditioned entry selection both
+    closed no candidate; prior run failures may inform negative memory but do not
+    freeze any entry generator, label, feature set, model, or final sizing rule
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+required_surfaces:
+  model:
+    status: variable
+    summary: unrestricted rule, score, model, ensemble, or direction-specific surfaces
+      for exit timing, hold continuation, adverse-path avoidance, and risk-shape choice;
+      no model family or objective is selected
+  feature:
+    status: variable
+    summary: unrestricted closed-bar features for path context, volatility, session,
+      range structure, excursion state, momentum decay, and reproducible aligned
+      external M5 inputs when available; no feature set is selected
+  trade_logic:
+    status: variable
+    summary: variable entry generator, exit path, stop, target, trail, time-stop,
+      and fixed-lot discovery risk shape; equity-percent sizing remains deferred
+      until candidate quality exists
+  label:
+    status: variable
+    summary: variable forward path-quality labels for favorable excursion, adverse
+      excursion, time-to-target, time-to-stop, drawdown path, and exit survivability;
+      no label is selected
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs: []
+  next_run_candidate:
+    run_id: R0001
+    direction: first_path_conditioned_exit_risk_shape_variant
+    reason: C0001 and C0002 both closed no candidate, and the next major question
+      changes from finding better entries to testing whether exit and risk-shape
+      logic can change MT5 tick economics
+    status: candidate_pending_open
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_checked
+  usable_ingredient_group_count: 0
+  readiness_notes:
+  - c0003_open_after_c0001_and_c0002_closed_no_candidate
+  - sc_synthesis_not_opened_because_closed_campaign_minimum_not_met
+closeout:
+  status: open
+  close_reason: null
+  evidence_paths: []
+  remaining_question: open_r0001_path_conditioned_exit_risk_shape_variant
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

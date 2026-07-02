@@ -291,3 +291,24 @@ decisions:
       feature_set_selected: false
       model_selected: false
       economics_pass: false
+  - decision_id: dec_20260703_open_c0003_path_conditioned_exit_risk_shape
+    created_local_date: 2026-07-03
+    status: active
+    decision: open_c0003_path_conditioned_exit_risk_shape_as_next_major_campaign
+    refines:
+      - dec_20260702_close_c0001_no_candidate
+      - dec_20260703_close_c0002_no_candidate
+      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+    rationale:
+      - c0001_and_c0002_closed_no_candidate_and_sc_synthesis_minimums_are_not_met
+      - another_score_or_entry_selection_retry_would_be_adjacent_tuning_inside_c0002
+      - c0003_changes_the_major_axis_from_entry_selection_to_path_conditioned_exit_hold_stop_target_and_risk_shape_logic
+      - early_discovery_remains_fixed_lot_and_equity_percent_sizing_remains_deferred
+      - no_label_feature_model_trade_logic_selected_claim_is_created
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+      economics_pass: false
