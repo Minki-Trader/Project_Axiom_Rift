@@ -99,17 +99,19 @@ research_mode:
 active_campaign: campaigns/C0004_fold_local_state_archetype_discovery
 active_run: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001
 latest_operation:
-  id: produce_c0004_r0001_mt5_tick_execution_evidence
+  id: produce_c0004_r0001_fold_isolated_mt5_tick_kpi
   status: completed
-  recorded_at_source: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_tick.json
-  paired_divergence_source: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/execution_divergence.json
-  evidence_status: logic_tick_and_divergence_recorded
-  mt5_trade_count: 3241
-  mt5_net_pnl: -40.95
-  mt5_profit_factor: 0.881066
-  execution_divergence_status: recorded_with_divergence
-  economics_shift_status: tick_worse_than_logic
-  next_required_action: produce_c0004_r0001_fold_isolated_mt5_tick_kpi
+  recorded_at_source: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+  paired_divergence_source: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+  evidence_status: fold_isolated_evidence_recorded_pending_closeout_review
+  fold_count: 9
+  completed_fold_count: 9
+  total_tick_trade_count: 3241
+  total_tick_net_pnl: -40.95
+  mt5_tick_by_fold_status: completed
+  execution_divergence_by_fold_status: completed
+  total_tick_minus_logic_net_pnl: -20.2
+  next_required_action: review_c0004_r0001_tick_execution_kpi_and_closeout
   claim_boundary:
     claim_authority: false
     selected: false

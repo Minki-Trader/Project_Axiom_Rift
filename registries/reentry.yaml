@@ -312,8 +312,10 @@ next_work:
   - record_c0004_r0001_proxy_vs_mt5_logic_parity_evidence
   - produce_c0004_r0001_mt5_tick_execution_evidence
   - record_c0004_r0001_execution_divergence
-  tasks:
   - produce_c0004_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0004_r0001_fold_isolated_execution_divergence
+  tasks:
+  - review_c0004_r0001_tick_execution_kpi_and_closeout
   not_yet:
   - label_freeze
   - feature_set_freeze

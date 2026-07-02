@@ -123,6 +123,7 @@ class ImportTest(unittest.TestCase):
         self.assertIn("compile-c0004-r0001-ea", choices)
         self.assertIn("run-c0004-r0001-mt5-logic", choices)
         self.assertIn("run-c0004-r0001-mt5-tick", choices)
+        self.assertIn("run-c0004-r0001-mt5-tick-by-fold", choices)
         self.assertIn("parse-c0004-r0001-mt5", choices)
         self.assertIn("record-c0004-r0001-parity", choices)
         self.assertIn("record-c0004-r0001-execution-divergence", choices)

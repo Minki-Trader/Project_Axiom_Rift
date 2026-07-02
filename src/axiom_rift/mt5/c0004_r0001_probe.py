@@ -7,8 +7,10 @@ import json
 import os
 import shutil
 import subprocess
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -52,7 +54,15 @@ from axiom_rift.mt5.c0002_r0004_probe import (
     to_float,
     wait_for_status,
 )
-from axiom_rift.mt5.r0007_probe import CompileResult, TesterResult, event_bar_time, parse_time
+from axiom_rift.mt5.r0007_probe import (
+    CompileResult,
+    TesterResult,
+    event_bar_time,
+    missing_required_by_fold_fields,
+    parse_time,
+    tester_dates_for_window,
+    time_text,
+)
 from axiom_rift.mt5.terminal_hygiene import cleanup_headless_terminal, prepare_headless_terminal
 from axiom_rift.paths import PROJECT_ROOT
 from axiom_rift.proxies.c0004_r0001_fold_local_state_archetype import (
@@ -77,8 +87,10 @@ KPI_DIR = RUN_DIR / "kpi"
 RUN_ARTIFACT_DIR = RUN_DIR / "artifacts"
 MT5_LOGIC_KPI = KPI_DIR / "mt5_logic_parity.json"
 MT5_TICK_KPI = KPI_DIR / "mt5_tick.json"
+MT5_TICK_BY_FOLD_KPI = KPI_DIR / "mt5_tick_by_fold.json"
 LOGIC_PARITY_KPI = KPI_DIR / "proxy_vs_mt5_logic_parity.json"
 EXECUTION_DIVERGENCE_KPI = KPI_DIR / "execution_divergence.json"
+EXECUTION_DIVERGENCE_BY_FOLD_KPI = KPI_DIR / "execution_divergence_by_fold.json"
 RUN_MANIFEST = RUN_DIR / "run_manifest.json"
 GATE_REPORT = RUN_DIR / "gate_report.json"
 ARTIFACT_LINEAGE = RUN_DIR / "artifact_lineage.json"
@@ -1147,6 +1159,138 @@ def update_claim_state_after_tick_and_divergence(divergence_payload: dict[str, o
     CLAIM_STATE.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="ascii")
 
 
+def update_gate_after_fold_isolated_evidence(
+    tick_by_fold_payload: dict[str, object],
+    divergence_by_fold_payload: dict[str, object],
+) -> None:
+    run_data = json.loads(RUN_MANIFEST.read_text(encoding="ascii"))
+    run_evidence = run_data.setdefault("evidence_paths", {})
+    run_evidence["mt5_tick_by_fold_kpi"] = "kpi/mt5_tick_by_fold.json"
+    run_evidence["execution_divergence_by_fold_kpi"] = "kpi/execution_divergence_by_fold.json"
+    mt5_plan = run_data.setdefault("mt5_probe_plan", {})
+    mt5_plan["fold_isolated_tick_kpi_path"] = "kpi/mt5_tick_by_fold.json"
+    mt5_plan["fold_isolated_execution_divergence_kpi_path"] = "kpi/execution_divergence_by_fold.json"
+    mt5_plan["closeout_judgment_surface"] = "rolling_window_fold_isolated_mt5_tick"
+    run_data["status"] = "fold_isolated_evidence_recorded_pending_closeout_review"
+    run_data["gate_status"] = "fold_isolated_evidence_recorded_pending_closeout_review"
+    RUN_MANIFEST.write_text(json.dumps(run_data, indent=2, sort_keys=True) + "\n", encoding="ascii")
+
+    gate_data = json.loads(GATE_REPORT.read_text(encoding="ascii"))
+    checks = gate_data["evidence_gate"].setdefault("checks", {})
+    checks["mt5_tick_by_fold_kpi_path_recorded"] = True
+    checks["execution_divergence_by_fold_kpi_path_recorded"] = True
+    gate_data["evidence_gate"]["status"] = "fold_isolated_evidence_recorded"
+    rolling_gate = gate_data.setdefault("rolling_window_closeout_gate", {})
+    rolling_gate["status"] = "fold_isolated_evidence_recorded_pending_closeout_review"
+    rolling_gate["aggregate_full_period_mt5_kpi_role"] = "diagnostic_only"
+    rolling_gate["fold_isolated_mt5_tick_required"] = True
+    rolling_gate["fold_isolated_mt5_tick_path_recorded"] = True
+    rolling_gate["fold_isolated_execution_divergence_path_recorded"] = True
+    rolling_gate["fold_isolated_exception"] = {
+        "applies": False,
+        "reason": "",
+        "blocking_condition": "",
+        "revisit_when": "",
+    }
+    gate_data["fold_isolated_execution_gate"] = {
+        "mt5_tick_by_fold_status": tick_by_fold_payload["required_kpis"].get("mt5_tick_by_fold_status"),  # type: ignore[index]
+        "execution_divergence_by_fold_status": divergence_by_fold_payload["required_kpis"].get("execution_divergence_by_fold_status"),  # type: ignore[index]
+        "missing_required_kpi_fields": {
+            "mt5_tick_by_fold": tick_by_fold_payload.get("missing_required_kpi_fields", []),
+            "execution_divergence_by_fold": divergence_by_fold_payload.get("missing_required_kpi_fields", []),
+        },
+    }
+    evidence_paths = gate_data.setdefault("evidence_paths", [])
+    for path in (
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json",
+        "artifact_lineage.json",
+        "artifacts/c0004_r0001_schedule.csv",
+    ):
+        if path not in evidence_paths:
+            evidence_paths.append(path)
+    gate_data["decision"] = "defer_with_reason"
+    gate_data["next_action"] = "review_c0004_r0001_tick_execution_kpi_and_closeout"
+    gate_data["deferred_with_reason"] = [
+        {
+            "field": "run_closeout",
+            "reason": "fold-isolated MT5 tick KPI and fold-isolated execution divergence are recorded; closeout judgment was not performed in this step",
+            "blocking_condition": "review_c0004_r0001_tick_execution_kpi_and_closeout",
+            "revisit_when": "during C0004 R0001 closeout review",
+        }
+    ]
+    GATE_REPORT.write_text(json.dumps(gate_data, indent=2, sort_keys=True) + "\n", encoding="ascii")
+
+
+def update_reentry_after_fold_isolated() -> None:
+    path = PROJECT_ROOT / "registries" / "reentry.yaml"
+    data = yaml.safe_load(path.read_text(encoding="ascii"))
+    next_work = data.setdefault("next_work", {})
+    completed = list(next_work.get("completed") or [])
+    for item in (
+        "produce_c0004_r0001_fold_isolated_mt5_tick_kpi",
+        "produce_c0004_r0001_fold_isolated_execution_divergence",
+    ):
+        if item not in completed:
+            completed.append(item)
+    next_action = "review_c0004_r0001_tick_execution_kpi_and_closeout"
+    completed = [item for item in completed if item != next_action]
+    next_work["completed"] = completed
+    next_work["tasks"] = [next_action]
+    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="ascii")
+
+
+def update_campaign_after_fold_isolated() -> None:
+    next_action = "review_c0004_r0001_tick_execution_kpi_and_closeout"
+    data = yaml.safe_load(CAMPAIGN.read_text(encoding="ascii"))
+    closeout = data.setdefault("closeout", {})
+    closeout["remaining_question"] = next_action
+    run_index = data.setdefault("run_index", {})
+    next_candidate = run_index.setdefault("next_run_candidate", {})
+    next_candidate["direction"] = "active_r0001_closeout_review"
+    next_candidate["reason"] = "R0001 fold-isolated MT5 tick KPI and fold-isolated execution divergence are recorded; next work is closeout review."
+    next_candidate["status"] = "active_run_open"
+    CAMPAIGN.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="ascii")
+
+
+def update_claim_state_after_fold_isolated(
+    tick_by_fold_payload: dict[str, object],
+    divergence_by_fold_payload: dict[str, object],
+) -> None:
+    data = yaml.safe_load(CLAIM_STATE.read_text(encoding="ascii"))
+    tick_required = tick_by_fold_payload["required_kpis"]  # type: ignore[index]
+    divergence_required = divergence_by_fold_payload["required_kpis"]  # type: ignore[index]
+    data["active_campaign"] = "campaigns/C0004_fold_local_state_archetype_discovery"
+    data["active_run"] = "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001"
+    data["latest_operation"] = {
+        "id": "produce_c0004_r0001_fold_isolated_mt5_tick_kpi",
+        "status": "completed",
+        "recorded_at_source": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "paired_divergence_source": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+        "evidence_status": "fold_isolated_evidence_recorded_pending_closeout_review",
+        "fold_count": tick_required.get("fold_count"),
+        "completed_fold_count": tick_required.get("completed_fold_count"),
+        "total_tick_trade_count": tick_required.get("total_tick_trade_count"),
+        "total_tick_net_pnl": tick_required.get("total_tick_net_pnl"),
+        "mt5_tick_by_fold_status": tick_required.get("mt5_tick_by_fold_status"),
+        "execution_divergence_by_fold_status": divergence_required.get("execution_divergence_by_fold_status"),
+        "total_tick_minus_logic_net_pnl": divergence_required.get("total_tick_minus_logic_net_pnl"),
+        "next_required_action": "review_c0004_r0001_tick_execution_kpi_and_closeout",
+        "claim_boundary": {
+            "claim_authority": False,
+            "selected": False,
+            "label_selected": False,
+            "feature_set_selected": False,
+            "model_selected": False,
+            "runtime_authority": False,
+            "onnx_ready": False,
+            "promotion_ready": False,
+            "live_ready": False,
+        },
+    }
+    CLAIM_STATE.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="ascii")
+
+
 def upsert_artifact_lineage(
     artifact_id: str,
     artifact_role: str,
@@ -1175,7 +1319,23 @@ def upsert_artifact_lineage(
             break
     else:
         records.append(next_record)
-    if linked_kpi_family == "execution_divergence":
+    if linked_kpi_family == "execution_divergence_by_fold":
+        data["deferred_with_reason"] = [
+            {
+                "field": "closeout_review",
+                "reason": "fold-isolated MT5 tick and execution divergence artifacts are recorded; closeout review is the next mandatory sequence step",
+                "next_action": "review_c0004_r0001_tick_execution_kpi_and_closeout",
+            }
+        ]
+    elif linked_kpi_family == "mt5_tick_by_fold":
+        data["deferred_with_reason"] = [
+            {
+                "field": "fold_isolated_execution_divergence",
+                "reason": "fold-isolated MT5 tick KPI is recorded; fold-isolated execution divergence remains required",
+                "next_action": "produce_c0004_r0001_fold_isolated_execution_divergence",
+            }
+        ]
+    elif linked_kpi_family == "execution_divergence":
         data["deferred_with_reason"] = [
             {
                 "field": "fold_isolated_artifact_hashes",
@@ -1218,4 +1378,374 @@ def run_c0004_r0001_mt5_tick_workflow(timeout_seconds: int = 1800) -> dict[str, 
         "status_csv": result.status_csv.as_posix(),
         "events_csv": result.events_csv.as_posix(),
         "deals_csv": result.deals_csv.as_posix(),
+    }
+
+
+def run_c0004_r0001_mt5_tick_by_fold_workflow(timeout_seconds: int = 1800) -> dict[str, object]:
+    compile_c0004_r0001_ea()
+    write_schedule_files()
+    records: list[dict[str, Any]] = []
+    for window in load_test_windows():
+        from_date, to_date = tester_dates_for_window(window)
+        logic_result = run_c0004_r0001_tester(
+            mode=LOGIC_PARITY_MODE,
+            timeout_seconds=timeout_seconds,
+            from_date=from_date,
+            to_date=to_date,
+            output_scope=window.fold_id,
+            compile_before=False,
+        )
+        logic_payload = parse_c0004_r0001_mt5(logic_result, write_kpi=False)
+        tick_result = run_c0004_r0001_tester(
+            mode=TICK_EXECUTION_MODE,
+            timeout_seconds=timeout_seconds,
+            from_date=from_date,
+            to_date=to_date,
+            output_scope=window.fold_id,
+            compile_before=False,
+        )
+        tick_payload = parse_c0004_r0001_mt5(tick_result, write_kpi=False)
+        records.append(
+            {
+                "window": window,
+                "from_date": from_date,
+                "to_date": to_date,
+                "logic_result": logic_result,
+                "logic_payload": logic_payload,
+                "tick_result": tick_result,
+                "tick_payload": tick_payload,
+            }
+        )
+
+    tick_by_fold_payload = build_mt5_tick_by_fold_payload(records)
+    MT5_TICK_BY_FOLD_KPI.write_text(json.dumps(tick_by_fold_payload, indent=2, sort_keys=True) + "\n", encoding="ascii")
+    divergence_by_fold_payload = build_execution_divergence_by_fold_payload(records)
+    EXECUTION_DIVERGENCE_BY_FOLD_KPI.write_text(
+        json.dumps(divergence_by_fold_payload, indent=2, sort_keys=True) + "\n",
+        encoding="ascii",
+    )
+    upsert_artifact_lineage(
+        "A-C0004-R0001-MT5-TICK-BY-FOLD-KPI",
+        "mt5_tick_by_fold_kpi",
+        "mt5_tick_by_fold",
+        rel(MT5_TICK_BY_FOLD_KPI),
+        sha256_file(MT5_TICK_BY_FOLD_KPI),
+        [
+            "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/artifacts/c0004_r0001_schedule.csv",
+            "registries/rolling_windows.yaml",
+            "configs/market.yaml",
+        ],
+    )
+    upsert_artifact_lineage(
+        "A-C0004-R0001-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+        "diagnostic_output",
+        "execution_divergence_by_fold",
+        rel(EXECUTION_DIVERGENCE_BY_FOLD_KPI),
+        sha256_file(EXECUTION_DIVERGENCE_BY_FOLD_KPI),
+        [
+            "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+            "registries/rolling_windows.yaml",
+        ],
+    )
+    update_gate_after_fold_isolated_evidence(tick_by_fold_payload, divergence_by_fold_payload)
+    update_reentry_after_fold_isolated()
+    update_campaign_after_fold_isolated()
+    update_claim_state_after_fold_isolated(tick_by_fold_payload, divergence_by_fold_payload)
+    return {
+        "mt5_tick_by_fold": tick_by_fold_payload["required_kpis"],
+        "execution_divergence_by_fold": divergence_by_fold_payload["required_kpis"],
+        "fold_count": len(records),
+    }
+
+
+def build_mt5_tick_by_fold_payload(records: list[dict[str, Any]]) -> dict[str, object]:
+    fold_rows: list[dict[str, object]] = []
+    nets: list[tuple[str, float]] = []
+    drawdowns: list[tuple[str, float]] = []
+    trade_count_total = 0
+    missing_by_fold: dict[str, list[str]] = {}
+    completed_count = 0
+    for record in records:
+        window = record["window"]
+        tick_payload = record["tick_payload"]
+        tick_result = record["tick_result"]
+        required = dict(tick_payload.get("required_kpis", {}))
+        missing = list(tick_payload.get("missing_required_kpi_fields", []))
+        if missing:
+            missing_by_fold[window.fold_id] = missing
+        if tick_payload.get("mt5_probe_status") == "completed":
+            completed_count += 1
+        trade_count = kpi_int(required, "mt5_trade_count") or 0
+        net = kpi_float(required, "mt5_net_pnl")
+        drawdown = kpi_float(required, "mt5_max_drawdown_percent")
+        trade_count_total += trade_count
+        if net is not None:
+            nets.append((window.fold_id, net))
+        if drawdown is not None:
+            drawdowns.append((window.fold_id, drawdown))
+        fold_rows.append(
+            {
+                "fold_id": window.fold_id,
+                "period": {"start": time_text(window.start), "end": time_text(window.end)},
+                "tester": {
+                    "from_date": record["from_date"],
+                    "to_date": record["to_date"],
+                    "status_csv": rel(tick_result.status_csv),
+                    "events_csv": rel(tick_result.events_csv),
+                    "deals_csv": rel(tick_result.deals_csv),
+                },
+                "required_kpis": required,
+                "missing_required_kpi_fields": missing,
+            }
+        )
+    worst_net = min(nets, key=lambda item: item[1]) if nets else (None, None)
+    worst_drawdown = max(drawdowns, key=lambda item: item[1]) if drawdowns else (None, None)
+    required_kpis = {
+        "fold_count": len(records),
+        "completed_fold_count": completed_count,
+        "missing_required_fold_count": len(missing_by_fold),
+        "total_tick_trade_count": trade_count_total,
+        "total_tick_net_pnl": rounded(sum(value for _, value in nets)),
+        "losing_fold_count": sum(1 for _, value in nets if value < 0),
+        "profitable_fold_count": sum(1 for _, value in nets if value > 0),
+        "worst_fold_id": worst_net[0],
+        "worst_fold_net_pnl": worst_net[1],
+        "worst_drawdown_fold_id": worst_drawdown[0],
+        "worst_fold_max_drawdown_percent": worst_drawdown[1],
+        "all_folds_completed": completed_count == len(records),
+        "mt5_tick_by_fold_status": "completed" if completed_count == len(records) and not missing_by_fold else "blocked_by_missing_required_kpi",
+    }
+    missing_required = missing_required_by_fold_fields(required_kpis)
+    return {
+        "schema": "axiom_rift_mt5_tick_by_fold_kpi_v1",
+        "template": False,
+        "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+        "created_at_utc": utc_now(),
+        "work_unit_id": CAMPAIGN_ID,
+        "campaign_id": CAMPAIGN_ID,
+        "synthesis_id_when_applicable": None,
+        "run_id": RUN_ID,
+        "mt5_probe_id": "MT5-C0004-R0001-BY-FOLD",
+        "split_policy": "rolling_window_test_oos_fold_isolated",
+        "split_registry": "registries/rolling_windows.yaml",
+        "required_kpis": required_kpis,
+        "conditional_profiles": {
+            "fold_profile": {"applies": True, "fields": {"folds": fold_rows, "missing_by_fold": missing_by_fold}},
+            "state_archetype_schedule_profile": {
+                "applies": True,
+                "fields": {
+                    "state_surface_source": "rolling_train_is_proxy_schedule",
+                    "schedule_artifact_path": rel(SCHEDULE_ARTIFACT),
+                    "model_selected": False,
+                    "feature_set_selected": False,
+                    "label_selected": False,
+                    "runtime_portability_claim": False,
+                },
+            },
+            "spread_slippage_stress_profile": {
+                "applies": False,
+                "fields": {},
+                "deferred_with_reason": "Fold-isolated baseline tick evidence is recorded; stress sweeps are separate robustness work.",
+            },
+            "run_closeout_profile": {
+                "applies": True,
+                "fields": {
+                    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+                    "closeout_status": "fold_isolated_tick_kpi_recorded_pending_review",
+                },
+            },
+        },
+        "missing_required_kpi_fields": missing_required,
+        "deferred_with_reason": [],
+        "claim_boundary": {
+            "claim_authority": False,
+            "runtime_authority": False,
+            "live_ready": False,
+        },
+    }
+
+
+def build_execution_divergence_by_fold_payload(records: list[dict[str, Any]]) -> dict[str, object]:
+    fold_rows: list[dict[str, object]] = []
+    totals = {
+        "logic_trade_count": 0,
+        "tick_trade_count": 0,
+        "logic_net_pnl": 0.0,
+        "tick_net_pnl": 0.0,
+    }
+    deltas: list[tuple[str, float]] = []
+    entry_rates: list[float] = []
+    exit_time_direction_rates: list[float] = []
+    exit_reason_rates: list[float] = []
+    status_counts: Counter[str] = Counter()
+    missing_by_fold: dict[str, list[str]] = {}
+    for record in records:
+        window = record["window"]
+        logic_payload = record["logic_payload"]
+        tick_payload = record["tick_payload"]
+        logic_result = record["logic_result"]
+        tick_result = record["tick_result"]
+        logic_required = dict(logic_payload.get("required_kpis", {}))
+        tick_required = dict(tick_payload.get("required_kpis", {}))
+        logic_events = read_csv_rows(logic_result.events_csv)
+        tick_events = read_csv_rows(tick_result.events_csv)
+        logic_entries = [row for row in logic_events if row.get("event") == "entry"]
+        tick_entries = [row for row in tick_events if row.get("event") == "entry"]
+        logic_exits = [row for row in logic_events if row.get("event") == "exit"]
+        tick_exits = [row for row in tick_events if row.get("event") == "exit"]
+        entry_compare = compare_mt5_entry_events(logic_entries, tick_entries)
+        exit_compare = compare_mt5_exit_events(logic_exits, tick_exits)
+        logic_trade_count = kpi_int(logic_required, "mt5_trade_count")
+        tick_trade_count = kpi_int(tick_required, "mt5_trade_count")
+        logic_net = kpi_float(logic_required, "mt5_net_pnl")
+        tick_net = kpi_float(tick_required, "mt5_net_pnl")
+        logic_drawdown = kpi_float(logic_required, "mt5_max_drawdown_percent")
+        tick_drawdown = kpi_float(tick_required, "mt5_max_drawdown_percent")
+        logic_profit_factor = kpi_float(logic_required, "mt5_profit_factor")
+        tick_profit_factor = kpi_float(tick_required, "mt5_profit_factor")
+        logic_win_rate = kpi_float(logic_required, "mt5_win_rate")
+        tick_win_rate = kpi_float(tick_required, "mt5_win_rate")
+        logic_expectancy = kpi_float(logic_required, "mt5_expectancy_per_entry")
+        tick_expectancy = kpi_float(tick_required, "mt5_expectancy_per_entry")
+        fold_required = {
+            "logic_trade_count": logic_trade_count,
+            "tick_trade_count": tick_trade_count,
+            "tick_minus_logic_trade_count": int_delta(tick_trade_count, logic_trade_count),
+            "logic_net_pnl": logic_net,
+            "tick_net_pnl": tick_net,
+            "tick_minus_logic_net_pnl": numeric_delta(tick_net, logic_net),
+            "logic_max_drawdown_percent": logic_drawdown,
+            "tick_max_drawdown_percent": tick_drawdown,
+            "tick_minus_logic_max_drawdown_percent": numeric_delta(tick_drawdown, logic_drawdown),
+            "logic_profit_factor": logic_profit_factor,
+            "tick_profit_factor": tick_profit_factor,
+            "tick_minus_logic_profit_factor": numeric_delta(tick_profit_factor, logic_profit_factor),
+            "logic_win_rate": logic_win_rate,
+            "tick_win_rate": tick_win_rate,
+            "tick_minus_logic_win_rate": numeric_delta(tick_win_rate, logic_win_rate),
+            "logic_expectancy_per_entry": logic_expectancy,
+            "tick_expectancy_per_entry": tick_expectancy,
+            "tick_minus_logic_expectancy_per_entry": numeric_delta(tick_expectancy, logic_expectancy),
+            "entry_count_delta": len(tick_entries) - len(logic_entries),
+            "exit_count_delta": len(tick_exits) - len(logic_exits),
+            "entry_key_match_rate": entry_compare["key_match_rate"],
+            "exit_time_direction_match_rate": exit_compare["time_direction_match_rate"],
+            "exit_reason_match_rate": exit_compare["reason_match_rate"],
+            "execution_divergence_status": execution_divergence_status(entry_compare, exit_compare, logic_net, tick_net),
+            "economics_shift_status": economics_shift_status(logic_net, tick_net),
+        }
+        missing = missing_required_execution_fields(fold_required)
+        if missing:
+            missing_by_fold[window.fold_id] = missing
+        status_counts[str(fold_required["execution_divergence_status"])] += 1
+        if logic_trade_count is not None:
+            totals["logic_trade_count"] += logic_trade_count
+        if tick_trade_count is not None:
+            totals["tick_trade_count"] += tick_trade_count
+        if logic_net is not None:
+            totals["logic_net_pnl"] += logic_net
+        if tick_net is not None:
+            totals["tick_net_pnl"] += tick_net
+        if fold_required["tick_minus_logic_net_pnl"] is not None:
+            deltas.append((window.fold_id, float(fold_required["tick_minus_logic_net_pnl"])))
+        for target, value in (
+            (entry_rates, fold_required["entry_key_match_rate"]),
+            (exit_time_direction_rates, fold_required["exit_time_direction_match_rate"]),
+            (exit_reason_rates, fold_required["exit_reason_match_rate"]),
+        ):
+            if value is not None:
+                target.append(float(value))
+        fold_rows.append(
+            {
+                "fold_id": window.fold_id,
+                "period": {"start": time_text(window.start), "end": time_text(window.end)},
+                "required_kpis": fold_required,
+                "missing_required_kpi_fields": missing,
+                "conditional_profiles": {
+                    "entry_divergence_profile": {
+                        "applies": True,
+                        "fields": {
+                            "logic_entry_event_count": len(logic_entries),
+                            "tick_entry_event_count": len(tick_entries),
+                            "entry_mismatch_samples": entry_compare["mismatch_samples"],
+                        },
+                    },
+                    "exit_divergence_profile": {
+                        "applies": True,
+                        "fields": {
+                            "logic_exit_event_count": len(logic_exits),
+                            "tick_exit_event_count": len(tick_exits),
+                            "exit_mismatch_samples": exit_compare["mismatch_samples"],
+                        },
+                    },
+                },
+            }
+        )
+    worst_delta = min(deltas, key=lambda item: item[1]) if deltas else (None, None)
+    required_kpis = {
+        "fold_count": len(records),
+        "divergence_recorded_fold_count": len(fold_rows),
+        "missing_required_fold_count": len(missing_by_fold),
+        "total_logic_trade_count": totals["logic_trade_count"],
+        "total_tick_trade_count": totals["tick_trade_count"],
+        "total_tick_minus_logic_trade_count": totals["tick_trade_count"] - totals["logic_trade_count"],
+        "total_logic_net_pnl": rounded(totals["logic_net_pnl"]),
+        "total_tick_net_pnl": rounded(totals["tick_net_pnl"]),
+        "total_tick_minus_logic_net_pnl": rounded(totals["tick_net_pnl"] - totals["logic_net_pnl"]),
+        "tick_worse_fold_count": sum(1 for _, value in deltas if value < 0),
+        "tick_better_fold_count": sum(1 for _, value in deltas if value > 0),
+        "worst_tick_minus_logic_fold_id": worst_delta[0],
+        "worst_tick_minus_logic_net_pnl": worst_delta[1],
+        "minimum_entry_key_match_rate": min(entry_rates) if entry_rates else None,
+        "minimum_exit_time_direction_match_rate": min(exit_time_direction_rates) if exit_time_direction_rates else None,
+        "minimum_exit_reason_match_rate": min(exit_reason_rates) if exit_reason_rates else None,
+        "folds_with_recorded_divergence": status_counts.get("recorded_with_divergence", 0),
+        "execution_divergence_by_fold_status": "completed" if not missing_by_fold else "blocked_by_missing_required_kpi",
+    }
+    missing_required = missing_required_by_fold_fields(required_kpis)
+    return {
+        "schema": "axiom_rift_execution_divergence_by_fold_kpi_v1",
+        "template": False,
+        "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+        "created_at_utc": utc_now(),
+        "work_unit_id": CAMPAIGN_ID,
+        "campaign_id": CAMPAIGN_ID,
+        "synthesis_id_when_applicable": None,
+        "run_id": RUN_ID,
+        "divergence_id": "ED-C0004-R0001-BY-FOLD",
+        "split_policy": "rolling_window_test_oos_fold_isolated",
+        "split_registry": "registries/rolling_windows.yaml",
+        "tick_mt5_by_fold_kpi_path": rel(MT5_TICK_BY_FOLD_KPI),
+        "required_kpis": required_kpis,
+        "conditional_profiles": {
+            "fold_divergence_profile": {
+                "applies": True,
+                "fields": {"folds": fold_rows, "missing_by_fold": missing_by_fold},
+            },
+            "state_archetype_schedule_profile": {
+                "applies": True,
+                "fields": {
+                    "state_surface_source": "rolling_train_is_proxy_schedule",
+                    "schedule_artifact_path": rel(SCHEDULE_ARTIFACT),
+                    "model_selected": False,
+                    "feature_set_selected": False,
+                    "label_selected": False,
+                    "runtime_portability_claim": False,
+                },
+            },
+            "run_closeout_profile": {
+                "applies": True,
+                "fields": {
+                    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+                    "closeout_status": "fold_isolated_divergence_recorded_pending_review",
+                },
+            },
+        },
+        "missing_required_kpi_fields": missing_required,
+        "deferred_with_reason": [],
+        "claim_boundary": {
+            "claim_authority": False,
+            "runtime_authority": False,
+            "live_ready": False,
+        },
     }

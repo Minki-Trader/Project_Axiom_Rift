@@ -48,9 +48,9 @@ run_index:
   closed_runs: []
   next_run_candidate:
     run_id: null
-    direction: active_r0001_fold_isolated_tick
-    reason: R0001 aggregate tick execution and execution divergence are recorded;
-      next work is mandatory fold-isolated MT5 tick evidence.
+    direction: active_r0001_closeout_review
+    reason: R0001 fold-isolated MT5 tick KPI and fold-isolated execution divergence
+      are recorded; next work is closeout review.
     status: active_run_open
 synthesis_readiness:
   check_required_at_closeout: true
@@ -61,7 +61,7 @@ closeout:
   status: open
   close_reason: null
   evidence_paths: []
-  remaining_question: produce_c0004_r0001_fold_isolated_mt5_tick_kpi
+  remaining_question: review_c0004_r0001_tick_execution_kpi_and_closeout
 claim_boundary:
   claim_authority: false
   selected: false

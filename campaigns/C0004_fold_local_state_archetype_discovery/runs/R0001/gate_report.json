@@ -21,22 +21,24 @@
   "decision": "defer_with_reason",
   "deferred_with_reason": [
     {
-      "blocking_condition": "produce_c0004_r0001_fold_isolated_mt5_tick_kpi",
+      "blocking_condition": "review_c0004_r0001_tick_execution_kpi_and_closeout",
       "field": "run_closeout",
-      "reason": "logic parity, aggregate tick execution KPI, and execution divergence are recorded; closeout judgment still requires fold-isolated evidence",
-      "revisit_when": "after fold-isolated tick KPI and fold-isolated execution divergence are recorded"
+      "reason": "fold-isolated MT5 tick KPI and fold-isolated execution divergence are recorded; closeout judgment was not performed in this step",
+      "revisit_when": "during C0004 R0001 closeout review"
     }
   ],
   "evidence_gate": {
     "checks": {
       "artifact_lineage_path_recorded": true,
+      "execution_divergence_by_fold_kpi_path_recorded": true,
       "execution_divergence_kpi_path_recorded": true,
       "mt5_logic_parity_kpi_path_recorded": true,
+      "mt5_tick_by_fold_kpi_path_recorded": true,
       "mt5_tick_kpi_path_recorded": true,
       "proxy_kpi_path_recorded": true,
       "proxy_vs_mt5_logic_parity_kpi_path_recorded": true
     },
-    "status": "logic_tick_and_divergence_recorded"
+    "status": "fold_isolated_evidence_recorded"
   },
   "evidence_paths": [
     "run_manifest.json",
@@ -48,13 +50,23 @@
     "kpi/execution_divergence.json",
     "artifacts/c0004_r0001_proxy_trades.csv",
     "artifacts/c0004_r0001_state_archetype_summary.json",
-    "artifacts/c0004_r0001_schedule.csv"
+    "artifacts/c0004_r0001_schedule.csv",
+    "kpi/mt5_tick_by_fold.json",
+    "kpi/execution_divergence_by_fold.json"
   ],
   "execution_gate": {
     "economics_shift_status": "tick_worse_than_logic",
     "missing_required_kpi_fields": [],
     "run_closeout_review_ready": false,
     "status": "recorded_with_divergence"
+  },
+  "fold_isolated_execution_gate": {
+    "execution_divergence_by_fold_status": "completed",
+    "missing_required_kpi_fields": {
+      "execution_divergence_by_fold": [],
+      "mt5_tick_by_fold": []
+    },
+    "mt5_tick_by_fold_status": "completed"
   },
   "gate_report_id": "G-C0004-R0001",
   "must_not": [
@@ -64,7 +76,7 @@
     "close_from_aggregate_mt5",
     "close_from_broken_code"
   ],
-  "next_action": "produce_c0004_r0001_fold_isolated_mt5_tick_kpi",
+  "next_action": "review_c0004_r0001_tick_execution_kpi_and_closeout",
   "parity_gate": {
     "intent_parity_status": "passed_schedule_replay_boundary",
     "mechanical_parity_status": "passed",
@@ -81,10 +93,10 @@
       "reason": "",
       "revisit_when": ""
     },
-    "fold_isolated_execution_divergence_path_recorded": false,
-    "fold_isolated_mt5_tick_path_recorded": false,
+    "fold_isolated_execution_divergence_path_recorded": true,
+    "fold_isolated_mt5_tick_path_recorded": true,
     "fold_isolated_mt5_tick_required": true,
-    "status": "not_checked"
+    "status": "fold_isolated_evidence_recorded_pending_closeout_review"
   },
   "run_id": "R0001",
   "schema": "axiom_rift_gate_report_v1",
