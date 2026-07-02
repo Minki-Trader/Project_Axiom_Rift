@@ -401,3 +401,25 @@ decisions:
       feature_set_selected: false
       model_selected: false
       economics_pass: false
+  - decision_id: dec_20260703_open_sc0001_accumulated_negative_memory_synthesis
+    created_local_date: 2026-07-03
+    status: active
+    decision: open_sc0001_accumulated_negative_memory_synthesis_after_c0001_c0002_c0003_closed_no_candidate
+    refines:
+      - dec_20260703_close_c0003_no_candidate
+      - dec_20260702_goal_driven_operation_policy
+      - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+      - dec_20260701_top_level_synthesis_units
+    rationale:
+      - c0001_c0002_c0003_are_closed_no_candidate_with_fold_isolated_mt5_tick_evidence
+      - c0003_campaign_closeout_recorded_synthesis_readiness_open_synthesis
+      - fourteen_usable_ingredient_groups_are_available_across_negative_memory_parity_lessons_and_execution_divergence_lessons
+      - synthesis_is_needed_before_opening_another_major_c_campaign_to_avoid_adjacent_retries
+      - sc0001_does_not_create_selected_runtime_economics_onnx_promotion_or_live_claims
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+      economics_pass: false

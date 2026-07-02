@@ -7,6 +7,7 @@ read_budget:
   - registries/claim_state.yaml
   conditional_files:
     active_campaign: null
+    active_synthesis: campaigns/SC0001_accumulated_negative_memory_synthesis/synthesis.yaml
     active_contracts: contracts/
     active_config: configs/
   skip_by_default:
@@ -21,6 +22,7 @@ project:
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
   active_campaign: null
+  active_synthesis: campaigns/SC0001_accumulated_negative_memory_synthesis
 active_truth:
   contracts_dir: contracts
   config_dir: configs
@@ -110,6 +112,7 @@ data_state:
     split_boundaries_frozen: false
 next_work:
   campaign: null
+  synthesis: campaigns/SC0001_accumulated_negative_memory_synthesis
   completed:
   - fresh_export_us100_m5_max_available
   - record_source_path_decision_fresh_export
@@ -287,8 +290,9 @@ next_work:
   - decide_c0003_r0004_or_close_c0003_after_r0003
   - close_c0003_no_candidate_after_r0003
   - record_c0003_synthesis_readiness_open_synthesis
-  tasks:
   - open_sc0001_accumulated_negative_memory_synthesis
+  tasks:
+  - design_sc0001_sr0001_synthesis_run_from_ingredient_queue
   not_yet:
   - label_freeze
   - feature_set_freeze

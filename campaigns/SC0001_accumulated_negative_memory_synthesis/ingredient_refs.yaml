@@ -1,0 +1,199 @@
+schema: axiom_rift_ingredient_refs_v1
+template: false
+status: open
+
+synthesis_id: SC0001
+
+source_campaign_refs:
+  - campaign_id: C0001
+    path: campaigns/C0001_regime_response_discovery/campaign.yaml
+    sha256: 2c72e049646255f98d1fb16dcf5a8b0a9be3997bf4133ce4c5181b82388a7852
+  - campaign_id: C0002
+    path: campaigns/C0002_score_conditioned_intraday_edge/campaign.yaml
+    sha256: 034043c7ac3cf75446781f4a851ccdb01d9e413de13b52417e643da75ef5bf3a
+  - campaign_id: C0003
+    path: campaigns/C0003_path_conditioned_exit_risk_shape/campaign.yaml
+    sha256: 60f89312e1f802b0000aeee325d34556cea163474ba6b98acef3af89e18abcd8
+
+run_evidence_index:
+  - evidence_key: C0001_R0001
+    run_manifest: {path: campaigns/C0001_regime_response_discovery/runs/R0001/run_manifest.json, sha256: ba414e202a92c517f8fde725c2e06c9994124a48141eb6b7538eafeb0444c04f}
+    gate_report: {path: campaigns/C0001_regime_response_discovery/runs/R0001/gate_report.json, sha256: 00e9aa9e61b317f866b66bd0dd6a13ac4f87ca3b79a34dbe8be44577fdd48bf9}
+    mt5_tick_by_fold: {path: campaigns/C0001_regime_response_discovery/runs/R0001/kpi/mt5_tick_by_fold.json, sha256: ab75f1f7da1fa2b93626f4e5e630ecfc4fe08d040a38878dccdca2805481864e}
+    execution_divergence_by_fold: {path: campaigns/C0001_regime_response_discovery/runs/R0001/kpi/execution_divergence_by_fold.json, sha256: df8b3ea569918dcf4256cf4aeb59e1330997f5f0a47b36576229969077be1e78}
+  - evidence_key: C0001_R0002
+    run_manifest: {path: campaigns/C0001_regime_response_discovery/runs/R0002/run_manifest.json, sha256: 5ba09a4595c354118f41bdc43b3b4043e8e5a7c92e9e0ea8fe6e0d279ac3f068}
+    gate_report: {path: campaigns/C0001_regime_response_discovery/runs/R0002/gate_report.json, sha256: 8d10339a148b465b5128adb501af4090676d05efaf2c2ce06e1c237ec36ae11c}
+    mt5_tick_by_fold: {path: campaigns/C0001_regime_response_discovery/runs/R0002/kpi/mt5_tick_by_fold.json, sha256: 14ff4eb292fbf4b81e159e1e46084630d4e508184ba93e6697b4b4f7b9854d8e}
+    execution_divergence_by_fold: {path: campaigns/C0001_regime_response_discovery/runs/R0002/kpi/execution_divergence_by_fold.json, sha256: b4c93b0cbb2a983a7a699dca87f560601ed0ea0f5b405f047354e91c96fce7ac}
+  - evidence_key: C0001_R0003
+    run_manifest: {path: campaigns/C0001_regime_response_discovery/runs/R0003/run_manifest.json, sha256: f0fc5acccebd903fda137d220b325129e521859468084ceed5e2ea6618e06eb8}
+    gate_report: {path: campaigns/C0001_regime_response_discovery/runs/R0003/gate_report.json, sha256: 72eec85ef525579d038cbaf12bd350d23256e379908671089b547e7493618e7d}
+    mt5_tick_by_fold: {path: campaigns/C0001_regime_response_discovery/runs/R0003/kpi/mt5_tick_by_fold.json, sha256: 7cce757e656ab97c0933fafb32d61b440ce99f784a02b9395bb3fd71de8214ac}
+    execution_divergence_by_fold: {path: campaigns/C0001_regime_response_discovery/runs/R0003/kpi/execution_divergence_by_fold.json, sha256: eec6b69505f498efe57585d766252acc12127657e2501b064ba50396814a5ab4}
+  - evidence_key: C0001_R0004
+    run_manifest: {path: campaigns/C0001_regime_response_discovery/runs/R0004/run_manifest.json, sha256: 2fc890ac677cee6bda0817649f76d99bf7758ca9a961ba9fd8fae1f7dd6b2355}
+    gate_report: {path: campaigns/C0001_regime_response_discovery/runs/R0004/gate_report.json, sha256: 711ce684c6d7a5846b00bef260e501c1e5ad663e305d20467ae152692d2e2c16}
+    mt5_tick_by_fold: {path: campaigns/C0001_regime_response_discovery/runs/R0004/kpi/mt5_tick_by_fold.json, sha256: 61dd529f6ac987577ae6a5f6f85d6e634da32a2fdf28a70ac73e78120b10b38f}
+    execution_divergence_by_fold: {path: campaigns/C0001_regime_response_discovery/runs/R0004/kpi/execution_divergence_by_fold.json, sha256: 0100dcdd887e248e0b5d7f922363da64f823293f3ea6ff614b5d2cc2cbc94ca5}
+  - evidence_key: C0001_R0005
+    run_manifest: {path: campaigns/C0001_regime_response_discovery/runs/R0005/run_manifest.json, sha256: 050299dd8a06b6766153013595f39470bb04f4bb1efefebc5689a02ae25ac050}
+    gate_report: {path: campaigns/C0001_regime_response_discovery/runs/R0005/gate_report.json, sha256: c1e4e178217d8c3eb1dab4fa0ca48bf98558f8efa495357277bf19cd05bd320c}
+    mt5_tick_by_fold: {path: campaigns/C0001_regime_response_discovery/runs/R0005/kpi/mt5_tick_by_fold.json, sha256: 1886cfe54d13d9dba88f293147f4baaf56c9ec684b964ea7c2e2113a37dd9af1}
+    execution_divergence_by_fold: {path: campaigns/C0001_regime_response_discovery/runs/R0005/kpi/execution_divergence_by_fold.json, sha256: e7dbd931623c5b4bf66cc42136da77d2c3eb3cd587e3f48708216cc87f8f9112}
+  - evidence_key: C0001_R0006
+    run_manifest: {path: campaigns/C0001_regime_response_discovery/runs/R0006/run_manifest.json, sha256: 84ee735f56732519e9f9c839fe2afe3962a652e8bb5b982d864645c13e5b00c0}
+    gate_report: {path: campaigns/C0001_regime_response_discovery/runs/R0006/gate_report.json, sha256: 26f801ba4d31ae93fe54116de2b511a66765be487a73a6628acab7f7bd8349f0}
+    mt5_tick_by_fold: {path: campaigns/C0001_regime_response_discovery/runs/R0006/kpi/mt5_tick_by_fold.json, sha256: 5d36390154236c8bf727ec1fb47ea326c9d36c9e0c47614ceb8a8a5ecce5bedc}
+    execution_divergence_by_fold: {path: campaigns/C0001_regime_response_discovery/runs/R0006/kpi/execution_divergence_by_fold.json, sha256: 7ec2d3633ee2a78beed2df2b7deba2e43f18bb4f56bbcd42505253828a0e490d}
+  - evidence_key: C0001_R0007
+    run_manifest: {path: campaigns/C0001_regime_response_discovery/runs/R0007/run_manifest.json, sha256: 757fc66312d69a2e3fbbd63b35e698279a720378e05a36979f7cd796d0c7a7e8}
+    gate_report: {path: campaigns/C0001_regime_response_discovery/runs/R0007/gate_report.json, sha256: 0ef693e80eb000d730cd93429ddf5297a5361aae69a8014fdaefafc8072d7ca1}
+    mt5_tick_by_fold: {path: campaigns/C0001_regime_response_discovery/runs/R0007/kpi/mt5_tick_by_fold.json, sha256: e59252115cf55673db602b29d9da5c84f2e7c6484e3613db31c70f450ed935db}
+    execution_divergence_by_fold: {path: campaigns/C0001_regime_response_discovery/runs/R0007/kpi/execution_divergence_by_fold.json, sha256: aa36c066599c9dc58dbf3af3d14141730571b365133f891bf550919e5f3298fc}
+  - evidence_key: C0002_R0001
+    run_manifest: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/run_manifest.json, sha256: f419dc0c1b8edbbd823cb2e08a72a8814a9cbe8f5a2e857f2817fe434eab513c}
+    gate_report: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/gate_report.json, sha256: 2cd80cb93d96811851505fdaa8508330a242a64fdf0d9ccd1c83779de0c03997}
+    mt5_tick_by_fold: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/kpi/mt5_tick_by_fold.json, sha256: c4a5f3edd4d0de9c6db19ca4a8190f38ebc2a0836a882ba0e2204bdbec097732}
+    execution_divergence_by_fold: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/kpi/execution_divergence_by_fold.json, sha256: ed184a635d591023ba5872d2944c9783747c886abb2e4961815e90ed7b248d8e}
+  - evidence_key: C0002_R0002
+    run_manifest: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0002/run_manifest.json, sha256: f2b9249c9cfd0740c7c6f9a8a4bc7d11ed70702145322a250874bc23f9d5caa8}
+    gate_report: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0002/gate_report.json, sha256: 732b4b6fa856bf2375782d0be3401ae9c188a9414f61c720540eaec1add96b24}
+    mt5_tick_by_fold: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0002/kpi/mt5_tick_by_fold.json, sha256: b2d97a7ea4033daf7acae3005a7efbf8800faabb8451ff07698ab29d07a10dc0}
+    execution_divergence_by_fold: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0002/kpi/execution_divergence_by_fold.json, sha256: 6172be92dcdd3999612a23e22f06f3216727087f7a7fe8bec22b1c1cb72c7e3a}
+  - evidence_key: C0002_R0003
+    run_manifest: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0003/run_manifest.json, sha256: 8341989f95bfc1c4ee7ce8d6ea5dd6ebdb7eda982f52ba37f61685265c6da679}
+    gate_report: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0003/gate_report.json, sha256: b98aadd3b1afdccaefdc6ecc2b966c6e88baaead13f749dfc049b0b592706ef7}
+    mt5_tick_by_fold: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0003/kpi/mt5_tick_by_fold.json, sha256: b77d6c9aded87e3f8e77598a9dd436d9b35b97a5d409d7ab54610a8df1502fd4}
+    execution_divergence_by_fold: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0003/kpi/execution_divergence_by_fold.json, sha256: 86526700631ed4944443e5d483e549e6c272ac3f961b4b8f23807851afe7c09a}
+  - evidence_key: C0002_R0004
+    run_manifest: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/run_manifest.json, sha256: 1e4c74dfa73e0ebd7e7d844f2afd1550b33b45c9a29f4293a74b55b5f5ec967f}
+    gate_report: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/gate_report.json, sha256: e09b4ca9743faebcf494f0925c7acef2bb623d6357637afe255d87fcba903e87}
+    mt5_tick_by_fold: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/kpi/mt5_tick_by_fold.json, sha256: 01de36c4f306fb60c8f28b2cfbc82056e49502fba69c4290fe1eeeb74c1dff95}
+    execution_divergence_by_fold: {path: campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/kpi/execution_divergence_by_fold.json, sha256: 6bca4352d47db6e3ef1396a34f514573d453cf1f164e512f051e3b95907b034d}
+  - evidence_key: C0003_R0001
+    run_manifest: {path: campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0001/run_manifest.json, sha256: 098c460ec662943c3d4828298c615fcd56d9aa91fa9956a939343da893264bcc}
+    gate_report: {path: campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0001/gate_report.json, sha256: 63f68b27065b4e2febc33620429321574de768410a2260cad397b592c68877db}
+    mt5_tick_by_fold: {path: campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0001/kpi/mt5_tick_by_fold.json, sha256: 90a3470f5c75824c8e705a7f827d39e6b6d70b9ef2bff284e6f3487bba14ebf0}
+    execution_divergence_by_fold: {path: campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0001/kpi/execution_divergence_by_fold.json, sha256: 4dfce3fede02b1ec0ec3e529e2320d04e481973f6c997c015ce8bc6d632ae02f}
+  - evidence_key: C0003_R0002
+    run_manifest: {path: campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0002/run_manifest.json, sha256: cd4b71128438aacf817e90ccb38ef987fb5dca31ce00e75daf9fc61b24733e9d}
+    gate_report: {path: campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0002/gate_report.json, sha256: 5528fc5d206f3773481fd1175132e52fc4723045b65cc150fb18e7e33598971c}
+    mt5_tick_by_fold: {path: campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0002/kpi/mt5_tick_by_fold.json, sha256: f3babfd29190dd941390abb233120dd3b50dc093ec94560c85fc73d38d2cc0ee}
+    execution_divergence_by_fold: {path: campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0002/kpi/execution_divergence_by_fold.json, sha256: 77e5fa8a6238e04dc3446763ea97b16a15d3b89f59b72c67bd28fbc468c1abdb}
+  - evidence_key: C0003_R0003
+    run_manifest: {path: campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0003/run_manifest.json, sha256: 8ac11f5f0cc3211e30975d9c7acde8402526ee92eac004581c3dc31df37dc032}
+    gate_report: {path: campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0003/gate_report.json, sha256: a863d8e08f96c8081dcfbb54c22e11ab9706bfc85566f52b813ece2541859450}
+    mt5_tick_by_fold: {path: campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0003/kpi/mt5_tick_by_fold.json, sha256: 54155a4299a5a719e561f1e75fb5fd42790bace4138bf86637700cb009a270b2}
+    execution_divergence_by_fold: {path: campaigns/C0003_path_conditioned_exit_risk_shape/runs/R0003/kpi/execution_divergence_by_fold.json, sha256: 6833be4e09fdaff84595f16d3effe6a340451746ed2856406a525e76ba62c964}
+
+ingredient_groups:
+  - group_id: c0001_ig001_expansion_pullback_response_negative_memory
+    source_campaign_id: C0001
+    source_runs: [R0001, R0002]
+    source_evidence_keys: [C0001_R0001, C0001_R0002]
+    group_type: negative_memory
+    summary: expansion_pullback_continuation_and_reversal_both_failed_fold_isolated_tick
+  - group_id: c0001_ig002_expansion_breakout_reversal_negative_memory
+    source_campaign_id: C0001
+    source_runs: [R0003, R0005]
+    source_evidence_keys: [C0001_R0003, C0001_R0005]
+    group_type: negative_memory
+    summary: failed_breakout_reclaim_and_immediate_expansion_reversal_both_failed_fold_isolated_tick
+  - group_id: c0001_ig003_compression_breakout_response_negative_memory
+    source_campaign_id: C0001
+    source_runs: [R0004, R0006]
+    source_evidence_keys: [C0001_R0004, C0001_R0006]
+    group_type: negative_memory
+    summary: compression_breakout_continuation_and_reversal_both_failed_fold_isolated_tick
+  - group_id: c0001_ig004_execution_and_parity_lesson
+    source_campaign_id: C0001
+    source_runs: [R0001, R0002, R0003, R0004, R0005, R0006, R0007]
+    source_evidence_keys: [C0001_R0001, C0001_R0002, C0001_R0003, C0001_R0004, C0001_R0005, C0001_R0006, C0001_R0007]
+    group_type: parity_lesson
+    summary: tick_execution_divergence_and_session_gap_exceptions_are_recorded_but_do_not_create_candidate_economics
+  - group_id: c0001_ig005_core_session_context_gate_negative_memory
+    source_campaign_id: C0001
+    source_runs: [R0001, R0007]
+    source_evidence_keys: [C0001_R0001, C0001_R0007]
+    group_type: negative_memory
+    summary: core_session_filter_on_expansion_pullback_continuation_passed_logic_parity_but_remained_negative_on_fold_isolated_tick_with_only_tiny_positive_folds
+  - group_id: c0002_ig001_linear_score_rank_negative_memory
+    source_campaign_id: C0002
+    source_runs: [R0001, R0002]
+    source_evidence_keys: [C0002_R0001, C0002_R0002]
+    group_type: negative_memory
+    summary: linear_and_rank_score_conditioning_failed_fold_isolated_mt5_tick
+  - group_id: c0002_ig002_dual_direction_cell_score_negative_memory
+    source_campaign_id: C0002
+    source_runs: [R0003]
+    source_evidence_keys: [C0002_R0003]
+    group_type: negative_memory
+    summary: train_only_quantile_cell_scoring_found_sparse_positive_folds_but_not_positive_or_frequent_enough
+  - group_id: c0002_ig003_stump_rank_frequency_negative_memory
+    source_campaign_id: C0002
+    source_runs: [R0004]
+    source_evidence_keys: [C0002_R0004]
+    group_type: negative_memory
+    summary: supervised_stump_rank_ensemble_improved_frequency_focus_but_all_folds_lost
+  - group_id: c0002_ig004_score_conditioned_execution_and_parity_lesson
+    source_campaign_id: C0002
+    source_runs: [R0001, R0002, R0003, R0004]
+    source_evidence_keys: [C0002_R0001, C0002_R0002, C0002_R0003, C0002_R0004]
+    group_type: parity_lesson
+    summary: schedule_replay_and_tick_divergence_lessons_recorded_but_do_not_create_candidate_economics
+  - group_id: c0003_ig001_path_survival_risk_shape_negative_memory
+    source_campaign_id: C0003
+    source_runs: [R0001]
+    source_evidence_keys: [C0003_R0001]
+    group_type: negative_memory
+    summary: path_survival_risk_shape_reached_target_entry_frequency_but_lost_all_fold_isolated_mt5_tick_folds
+  - group_id: c0003_ig002_adverse_path_avoidance_negative_memory
+    source_campaign_id: C0003
+    source_runs: [R0002]
+    source_evidence_keys: [C0003_R0002]
+    group_type: negative_memory
+    summary: adverse_path_avoidance_reduced_severity_and_left_three_profitable_folds_but_total_fold_isolated_tick_net_pnl_remained_negative
+  - group_id: c0003_ig003_fast_favorable_capture_negative_memory
+    source_campaign_id: C0003
+    source_runs: [R0003]
+    source_evidence_keys: [C0003_R0003]
+    group_type: negative_memory
+    summary: fast_favorable_capture_reached_target_entry_frequency_but_total_fold_isolated_tick_net_pnl_remained_negative
+  - group_id: c0003_ig004_path_conditioned_execution_divergence_lesson
+    source_campaign_id: C0003
+    source_runs: [R0001, R0002, R0003]
+    source_evidence_keys: [C0003_R0001, C0003_R0002, C0003_R0003]
+    group_type: execution_divergence_lesson
+    summary: closed_bar_logic_parity_passed_but_tick_execution_shifted trade_count_exit_reason_and_net_pnl_so_tick_remains_the_economic_surface
+  - group_id: c0003_ig005_target_frequency_is_not_edge_negative_memory
+    source_campaign_id: C0003
+    source_runs: [R0001, R0002, R0003]
+    source_evidence_keys: [C0003_R0001, C0003_R0002, C0003_R0003]
+    group_type: negative_memory
+    summary: reaching_approximately_five_to_six_entries_per_active_day_did_not_create_profitability_without_a_stronger_edge_surface
+
+blocked_ingredients: []
+
+deferred_with_reason:
+  - item: stress_sweep_or_equity_percent_sizing_lessons
+    reason: baseline fold-isolated fixed-lot MT5 tick evidence is negative and candidate quality is not established
+
+rules:
+  unresolved_mechanical_parity_as_main_blocker_allowed: false
+  adjacent_tuning_as_ingredient_allowed: false
+  evidence_gap_disguised_as_ingredient_allowed: false
+
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
