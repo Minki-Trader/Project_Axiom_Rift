@@ -378,3 +378,26 @@ decisions:
       feature_set_selected: false
       model_selected: false
       economics_pass: false
+  - decision_id: dec_20260703_close_c0003_no_candidate
+    created_local_date: 2026-07-03
+    status: active
+    decision: close_c0003_path_conditioned_exit_risk_shape_no_candidate_after_r0001_to_r0003
+    refines:
+      - dec_20260703_open_c0003_path_conditioned_exit_risk_shape
+      - dec_20260703_open_c0003_r0001_path_conditioned_exit_risk_shape_variant
+      - dec_20260703_open_c0003_r0002_adverse_path_avoidance_variant
+      - dec_20260703_open_c0003_r0003_fast_favorable_capture_variant
+    rationale:
+      - all_three_c0003_runs_closed_no_candidate_with_fold_isolated_mt5_tick_evidence
+      - r0001_lost_all_nine_fold_isolated_mt5_tick_folds
+      - r0002_left_three_profitable_folds_but_total_fold_isolated_tick_net_pnl_was_negative
+      - r0003_left_two_profitable_folds_but_total_fold_isolated_tick_net_pnl_was_negative
+      - remaining_work_inside_c0003_would_be_adjacent_stop_target_trail_hold_hazard_capture_or_daily_entry_tuning_or_a_new_major_campaign_hypothesis
+      - synthesis_readiness_is_open_synthesis_after_c0001_c0002_c0003_closed_no_candidate_with_sufficient_negative_memory_and_mt5_evidence
+    claim_boundary:
+      runtime_authority: false
+      live_ready: false
+      label_selected: false
+      feature_set_selected: false
+      model_selected: false
+      economics_pass: false

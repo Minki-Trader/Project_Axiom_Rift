@@ -1,11 +1,11 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: open
+status: closed_no_candidate
 campaign_id: C0003
 campaign_slug: path_conditioned_exit_risk_shape
 campaign_type: campaign
 opened_at_utc: 2026-07-02T15:41:20Z
-closed_at_utc: null
+closed_at_utc: 2026-07-02T17:15:30Z
 hypothesis:
   summary: discover whether US100 M5 can produce repeatable edge when trade exits,
     holding rules, and risk shape are conditioned on forward path behavior instead
@@ -50,24 +50,27 @@ run_index:
   - runs/R0002
   - runs/R0003
   next_run_candidate:
-    run_id: R0004
-    direction: decide_next_path_conditioned_exit_risk_shape_variant_or_close_c0003
-    reason: R0003 closed no candidate after fold-isolated MT5 tick evidence with
-      2 profitable folds but negative total tick net PnL; C0003 may still have
-      meaningful non-adjacent path-conditioned exit, hold, risk-shape, label,
-      model, or trade-shape variants, but R0003-style fast-capture target, stop,
-      trail, max-hold, or daily-entry nudges are adjacent tuning
-    status: candidate_pending_decision
+    run_id: null
+    direction: none_campaign_closed
+    reason: C0003 closed no candidate after R0001 path-survival risk shaping,
+      R0002 adverse-path avoidance, and R0003 fast favorable-capture all failed
+      fold-isolated MT5 tick closeout; remaining work inside the campaign would
+      be adjacent stop, target, trail, hold, hazard, capture, or daily-entry tuning
+      or a new major campaign hypothesis
+    status: none_campaign_closed
 synthesis_readiness:
   check_required_at_closeout: true
-  result: not_checked
-  usable_ingredient_group_count: 0
+  result: open_synthesis
+  usable_ingredient_group_count: 14
   readiness_notes:
   - c0003_open_after_c0001_and_c0002_closed_no_candidate
-  - sc_synthesis_not_opened_because_closed_campaign_minimum_not_met
+  - c0001_c0002_c0003_now_closed_no_candidate_with_fold_isolated_mt5_evidence
+  - closed_campaign_count_minimum_met_for_synthesis_1
+  - usable_negative_memory_and_execution_divergence_ingredient_count_exceeds_minimum
+  - next_work_should_open_sc0001_accumulated_negative_memory_synthesis_before_next_major_c_campaign
 closeout:
-  status: open
-  close_reason: null
+  status: closed_no_candidate
+  close_reason: no_meaningful_non_adjacent_path_conditioned_exit_risk_shape_variant_remains
   evidence_paths:
   - runs/R0001/run_manifest.json
   - runs/R0001/gate_report.json
@@ -81,7 +84,7 @@ closeout:
   - runs/R0003/gate_report.json
   - runs/R0003/kpi/mt5_tick_by_fold.json
   - runs/R0003/kpi/execution_divergence_by_fold.json
-  remaining_question: decide_c0003_r0004_or_close_c0003_after_r0003
+  remaining_question: open_sc0001_accumulated_negative_memory_synthesis
 claim_boundary:
   claim_authority: false
   selected: false
