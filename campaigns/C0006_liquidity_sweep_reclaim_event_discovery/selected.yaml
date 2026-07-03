@@ -1,4 +1,4 @@
-schema: axiom_rift_selected_template_v1
+schema: axiom_rift_selected_v1
 template: false
 status: none
 
@@ -23,13 +23,13 @@ runtime:
 claim_boundary:
   claim_authority: false
   may_record:
-    - evidence
-    - candidate_evidence
-    - gate_result
+  - evidence
+  - candidate_evidence
+  - gate_result
   must_not_assert:
-    - selected_model
-    - selected_feature_set
-    - selected_label
-    - runtime_authority
-    - live_ready
+  - selected_model
+  - selected_feature_set
+  - selected_label
+  - runtime_authority
+  - live_ready
 
