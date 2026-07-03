@@ -21,7 +21,7 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: campaigns/C0007_fold_local_supervised_edge_discovery
+  active_campaign: campaigns/C0008_multi_timeframe_structural_context_discovery
   active_synthesis: null
 active_truth:
   contracts_dir: contracts
@@ -111,7 +111,7 @@ data_state:
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
 next_work:
-  campaign: campaigns/C0007_fold_local_supervised_edge_discovery
+  campaign: campaigns/C0008_multi_timeframe_structural_context_discovery
   synthesis: null
   completed:
   - fresh_export_us100_m5_max_available
@@ -523,8 +523,12 @@ next_work:
   - produce_c0007_r0003_fold_isolated_execution_divergence
   - review_c0007_r0003_tick_execution_kpi_and_closeout
   - close_c0007_r0003_no_candidate
+  - review_c0007_synthesis_readiness_after_r0003
+  - close_c0007_no_candidate_after_r0003
+  - choose_c0008_new_major_hypothesis_after_c0007
+  - open_c0008_multi_timeframe_structural_context_discovery
   tasks:
-  - decide_c0007_r0004_or_close_c0007_after_r0003
+  - design_c0008_r0001_multi_timeframe_context_entry_run
   not_yet:
   - label_freeze
   - feature_set_freeze

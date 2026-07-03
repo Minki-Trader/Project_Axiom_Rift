@@ -154,6 +154,52 @@ decisions:
     feature_set_selected: false
     model_selected: false
     economics_pass: false
+- decision_id: dec_20260703_close_c0007_no_candidate_after_r0003
+  created_local_date: '2026-07-03'
+  status: active
+  decision: close_c0007_fold_local_supervised_edge_discovery_no_candidate_after_r0003
+  refines:
+  - dec_20260703_close_c0007_r0003_no_candidate
+  - dec_20260703_close_c0007_r0002_no_candidate
+  - dec_20260703_close_c0007_r0001_no_candidate
+  - dec_20260703_open_c0007_fold_local_supervised_edge_discovery
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - r0001_direct_linear_rank_r0002_logistic_hazard_classifier_and_r0003_nonlinear_interaction_ensemble_all_closed_no_candidate_with_fold_isolated_mt5_tick_evidence
+  - remaining_c0007_work_would_risk_adjacent_probability_threshold_daily_count_stop_target_hold_session_or_retry_tuning_without_a_new_supervised_edge_question
+  - materially_different_label_or_exit_risk_shape_work_belongs_in_a_new_major_campaign_or_has_already_been_tested_by_prior_exit_risk_campaign_memory
+  - synthesis_due_check_result_is_candidate_later_with_three_post_sc0002_usable_negative_memory_groups_not_open_synthesis
+  - next_work_is_choose_c0008_new_major_hypothesis_or_wait_until_more_campaign_evidence_supports_synthesis
+  - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_open_c0008_multi_timeframe_structural_context_discovery
+  created_local_date: '2026-07-03'
+  status: active
+  decision: open_c0008_multi_timeframe_structural_context_discovery
+  refines:
+  - dec_20260703_close_c0007_no_candidate_after_r0003
+  - dec_20260703_close_sc0002_no_candidate_after_sr0001
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - c0007_closed_no_candidate_and_synthesis_readiness_is_candidate_later_not_open_synthesis
+  - c0008_changes_major_hypothesis_from_all_bars_supervised_edge_scoring_to_multi_timeframe_and_session_structural_context_derived_from_closed_m5_bars
+  - c0008_preserves_fpmarkets_us100_m5_fixed_lot_early_discovery_and_mandatory_mt5_paired_validation
+  - higher_timeframe_features_must_use_only_completed_source_bars_to_preserve_no_future_leakage
+  - first_next_step_is_design_c0008_r0001_multi_timeframe_context_entry_run
+  - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
 - decision_id: dec_20260703_close_c0007_r0002_no_candidate
   created_local_date: '2026-07-03'
   status: active

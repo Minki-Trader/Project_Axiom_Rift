@@ -15,10 +15,10 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0008
-    active_work_unit: campaigns/C0007_fold_local_supervised_edge_discovery
+    next_id: C0009
+    active_work_unit: campaigns/C0008_multi_timeframe_structural_context_discovery
     open_work_units:
-    - campaigns/C0007_fold_local_supervised_edge_discovery
+    - campaigns/C0008_multi_timeframe_structural_context_discovery
     closed_work_units:
     - campaigns/C0001_regime_response_discovery
     - campaigns/C0002_score_conditioned_intraday_edge
@@ -26,6 +26,7 @@ streams:
     - campaigns/C0004_fold_local_state_archetype_discovery
     - campaigns/C0005_continuous_analog_memory_discovery
     - campaigns/C0006_liquidity_sweep_reclaim_event_discovery
+    - campaigns/C0007_fold_local_supervised_edge_discovery
     numbering_policy:
       width: 4
       example: C0001

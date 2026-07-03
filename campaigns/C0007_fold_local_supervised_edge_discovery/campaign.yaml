@@ -1,11 +1,11 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: active
+status: closed_no_candidate
 campaign_id: C0007
 campaign_slug: fold_local_supervised_edge_discovery
 campaign_type: campaign
 opened_at_utc: '2026-07-03T08:01:54Z'
-closed_at_utc: null
+closed_at_utc: '2026-07-03T09:47:08Z'
 hypothesis:
   summary: discover whether direct fold-local supervised edge scoring over closed-bar dual-direction
     candidates can find repeatable US100 M5 entries after prior event, analog-memory, state-archetype,
@@ -50,20 +50,23 @@ run_index:
   - runs/R0002
   - runs/R0003
   next_run_candidate:
-    run_id: R0004_or_close
-    direction: decide_c0007_r0004_or_close_c0007_after_r0003
-    reason: R0003 nonlinear interaction edge ensemble closed no candidate after completed
-      fold-isolated MT5 tick evidence; only non-adjacent supervised edge variants may continue
-      C0007.
-    status: pending_decision
+    run_id: null
+    direction: campaign_closed_no_candidate
+    reason: R0001 linear rank, R0002 logistic hazard classifier, and R0003 nonlinear
+      interaction ensemble exhausted the meaningful non-adjacent supervised all-bars edge
+      variants inside C0007; remaining work would be adjacent tuning or a new major campaign.
+    status: campaign_closed
 synthesis_readiness:
   check_required_at_closeout: true
-  result: not_checked
-  usable_ingredient_group_count: 0
-  readiness_notes: []
+  result: candidate_later
+  usable_ingredient_group_count: 3
+  readiness_notes:
+  - c0007_provides_three_usable_negative_memory_groups_after_sc0002
+  - synthesis_open_threshold_not_met_from_post_sc0002_evidence_alone
+  - next_campaign_stream_work_should_choose_c0008_major_hypothesis
 closeout:
-  status: open
-  close_reason: null
+  status: closed_no_candidate
+  close_reason: no_meaningful_non_adjacent_supervised_edge_variant_remains_after_r0001_r0003
   evidence_paths:
   - runs/R0001/kpi/proxy.json
   - runs/R0001/kpi/mt5_logic_parity.json
@@ -86,7 +89,7 @@ closeout:
   - runs/R0003/kpi/execution_divergence.json
   - runs/R0003/kpi/mt5_tick_by_fold.json
   - runs/R0003/kpi/execution_divergence_by_fold.json
-  remaining_question: decide_c0007_r0004_or_close_c0007_after_r0003
+  remaining_question: choose_c0008_new_major_hypothesis_or_wait_until_more_campaign_evidence_supports_synthesis
 claim_boundary:
   claim_authority: false
   selected: false
