@@ -397,8 +397,18 @@ next_work:
   - produce_c0005_r0004_fold_isolated_execution_divergence
   - review_c0005_r0004_tick_execution_kpi_and_closeout
   - close_c0005_r0004_no_candidate
+  - open_c0005_r0005_calibrated_analog_classifier_run
+  - produce_c0005_r0005_proxy_evidence
+  - produce_c0005_r0005_mt5_logic_parity_evidence
+  - record_c0005_r0005_proxy_vs_mt5_logic_parity_evidence
+  - produce_c0005_r0005_mt5_tick_execution_evidence
+  - record_c0005_r0005_execution_divergence
+  - produce_c0005_r0005_fold_isolated_mt5_tick_kpi
+  - produce_c0005_r0005_fold_isolated_execution_divergence
+  - review_c0005_r0005_tick_execution_kpi_and_closeout
+  - close_c0005_r0005_no_candidate
   tasks:
-  - decide_c0005_r0005_or_close_c0005_after_r0004
+  - decide_c0005_r0006_or_close_c0005_after_r0005
   not_yet:
   - label_freeze
   - feature_set_freeze

@@ -1,0 +1,101 @@
+{
+  "campaign_id": "C0005",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false
+  },
+  "compared_period": {
+    "end": "2026-04-30",
+    "start": "2024-02-01"
+  },
+  "conditional_profiles": {
+    "analog_memory_schedule_replay_profile": {
+      "applies": true,
+      "fields": {
+        "logic_boundary": "proxy_selected_fold_local_calibrated_analog_classifier_schedule_replayed_in_mt5_closed_bar_mode",
+        "native_mql_or_onnx_state_surface_claim": false,
+        "schedule_artifact_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0005/artifacts/c0005_r0005_schedule.csv",
+        "schedule_hash": "363a27d740ce4270d5a317076f501cd57d201a6d46538c1269ee90e3a4a797ce"
+      }
+    },
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "commission_assumption": "broker_native",
+        "execution_source": "mt5_strategy_tester",
+        "lot": "0.0100",
+        "slippage_source": "mt5_strategy_tester",
+        "spread_source": "mt5_strategy_tester",
+        "starting_balance_usd": 500.0
+      }
+    },
+    "trade_match_detail_profile": {
+      "applies": true,
+      "fields": {
+        "entry_mismatch_samples": [],
+        "entry_sequence_direction_match_rate": 1.0,
+        "entry_sequence_time_match_rate": 1.0,
+        "exit_mismatch_samples": [],
+        "exit_sequence_reason_match_rate": 1.0,
+        "exit_sequence_time_match_rate": 1.0,
+        "mt5_entry_event_count": 4262,
+        "mt5_exit_event_count": 4262,
+        "mt5_trade_count": 4262,
+        "proxy_trade_count": 4262
+      }
+    }
+  },
+  "created_at_utc": "2026-07-03T02:09:54Z",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "no C0005 candidate has fold-isolated tick evidence yet",
+      "claim_boundary": {
+        "claim_authority": false,
+        "onnx_ready": false,
+        "runtime_authority": false
+      },
+      "field": "runtime_or_onnx_portability",
+      "reason": "logic parity uses schedule replay only; native analog-memory surface materialization is deferred until candidate quality exists",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "after fold-isolated MT5 tick closeout review"
+    }
+  ],
+  "mechanical_checks": {
+    "analog_memory_schedule_match": "passed",
+    "entry_count_match": "passed",
+    "entry_exit_order_match": "passed",
+    "entry_time_direction_match": "passed",
+    "exit_count_match": "passed",
+    "exit_time_reason_order_match": "passed",
+    "position_lifecycle_match": "passed"
+  },
+  "mt5_kpi_family": "mt5_logic_parity",
+  "mt5_probe_id": "MT5-C0005-R0005",
+  "parity_id": "P-C0005-R0005",
+  "parity_mode": "logic_parity",
+  "proxy_id": "PX-C0005-R0005",
+  "required_kpis": {
+    "entry_count_delta": 0,
+    "entry_direction_match_rate": 1.0,
+    "entry_key_match_rate": 1.0,
+    "entry_time_match_rate": 1.0,
+    "exit_count_delta": 0,
+    "exit_reason_match_rate": 1.0,
+    "exit_time_direction_match_rate": 1.0,
+    "exit_time_match_rate": 1.0,
+    "intent_parity_status": "passed_schedule_replay_boundary",
+    "mechanical_parity_status": "passed",
+    "mismatch_count": 0,
+    "mismatch_summary": "No key mismatch detected",
+    "next_action": "produce_c0005_r0005_mt5_tick_execution_evidence",
+    "repair_required": false,
+    "trade_count_delta": 0
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0005",
+  "schema": "axiom_rift_proxy_vs_mt5_logic_parity_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0005"
+}
