@@ -442,8 +442,19 @@ next_work:
   - produce_c0006_r0002_fold_isolated_execution_divergence
   - review_c0006_r0002_tick_execution_kpi_and_closeout
   - close_c0006_r0002_no_candidate
-  tasks:
   - decide_c0006_r0003_or_close_c0006_after_r0002
+  - open_c0006_r0003_delayed_sweep_trap_rejection_run
+  - produce_c0006_r0003_proxy_evidence
+  - produce_c0006_r0003_mt5_logic_parity_evidence
+  - record_c0006_r0003_proxy_vs_mt5_logic_parity_evidence
+  - produce_c0006_r0003_mt5_tick_execution_evidence
+  - record_c0006_r0003_execution_divergence
+  - produce_c0006_r0003_fold_isolated_mt5_tick_kpi
+  - produce_c0006_r0003_fold_isolated_execution_divergence
+  - review_c0006_r0003_tick_execution_kpi_and_closeout
+  - close_c0006_r0003_no_candidate
+  tasks:
+  - decide_c0006_r0004_or_close_c0006_after_r0003
   not_yet:
   - label_freeze
   - feature_set_freeze

@@ -49,12 +49,14 @@ run_index:
   closed_runs:
   - runs/R0001
   - runs/R0002
+  - runs/R0003
   next_run_candidate:
-    run_id: R0003
-    direction: decide_meaningfully_new_sweep_reclaim_variant_or_close_c0006_after_r0002
-    reason: R0001 reclaim reversal and R0002 sweep acceptance continuation both closed
-      no candidate after completed fold-isolated MT5 tick evidence; next work must
-      decide whether a non-adjacent sweep/reclaim variant remains or close C0006
+    run_id: R0004
+    direction: decide_meaningfully_new_sweep_reclaim_variant_or_close_c0006_after_r0003
+    reason: R0001 immediate reclaim reversal, R0002 acceptance continuation,
+      and R0003 delayed trap/rejection all closed no candidate after fold-isolated
+      MT5 tick evidence; R0003 was closer but still negative, so next work
+      must choose a non-adjacent variant or close C0006.
     status: pending_decision
 synthesis_readiness:
   check_required_at_closeout: true
@@ -74,40 +76,41 @@ claim_boundary:
   promotion_ready: false
   live_ready: false
 closeout:
-  remaining_question: decide_c0006_r0003_or_close_c0006_after_r0002
+  remaining_question: decide_c0006_r0004_or_close_c0006_after_r0003
 latest_run_closeout:
-  run_id: R0002
+  run_id: R0003
   status: closed_no_candidate
-  closed_at_utc: '2026-07-03T04:11:36Z'
+  closed_at_utc: '2026-07-03T05:20:12Z'
   required_kpi_summary:
-    proxy_trade_count: 4325
-    entries_per_active_day: 7.456897
-    proxy_net_pnl_points: -20586.58
-    proxy_profit_factor: 0.501794
-    mt5_logic_trade_count: 4325
-    mt5_logic_net_pnl: -216.38
-    mt5_logic_profit_factor: 0.53131
+    proxy_trade_count: 4569
+    entries_per_active_day: 7.877586
+    proxy_net_pnl_points: -2358.97
+    proxy_profit_factor: 0.934114
+    mt5_logic_trade_count: 4569
+    mt5_logic_net_pnl: -12.48
+    mt5_logic_profit_factor: 0.968235
     mechanical_parity_status: passed
     intent_parity_status: passed_schedule_replay_boundary
     mismatch_count: 0
-    mt5_tick_trade_count: 4323
-    mt5_tick_net_pnl: -194.11
-    mt5_tick_profit_factor: 0.528916
-    economics_shift_status: tick_better_than_logic
-    tick_minus_logic_net_pnl: 22.27
+    mt5_tick_trade_count: 4567
+    mt5_tick_net_pnl: -21.53
+    mt5_tick_profit_factor: 0.940317
+    economics_shift_status: tick_worse_than_logic
+    tick_minus_logic_net_pnl: -9.05
     fold_count: 9
     completed_fold_count: 9
-    losing_fold_count: 9
-    profitable_fold_count: 0
-    total_tick_trade_count: 4323
-    total_tick_net_pnl: -194.11
+    losing_fold_count: 7
+    profitable_fold_count: 2
+    total_tick_trade_count: 4567
+    total_tick_net_pnl: -21.53
     mt5_tick_by_fold_status: completed
     execution_divergence_by_fold_status: completed
-    total_tick_minus_logic_net_pnl: 22.27
+    total_tick_minus_logic_net_pnl: -9.05
   failure_asset:
     asset_type: negative_memory
-    hypothesis_tested: closed-bar sweep acceptance and continuation event grammar with
-      train-fold event utility selection
+    hypothesis_tested: closed-bar delayed sweep trap/rejection confirmation
+      with one-to-three-bar post-sweep confirmation and train-fold event utility
+      selection
     evidence_paths:
     - kpi/proxy.json
     - kpi/mt5_logic_parity.json
@@ -117,17 +120,19 @@ latest_run_closeout:
     - kpi/mt5_tick_by_fold.json
     - kpi/execution_divergence_by_fold.json
     reason_not_candidate: fold-isolated MT5 tick evidence completed with negative
-      total tick net PnL, nine losing folds, and zero profitable folds despite target-range
-      activity and passed schedule replay parity
-    next_boundary: C0006 remains open, but R0002 should not be retried by only nudging
-      thresholds, daily counts, stop, target, hold, scope weights, or acceptance depth;
-      next work must decide a meaningfully new sweep/reclaim variant or close C0006
+      total tick net PnL, seven losing folds, and only two profitable folds despite
+      target-range activity and passed schedule replay parity
+    next_boundary: C0006 remains open, but R0003 should not be retried by only nudging
+      delay bars, confirmation depth, thresholds, daily counts, stop, target,
+      hold, or scope weights; next work must decide a meaningfully new sweep/reclaim
+      variant or close C0006
     supporting_lessons:
     - asset_type: execution_divergence_lesson
-      summary: tick execution was better than closed-bar logic in seven of nine folds,
-        but both surfaces remained strongly negative overall
+      summary: tick execution was worse than closed-bar logic overall, with total
+        tick-minus-logic net PnL of -9.05
       source: kpi/execution_divergence_by_fold.json
     - asset_type: negative_memory
-      summary: sweep acceptance continuation event grammar met activity with 7.456897
-        entries per active day but failed all nine fold-isolated tick windows
+      summary: delayed sweep trap/rejection met activity with 7.877586 entries
+        per active day and reduced drawdown versus R0002, but fold-isolated profitability
+        remained negative
       source: kpi/mt5_tick_by_fold.json
