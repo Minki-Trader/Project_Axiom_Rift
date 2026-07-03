@@ -1,0 +1,189 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false
+  },
+  "closed_at_utc": "2026-07-03T01:46:00Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "close_reason": "fold_isolated_tick_negative_no_candidate",
+    "closed_at_utc": "2026-07-03T01:46:00Z",
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "hypothesis_tested": "fold-local train-only target-first tail-hazard analog memory with US100 M5 schedule replay",
+      "next_boundary": "next C0005 work must change a meaningful analog model, feature, label, calibration, or trade-shape surface; do not retry R0004 by only nudging distance, target-hazard lift, stop-first rate, lower-tail, inner-outer gap, daily max entries, stop, target, hold, or session thresholds",
+      "reason_not_candidate": "fold-isolated MT5 tick evidence completed with 8 losing folds, 1 profitable fold, negative total tick net PnL, and negative proxy plus MT5 tick profitability despite target-range entry frequency",
+      "supporting_lessons": [
+        {
+          "asset_type": "repair_lesson",
+          "summary": "Initial target-first tail-hazard hard vetoes produced an empty schedule and MT5 rejected it as invalid_schedule_empty; repair changed eligibility to relaxed distance-only ranking before valid evidence was produced."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "summary": "Closed-bar schedule replay parity passed, while tick execution worsened total net PnL by 6.10 versus logic and changed total trade count by -12; tick execution remains the economic surface."
+        },
+        {
+          "asset_type": "negative_memory",
+          "summary": "Target-first tail-hazard analog memory achieved 7.389655 entries per active day but remained negative on 8 of 9 fold-isolated MT5 tick folds."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "entries_per_active_day": 7.389655,
+      "execution_divergence_by_fold_status": "completed",
+      "logic_parity_status": "passed",
+      "losing_fold_count": 8,
+      "profitable_fold_count": 1,
+      "proxy_net_pnl_points": -5314.51,
+      "proxy_profit_factor": 0.881219,
+      "proxy_trade_count": 4286,
+      "tick_better_fold_count": 3,
+      "tick_worse_fold_count": 6,
+      "total_tick_minus_logic_net_pnl": -6.1,
+      "total_tick_net_pnl": -53.01,
+      "total_tick_trade_count": 4274,
+      "worst_fold_id": "rw_005",
+      "worst_fold_net_pnl": -12.28
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "analog_memory_summary": "artifacts/c0005_r0004_analog_memory_summary.json",
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0005_r0004_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0005_r0004_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "fixed_surfaces": {
+    "base_frame": "US100 closed M5 bars",
+    "commission_per_trade": 0,
+    "early_sizing": "fixed_lot",
+    "market": "FPMarkets US100 M5",
+    "proxy_is_screening_gate_for_mt5": false,
+    "split_policy": "rolling_window",
+    "synthetic_commission_allowed": false
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "test whether fold-local target-first tail-hazard analog memory can separate target-before-stop opportunities from adverse-tail analogs after mean, contrast, and temporal-stability analog scoring failed",
+    "variant_boundary": "fourth C0005 true variant; changes label shape, feature representation, model score interpretation, and trade-logic interpretation toward asymmetric target-first probability, early favorable capture, and adverse-tail avoidance; not a neighbor-count, analog-distance, threshold, daily-count, stop, target, hold, session, or retry nudge of R0001 through R0003"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_target_first_tail_hazard_analog_memory_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "notes": [
+      "closed-bar MT5 mode is required for proxy-vs-EA logic parity",
+      "tick-mode MT5 is required for execution KPI management",
+      "fold-isolated MT5 tick and execution divergence are required before closeout",
+      "weak proxy evidence cannot skip MT5 validation"
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-03T01:19:08Z",
+  "parent_type": "campaign",
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy must fit target-first tail-hazard analog memory only inside each rolling train window",
+      "proxy result cannot decide whether MT5 validation is attempted",
+      "proxy must report tail-risk diagnostics without creating selected claims"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [
+      "mechanical parity must compare scheduled entries, directions, exits, exit reasons, and position lifecycle behavior",
+      "tick-vs-closed-bar differences are execution divergence, not automatic logic failure",
+      "repair mechanical parity before any hypothesis judgment when mismatch is found"
+    ],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 1,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": [
+      {
+        "changed_surfaces": [
+          "model_score_eligibility_filter",
+          "trade_logic_schedule_generation_precondition"
+        ],
+        "counts_toward_hypothesis_repair_limit": true,
+        "evidence_paths": [
+          "artifacts/c0005_r0004_empty_schedule_proxy_before_repair.json",
+          "artifacts/c0005_r0004_schedule.csv"
+        ],
+        "parent_run_id": "R0004",
+        "reason": "Initial target-first tail-hazard hard vetoes eliminated all candidates, producing an empty proxy schedule; MT5 schedule replay rejected the empty schedule with invalid_schedule_empty.",
+        "recorded_at_utc": "2026-07-03T01:29:35Z",
+        "repair_action": "Use target-first tail-hazard score ranking with a relaxed distance-only eligibility filter, then rerun proxy and the same MT5 validation path.",
+        "repair_id": "RP-C0005-R0004-0001",
+        "repair_type": "hypothesis_repair"
+      }
+    ]
+  },
+  "run_id": "R0004",
+  "schema": "axiom_rift_run_manifest_v1",
+  "source_ingredient_ids": [
+    "C0005_R0001_negative_memory",
+    "C0005_R0002_negative_memory",
+    "C0005_R0003_negative_memory"
+  ],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "continuous directional momentum, compression-release, range acceleration, wick/body pressure, prior adverse excursion, session-cycle, and spread-pressure features; no feature set is selected"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "asymmetric directional label rewarding target-before-stop and early favorable capture while penalizing stop-first, large adverse tail, delayed target, and spread drag inside train folds; no label is selected"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "fold-local target-first tail-hazard analog memory using train-only standardized continuous vectors, nearest-neighbor target-first labels, adverse-tail vetoes, and asymmetric hazard score calibration; no model family is selected"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "fixed-lot discovery schedule selects highest target-first tail-hazard analog scores per active day with spacing and schedule replay for MT5 validation"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0005"
+}
