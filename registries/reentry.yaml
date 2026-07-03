@@ -551,8 +551,9 @@ next_work:
   - repair_c0008_r0002_mt5_campaign_path_marker
   - review_c0008_r0002_tick_execution_kpi_and_closeout
   - close_c0008_r0002_with_candidate_evidence
+  - audit_c0008_r0002_candidate_robustness
   tasks:
-  - decide_c0008_candidate_robustness_or_r0003_after_r0002
+  - design_c0008_r0003_structural_trap_reversal_robustness_conditioner_run
   not_yet:
   - label_freeze
   - feature_set_freeze

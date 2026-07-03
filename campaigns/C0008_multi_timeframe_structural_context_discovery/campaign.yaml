@@ -52,12 +52,14 @@ run_index:
   - runs/R0001
   - runs/R0002
   next_run_candidate:
-    run_id: candidate_robustness_or_R0003
-    direction: decide_c0008_candidate_robustness_or_r0003_after_r0002
-    reason: R0002 closed with candidate evidence but no selected, economics-pass, runtime,
-      ONNX, promotion, or live claim; next work must decide robustness hardening, materialization
-      feasibility, or a non-adjacent R0003.
-    status: pending_decision
+    run_id: R0003
+    direction: design_c0008_r0003_structural_trap_reversal_robustness_conditioner_run
+    reason: R0002 candidate robustness audit retained candidate evidence but found thin
+      cost buffer, two losing folds, and a six-month MT5 tick deal losing streak; next
+      work should design a true structural trap reversal robustness conditioner, not a
+      selected, economics-pass, runtime, ONNX, promotion, live, threshold, stop, target,
+      hold, session, or retry claim.
+    status: pending_design
 synthesis_readiness:
   check_required_at_closeout: true
   result: not_checked
@@ -81,7 +83,8 @@ closeout:
   - runs/R0002/kpi/execution_divergence.json
   - runs/R0002/kpi/mt5_tick_by_fold.json
   - runs/R0002/kpi/execution_divergence_by_fold.json
-  remaining_question: decide_c0008_candidate_robustness_or_r0003_after_r0002
+  - runs/R0002/kpi/candidate_robustness_audit.json
+  remaining_question: design_c0008_r0003_structural_trap_reversal_robustness_conditioner_run
 claim_boundary:
   claim_authority: false
   economics_pass: false

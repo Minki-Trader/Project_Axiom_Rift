@@ -150,6 +150,23 @@
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"
       ]
+    },
+    {
+      "artifact_id": "A-C0008-R0002-CANDIDATE-ROBUSTNESS-AUDIT",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "candidate_robustness_audit",
+      "mutable": false,
+      "produced_by": "manual_goal_operation_audit_from_existing_r0002_evidence",
+      "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/candidate_robustness_audit.json",
+      "sha256": "2097f4df5b4c9b41cb6da63d06fe3ee968e7566e9543582e41b4a4ad608f034f",
+      "source_inputs": [
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/proxy.json",
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/mt5_tick.json",
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/execution_divergence_by_fold.json"
+      ]
     }
   ],
   "campaign_id": "C0008",

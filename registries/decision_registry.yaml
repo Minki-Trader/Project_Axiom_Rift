@@ -1756,3 +1756,27 @@ decisions:
     feature_set_selected: false
     model_selected: false
     economics_pass: false
+- decision_id: dec_20260703_audit_c0008_r0002_candidate_robustness
+  created_local_date: '2026-07-03'
+  status: active
+  decision: route_c0008_after_r0002_to_structural_trap_reversal_robustness_conditioner_design
+  refines:
+  - dec_20260703_close_c0008_r0002_with_candidate_evidence
+  - dec_20260703_open_c0008_r0002_structural_trap_reversal_centroid_run
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - r0002_candidate_evidence_is_retained_because_it_met_target_activity_and_positive_total_fold_isolated_mt5_tick_net_pnl
+  - r0002_is_not_selected_because_candidate_robustness_audit_found_thin_cost_buffer_two_losing_folds_and_six_month_mt5_tick_deal_losing_streak
+  - aggregate_extra_cost_per_trade_to_zero_is_only_0_005184_account_currency_units
+  - rw_001_and_rw_002_are_losing_folds_and_2024_02_through_2024_07_is_a_losing_month_streak
+  - next_work_should_design_a_true_c0008_r0003_structural_trap_reversal_robustness_conditioner_not_a_threshold_stop_target_hold_session_retry_selected_runtime_onnx_promotion_or_live_claim
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    selected: false
+    onnx_ready: false
+    promotion_ready: false

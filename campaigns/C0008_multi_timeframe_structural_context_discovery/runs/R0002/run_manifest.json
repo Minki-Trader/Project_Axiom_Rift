@@ -16,6 +16,7 @@
   "closed_at_utc": "2026-07-03T11:19:15Z",
   "evidence_paths": {
     "artifact_lineage": "artifact_lineage.json",
+    "candidate_robustness_audit_kpi": "kpi/candidate_robustness_audit.json",
     "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
     "execution_divergence_kpi": "kpi/execution_divergence.json",
     "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
@@ -140,7 +141,7 @@
         "kpi/execution_divergence_by_fold.json"
       ],
       "reason_candidate_evidence": "target-range activity, positive proxy, passed schedule replay parity, positive MT5 tick total net PnL, and seven profitable rolling-window tick folds with two losing folds",
-      "next_boundary": "next work must decide robustness or candidate-hardening evidence such as stress/slippage, robustness folds, materialization feasibility, or a non-adjacent R0003; this is not a selected, economics-pass, runtime, ONNX, promotion, or live claim",
+      "next_boundary": "candidate robustness audit found thin cost buffer, two losing folds, and a six-month losing streak; next work should design a true C0008 R0003 structural trap reversal robustness conditioner instead of selected, economics-pass, runtime, ONNX, promotion, or live claim",
       "supporting_lessons": [
         {
           "asset_type": "candidate_evidence",
@@ -156,6 +157,11 @@
           "asset_type": "repair_lesson",
           "source": "src/axiom_rift/mt5/c0008_r0002_probe.py",
           "summary": "mechanical R0002 path-marker replacement briefly pointed MT5 KPI writes to a noncanonical campaign folder; repaired before rerun and not counted as hypothesis evidence"
+        },
+        {
+          "asset_type": "candidate_robustness_audit",
+          "source": "kpi/candidate_robustness_audit.json",
+          "summary": "R0002 candidate evidence remains useful but fragile: aggregate extra cost buffer is 0.005184 account currency units per entry, rw_001 and rw_002 are losing folds, and MT5 tick deal evidence has a six-month losing streak"
         }
       ]
     },
@@ -177,6 +183,9 @@
       "mt5_tick_profit_factor": 1.069012,
       "mt5_tick_trade_count": 4375,
       "profitable_fold_count": 7,
+      "candidate_robustness_status": "fragile_requires_hardening",
+      "aggregate_extra_cost_per_trade_to_zero": 0.005184,
+      "longest_losing_month_streak": 6,
       "proxy_expectancy_points_per_entry": 0.37849,
       "proxy_net_pnl_points": 1661.95,
       "proxy_profit_factor": 1.050917,
