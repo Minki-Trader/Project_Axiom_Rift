@@ -1,0 +1,168 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false
+  },
+  "closed_at_utc": "2026-07-03T10:46:25Z",
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0008_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0008_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "structural_context_summary": "artifacts/c0008_r0001_structural_context_summary.json"
+  },
+  "gate_status": "close_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold_local_multi_timeframe_structural_context_rank",
+    "variant_boundary": "first C0008 true variant; tests completed-M5-derived M15, H1, session, and daily structural context rank scoring, not C0007 all-bars supervised edge retry, C0006 liquidity sweep event grammar, analog memory, state archetype buckets, score-cell stumps, synthesis veto replay, or threshold, daily-count, stop, target, hold, session, or retry nudge"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_multi_timeframe_structural_context_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "notes": [],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-03T10:19:33Z",
+  "parent_type": "campaign",
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy_result_cannot_close_run_without_mt5_paired_validation"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v1",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "completed-M5-derived M15, H1, session, and daily structural position, breakout distance, range-ratio, compression, expansion, body, wick, session phase, and spread pressure features"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "directional target-before-stop path quality with adverse-tail, speed, terminal, alignment, giveback, spread, and structural context cost adjustment"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "fold-local standardized structural context linear rank from train-fold feature-label correlations and positive/adverse separation"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "dual-direction core-session structural context scoring with daily top selection, next-bar entry, fixed stop/target/hold discovery exits, and mandatory MT5 schedule replay"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0008",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false
+    },
+    "close_reason": "no_candidate_after_fold_isolated_mt5_tick_and_execution_divergence_evidence",
+    "closed_at_utc": "2026-07-03T10:46:25Z",
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "evidence_paths": [
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local multi-timeframe structural context rank scoring over completed-M5-derived M15, H1, session, and daily structural features",
+      "next_boundary": "C0008 may continue only with a non-adjacent structural-context variant such as a materially different context trigger, label objective, model surface, or trade-shape question; simple threshold, daily count, stop, target, hold, session, or retry nudges are blocked by this negative memory",
+      "reason_not_candidate": "fold-isolated MT5 tick evidence completed with negative total tick net PnL, nine losing folds, zero profitable folds, and negative proxy and MT5 tick profitability despite target-range activity and passed schedule replay parity",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "multi-timeframe structural context rank met activity with 7.296552 entries per active day but produced nine losing MT5 tick folds and zero profitable folds"
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "tick execution was worse than closed-bar logic overall by -3.86 net PnL; seven folds were tick-worse and total tick economics remained negative"
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "economics_shift_status": "tick_worse_than_logic",
+      "entries_per_active_day": 7.296552,
+      "execution_divergence_by_fold_status": "completed",
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "mismatch_count": 0,
+      "mt5_logic_net_pnl": -211.74,
+      "mt5_logic_profit_factor": 0.599387,
+      "mt5_logic_trade_count": 4232,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_net_pnl": -215.6,
+      "mt5_tick_profit_factor": 0.580586,
+      "mt5_tick_trade_count": 4220,
+      "profitable_fold_count": 0,
+      "proxy_net_pnl_points": -21130.42,
+      "proxy_profit_factor": 0.585183,
+      "proxy_trade_count": 4232,
+      "tick_better_fold_count": 2,
+      "tick_worse_fold_count": 7,
+      "total_tick_minus_logic_net_pnl": -3.86,
+      "total_tick_net_pnl": -215.6,
+      "total_tick_trade_count": 4220
+    },
+    "status": "closed_no_candidate"
+  }
+}

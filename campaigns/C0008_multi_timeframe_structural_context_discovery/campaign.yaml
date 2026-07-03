@@ -1,22 +1,21 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: active
+status: mt5_probe_attempts
 campaign_id: C0008
 campaign_slug: multi_timeframe_structural_context_discovery
 campaign_type: campaign
 opened_at_utc: '2026-07-03T09:49:34Z'
 closed_at_utc: null
-
 hypothesis:
   summary: discover whether closed-bar multi-timeframe and session-anchored structural context
     can isolate repeatable US100 M5 entries after direct all-bars supervised edge, liquidity
     event, analog-memory, state-archetype, score-cell, exit-shape, and synthesis attempts
     closed no candidate
-  boundary: derive M15, H1, session, and daily structural context only from closed US100
-    M5 bars, generate context-aware candidate schedules around structural transitions and
-    level interactions, evaluate fixed-lot rolling-window variants, and replay opened runs
-    through mandatory MT5 logic parity, tick execution, execution divergence, and
-    fold-isolated closeout evidence
+  boundary: derive M15, H1, session, and daily structural context only from closed US100 M5
+    bars, generate context-aware candidate schedules around structural transitions and level
+    interactions, evaluate fixed-lot rolling-window variants, and replay opened runs through
+    mandatory MT5 logic parity, tick execution, execution divergence, and fold-isolated closeout
+    evidence
   not_in_scope:
   - selected_claim
   - runtime_authority
@@ -34,12 +33,13 @@ required_surfaces:
   feature:
     status: variable
     summary: unrestricted closed-bar M15, H1, session, daily, range-location, compression,
-      trend-alignment, prior-level-distance, and spread-pressure features; no feature set is selected
+      trend-alignment, prior-level-distance, and spread-pressure features; no feature set
+      is selected
   trade_logic:
     status: variable
     summary: variable context trigger, direction, entry timing, abstention, frequency control,
-      exit, stop, target, trail, hold, and fixed-lot discovery risk shape; equity-percent sizing
-      remains deferred
+      exit, stop, target, trail, hold, and fixed-lot discovery risk shape; equity-percent
+      sizing remains deferred
   label:
     status: variable
     summary: variable structural continuation, reversal, target-before-stop, adverse-tail,
@@ -48,13 +48,15 @@ run_index:
   runs_root: runs/
   run_id_format: R0001
   active_run: null
-  closed_runs: []
+  closed_runs:
+  - runs/R0001
   next_run_candidate:
-    run_id: R0001
-    direction: design_c0008_r0001_multi_timeframe_context_entry_run
-    reason: C0008 is newly opened; first run should test a true structural-context entry
-      variant rather than a threshold, session, stop, target, hold, or retry nudge.
-    status: pending_design
+    run_id: R0002_or_close
+    direction: decide_c0008_r0002_or_close_c0008_after_r0001
+    reason: R0001 structural context rank closed no candidate after fold-isolated MT5 tick
+      and execution divergence evidence; only non-adjacent structural context variants may
+      continue.
+    status: pending_decision
 synthesis_readiness:
   check_required_at_closeout: true
   result: not_checked
@@ -63,18 +65,25 @@ synthesis_readiness:
 closeout:
   status: open
   close_reason: null
-  evidence_paths: []
-  remaining_question: design_c0008_r0001_multi_timeframe_context_entry_run
+  evidence_paths:
+  - runs/R0001/kpi/proxy.json
+  - runs/R0001/kpi/mt5_logic_parity.json
+  - runs/R0001/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0001/kpi/mt5_tick.json
+  - runs/R0001/kpi/execution_divergence.json
+  - runs/R0001/kpi/mt5_tick_by_fold.json
+  - runs/R0001/kpi/execution_divergence_by_fold.json
+  remaining_question: decide_c0008_r0002_or_close_c0008_after_r0001
 claim_boundary:
   claim_authority: false
-  selected: false
-  label_selected: false
-  feature_set_selected: false
-  model_selected: false
-  runtime_probe_completed: false
   economics_pass: false
+  feature_set_selected: false
+  label_selected: false
+  live_ready: false
   materialization_ready: false
-  runtime_authority: false
+  model_selected: false
   onnx_ready: false
   promotion_ready: false
-  live_ready: false
+  runtime_authority: false
+  runtime_probe_completed: false
+  selected: false
