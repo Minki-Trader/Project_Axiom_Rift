@@ -1709,3 +1709,50 @@ decisions:
     feature_set_selected: false
     model_selected: false
     economics_pass: false
+- decision_id: dec_20260703_open_c0008_r0002_structural_trap_reversal_centroid_run
+  created_local_date: '2026-07-03'
+  status: active
+  decision: open_r0002_structural_trap_reversal_centroid_run_under_c0008
+  refines:
+  - dec_20260703_close_c0008_r0001_no_candidate
+  - dec_20260703_open_c0008_multi_timeframe_structural_context_discovery
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - c0008_remains_open_after_r0001_closed_no_candidate_with_fold_isolated_mt5_tick_evidence
+  - r0001_negative_memory_blocks_retry_by_threshold_daily_count_stop_target_hold_session_or_rank_retry_nudge_only
+  - r0002_changes_model_label_feature_and_trade_trigger_to_structural_trap_reversal_centroid_contrast
+  - r0002_is_a_true_variant_inside_the_multi_timeframe_structural_context_campaign_boundary
+  - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_close_c0008_r0002_with_candidate_evidence
+  created_local_date: '2026-07-03'
+  status: active
+  decision: close_c0008_r0002_structural_trap_reversal_centroid_run_with_candidate_evidence
+  refines:
+  - dec_20260703_open_c0008_r0002_structural_trap_reversal_centroid_run
+  - dec_20260703_close_c0008_r0001_no_candidate
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - r0002_completed_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - fold_isolated_mt5_tick_evidence_completed_all_nine_required_folds
+  - r0002_met_target_entry_frequency_with_7_57069_entries_per_active_day
+  - r0002_had_seven_profitable_folds_two_losing_folds_and_positive_total_fold_isolated_tick_net_pnl
+  - r0002_tick_execution_remained_positive_after_recorded_tick_worse_than_logic_divergence
+  - r0002_is_recorded_as_candidate_evidence_not_selected_economics_pass_runtime_onnx_promotion_or_live_claim
+  - next_work_is_decide_c0008_candidate_robustness_or_r0003_after_r0002
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false

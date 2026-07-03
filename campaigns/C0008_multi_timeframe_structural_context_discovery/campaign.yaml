@@ -50,12 +50,13 @@ run_index:
   active_run: null
   closed_runs:
   - runs/R0001
+  - runs/R0002
   next_run_candidate:
-    run_id: R0002_or_close
-    direction: decide_c0008_r0002_or_close_c0008_after_r0001
-    reason: R0001 structural context rank closed no candidate after fold-isolated MT5 tick
-      and execution divergence evidence; only non-adjacent structural context variants may
-      continue.
+    run_id: candidate_robustness_or_R0003
+    direction: decide_c0008_candidate_robustness_or_r0003_after_r0002
+    reason: R0002 closed with candidate evidence but no selected, economics-pass, runtime,
+      ONNX, promotion, or live claim; next work must decide robustness hardening, materialization
+      feasibility, or a non-adjacent R0003.
     status: pending_decision
 synthesis_readiness:
   check_required_at_closeout: true
@@ -63,7 +64,7 @@ synthesis_readiness:
   usable_ingredient_group_count: 0
   readiness_notes: []
 closeout:
-  status: open
+  status: open_with_candidate_evidence
   close_reason: null
   evidence_paths:
   - runs/R0001/kpi/proxy.json
@@ -73,7 +74,14 @@ closeout:
   - runs/R0001/kpi/execution_divergence.json
   - runs/R0001/kpi/mt5_tick_by_fold.json
   - runs/R0001/kpi/execution_divergence_by_fold.json
-  remaining_question: decide_c0008_r0002_or_close_c0008_after_r0001
+  - runs/R0002/kpi/proxy.json
+  - runs/R0002/kpi/mt5_logic_parity.json
+  - runs/R0002/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0002/kpi/mt5_tick.json
+  - runs/R0002/kpi/execution_divergence.json
+  - runs/R0002/kpi/mt5_tick_by_fold.json
+  - runs/R0002/kpi/execution_divergence_by_fold.json
+  remaining_question: decide_c0008_candidate_robustness_or_r0003_after_r0002
 claim_boundary:
   claim_authority: false
   economics_pass: false

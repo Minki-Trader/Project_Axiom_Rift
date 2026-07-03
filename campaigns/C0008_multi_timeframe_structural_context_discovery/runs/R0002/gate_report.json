@@ -1,0 +1,190 @@
+{
+  "campaign_id": "C0008",
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false
+  },
+  "claim_gate": {
+    "claim_authority": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "model_selected": false,
+    "runtime_authority": false,
+    "status": "passed_no_claim_authority"
+  },
+  "decision": "close_with_candidate_evidence",
+  "deferred_with_reason": [],
+  "evidence_gate": {
+    "checks": {
+      "artifact_lineage_path_recorded": true,
+      "execution_divergence_by_fold_kpi_path_recorded": true,
+      "execution_divergence_kpi_path_recorded": true,
+      "mt5_logic_parity_kpi_path_recorded": true,
+      "mt5_tick_by_fold_kpi_path_recorded": true,
+      "mt5_tick_kpi_path_recorded": true,
+      "proxy_kpi_path_recorded": true,
+      "proxy_vs_mt5_logic_parity_kpi_path_recorded": true
+    },
+    "status": "passed"
+  },
+  "evidence_paths": [
+    "artifact_lineage.json",
+    "artifacts/c0008_r0002_proxy_trades.csv",
+    "artifacts/c0008_r0002_structural_trap_reversal_summary.json",
+    "kpi/proxy.json",
+    "kpi/mt5_logic_parity.json",
+    "kpi/proxy_vs_mt5_logic_parity.json",
+    "artifacts/c0008_r0002_schedule.csv",
+    "kpi/mt5_tick.json",
+    "kpi/execution_divergence.json",
+    "kpi/mt5_tick_by_fold.json",
+    "kpi/execution_divergence_by_fold.json"
+  ],
+  "execution_gate": {
+    "economics_shift_status": "tick_worse_than_logic",
+    "missing_required_kpi_fields": [],
+    "run_closeout_review_ready": false,
+    "status": "recorded_with_divergence"
+  },
+  "fold_isolated_execution_gate": {
+    "execution_divergence_by_fold_status": "completed",
+    "missing_required_kpi_fields": {
+      "execution_divergence_by_fold": [],
+      "mt5_tick_by_fold": []
+    },
+    "mt5_tick_by_fold_status": "completed"
+  },
+  "gate_report_id": "G-C0008-R0002",
+  "must_not": [
+    "claim_selected",
+    "claim_runtime_authority",
+    "claim_onnx_ready",
+    "claim_live_ready"
+  ],
+  "next_action": "decide_c0008_candidate_robustness_or_r0003_after_r0002",
+  "parity_gate": {
+    "intent_parity_status": "passed_schedule_replay_boundary",
+    "mechanical_parity_status": "passed",
+    "non_portable_status": "not_applicable",
+    "repair_required": false,
+    "status": "passed",
+    "mismatch_count": 0
+  },
+  "role": "lightweight_decision_receipt",
+  "rolling_window_closeout_gate": {
+    "aggregate_full_period_mt5_kpi_role": "diagnostic_only",
+    "fold_isolated_exception": {
+      "applies": false,
+      "blocking_condition": "",
+      "reason": "",
+      "revisit_when": ""
+    },
+    "fold_isolated_execution_divergence_path_recorded": true,
+    "fold_isolated_mt5_tick_path_recorded": true,
+    "fold_isolated_mt5_tick_required": true,
+    "status": "passed"
+  },
+  "run_id": "R0002",
+  "schema": "axiom_rift_gate_report_v1",
+  "status": "closed_with_candidate_evidence",
+  "template": false,
+  "work_unit_id": "C0008",
+  "closeout_review": {
+    "status": "closed_with_candidate_evidence",
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "close_reason": "candidate_evidence_recorded_after_fold_isolated_mt5_tick_and_execution_divergence_evidence",
+    "closed_at_utc": "2026-07-03T11:19:15Z",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false
+    },
+    "candidate_evidence": {
+      "asset_type": "candidate_evidence",
+      "candidate_status": "recorded_not_selected",
+      "selection_status": "not_selected",
+      "economics_pass": false,
+      "runtime_authority": false,
+      "onnx_ready": false,
+      "hypothesis_tested": "fold-local structural trap/reclaim reversal centroid contrast over completed-M5-derived M15, H1, session, and daily context",
+      "evidence_paths": [
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "reason_candidate_evidence": "target-range activity, positive proxy, passed schedule replay parity, positive MT5 tick total net PnL, and seven profitable rolling-window tick folds with two losing folds",
+      "next_boundary": "next work must decide robustness or candidate-hardening evidence such as stress/slippage, robustness folds, materialization feasibility, or a non-adjacent R0003; this is not a selected, economics-pass, runtime, ONNX, promotion, or live claim",
+      "supporting_lessons": [
+        {
+          "asset_type": "candidate_evidence",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "structural trap reversal centroid contrast produced 7.57069 entries per active day, positive total fold-isolated tick net PnL, seven profitable folds, and two losing folds"
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "tick execution was worse than closed-bar logic overall by -9.11 net PnL, with seven tick-worse folds, but tick total remained positive"
+        },
+        {
+          "asset_type": "repair_lesson",
+          "source": "src/axiom_rift/mt5/c0008_r0002_probe.py",
+          "summary": "mechanical R0002 path-marker replacement briefly pointed MT5 KPI writes to a noncanonical campaign folder; repaired before rerun and not counted as hypothesis evidence"
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "economics_shift_status": "tick_worse_than_logic",
+      "entries_per_active_day": 7.57069,
+      "execution_divergence_by_fold_status": "completed",
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "losing_fold_count": 2,
+      "mechanical_parity_status": "passed",
+      "mismatch_count": 0,
+      "mt5_logic_net_pnl": 31.79,
+      "mt5_logic_profit_factor": 1.089454,
+      "mt5_logic_trade_count": 4391,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_net_pnl": 22.68,
+      "mt5_tick_profit_factor": 1.069012,
+      "mt5_tick_trade_count": 4375,
+      "profitable_fold_count": 7,
+      "proxy_expectancy_points_per_entry": 0.37849,
+      "proxy_net_pnl_points": 1661.95,
+      "proxy_profit_factor": 1.050917,
+      "proxy_trade_count": 4391,
+      "tick_better_fold_count": 2,
+      "tick_worse_fold_count": 7,
+      "total_tick_minus_logic_net_pnl": -9.11,
+      "total_tick_net_pnl": 22.68,
+      "total_tick_trade_count": 4375,
+      "worst_fold_id": "rw_002",
+      "worst_fold_net_pnl": -6.88
+    }
+  }
+}

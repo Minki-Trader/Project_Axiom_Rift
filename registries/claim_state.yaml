@@ -100,31 +100,32 @@ active_campaign: campaigns/C0008_multi_timeframe_structural_context_discovery
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0008_r0001_no_candidate
+  id: close_c0008_r0002_with_candidate_evidence
   status: completed
-  recorded_at_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/run_manifest.json
-  gate_report_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/gate_report.json
-  evidence_status: closed_no_candidate
-  campaign_status: active_pending_next_run_decision
+  recorded_at_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/run_manifest.json
+  gate_report_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/gate_report.json
+  evidence_status: closed_with_candidate_evidence_not_selected
+  campaign_status: active_pending_candidate_robustness_decision
   fold_count: 9
   completed_fold_count: 9
-  profitable_fold_count: 0
-  losing_fold_count: 9
-  entries_per_active_day: 7.296552
-  proxy_trade_count: 4232
-  proxy_net_pnl_points: -21130.42
-  proxy_profit_factor: 0.585183
-  mt5_logic_trade_count: 4232
-  mt5_logic_net_pnl: -211.74
-  mt5_logic_profit_factor: 0.599387
-  mt5_tick_trade_count: 4220
-  mt5_tick_net_pnl: -215.6
-  mt5_tick_profit_factor: 0.580586
+  profitable_fold_count: 7
+  losing_fold_count: 2
+  entries_per_active_day: 7.57069
+  proxy_trade_count: 4391
+  proxy_net_pnl_points: 1661.95
+  proxy_profit_factor: 1.050917
+  mt5_logic_trade_count: 4391
+  mt5_logic_net_pnl: 31.79
+  mt5_logic_profit_factor: 1.089454
+  mt5_tick_trade_count: 4375
+  mt5_tick_net_pnl: 22.68
+  mt5_tick_profit_factor: 1.069012
   mt5_tick_by_fold_status: completed
   execution_divergence_by_fold_status: completed
   economics_shift_status: tick_worse_than_logic
-  total_tick_minus_logic_net_pnl: -3.86
-  next_required_action: decide_c0008_r0002_or_close_c0008_after_r0001
+  total_tick_minus_logic_net_pnl: -9.11
+  candidate_evidence_status: recorded_not_selected
+  next_required_action: decide_c0008_candidate_robustness_or_r0003_after_r0002
   claim_boundary:
     claim_authority: false
     selected: false
@@ -132,6 +133,7 @@ latest_operation:
     feature_set_selected: false
     model_selected: false
     runtime_authority: false
+    economics_pass: false
     onnx_ready: false
     promotion_ready: false
     live_ready: false
