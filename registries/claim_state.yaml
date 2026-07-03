@@ -100,11 +100,11 @@ active_campaign: null
 active_synthesis: campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis
 active_run: null
 latest_operation:
-  id: open_sc0002_accumulated_post_sc0001_negative_memory_synthesis
+  id: design_sc0002_sr0001_post_sc0001_failure_mode_synthesis_run
   status: completed
-  recorded_at_source: campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/synthesis.yaml
+  recorded_at_source: campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/synthesis_queue.yaml
   paired_divergence_source: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0005/kpi/execution_divergence_by_fold.json
-  evidence_status: synthesis_opened_from_c0004_to_c0006_negative_memory
+  evidence_status: synthesis_run_design_recorded_not_opened
   closed_campaign: campaigns/C0006_liquidity_sweep_reclaim_event_discovery
   latest_closed_run: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0005
   active_synthesis: campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis
@@ -116,7 +116,11 @@ latest_operation:
   usable_ingredient_group_count: 15
   synthesis_readiness_result: open_synthesis
   open_synthesis_now: true
-  recommended_next_action: design_sc0002_sr0001_post_sc0001_failure_mode_synthesis_run
+  designed_synthesis_run: SR0001
+  design_id: sc0002_sr0001_cross_surface_veto_inversion_synthesis
+  designed_run_status: designed_not_opened
+  design_surface: cross_surface_failure_mode_veto_inversion
+  recommended_next_action: open_sc0002_sr0001_post_sc0001_failure_mode_synthesis_run
   proxy_trade_count: 3054
   entries_per_active_day: 5.274611
   proxy_net_pnl_points: -2886.31
@@ -141,7 +145,7 @@ latest_operation:
   mt5_tick_by_fold_status: completed
   execution_divergence_by_fold_status: completed
   total_tick_minus_logic_net_pnl: -8.95
-  next_required_action: design_sc0002_sr0001_post_sc0001_failure_mode_synthesis_run
+  next_required_action: open_sc0002_sr0001_post_sc0001_failure_mode_synthesis_run
   claim_boundary:
     claim_authority: false
     selected: false

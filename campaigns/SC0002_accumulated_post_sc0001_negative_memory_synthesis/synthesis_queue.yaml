@@ -4,7 +4,9 @@ status: open
 synthesis_id: SC0002
 queue:
 - synthesis_run_id: SR0001
-  status: queued_not_opened
+  status: designed_not_opened
+  design_id: sc0002_sr0001_cross_surface_veto_inversion_synthesis
+  designed_at_utc: '2026-07-03T07:03:10Z'
   opened_run_path: null
   source_ingredient_ids:
   - c0004_ig001_simple_archetype_negative_memory
@@ -22,12 +24,40 @@ queue:
   - c0006_ig003_delayed_trap_rejection_negative_memory
   - c0006_ig004_two_sided_sweep_reversion_negative_memory
   - c0006_ig005_reclaim_retest_rejection_negative_memory
-  synthesis_variant_question: design a non-adjacent synthesis run that turns repeated post-SC0001 failures across state archetypes, continuous analog memory, and liquidity sweep events into a new edge surface rather than another threshold or exit nudge
+  synthesis_variant_question: test whether repeated no-candidate evidence from state archetype, analog memory, and liquidity sweep families can define a cross-surface veto and opposite-direction inversion edge surface rather than replaying negative-memory constraints or nudging thresholds and exits
+  source_failure_map:
+    c0004: fold-local state archetype variants produced repeated target-frequency-without-profitability and archetype-overfit negative memory
+    c0005: continuous analog memory variants produced repeated target-frequency-without-profitability and neighborhood-dispersion negative memory
+    c0006: liquidity sweep reclaim event variants produced repeated event-frequency-without-profitability and tick-divergence pressure negative memory
+    sc0001: accumulated constraint replay produced below-target activity and negative fold-isolated tick economics
+  design:
+    hypothesis: combine failed surfaces as veto evidence; allow an entry only when continuation is vetoed by multiple prior failure families and an independent opposite or rejection path-quality condition exists
+    edge_surface: cross_surface_failure_mode_veto_inversion
+    activity_management: target five_to_ten entries per active day through fold-local event-cell opportunity budgets, not by post-hoc daily count nudges
+    fixed_lot_policy: fixed_lot_early_discovery_no_equity_percent_sizing_rescue
+    mt5_policy: opening SR0001 commits to proxy, closed-bar MT5 logic parity, proxy-vs-MT5 parity, MT5 tick execution, execution divergence, and fold-isolated closeout evidence even if proxy is weak
   surfaces:
-    model: unrestricted synthesis-derived model, rule, rank, classifier, or ensemble surface not selected
-    feature: unrestricted closed-bar features spanning state, analog, liquidity event, path quality, and execution-divergence lessons not selected
-    trade_logic: fixed-lot discovery trade shape with mandatory MT5 paired validation and no equity-percent sizing rescue
-    label: unrestricted forward outcome, path quality, event consistency, or risk-adjusted label not selected
+    model: unrestricted fold-local cross-family veto-inversion score, rule, classifier, ranker, or ensemble surface; no model family selected
+    feature: unrestricted closed-bar features spanning archetype instability, analog dispersion, liquidity sweep-reclaim failure state, path quality, session position, and execution-divergence pressure; no feature set selected
+    trade_logic: fixed-lot candidate only when failed-family continuation veto and independent opposite or rejection path-quality evidence align; not a stop, target, session, hold, or threshold nudge
+    label: unrestricted target-before-stop, adverse-path-avoidance, fold-local consistency, or risk-adjusted label; no label selected
+  non_adjacent_rationale:
+  - differs_from_sc0001_constraint_replay_by_testing_veto_inversion_edge_surface
+  - differs_from_c0004_by_crossing_archetype_failure_with_analog_and_liquidity_evidence
+  - differs_from_c0005_by_using_analog_memory_as_failure_context_rather_than_nearest_neighbor_entry_selection
+  - differs_from_c0006_by_using_sweep_events_as_rejection_context_rather_than_event_grammar_selection
+  - not_a_threshold_window_sltp_session_hold_daily_count_or_retry_nudge
+  pre_open_checks:
+    source_ingredient_group_count: 15
+    explicit_mt5_evidence_present: true
+    unresolved_mechanical_parity_as_main_blocker: false
+    selected_or_runtime_claim_created: false
+  opening_requirements:
+  - create_runs_sr0001_manifest_gate_artifact_lineage_and_kpi_paths
+  - implement_proxy_module_in_src_axiom_rift_proxies_reusing_project_helpers
+  - implement_mt5_schedule_replay_probe_in_src_axiom_rift_mt5_reusing_existing_probe_helpers
+  - add_cli_and_tests_only_for_required_new_surfaces
+  - complete_proxy_mt5_logic_parity_proxy_vs_mt5_tick_divergence_and_fold_evidence_before_closeout
   planned_outputs:
     run_manifest: runs/SR0001/run_manifest.json
     proxy_kpi: runs/SR0001/kpi/proxy.json
@@ -44,8 +74,8 @@ queue:
   - skip_mt5_after_proxy
   - create_selected_claim
   - create_runtime_or_onnx_claim
-  last_completed_step: open_sc0002_accumulated_post_sc0001_negative_memory_synthesis
-  next_action: design_sc0002_sr0001_post_sc0001_failure_mode_synthesis_run
+  last_completed_step: design_sc0002_sr0001_post_sc0001_failure_mode_synthesis_run
+  next_action: open_sc0002_sr0001_post_sc0001_failure_mode_synthesis_run
 claim_boundary:
   claim_authority: false
   selected: false

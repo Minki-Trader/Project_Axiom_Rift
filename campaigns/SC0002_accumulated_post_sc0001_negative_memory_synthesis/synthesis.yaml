@@ -36,8 +36,8 @@ run_index:
   next_run_candidate:
     run_id: SR0001
     direction: post_sc0001_failure_mode_synthesis_run
-    reason: SC0002 is open from C0004 through C0006 closed no-candidate evidence; next work is to design a true synthesis run from the queued ingredient groups.
-    status: queued_not_opened
+    reason: SR0001 design now targets a cross-surface failure-mode veto-inversion edge surface from C0004 through C0006 negative memory; next work is to open the run and complete mandatory proxy plus MT5 paired evidence before any closeout.
+    status: designed_not_opened
 
 stream_policy:
   stream: synthesis

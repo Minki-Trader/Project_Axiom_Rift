@@ -430,6 +430,32 @@ decisions:
     feature_set_selected: false
     model_selected: false
     economics_pass: false
+- decision_id: dec_20260703_design_sc0002_sr0001_post_sc0001_failure_mode_synthesis_run
+  created_local_date: '2026-07-03'
+  status: active
+  decision: design_sc0002_sr0001_cross_surface_failure_mode_veto_inversion_synthesis_run
+  refines:
+  - dec_20260703_open_sc0002_accumulated_post_sc0001_negative_memory_synthesis
+  - dec_20260703_close_c0006_no_candidate_after_r0005
+  - dec_20260703_close_c0005_no_candidate_after_r0006
+  - dec_20260703_close_c0004_no_candidate_after_r0004
+  - dec_20260703_close_sc0001_no_candidate_after_sr0001
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - sc0001_sr0001_constraint_replay_closed_no_candidate_with_below_target_activity_and_negative_fold_isolated_tick_economics
+  - c0004_c0005_and_c0006_provide_cross_family_negative_memory_from_state_archetype_analog_memory_and_liquidity_sweep_surfaces
+  - sr0001_design_tests_failed_family_veto_plus_opposite_or_rejection_path_quality_as_a_new_edge_surface
+  - sr0001_design_is_not_a_threshold_window_sltp_session_hold_daily_count_or_retry_nudge
+  - opening_sr0001_will_commit_to_proxy_mt5_logic_parity_proxy_vs_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - no_selected_economics_runtime_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
 - decision_id: dec_20260703_open_c0005_r0005_calibrated_analog_classifier_run
   created_local_date: '2026-07-03'
   status: active
