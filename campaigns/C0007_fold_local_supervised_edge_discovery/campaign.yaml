@@ -47,10 +47,11 @@ run_index:
   active_run: null
   closed_runs:
   - runs/R0001
+  - runs/R0002
   next_run_candidate:
-    run_id: R0002_or_close
-    direction: decide_c0007_r0002_or_close_c0007_after_r0001
-    reason: R0001 direct supervised linear rank closed no candidate after completed fold-isolated
+    run_id: R0003_or_close
+    direction: decide_c0007_r0003_or_close_c0007_after_r0002
+    reason: R0002 dual-hazard logistic classifier closed no candidate after completed fold-isolated
       MT5 tick evidence; only non-adjacent supervised edge variants may continue C0007.
     status: pending_decision
 synthesis_readiness:
@@ -69,7 +70,14 @@ closeout:
   - runs/R0001/kpi/execution_divergence.json
   - runs/R0001/kpi/mt5_tick_by_fold.json
   - runs/R0001/kpi/execution_divergence_by_fold.json
-  remaining_question: decide_c0007_r0002_or_close_c0007_after_r0001
+  - runs/R0002/kpi/proxy.json
+  - runs/R0002/kpi/mt5_logic_parity.json
+  - runs/R0002/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0002/kpi/mt5_tick.json
+  - runs/R0002/kpi/execution_divergence.json
+  - runs/R0002/kpi/mt5_tick_by_fold.json
+  - runs/R0002/kpi/execution_divergence_by_fold.json
+  remaining_question: decide_c0007_r0003_or_close_c0007_after_r0002
 claim_boundary:
   claim_authority: false
   selected: false
