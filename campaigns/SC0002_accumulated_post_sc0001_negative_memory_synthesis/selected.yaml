@@ -5,9 +5,20 @@ status: none
 selected: false
 selected_reason: null
 
-last_gate_result: null
+last_gate_result:
+  run_id: SR0001
+  status: closed_no_candidate
+  decision: close_no_candidate
+  evidence_paths:
+  - runs/SR0001/run_manifest.json
+  - runs/SR0001/gate_report.json
+  claim_authority: false
 
-synthesis_closeout: null
+synthesis_closeout:
+  status: closed_no_candidate
+  remaining_question: open_c0007_fold_local_supervised_edge_discovery
+  selected: false
+  claim_authority: false
 
 surfaces:
   label_selected: false

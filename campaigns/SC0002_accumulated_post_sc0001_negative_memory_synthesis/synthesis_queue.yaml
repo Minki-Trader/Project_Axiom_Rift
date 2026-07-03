@@ -1,13 +1,14 @@
 schema: axiom_rift_synthesis_queue_v1
 template: false
-status: open
+status: closed_no_candidate
 synthesis_id: SC0002
 queue:
 - synthesis_run_id: SR0001
-  status: designed_not_opened
+  status: closed_no_candidate
   design_id: sc0002_sr0001_cross_surface_veto_inversion_synthesis
   designed_at_utc: '2026-07-03T07:03:10Z'
-  opened_run_path: null
+  opened_at_utc: '2026-07-03T07:11:12Z'
+  opened_run_path: runs/SR0001
   source_ingredient_ids:
   - c0004_ig001_simple_archetype_negative_memory
   - c0004_ig002_path_quality_archetype_negative_memory
@@ -24,23 +25,41 @@ queue:
   - c0006_ig003_delayed_trap_rejection_negative_memory
   - c0006_ig004_two_sided_sweep_reversion_negative_memory
   - c0006_ig005_reclaim_retest_rejection_negative_memory
-  synthesis_variant_question: test whether repeated no-candidate evidence from state archetype, analog memory, and liquidity sweep families can define a cross-surface veto and opposite-direction inversion edge surface rather than replaying negative-memory constraints or nudging thresholds and exits
+  synthesis_variant_question: test whether repeated no-candidate evidence from state
+    archetype, analog memory, and liquidity sweep families can define a cross-surface
+    veto and opposite-direction inversion edge surface rather than replaying negative-memory
+    constraints or nudging thresholds and exits
   source_failure_map:
-    c0004: fold-local state archetype variants produced repeated target-frequency-without-profitability and archetype-overfit negative memory
-    c0005: continuous analog memory variants produced repeated target-frequency-without-profitability and neighborhood-dispersion negative memory
-    c0006: liquidity sweep reclaim event variants produced repeated event-frequency-without-profitability and tick-divergence pressure negative memory
-    sc0001: accumulated constraint replay produced below-target activity and negative fold-isolated tick economics
+    c0004: fold-local state archetype variants produced repeated target-frequency-without-profitability
+      and archetype-overfit negative memory
+    c0005: continuous analog memory variants produced repeated target-frequency-without-profitability
+      and neighborhood-dispersion negative memory
+    c0006: liquidity sweep reclaim event variants produced repeated event-frequency-without-profitability
+      and tick-divergence pressure negative memory
+    sc0001: accumulated constraint replay produced below-target activity and negative
+      fold-isolated tick economics
   design:
-    hypothesis: combine failed surfaces as veto evidence; allow an entry only when continuation is vetoed by multiple prior failure families and an independent opposite or rejection path-quality condition exists
+    hypothesis: combine failed surfaces as veto evidence; allow an entry only when
+      continuation is vetoed by multiple prior failure families and an independent
+      opposite or rejection path-quality condition exists
     edge_surface: cross_surface_failure_mode_veto_inversion
-    activity_management: target five_to_ten entries per active day through fold-local event-cell opportunity budgets, not by post-hoc daily count nudges
+    activity_management: target five_to_ten entries per active day through fold-local
+      event-cell opportunity budgets, not by post-hoc daily count nudges
     fixed_lot_policy: fixed_lot_early_discovery_no_equity_percent_sizing_rescue
-    mt5_policy: opening SR0001 commits to proxy, closed-bar MT5 logic parity, proxy-vs-MT5 parity, MT5 tick execution, execution divergence, and fold-isolated closeout evidence even if proxy is weak
+    mt5_policy: opening SR0001 commits to proxy, closed-bar MT5 logic parity, proxy-vs-MT5
+      parity, MT5 tick execution, execution divergence, and fold-isolated closeout
+      evidence even if proxy is weak
   surfaces:
-    model: unrestricted fold-local cross-family veto-inversion score, rule, classifier, ranker, or ensemble surface; no model family selected
-    feature: unrestricted closed-bar features spanning archetype instability, analog dispersion, liquidity sweep-reclaim failure state, path quality, session position, and execution-divergence pressure; no feature set selected
-    trade_logic: fixed-lot candidate only when failed-family continuation veto and independent opposite or rejection path-quality evidence align; not a stop, target, session, hold, or threshold nudge
-    label: unrestricted target-before-stop, adverse-path-avoidance, fold-local consistency, or risk-adjusted label; no label selected
+    model: unrestricted fold-local cross-family veto-inversion score, rule, classifier,
+      ranker, or ensemble surface; no model family selected
+    feature: unrestricted closed-bar features spanning archetype instability, analog
+      dispersion, liquidity sweep-reclaim failure state, path quality, session position,
+      and execution-divergence pressure; no feature set selected
+    trade_logic: fixed-lot candidate only when failed-family continuation veto and
+      independent opposite or rejection path-quality evidence align; not a stop, target,
+      session, hold, or threshold nudge
+    label: unrestricted target-before-stop, adverse-path-avoidance, fold-local consistency,
+      or risk-adjusted label; no label selected
   non_adjacent_rationale:
   - differs_from_sc0001_constraint_replay_by_testing_veto_inversion_edge_surface
   - differs_from_c0004_by_crossing_archetype_failure_with_analog_and_liquidity_evidence
@@ -74,8 +93,24 @@ queue:
   - skip_mt5_after_proxy
   - create_selected_claim
   - create_runtime_or_onnx_claim
-  last_completed_step: design_sc0002_sr0001_post_sc0001_failure_mode_synthesis_run
-  next_action: open_sc0002_sr0001_post_sc0001_failure_mode_synthesis_run
+  closeout:
+    status: closed_no_candidate
+    close_reason: fold_isolated_tick_negative_no_candidate
+    evidence_paths:
+    - runs/SR0001/run_manifest.json
+    - runs/SR0001/gate_report.json
+    - runs/SR0001/kpi/mt5_tick_by_fold.json
+    - runs/SR0001/kpi/execution_divergence_by_fold.json
+    required_kpi_summary:
+      entries_per_active_day: 5.189983
+      losing_fold_count: 7
+      profitable_fold_count: 2
+      total_tick_net_pnl: -29.45
+      total_tick_trade_count: 3005
+      worst_fold_id: rw_007
+      worst_fold_net_pnl: -8.64
+  last_completed_step: close_sc0002_sr0001_no_candidate
+  next_action: open_c0007_fold_local_supervised_edge_discovery
 claim_boundary:
   claim_authority: false
   selected: false
