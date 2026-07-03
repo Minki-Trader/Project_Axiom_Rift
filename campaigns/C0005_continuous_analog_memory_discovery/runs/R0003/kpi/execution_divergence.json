@@ -1,0 +1,201 @@
+{
+  "campaign_id": "C0005",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false
+  },
+  "compared_period": {
+    "end": "2026-04-30",
+    "start": "2024-02-01"
+  },
+  "conditional_profiles": {
+    "analog_memory_schedule_profile": {
+      "applies": true,
+      "fields": {
+        "analog_memory_source": "rolling_train_is_proxy_schedule",
+        "feature_set_selected": false,
+        "label_selected": false,
+        "model_selected": false,
+        "runtime_portability_claim": false,
+        "schedule_artifact_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0003/artifacts/c0005_r0003_schedule.csv"
+      }
+    },
+    "entry_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "entry_direction_match_rate": 0.99729,
+        "entry_mismatch_samples": [
+          {
+            "direction": -1,
+            "entry_time": "2024-02-15 21:00:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "entry_time": "2024-04-11 07:20:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "entry_time": "2024-04-23 20:10:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": 1,
+            "entry_time": "2024-05-01 07:45:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "entry_time": "2024-05-21 20:10:00",
+            "side": "logic_only"
+          }
+        ],
+        "entry_sequence_direction_match_rate": 0.514679,
+        "entry_sequence_time_match_rate": 0.019196,
+        "entry_time_match_rate": 0.99729,
+        "logic_entry_event_count": 4428,
+        "tick_entry_event_count": 4416
+      }
+    },
+    "exit_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "exit_mismatch_samples": [
+          {
+            "direction": -1,
+            "exit_time": "2024-02-02 12:45:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 12:25:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 19:00:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-06 18:35:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-07 18:20:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-02 12:55:00",
+            "reason": "target",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 12:20:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 18:55:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-06 18:40:00",
+            "reason": "target",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-07 18:10:00",
+            "reason": "stop",
+            "side": "tick_only"
+          }
+        ],
+        "exit_sequence_reason_match_rate": 0.480126,
+        "exit_sequence_time_match_rate": 0.01626,
+        "exit_time_match_rate": 0.903568,
+        "logic_exit_event_count": 4428,
+        "tick_exit_event_count": 4416
+      }
+    },
+    "run_closeout_profile": {
+      "applies": true,
+      "fields": {
+        "closeout_status": "blocked_until_fold_isolated_tick_and_divergence",
+        "execution_divergence_required": true,
+        "fold_isolated_closeout_required": true,
+        "logic_parity_required": true,
+        "tick_execution_kpi_required": true
+      }
+    },
+    "spread_slippage_stress_profile": {
+      "applies": false,
+      "deferred_with_reason": "Baseline tick KPI is recorded; spread/slippage stress sweeps are separate robustness work.",
+      "fields": {}
+    }
+  },
+  "created_at_utc": "2026-07-03T00:56:17Z",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "rolling-window fold-isolated MT5 tick KPI and fold-isolated execution divergence are still required",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "run_closeout_review_ready",
+      "reason": "aggregate tick KPI and divergence are diagnostic only for closeout",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "after C0005 R0003 fold-isolated MT5 tick evidence"
+    }
+  ],
+  "divergence_id": "ED-C0005-R0003",
+  "logic_mt5_kpi_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0003/kpi/mt5_logic_parity.json",
+  "missing_required_kpi_fields": [],
+  "required_kpis": {
+    "economics_shift_status": "tick_worse_than_logic",
+    "entry_count_delta": -12,
+    "entry_key_match_rate": 0.99729,
+    "execution_divergence_status": "recorded_with_divergence",
+    "exit_count_delta": -12,
+    "exit_reason_match_rate": 0.889341,
+    "exit_time_direction_match_rate": 0.902891,
+    "logic_expectancy_per_entry": -0.013984,
+    "logic_max_drawdown_percent": 12.738,
+    "logic_net_pnl": -61.92,
+    "logic_profit_factor": 0.863172,
+    "logic_trade_count": 4428,
+    "logic_win_rate": 0.424571,
+    "run_closeout_review_ready": false,
+    "tick_expectancy_per_entry": -0.014701,
+    "tick_max_drawdown_percent": 13.336,
+    "tick_minus_logic_expectancy_per_entry": -0.000717,
+    "tick_minus_logic_max_drawdown_percent": 0.598,
+    "tick_minus_logic_net_pnl": -3.0,
+    "tick_minus_logic_profit_factor": -0.010423,
+    "tick_minus_logic_trade_count": -12,
+    "tick_minus_logic_win_rate": -0.024209,
+    "tick_net_pnl": -64.92,
+    "tick_profit_factor": 0.852749,
+    "tick_trade_count": 4416,
+    "tick_win_rate": 0.400362
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0003",
+  "schema": "axiom_rift_execution_divergence_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "tick_mt5_kpi_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0003/kpi/mt5_tick.json",
+  "work_unit_id": "C0005"
+}

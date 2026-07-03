@@ -7,14 +7,14 @@ campaign_type: campaign
 opened_at_utc: '2026-07-02T23:27:27Z'
 closed_at_utc: null
 hypothesis:
-  summary: discover whether US100 M5 has repeatable edge when entries are selected
-    by fold-local continuous analog memory rather than discrete response regimes,
-    score cells, path-shape exits, synthesis constraints, or state archetype buckets
+  summary: discover whether US100 M5 has repeatable edge when entries are selected by fold-local
+    continuous analog memory rather than discrete response regimes, score cells, path-shape
+    exits, synthesis constraints, or state archetype buckets
   boundary: use closed M5 US100 bars and rolling-window train/test splits to fit train-only
-    continuous feature analog models, score test candidates from nearest historical
-    analog outcomes, and replay selected fixed-lot schedules in MT5; prior negative
-    memory constrains retries but does not freeze labels, features, model families,
-    objectives, trade shapes, or final sizing rules
+    continuous feature analog models, score test candidates from nearest historical analog
+    outcomes, and replay selected fixed-lot schedules in MT5; prior negative memory constrains
+    retries but does not freeze labels, features, model families, objectives, trade shapes,
+    or final sizing rules
   not_in_scope:
   - selected_claim
   - runtime_authority
@@ -30,18 +30,18 @@ required_surfaces:
       is selected
   feature:
     status: variable
-    summary: unrestricted closed-bar continuous features for directional momentum,
-      trend, volatility, compression, range location, body and wick pressure, session
-      phase, spread pressure, and prior path state; no feature set is selected
+    summary: unrestricted closed-bar continuous features for directional momentum, trend,
+      volatility, compression, range location, body and wick pressure, session phase, spread
+      pressure, and prior path state; no feature set is selected
   trade_logic:
     status: variable
-    summary: variable analog-score entry selection, abstention, frequency control,
-      exit, stop, target, trail, time-stop, and fixed-lot discovery risk shape; equity-percent
-      sizing remains deferred until candidate quality exists
+    summary: variable analog-score entry selection, abstention, frequency control, exit, stop,
+      target, trail, time-stop, and fixed-lot discovery risk shape; equity-percent sizing
+      remains deferred until candidate quality exists
   label:
     status: variable
-    summary: variable forward outcome, risk-adjusted excursion, target-before-stop,
-      adverse path, analog-consensus, and direction-specific labels; no label is selected
+    summary: variable forward outcome, risk-adjusted excursion, target-before-stop, adverse
+      path, analog-consensus, and direction-specific labels; no label is selected
 run_index:
   runs_root: runs/
   run_id_format: R0001
@@ -49,12 +49,13 @@ run_index:
   closed_runs:
   - runs/R0001
   - runs/R0002
+  - runs/R0003
   next_run_candidate:
-    run_id: R0003
-    direction: decide_c0005_r0003_or_close_c0005_after_r0002
-    reason: R0002 closed no candidate after fold-isolated MT5 tick KPI and
-      fold-isolated execution divergence; next work is deciding whether a true
-      R0003 variant remains inside C0005 or whether C0005 should close.
+    run_id: R0004
+    direction: decide_c0005_r0004_or_close_c0005_after_r0003
+    reason: R0003 closed no candidate after fold-isolated MT5 tick KPI and fold-isolated execution
+      divergence; next work is deciding whether a true R0004 variant remains inside C0005
+      or whether C0005 should close.
     status: decision_required_after_run_closeout
 synthesis_readiness:
   check_required_at_closeout: true
@@ -74,7 +75,11 @@ closeout:
   - runs/R0002/gate_report.json
   - runs/R0002/kpi/mt5_tick_by_fold.json
   - runs/R0002/kpi/execution_divergence_by_fold.json
-  remaining_question: decide_c0005_r0003_or_close_c0005_after_r0002
+  - runs/R0003/run_manifest.json
+  - runs/R0003/gate_report.json
+  - runs/R0003/kpi/mt5_tick_by_fold.json
+  - runs/R0003/kpi/execution_divergence_by_fold.json
+  remaining_question: decide_c0005_r0004_or_close_c0005_after_r0003
 claim_boundary:
   claim_authority: false
   selected: false
