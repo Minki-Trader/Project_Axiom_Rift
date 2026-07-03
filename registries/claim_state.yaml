@@ -96,36 +96,50 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: null
+active_campaign: campaigns/C0006_liquidity_sweep_reclaim_event_discovery
 active_run: null
 latest_operation:
-  id: close_c0005_no_candidate_after_r0006
+  id: close_c0006_r0001_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0005_continuous_analog_memory_discovery/campaign.yaml
-  paired_divergence_source: campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/execution_divergence_by_fold.json
-  evidence_status: campaign_closed_no_candidate_after_synthesis_due_check
-  closed_campaign: campaigns/C0005_continuous_analog_memory_discovery
-  closed_run: campaigns/C0005_continuous_analog_memory_discovery/runs/R0006
-  active_campaign: null
+  recorded_at_source: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0001/run_manifest.json
+  paired_divergence_source: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+  evidence_status: run_closed_no_candidate_after_fold_isolated_mt5_tick
+  active_campaign: campaigns/C0006_liquidity_sweep_reclaim_event_discovery
   active_run: null
-  entries_per_active_day: 7.381034
+  proxy_trade_count: 4435
+  entries_per_active_day: 7.646552
+  proxy_net_pnl_points: -1183.97
+  proxy_profit_factor: 0.964627
+  mt5_logic_trade_count: 4435
+  mt5_logic_net_pnl: -27.26
+  mt5_logic_profit_factor: 0.931394
+  mechanical_parity_status: passed
+  intent_parity_status: passed_schedule_replay_boundary
+  mismatch_count: 0
+  mt5_tick_trade_count: 4433
+  mt5_tick_net_pnl: -7.29
+  mt5_tick_profit_factor: 0.978385
+  economics_shift_status: tick_better_than_logic
+  tick_minus_logic_net_pnl: 19.97
   fold_count: 9
   completed_fold_count: 9
-  total_tick_trade_count: 4260
-  total_tick_net_pnl: -62.32
-  losing_fold_count: 9
-  profitable_fold_count: 0
+  losing_fold_count: 6
+  profitable_fold_count: 3
+  total_tick_trade_count: 4433
+  total_tick_net_pnl: -7.29
   mt5_tick_by_fold_status: completed
   execution_divergence_by_fold_status: completed
-  total_tick_minus_logic_net_pnl: -0.85
-  synthesis_readiness_result: candidate_later
-  next_required_action: choose_c0006_new_major_hypothesis_or_wait_until_more_campaign_evidence_supports_synthesis
+  total_tick_minus_logic_net_pnl: 19.97
+  next_required_action: decide_c0006_r0002_or_close_c0006_after_r0001
   claim_boundary:
     claim_authority: false
     selected: false
     label_selected: false
     feature_set_selected: false
     model_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
     runtime_authority: false
     onnx_ready: false
     promotion_ready: false

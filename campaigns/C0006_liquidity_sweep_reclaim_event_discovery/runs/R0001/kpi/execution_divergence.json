@@ -1,0 +1,186 @@
+{
+  "campaign_id": "C0006",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false
+  },
+  "compared_period": {
+    "end": "2026-04-30",
+    "start": "2024-02-01"
+  },
+  "conditional_profiles": {
+    "entry_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "entry_direction_match_rate": 0.999549,
+        "entry_mismatch_samples": [
+          {
+            "direction": -1,
+            "entry_time": "2024-10-14 12:40:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "entry_time": "2025-05-09 07:50:00",
+            "side": "logic_only"
+          }
+        ],
+        "entry_sequence_direction_match_rate": 0.709808,
+        "entry_sequence_time_match_rate": 0.314543,
+        "entry_time_match_rate": 0.999549,
+        "logic_entry_event_count": 4435,
+        "tick_entry_event_count": 4433
+      }
+    },
+    "exit_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "exit_mismatch_samples": [
+          {
+            "direction": -1,
+            "exit_time": "2024-02-01 15:00:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-02 07:25:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-02 11:20:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-02 18:00:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 08:25:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-01 14:50:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-02 07:20:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-02 11:15:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-02 17:55:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 08:20:00",
+            "reason": "stop",
+            "side": "tick_only"
+          }
+        ],
+        "exit_sequence_reason_match_rate": 0.618038,
+        "exit_sequence_time_match_rate": 0.266742,
+        "exit_time_match_rate": 0.883878,
+        "logic_exit_event_count": 4435,
+        "tick_exit_event_count": 4433
+      }
+    },
+    "liquidity_sweep_reclaim_schedule_profile": {
+      "applies": true,
+      "fields": {
+        "feature_set_selected": false,
+        "label_selected": false,
+        "liquidity_sweep_reclaim_source": "rolling_train_is_proxy_schedule",
+        "model_selected": false,
+        "runtime_portability_claim": false,
+        "schedule_artifact_path": "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0001/artifacts/c0006_r0001_schedule.csv"
+      }
+    },
+    "run_closeout_profile": {
+      "applies": true,
+      "fields": {
+        "closeout_status": "blocked_until_fold_isolated_tick_and_divergence",
+        "execution_divergence_required": true,
+        "fold_isolated_closeout_required": true,
+        "logic_parity_required": true,
+        "tick_execution_kpi_required": true
+      }
+    },
+    "spread_slippage_stress_profile": {
+      "applies": false,
+      "deferred_with_reason": "Baseline tick KPI is recorded; spread/slippage stress sweeps are separate robustness work.",
+      "fields": {}
+    }
+  },
+  "created_at_utc": "2026-07-03T03:29:17Z",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "rolling-window fold-isolated MT5 tick KPI and fold-isolated execution divergence are still required",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "run_closeout_review_ready",
+      "reason": "aggregate tick KPI and divergence are diagnostic only for closeout",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "after C0006 R0001 fold-isolated MT5 tick evidence"
+    }
+  ],
+  "divergence_id": "ED-C0006-R0001",
+  "logic_mt5_kpi_path": "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+  "missing_required_kpi_fields": [],
+  "required_kpis": {
+    "economics_shift_status": "tick_better_than_logic",
+    "entry_count_delta": -2,
+    "entry_key_match_rate": 0.999549,
+    "execution_divergence_status": "recorded_with_divergence",
+    "exit_count_delta": -2,
+    "exit_reason_match_rate": 0.866291,
+    "exit_time_direction_match_rate": 0.883878,
+    "logic_expectancy_per_entry": -0.006147,
+    "logic_max_drawdown_percent": 9.84,
+    "logic_net_pnl": -27.26,
+    "logic_profit_factor": 0.931394,
+    "logic_trade_count": 4435,
+    "logic_win_rate": 0.45434,
+    "run_closeout_review_ready": false,
+    "tick_expectancy_per_entry": -0.001644,
+    "tick_max_drawdown_percent": 4.934,
+    "tick_minus_logic_expectancy_per_entry": 0.004503,
+    "tick_minus_logic_max_drawdown_percent": -4.906,
+    "tick_minus_logic_net_pnl": 19.97,
+    "tick_minus_logic_profit_factor": 0.046991,
+    "tick_minus_logic_trade_count": -2,
+    "tick_minus_logic_win_rate": -0.033181,
+    "tick_net_pnl": -7.29,
+    "tick_profit_factor": 0.978385,
+    "tick_trade_count": 4433,
+    "tick_win_rate": 0.421159
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "schema": "axiom_rift_execution_divergence_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "tick_mt5_kpi_path": "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0001/kpi/mt5_tick.json",
+  "work_unit_id": "C0006"
+}

@@ -1,0 +1,130 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: open
+campaign_id: C0006
+campaign_slug: liquidity_sweep_reclaim_event_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-03T03:10:54Z'
+hypothesis:
+  summary: discover whether US100 M5 has repeatable edge around closed-bar liquidity sweeps,
+    false breaks, and reclaim events rather than analog memory, state buckets, score cells,
+    or exit-only reshaping
+  boundary: use closed M5 US100 bars and rolling-window train/test splits to generate event-grammar
+    candidates from local/session high-low sweeps and closes back inside prior ranges, fit
+    train-only event utility weights, select fixed-lot schedules, and replay them through
+    MT5 logic parity, tick execution, execution divergence, and fold-isolated closeout evidence
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+  - adjacent_parameter_retry
+  - analog_memory_retry
+  - state_archetype_bucket_retry
+required_surfaces:
+  model:
+    status: variable
+    summary: unrestricted event-utility, rule-weight, rank, classifier, calibration, or later
+      model surfaces for sweep and reclaim events; no model family or objective is selected
+  feature:
+    status: variable
+    summary: unrestricted closed-bar event features for local high-low sweep depth, reclaim
+      strength, wick rejection, prior range width, compression, trend pressure, session phase,
+      and spread pressure; no feature set is selected
+  trade_logic:
+    status: variable
+    summary: variable sweep/reclaim direction, entry timing, abstention, frequency control,
+      exit, stop, target, trail, time-stop, and fixed-lot discovery risk shape; equity-percent
+      sizing remains deferred until candidate quality exists
+  label:
+    status: variable
+    summary: variable forward outcome, target-before-stop, adverse path, rejection follow-through,
+      and event-consistency labels; no label is selected
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: R0002
+    direction: decide_meaningfully_new_sweep_reclaim_variant_or_close_c0006_after_r0001
+    reason: R0001 closed no candidate after completed fold-isolated MT5 tick evidence; next
+      work must not be adjacent threshold, daily-count, stop, target, hold, or scope-weight
+      nudging
+    status: pending_decision
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_checked
+  open_synthesis_now: false
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
+closeout:
+  remaining_question: review_c0006_r0001_tick_execution_kpi_and_closeout
+latest_run_closeout:
+  run_id: R0001
+  status: closed_no_candidate
+  closed_at_utc: '2026-07-03T03:39:44Z'
+  required_kpi_summary:
+    proxy_trade_count: 4435
+    entries_per_active_day: 7.646552
+    proxy_net_pnl_points: -1183.97
+    proxy_profit_factor: 0.964627
+    mt5_logic_trade_count: 4435
+    mt5_logic_net_pnl: -27.26
+    mt5_logic_profit_factor: 0.931394
+    mechanical_parity_status: passed
+    intent_parity_status: passed_schedule_replay_boundary
+    mismatch_count: 0
+    mt5_tick_trade_count: 4433
+    mt5_tick_net_pnl: -7.29
+    mt5_tick_profit_factor: 0.978385
+    economics_shift_status: tick_better_than_logic
+    tick_minus_logic_net_pnl: 19.97
+    fold_count: 9
+    completed_fold_count: 9
+    losing_fold_count: 6
+    profitable_fold_count: 3
+    total_tick_trade_count: 4433
+    total_tick_net_pnl: -7.29
+    mt5_tick_by_fold_status: completed
+    execution_divergence_by_fold_status: completed
+    total_tick_minus_logic_net_pnl: 19.97
+  failure_asset:
+    asset_type: negative_memory
+    hypothesis_tested: closed-bar liquidity sweep and reclaim event grammar with train-fold
+      event utility selection
+    evidence_paths:
+    - kpi/proxy.json
+    - kpi/mt5_logic_parity.json
+    - kpi/proxy_vs_mt5_logic_parity.json
+    - kpi/mt5_tick.json
+    - kpi/execution_divergence.json
+    - kpi/mt5_tick_by_fold.json
+    - kpi/execution_divergence_by_fold.json
+    reason_not_candidate: fold-isolated MT5 tick evidence completed with negative total tick
+      net PnL, six losing folds, and only three profitable folds despite target-range activity
+      and passed schedule replay parity
+    next_boundary: C0006 remains open, but R0001 should not be retried by only nudging thresholds,
+      daily counts, stop, target, hold, or scope weights; next work must decide a meaningfully
+      new sweep/reclaim variant or close C0006
+    supporting_lessons:
+    - asset_type: execution_divergence_lesson
+      summary: tick execution was better than closed-bar logic overall, but both surfaces
+        remained negative; divergence was recorded for all nine folds
+      source: kpi/execution_divergence_by_fold.json
+    - asset_type: negative_memory
+      summary: sweep/reclaim event grammar met activity with 7.646552 entries per active day
+        but failed fold-isolated profitability
+      source: kpi/mt5_tick_by_fold.json
