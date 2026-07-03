@@ -1,11 +1,11 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: open
+status: closed_no_candidate
 campaign_id: C0005
 campaign_slug: continuous_analog_memory_discovery
 campaign_type: campaign
 opened_at_utc: '2026-07-02T23:27:27Z'
-closed_at_utc: null
+closed_at_utc: '2026-07-03T02:58:12Z'
 hypothesis:
   summary: discover whether US100 M5 has repeatable edge when entries are selected
     by fold-local continuous analog memory rather than discrete response regimes,
@@ -52,21 +52,66 @@ run_index:
   - runs/R0003
   - runs/R0004
   - runs/R0005
+  - runs/R0006
   next_run_candidate:
-    run_id: R0006
-    direction: decide_c0005_r0006_or_close_c0005_after_r0005
-    reason: R0005 closed no candidate after fold-isolated MT5 tick KPI and fold-isolated
-      execution divergence; next work is deciding whether a true R0006 variant remains
-      inside C0005 or whether C0005 should close.
-    status: decision_required_after_run_closeout
+    run_id: null
+    direction: not_applicable
+    reason: c0005_closed_no_meaningful_new_variant_remaining_inside_continuous_analog_memory_boundary
+    status: not_applicable_campaign_closed
 synthesis_readiness:
   check_required_at_closeout: true
-  result: not_checked
-  usable_ingredient_group_count: 0
-  readiness_notes: []
+  result: candidate_later
+  checked_at_utc: '2026-07-03T02:58:12Z'
+  closed_run_count: 6
+  observed_closed_campaign_count_since_last_synthesis: 2
+  usable_ingredient_group_count: 10
+  minimums:
+    closed_campaign_count_since_last_synthesis: 3
+    usable_ingredient_group_count: 8
+    required_surface_count: 3
+  open_synthesis_now: false
+  readiness_notes:
+  - all_r0001_to_r0006_closed_no_candidate
+  - fold_isolated_tick_total_net_negative_for_all_six_runs
+  - only_four_profitable_run_fold_cells_out_of_fifty_four
+  - c0005_added_continuous_analog_memory_negative_memory_after_c0004_closed_no_candidate
+  - sc_synthesis_not_opened_because_only_two_post_synthesis_campaigns_are_closed
+  - c0005_closed_because_remaining_work_would_be_adjacent_analog_tuning_or_new_major_campaign
+  ingredient_groups:
+  - group_id: c0005_ig001_mean_analog_negative_memory
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: nearest_neighbor_mean_analog_memory_met_activity_but_failed_fold_isolated_tick_economics
+  - group_id: c0005_ig002_directional_contrast_negative_memory
+    source_runs:
+    - R0002
+    group_type: negative_memory
+    summary: directional_favorable_minus_adverse_contrast_analog_memory_met_activity_but_lost
+  - group_id: c0005_ig003_temporal_stability_negative_memory
+    source_runs:
+    - R0003
+    group_type: negative_memory
+    summary: temporal_stability_and_dispersion_aware_analog_memory_lost_all_fold_isolated_tick_folds
+  - group_id: c0005_ig004_target_first_tail_hazard_negative_memory
+    source_runs:
+    - R0004
+    group_type: negative_memory
+    summary: target_first_tail_hazard_analog_memory_met_activity_but_failed_profitability_and_fold_stability
+  - group_id: c0005_ig005_calibrated_classifier_negative_memory
+    source_runs:
+    - R0005
+    group_type: negative_memory
+    summary: calibrated_analog_classifier_diagnostics_met_activity_but_failed_fold_isolated_tick_economics
+  - group_id: c0005_ig006_metric_rank_ensemble_negative_memory
+    source_runs:
+    - R0006
+    group_type: negative_memory
+    summary: supervised_metric_rank_ensemble_local_similarity_met_activity_but_lost_all_fold_isolated_tick_folds
+  recommended_next_action: open_c0006_only_if_new_major_hypothesis_is_chosen
 closeout:
-  status: open
-  close_reason: null
+  status: closed_no_candidate
+  close_reason: no_meaningful_new_variant_remains_inside_continuous_analog_memory_boundary_after_r0001_to_r0006_all_closed_no_candidate
   evidence_paths:
   - runs/R0001/gate_report.json
   - runs/R0001/run_manifest.json
@@ -89,7 +134,39 @@ closeout:
   - runs/R0005/gate_report.json
   - runs/R0005/kpi/mt5_tick_by_fold.json
   - runs/R0005/kpi/execution_divergence_by_fold.json
-  remaining_question: decide_c0005_r0006_or_close_c0005_after_r0005
+  - runs/R0006/run_manifest.json
+  - runs/R0006/gate_report.json
+  - runs/R0006/kpi/mt5_tick_by_fold.json
+  - runs/R0006/kpi/execution_divergence_by_fold.json
+  - selected.yaml
+  remaining_question: choose_c0006_new_major_hypothesis_or_wait_until_more_campaign_evidence_supports_synthesis
+  decision_basis:
+    closed_run_count: 6
+    closed_no_candidate_run_count: 6
+    fold_isolated_tick_total_net_negative_for_all_runs: true
+    positive_run_fold_cells: 4
+    total_run_fold_cells: 54
+    repeated_candidate_surface_found: false
+    r0001_losing_fold_count: 8
+    r0002_losing_fold_count: 8
+    r0003_losing_fold_count: 9
+    r0004_losing_fold_count: 8
+    r0005_losing_fold_count: 8
+    r0006_losing_fold_count: 9
+    remaining_work_classification: adjacent_analog_tuning_or_new_major_campaign_not_c0005_variant
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
 claim_boundary:
   claim_authority: false
   selected: false
