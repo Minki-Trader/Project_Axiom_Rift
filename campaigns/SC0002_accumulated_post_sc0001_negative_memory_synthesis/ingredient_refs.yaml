@@ -1,0 +1,212 @@
+schema: axiom_rift_ingredient_refs_v1
+template: false
+status: open
+
+synthesis_id: SC0002
+
+source_campaign_refs:
+  - campaign_id: C0004
+    path: campaigns/C0004_fold_local_state_archetype_discovery/campaign.yaml
+    sha256: ffe1c60857c8f44e7b784563d3e301c19744c8bb8195185e1ab023f03c40c954
+  - campaign_id: C0005
+    path: campaigns/C0005_continuous_analog_memory_discovery/campaign.yaml
+    sha256: d1d71a1d5376c1cf42f6c397cca403b2ec3de067f999d9ebffe01a83d91bcb02
+  - campaign_id: C0006
+    path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/campaign.yaml
+    sha256: 4b84b04be454c20b62ea199946c363932e277b46093d3e7f732eea9b17277168
+
+run_evidence_index:
+  - evidence_key: C0004_R0001
+    run_manifest: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/run_manifest.json, sha256: 2ea3d73c5b40cd0ff2238711f5888b3187f992f3ea068ad7b4d235596c861ca0}
+    gate_report: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/gate_report.json, sha256: 3b56e58cbe4302028c8aa1cb616da48ff2d14cb0d6d5ababa19d7c0bcc431ebf}
+    mt5_tick_by_fold: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/mt5_tick_by_fold.json, sha256: 48fd3b615ebecc2b7a9f9bc61dde19a85167fb200640c1e9dc378173ec2d70b4}
+    execution_divergence_by_fold: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0001/kpi/execution_divergence_by_fold.json, sha256: c7e04fac8608977001aef00dbfaafda36d8fbd1071218a69bb3ffe4bab07847e}
+  - evidence_key: C0004_R0002
+    run_manifest: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0002/run_manifest.json, sha256: b20b52577f28e0c25c380ff9e0c732e63b553eecbbff58f3d3f976a8533d7de9}
+    gate_report: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0002/gate_report.json, sha256: 0fdda2ea54a5ec7af94cc362850cdb388338f1ecd446428121bd58be0edec6ff}
+    mt5_tick_by_fold: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0002/kpi/mt5_tick_by_fold.json, sha256: 444afb969ace4375f4930043d646b19dd6b14f9afd41a4fe16e7a8805b042426}
+    execution_divergence_by_fold: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0002/kpi/execution_divergence_by_fold.json, sha256: 352ad59db649dac7a7f00df08f550b211c08749c7f1539c56a17eb4c1e4d97aa}
+  - evidence_key: C0004_R0003
+    run_manifest: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/run_manifest.json, sha256: cb7847f42fcc68cfed7d8ddd59497d4d9fb39d4f522df4b92d467fd326ec8af6}
+    gate_report: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/gate_report.json, sha256: 044ec4b1c8fb03aaa3baca7d0fc4d5e39d42d02aeb72522f000b3477e66b6d5e}
+    mt5_tick_by_fold: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/kpi/mt5_tick_by_fold.json, sha256: b0b706eddb9d72606525b058a9ad10ad998ac32d582f789deb038545257ff45a}
+    execution_divergence_by_fold: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/kpi/execution_divergence_by_fold.json, sha256: 92a4371875a091c0d3ba61a6d67e13036890b95f8d8e3776c3b7a47a085e7d51}
+  - evidence_key: C0004_R0004
+    run_manifest: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/run_manifest.json, sha256: 76ea8a0d88a2a0aa1b50b9cd519cd2a7611d8fd96be6b0738a60e65dbf5dd137}
+    gate_report: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/gate_report.json, sha256: 0a97e4930ef2cbc65938ccf8aa7dd7844b6f6156be71559d210ff3ca454fb51f}
+    mt5_tick_by_fold: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/kpi/mt5_tick_by_fold.json, sha256: 7f642b525fbd891e682f199b649393028f9eb8382fc86f2a86383bb9ed62cf5d}
+    execution_divergence_by_fold: {path: campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/kpi/execution_divergence_by_fold.json, sha256: f39cd619bc82d9fb2c18bd705824f6ee2c0279f75fbe0dc7e10beee27939b466}
+  - evidence_key: C0005_R0001
+    run_manifest: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/run_manifest.json, sha256: c776ce1c0655fc3f535704cd8906eb92a700f9b27a411caece668df6348dce01}
+    gate_report: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/gate_report.json, sha256: 6717d840a95139ac17bba475880f2b077cad417b2ea1a662e46f5e7ce1a17959}
+    mt5_tick_by_fold: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/kpi/mt5_tick_by_fold.json, sha256: edaeedb5abab15d6aef9e2731922cc16a301bf0b9c95921a74742af0bfa84c54}
+    execution_divergence_by_fold: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/kpi/execution_divergence_by_fold.json, sha256: 9d19c51dc3a7836e1d82a9a9286e035272cbc13b2da3dfbda2214d314e3632dd}
+  - evidence_key: C0005_R0002
+    run_manifest: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0002/run_manifest.json, sha256: 0759574c2b84325718f2912c24a5b49ead0ce5f3e2aa405766d9f7bcafa80b1e}
+    gate_report: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0002/gate_report.json, sha256: 29cacaf8ba58328889c6a79a9f97065f20a826f7b0ad32fe0e249a96481c9650}
+    mt5_tick_by_fold: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0002/kpi/mt5_tick_by_fold.json, sha256: 8cd716e619d61c40a119129a105933bcf633d10d336f3d05837f8b9a96b2f1af}
+    execution_divergence_by_fold: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0002/kpi/execution_divergence_by_fold.json, sha256: 8baab0dbe284f257f3dba7b1b141d65d599f1f481308a68dc8d04cddef97125a}
+  - evidence_key: C0005_R0003
+    run_manifest: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0003/run_manifest.json, sha256: f3f02635cb803a7deee33042f10d9fd77325c3909a5d81a143534f4cc0bfc351}
+    gate_report: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0003/gate_report.json, sha256: 932c9c7ba7543439fe406198600510bea3e75ee1de20f95ffb4b574243571866}
+    mt5_tick_by_fold: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0003/kpi/mt5_tick_by_fold.json, sha256: 7f8a1d123ef8f2343c3442d18b62238f2a06b881d025e523bcf9a307f5d8adf0}
+    execution_divergence_by_fold: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0003/kpi/execution_divergence_by_fold.json, sha256: 53380c3c9184fc63dd8db39498ced940e103238eee713dc7b9d33f18e139cc70}
+  - evidence_key: C0005_R0004
+    run_manifest: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0004/run_manifest.json, sha256: 92a65824d630e4f8150fce9c144d8ae0715b289fd70f3c2efa898ce29e93942a}
+    gate_report: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0004/gate_report.json, sha256: 8ce2a2dbaacbb6ee6fce0586639f01788a82975c7d8e34f20c370b40c087c30b}
+    mt5_tick_by_fold: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0004/kpi/mt5_tick_by_fold.json, sha256: d03d7578d39940bf8dba77d597a043addf89e3b0e65186a50c4568823a5d8980}
+    execution_divergence_by_fold: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0004/kpi/execution_divergence_by_fold.json, sha256: b2402823312055d77dcac6ac31d2eaba869a407e96b342b0148c52ca38c637ee}
+  - evidence_key: C0005_R0005
+    run_manifest: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0005/run_manifest.json, sha256: 4172bca1f9deb7b427be231cb1e99ddf8b721b8e78d0987d0ccbcb2beab05e46}
+    gate_report: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0005/gate_report.json, sha256: d7b74df83d67a4b69267ee0e7b9c21e9bdc5cc64175ed7d352b76b98b9d2a85e}
+    mt5_tick_by_fold: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0005/kpi/mt5_tick_by_fold.json, sha256: 879c6b3a35eafc0c3f5e551675605d56a597713a98773777e3d3bb2630f62989}
+    execution_divergence_by_fold: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0005/kpi/execution_divergence_by_fold.json, sha256: c4d34eee320335bad18ec42c792cba27021aaa0017f113200d4a1e20c14e493a}
+  - evidence_key: C0005_R0006
+    run_manifest: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/run_manifest.json, sha256: 0150cb32a4c3313158462187b9c2889660c0f1880f2de59dd39f725320b0587f}
+    gate_report: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/gate_report.json, sha256: 2d8cf1bd0450022c4d8ea7bf2e4a32fce6f81ca954e55ebb5faf2b18dde4b36f}
+    mt5_tick_by_fold: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_tick_by_fold.json, sha256: 46f3363b1a5d464ba959d24ba4ca312dc68eb1cf7086cbd7033d27d9400c8c25}
+    execution_divergence_by_fold: {path: campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/execution_divergence_by_fold.json, sha256: cb3f49e12858739d2b5b3b4ea11652d35aeb6c5645d44167c079e67bb3b65446}
+  - evidence_key: C0006_R0001
+    run_manifest: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0001/run_manifest.json, sha256: 479e6d6689ad403bdd46424ff20b1c1d9dcb8b62c186f3a67b015b54e7a6789d}
+    gate_report: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0001/gate_report.json, sha256: 257a03a9f835f6bea0ab60b93ff372a93e99e2548200a0e874fb7abbc8fcd700}
+    mt5_tick_by_fold: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0001/kpi/mt5_tick_by_fold.json, sha256: 59242c57832e875404513d3b592e4654787a812574e3c93940450a15cff31593}
+    execution_divergence_by_fold: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0001/kpi/execution_divergence_by_fold.json, sha256: 7b74511011cf378dff12cfe0b3d1d5c7320bab18387851e08ea5420115bb8098}
+  - evidence_key: C0006_R0002
+    run_manifest: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/run_manifest.json, sha256: b4fe204ed77378eaf98aa2fb8d97acb5d3f54aed42694002f092ecb21e0286d4}
+    gate_report: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/gate_report.json, sha256: 316b83c301fe220c3e76eeb51d5aa31535c28b2af6191d58622df32078ddc037}
+    mt5_tick_by_fold: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/kpi/mt5_tick_by_fold.json, sha256: 70a5aab1b030c51d4a09bc35694d9c238fd6cb5bc3a1d15b428ae1e514e77bd3}
+    execution_divergence_by_fold: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/kpi/execution_divergence_by_fold.json, sha256: bab2e1f9263faa4a1dc77d10474ba8791909b5de8aeb9e1420a344e1b47626dd}
+  - evidence_key: C0006_R0003
+    run_manifest: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0003/run_manifest.json, sha256: 3d94501c410342173e2994c1bb891243795322b7eb0ea59948742bea16c9b723}
+    gate_report: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0003/gate_report.json, sha256: 6008f857c20fe584359d0b7dd2f9f0653fdcb53e31178bd42e93d1f78aae6a77}
+    mt5_tick_by_fold: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0003/kpi/mt5_tick_by_fold.json, sha256: 63335bc0db48dc84521033f83f11cf4c7e408752217f1286bdf8abe7446cd807}
+    execution_divergence_by_fold: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0003/kpi/execution_divergence_by_fold.json, sha256: a8b434621ed7acf3cf4b2726d448904d66551d54479e97a8a084063c03cd73c5}
+  - evidence_key: C0006_R0004
+    run_manifest: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0004/run_manifest.json, sha256: 11c3f450030707a19143efd232cfbcdbc6b373e6baab0522cf91ef45108ec07a}
+    gate_report: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0004/gate_report.json, sha256: 05158c4c900f8a438b67f6478c8fbd4650b975c4ddee284d69965a67ba8a9cd8}
+    mt5_tick_by_fold: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0004/kpi/mt5_tick_by_fold.json, sha256: 4e4faa9b13d9e49a814ccc8e11a6659a106195bf6b5ff9505e80637741775cec}
+    execution_divergence_by_fold: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0004/kpi/execution_divergence_by_fold.json, sha256: 37107d2972088612dcd12c472871717b8fbe8905bf0ef844ca7a6acb451347df}
+  - evidence_key: C0006_R0005
+    run_manifest: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0005/run_manifest.json, sha256: d3735d19d13af74f9148d9d5f703add264d777582da7fb510e17ee9add8b2062}
+    gate_report: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0005/gate_report.json, sha256: 34649a7eac456e68fae9cd947d4271d185e89f67e4b5857243a1b22331e9d64a}
+    mt5_tick_by_fold: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0005/kpi/mt5_tick_by_fold.json, sha256: 66fa44a1bb9c2713520cc2f2e6f84006dd3026603143d90641d464a1cb2527dc}
+    execution_divergence_by_fold: {path: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0005/kpi/execution_divergence_by_fold.json, sha256: 22597b466bfcf4e13130c002296e1afd1bfc8acde712325911a8361d21dfc7e8}
+
+ingredient_groups:
+  - group_id: c0004_ig001_simple_archetype_negative_memory
+    source_campaign_id: C0004
+    source_runs: [R0001]
+    source_evidence_keys: [C0004_R0001]
+    group_type: negative_memory
+    summary: simple_fold_local_state_archetype_membership_met_activity_but_failed_fold_isolated_tick_economics
+  - group_id: c0004_ig002_path_quality_archetype_negative_memory
+    source_campaign_id: C0004
+    source_runs: [R0002]
+    source_evidence_keys: [C0004_R0002]
+    group_type: negative_memory
+    summary: path_quality_and_adverse_path_archetype_filtering_reduced_activity_below_target_and_still_lost
+  - group_id: c0004_ig003_adverse_inversion_negative_memory
+    source_campaign_id: C0004
+    source_runs: [R0003]
+    source_evidence_keys: [C0004_R0003]
+    group_type: negative_memory
+    summary: adverse_directional_archetype_inversion_met_activity_but_lost_all_fold_isolated_tick_folds
+  - group_id: c0004_ig004_temporal_stability_archetype_negative_memory
+    source_campaign_id: C0004
+    source_runs: [R0004]
+    source_evidence_keys: [C0004_R0004]
+    group_type: negative_memory
+    summary: train_window_temporal_stability_archetypes_met_activity_but_failed_profitability_and_fold_stability
+  - group_id: c0005_ig001_mean_analog_negative_memory
+    source_campaign_id: C0005
+    source_runs: [R0001]
+    source_evidence_keys: [C0005_R0001]
+    group_type: negative_memory
+    summary: nearest_neighbor_mean_analog_memory_met_activity_but_failed_fold_isolated_tick_economics
+  - group_id: c0005_ig002_directional_contrast_negative_memory
+    source_campaign_id: C0005
+    source_runs: [R0002]
+    source_evidence_keys: [C0005_R0002]
+    group_type: negative_memory
+    summary: directional_favorable_minus_adverse_contrast_analog_memory_met_activity_but_lost
+  - group_id: c0005_ig003_temporal_stability_negative_memory
+    source_campaign_id: C0005
+    source_runs: [R0003]
+    source_evidence_keys: [C0005_R0003]
+    group_type: negative_memory
+    summary: temporal_stability_and_dispersion_aware_analog_memory_lost_all_fold_isolated_tick_folds
+  - group_id: c0005_ig004_target_first_tail_hazard_negative_memory
+    source_campaign_id: C0005
+    source_runs: [R0004]
+    source_evidence_keys: [C0005_R0004]
+    group_type: negative_memory
+    summary: target_first_tail_hazard_analog_memory_met_activity_but_failed_profitability_and_fold_stability
+  - group_id: c0005_ig005_calibrated_classifier_negative_memory
+    source_campaign_id: C0005
+    source_runs: [R0005]
+    source_evidence_keys: [C0005_R0005]
+    group_type: negative_memory
+    summary: calibrated_analog_classifier_diagnostics_met_activity_but_failed_fold_isolated_tick_economics
+  - group_id: c0005_ig006_metric_rank_ensemble_negative_memory
+    source_campaign_id: C0005
+    source_runs: [R0006]
+    source_evidence_keys: [C0005_R0006]
+    group_type: negative_memory
+    summary: supervised_metric_rank_ensemble_local_similarity_met_activity_but_lost_all_fold_isolated_tick_folds
+  - group_id: c0006_ig001_immediate_reclaim_negative_memory
+    source_campaign_id: C0006
+    source_runs: [R0001]
+    source_evidence_keys: [C0006_R0001]
+    group_type: negative_memory
+    summary: immediate_sweep_reclaim_reversal_met_activity_but_failed_fold_isolated_tick_economics
+  - group_id: c0006_ig002_acceptance_continuation_negative_memory
+    source_campaign_id: C0006
+    source_runs: [R0002]
+    source_evidence_keys: [C0006_R0002]
+    group_type: negative_memory
+    summary: sweep_acceptance_continuation_met_activity_but_lost_all_fold_isolated_tick_folds
+  - group_id: c0006_ig003_delayed_trap_rejection_negative_memory
+    source_campaign_id: C0006
+    source_runs: [R0003]
+    source_evidence_keys: [C0006_R0003]
+    group_type: negative_memory
+    summary: delayed_sweep_trap_rejection_met_activity_but_failed_fold_isolated_tick_profitability
+  - group_id: c0006_ig004_two_sided_sweep_reversion_negative_memory
+    source_campaign_id: C0006
+    source_runs: [R0004]
+    source_evidence_keys: [C0006_R0004]
+    group_type: negative_memory
+    summary: two_sided_sweep_reversion_missed_activity_target_and_failed_fold_isolated_tick_profitability
+  - group_id: c0006_ig005_reclaim_retest_rejection_negative_memory
+    source_campaign_id: C0006
+    source_runs: [R0005]
+    source_evidence_keys: [C0006_R0005]
+    group_type: negative_memory
+    summary: reclaim_retest_rejection_met_activity_but_failed_fold_isolated_tick_profitability
+
+blocked_ingredients: []
+
+deferred_with_reason:
+  - item: selected_surface_or_runtime_materialization
+    reason: C0004 through C0006 contain only no-candidate evidence and no economics pass, selected surface, runtime authority, or ONNX readiness claim.
+  - item: equity_percent_sizing
+    reason: candidate quality is not established; early discovery remains fixed-lot.
+
+rules:
+  unresolved_mechanical_parity_as_main_blocker_allowed: false
+  adjacent_tuning_as_ingredient_allowed: false
+  evidence_gap_disguised_as_ingredient_allowed: false
+
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

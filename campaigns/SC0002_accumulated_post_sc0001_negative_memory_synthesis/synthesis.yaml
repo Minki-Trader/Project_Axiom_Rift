@@ -1,0 +1,67 @@
+schema: axiom_rift_synthesis_v1
+template: false
+status: open
+
+synthesis_id: SC0002
+synthesis_slug: accumulated_post_sc0001_negative_memory_synthesis
+synthesis_level: synthesis_3
+opened_at_utc: '2026-07-03T06:52:13Z'
+closed_at_utc: null
+
+synthesis_question:
+  summary: synthesize post-SC0001 negative memory from C0004 through C0006 before choosing the next synthesis-run or campaign hypothesis
+  boundary: use only closed campaign evidence from C0004 fold-local state archetype discovery, C0005 continuous analog memory discovery, and C0006 liquidity sweep reclaim event discovery; preserve unrestricted discovery of labels, features, model families, objectives, and trade shapes; do not select any surface, create runtime authority, or treat synthesis as a shortcut around MT5 paired validation
+
+source_campaign_ids:
+  - C0004
+  - C0005
+  - C0006
+
+readiness:
+  closed_campaign_count: 3
+  usable_ingredient_group_count: 15
+  required_surface_count: 3
+  has_explicit_mt5_evidence: true
+  unresolved_mechanical_parity_as_main_blocker: false
+  synthesis_due_source: campaigns/C0006_liquidity_sweep_reclaim_event_discovery/campaign.yaml
+
+ingredient_refs_path: ingredient_refs.yaml
+synthesis_queue_path: synthesis_queue.yaml
+runs_root: runs/
+synthesis_run_id_format: SR0001
+run_index:
+  active_run: null
+  opened_runs: []
+  closed_runs: []
+  next_run_candidate:
+    run_id: SR0001
+    direction: post_sc0001_failure_mode_synthesis_run
+    reason: SC0002 is open from C0004 through C0006 closed no-candidate evidence; next work is to design a true synthesis run from the queued ingredient groups.
+    status: queued_not_opened
+
+stream_policy:
+  stream: synthesis
+  independent_from_campaign_stream: true
+  does_not_set_next_campaign_id: true
+
+must_not:
+  - create_selected_claim
+  - create_runtime_authority
+  - create_onnx_ready_claim
+  - create_live_ready_claim
+  - use_weak_proxy_as_mt5_skip_gate
+  - disguise_adjacent_tuning_as_new_campaign
+
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

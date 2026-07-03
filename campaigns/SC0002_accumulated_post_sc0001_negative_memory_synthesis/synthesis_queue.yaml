@@ -1,0 +1,61 @@
+schema: axiom_rift_synthesis_queue_v1
+template: false
+status: open
+synthesis_id: SC0002
+queue:
+- synthesis_run_id: SR0001
+  status: queued_not_opened
+  opened_run_path: null
+  source_ingredient_ids:
+  - c0004_ig001_simple_archetype_negative_memory
+  - c0004_ig002_path_quality_archetype_negative_memory
+  - c0004_ig003_adverse_inversion_negative_memory
+  - c0004_ig004_temporal_stability_archetype_negative_memory
+  - c0005_ig001_mean_analog_negative_memory
+  - c0005_ig002_directional_contrast_negative_memory
+  - c0005_ig003_temporal_stability_negative_memory
+  - c0005_ig004_target_first_tail_hazard_negative_memory
+  - c0005_ig005_calibrated_classifier_negative_memory
+  - c0005_ig006_metric_rank_ensemble_negative_memory
+  - c0006_ig001_immediate_reclaim_negative_memory
+  - c0006_ig002_acceptance_continuation_negative_memory
+  - c0006_ig003_delayed_trap_rejection_negative_memory
+  - c0006_ig004_two_sided_sweep_reversion_negative_memory
+  - c0006_ig005_reclaim_retest_rejection_negative_memory
+  synthesis_variant_question: design a non-adjacent synthesis run that turns repeated post-SC0001 failures across state archetypes, continuous analog memory, and liquidity sweep events into a new edge surface rather than another threshold or exit nudge
+  surfaces:
+    model: unrestricted synthesis-derived model, rule, rank, classifier, or ensemble surface not selected
+    feature: unrestricted closed-bar features spanning state, analog, liquidity event, path quality, and execution-divergence lessons not selected
+    trade_logic: fixed-lot discovery trade shape with mandatory MT5 paired validation and no equity-percent sizing rescue
+    label: unrestricted forward outcome, path quality, event consistency, or risk-adjusted label not selected
+  planned_outputs:
+    run_manifest: runs/SR0001/run_manifest.json
+    proxy_kpi: runs/SR0001/kpi/proxy.json
+    mt5_logic_parity_kpi: runs/SR0001/kpi/mt5_logic_parity.json
+    mt5_tick_kpi: runs/SR0001/kpi/mt5_tick.json
+    proxy_vs_mt5_logic_parity_kpi: runs/SR0001/kpi/proxy_vs_mt5_logic_parity.json
+    execution_divergence_kpi: runs/SR0001/kpi/execution_divergence.json
+    mt5_tick_by_fold_kpi: runs/SR0001/kpi/mt5_tick_by_fold.json
+    execution_divergence_by_fold_kpi: runs/SR0001/kpi/execution_divergence_by_fold.json
+    gate_report: runs/SR0001/gate_report.json
+    artifact_lineage: runs/SR0001/artifact_lineage.json
+  must_not:
+  - open_as_parameter_nudge
+  - skip_mt5_after_proxy
+  - create_selected_claim
+  - create_runtime_or_onnx_claim
+  last_completed_step: open_sc0002_accumulated_post_sc0001_negative_memory_synthesis
+  next_action: design_sc0002_sr0001_post_sc0001_failure_mode_synthesis_run
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
