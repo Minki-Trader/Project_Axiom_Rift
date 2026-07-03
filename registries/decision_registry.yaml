@@ -107,6 +107,73 @@ decisions:
     feature_set_selected: false
     model_selected: false
     economics_pass: false
+- decision_id: dec_20260703_close_c0007_r0001_no_candidate
+  created_local_date: '2026-07-03'
+  status: active
+  decision: close_c0007_r0001_fold_local_supervised_linear_rank_edge_run_no_candidate
+  refines:
+  - dec_20260703_open_c0007_r0001_fold_local_supervised_linear_rank_edge_run
+  - dec_20260703_open_c0007_fold_local_supervised_edge_discovery
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - r0001_completed_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - schedule_replay_logic_parity_passed_with_mismatch_count_zero
+  - r0001_met_target_activity_with_7_32931_entries_per_active_day
+  - fold_isolated_mt5_tick_evidence_completed_all_nine_required_folds
+  - r0001_had_nine_losing_folds_zero_profitable_folds_and_negative_total_fold_isolated_tick_net_pnl
+  - tick_execution_was_slightly_better_than_closed_bar_logic_overall_but_both_surfaces_remained_negative
+  - direct_fold_local_supervised_linear_rank_is_recorded_as_negative_memory_not_selected_candidate_economics_pass_runtime_onnx_promotion_or_live_claim
+  - next_work_is_decide_c0007_r0002_or_close_c0007_after_r0001
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_open_c0007_fold_local_supervised_edge_discovery
+  created_local_date: '2026-07-03'
+  status: active
+  decision: open_c0007_fold_local_supervised_edge_discovery_after_sc0002_closeout
+  refines:
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - no_active_campaign_after_sc0002_closed_no_candidate
+  - c0007_is_a_new_major_hypothesis_not_an_adjacent_retry_of_synthesis_event_grammar_analog_memory_state_archetype_score_cell_or_exit_shape_work
+  - direct_fold_local_supervised_linear_rank_scoring_tests_a_new_entry_discovery_surface_over_all_core_session_dual_direction_closed_bars
+  - early_discovery_remains_fixed_lot_and_equity_percent_sizing_is_deferred
+  - opened_campaign_creates_no_selected_runtime_economics_onnx_promotion_or_live_claim
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_open_c0007_r0001_fold_local_supervised_linear_rank_edge_run
+  created_local_date: '2026-07-03'
+  status: active
+  decision: open_r0001_fold_local_supervised_linear_rank_edge_run_under_c0007
+  refines:
+  - dec_20260703_open_c0007_fold_local_supervised_edge_discovery
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - r0001_is_the_first_true_variant_inside_the_c0007_supervised_edge_boundary
+  - r0001_changes_model_feature_label_and_trade_logic_surfaces_to_direct_fold_local_standardized_linear_rank_scoring
+  - r0001_is_not_a_threshold_daily_count_stop_target_hold_session_or_retry_nudge_from_prior_runs
+  - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - weak_proxy_result_must_not_skip_mt5_paired_validation
+  - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
 - decision_id: dec_20260703_open_c0006_liquidity_sweep_reclaim_event_discovery
   created_local_date: '2026-07-03'
   status: active

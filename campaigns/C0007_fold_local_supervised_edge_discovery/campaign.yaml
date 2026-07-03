@@ -1,0 +1,85 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: active
+campaign_id: C0007
+campaign_slug: fold_local_supervised_edge_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-03T08:01:54Z'
+closed_at_utc: null
+hypothesis:
+  summary: discover whether direct fold-local supervised edge scoring over closed-bar dual-direction
+    candidates can find repeatable US100 M5 entries after prior event, analog-memory, state-archetype,
+    score-cell, exit-shape, and synthesis attempts closed no candidate
+  boundary: use rolling-window train-only path labels and fold-local standardized feature-label
+    linear rank surfaces to score all core-session closed M5 bars in both directions, select
+    fixed-lot daily schedules, and replay them through MT5 logic parity, tick execution, execution
+    divergence, and fold-isolated closeout evidence
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+  - adjacent_parameter_retry
+  - analog_memory_retry
+  - event_grammar_retry
+  - synthesis_negative_memory_retry
+required_surfaces:
+  model:
+    status: variable
+    summary: direct fold-local supervised linear rank, classifier, calibration, or later model
+      surfaces remain unrestricted; no model family is selected
+  feature:
+    status: variable
+    summary: closed-bar trend, reversal, range, compression, body, wick, session, and spread
+      features are exploration variables; no feature set is selected
+  trade_logic:
+    status: variable
+    summary: dual-direction core-session candidate scoring, abstention, frequency control,
+      exit, stop, target, trail, hold, and fixed-lot discovery risk shape remain variable;
+      equity-percent sizing remains deferred
+  label:
+    status: variable
+    summary: path-quality, target-before-stop, adverse-tail, terminal, speed, and cost-adjusted
+      labels remain exploration variables; no label is selected
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: R0002_or_close
+    direction: decide_c0007_r0002_or_close_c0007_after_r0001
+    reason: R0001 direct supervised linear rank closed no candidate after completed fold-isolated
+      MT5 tick evidence; only non-adjacent supervised edge variants may continue C0007.
+    status: pending_decision
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_checked
+  usable_ingredient_group_count: 0
+  readiness_notes: []
+closeout:
+  status: open
+  close_reason: null
+  evidence_paths:
+  - runs/R0001/kpi/proxy.json
+  - runs/R0001/kpi/mt5_logic_parity.json
+  - runs/R0001/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0001/kpi/mt5_tick.json
+  - runs/R0001/kpi/execution_divergence.json
+  - runs/R0001/kpi/mt5_tick_by_fold.json
+  - runs/R0001/kpi/execution_divergence_by_fold.json
+  remaining_question: decide_c0007_r0002_or_close_c0007_after_r0001
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
