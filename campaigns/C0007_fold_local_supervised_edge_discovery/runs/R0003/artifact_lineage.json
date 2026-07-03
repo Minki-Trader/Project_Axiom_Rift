@@ -1,0 +1,164 @@
+{
+  "artifact_records": [
+    {
+      "artifact_id": "A-C0007-R0003-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0007_r0003_nonlinear_interaction_edge_ensemble",
+      "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/proxy.json",
+      "sha256": "51d0b61b84f7453479ece2122c291e9dfab1992e534d33064f7b93e563ab87be",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0007-R0003-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0007_r0003_nonlinear_interaction_edge_ensemble",
+      "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/artifacts/c0007_r0003_proxy_trades.csv",
+      "sha256": "abad4433cf02b38011fc1b1d040a6b48dbced0426528856e66b89f063ca58c84",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0007-R0003-NONLINEAR-INTERACTION-EDGE-ENSEMBLE-SUMMARY",
+      "artifact_role": "nonlinear_interaction_edge_ensemble_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0007_r0003_nonlinear_interaction_edge_ensemble",
+      "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/artifacts/c0007_r0003_nonlinear_interaction_edge_ensemble_summary.json",
+      "sha256": "8bc4ec9c7aa2e8ac44f8b10b92708ee1ccb2187c0af968ad13cb5912b23dd20b",
+      "source_inputs": [
+        "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0007-R0003-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0007_r0003_probe",
+      "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/artifacts/c0007_r0003_schedule.csv",
+      "sha256": "b322ec85f624f3b5a9d12d71231469d7554af6f04423525bd12f80548ebc057a",
+      "source_inputs": [
+        "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0007-R0003-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0007_r0003_probe",
+      "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/mt5_logic_parity.json",
+      "sha256": "b9eff1be3c9dd3c08d40db7ad731cf37605607a94cb982fc1e3c93f8784da473",
+      "source_inputs": [
+        "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/artifacts/c0007_r0003_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0007-R0003-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0007_r0003_probe",
+      "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "9abb4bf6ad0fafa3b40bb3da128ac0131c34231c0ea991cb7b6b34a36e516ade",
+      "source_inputs": [
+        "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/proxy.json",
+        "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/mt5_logic_parity.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0007-R0003-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0007_r0003_probe",
+      "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/mt5_tick.json",
+      "sha256": "c4971a8b8a8b5f1a74c395003b81a8178c252fc784c6b8f8a6e3bd828645461d",
+      "source_inputs": [
+        "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/artifacts/c0007_r0003_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0007-R0003-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0007_r0003_probe",
+      "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/execution_divergence.json",
+      "sha256": "02891890571a946ef47ae91021e43358b51e49932450ac2d0d47668628d91eff",
+      "source_inputs": [
+        "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/mt5_logic_parity.json",
+        "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/mt5_tick.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0007-R0003-MT5-TICK-BY-FOLD-KPI",
+      "artifact_role": "mt5_tick_by_fold_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0007_r0003_probe",
+      "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/mt5_tick_by_fold.json",
+      "sha256": "7a5bf582f67f00c94838e3338a8d907e7a2f906675b92cae1700c0f78eeab19f",
+      "source_inputs": [
+        "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/artifacts/c0007_r0003_schedule.csv",
+        "registries/rolling_windows.yaml",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0007-R0003-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0007_r0003_probe",
+      "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/execution_divergence_by_fold.json",
+      "sha256": "5a968e5b5e2d84f149fdfc4cc7a27a229a5225faca72fa830db4b75e1a3e3b1d",
+      "source_inputs": [
+        "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/mt5_tick_by_fold.json",
+        "registries/rolling_windows.yaml"
+      ]
+    }
+  ],
+  "campaign_id": "C0007",
+  "claim_authority": false,
+  "deferred_with_reason": [],
+  "lineage_id": "L-C0007-R0003",
+  "run_id": "R0003",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "status": "closed_no_candidate",
+  "template": false,
+  "work_unit_id": "C0007"
+}

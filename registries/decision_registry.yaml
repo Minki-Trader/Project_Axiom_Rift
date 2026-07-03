@@ -107,6 +107,53 @@ decisions:
     feature_set_selected: false
     model_selected: false
     economics_pass: false
+- decision_id: dec_20260703_open_c0007_r0003_nonlinear_interaction_edge_ensemble_run
+  created_local_date: '2026-07-03'
+  status: active
+  decision: open_c0007_r0003_nonlinear_interaction_edge_ensemble_run
+  refines:
+  - dec_20260703_close_c0007_r0002_no_candidate
+  - dec_20260703_close_c0007_r0001_no_candidate
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - c0007_remains_open_after_r0001_linear_rank_and_r0002_logistic_classifier_closed_no_candidate
+  - r0003_changes_model_family_and_score_surface_to_fold_local_class_balanced_extratrees_positive_edge_and_adverse_hazard_probability_ensemble
+  - r0003_reuses_closed_bar_supervised_path_label_family_but_is_not_a_threshold_daily_count_stop_target_hold_session_or_retry_nudge
+  - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_close_c0007_r0003_no_candidate
+  created_local_date: '2026-07-03'
+  status: active
+  decision: close_c0007_r0003_nonlinear_interaction_edge_ensemble_run_no_candidate
+  refines:
+  - dec_20260703_open_c0007_r0003_nonlinear_interaction_edge_ensemble_run
+  - dec_20260703_close_c0007_r0002_no_candidate
+  - dec_20260703_close_c0007_r0001_no_candidate
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - r0003_completed_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - fold_isolated_mt5_tick_evidence_completed_all_nine_required_folds
+  - r0003_had_nine_losing_folds_zero_profitable_folds_and_negative_total_fold_isolated_tick_net_pnl
+  - r0003_met_target_entry_frequency_but_proxy_and_mt5_tick_profitability_were_negative
+  - tick_execution_was_better_than_closed_bar_logic_overall_but_not_enough_to_create_candidate_evidence
+  - r0003_is_recorded_as_negative_memory_not_selected_candidate_economics_pass_runtime_onnx_promotion_or_live_claim
+  - next_work_is_decide_c0007_r0004_or_close_c0007_after_r0003
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
 - decision_id: dec_20260703_close_c0007_r0002_no_candidate
   created_local_date: '2026-07-03'
   status: active
