@@ -1,0 +1,171 @@
+{
+  "artifact_records": [
+    {
+      "artifact_id": "A-C0008-R0003-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0008_r0003_structural_trap_robustness",
+      "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy.json",
+      "sha256": "926dcf4a2fcf47c3a711f5bb2201d0bd43c705161fb20ac99944cc90a4c303b6",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/run_manifest.json",
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/candidate_robustness_audit.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0008-R0003-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0008_r0003_structural_trap_robustness",
+      "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_proxy_trades.csv",
+      "sha256": "20856e47f602d3fe3ad25f482e42ec75e56474ae4521f2bc5ea10ea6c0cc262c",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0008-R0003-STRUCTURAL-TRAP-ROBUSTNESS-SUMMARY",
+      "artifact_role": "structural_trap_robustness_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0008_r0003_structural_trap_robustness",
+      "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_structural_trap_robustness_summary.json",
+      "sha256": "c897312aa10a27b6372b48b3ae095b24f40696aaa6a2920543bafb3c4074103e",
+      "source_inputs": [
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0008-R0003-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
+      "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
+      "sha256": "ce6e731dc6ce12d6c84066a7e3f968402950341db52470e5550fc3e1a35147a0",
+      "source_inputs": [
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0008-R0003-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
+      "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json",
+      "sha256": "85963983cf8c02a206b17792495ae679e3428f657299763d6b4b4146927e154e",
+      "source_inputs": [
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0008-R0003-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
+      "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "2bf487651ac03d03fc0ba2549dc271d1ceafd01221a9a7633fc985c08cc9bc9e",
+      "source_inputs": [
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy.json",
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0008-R0003-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
+      "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick.json",
+      "sha256": "5ec4c8f8b1758191cd2e37a2659244494c15846a6db0c6dc9c76b50eaace7f9d",
+      "source_inputs": [
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0008-R0003-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
+      "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/execution_divergence.json",
+      "sha256": "304cbacca15199a78974111b2c1ca635b00ad761c6c7a006c0c3f96fbdae3144",
+      "source_inputs": [
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json",
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0008-R0003-MT5-TICK-BY-FOLD-KPI",
+      "artifact_role": "mt5_tick_by_fold_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
+      "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick_by_fold.json",
+      "sha256": "27f7835a4e63a21afecbfeecb2de5f773d77cba0769518f8b36a5e482d0074a5",
+      "source_inputs": [
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
+        "registries/rolling_windows.yaml",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0008-R0003-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
+      "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/execution_divergence_by_fold.json",
+      "sha256": "de1f7e7d2ff76ebd874ea05ab2f940449a47257a94461da90112e6c9e7133411",
+      "source_inputs": [
+        "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick_by_fold.json",
+        "registries/rolling_windows.yaml"
+      ]
+    }
+  ],
+  "campaign_id": "C0008",
+  "claim_authority": false,
+  "deferred_with_reason": [
+    {
+      "field": "closeout_review",
+      "next_action": "review_c0008_r0003_tick_execution_kpi_and_closeout",
+      "reason": "fold-isolated MT5 tick and execution divergence artifacts are recorded; closeout review is the next mandatory sequence step"
+    }
+  ],
+  "lineage_id": "L-C0008-R0003",
+  "run_id": "R0003",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "status": "opened_pending_proxy",
+  "template": false,
+  "work_unit_id": "C0008"
+}

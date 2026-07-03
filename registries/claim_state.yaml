@@ -100,36 +100,41 @@ active_campaign: campaigns/C0008_multi_timeframe_structural_context_discovery
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: audit_c0008_r0002_candidate_robustness
+  id: close_c0008_r0003_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/candidate_robustness_audit.json
-  gate_report_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/gate_report.json
-  evidence_status: candidate_evidence_fragile_requires_hardening_not_selected
-  campaign_status: active_pending_r0003_design
+  recorded_at_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/run_manifest.json
+  gate_report_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/gate_report.json
+  proxy_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy.json
+  mt5_logic_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json
+  mt5_tick_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick.json
+  fold_tick_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick_by_fold.json
+  paired_divergence_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/execution_divergence_by_fold.json
+  evidence_status: closed_no_candidate
+  campaign_status: open_with_candidate_evidence_pending_decision
+  candidate_evidence_retained_from: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002
+  latest_negative_memory_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003
+  reason_not_candidate: R0003 robustness-conditioned structural trap replay had negative
+    proxy and MT5 tick economics, five losing folds, four profitable folds, and tick
+    execution worse than closed-bar logic.
+  proxy_trade_count: 4250
+  proxy_net_pnl_points: -1337.75
+  proxy_profit_factor: 0.967005
+  mt5_logic_trade_count: 4250
+  mt5_logic_net_pnl: 4.88
+  mt5_logic_profit_factor: 1.011573
+  mt5_tick_trade_count: 4235
+  mt5_tick_net_pnl: -12.51
+  mt5_tick_profit_factor: 0.9693
   fold_count: 9
   completed_fold_count: 9
-  profitable_fold_count: 7
-  losing_fold_count: 2
-  entries_per_active_day: 7.57069
-  proxy_trade_count: 4391
-  proxy_net_pnl_points: 1661.95
-  proxy_profit_factor: 1.050917
-  mt5_logic_trade_count: 4391
-  mt5_logic_net_pnl: 31.79
-  mt5_logic_profit_factor: 1.089454
-  mt5_tick_trade_count: 4375
-  mt5_tick_net_pnl: 22.68
-  mt5_tick_profit_factor: 1.069012
+  total_tick_trade_count: 4235
+  total_tick_net_pnl: -12.51
+  profitable_fold_count: 4
+  losing_fold_count: 5
   mt5_tick_by_fold_status: completed
   execution_divergence_by_fold_status: completed
-  economics_shift_status: tick_worse_than_logic
-  total_tick_minus_logic_net_pnl: -9.11
-  candidate_evidence_status: fragile_requires_hardening_not_selected
-  aggregate_extra_cost_per_trade_to_zero: 0.005184
-  longest_losing_month_streak: 6
-  monthly_tick_profitable_month_count: 15
-  monthly_tick_losing_month_count: 12
-  next_required_action: design_c0008_r0003_structural_trap_reversal_robustness_conditioner_run
+  total_tick_minus_logic_net_pnl: -17.39
+  next_required_action: decide_c0008_r0004_or_close_c0008_after_r0003
   claim_boundary:
     claim_authority: false
     selected: false
@@ -137,7 +142,6 @@ latest_operation:
     feature_set_selected: false
     model_selected: false
     runtime_authority: false
-    economics_pass: false
     onnx_ready: false
     promotion_ready: false
     live_ready: false

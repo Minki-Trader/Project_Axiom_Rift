@@ -1780,3 +1780,57 @@ decisions:
     selected: false
     onnx_ready: false
     promotion_ready: false
+- decision_id: dec_20260703_close_c0008_r0003_no_candidate
+  created_local_date: '2026-07-03'
+  status: active
+  decision: close_c0008_r0003_structural_trap_reversal_robustness_conditioner_run_no_candidate
+  refines:
+  - dec_20260703_open_c0008_r0003_structural_trap_reversal_robustness_conditioner_run
+  - dec_20260703_audit_c0008_r0002_candidate_robustness
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - r0003_completed_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - r0003_proxy_net_pnl_points_was_negative_at_minus_1337_75_and_proxy_profit_factor_was_0_967005
+  - r0003_mt5_tick_net_pnl_was_negative_at_minus_12_51_with_profit_factor_0_9693
+  - r0003_fold_isolated_mt5_tick_evidence_completed_all_nine_required_folds_with_four_profitable_folds_and_five_losing_folds
+  - r0003_tick_execution_worsened_closed_bar_logic_by_minus_17_39_net_pnl_and_eight_folds_were_tick_worse
+  - r0003_is_recorded_as_negative_memory_not_selected_candidate_economics_pass_runtime_onnx_promotion_or_live_claim
+  - r0002_candidate_evidence_remains_retained_but_fragile_and_not_selected
+  - next_work_is_decide_c0008_r0004_or_close_c0008_after_r0003
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    selected: false
+    onnx_ready: false
+    promotion_ready: false
+- decision_id: dec_20260703_open_c0008_r0003_structural_trap_reversal_robustness_conditioner_run
+  created_local_date: '2026-07-03'
+  status: active
+  decision: open_r0003_structural_trap_reversal_robustness_conditioner_run_under_c0008
+  refines:
+  - dec_20260703_audit_c0008_r0002_candidate_robustness
+  - dec_20260703_close_c0008_r0002_with_candidate_evidence
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - c0008_remains_open_after_r0002_retained_candidate_evidence_but_not_selected
+  - r0002_candidate_robustness_audit_blocks_selection_and_simple_retry_because_cost_buffer_is_thin_two_folds_are_losing_and_monthly_tick_deals_show_a_six_month_losing_streak
+  - r0003_changes_model_label_feature_and_score_surface_to_fold_local_robust_positive_versus_fragile_adverse_structural_trap_conditioning
+  - r0003_reuses_structural_trap_candidate_grammar_only_as_candidate_generation_and_is_not_a_threshold_daily_count_stop_target_hold_session_or_retry_nudge
+  - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    selected: false
+    onnx_ready: false
+    promotion_ready: false
