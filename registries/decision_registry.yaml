@@ -174,6 +174,54 @@ decisions:
     feature_set_selected: false
     model_selected: false
     economics_pass: false
+- decision_id: dec_20260703_open_c0006_r0002_sweep_acceptance_continuation_run
+  created_local_date: '2026-07-03'
+  status: active
+  decision: open_r0002_sweep_acceptance_continuation_event_probe_under_c0006
+  refines:
+  - dec_20260703_close_c0006_r0001_no_candidate
+  - dec_20260703_open_c0006_liquidity_sweep_reclaim_event_discovery
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - r0001_reclaim_reversal_event_grammar_closed_no_candidate_after_completed_fold_isolated_mt5_tick_evidence
+  - r0002_tests_the_distinct_opposite_event_interpretation_sweep_acceptance_and_continuation_in_the_breakout_direction
+  - r0002_changes_event_semantics_feature_surface_label_shape_and_trade_direction_not_threshold_daily_count_stop_target_hold_or_scope_weight_nudges
+  - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - weak_proxy_result_must_not_skip_mt5_paired_validation
+  - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+- decision_id: dec_20260703_close_c0006_r0002_no_candidate
+  created_local_date: '2026-07-03'
+  status: active
+  decision: close_c0006_r0002_sweep_acceptance_continuation_run_no_candidate
+  refines:
+  - dec_20260703_open_c0006_r0002_sweep_acceptance_continuation_run
+  - dec_20260703_open_c0006_liquidity_sweep_reclaim_event_discovery
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - r0002_completed_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - schedule_replay_logic_parity_passed_with_mismatch_count_zero
+  - r0002_met_target_activity_with_7_456897_entries_per_active_day
+  - fold_isolated_mt5_tick_evidence_completed_all_nine_required_folds
+  - r0002_had_nine_losing_folds_zero_profitable_folds_and_negative_total_fold_isolated_tick_net_pnl
+  - tick_execution_was_better_than_closed_bar_logic_in_seven_of_nine_folds_but_both_surfaces_remained_negative
+  - r0002_is_recorded_as_negative_memory_not_selected_candidate_economics_pass_runtime_onnx_promotion_or_live_claim
+  - next_work_is_decide_c0006_r0003_or_close_c0006_after_r0002
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
 - decision_id: dec_20260703_open_c0005_r0005_calibrated_analog_classifier_run
   created_local_date: '2026-07-03'
   status: active
