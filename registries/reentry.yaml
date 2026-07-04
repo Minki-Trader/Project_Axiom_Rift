@@ -7,7 +7,7 @@ read_budget:
   - registries/reentry.yaml
   - registries/claim_state.yaml
   conditional_files:
-    active_campaign: campaigns/C0013_path_resilience_recovery_discovery
+    active_campaign: campaigns/C0014_interday_range_handoff_discovery
     active_synthesis: null
     active_contracts: contracts/
     active_config: configs/
@@ -22,7 +22,7 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: campaigns/C0013_path_resilience_recovery_discovery
+  active_campaign: campaigns/C0014_interday_range_handoff_discovery
   active_synthesis: null
 active_truth:
   contracts_dir: contracts
@@ -113,7 +113,7 @@ data_state:
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
 next_work:
-  campaign: campaigns/C0013_path_resilience_recovery_discovery
+  campaign: campaigns/C0014_interday_range_handoff_discovery
   synthesis: null
   completed:
   - fresh_export_us100_m5_max_available
@@ -714,15 +714,27 @@ next_work:
   - review_c0013_r0001_tick_execution_kpi_and_closeout
   - close_c0013_r0001_no_candidate
   - close_c0013_no_candidate_after_r0001
+  - open_c0014_interday_range_handoff_discovery
+  - open_c0014_r0001_fold_local_interday_range_handoff_rank_run
+  - produce_c0014_r0001_proxy_evidence
+  - repair_c0014_r0001_schedule_replay_parity
+  - record_c0014_r0001_proxy_vs_mt5_logic_parity_evidence
+  - record_c0014_r0001_execution_divergence
+  - produce_c0014_r0001_mt5_tick_execution_evidence
+  - produce_c0014_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0014_r0001_fold_isolated_execution_divergence
+  - review_c0014_r0001_tick_execution_kpi_and_closeout
+  - close_c0014_r0001_no_candidate
+  - close_c0014_no_candidate_after_r0001
   tasks:
-  - choose_c0014_new_major_hypothesis_after_c0013_closeout
+  - choose_c0015_new_major_hypothesis_after_c0014_closeout
   not_yet:
   - label_freeze
   - feature_set_freeze
   - model_training
   - mt5_runtime_claim
-  active_campaign: campaigns/C0013_path_resilience_recovery_discovery
+  active_campaign: campaigns/C0014_interday_range_handoff_discovery
   active_run: null
 active_run: null
-active_campaign: campaigns/C0013_path_resilience_recovery_discovery
+active_campaign: campaigns/C0014_interday_range_handoff_discovery
 active_synthesis: null

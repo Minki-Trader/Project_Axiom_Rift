@@ -101,30 +101,30 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: campaigns/C0013_path_resilience_recovery_discovery
+active_campaign: campaigns/C0014_interday_range_handoff_discovery
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0013_r0001_and_c0013_no_candidate
+  id: close_c0014_r0001_and_c0014_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0013_path_resilience_recovery_discovery/runs/R0001/gate_report.json
+  recorded_at_source: campaigns/C0014_interday_range_handoff_discovery/runs/R0001/gate_report.json
   evidence_status: closed_no_candidate
   asset_type: negative_memory_and_campaign_closeout
-  active_campaign: campaigns/C0013_path_resilience_recovery_discovery
+  active_campaign: campaigns/C0014_interday_range_handoff_discovery
   active_synthesis: null
   active_run: null
-  next_required_action: choose_c0014_new_major_hypothesis_after_c0013_closeout
-  entries_per_active_day: 7.155172
-  mt5_tick_net_pnl: -67.47
-  mt5_tick_profit_factor: 0.843921
-  mt5_tick_max_drawdown_percent: 13.586
+  next_required_action: choose_c0015_new_major_hypothesis_after_c0014_closeout
+  entries_per_active_day: 7.591379
+  mt5_tick_net_pnl: -436.05
+  mt5_tick_profit_factor: 0.338978
+  mt5_tick_max_drawdown_percent: 87.414
   profitable_fold_count: 0
   losing_fold_count: 9
   candidate_status: closed_no_candidate
-  negative_memory: C0013 R0001 path resilience recovery rank met target activity but proxy,
-    aggregate MT5 tick, and all nine fold-isolated MT5 tick folds were negative; do not
-    retry this surface with simple thresholds, score floors, stop, target, hold, activity,
-    spread, session, or retry nudges.
+  negative_memory: C0014 R0001 interday range handoff rank met target activity but proxy,
+    aggregate MT5 tick, and all nine fold-isolated MT5 tick folds were negative; do not retry
+    this surface with simple thresholds, score floors, stop, target, hold, activity, spread,
+    session, capital, or retry nudges.
   claim_boundary:
     claim_authority: false
     selected: false

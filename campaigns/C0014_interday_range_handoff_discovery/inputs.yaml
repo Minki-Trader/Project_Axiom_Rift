@@ -1,0 +1,26 @@
+schema: axiom_rift_campaign_inputs_v1
+template: false
+campaign_id: C0014
+work_unit_id: C0014
+run_id: R0001
+dataset_identity:
+  base_frame: data/processed/datasets/us100_m5_base_frame.csv
+  split_registry: registries/rolling_windows.yaml
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+source_evidence:
+- campaigns/C0013_path_resilience_recovery_discovery/runs/R0001/gate_report.json
+- campaigns/C0013_path_resilience_recovery_discovery/selected.yaml
+- campaigns/C0012_session_auction_rotation_discovery/runs/R0001/kpi/candidate_robustness_audit.json
+- campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis/runs/SR0001/kpi/candidate_robustness_audit.json
+failure_memory_used:
+- c0013_path_resilience_recovery_rank_lost_all_fold_isolated_tick_folds
+- c0012_session_auction_rotation_fragile_not_selected
+- sc0004_mixed_evidence_fragile_not_selected
+claim_boundary:
+  claim_authority: false
+  selected: false
+  runtime_authority: false
+  onnx_ready: false
+  live_ready: false
