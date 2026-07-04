@@ -1,0 +1,265 @@
+schema: axiom_rift_ingredient_refs_v1
+template: false
+status: open
+synthesis_id: SC0003
+source_campaign_refs:
+- campaign_id: C0007
+  path: campaigns/C0007_fold_local_supervised_edge_discovery/campaign.yaml
+  sha256: 2106a07d9edcf70668dd13e35a5bc756838e905a46db52bb80bd4a06264c18d3
+- campaign_id: C0008
+  path: campaigns/C0008_multi_timeframe_structural_context_discovery/campaign.yaml
+  sha256: 1787c9ccc94ea966386ad6c69d3e88d6fabd72d721e76bc05e920c35399066da
+- campaign_id: C0009
+  path: campaigns/C0009_execution_friction_aware_entry_discovery/campaign.yaml
+  sha256: d22e48258f53bcc4561866c6aee3396d63e0b7f11122a4e277959179214e279d
+run_evidence_index:
+- evidence_key: C0007_R0001
+  run_manifest:
+    path: campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0001/run_manifest.json
+    sha256: 550dd679e6eea052b5ab2807948294abf24fc5e3d482f07bd1771b855603ca6c
+  gate_report:
+    path: campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0001/gate_report.json
+    sha256: efacd8fe2a0b95e359fab20ecb3300ce477959d92c89b7ea7be5a687ffdf7a13
+  mt5_tick_by_fold:
+    path: campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: ae2bbcb08c47449ec63d2bc2047318d9e3de4e0ee7996707f253a8f5098ed298
+  execution_divergence_by_fold:
+    path: campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: e593c0fd3a48002928e0cfb0530f5f60ad605d453aaac9e24df938bcf48e5e06
+- evidence_key: C0007_R0002
+  run_manifest:
+    path: campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/run_manifest.json
+    sha256: 5e64200e1782dcd929a002fe024ee996e5b388cf8c8223caef88ec6b1a00c617
+  gate_report:
+    path: campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/gate_report.json
+    sha256: aa293a81aed1f51250d57f64677dc3137f85772781c12e26ef46749f1d36a929
+  mt5_tick_by_fold:
+    path: campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/kpi/mt5_tick_by_fold.json
+    sha256: ba066d40fc7058d18f47468760d61bb50978bc0903d183c6a9d8bb4e20df5132
+  execution_divergence_by_fold:
+    path: campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/kpi/execution_divergence_by_fold.json
+    sha256: be22752b659d894212fcba38c85e697bbadbc873883499faf405289f16c6c625
+- evidence_key: C0007_R0003
+  run_manifest:
+    path: campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/run_manifest.json
+    sha256: 86e25fc45a922f540e1e75e51b206765278c1988153fc6a73a95a83021c77a95
+  gate_report:
+    path: campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/gate_report.json
+    sha256: 16bc0b58a6b4259642d44e727e5a0c130166ade6e747abd321424e1cb6505670
+  mt5_tick_by_fold:
+    path: campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/mt5_tick_by_fold.json
+    sha256: 55a15dd3e6b3b00e9dd86930fbd91883d0036cc5bab1a6c5a2cde5f352ac8aeb
+  execution_divergence_by_fold:
+    path: campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0003/kpi/execution_divergence_by_fold.json
+    sha256: da72ff1fe429002fcc7854856cee6bfc0b2af55bf4174cc48c63e1c006a73288
+- evidence_key: C0008_R0001
+  run_manifest:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/run_manifest.json
+    sha256: a424f550d611ec6d02790cfe43fd07c4fb4e245564e74e98271ec476d6bb50ff
+  gate_report:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/gate_report.json
+    sha256: 3d6f135d9b5698826c012d7ea05d3bc772e396983abb46094da02bf92c4fa232
+  mt5_tick_by_fold:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 3a4ec14ef173bcd8bc77d8239db2dfa2dc98a61bc54d1ed965b3cdf2cec76106
+  execution_divergence_by_fold:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: 27dbf1b1fd74b18d8f59deaa2dc27860e263c5767c6663d6ff301d5b9c48990a
+- evidence_key: C0008_R0002
+  run_manifest:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/run_manifest.json
+    sha256: e0d3f5e674bde8c1203c3d1ff44de224821db8e3cc476053f70643b56368ebd2
+  gate_report:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/gate_report.json
+    sha256: d07da727cfff7f11df4f713c2af0df2cde88ed5dc4c0576382ac294f98bc529a
+  mt5_tick_by_fold:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/mt5_tick_by_fold.json
+    sha256: 6b41629b4b414d3013dfe43cc573a25165260ac8d7b61dee70f452fe96fd1d4e
+  execution_divergence_by_fold:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/execution_divergence_by_fold.json
+    sha256: 674bbb4f19cb5305a0861388e38950e99ada17bb192af92c2f1933b9509beb69
+- evidence_key: C0008_R0003
+  run_manifest:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/run_manifest.json
+    sha256: 19728ae28a8e02f7446889eaaed5d40aaa04e92b58eb7a87a1d65a2a6574ddcc
+  gate_report:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/gate_report.json
+    sha256: ff9275b0ea15fb22f975caa216a131184620a9753c58f6374fe9f5b67045cd06
+  mt5_tick_by_fold:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick_by_fold.json
+    sha256: 7ced0bd43968e8c99f23a23d07b5616464c565a72b846530164a1ac516ff6b1c
+  execution_divergence_by_fold:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/execution_divergence_by_fold.json
+    sha256: 2b76346d3d0c7c202c0f64420d41bde1e5cd2a8dc975e1c8285e6260947cd029
+- evidence_key: C0008_R0004
+  run_manifest:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0004/run_manifest.json
+    sha256: cd91b7519710bdaf714a25a2d76cbcbfc824ca05103b6fc908d01d77cdf25983
+  gate_report:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0004/gate_report.json
+    sha256: 335279d99b79a454ae90e84fb29fdd82f905ab0285586cf9e67213ab18dd09f3
+  mt5_tick_by_fold:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0004/kpi/mt5_tick_by_fold.json
+    sha256: 07cf6a6fd8453994ff21491bc4524dafab321873eba64694b758c4e6fc3dc6af
+  execution_divergence_by_fold:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0004/kpi/execution_divergence_by_fold.json
+    sha256: e888f97c7aa0e6d354dd3d762ef07e4dda4089137b5a5f95c97e891bd8fc49f1
+- evidence_key: C0009_R0001
+  run_manifest:
+    path: campaigns/C0009_execution_friction_aware_entry_discovery/runs/R0001/run_manifest.json
+    sha256: 7700ac89a2ff41049c3eaaf73dfaf924462e37951646343203f8bc892979334a
+  gate_report:
+    path: campaigns/C0009_execution_friction_aware_entry_discovery/runs/R0001/gate_report.json
+    sha256: 100cc8384f5413fd8e4067dbee45779561e2bdae81bf863264abd510f1e937d6
+  mt5_tick_by_fold:
+    path: campaigns/C0009_execution_friction_aware_entry_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 0c7c6c7fe2bca7e1714772950826f4471a9f57c5a1a804f546b3cacdb9248a68
+  execution_divergence_by_fold:
+    path: campaigns/C0009_execution_friction_aware_entry_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: 18ebfd4b1f5d18e86da08d8d2d6c0b3fc195ae697926046e9a8b4dea3bee6160
+- evidence_key: C0009_R0002
+  run_manifest:
+    path: campaigns/C0009_execution_friction_aware_entry_discovery/runs/R0002/run_manifest.json
+    sha256: ad5651b3ba2fa4c3d00872ee7e7629c6bd2456908ba656885bbaf60638324fd6
+  gate_report:
+    path: campaigns/C0009_execution_friction_aware_entry_discovery/runs/R0002/gate_report.json
+    sha256: 268e0e68042dff8424258c7a18a83a8d97977f66cd362ef880acf57c3e8601c4
+  mt5_tick_by_fold:
+    path: campaigns/C0009_execution_friction_aware_entry_discovery/runs/R0002/kpi/mt5_tick_by_fold.json
+    sha256: 9af88bed8f78311dc32938591a7f2b6af00415d587ed1aaf4bceb78e9133fa9f
+  execution_divergence_by_fold:
+    path: campaigns/C0009_execution_friction_aware_entry_discovery/runs/R0002/kpi/execution_divergence_by_fold.json
+    sha256: 3da9002f550ce141a7af37eae42e9f73b6866d02f731d8484c272740f6d85cb3
+- evidence_key: C0009_R0003
+  run_manifest:
+    path: campaigns/C0009_execution_friction_aware_entry_discovery/runs/R0003/run_manifest.json
+    sha256: 55e040baacaa19c62b819e1d98d116a201005e785a49b97763e32698715c0793
+  gate_report:
+    path: campaigns/C0009_execution_friction_aware_entry_discovery/runs/R0003/gate_report.json
+    sha256: 6afc887d6c4ed9fc3bdacbbceb353d98571ed50675129f5ef64fc80ef594e213
+  mt5_tick_by_fold:
+    path: campaigns/C0009_execution_friction_aware_entry_discovery/runs/R0003/kpi/mt5_tick_by_fold.json
+    sha256: ae9ac10219bedc81793a52e2f9ad44bf9d5b69816234a095694934e4acf8a5bc
+  execution_divergence_by_fold:
+    path: campaigns/C0009_execution_friction_aware_entry_discovery/runs/R0003/kpi/execution_divergence_by_fold.json
+    sha256: 846ce3161824a628a84040d62f7045377e9caaef057c7d90f95f9be471a56103
+- evidence_key: C0008_R0002_ROBUSTNESS
+  candidate_robustness_audit:
+    path: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/candidate_robustness_audit.json
+    sha256: 2097f4df5b4c9b41cb6da63d06fe3ee968e7566e9543582e41b4a4ad608f034f
+ingredient_groups:
+- group_id: c0007_ig001_fold_local_linear_rank_negative_memory
+  source_campaign_id: C0007
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0007_R0001
+  group_type: negative_memory
+  summary: linear_rank_supervised_edge_met_activity_but_failed_fold_isolated_tick_economics
+- group_id: c0007_ig002_dual_hazard_logistic_negative_memory
+  source_campaign_id: C0007
+  source_runs:
+  - R0002
+  source_evidence_keys:
+  - C0007_R0002
+  group_type: negative_memory
+  summary: dual_hazard_logistic_edge_classifier_met_activity_but_lost_under_fold_isolated_tick_execution
+- group_id: c0007_ig003_nonlinear_interaction_negative_memory
+  source_campaign_id: C0007
+  source_runs:
+  - R0003
+  source_evidence_keys:
+  - C0007_R0003
+  group_type: negative_memory
+  summary: nonlinear_interaction_edge_ensemble_failed_to_create_stable_fold_isolated_tick_profitability
+- group_id: c0008_ig001_direct_structural_context_rank_negative_memory
+  source_campaign_id: C0008
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0008_R0001
+  group_type: negative_memory
+  summary: direct_multi_timeframe_structural_context_rank_met_activity_but_lost_all_fold_isolated_tick_folds
+- group_id: c0008_ig002_structural_trap_reversal_fragile_candidate_evidence
+  source_campaign_id: C0008
+  source_runs:
+  - R0002
+  source_evidence_keys:
+  - C0008_R0002
+  group_type: fragile_candidate_evidence
+  summary: structural_trap_reversal_centroid_met_target_activity_and_positive_total_tick_net_but_has_thin_cost_buffer_two_losing_folds_and_long_losing_month_streak
+- group_id: c0008_ig003_structural_trap_robustness_conditioner_negative_memory
+  source_campaign_id: C0008
+  source_runs:
+  - R0003
+  source_evidence_keys:
+  - C0008_R0003
+  group_type: negative_memory
+  summary: robustness_conditioner_failed_to_harden_c0008_r0002_and_closed_no_candidate
+- group_id: c0008_ig004_structural_acceptance_continuation_negative_memory
+  source_campaign_id: C0008
+  source_runs:
+  - R0004
+  source_evidence_keys:
+  - C0008_R0004
+  group_type: negative_memory
+  summary: structural_acceptance_continuation_lost_all_fold_isolated_tick_folds
+- group_id: c0009_ig001_execution_friction_regime_negative_memory
+  source_campaign_id: C0009
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0009_R0001
+  group_type: negative_memory
+  summary: execution_friction_regime_rank_lost_all_nine_fold_isolated_tick_folds
+- group_id: c0009_ig002_execution_degradation_abstention_negative_memory
+  source_campaign_id: C0009
+  source_runs:
+  - R0002
+  source_evidence_keys:
+  - C0009_R0002
+  group_type: negative_memory
+  summary: score_floor_execution_degradation_abstention_reduced_activity_below_target_and_still_lost
+- group_id: c0009_ig003_intrabar_ambiguity_avoidance_negative_memory
+  source_campaign_id: C0009
+  source_runs:
+  - R0003
+  source_evidence_keys:
+  - C0009_R0003
+  group_type: negative_memory
+  summary: intrabar_ambiguity_avoidance_met_target_activity_but_lost_all_nine_fold_isolated_tick_folds
+- group_id: c0008_ig005_r0002_robustness_fragility_lesson
+  source_campaign_id: C0008
+  source_runs:
+  - R0002
+  source_evidence_keys:
+  - C0008_R0002_ROBUSTNESS
+  group_type: evidence_gap
+  summary: c0008_r0002_candidate_quality_is_not_established_because_extra_cost_buffer_is_thin_and_monthly_loss_streak_is_long
+blocked_ingredients: []
+deferred_with_reason:
+- item: selected_surface_or_runtime_materialization
+  reason: C0007 through C0009 contain no selected surface, runtime authority, ONNX readiness, or live-readiness
+    claim.
+- item: c0008_fragile_candidate_materialization
+  reason: C0008 R0002 is retained as fragile candidate evidence only; robustness and execution-friction
+    follow-up failed to establish candidate quality.
+- item: equity_percent_sizing
+  reason: candidate quality is not established; early discovery remains fixed-lot.
+rules:
+  unresolved_mechanical_parity_as_main_blocker_allowed: false
+  adjacent_tuning_as_ingredient_allowed: false
+  evidence_gap_disguised_as_ingredient_allowed: false
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

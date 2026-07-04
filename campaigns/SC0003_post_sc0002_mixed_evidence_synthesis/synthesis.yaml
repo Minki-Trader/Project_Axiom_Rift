@@ -1,0 +1,65 @@
+schema: axiom_rift_synthesis_v1
+template: false
+status: open
+synthesis_id: SC0003
+synthesis_slug: post_sc0002_mixed_evidence_synthesis
+synthesis_level: synthesis_3
+opened_at_utc: '2026-07-04T13:41:30Z'
+closed_at_utc: null
+synthesis_question:
+  summary: synthesize post-SC0002 mixed evidence from C0007 through C0009 before choosing the next
+    synthesis-run or campaign hypothesis
+  boundary: use only closed campaign evidence from C0007 fold-local supervised edge discovery, C0008
+    multi-timeframe structural context discovery, and C0009 execution-friction-aware entry discovery;
+    preserve unrestricted discovery of labels, features, model families, objectives, and trade shapes;
+    do not select any surface, create runtime authority, or treat synthesis as a shortcut around MT5
+    paired validation
+source_campaign_ids:
+- C0007
+- C0008
+- C0009
+readiness:
+  closed_campaign_count: 3
+  usable_ingredient_group_count: 11
+  required_surface_count: 4
+  has_explicit_mt5_evidence: true
+  unresolved_mechanical_parity_as_main_blocker: false
+  synthesis_due_source: campaigns/C0009_execution_friction_aware_entry_discovery/campaign.yaml
+ingredient_refs_path: ingredient_refs.yaml
+synthesis_queue_path: synthesis_queue.yaml
+runs_root: runs/
+synthesis_run_id_format: SR0001
+run_index:
+  active_run: null
+  opened_runs: []
+  closed_runs: []
+  next_run_candidate:
+    run_id: SR0001
+    direction: open_sc0003_sr0001_mixed_evidence_synthesis_run
+    reason: SC0003 is open with enough post-SC0002 ingredient groups; first synthesis run should test
+      a cross-family hardening question rather than adjacent C0008 or C0009 tuning.
+    status: designed_pending_open
+stream_policy:
+  stream: synthesis
+  independent_from_campaign_stream: true
+  does_not_set_next_campaign_id: true
+must_not:
+- create_selected_claim
+- create_runtime_authority
+- create_onnx_ready_claim
+- create_live_ready_claim
+- use_weak_proxy_as_mt5_skip_gate
+- disguise_adjacent_tuning_as_new_campaign
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

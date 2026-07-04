@@ -1,0 +1,103 @@
+schema: axiom_rift_synthesis_queue_v1
+template: false
+status: open
+synthesis_id: SC0003
+queue:
+- synthesis_run_id: SR0001
+  status: designed_pending_open
+  design_id: sc0003_sr0001_cross_family_fragile_candidate_hardening
+  designed_at_utc: '2026-07-04T13:41:30Z'
+  opened_at_utc: null
+  opened_run_path: runs/SR0001
+  source_ingredient_ids:
+  - c0007_ig001_fold_local_linear_rank_negative_memory
+  - c0007_ig002_dual_hazard_logistic_negative_memory
+  - c0007_ig003_nonlinear_interaction_negative_memory
+  - c0008_ig001_direct_structural_context_rank_negative_memory
+  - c0008_ig002_structural_trap_reversal_fragile_candidate_evidence
+  - c0008_ig003_structural_trap_robustness_conditioner_negative_memory
+  - c0008_ig004_structural_acceptance_continuation_negative_memory
+  - c0009_ig001_execution_friction_regime_negative_memory
+  - c0009_ig002_execution_degradation_abstention_negative_memory
+  - c0009_ig003_intrabar_ambiguity_avoidance_negative_memory
+  - c0008_ig005_r0002_robustness_fragility_lesson
+  synthesis_variant_question: test whether the fragile C0008 structural-trap candidate can be hardened
+    by cross-family supervised-edge failure memory and execution-friction failure memory, rather than
+    by adjacent structural filter, score-floor, session, stop, target, or daily-count nudges
+  source_failure_map:
+    c0007: direct supervised edge surfaces repeatedly found activity without robust fold-isolated
+      tick profitability
+    c0008: structural trap reversal retained fragile candidate evidence but failed robustness and
+      continuation hardening follow-ups
+    c0009: execution-friction and intrabar ambiguity surfaces did not turn target-frequency schedules
+      into profitable fold-isolated tick evidence
+  design:
+    hypothesis: combine fragile structural context with cross-family failure vetoes and execution-friction
+      constraints to seek a non-adjacent hardening surface
+    edge_surface: cross_family_fragile_candidate_hardening
+    activity_management: target five_to_ten entries per active day through fold-local opportunity
+      budgets, not post-hoc daily count nudges
+    fixed_lot_policy: fixed_lot_early_discovery_no_equity_percent_sizing_rescue
+    mt5_policy: opening SR0001 commits to proxy, closed-bar MT5 logic parity, proxy-vs-MT5 parity,
+      MT5 tick execution, execution divergence, and fold-isolated closeout evidence even if proxy
+      is weak
+  surfaces:
+    model: unrestricted fold-local cross-family hardening score, rule, classifier, ranker, or ensemble
+      surface; no model family selected
+    feature: unrestricted closed-bar features spanning structural trap context, supervised edge failure
+      state, execution-friction pressure, path ambiguity, session position, and spread pressure; no
+      feature set selected
+    trade_logic: fixed-lot candidate only when structural trap context survives independent supervised-edge
+      and execution-friction failure vetoes; not a stop, target, session, hold, threshold, or daily-count
+      nudge
+    label: unrestricted target-before-stop, adverse-path-avoidance, fold-local consistency, cost-buffer,
+      or risk-adjusted hardening label; no label selected
+  non_adjacent_rationale:
+  - differs_from_c0008_r0003_by_using cross-campaign supervised-edge and execution-friction failure
+    evidence instead of structural-only robustness conditioning
+  - differs_from_c0009_by treating execution friction as a veto context rather than the primary entry
+    generator
+  - differs_from_sc0002_by hardening retained fragile candidate evidence rather than inverting only
+    negative-memory surfaces
+  - not_a_threshold_window_sltp_session_hold_daily_count_or_retry_nudge
+  pre_open_checks:
+    source_ingredient_group_count: 11
+    explicit_mt5_evidence_present: true
+    unresolved_mechanical_parity_as_main_blocker: false
+    selected_or_runtime_claim_created: false
+  opening_requirements:
+  - create_runs_sr0001_manifest_gate_artifact_lineage_and_kpi_paths
+  - implement_proxy_module_in_src_axiom_rift_proxies_reusing_project_helpers
+  - implement_mt5_schedule_replay_probe_in_src_axiom_rift_mt5_reusing_existing_probe_helpers
+  - add_cli_and_tests_only_for_required_new_surfaces
+  - complete_proxy_mt5_logic_parity_proxy_vs_mt5_tick_divergence_and_fold_evidence_before_closeout
+  planned_outputs:
+    run_manifest: runs/SR0001/run_manifest.json
+    proxy_kpi: runs/SR0001/kpi/proxy.json
+    mt5_logic_parity_kpi: runs/SR0001/kpi/mt5_logic_parity.json
+    mt5_tick_kpi: runs/SR0001/kpi/mt5_tick.json
+    proxy_vs_mt5_logic_parity_kpi: runs/SR0001/kpi/proxy_vs_mt5_logic_parity.json
+    execution_divergence_kpi: runs/SR0001/kpi/execution_divergence.json
+    mt5_tick_by_fold_kpi: runs/SR0001/kpi/mt5_tick_by_fold.json
+    execution_divergence_by_fold_kpi: runs/SR0001/kpi/execution_divergence_by_fold.json
+    gate_report: runs/SR0001/gate_report.json
+    artifact_lineage: runs/SR0001/artifact_lineage.json
+  must_not:
+  - open_as_parameter_nudge
+  - skip_mt5_after_proxy
+  - create_selected_claim
+  - create_runtime_or_onnx_claim
+  next_action: open_sc0003_sr0001_mixed_evidence_synthesis_run
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

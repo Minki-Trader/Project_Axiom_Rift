@@ -101,24 +101,19 @@ research_mode:
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
 active_campaign: campaigns/C0009_execution_friction_aware_entry_discovery
-active_synthesis: null
+active_synthesis: campaigns/SC0003_post_sc0002_mixed_evidence_synthesis
 active_run: null
 latest_operation:
-  id: close_c0009_r0003_no_candidate
+  id: open_sc0003_post_sc0002_mixed_evidence_synthesis
   status: completed
-  recorded_at_source: campaigns/C0009_execution_friction_aware_entry_discovery/runs/R0003/run_manifest.json
-  gate_report_source: campaigns/C0009_execution_friction_aware_entry_discovery/runs/R0003/gate_report.json
-  evidence_status: closed_no_candidate_after_fold_isolated_mt5_tick_and_execution_divergence
-  failure_asset_type: negative_memory
-  proxy_trade_count: 4193
-  proxy_entries_per_active_day: 7.22931
-  proxy_net_pnl_points: -8625.71
-  mt5_tick_trade_count: 4177
-  mt5_tick_net_pnl: -80.36
-  fold_count: 9
-  profitable_fold_count: 0
-  losing_fold_count: 9
-  next_required_action: review_c0009_synthesis_readiness_after_r0003
+  recorded_at_source: campaigns/SC0003_post_sc0002_mixed_evidence_synthesis/synthesis.yaml
+  ingredient_refs_source: campaigns/SC0003_post_sc0002_mixed_evidence_synthesis/ingredient_refs.yaml
+  synthesis_queue_source: campaigns/SC0003_post_sc0002_mixed_evidence_synthesis/synthesis_queue.yaml
+  campaign_closeout_source: campaigns/C0009_execution_friction_aware_entry_discovery/campaign.yaml
+  evidence_status: synthesis_opened_after_c0009_closeout_and_readiness_check
+  source_campaign_count: 3
+  usable_ingredient_group_count: 11
+  next_required_action: open_sc0003_sr0001_mixed_evidence_synthesis_run
   claim_boundary:
     claim_authority: false
     selected: false

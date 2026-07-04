@@ -1,19 +1,19 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: open
+status: closed_no_candidate
 campaign_id: C0009
 campaign_slug: execution_friction_aware_entry_discovery
 campaign_type: campaign
 opened_at_utc: '2026-07-04T11:44:03Z'
-closed_at_utc: null
+closed_at_utc: '2026-07-04T13:41:30Z'
 hypothesis:
-  summary: discover whether closed-bar features can identify US100 M5 entry opportunities
-    that remain robust after MT5 tick execution, spread pressure, slippage sensitivity, and
-    closed-bar-vs-tick divergence
-  boundary: use closed M5 US100 bars, train-only rolling-window features, prior MT5 tick and
-    divergence lessons, and fixed-lot discovery schedules to test execution-friction-aware
-    candidate selection through mandatory proxy, MT5 logic parity, MT5 tick execution, execution
-    divergence, and fold-isolated closeout evidence
+  summary: discover whether closed-bar features can identify US100 M5 entry opportunities that remain
+    robust after MT5 tick execution, spread pressure, slippage sensitivity, and closed-bar-vs-tick
+    divergence
+  boundary: use closed M5 US100 bars, train-only rolling-window features, prior MT5 tick and divergence
+    lessons, and fixed-lot discovery schedules to test execution-friction-aware candidate selection
+    through mandatory proxy, MT5 logic parity, MT5 tick execution, execution divergence, and fold-isolated
+    closeout evidence
   not_in_scope:
   - selected_claim
   - runtime_authority
@@ -26,22 +26,21 @@ hypothesis:
 required_surfaces:
   model:
     status: variable
-    summary: unrestricted execution-friction rank, classifier, calibration, divergence-risk,
-      spread-pressure, or later model surfaces; no model family is selected
+    summary: unrestricted execution-friction rank, classifier, calibration, divergence-risk, spread-pressure,
+      or later model surfaces; no model family is selected
   feature:
     status: variable
-    summary: unrestricted closed-bar features for spread pressure, range compression, volatility
-      state, session phase, bar shape, path instability, prior friction lessons, and tick-vs-closed-bar
-      divergence risk; no feature set is selected
+    summary: unrestricted closed-bar features for spread pressure, range compression, volatility state,
+      session phase, bar shape, path instability, prior friction lessons, and tick-vs-closed-bar divergence
+      risk; no feature set is selected
   trade_logic:
     status: variable
-    summary: variable entry timing, abstention, direction selection, frequency control, exit,
-      stop, target, hold, and fixed-lot discovery risk shape; equity-percent sizing remains
-      deferred
+    summary: variable entry timing, abstention, direction selection, frequency control, exit, stop,
+      target, hold, and fixed-lot discovery risk shape; equity-percent sizing remains deferred
   label:
     status: variable
-    summary: variable target-before-stop, tick-degradation, cost-buffer, divergence-risk,
-      adverse-tail, speed, and execution-friction-adjusted labels; no label is selected
+    summary: variable target-before-stop, tick-degradation, cost-buffer, divergence-risk, adverse-tail,
+      speed, and execution-friction-adjusted labels; no label is selected
 run_index:
   runs_root: runs/
   run_id_format: R0001
@@ -52,30 +51,98 @@ run_index:
   - runs/R0003
   next_run_candidate:
     run_id: null
-    direction: review_c0009_synthesis_readiness_after_r0003
-    reason: C0009 R0003 closed no-candidate after fold-isolated MT5 tick evidence; C0009 should
-      be reviewed for synthesis readiness or campaign closeout before any new axis is opened.
-    status: pending_synthesis_readiness_review
+    direction: open_sc0003_post_sc0002_mixed_evidence_synthesis
+    reason: C0009 R0001 through R0003 all closed no-candidate after fold-isolated MT5 tick evidence;
+      remaining C0009 work would be adjacent execution-friction tuning, while post-SC0002 synthesis
+      readiness is met.
+    status: closed_campaign
 synthesis_readiness:
   check_required_at_closeout: true
-  result: not_checked
-  usable_ingredient_group_count: 0
-  readiness_notes: []
+  result: open_now
+  checked_at_utc: '2026-07-04T13:41:30Z'
+  closed_run_count: 3
+  observed_closed_campaign_count_since_last_synthesis: 3
+  usable_ingredient_group_count: 11
+  minimums:
+    closed_campaign_count_since_last_synthesis: 3
+    usable_ingredient_group_count: 8
+    required_surface_count: 3
+  open_synthesis_now: true
+  readiness_notes:
+  - c0007_c0008_c0009_are_now_closed_after_sc0002
+  - c0009_added_three_execution_friction_negative_memory_groups
+  - c0008_retains_fragile_candidate_evidence_but_no_selection_or_economics_pass
+  - synthesis_threshold_met_with_post_sc0002_mixed_evidence
+  - next_work_should_open_sc0003_post_sc0002_mixed_evidence_synthesis
+  ingredient_groups:
+  - group_id: c0009_ig001_execution_friction_regime_negative_memory
+    source_campaign_id: C0009
+    source_runs:
+    - R0001
+    source_evidence_keys:
+    - C0009_R0001
+    group_type: negative_memory
+    summary: execution_friction_regime_rank_lost_all_nine_fold_isolated_tick_folds
+  - group_id: c0009_ig002_execution_degradation_abstention_negative_memory
+    source_campaign_id: C0009
+    source_runs:
+    - R0002
+    source_evidence_keys:
+    - C0009_R0002
+    group_type: negative_memory
+    summary: score_floor_execution_degradation_abstention_reduced_activity_below_target_and_still_lost
+  - group_id: c0009_ig003_intrabar_ambiguity_avoidance_negative_memory
+    source_campaign_id: C0009
+    source_runs:
+    - R0003
+    source_evidence_keys:
+    - C0009_R0003
+    group_type: negative_memory
+    summary: intrabar_ambiguity_avoidance_met_target_activity_but_lost_all_nine_fold_isolated_tick_folds
+  recommended_next_action: open_sc0003_post_sc0002_mixed_evidence_synthesis
 closeout:
-  status: open
-  close_reason: null
-  evidence_paths: []
-  remaining_question: review_c0009_synthesis_readiness_after_r0003
-claim_boundary:
-  claim_authority: false
-  selected: false
-  label_selected: false
-  feature_set_selected: false
-  model_selected: false
-  runtime_probe_completed: false
-  economics_pass: false
-  materialization_ready: false
-  runtime_authority: false
-  onnx_ready: false
-  promotion_ready: false
-  live_ready: false
+  status: closed_no_candidate
+  close_reason: no_meaningful_new_variant_remains_inside_execution_friction_aware_entry_boundary_after_r0001_to_r0003_all_closed_no_candidate
+  closed_at_utc: '2026-07-04T13:41:30Z'
+  evidence_paths:
+  - runs/R0001/run_manifest.json
+  - runs/R0001/gate_report.json
+  - runs/R0001/kpi/mt5_tick_by_fold.json
+  - runs/R0001/kpi/execution_divergence_by_fold.json
+  - runs/R0002/run_manifest.json
+  - runs/R0002/gate_report.json
+  - runs/R0002/kpi/mt5_tick_by_fold.json
+  - runs/R0002/kpi/execution_divergence_by_fold.json
+  - runs/R0003/run_manifest.json
+  - runs/R0003/gate_report.json
+  - runs/R0003/kpi/mt5_tick_by_fold.json
+  - runs/R0003/kpi/execution_divergence_by_fold.json
+  - selected.yaml
+  remaining_question: open_sc0003_sr0001_mixed_evidence_synthesis_run
+  decision_basis:
+    closed_run_count: 3
+    closed_no_candidate_run_count: 3
+    fold_isolated_tick_total_net_negative_for_all_runs: true
+    positive_run_fold_cells: 1
+    total_run_fold_cells: 27
+    repeated_candidate_surface_found: false
+    r0001_losing_fold_count: 9
+    r0002_losing_fold_count: 8
+    r0003_losing_fold_count: 9
+    r0003_entries_per_active_day: 7.22931
+    r0003_total_tick_net_pnl: -80.36
+    remaining_work_classification: adjacent_execution_friction_tuning_or_new_synthesis_not_c0009_variant
+  claim_boundary: &id001
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+claim_boundary: *id001
