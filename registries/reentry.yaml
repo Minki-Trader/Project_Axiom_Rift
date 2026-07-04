@@ -569,11 +569,22 @@ next_work:
   - produce_c0009_r0002_fold_isolated_execution_divergence
   - review_c0009_r0002_tick_execution_kpi_and_closeout
   - close_c0009_r0002_no_candidate
+  - open_c0009_r0003_intrabar_ambiguity_avoidance_run
+  - produce_c0009_r0003_proxy_evidence
+  - produce_c0009_r0003_mt5_logic_parity_evidence
+  - record_c0009_r0003_proxy_vs_mt5_logic_parity_evidence
+  - produce_c0009_r0003_mt5_tick_execution_evidence
+  - record_c0009_r0003_execution_divergence
+  - produce_c0009_r0003_fold_isolated_mt5_tick_kpi
+  - produce_c0009_r0003_fold_isolated_execution_divergence
+  - review_c0009_r0003_tick_execution_kpi_and_closeout
+  - close_c0009_r0003_no_candidate
   tasks:
-  - decide_c0009_r0003_or_close_c0009_after_r0002
+  - review_c0009_synthesis_readiness_after_r0003
   not_yet:
   - label_freeze
   - feature_set_freeze
   - model_training
   - mt5_runtime_claim
 active_run: null
+active_campaign: campaigns/C0009_execution_friction_aware_entry_discovery
