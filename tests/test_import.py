@@ -22,12 +22,14 @@ class ImportTest(unittest.TestCase):
         command_actions = [action for action in parser._actions if action.dest == "command"]
         choices = set(command_actions[0].choices)
         self.assertEqual(choices, set(COMMANDS))
-        self.assertEqual(len(COMMANDS), 280)
+        self.assertEqual(len(COMMANDS), 288)
         self.assertIn("status", choices)
         self.assertIn("validate-templates", choices)
         self.assertIn("validate-repo-state", choices)
         self.assertIn("run-c0008-r0002-mt5-tick", choices)
         self.assertIn("run-c0008-r0002-mt5-tick-by-fold", choices)
+        self.assertIn("run-c0008-r0004-proxy", choices)
+        self.assertIn("run-c0008-r0004-mt5-tick-by-fold", choices)
 
     def test_cli_keeps_run_modules_out_of_top_level_imports(self) -> None:
         text = CLI_PATH.read_text(encoding="ascii")

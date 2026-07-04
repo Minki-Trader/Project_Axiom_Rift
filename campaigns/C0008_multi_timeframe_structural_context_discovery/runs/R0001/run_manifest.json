@@ -101,7 +101,7 @@
     "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
     "structural_context_summary": "artifacts/c0008_r0001_structural_context_summary.json"
   },
-  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
+  "gate_status": "close_no_candidate",
   "hypothesis_variant": {
     "summary": "fold_local_multi_timeframe_structural_context_rank",
     "variant_boundary": "first C0008 true variant; tests completed-M5-derived M15, H1, session, and daily structural context rank scoring, not C0007 all-bars supervised edge retry, C0006 liquidity sweep event grammar, analog memory, state archetype buckets, score-cell stumps, synthesis veto replay, or threshold, daily-count, stop, target, hold, session, or retry nudge"
@@ -144,7 +144,7 @@
   "run_id": "R0001",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
+  "status": "closed_no_candidate",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

@@ -70,7 +70,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json",
-      "sha256": "020019869a9584653087994f438c0a302c1d22434d98507c645425e666b68e74",
+      "sha256": "ffcf65ab4b06619afbd1f4dee8cdcd8d2806493cb0ee9fab611ee036b5f5e8a8",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
         "configs/market.yaml"
@@ -85,7 +85,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy_vs_mt5_logic_parity.json",
-      "sha256": "3107b55a23f15eb1e1074d2db7c9f5619b227fdbf9efccde216d0c2512d19584",
+      "sha256": "dcf5468022e2eccab0941584e7f87e4d14239702c046ff6e1a51aa91f20dbce0",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy.json",
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json"
@@ -100,7 +100,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick.json",
-      "sha256": "fded76ca5d4ea43d3df75bcb82accce944189925b1ffd13f7e9a10699eb79bbd",
+      "sha256": "fd675af7eea5afc682533d58ebff07b9d15619db9e6b933cc032333f1806cdcf",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
         "configs/market.yaml"
@@ -115,7 +115,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/execution_divergence.json",
-      "sha256": "9f59bbf0360e2837f100bd8e512868ab2ed44ece5a817b5654b5d1753567f2e5",
+      "sha256": "1abf13ad366681d7046b1bcb60c5b5cd093216a4290c597069dc07904f9da68f",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json",
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick.json"
@@ -130,7 +130,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick_by_fold.json",
-      "sha256": "d6a7c5c621112d77c70e1c8853f586886f0101aec1eb9a39208a8df69571a547",
+      "sha256": "7ced0bd43968e8c99f23a23d07b5616464c565a72b846530164a1ac516ff6b1c",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
         "registries/rolling_windows.yaml",
@@ -146,7 +146,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/execution_divergence_by_fold.json",
-      "sha256": "069de165be490ee904b3c12e84f81cf9318b873dc742968a9c9e6c87462ae8bb",
+      "sha256": "2b76346d3d0c7c202c0f64420d41bde1e5cd2a8dc975e1c8285e6260947cd029",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"
@@ -155,17 +155,11 @@
   ],
   "campaign_id": "C0008",
   "claim_authority": false,
-  "deferred_with_reason": [
-    {
-      "field": "closeout_review",
-      "next_action": "review_c0008_r0003_tick_execution_kpi_and_closeout",
-      "reason": "fold-isolated MT5 tick and execution divergence artifacts are recorded; closeout review is the next mandatory sequence step"
-    }
-  ],
+  "deferred_with_reason": [],
   "lineage_id": "L-C0008-R0003",
   "run_id": "R0003",
   "schema": "axiom_rift_artifact_lineage_v1",
-  "status": "opened_pending_proxy",
+  "status": "closed_no_candidate",
   "template": false,
   "work_unit_id": "C0008"
 }

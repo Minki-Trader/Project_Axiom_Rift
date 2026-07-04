@@ -40,7 +40,7 @@
       "selected": false
     },
     "close_reason": "no_candidate_after_fold_isolated_mt5_tick_and_execution_divergence_evidence",
-    "closed_at_utc": "2026-07-03T11:57:36Z",
+    "closed_at_utc": "2026-07-04T11:27:49Z",
     "failure_asset": {
       "asset_type": "negative_memory",
       "evidence_paths": [
@@ -52,49 +52,49 @@
         "kpi/mt5_tick_by_fold.json",
         "kpi/execution_divergence_by_fold.json"
       ],
-      "hypothesis_tested": "fold-local structural trap reversal robustness conditioner over R0002 trap/reclaim candidate grammar",
-      "next_boundary": "R0003 blocks retrying R0002 robustness conditioning as a simple cost-buffer, fragility-filter, threshold, daily-count, stop, target, hold, session, or retry nudge; C0008 next work must decide whether a materially different R0004 structural context variant remains or close C0008 with synthesis readiness review",
-      "reason_not_candidate": "proxy was negative, MT5 tick total net PnL was negative, fold-isolated MT5 tick completed all nine folds with five losing folds and four profitable folds, and tick execution worsened closed-bar logic by -17.39 net PnL",
+      "hypothesis_tested": "fold-local structural acceptance continuation after completed-M5-derived M15, H1, session, and daily accepted level breaks",
+      "next_boundary": "R0004 blocks retrying accepted structural break continuation as a simple rank, level, threshold, daily-count, stop, target, hold, session, or spread-cost nudge; C0008 next work should decide whether any materially different structural context variant remains or close C0008 with synthesis readiness review",
+      "reason_not_candidate": "proxy was strongly negative, MT5 logic and tick economics were strongly negative, and fold-isolated MT5 tick completed all nine folds with zero profitable folds and nine losing folds",
       "supporting_lessons": [
         {
           "asset_type": "negative_memory",
           "source": "kpi/mt5_tick_by_fold.json",
-          "summary": "robustness-conditioned structural trap replay did not improve R0002 fragility; total fold-isolated MT5 tick net PnL was -12.5 with five losing folds and four profitable folds"
+          "summary": "structural acceptance continuation produced 4572 MT5 tick trades, total fold-isolated tick net PnL -157.69, and nine losing folds"
         },
         {
           "asset_type": "execution_divergence_lesson",
           "source": "kpi/execution_divergence_by_fold.json",
-          "summary": "tick execution was worse than closed-bar logic overall by -17.39 net PnL and eight of nine folds were tick-worse"
+          "summary": "tick execution was slightly better than closed-bar logic overall by 5.17 net PnL, but both logic and tick economics remained strongly negative"
         }
       ]
     },
     "required_kpi_summary": {
       "completed_fold_count": 9,
-      "economics_shift_status": "tick_worse_than_logic",
+      "economics_shift_status": "tick_better_than_logic",
       "execution_divergence_by_fold_status": "completed",
       "execution_divergence_status": "recorded_with_divergence",
       "fold_count": 9,
       "intent_parity_status": "passed_schedule_replay_boundary",
-      "losing_fold_count": 5,
+      "losing_fold_count": 9,
       "mechanical_parity_status": "passed",
       "mismatch_count": 0,
-      "mt5_logic_net_pnl": 4.89,
-      "mt5_logic_profit_factor": 1.011597,
-      "mt5_logic_trade_count": 4250,
+      "mt5_logic_net_pnl": -162.86,
+      "mt5_logic_profit_factor": 0.6541,
+      "mt5_logic_trade_count": 4572,
       "mt5_tick_by_fold_status": "completed",
-      "mt5_tick_net_pnl": -12.5,
-      "mt5_tick_profit_factor": 0.969324,
-      "mt5_tick_trade_count": 4235,
-      "profitable_fold_count": 4,
-      "proxy_net_pnl_points": -1337.75,
-      "proxy_profit_factor": 0.967005,
-      "proxy_trade_count": 4250,
-      "tick_better_fold_count": 1,
-      "tick_minus_logic_net_pnl": -17.39,
-      "tick_worse_fold_count": 8,
-      "total_tick_minus_logic_net_pnl": -17.39,
-      "total_tick_net_pnl": -12.5,
-      "total_tick_trade_count": 4235
+      "mt5_tick_net_pnl": -157.69,
+      "mt5_tick_profit_factor": 0.646387,
+      "mt5_tick_trade_count": 4572,
+      "profitable_fold_count": 0,
+      "proxy_net_pnl_points": -15813.33,
+      "proxy_profit_factor": 0.642139,
+      "proxy_trade_count": 4572,
+      "tick_better_fold_count": 4,
+      "tick_minus_logic_net_pnl": 5.17,
+      "tick_worse_fold_count": 5,
+      "total_tick_minus_logic_net_pnl": 5.17,
+      "total_tick_net_pnl": -157.69,
+      "total_tick_trade_count": 4572
     },
     "status": "closed_no_candidate"
   },
@@ -111,26 +111,25 @@
       "proxy_kpi_path_recorded": true,
       "proxy_vs_mt5_logic_parity_kpi_path_recorded": true
     },
-    "status": "passed"
+    "status": "fold_isolated_evidence_recorded"
   },
   "evidence_paths": [
     "artifact_lineage.json",
-    "../R0002/kpi/candidate_robustness_audit.json",
+    "artifacts/c0008_r0004_proxy_trades.csv",
+    "artifacts/c0008_r0004_structural_acceptance_continuation_summary.json",
     "kpi/proxy.json",
-    "artifacts/c0008_r0003_proxy_trades.csv",
-    "artifacts/c0008_r0003_structural_trap_robustness_summary.json",
     "kpi/mt5_logic_parity.json",
     "kpi/proxy_vs_mt5_logic_parity.json",
-    "artifacts/c0008_r0003_schedule.csv",
+    "artifacts/c0008_r0004_schedule.csv",
     "kpi/mt5_tick.json",
     "kpi/execution_divergence.json",
     "kpi/mt5_tick_by_fold.json",
     "kpi/execution_divergence_by_fold.json"
   ],
   "execution_gate": {
-    "economics_shift_status": "tick_worse_than_logic",
+    "economics_shift_status": "tick_better_than_logic",
     "missing_required_kpi_fields": [],
-    "run_closeout_review_ready": false,
+    "run_closeout_review_ready": true,
     "status": "recorded_with_divergence"
   },
   "fold_isolated_execution_gate": {
@@ -141,14 +140,14 @@
     },
     "mt5_tick_by_fold_status": "completed"
   },
-  "gate_report_id": "G-C0008-R0003",
+  "gate_report_id": "G-C0008-R0004",
   "must_not": [
     "claim_selected",
     "claim_runtime_authority",
     "claim_onnx_ready",
     "claim_live_ready"
   ],
-  "next_action": "decide_c0008_r0004_or_close_c0008_after_r0003",
+  "next_action": "decide_c0008_r0005_or_close_c0008_after_r0004",
   "parity_gate": {
     "intent_parity_status": "passed_schedule_replay_boundary",
     "mechanical_parity_status": "passed",
@@ -171,7 +170,7 @@
     "fold_isolated_mt5_tick_required": true,
     "status": "passed"
   },
-  "run_id": "R0003",
+  "run_id": "R0004",
   "schema": "axiom_rift_gate_report_v1",
   "status": "closed_no_candidate",
   "template": false,

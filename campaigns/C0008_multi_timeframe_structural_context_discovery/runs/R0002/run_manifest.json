@@ -123,7 +123,7 @@
     "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
     "structural_trap_reversal_summary": "artifacts/c0008_r0002_structural_trap_reversal_summary.json"
   },
-  "gate_status": "logic_tick_and_divergence_recorded",
+  "gate_status": "closed_with_candidate_evidence",
   "hypothesis_variant": {
     "summary": "fold_local_structural_trap_reversal_centroid_contrast",
     "variant_boundary": "second C0008 true variant; tests prior M15, H1, session, and daily level trap/reclaim reversal candidates with fold-local positive/adverse centroid contrast scoring, not R0001 direct structural context rank and not threshold, daily-count, stop, target, hold, session, or retry nudge"
@@ -178,7 +178,7 @@
   "run_id": "R0002",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "execution_divergence_recorded_pending_fold_isolated_tick",
+  "status": "closed_with_candidate_evidence",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

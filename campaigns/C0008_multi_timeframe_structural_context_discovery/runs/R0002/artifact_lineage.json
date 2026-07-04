@@ -69,7 +69,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0002_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/mt5_logic_parity.json",
-      "sha256": "aa06e8f31d90bf795cea8530e9afd6d229658c3f3fb0997307d05be6a87dbaab",
+      "sha256": "a29d76aa81a8a11014b87488ed8880c58de3e8dde90b0b75fdc98fbea66998fe",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/artifacts/c0008_r0002_schedule.csv",
         "configs/market.yaml"
@@ -84,7 +84,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0002_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/proxy_vs_mt5_logic_parity.json",
-      "sha256": "358dfce4a51f81c42b8d0550d2fb2f3a102e36d241956ea2f3737338c048d226",
+      "sha256": "d9fd9cef4166d76a9824907fd9d05383d0cc80ec94fbdd09d1bfe290c8694544",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/proxy.json",
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/mt5_logic_parity.json"
@@ -99,7 +99,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0002_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/mt5_tick.json",
-      "sha256": "ca6ee51cae60d591b626649101ae327074fd0fe72acb762afa12905761a9ea81",
+      "sha256": "3f4f63c73b1850023abd29c7b7fe8d65a5bf2c226288c7fb192774ce575ac6ad",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/artifacts/c0008_r0002_schedule.csv",
         "configs/market.yaml"
@@ -114,7 +114,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0002_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/execution_divergence.json",
-      "sha256": "f2dabe0c5f58290d33829593d71f00cda43aee1dee0a031c6beb04e81a41c5b9",
+      "sha256": "6e13eb9aa6bb60f2523059a2d3979ca57f77fb341746fe81a6f62424d3af7486",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/mt5_logic_parity.json",
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/mt5_tick.json"

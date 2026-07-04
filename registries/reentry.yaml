@@ -1,5 +1,5 @@
 schema: axiom_rift_reentry_v2
-updated_local_date: '2026-07-03'
+updated_local_date: '2026-07-04'
 read_budget:
   boot_files:
   - AGENTS.md
@@ -481,6 +481,7 @@ next_work:
   - record_c0008_r0003_proxy_vs_mt5_logic_parity_evidence
   - record_c0008_r0003_execution_divergence
   - produce_c0008_r0003_fold_isolated_execution_divergence
+  - review_c0008_r0003_tick_execution_kpi_and_closeout
   - close_c0008_r0003_no_candidate
   - produce_c0002_r0001_mt5_tick_execution_evidence
   - produce_c0002_r0001_fold_isolated_mt5_tick_kpi
@@ -534,8 +535,19 @@ next_work:
   - produce_c0008_r0002_mt5_tick_execution_evidence
   - produce_c0008_r0003_mt5_tick_execution_evidence
   - produce_c0008_r0003_fold_isolated_mt5_tick_kpi
+  - decide_c0008_r0004_or_close_c0008_after_r0003
+  - open_c0008_r0004_structural_acceptance_continuation_run
+  - produce_c0008_r0004_proxy_evidence
+  - produce_c0008_r0004_mt5_logic_parity_evidence
+  - record_c0008_r0004_proxy_vs_mt5_logic_parity_evidence
+  - produce_c0008_r0004_mt5_tick_execution_evidence
+  - record_c0008_r0004_execution_divergence
+  - produce_c0008_r0004_fold_isolated_mt5_tick_kpi
+  - produce_c0008_r0004_fold_isolated_execution_divergence
+  - review_c0008_r0004_tick_execution_kpi_and_closeout
+  - close_c0008_r0004_no_candidate
   tasks:
-  - review_c0008_r0003_tick_execution_kpi_and_closeout
+  - decide_c0008_r0005_or_close_c0008_after_r0004
   not_yet:
   - label_freeze
   - feature_set_freeze

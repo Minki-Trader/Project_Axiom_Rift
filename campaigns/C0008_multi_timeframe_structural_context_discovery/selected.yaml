@@ -45,7 +45,7 @@ candidate_evidence:
     monthly_tick_profitable_month_count: 15
     monthly_tick_losing_month_count: 12
     conclusion: candidate_evidence_retained_not_selected_hardening_required
-  next_required_action: decide_c0008_r0004_or_close_c0008_after_r0003
+  next_required_action: decide_c0008_r0005_or_close_c0008_after_r0004
   claim_boundary:
     claim_authority: false
     economics_pass: false
@@ -60,17 +60,17 @@ candidate_evidence:
     runtime_probe_completed: false
     selected: false
 latest_negative_memory:
-  source_run: runs/R0003
+  source_run: runs/R0004
   status: recorded
   basis: rolling_window_fold_isolated_mt5_tick
-  reason_not_candidate: R0003 robustness-conditioned structural trap replay had negative
-    proxy and MT5 tick economics, five losing folds, four profitable folds, and -17.39
-    tick-minus-logic net PnL.
+  reason_not_candidate: R0004 structural acceptance continuation had strongly negative
+    proxy and MT5 tick economics, zero profitable folds, nine losing folds, and total
+    fold-isolated tick net PnL -157.69.
   blocks:
-  - simple_cost_buffer_filter_retry
-  - simple_fragility_filter_retry
+  - simple_structural_acceptance_rank_retry
+  - simple_level_acceptance_filter_retry
   - threshold_daily_count_stop_target_hold_session_retry_nudge
-  next_required_action: decide_c0008_r0004_or_close_c0008_after_r0003
+  next_required_action: decide_c0008_r0005_or_close_c0008_after_r0004
   claim_boundary:
     claim_authority: false
     economics_pass: false

@@ -53,12 +53,14 @@ run_index:
   - runs/R0001
   - runs/R0002
   - runs/R0003
+  - runs/R0004
   next_run_candidate:
-    run_id: R0004_or_close_C0008
-    direction: active_c0008_r0003_closeout_review
-    reason: R0003 fold-isolated MT5 tick KPI and fold-isolated execution divergence
-      are recorded; next work is closeout review.
-    status: active_run_open
+    run_id: R0005_or_close_C0008
+    direction: decide_c0008_r0005_or_close_c0008_after_r0004
+    reason: R0004 closed no candidate after proxy, MT5 logic parity, proxy-vs-MT5
+      parity, MT5 tick execution, execution divergence, and fold-isolated MT5 tick
+      evidence; R0002 fragile candidate evidence remains retained but not selected.
+    status: pending_decision
 synthesis_readiness:
   check_required_at_closeout: true
   result: not_checked
@@ -90,7 +92,14 @@ closeout:
   - runs/R0003/kpi/execution_divergence.json
   - runs/R0003/kpi/mt5_tick_by_fold.json
   - runs/R0003/kpi/execution_divergence_by_fold.json
-  remaining_question: review_c0008_r0003_tick_execution_kpi_and_closeout
+  - runs/R0004/kpi/proxy.json
+  - runs/R0004/kpi/mt5_logic_parity.json
+  - runs/R0004/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0004/kpi/mt5_tick.json
+  - runs/R0004/kpi/execution_divergence.json
+  - runs/R0004/kpi/mt5_tick_by_fold.json
+  - runs/R0004/kpi/execution_divergence_by_fold.json
+  remaining_question: decide_c0008_r0005_or_close_c0008_after_r0004
 claim_boundary:
   claim_authority: false
   economics_pass: false

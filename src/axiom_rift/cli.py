@@ -143,6 +143,11 @@ RUN_SPECS: tuple[RunSpec, ...] = (
     RunSpec("c0008_r0001", "axiom_rift.mt5.c0008_r0001_probe", "axiom_rift.proxies.c0008_r0001_multi_timeframe_structural_context"),
     RunSpec("c0008_r0002", "axiom_rift.mt5.c0008_r0002_probe", "axiom_rift.proxies.c0008_r0002_structural_trap_reversal"),
     RunSpec("c0008_r0003", "axiom_rift.mt5.c0008_r0003_probe", "axiom_rift.proxies.c0008_r0003_structural_trap_robustness"),
+    RunSpec(
+        "c0008_r0004",
+        "axiom_rift.mt5.c0008_r0004_probe",
+        "axiom_rift.proxies.c0008_r0004_structural_acceptance_continuation",
+    ),
 )
 
 

@@ -118,15 +118,8 @@
     },
     "status": "closed_with_candidate_evidence"
   },
-  "decision": "defer_with_reason",
-  "deferred_with_reason": [
-    {
-      "blocking_condition": "produce_c0008_r0002_fold_isolated_mt5_tick_kpi",
-      "field": "run_closeout",
-      "reason": "logic parity, aggregate tick execution KPI, and execution divergence are recorded; closeout judgment still requires fold-isolated evidence",
-      "revisit_when": "after fold-isolated tick KPI and fold-isolated execution divergence are recorded"
-    }
-  ],
+  "decision": "closed_with_candidate_evidence",
+  "deferred_with_reason": [],
   "evidence_gate": {
     "checks": {
       "artifact_lineage_path_recorded": true,
@@ -139,7 +132,7 @@
       "proxy_kpi_path_recorded": true,
       "proxy_vs_mt5_logic_parity_kpi_path_recorded": true
     },
-    "status": "logic_tick_and_divergence_recorded"
+    "status": "passed"
   },
   "evidence_paths": [
     "artifact_lineage.json",
@@ -176,7 +169,7 @@
     "claim_onnx_ready",
     "claim_live_ready"
   ],
-  "next_action": "produce_c0008_r0002_fold_isolated_mt5_tick_kpi",
+  "next_action": "audit_c0008_r0002_candidate_robustness",
   "parity_gate": {
     "intent_parity_status": "passed_schedule_replay_boundary",
     "mechanical_parity_status": "passed",
@@ -197,7 +190,7 @@
     "fold_isolated_execution_divergence_path_recorded": true,
     "fold_isolated_mt5_tick_path_recorded": true,
     "fold_isolated_mt5_tick_required": true,
-    "status": "fold_isolated_evidence_recorded_pending_closeout_review"
+    "status": "passed"
   },
   "run_id": "R0002",
   "schema": "axiom_rift_gate_report_v1",

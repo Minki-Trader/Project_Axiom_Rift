@@ -1834,3 +1834,83 @@ decisions:
     selected: false
     onnx_ready: false
     promotion_ready: false
+- decision_id: dec_20260704_repair_c0008_closeout_state_alignment
+  created_local_date: '2026-07-04'
+  status: active
+  decision: repair_c0008_closed_run_state_pointers_and_active_lineage_hashes
+  refines:
+  - dec_20260703_close_c0008_r0001_no_candidate
+  - dec_20260703_close_c0008_r0002_with_candidate_evidence
+  - dec_20260703_close_c0008_r0003_no_candidate
+  rationale:
+  - c0008_run_manifest_and_gate_report_top_level_status_fields_lagged_the_recorded_closeout_review_blocks_after_runtime_guardrail_consolidation
+  - c0008_r0002_and_r0003_artifact_lineage_hashes_were_aligned_to_current_active_file_contents
+  - c0008_work_unit_validation_passed_after_repair
+  - repo_state_still_has_pre_existing_non_c0008_artifact_lineage_blockers_recorded_by_validate_repo_state
+  - no_label_feature_model_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    selected: false
+    onnx_ready: false
+    promotion_ready: false
+- decision_id: dec_20260704_open_c0008_r0004_structural_acceptance_continuation_run
+  created_local_date: '2026-07-04'
+  status: active
+  decision: open_r0004_structural_acceptance_continuation_run_under_c0008
+  refines:
+  - dec_20260703_close_c0008_r0003_no_candidate
+  - dec_20260703_close_c0008_r0002_with_candidate_evidence
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0008_remains_open_after_r0003_closed_no_candidate_and_r0002_candidate_evidence_remains_fragile_not_selected
+  - r0004_asks_a_non_adjacent_structural_context_question_about_accepted_level_break_continuation_rather_than_trap_reversal_or_robustness_filtering
+  - r0004_changes_model_label_feature_and_trade_logic_surfaces_to_structural_acceptance_continuation_over_completed_m5_derived_m15_h1_session_and_daily_context
+  - r0004_is_not_a_threshold_daily_count_stop_target_hold_session_cost_buffer_or_retry_nudge
+  - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    selected: false
+    onnx_ready: false
+    promotion_ready: false
+- decision_id: dec_20260704_close_c0008_r0004_no_candidate
+  created_local_date: '2026-07-04'
+  status: active
+  decision: close_c0008_r0004_structural_acceptance_continuation_run_no_candidate
+  refines:
+  - dec_20260704_open_c0008_r0004_structural_acceptance_continuation_run
+  - dec_20260703_close_c0008_r0003_no_candidate
+  - dec_20260703_close_c0008_r0002_with_candidate_evidence
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0004_completed_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - r0004_proxy_net_pnl_points_was_negative_at_minus_15813_33_and_proxy_profit_factor_was_0_642139
+  - r0004_mt5_logic_net_pnl_was_negative_at_minus_162_86_with_profit_factor_0_6541
+  - r0004_mt5_tick_net_pnl_was_negative_at_minus_157_69_with_profit_factor_0_646387
+  - r0004_fold_isolated_mt5_tick_evidence_completed_all_nine_required_folds_with_zero_profitable_folds_and_nine_losing_folds
+  - r0004_tick_execution_was_better_than_closed_bar_logic_by_5_17_net_pnl_but_both_surfaces_remained_strongly_negative
+  - r0004_is_recorded_as_negative_memory_not_selected_candidate_economics_pass_runtime_onnx_promotion_or_live_claim
+  - r0002_candidate_evidence_remains_retained_but_fragile_and_not_selected
+  - next_work_is_decide_c0008_r0005_or_close_c0008_after_r0004
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    selected: false
+    onnx_ready: false
+    promotion_ready: false
