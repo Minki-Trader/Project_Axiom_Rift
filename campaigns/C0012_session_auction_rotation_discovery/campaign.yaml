@@ -63,12 +63,10 @@ run_index:
   - runs/R0003
   next_run_candidate:
     run_id: null
-    direction: open_sc0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
-    reason: R0001 retained fragile candidate evidence, while R0002 robustness conditioning
-      and R0003 transition hazard both closed no-candidate after complete MT5 paired evidence;
-      remaining C0012 work would be adjacent auction hardening unless a broader synthesis
-      first finds a materially new source mix.
-    status: closed_campaign
+    direction: choose_c0013_new_major_hypothesis_after_sc0004_closeout
+    reason: SC0004 closed with fragile candidate evidence and no selected surface; next work
+      is a new C0013 major hypothesis axis.
+    status: closed_campaign_anchor
 synthesis_readiness:
   check_required_at_closeout: true
   result: open_synthesis
@@ -184,7 +182,7 @@ closeout:
   - runs/R0003/kpi/mt5_tick_by_fold.json
   - runs/R0003/kpi/execution_divergence_by_fold.json
   - selected.yaml
-  remaining_question: design_sc0004_sr0001_post_sc0003_mixed_evidence_synthesis_run
+  remaining_question: choose_c0013_new_major_hypothesis_after_sc0004_closeout
   closed_at_utc: '2026-07-04T19:50:00Z'
   decision_basis:
     closed_run_count: 3

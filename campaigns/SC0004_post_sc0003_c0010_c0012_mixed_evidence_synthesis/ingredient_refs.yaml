@@ -11,7 +11,7 @@ source_campaign_refs:
   sha256: abd32d387749a4302fdc5859abf593ee7f3966b6efff6f8ba2c8d74d66c50981
 - campaign_id: C0012
   path: campaigns/C0012_session_auction_rotation_discovery/campaign.yaml
-  sha256: 2f1b0efd80d8297a522c542a9f1eaa2edc87e0fd32ff9a9eb5b1c0974c04ecac
+  sha256: af7a66ddbe8066130fa757299cd6e15433682ba03b4a80a0e68e77d0136839e4
 run_evidence_index:
 - evidence_key: C0010_R0001
   run_manifest:

@@ -3,12 +3,12 @@ status: active
 encoding: ascii_only
 updated_local_date: '2026-07-05'
 canonical_source: campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis/synthesis.yaml
-canonical_status: active_synthesis_opened
-current_decision: design_sc0004_sr0001_post_sc0003_mixed_evidence_synthesis_run
+canonical_status: closed_with_candidate_evidence_fragile_not_selected
+current_decision: choose_c0013_new_major_hypothesis_after_sc0004_closeout
 active_campaign: campaigns/C0012_session_auction_rotation_discovery
 active_run: null
-active_synthesis: campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
-next_required_action: design_sc0004_sr0001_post_sc0003_mixed_evidence_synthesis_run
+active_synthesis: null
+next_required_action: choose_c0013_new_major_hypothesis_after_sc0004_closeout
 terminal_evidence_priority:
   enabled: true
   resolved_from:
@@ -29,9 +29,11 @@ terminal_evidence_priority:
 current_evidence_summary:
   source_campaign: campaigns/C0012_session_auction_rotation_discovery
   source_synthesis: campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
-  current_task: design_sc0004_sr0001_post_sc0003_mixed_evidence_synthesis_run
+  current_task: choose_c0013_new_major_hypothesis_after_sc0004_closeout
+  active_run: null
+  active_run_status: closed_with_candidate_evidence
   campaign_terminal_receipt_available: true
-  evidence_status: c0012_closed_with_fragile_candidate_evidence
+  evidence_status: sc0004_closed_with_fragile_candidate_evidence_not_selected
   retained_candidate_source_run: campaigns/C0012_session_auction_rotation_discovery/runs/R0001
   retained_candidate_status: fragile_requires_hardening
   r0001_entries_per_active_day: 7.33564
@@ -59,8 +61,14 @@ current_evidence_summary:
     - C0011
     - C0012
     usable_ingredient_group_count: 8
-  note: SC0004 is open to synthesize C0010 monthly regime, C0011 lifecycle timing, and
-    C0012 session auction evidence before choosing another campaign or synthesis run.
+  note: SC0004 SR0001 retained fragile candidate evidence but did not establish a selected
+    or robust surface; next work is a new C0013 major hypothesis axis.
+  active_synthesis: null
+  sc0004_sr0001_entries_per_active_day: 7.33564
+  sc0004_sr0001_mt5_tick_net_pnl: 50.79
+  sc0004_sr0001_mt5_tick_profit_factor: 1.095762
+  sc0004_sr0001_profitable_fold_count: 6
+  sc0004_sr0001_losing_fold_count: 3
 repo_debt_scope:
   global_repo_state_ok: false
   observed_error_count: 31
@@ -100,12 +108,9 @@ claim_boundary_snapshot:
   promotion_ready: false
   live_ready: false
 next_decision_basis:
-- path: campaigns/C0012_session_auction_rotation_discovery/campaign.yaml
-  role: campaign_closeout
-  summary: C0012_closed_with_fragile_R0001_candidate_evidence_and_R0002_R0003_negative_memory
-- path: campaigns/C0012_session_auction_rotation_discovery/selected.yaml
-  role: selection_boundary
-  summary: selected_false_R0001_fragile_candidate_retained_C0012_closed
+- path: campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis/runs/SR0001/gate_report.json
+  role: synthesis_run_closeout
+  summary: SC0004_SR0001_closed_with_fragile_candidate_evidence_not_selected
 - path: campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis/synthesis.yaml
-  role: active_synthesis
-  summary: SC0004_opened_for_post_SC0003_C0010_C0012_mixed_evidence_synthesis
+  role: synthesis_closeout
+  summary: SC0004_closed_remaining_work_adjacent_next_choose_C0013

@@ -89,9 +89,9 @@ latest_negative_memory:
     live_ready: false
 campaign_closeout:
   status: closed_with_candidate_evidence
-  remaining_question: design_sc0004_sr0001_post_sc0003_mixed_evidence_synthesis_run
+  remaining_question: choose_c0013_new_major_hypothesis_after_sc0004_closeout
   selected: false
   claim_authority: false
-  reason: R0001 fragile candidate evidence is retained but not selected; R0002 and R0003
-    failed as hardening or transition variants, so another C0012 run would likely be adjacent
-    auction filtering or threshold work without SC0004 mixed-evidence synthesis first.
+  reason: R0001 fragile candidate evidence is retained but not selected; R0002 and R0003 failed
+    as hardening or transition variants, so another C0012 run would likely be adjacent auction
+    filtering or threshold work without SC0004 mixed-evidence synthesis first.

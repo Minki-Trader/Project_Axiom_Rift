@@ -39,13 +39,13 @@ streams:
     id_prefix: SC
     role: accumulated_ingredient_synthesis
     next_id: SC0005
-    active_work_unit: campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
-    open_work_units:
-    - campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
+    active_work_unit: null
+    open_work_units: []
     closed_work_units:
     - campaigns/SC0001_accumulated_negative_memory_synthesis
     - campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis
     - campaigns/SC0003_post_sc0002_mixed_evidence_synthesis
+    - campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
     numbering_policy:
       width: 4
       example: SC0001
