@@ -101,30 +101,30 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: campaigns/C0016_intraday_directional_imbalance_discovery
+active_campaign: campaigns/C0017_round_level_magnet_rejection_discovery
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0016_r0001_and_c0016_no_candidate
+  id: close_c0017_r0001_and_c0017_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0016_intraday_directional_imbalance_discovery/runs/R0001/gate_report.json
+  recorded_at_source: campaigns/C0017_round_level_magnet_rejection_discovery/runs/R0001/gate_report.json
   evidence_status: closed_no_candidate
   asset_type: negative_memory_and_campaign_closeout
-  active_campaign: campaigns/C0016_intraday_directional_imbalance_discovery
+  active_campaign: campaigns/C0017_round_level_magnet_rejection_discovery
   active_synthesis: null
   active_run: null
-  next_required_action: choose_c0017_new_major_hypothesis_after_c0016_closeout
-  entries_per_active_day: 7.377586
-  mt5_tick_net_pnl: -213.06
-  mt5_tick_profit_factor: 0.611254
-  mt5_tick_max_drawdown_percent: 43.438
-  profitable_fold_count: 1
-  losing_fold_count: 8
+  next_required_action: choose_c0018_new_major_hypothesis_after_c0017_closeout
+  entries_per_active_day: 7.3
+  mt5_tick_net_pnl: -76.6
+  mt5_tick_profit_factor: 0.785764
+  mt5_tick_max_drawdown_percent: 15.366
+  profitable_fold_count: 0
+  losing_fold_count: 9
   candidate_status: closed_no_candidate
-  negative_memory: C0016 R0001 intraday directional imbalance rank met target activity but
-    proxy, aggregate MT5 tick, and eight of nine fold-isolated MT5 tick folds were negative;
-    do not retry this surface with simple thresholds, score floors, stop, target, hold, activity,
-    spread, session, capital, or retry nudges.
+  negative_memory: C0017 R0001 round-level magnet rejection rank met target activity but proxy,
+    aggregate MT5 tick, and all nine fold-isolated MT5 tick folds were negative; do not retry
+    this surface with simple thresholds, score floors, stop, target, hold, activity, spread,
+    session, capital, or retry nudges.
   claim_boundary:
     claim_authority: false
     selected: false
