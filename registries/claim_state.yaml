@@ -101,26 +101,30 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: campaigns/C0012_session_auction_rotation_discovery
+active_campaign: campaigns/C0013_path_resilience_recovery_discovery
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_sc0004_sr0001_and_sc0004_with_fragile_candidate_evidence
+  id: close_c0013_r0001_and_c0013_no_candidate
   status: completed
-  recorded_at_source: campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis/runs/SR0001/gate_report.json
-  evidence_status: closed_with_candidate_evidence_fragile_not_selected
-  asset_type: fragile_candidate_evidence_and_synthesis_closeout
+  recorded_at_source: campaigns/C0013_path_resilience_recovery_discovery/runs/R0001/gate_report.json
+  evidence_status: closed_no_candidate
+  asset_type: negative_memory_and_campaign_closeout
+  active_campaign: campaigns/C0013_path_resilience_recovery_discovery
   active_synthesis: null
   active_run: null
-  next_required_action: choose_c0013_new_major_hypothesis_after_sc0004_closeout
-  entries_per_active_day: 7.33564
-  mt5_tick_net_pnl: 50.79
-  mt5_tick_profit_factor: 1.095762
-  profitable_fold_count: 6
-  losing_fold_count: 3
-  candidate_status: fragile_requires_hardening_not_selected
-  negative_memory: SC0004 mixed-evidence score did not materially harden the retained C0012
-    fragile candidate surface; further SC0004 work would be adjacent tuning.
+  next_required_action: choose_c0014_new_major_hypothesis_after_c0013_closeout
+  entries_per_active_day: 7.155172
+  mt5_tick_net_pnl: -67.47
+  mt5_tick_profit_factor: 0.843921
+  mt5_tick_max_drawdown_percent: 13.586
+  profitable_fold_count: 0
+  losing_fold_count: 9
+  candidate_status: closed_no_candidate
+  negative_memory: C0013 R0001 path resilience recovery rank met target activity but proxy,
+    aggregate MT5 tick, and all nine fold-isolated MT5 tick folds were negative; do not
+    retry this surface with simple thresholds, score floors, stop, target, hold, activity,
+    spread, session, or retry nudges.
   claim_boundary:
     claim_authority: false
     selected: false

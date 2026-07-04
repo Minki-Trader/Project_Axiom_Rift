@@ -210,6 +210,11 @@ RUN_SPECS: tuple[RunSpec, ...] = (
         "axiom_rift.mt5.c0012_r0003_probe",
         "axiom_rift.proxies.c0012_r0003_session_auction_transition_hazard",
     ),
+    RunSpec(
+        "c0013_r0001",
+        "axiom_rift.mt5.c0013_r0001_probe",
+        "axiom_rift.proxies.c0013_r0001_path_resilience_recovery",
+    ),
 )
 
 

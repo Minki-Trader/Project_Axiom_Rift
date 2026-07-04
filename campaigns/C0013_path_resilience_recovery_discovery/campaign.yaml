@@ -1,0 +1,128 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: closed_no_candidate
+campaign_id: C0013
+campaign_slug: path_resilience_recovery_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-04T21:05:00Z'
+closed_at_utc: '2026-07-04T21:14:21Z'
+hypothesis:
+  summary: discover whether fold-local closed-bar path resilience and recovery features can
+    isolate US100 M5 entries that avoid adverse-first execution, recover from shallow pullbacks,
+    preserve target activity, and improve fold consistency after realistic FPMarkets spread
+  boundary: model recent adverse excursion, recovery fraction, pullback absorption, wick rejection,
+    range expansion/compression, directional position, spread pressure, and session timing
+    from closed US100 M5 bars; generate fixed-lot discovery schedules from path-resilience
+    ranking rather than session auction threshold hardening, monthly memory, lifecycle phase,
+    structural trap, stop, target, hold, activity, or retry nudges
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+  - equity_percent_sizing_rescue
+  - c0012_session_auction_threshold_retry
+  - sc0004_mixed_evidence_weight_retry
+  - synthetic_commission_model
+required_surfaces:
+  model:
+    status: variable
+    summary: unrestricted fold-local resilience ranker, classifier, hazard model, sequence
+      model, ensemble, or later model family; no model family is selected
+  feature:
+    status: variable
+    summary: unrestricted closed-bar features for prior adverse excursion, recovery fraction,
+      pullback absorption, wick rejection, path stability, range expansion/compression, spread
+      pressure, and session timing; no feature set is selected
+  trade_logic:
+    status: variable
+    summary: variable fixed-lot dual-direction path-resilience entry timing, abstention, frequency
+      control, stop, target, hold, exit, and invalidation logic; equity-percent sizing remains
+      deferred
+  label:
+    status: variable
+    summary: variable labels for adverse-first avoidance, recovery quality, target-before-stop,
+      path alignment, cost-buffer survival, and fold consistency; no label is selected
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  opened_runs:
+  - runs/R0001
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: null
+    direction: choose_c0014_new_major_hypothesis_after_c0013_closeout
+    reason: R0001 lost proxy, aggregate MT5 tick, and all nine fold-isolated MT5 tick folds;
+      further C0013 work would need a materially non-adjacent variant rather than a path
+      resilience threshold, score, stop, target, hold, activity, spread, session, or retry
+      nudge.
+    status: closed_campaign_anchor
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_ready
+  checked_at_utc: '2026-07-04T21:14:21Z'
+  closed_run_count: 1
+  observed_closed_campaign_count_since_last_synthesis: 1
+  usable_ingredient_group_count: 0
+  minimums:
+    closed_campaign_count_since_last_synthesis: 3
+    usable_ingredient_group_count: 8
+    required_surface_count: 3
+  open_synthesis_now: false
+  readiness_notes:
+  - c0013_single_negative_memory_recorded
+  - synthesis_not_opened_until_more_campaign_evidence_accumulates
+  recommended_next_action: choose_c0014_new_major_hypothesis_after_c0013_closeout
+closeout:
+  status: closed_no_candidate
+  close_reason: r0001_failed_proxy_aggregate_mt5_tick_and_all_fold_isolated_mt5_tick_folds
+  evidence_paths:
+  - runs/R0001/run_manifest.json
+  - runs/R0001/gate_report.json
+  - runs/R0001/kpi/proxy.json
+  - runs/R0001/kpi/mt5_logic_parity.json
+  - runs/R0001/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0001/kpi/mt5_tick.json
+  - runs/R0001/kpi/execution_divergence.json
+  - runs/R0001/kpi/mt5_tick_by_fold.json
+  - runs/R0001/kpi/execution_divergence_by_fold.json
+  - selected.yaml
+  remaining_question: choose_c0014_new_major_hypothesis_after_c0013_closeout
+  closed_at_utc: '2026-07-04T21:14:21Z'
+  decision_basis:
+    closed_run_count: 1
+    closed_no_candidate_run_count: 1
+    entries_per_active_day: 7.155172
+    proxy_net_pnl_points: -7020.28
+    proxy_profit_factor: 0.83715
+    mt5_tick_net_pnl: -67.47
+    mt5_tick_profit_factor: 0.843921
+    mt5_tick_max_drawdown_percent: 13.586
+    mt5_tick_trade_count: 4124
+    profitable_fold_count: 0
+    losing_fold_count: 9
+    worst_fold_id: rw_004
+    worst_fold_net_pnl: -13.74
+    total_tick_minus_logic_net_pnl: 11.71
+    remaining_work_classification: path_resilience_recovery_threshold_score_stop_target_hold_activity_spread_session_or_retry_nudge_not_next
+  campaign_lessons:
+  - r0001_met_target_activity_but_proxy_and_mt5_tick_economics_were_negative
+  - r0001_lost_all_nine_fold_isolated_mt5_tick_folds
+  - schedule_replay_parity_passed_so_failure_is_hypothesis_quality_not_ea_schedule_mismatch
+  - tick_execution_was_slightly_better_than_logic_but_did_not_rescue_candidate_quality
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
