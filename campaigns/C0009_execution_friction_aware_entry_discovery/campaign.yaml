@@ -8,12 +8,12 @@ opened_at_utc: '2026-07-04T11:44:03Z'
 closed_at_utc: null
 hypothesis:
   summary: discover whether closed-bar features can identify US100 M5 entry opportunities
-    that remain robust after MT5 tick execution, spread pressure, slippage sensitivity, and
-    closed-bar-vs-tick divergence
-  boundary: use closed M5 US100 bars, train-only rolling-window features, prior MT5 tick and
-    divergence lessons, and fixed-lot discovery schedules to test execution-friction-aware
-    candidate selection through mandatory proxy, MT5 logic parity, MT5 tick execution, execution
-    divergence, and fold-isolated closeout evidence
+    that remain robust after MT5 tick execution, spread pressure, slippage sensitivity,
+    and closed-bar-vs-tick divergence
+  boundary: use closed M5 US100 bars, train-only rolling-window features, prior MT5
+    tick and divergence lessons, and fixed-lot discovery schedules to test execution-friction-aware
+    candidate selection through mandatory proxy, MT5 logic parity, MT5 tick execution,
+    execution divergence, and fold-isolated closeout evidence
   not_in_scope:
   - selected_claim
   - runtime_authority
@@ -30,14 +30,14 @@ required_surfaces:
       spread-pressure, or later model surfaces; no model family is selected
   feature:
     status: variable
-    summary: unrestricted closed-bar features for spread pressure, range compression, volatility
-      state, session phase, bar shape, path instability, prior friction lessons, and tick-vs-closed-bar
-      divergence risk; no feature set is selected
+    summary: unrestricted closed-bar features for spread pressure, range compression,
+      volatility state, session phase, bar shape, path instability, prior friction
+      lessons, and tick-vs-closed-bar divergence risk; no feature set is selected
   trade_logic:
     status: variable
-    summary: variable entry timing, abstention, direction selection, frequency control, exit,
-      stop, target, hold, and fixed-lot discovery risk shape; equity-percent sizing remains
-      deferred
+    summary: variable entry timing, abstention, direction selection, frequency control,
+      exit, stop, target, hold, and fixed-lot discovery risk shape; equity-percent
+      sizing remains deferred
   label:
     status: variable
     summary: variable target-before-stop, tick-degradation, cost-buffer, divergence-risk,
@@ -48,12 +48,13 @@ run_index:
   active_run: null
   closed_runs:
   - runs/R0001
+  - runs/R0002
   next_run_candidate:
-    run_id: R0002
-    direction: decide_c0009_r0002_or_close_c0009_after_r0001
-    reason: C0009 R0001 closed no-candidate after fold-isolated MT5 tick evidence; next work
-      must decide whether a materially different execution-friction variant remains or close
-      C0009 with synthesis readiness review.
+    run_id: R0003
+    direction: decide_c0009_r0003_or_close_c0009_after_r0002
+    reason: C0009 R0002 closed no-candidate after fold-isolated MT5 tick evidence;
+      next work must decide whether a materially new execution-friction variant remains
+      or close C0009 with synthesis readiness review.
     status: pending_decision
 synthesis_readiness:
   check_required_at_closeout: true
@@ -64,7 +65,7 @@ closeout:
   status: open
   close_reason: null
   evidence_paths: []
-  remaining_question: decide_c0009_r0002_or_close_c0009_after_r0001
+  remaining_question: decide_c0009_r0003_or_close_c0009_after_r0002
 claim_boundary:
   claim_authority: false
   selected: false
