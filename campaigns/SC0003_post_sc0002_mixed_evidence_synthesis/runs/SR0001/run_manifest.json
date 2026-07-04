@@ -1,0 +1,226 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false
+  },
+  "closed_at_utc": "2026-07-04T14:21:45Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "candidate_evidence": {
+      "asset_type": "candidate_evidence",
+      "candidate_status": "recorded_not_selected",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "economics_pass": false,
+      "evidence_paths": [
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json",
+        "kpi/candidate_robustness_audit.json"
+      ],
+      "hypothesis_tested": "SC0003 SR0001 cross-family fragile-candidate hardening of C0008 structural trap reversal using C0007 supervised-edge failure memory and C0009 execution-friction failure memory",
+      "next_boundary": "candidate robustness audit keeps SR0001 as fragile evidence only: profit factor is weak, aggregate extra cost buffer is thin, two folds are losing, and monthly tick deal evidence has a six-month losing streak; next work should review whether a true non-adjacent SR0002 remains or close SC0003 without selected, economics-pass, runtime, ONNX, promotion, or live claim",
+      "onnx_ready": false,
+      "reason_candidate_evidence": "target-range activity, positive proxy, passed schedule replay parity, positive MT5 tick total net PnL, and seven profitable rolling-window tick folds with two losing folds",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "candidate_evidence",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "SC0003 SR0001 produced target-seed activity, positive total fold-isolated tick net PnL, seven profitable folds, and two losing folds."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution was worse than closed-bar logic overall by -9.11 net PnL with seven tick-worse folds, but tick total remained positive."
+        },
+        {
+          "asset_type": "candidate_robustness_audit",
+          "source": "kpi/candidate_robustness_audit.json",
+          "summary": "SR0001 candidate evidence remains fragile: aggregate extra cost buffer is 0.005213 account currency units per entry, rw_001 and rw_002 are losing folds, and MT5 tick deal evidence has a six-month losing streak."
+        }
+      ]
+    },
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false
+    },
+    "close_reason": "candidate_evidence_recorded_after_fold_isolated_mt5_tick_and_execution_divergence_evidence_but_fragile_requires_hardening",
+    "closed_at_utc": "2026-07-04T14:21:45Z",
+    "required_kpi_summary": {
+      "aggregate_extra_cost_per_trade_to_zero": 0.005213,
+      "candidate_robustness_status": "fragile_requires_hardening",
+      "completed_fold_count": 9,
+      "economics_shift_status": "tick_worse_than_logic",
+      "entries_per_active_day": 7.568966,
+      "execution_divergence_by_fold_status": "completed",
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "longest_losing_month_streak": 6,
+      "losing_fold_count": 2,
+      "mechanical_parity_status": "passed",
+      "mismatch_count": 0,
+      "monthly_tick_losing_month_count": 12,
+      "monthly_tick_profitable_month_count": 15,
+      "mt5_logic_net_pnl": 31.91,
+      "mt5_logic_profit_factor": 1.089822,
+      "mt5_logic_trade_count": 4390,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_max_drawdown_percent": 2.836,
+      "mt5_tick_net_pnl": 22.8,
+      "mt5_tick_profit_factor": 1.069402,
+      "mt5_tick_trade_count": 4374,
+      "profitable_fold_count": 7,
+      "profitable_fold_count_after_0_01_adverse_cost": 3,
+      "proxy_entries_per_active_day": 7.568966,
+      "proxy_net_pnl_points": 1674.1,
+      "proxy_profit_factor": 1.051309,
+      "proxy_trade_count": 4390,
+      "proxy_win_rate": 0.467882,
+      "tick_better_fold_count": 2,
+      "tick_worse_fold_count": 7,
+      "total_tick_minus_logic_net_pnl": -9.11,
+      "total_tick_net_pnl": 22.8,
+      "total_tick_trade_count": 4374,
+      "weakest_positive_fold_extra_cost_per_trade_to_zero": 0.003963,
+      "worst_fold_id": "rw_002",
+      "worst_fold_net_pnl": -6.88
+    },
+    "status": "closed_with_candidate_evidence"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "candidate_robustness_audit_kpi": "kpi/candidate_robustness_audit.json",
+    "cross_family_hardening_summary": "artifacts/sc0003_sr0001_cross_family_hardening_summary.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/sc0003_sr0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/sc0003_sr0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "fixed_surfaces": {
+    "base_frame": "US100 closed M5 bars",
+    "commission_per_trade": 0,
+    "early_sizing": "fixed_lot",
+    "market": "FPMarkets US100 M5",
+    "proxy_is_screening_gate_for_mt5": false,
+    "split_policy": "rolling_window",
+    "synthetic_commission_allowed": false
+  },
+  "gate_status": "closed_with_candidate_evidence",
+  "hypothesis_variant": {
+    "summary": "cross_family_fragile_candidate_hardening",
+    "variant_boundary": "tests whether C0008 structural-trap fragile candidate evidence can be hardened using C0007 supervised-edge failure memory and C0009 execution-friction failure memory; not a structural-only filter, score-floor, session, stop, target, hold, daily-count, or retry nudge"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_cross_family_fragile_candidate_hardening_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "notes": [
+      "closed-bar MT5 mode is required for proxy-vs-EA logic parity",
+      "tick-mode MT5 is required for execution economics",
+      "fold-isolated MT5 tick and execution divergence are required before closeout"
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-04T13:51:07Z",
+  "parent_type": "synthesis",
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy evidence is a reference surface only",
+      "weak proxy evidence cannot skip MT5 paired validation",
+      "daily activity management must use fold-local opportunity budgets, not post-hoc count nudges"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [
+      "mechanical parity compares scheduled entries, directions, exits, exit reasons, and lifecycle behavior",
+      "tick-vs-closed-bar differences are execution divergence, not automatic logic failure"
+    ],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "SR0001",
+  "schema": "axiom_rift_run_manifest_v1",
+  "source_ingredient_ids": [
+    "c0007_ig001_fold_local_linear_rank_negative_memory",
+    "c0007_ig002_dual_hazard_logistic_negative_memory",
+    "c0007_ig003_nonlinear_interaction_negative_memory",
+    "c0008_ig001_direct_structural_context_rank_negative_memory",
+    "c0008_ig002_structural_trap_reversal_fragile_candidate_evidence",
+    "c0008_ig003_structural_trap_robustness_conditioner_negative_memory",
+    "c0008_ig004_structural_acceptance_continuation_negative_memory",
+    "c0009_ig001_execution_friction_regime_negative_memory",
+    "c0009_ig002_execution_degradation_abstention_negative_memory",
+    "c0009_ig003_intrabar_ambiguity_avoidance_negative_memory",
+    "c0008_ig005_r0002_robustness_fragility_lesson"
+  ],
+  "status": "closed_with_candidate_evidence",
+  "surfaces": {
+    "feature": {
+      "changed_from_synthesis_queue": true,
+      "summary": "closed-bar structural trap, supervised-edge failure memory, execution-friction pressure, path ambiguity, session, and spread context; no feature set selected"
+    },
+    "label": {
+      "changed_from_synthesis_queue": true,
+      "summary": "structural trap reversal quality hardened by supervised-failure and execution-friction veto context; no label selected"
+    },
+    "model": {
+      "changed_from_synthesis_queue": true,
+      "summary": "fold-local cross-family hardening score combining C0008 fragile candidate surface with C0007 and C0009 failure-memory vetoes; no model family selected"
+    },
+    "trade_logic": {
+      "changed_from_synthesis_queue": true,
+      "summary": "fixed-lot structural trap candidates survive independent supervised-edge and execution-friction failure vetoes before schedule replay; not a sizing, stop, target, session, hold, threshold, or daily-count nudge"
+    }
+  },
+  "template": false,
+  "work_unit_id": "SC0003"
+}

@@ -114,6 +114,12 @@ RUN_SPECS: tuple[RunSpec, ...] = (
         "axiom_rift.proxies.sc0002_sr0001_cross_surface_veto_inversion",
         logic_func="run_sc0002_sr0001_logic_parity_workflow",
     ),
+    RunSpec(
+        "sc0003_sr0001",
+        "axiom_rift.mt5.sc0003_sr0001_probe",
+        "axiom_rift.proxies.sc0003_sr0001_cross_family_fragile_candidate_hardening",
+        logic_func="run_sc0003_sr0001_logic_parity_workflow",
+    ),
     RunSpec("c0004_r0001", "axiom_rift.mt5.c0004_r0001_probe", "axiom_rift.proxies.c0004_r0001_fold_local_state_archetype"),
     RunSpec("c0004_r0002", "axiom_rift.mt5.c0004_r0002_probe", "axiom_rift.proxies.c0004_r0002_path_quality_archetype"),
     RunSpec("c0004_r0003", "axiom_rift.mt5.c0004_r0003_probe", "axiom_rift.proxies.c0004_r0003_adverse_archetype_inversion"),

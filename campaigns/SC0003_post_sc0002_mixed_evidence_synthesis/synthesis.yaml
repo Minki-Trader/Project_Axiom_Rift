@@ -1,19 +1,19 @@
 schema: axiom_rift_synthesis_v1
 template: false
-status: open
+status: run_closed_with_fragile_candidate_evidence
 synthesis_id: SC0003
 synthesis_slug: post_sc0002_mixed_evidence_synthesis
 synthesis_level: synthesis_3
 opened_at_utc: '2026-07-04T13:41:30Z'
 closed_at_utc: null
 synthesis_question:
-  summary: synthesize post-SC0002 mixed evidence from C0007 through C0009 before choosing the next
-    synthesis-run or campaign hypothesis
-  boundary: use only closed campaign evidence from C0007 fold-local supervised edge discovery, C0008
-    multi-timeframe structural context discovery, and C0009 execution-friction-aware entry discovery;
-    preserve unrestricted discovery of labels, features, model families, objectives, and trade shapes;
-    do not select any surface, create runtime authority, or treat synthesis as a shortcut around MT5
-    paired validation
+  summary: synthesize post-SC0002 mixed evidence from C0007 through C0009 before choosing
+    the next synthesis-run or campaign hypothesis
+  boundary: use only closed campaign evidence from C0007 fold-local supervised edge discovery,
+    C0008 multi-timeframe structural context discovery, and C0009 execution-friction-aware
+    entry discovery; preserve unrestricted discovery of labels, features, model families,
+    objectives, and trade shapes; do not select any surface, create runtime authority, or
+    treat synthesis as a shortcut around MT5 paired validation
 source_campaign_ids:
 - C0007
 - C0008
@@ -31,14 +31,17 @@ runs_root: runs/
 synthesis_run_id_format: SR0001
 run_index:
   active_run: null
-  opened_runs: []
-  closed_runs: []
+  opened_runs:
+  - runs/SR0001
+  closed_runs:
+  - runs/SR0001
   next_run_candidate:
-    run_id: SR0001
-    direction: open_sc0003_sr0001_mixed_evidence_synthesis_run
-    reason: SC0003 is open with enough post-SC0002 ingredient groups; first synthesis run should test
-      a cross-family hardening question rather than adjacent C0008 or C0009 tuning.
-    status: designed_pending_open
+    run_id: null
+    direction: review_sc0003_sr0002_or_close_synthesis_after_sr0001_fragile_candidate_evidence
+    reason: SR0001 recorded fragile candidate evidence but no selected, economics-pass, runtime,
+      ONNX, promotion, or live claim; synthesis-level review must decide whether a true non-adjacent
+      SR0002 remains or close SC0003.
+    status: review_required
 stream_policy:
   stream: synthesis
   independent_from_campaign_stream: true

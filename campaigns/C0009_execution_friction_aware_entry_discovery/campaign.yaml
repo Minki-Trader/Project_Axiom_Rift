@@ -118,7 +118,7 @@ closeout:
   - runs/R0003/kpi/mt5_tick_by_fold.json
   - runs/R0003/kpi/execution_divergence_by_fold.json
   - selected.yaml
-  remaining_question: open_sc0003_sr0001_mixed_evidence_synthesis_run
+  remaining_question: review_sc0003_sr0002_or_close_synthesis_after_sr0001_fragile_candidate_evidence
   decision_basis:
     closed_run_count: 3
     closed_no_candidate_run_count: 3

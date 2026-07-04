@@ -1,6 +1,6 @@
 schema: axiom_rift_selected_v1
 template: false
-status: none
+status: candidate_evidence_fragile_requires_hardening
 selected: false
 selected_reason: null
 surfaces:
@@ -29,3 +29,34 @@ claim_boundary:
   - selected_label
   - runtime_authority
   - live_ready
+candidate_evidence:
+  status: fragile_requires_hardening
+  source_run: runs/SR0001
+  basis: rolling_window_fold_isolated_mt5_tick
+  entries_per_active_day: 7.568966
+  mt5_tick_net_pnl: 22.8
+  mt5_tick_profit_factor: 1.069402
+  profitable_fold_count: 7
+  losing_fold_count: 2
+  robustness_audit:
+    source: runs/SR0001/kpi/candidate_robustness_audit.json
+    status: completed
+    aggregate_extra_cost_per_trade_to_zero: 0.005213
+    longest_losing_month_streak: 6
+    monthly_tick_profitable_month_count: 15
+    monthly_tick_losing_month_count: 12
+    conclusion: candidate_evidence_retained_not_selected_hardening_required
+  next_required_action: review_sc0003_sr0002_or_close_synthesis_after_sr0001_fragile_candidate_evidence
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

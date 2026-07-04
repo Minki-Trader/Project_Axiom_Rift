@@ -1,0 +1,186 @@
+{
+  "campaign_id": null,
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false
+  },
+  "conditional_profiles": {
+    "entry_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "entry_mismatch_samples": [
+          {
+            "direction": -1,
+            "entry_time": "2024-03-05 07:20:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "entry_time": "2024-03-25 19:50:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": 1,
+            "entry_time": "2024-03-26 20:20:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "entry_time": "2024-06-24 07:40:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "entry_time": "2024-07-01 07:30:00",
+            "side": "logic_only"
+          }
+        ],
+        "logic_entry_event_count": 4390,
+        "tick_entry_event_count": 4374
+      }
+    },
+    "exit_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "exit_mismatch_samples": [
+          {
+            "direction": -1,
+            "exit_time": "2024-02-01 07:30:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": 1,
+            "exit_time": "2024-02-06 16:30:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-08 19:40:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-09 13:30:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-19 15:10:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-01 07:35:00",
+            "reason": "target",
+            "side": "tick_only"
+          },
+          {
+            "direction": 1,
+            "exit_time": "2024-02-06 16:30:00",
+            "reason": "target",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-08 19:45:00",
+            "reason": "target",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-09 13:25:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-19 14:45:00",
+            "reason": "stop",
+            "side": "tick_only"
+          }
+        ],
+        "logic_exit_event_count": 4390,
+        "tick_exit_event_count": 4374
+      }
+    },
+    "run_closeout_profile": {
+      "applies": true,
+      "fields": {
+        "aggregate_full_period_mt5_kpi_role": "diagnostic_only",
+        "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+        "closeout_status": "blocked_until_fold_isolated_tick_and_divergence"
+      }
+    },
+    "spread_slippage_stress_profile": {
+      "applies": false,
+      "fields": {
+        "deferred_with_reason": "Baseline tick KPI and divergence are recorded; stress sweeps are later robustness work."
+      }
+    },
+    "synthesis_schedule_replay_profile": {
+      "applies": true,
+      "fields": {
+        "risk_shape_source": "proxy_cross_family_fragile_candidate_hardening_schedule",
+        "runtime_portability_claim": false,
+        "schedule_artifact_path": "campaigns/SC0003_post_sc0002_mixed_evidence_synthesis/runs/SR0001/artifacts/sc0003_sr0001_schedule.csv",
+        "tick_mode_policy": "record_execution_divergence_not_proxy_parity_failure"
+      }
+    }
+  },
+  "created_at_utc": "2026-07-04T14:07:32Z",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "rolling-window fold-isolated MT5 tick KPI and fold-isolated execution divergence are still required",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "fold_isolated_execution_divergence",
+      "reason": "aggregate tick KPI and divergence are diagnostic only for closeout",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "after SC0003 SR0001 fold-isolated MT5 tick evidence"
+    }
+  ],
+  "divergence_id": "ED-SC0003-SR0001",
+  "logic_mt5_kpi_path": "campaigns/SC0003_post_sc0002_mixed_evidence_synthesis/runs/SR0001/kpi/mt5_logic_parity.json",
+  "missing_required_kpi_fields": [],
+  "required_kpis": {
+    "economics_shift_status": "tick_worse_than_logic",
+    "entry_count_delta": -16,
+    "entry_key_match_rate": 0.996355,
+    "execution_divergence_status": "recorded_with_divergence",
+    "exit_count_delta": -16,
+    "exit_reason_match_rate": 0.912073,
+    "exit_time_direction_match_rate": 0.926424,
+    "logic_expectancy_per_entry": 0.007269,
+    "logic_max_drawdown_percent": 2.8,
+    "logic_net_pnl": 31.91,
+    "logic_profit_factor": 1.089822,
+    "logic_trade_count": 4390,
+    "logic_win_rate": 0.478815,
+    "tick_expectancy_per_entry": 0.005213,
+    "tick_max_drawdown_percent": 2.836,
+    "tick_minus_logic_expectancy_per_entry": -0.002056,
+    "tick_minus_logic_max_drawdown_percent": 0.036,
+    "tick_minus_logic_net_pnl": -9.11,
+    "tick_minus_logic_profit_factor": -0.02042,
+    "tick_minus_logic_trade_count": -16,
+    "tick_minus_logic_win_rate": -0.021796,
+    "tick_net_pnl": 22.8,
+    "tick_profit_factor": 1.069402,
+    "tick_trade_count": 4374,
+    "tick_win_rate": 0.457019
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "SR0001",
+  "schema": "axiom_rift_execution_divergence_kpi_v1",
+  "synthesis_id_when_applicable": "SC0003",
+  "template": false,
+  "tick_mt5_kpi_path": "campaigns/SC0003_post_sc0002_mixed_evidence_synthesis/runs/SR0001/kpi/mt5_tick.json",
+  "work_unit_id": "SC0003"
+}

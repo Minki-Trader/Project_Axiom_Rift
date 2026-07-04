@@ -583,8 +583,18 @@ next_work:
   - close_c0009_no_candidate_after_r0003
   - open_sc0003_post_sc0002_mixed_evidence_synthesis
   - design_sc0003_sr0001_mixed_evidence_synthesis_run
-  tasks:
   - open_sc0003_sr0001_mixed_evidence_synthesis_run
+  - produce_sc0003_sr0001_proxy_evidence
+  - produce_sc0003_sr0001_mt5_logic_parity_evidence
+  - record_sc0003_sr0001_proxy_vs_mt5_logic_parity_evidence
+  - produce_sc0003_sr0001_mt5_tick_execution_evidence
+  - record_sc0003_sr0001_execution_divergence
+  - produce_sc0003_sr0001_fold_isolated_mt5_tick_kpi
+  - produce_sc0003_sr0001_fold_isolated_execution_divergence
+  - audit_sc0003_sr0001_candidate_robustness
+  - close_sc0003_sr0001_with_fragile_candidate_evidence
+  tasks:
+  - review_sc0003_sr0002_or_close_synthesis_after_sr0001_fragile_candidate_evidence
   not_yet:
   - label_freeze
   - feature_set_freeze
