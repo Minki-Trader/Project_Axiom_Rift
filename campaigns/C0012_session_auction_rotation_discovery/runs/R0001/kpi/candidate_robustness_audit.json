@@ -1,0 +1,105 @@
+{
+  "audit_id": "CRA-C0012-R0001",
+  "campaign_id": "C0012",
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "created_at_utc": "2026-07-04T18:45:01Z",
+  "decision": {
+    "candidate_evidence_status": "retained_not_selected",
+    "hardening_required": true,
+    "reason": "R0001 keeps target activity and positive fold-isolated tick total net PnL, but MT5 tick profit factor is weak, three folds are negative, the weakest positive fold has near-zero cost buffer, and monthly tick deal evidence includes a six-month losing streak.",
+    "selection_status": "not_selected",
+    "status": "candidate_evidence_fragile_requires_hardening",
+    "suggested_next_action": "design_c0012_r0002_session_auction_rotation_robustness_conditioner_run"
+  },
+  "evidence_paths": [
+    "campaigns/C0012_session_auction_rotation_discovery/runs/R0001/kpi/proxy.json",
+    "campaigns/C0012_session_auction_rotation_discovery/runs/R0001/kpi/mt5_tick.json",
+    "campaigns/C0012_session_auction_rotation_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+    "campaigns/C0012_session_auction_rotation_discovery/runs/R0001/kpi/execution_divergence_by_fold.json"
+  ],
+  "kpi_family": "candidate_robustness_audit",
+  "monthly_tick_deal_audit": {
+    "best_month": {
+      "max_intramonth_drawdown": 2.67,
+      "month": "2026-03",
+      "net_pnl": 13.69,
+      "profit_factor": 1.527553,
+      "trade_count": 160,
+      "win_rate": 0.54375
+    },
+    "longest_losing_month_streak": {
+      "end": "2025-10",
+      "length": 6,
+      "start": "2025-05"
+    },
+    "losing_month_count": 11,
+    "month_count": 27,
+    "profitable_month_count": 16,
+    "source": "mt5_tick_deals_exit_rows",
+    "worst_intramonth_drawdown_month": {
+      "max_intramonth_drawdown": 7.12,
+      "month": "2025-09",
+      "net_pnl": -6.55,
+      "profit_factor": 0.644601,
+      "trade_count": 161,
+      "win_rate": 0.36646
+    },
+    "worst_month": {
+      "max_intramonth_drawdown": 7.12,
+      "month": "2025-09",
+      "net_pnl": -6.55,
+      "profit_factor": 0.644601,
+      "trade_count": 161,
+      "win_rate": 0.36646
+    }
+  },
+  "notes": [
+    "This audit reuses existing R0001 proxy, MT5 tick, fold-isolated tick, execution divergence, and MT5 deal output. It is not a new selected, economics-pass, runtime, materialization, ONNX, promotion, or live claim.",
+    "The 0.01 adverse cost diagnostic is expressed in account currency units per entry and is only a sensitivity check, not a frozen spread or slippage rule.",
+    "C0012 R0001 retains useful candidate evidence but remains fragile because the weakest positive fold has only 0.000086 account currency units per entry to zero, three folds lose under baseline tick execution, and monthly MT5 tick deal evidence includes a six-month losing streak."
+  ],
+  "required_kpis": {
+    "aggregate_extra_cost_per_trade_to_zero": 0.012013,
+    "all_folds_positive_under_baseline_tick": false,
+    "entries_per_active_day": 7.33564,
+    "losing_fold_count": 3,
+    "losing_fold_ids": [
+      "rw_006",
+      "rw_007",
+      "rw_008"
+    ],
+    "mt5_tick_net_pnl": 50.79,
+    "mt5_tick_profit_factor": 1.095762,
+    "mt5_tick_trade_count": 4228,
+    "profitable_fold_count": 6,
+    "profitable_fold_count_after_0_01_adverse_cost": 5,
+    "total_tick_minus_logic_net_pnl": 4.92,
+    "weakest_positive_fold_extra_cost_per_trade_to_zero": 8.6e-05,
+    "weakest_positive_fold_id": "rw_004",
+    "worst_fold_id": "rw_007",
+    "worst_fold_max_drawdown_percent": 2.708,
+    "worst_fold_net_pnl": -11.11,
+    "worst_tick_minus_logic_fold_id": "rw_001",
+    "worst_tick_minus_logic_net_pnl": -9.42
+  },
+  "requirement_policy": "audit_from_existing_evidence_no_new_claim_authority",
+  "run_id": "R0001",
+  "schema": "axiom_rift_candidate_robustness_audit_v1",
+  "status": "completed",
+  "template": false,
+  "work_unit_id": "C0012"
+}

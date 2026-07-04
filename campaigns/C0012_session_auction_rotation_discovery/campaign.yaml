@@ -1,6 +1,6 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: candidate_evidence_pending_audit
+status: candidate_evidence_audited_requires_hardening
 campaign_id: C0012
 campaign_slug: session_auction_rotation_discovery
 campaign_type: campaign
@@ -44,9 +44,9 @@ run_index:
   - runs/R0001
   next_run_candidate:
     run_id: R0002
-    direction: audit_c0012_r0001_candidate_robustness
-    reason: R0001 closed with fragile candidate evidence; robustness audit is required before any new C0012 run design or selected claim.
-    status: candidate_audit_required_before_next_run
+    direction: design_c0012_r0002_session_auction_rotation_robustness_conditioner_run
+    reason: R0001 robustness audit retained candidate evidence but blocks selection due weak PF, three losing folds, near-zero weakest-fold cost buffer, and six-month losing streak.
+    status: true_variant_design_required
 synthesis_readiness:
   check_required_at_closeout: true
   result: not_checked
@@ -63,7 +63,8 @@ closeout:
   - runs/R0001/kpi/execution_divergence.json
   - runs/R0001/kpi/mt5_tick_by_fold.json
   - runs/R0001/kpi/execution_divergence_by_fold.json
-  remaining_question: audit_c0012_r0001_candidate_robustness
+  - runs/R0001/kpi/candidate_robustness_audit.json
+  remaining_question: design_c0012_r0002_session_auction_rotation_robustness_conditioner_run
 claim_boundary:
   claim_authority: false
   selected: false
@@ -78,3 +79,9 @@ claim_boundary:
   onnx_ready: false
   promotion_ready: false
   live_ready: false
+candidate_robustness_audit:
+  status: completed
+  source_run: runs/R0001
+  source: runs/R0001/kpi/candidate_robustness_audit.json
+  conclusion: candidate_evidence_retained_not_selected_hardening_required
+  next_required_action: design_c0012_r0002_session_auction_rotation_robustness_conditioner_run

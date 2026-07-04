@@ -2333,3 +2333,28 @@ decisions:
     selected: false
     onnx_ready: false
     promotion_ready: false
+- decision_id: dec_20260705_audit_c0012_r0001_candidate_robustness
+  created_local_date: '2026-07-05'
+  status: active
+  decision: audit_c0012_r0001_candidate_robustness
+  refines:
+  - dec_20260705_close_c0012_r0001_with_fragile_candidate_evidence
+  - dec_20260705_open_c0012_r0001_session_auction_rotation_run
+  rationale:
+  - r0001_candidate_evidence_is_retained_because_activity_and_total_fold_isolated_tick_net_pnl_are_positive
+  - r0001_is_not_selected_because_mt5_tick_profit_factor_is_weak_three_folds_are_losing_and_monthly_tick_deals_show_a_six_month_losing_streak
+  - aggregate_extra_cost_per_trade_to_zero_is_0_012013_account_currency_units_but_weakest_positive_fold_extra_cost_per_trade_to_zero_is_0_000086
+  - next_work_should_design_a_true_session_auction_rotation_robustness_conditioner_not_a_threshold_retry_or_selected_claim
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    economics_pass: false
+    selected: false
+    onnx_ready: false
+    promotion_ready: false

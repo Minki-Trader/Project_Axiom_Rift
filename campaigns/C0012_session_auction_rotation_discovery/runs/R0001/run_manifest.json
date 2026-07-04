@@ -31,7 +31,7 @@
         "kpi/execution_divergence_by_fold.json"
       ],
       "hypothesis_tested": "fold-local session auction rotation rank over opening range balance, value rotation, edge rejection, edge acceptance, failed value return, and inventory pressure",
-      "next_boundary": "fragile candidate evidence only: MT5 tick profit factor is 1.095762, three rolling-window folds lose money, and tick-vs-closed-bar divergence remains material; next work must audit robustness, cost buffer, monthly streaks, and portability before any selected, economics-pass, runtime, ONNX, promotion, or live claim",
+      "next_boundary": "candidate robustness audit found weak MT5 tick profit factor, three losing folds, near-zero cost buffer in rw_004, and a six-month losing streak; next work should design a true C0012 R0002 session auction rotation robustness conditioner rather than selected, economics-pass, runtime, ONNX, promotion, or live claim",
       "onnx_ready": false,
       "reason_candidate_evidence": "target-range activity, positive proxy, passed schedule replay parity, positive MT5 tick total net PnL, and six profitable rolling-window tick folds with three losing folds",
       "runtime_authority": false,
@@ -51,6 +51,11 @@
           "asset_type": "evidence_gap",
           "source": "kpi/mt5_tick_by_fold.json",
           "summary": "candidate quality remains unselected because robustness audit, cost and slippage stress, monthly drawdown/streak review, and native materialization or ONNX portability evidence are not complete"
+        },
+        {
+          "asset_type": "candidate_robustness_audit",
+          "source": "kpi/candidate_robustness_audit.json",
+          "summary": "R0001 candidate evidence remains useful but fragile: aggregate extra cost buffer is 0.012013 account currency units per entry, rw_006/rw_007/rw_008 are losing folds, rw_004 has only 0.000086 per entry to zero, and MT5 tick deal evidence has a six-month losing streak"
         }
       ]
     },
@@ -72,19 +77,23 @@
     "close_reason": "candidate_evidence_recorded_after_fold_isolated_mt5_tick_and_execution_divergence_evidence",
     "closed_at_utc": "2026-07-04T18:37:04Z",
     "required_kpi_summary": {
-      "candidate_robustness_status": "fragile_requires_audit",
+      "aggregate_extra_cost_per_trade_to_zero": 0.012013,
+      "candidate_robustness_status": "fragile_requires_hardening",
       "completed_fold_count": 9,
       "economics_shift_status": "tick_better_than_logic",
       "entries_per_active_day": 7.33564,
       "execution_divergence_by_fold_status": "completed",
       "fold_count": 9,
       "intent_parity_status": "passed_schedule_replay_boundary",
+      "longest_losing_month_streak": 6,
       "losing_fold_count": 3,
       "mechanical_parity_status": "passed",
       "minimum_entry_key_match_rate": 0.995556,
       "minimum_exit_reason_match_rate": 0.881633,
       "minimum_exit_time_direction_match_rate": 0.893878,
       "mismatch_count": 0,
+      "monthly_tick_losing_month_count": 11,
+      "monthly_tick_profitable_month_count": 16,
       "mt5_logic_net_pnl": 45.87,
       "mt5_logic_profit_factor": 1.081698,
       "mt5_logic_trade_count": 4240,
@@ -93,6 +102,7 @@
       "mt5_tick_profit_factor": 1.095762,
       "mt5_tick_trade_count": 4228,
       "profitable_fold_count": 6,
+      "profitable_fold_count_after_0_01_adverse_cost": 5,
       "proxy_expectancy_points_per_entry": 0.989755,
       "proxy_net_pnl_points": 4196.56,
       "proxy_profit_factor": 1.078929,
@@ -102,6 +112,8 @@
       "total_tick_minus_logic_net_pnl": 4.92,
       "total_tick_net_pnl": 50.79,
       "total_tick_trade_count": 4228,
+      "weakest_positive_fold_extra_cost_per_trade_to_zero": 8.6e-05,
+      "weakest_positive_fold_id": "rw_004",
       "worst_fold_id": "rw_007",
       "worst_fold_net_pnl": -11.11
     },
@@ -109,6 +121,7 @@
   },
   "evidence_paths": {
     "artifact_lineage": "artifact_lineage.json",
+    "candidate_robustness_audit_kpi": "kpi/candidate_robustness_audit.json",
     "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
     "execution_divergence_kpi": "kpi/execution_divergence.json",
     "gate_report": "gate_report.json",

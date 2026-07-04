@@ -150,6 +150,23 @@
       "source_inputs": [
         "campaigns/C0012_session_auction_rotation_discovery/runs/R0001/kpi/proxy.json"
       ]
+    },
+    {
+      "artifact_id": "A-C0012-R0001-CANDIDATE-ROBUSTNESS-AUDIT",
+      "artifact_role": "candidate_robustness_audit_kpi",
+      "artifact_type": "candidate_robustness_audit",
+      "claim_authority": false,
+      "linked_kpi_family": "candidate_robustness_audit",
+      "mutable": false,
+      "produced_by": "manual_existing_evidence_audit",
+      "repo_relative_path": "campaigns/C0012_session_auction_rotation_discovery/runs/R0001/kpi/candidate_robustness_audit.json",
+      "sha256": "16213372a87aff4d65b2f62f53b2f25a7ab73f7dca1145d6cbd58148e563505d",
+      "source_inputs": [
+        "campaigns/C0012_session_auction_rotation_discovery/runs/R0001/kpi/proxy.json",
+        "campaigns/C0012_session_auction_rotation_discovery/runs/R0001/kpi/mt5_tick.json",
+        "campaigns/C0012_session_auction_rotation_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "campaigns/C0012_session_auction_rotation_discovery/runs/R0001/kpi/execution_divergence_by_fold.json"
+      ]
     }
   ],
   "claim_boundary": {

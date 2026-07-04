@@ -663,8 +663,9 @@ next_work:
   - produce_c0012_r0001_fold_isolated_execution_divergence
   - review_c0012_r0001_tick_execution_kpi_and_closeout
   - close_c0012_r0001_with_fragile_candidate_evidence
-  tasks:
   - audit_c0012_r0001_candidate_robustness
+  tasks:
+  - design_c0012_r0002_session_auction_rotation_robustness_conditioner_run
   not_yet:
   - label_freeze
   - feature_set_freeze
