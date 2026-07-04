@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0015
+    next_id: C0016
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -33,6 +33,7 @@ streams:
     - campaigns/C0012_session_auction_rotation_discovery
     - campaigns/C0013_path_resilience_recovery_discovery
     - campaigns/C0014_interday_range_handoff_discovery
+    - campaigns/C0015_liquidity_vacuum_rebound_discovery
     numbering_policy:
       width: 4
       example: C0001
