@@ -49,6 +49,20 @@ class RepoStateValidationTest(unittest.TestCase):
             self.assertFalse(result.ok)
             self.assertIn("next_action_mismatch", issue_codes(result))
 
+    def test_campaign_level_latest_operation_does_not_require_gate_next_action(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = make_repo_state(Path(temp_dir))
+            claim_path = root / "registries" / "claim_state.yaml"
+            claim = yaml.safe_load(claim_path.read_text(encoding="ascii"))
+            claim["active_run"] = None
+            claim["latest_operation"]["recorded_at_source"] = (CAMPAIGN_REL / "campaign.yaml").as_posix()
+            write_yaml(claim_path, claim)
+
+            result = validate_repo_state(root)
+
+            self.assertTrue(result.ok, result.to_dict())
+            self.assertNotIn("next_action_missing", issue_codes(result))
+
     def test_missing_evidence_path_is_blocking(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = make_repo_state(Path(temp_dir))

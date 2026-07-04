@@ -1,0 +1,66 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: open
+campaign_id: C0009
+campaign_slug: execution_friction_aware_entry_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-04T11:44:03Z'
+closed_at_utc: null
+hypothesis:
+  summary: discover whether closed-bar features can identify US100 M5 entry opportunities that remain robust after MT5 tick execution, spread pressure, slippage sensitivity, and closed-bar-vs-tick divergence
+  boundary: use closed M5 US100 bars, train-only rolling-window features, prior MT5 tick and divergence lessons, and fixed-lot discovery schedules to test execution-friction-aware candidate selection through mandatory proxy, MT5 logic parity, MT5 tick execution, execution divergence, and fold-isolated closeout evidence
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+  - adjacent_parameter_retry
+  - c0008_structural_filter_retry
+  - c0007_all_bars_supervised_score_retry
+  - synthetic_commission_model
+required_surfaces:
+  model:
+    status: variable
+    summary: unrestricted execution-friction rank, classifier, calibration, divergence-risk, spread-pressure, or later model surfaces; no model family is selected
+  feature:
+    status: variable
+    summary: unrestricted closed-bar features for spread pressure, range compression, volatility state, session phase, bar shape, path instability, prior friction lessons, and tick-vs-closed-bar divergence risk; no feature set is selected
+  trade_logic:
+    status: variable
+    summary: variable entry timing, abstention, direction selection, frequency control, exit, stop, target, hold, and fixed-lot discovery risk shape; equity-percent sizing remains deferred
+  label:
+    status: variable
+    summary: variable target-before-stop, tick-degradation, cost-buffer, divergence-risk, adverse-tail, speed, and execution-friction-adjusted labels; no label is selected
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs: []
+  next_run_candidate:
+    run_id: R0001
+    direction: design_c0009_r0001_execution_friction_regime_entry_run
+    reason: C0009 should first test whether train-fold execution-friction and spread-pressure context can select target-frequency entries with better fold-isolated MT5 tick robustness than prior thin-edge campaigns.
+    status: pending_design
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_checked
+  usable_ingredient_group_count: 0
+  readiness_notes: []
+closeout:
+  status: open
+  close_reason: null
+  evidence_paths: []
+  remaining_question: design_c0009_r0001_execution_friction_regime_entry_run
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

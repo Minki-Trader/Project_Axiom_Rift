@@ -96,45 +96,23 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: campaigns/C0008_multi_timeframe_structural_context_discovery
+active_campaign: campaigns/C0009_execution_friction_aware_entry_discovery
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0008_r0004_no_candidate
+  id: open_c0009_execution_friction_aware_entry_discovery
   status: completed
-  recorded_at_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0004/run_manifest.json
-  gate_report_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0004/gate_report.json
-  proxy_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0004/kpi/proxy.json
-  mt5_logic_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0004/kpi/mt5_logic_parity.json
-  proxy_vs_mt5_logic_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0004/kpi/proxy_vs_mt5_logic_parity.json
-  mt5_tick_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0004/kpi/mt5_tick.json
-  execution_divergence_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0004/kpi/execution_divergence.json
-  mt5_tick_by_fold_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0004/kpi/mt5_tick_by_fold.json
-  execution_divergence_by_fold_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0004/kpi/execution_divergence_by_fold.json
-  evidence_status: closed_no_candidate
-  campaign_status: open_with_candidate_evidence_pending_decision
+  recorded_at_source: campaigns/C0009_execution_friction_aware_entry_discovery/campaign.yaml
+  inputs_source: campaigns/C0009_execution_friction_aware_entry_discovery/inputs.yaml
+  selected_source: campaigns/C0009_execution_friction_aware_entry_discovery/selected.yaml
+  prior_campaign_closed_source: campaigns/C0008_multi_timeframe_structural_context_discovery/campaign.yaml
+  prior_campaign_status: closed_with_candidate_evidence
+  evidence_status: campaign_opened_pending_run_design
+  campaign_status: open
   candidate_evidence_retained_from: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002
   latest_negative_memory_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0004
-  reason_not_candidate: r0004_structural_acceptance_continuation_was_negative_in_proxy_mt5_logic_mt5_tick_and_all_fold_isolated_mt5_tick_windows
-  proxy_trade_count: 4572
-  proxy_net_pnl_points: -15813.33
-  proxy_profit_factor: 0.642139
-  mt5_logic_trade_count: 4572
-  mt5_logic_net_pnl: -162.86
-  mt5_logic_profit_factor: 0.6541
-  mt5_tick_trade_count: 4572
-  mt5_tick_net_pnl: -157.69
-  mt5_tick_profit_factor: 0.646387
-  fold_count: 9
-  completed_fold_count: 9
-  profitable_fold_count: 0
-  losing_fold_count: 9
-  total_tick_trade_count: 4572
-  total_tick_net_pnl: -157.69
-  mt5_tick_by_fold_status: completed
-  execution_divergence_by_fold_status: completed
-  total_tick_minus_logic_net_pnl: 5.17
-  next_required_action: decide_c0008_r0005_or_close_c0008_after_r0004
+  reason_for_new_campaign: c0008_remaining_work_would_be_adjacent_structural_filtering_while_c0009_changes_major_boundary_to_execution_friction_aware_entry_discovery
+  next_required_action: design_c0009_r0001_execution_friction_regime_entry_run
   claim_boundary:
     claim_authority: false
     selected: false

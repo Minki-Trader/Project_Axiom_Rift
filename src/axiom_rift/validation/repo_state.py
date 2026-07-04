@@ -233,8 +233,9 @@ def check_latest_operation_alignment(
         ),
         "reentry.next_work.tasks[0]": first_task(reentry),
         "campaign.closeout.remaining_question": get_path(campaign, "closeout.remaining_question"),
-        "gate_report.next_action": get_path(gate_report, "next_action"),
     }
+    if latest_run is not None:
+        expected_values["gate_report.next_action"] = get_path(gate_report, "next_action")
     filled = {name: value for name, value in expected_values.items() if isinstance(value, str) and value}
     if len(set(filled.values())) > 1:
         detail = "; ".join(f"{name}={value!r}" for name, value in sorted(filled.items()))

@@ -1,11 +1,11 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: open_with_candidate_evidence_pending_decision
+status: closed_with_candidate_evidence
 campaign_id: C0008
 campaign_slug: multi_timeframe_structural_context_discovery
 campaign_type: campaign
 opened_at_utc: '2026-07-03T09:49:34Z'
-closed_at_utc: null
+closed_at_utc: '2026-07-04T11:44:03Z'
 hypothesis:
   summary: discover whether closed-bar multi-timeframe and session-anchored structural
     context can isolate repeatable US100 M5 entries after direct all-bars supervised
@@ -55,20 +55,61 @@ run_index:
   - runs/R0003
   - runs/R0004
   next_run_candidate:
-    run_id: R0005_or_close_C0008
-    direction: decide_c0008_r0005_or_close_c0008_after_r0004
-    reason: R0004 closed no candidate after proxy, MT5 logic parity, proxy-vs-MT5
-      parity, MT5 tick execution, execution divergence, and fold-isolated MT5 tick
-      evidence; R0002 fragile candidate evidence remains retained but not selected.
-    status: pending_decision
+    run_id: null
+    direction: open_c0009_execution_friction_aware_entry_discovery
+    reason: C0008 is closed with R0002 fragile candidate evidence retained but not
+      selected; R0003 and R0004 answered the available non-adjacent structural hardening
+      and continuation questions as no candidate, so remaining C0008 work would be
+      adjacent structural filtering or a new major campaign hypothesis.
+    status: closed_campaign
 synthesis_readiness:
   check_required_at_closeout: true
-  result: not_checked
-  usable_ingredient_group_count: 0
-  readiness_notes: []
+  result: candidate_later
+  checked_at_utc: '2026-07-04T11:44:03Z'
+  closed_run_count: 4
+  observed_closed_campaign_count_since_last_synthesis: 2
+  usable_ingredient_group_count: 5
+  minimums:
+    closed_campaign_count_since_last_synthesis: 3
+    usable_ingredient_group_count: 8
+    required_surface_count: 3
+  open_synthesis_now: false
+  readiness_notes:
+  - c0008_retains_r0002_fragile_candidate_evidence_but_no_selection
+  - c0008_r0001_r0003_r0004_are_negative_memory_groups_after_fold_isolated_mt5_tick_evidence
+  - r0002_robustness_audit_is_a_usable_fragility_lesson_not_an_economics_pass
+  - synthesis_threshold_not_met_because_only_c0007_and_c0008_are_closed_after_sc0002
+  - next_campaign_stream_work_should_open_c0009_execution_friction_aware_entry_discovery
+  ingredient_groups:
+  - group_id: c0008_ig001_direct_structural_context_rank_negative_memory
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: direct_multi_timeframe_structural_context_rank_met_activity_but_lost_all_fold_isolated_tick_folds
+  - group_id: c0008_ig002_structural_trap_reversal_fragile_candidate_evidence
+    source_runs:
+    - R0002
+    group_type: fragile_candidate_evidence
+    summary: structural_trap_reversal_centroid_met_target_activity_and_positive_total_tick_net_but_has_thin_cost_buffer_two_losing_folds_and_long_losing_month_streak
+  - group_id: c0008_ig003_structural_trap_robustness_conditioner_negative_memory
+    source_runs:
+    - R0003
+    group_type: negative_memory
+    summary: robustness_conditioner_failed_to_harden_r0002_and_closed_no_candidate
+  - group_id: c0008_ig004_structural_acceptance_continuation_negative_memory
+    source_runs:
+    - R0004
+    group_type: negative_memory
+    summary: structural_acceptance_continuation_lost_all_fold_isolated_tick_folds
+  - group_id: c0008_ig005_r0002_robustness_fragility_lesson
+    source_runs:
+    - R0002
+    group_type: evidence_gap
+    summary: r0002_candidate_quality_is_not_established_because_extra_cost_buffer_is_thin_and_monthly_loss_streak_is_long
+  recommended_next_action: open_c0009_execution_friction_aware_entry_discovery
 closeout:
-  status: open_with_candidate_evidence
-  close_reason: null
+  status: closed_with_candidate_evidence
+  close_reason: no_meaningful_new_non_adjacent_structural_context_variant_remains_after_r0001_to_r0004_and_r0002_fragile_candidate_evidence_is_retained_not_selected
   evidence_paths:
   - runs/R0001/kpi/proxy.json
   - runs/R0001/kpi/mt5_logic_parity.json
@@ -99,7 +140,25 @@ closeout:
   - runs/R0004/kpi/execution_divergence.json
   - runs/R0004/kpi/mt5_tick_by_fold.json
   - runs/R0004/kpi/execution_divergence_by_fold.json
-  remaining_question: decide_c0008_r0005_or_close_c0008_after_r0004
+  - selected.yaml
+  remaining_question: open_c0009_execution_friction_aware_entry_discovery
+  decision_basis:
+    closed_run_count: 4
+    closed_no_candidate_run_count: 3
+    closed_with_candidate_evidence_run_count: 1
+    retained_candidate_source_run: R0002
+    retained_candidate_status: fragile_requires_hardening
+    r0002_entries_per_active_day: 7.57069
+    r0002_mt5_tick_net_pnl: 22.68
+    r0002_mt5_tick_profit_factor: 1.069012
+    r0002_profitable_fold_count: 7
+    r0002_losing_fold_count: 2
+    r0002_extra_cost_per_trade_to_zero: 0.005184
+    r0002_longest_losing_month_streak: 6
+    r0001_losing_fold_count: 9
+    r0003_losing_fold_count: 5
+    r0004_losing_fold_count: 9
+    remaining_work_classification: adjacent_structural_filtering_or_new_major_campaign_not_c0008_variant
 claim_boundary:
   claim_authority: false
   economics_pass: false

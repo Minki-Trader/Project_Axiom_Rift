@@ -21,7 +21,7 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: campaigns/C0008_multi_timeframe_structural_context_discovery
+  active_campaign: campaigns/C0009_execution_friction_aware_entry_discovery
   active_synthesis: null
 active_truth:
   contracts_dir: contracts
@@ -111,7 +111,7 @@ data_state:
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
 next_work:
-  campaign: campaigns/C0008_multi_timeframe_structural_context_discovery
+  campaign: campaigns/C0009_execution_friction_aware_entry_discovery
   synthesis: null
   completed:
   - fresh_export_us100_m5_max_available
@@ -546,8 +546,11 @@ next_work:
   - produce_c0008_r0004_fold_isolated_execution_divergence
   - review_c0008_r0004_tick_execution_kpi_and_closeout
   - close_c0008_r0004_no_candidate
-  tasks:
   - decide_c0008_r0005_or_close_c0008_after_r0004
+  - close_c0008_with_fragile_candidate_evidence
+  - open_c0009_execution_friction_aware_entry_discovery
+  tasks:
+  - design_c0009_r0001_execution_friction_regime_entry_run
   not_yet:
   - label_freeze
   - feature_set_freeze

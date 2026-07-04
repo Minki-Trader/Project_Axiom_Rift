@@ -45,7 +45,7 @@ candidate_evidence:
     monthly_tick_profitable_month_count: 15
     monthly_tick_losing_month_count: 12
     conclusion: candidate_evidence_retained_not_selected_hardening_required
-  next_required_action: decide_c0008_r0005_or_close_c0008_after_r0004
+  next_required_action: open_c0009_execution_friction_aware_entry_discovery
   claim_boundary:
     claim_authority: false
     economics_pass: false
@@ -70,7 +70,7 @@ latest_negative_memory:
   - simple_structural_acceptance_rank_retry
   - simple_level_acceptance_filter_retry
   - threshold_daily_count_stop_target_hold_session_retry_nudge
-  next_required_action: decide_c0008_r0005_or_close_c0008_after_r0004
+  next_required_action: open_c0009_execution_friction_aware_entry_discovery
   claim_boundary:
     claim_authority: false
     economics_pass: false
