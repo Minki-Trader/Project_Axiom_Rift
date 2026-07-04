@@ -1,0 +1,83 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: open
+campaign_id: C0010
+campaign_slug: monthly_regime_risk_control_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-04T14:32:00Z'
+closed_at_utc: null
+hypothesis:
+  summary: discover whether closed-bar monthly, regime, and risk-state context can isolate
+    US100 M5 entries that keep target activity while improving month-level stability, fold
+    robustness, and cost buffer after MT5 tick execution
+  boundary: use closed US100 M5 bars, train-only rolling-window state features, prior fragile
+    candidate and negative-memory lessons, and fixed-lot discovery schedules to test entries
+    designed around monthly stability and regime risk control rather than post-hoc filtering
+    of C0008 or SC0003 fragile candidates
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+  - equity_percent_sizing_rescue
+  - c0008_structural_trap_filter_retry
+  - sc0003_sr0001_cost_buffer_threshold_retry
+  - monthly_filter_nudge_only
+  - fold_veto_nudge_only
+  - synthetic_commission_model
+required_surfaces:
+  model:
+    status: variable
+    summary: unrestricted regime-risk classifier, ranker, state model, hazard model,
+      ensemble, rule surface, or later model family; no model family is selected
+  feature:
+    status: variable
+    summary: unrestricted closed-bar features for monthly seasonality, rolling drawdown
+      pressure, volatility regime, range state, session structure, spread pressure,
+      trend persistence, adverse-tail risk, and recent opportunity quality; no feature
+      set is selected
+  trade_logic:
+    status: variable
+    summary: variable fixed-lot entry timing, abstention, direction selection, activity
+      budgeting, exit, stop, target, hold, and risk-shape logic designed around regime
+      stability; equity-percent sizing remains deferred
+  label:
+    status: variable
+    summary: variable labels for target-before-stop, cost-buffer survival, monthly drawdown
+      risk, adverse-tail avoidance, fold consistency, and risk-adjusted expectancy; no
+      label is selected
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs: []
+  next_run_candidate:
+    run_id: R0001
+    direction: design_c0010_r0001_monthly_regime_risk_control_run
+    reason: C0010 is open as a new major campaign after SC0003 closed with fragile candidate
+      evidence; first run should test a true monthly/regime risk-control surface, not an
+      adjacent threshold, cost-buffer, fold, session, stop, target, hold, or retry nudge.
+    status: design_required
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_checked
+  usable_ingredient_group_count: 0
+  readiness_notes: []
+closeout:
+  status: open
+  close_reason: null
+  evidence_paths: []
+  remaining_question: design_c0010_r0001_monthly_regime_risk_control_run
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

@@ -1,6 +1,6 @@
 schema: axiom_rift_synthesis_queue_v1
 template: false
-status: open
+status: closed_with_candidate_evidence
 synthesis_id: SC0003
 queue:
 - synthesis_run_id: SR0001
@@ -88,7 +88,7 @@ queue:
   - skip_mt5_after_proxy
   - create_selected_claim
   - create_runtime_or_onnx_claim
-  next_action: review_sc0003_sr0002_or_close_synthesis_after_sr0001_fragile_candidate_evidence
+  next_action: open_c0010_monthly_regime_risk_control_discovery
   last_completed_step: close_sc0003_sr0001_with_fragile_candidate_evidence
   closed_at_utc: '2026-07-04T14:21:45Z'
   closeout_summary:
@@ -129,6 +129,16 @@ queue:
     weakest_positive_fold_extra_cost_per_trade_to_zero: 0.003963
     worst_fold_id: rw_002
     worst_fold_net_pnl: -6.88
+  synthesis_closeout:
+    status: closed_with_candidate_evidence
+    close_reason: sr0001_retained_fragile_candidate_evidence_but_no_non_adjacent_sr0002_remains
+    closed_at_utc: '2026-07-04T14:32:00Z'
+    remaining_question: open_c0010_monthly_regime_risk_control_discovery
+    lessons:
+    - sr0001_met_target_activity_and_positive_total_fold_isolated_tick_net_pnl
+    - sr0001_is_fragile_because_profit_factor_and_cost_buffer_are_weak
+    - two_losing_folds_and_six_losing_months_block_selected_or_economics_pass_claims
+    - further_sc0003_runs_would_be_adjacent_hardening_without_a_new_source_mix
 claim_boundary:
   claim_authority: false
   selected: false

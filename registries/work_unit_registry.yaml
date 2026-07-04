@@ -15,10 +15,10 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0010
-    active_work_unit: campaigns/C0009_execution_friction_aware_entry_discovery
+    next_id: C0011
+    active_work_unit: campaigns/C0010_monthly_regime_risk_control_discovery
     open_work_units:
-    - campaigns/C0009_execution_friction_aware_entry_discovery
+    - campaigns/C0010_monthly_regime_risk_control_discovery
     closed_work_units:
     - campaigns/C0001_regime_response_discovery
     - campaigns/C0002_score_conditioned_intraday_edge
@@ -28,6 +28,7 @@ streams:
     - campaigns/C0006_liquidity_sweep_reclaim_event_discovery
     - campaigns/C0007_fold_local_supervised_edge_discovery
     - campaigns/C0008_multi_timeframe_structural_context_discovery
+    - campaigns/C0009_execution_friction_aware_entry_discovery
     numbering_policy:
       width: 4
       example: C0001
@@ -35,12 +36,13 @@ streams:
   synthesis_stream:
     id_prefix: SC
     role: accumulated_ingredient_synthesis
-    next_id: SC0003
+    next_id: SC0004
     active_work_unit: null
     open_work_units: []
     closed_work_units:
     - campaigns/SC0001_accumulated_negative_memory_synthesis
     - campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis
+    - campaigns/SC0003_post_sc0002_mixed_evidence_synthesis
     numbering_policy:
       width: 4
       example: SC0001

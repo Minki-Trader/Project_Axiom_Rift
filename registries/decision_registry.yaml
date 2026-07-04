@@ -1973,3 +1973,54 @@ decisions:
     selected: false
     onnx_ready: false
     promotion_ready: false
+- decision_id: dec_20260704_close_sc0003_with_fragile_candidate_evidence
+  created_local_date: '2026-07-04'
+  status: active
+  decision: close_sc0003_post_sc0002_mixed_evidence_synthesis_with_fragile_candidate_evidence
+  refines:
+  - dec_20260704_open_c0009_execution_friction_aware_entry_discovery
+  - dec_20260704_close_c0008_with_fragile_candidate_evidence
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - sc0003_sr0001_recorded_fragile_candidate_evidence_after_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - sr0001_met_target_activity_with_7_568966_entries_per_active_day_and_positive_total_fold_isolated_mt5_tick_net_pnl_22_8
+  - sr0001_is_not_selected_because_profit_factor_is_weak_extra_cost_per_trade_to_zero_is_0_005213_two_folds_are_losing_and_longest_losing_month_streak_is_6
+  - remaining_sc0003_sr0002_work_would_be_adjacent_cost_buffer_fold_month_threshold_or_veto_hardening_without_a_new_source_mix
+  - next_work_is_open_c0010_monthly_regime_risk_control_discovery
+  - no_label_feature_model_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    selected: false
+    onnx_ready: false
+    promotion_ready: false
+- decision_id: dec_20260704_open_c0010_monthly_regime_risk_control_discovery
+  created_local_date: '2026-07-04'
+  status: active
+  decision: open_c0010_monthly_regime_risk_control_discovery
+  refines:
+  - dec_20260704_close_sc0003_with_fragile_candidate_evidence
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0010_changes_major_hypothesis_from_execution_friction_or_structural_trap_hardening_to_monthly_regime_risk_control
+  - sc0003_and_c0008_fragile_candidate_evidence_show_target_activity_and_positive_total_tick_pnl_but_thin_cost_buffer_two_losing_folds_and_six_losing_months
+  - c0010_will_treat_month_level_stability_and_regime_risk_as_primary_discovery_surfaces_not_as_post_hoc_filters_on_a_selected_candidate
+  - c0010_is_not_a_c0008_or_sc0003_threshold_cost_buffer_fold_session_stop_target_hold_or_retry_nudge
+  - opened_campaign_does_not_open_a_numbered_run_yet_and_does_not_create_mt5_runtime_selected_onnx_promotion_or_live_claims
+  - next_work_is_design_c0010_r0001_monthly_regime_risk_control_run
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    selected: false
+    onnx_ready: false
+    promotion_ready: false

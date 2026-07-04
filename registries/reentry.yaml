@@ -21,8 +21,8 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: campaigns/C0009_execution_friction_aware_entry_discovery
-  active_synthesis: campaigns/SC0003_post_sc0002_mixed_evidence_synthesis
+  active_campaign: campaigns/C0010_monthly_regime_risk_control_discovery
+  active_synthesis: null
 active_truth:
   contracts_dir: contracts
   config_dir: configs
@@ -111,8 +111,8 @@ data_state:
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
 next_work:
-  campaign: campaigns/C0009_execution_friction_aware_entry_discovery
-  synthesis: campaigns/SC0003_post_sc0002_mixed_evidence_synthesis
+  campaign: campaigns/C0010_monthly_regime_risk_control_discovery
+  synthesis: null
   completed:
   - fresh_export_us100_m5_max_available
   - record_source_path_decision_fresh_export
@@ -593,13 +593,15 @@ next_work:
   - produce_sc0003_sr0001_fold_isolated_execution_divergence
   - audit_sc0003_sr0001_candidate_robustness
   - close_sc0003_sr0001_with_fragile_candidate_evidence
+  - close_sc0003_with_fragile_candidate_evidence
+  - open_c0010_monthly_regime_risk_control_discovery
   tasks:
-  - review_sc0003_sr0002_or_close_synthesis_after_sr0001_fragile_candidate_evidence
+  - design_c0010_r0001_monthly_regime_risk_control_run
   not_yet:
   - label_freeze
   - feature_set_freeze
   - model_training
   - mt5_runtime_claim
 active_run: null
-active_campaign: campaigns/C0009_execution_friction_aware_entry_discovery
-active_synthesis: campaigns/SC0003_post_sc0002_mixed_evidence_synthesis
+active_campaign: campaigns/C0010_monthly_regime_risk_control_discovery
+active_synthesis: null
