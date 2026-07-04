@@ -179,6 +179,11 @@ RUN_SPECS: tuple[RunSpec, ...] = (
         "axiom_rift.mt5.c0010_r0002_probe",
         "axiom_rift.proxies.c0010_r0002_monthly_loss_memory_abstention",
     ),
+    RunSpec(
+        "c0011_r0001",
+        "axiom_rift.mt5.c0011_r0001_probe",
+        "axiom_rift.proxies.c0011_r0001_setup_lifecycle_timing",
+    ),
 )
 
 
@@ -316,16 +321,6 @@ def build_commands() -> dict[str, CommandSpec]:
     )
     for run in RUN_SPECS:
         add_run_commands(commands, run)
-    add_command(
-        commands,
-        CommandSpec(
-            "run-c0011-r0001-proxy",
-            "run C0011 R0001 proxy evidence",
-            "proxy_required_kpis",
-            target("axiom_rift.proxies.c0011_r0001_setup_lifecycle_timing", "run_c0011_r0001_proxy"),
-            args=(DRY_RUN_ARG,),
-        ),
-    )
     add_command(
         commands,
         CommandSpec(

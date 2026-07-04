@@ -29,6 +29,10 @@ CLAIM_STATE_PATH = PROJECT_ROOT / "registries" / "claim_state.yaml"
 
 BASE_FRAME = base.BASE_FRAME
 ROLLING_WINDOWS = base.ROLLING_WINDOWS
+SplitWindow = base.SplitWindow
+Trade = base.Trade
+load_bars = base.load_bars
+load_windows = base.load_windows
 
 FEATURE_NAMES = (
     "setup_age_norm",

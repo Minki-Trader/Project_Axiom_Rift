@@ -13,12 +13,103 @@
     "runtime_probe_completed": false,
     "selected": false
   },
+  "closed_at_utc": "2026-07-04T16:40:29Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false
+    },
+    "close_reason": "no_candidate_after_fold_isolated_mt5_tick_and_execution_divergence_evidence",
+    "closed_at_utc": "2026-07-04T16:40:29Z",
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "evidence_paths": [
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local setup lifecycle phase timing rank over setup maturity, trigger freshness, early impulse quality, adverse-first pressure, decay risk, and spread/session context",
+      "next_boundary": "Do not retry R0001 by only nudging lifecycle score floor, phase whitelist, setup age, trigger freshness, duplicate spacing, stop, target, hold, spread, session, or daily activity settings; next C0011 work needs a materially different setup-lifecycle timing question or campaign close review.",
+      "reason_not_candidate": "fold-isolated MT5 tick evidence had zero profitable folds, nine losing folds, negative total tick net PnL, aggregate tick PF below 1.0, and severe full-period tick drawdown despite target-range proxy activity",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "setup lifecycle timing produced target-range activity but all nine rolling-window test folds lost money, with total tick net PnL -252.0 and worst fold rw_008 at -36.5"
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "tick execution was better than closed-bar logic in eight folds and by 22.42 total net PnL, but absolute tick economics stayed negative and exit reason/time divergence remained material"
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "kpi/proxy.json",
+          "summary": "entry frequency reached 7.703448 entries per active day, but lifecycle timing rank did not isolate positive expectancy or controlled drawdown under MT5 tick execution"
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entry_target_max": 10,
+      "entry_target_min": 5,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "mismatch_count": 0,
+      "mt5_logic_net_pnl": -274.42,
+      "mt5_logic_profit_factor": 0.542023,
+      "mt5_logic_trade_count": 4468,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_max_drawdown_percent": 50.614,
+      "mt5_tick_net_pnl": -252.0,
+      "mt5_tick_profit_factor": 0.52935,
+      "mt5_tick_trade_count": 4465,
+      "profitable_fold_count": 0,
+      "proxy_active_day_count": 580,
+      "proxy_entries_per_active_day": 7.703448,
+      "proxy_net_pnl_points": -26344.35,
+      "proxy_profit_factor": 0.508604,
+      "proxy_trade_count": 4468,
+      "proxy_win_rate": 0.301477,
+      "tick_better_fold_count": 8,
+      "tick_worse_fold_count": 1,
+      "total_tick_minus_logic_net_pnl": 22.42,
+      "total_tick_net_pnl": -252.0,
+      "total_tick_trade_count": 4465,
+      "worst_drawdown_fold_id": "rw_008",
+      "worst_fold_id": "rw_008",
+      "worst_fold_max_drawdown_percent": 7.44,
+      "worst_fold_net_pnl": -36.5
+    },
+    "status": "closed_no_candidate"
+  },
   "evidence_paths": {
     "artifact_lineage": "artifact_lineage.json",
     "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
     "execution_divergence_kpi": "kpi/execution_divergence.json",
     "gate_report": "gate_report.json",
     "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0011_r0001_schedule.csv",
     "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
     "mt5_tick_kpi": "kpi/mt5_tick.json",
     "proxy_kpi": "kpi/proxy.json",
@@ -26,7 +117,7 @@
     "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
     "setup_lifecycle_summary": "artifacts/c0011_r0001_setup_lifecycle_summary.json"
   },
-  "gate_status": "proxy_recorded_pending_mt5",
+  "gate_status": "close_no_candidate",
   "hypothesis_variant": {
     "summary": "fold_local_setup_lifecycle_phase_timing_rank",
     "variant_boundary": "tests setup birth, maturity, trigger freshness, early confirmation, and decay timing as the primary entry surface; not a monthly loss limit, score floor, cost-buffer, stop, target, hold, session, or retry nudge from C0008, SC0003, C0009, or C0010"
@@ -69,7 +160,7 @@
   "run_id": "R0001",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "mt5_probe_ready",
+  "status": "closed_no_candidate",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

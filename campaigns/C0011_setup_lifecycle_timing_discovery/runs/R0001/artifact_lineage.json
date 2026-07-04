@@ -45,6 +45,141 @@
       "source_inputs": [
         "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/proxy.json"
       ]
+    },
+    {
+      "artifact_id": "A-C0011-R0001-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0011_r0001_probe",
+      "repo_relative_path": "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/artifacts/c0011_r0001_schedule.csv",
+      "sha256": "0bfc8da8ffc568122b2ca4d832bf8f55e306fbf28ac87329fd92ce536e5107d7",
+      "source_inputs": [
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0011-R0001-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0011_r0001_probe",
+      "repo_relative_path": "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+      "sha256": "cc4ad4bf67a9c26d1581ed4ace23a3cad3721adee9c69ced404dc700546cc383",
+      "source_inputs": [
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/artifacts/c0011_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0011-R0001-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0011_r0001_probe",
+      "repo_relative_path": "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "13423ea9fb32478dfaa2344dac6c3d93256df7c0af09df812224410cd82e86e2",
+      "source_inputs": [
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/proxy.json",
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/mt5_logic_parity.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0011-R0001-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0011_r0001_probe",
+      "repo_relative_path": "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/mt5_tick.json",
+      "sha256": "fd33649551b38069396f77571f8d9f22663f0cd52d716886d20b9a406149aeab",
+      "source_inputs": [
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/artifacts/c0011_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0011-R0001-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0011_r0001_probe",
+      "repo_relative_path": "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/execution_divergence.json",
+      "sha256": "0b8019326e5a04970a896fd95f07ec6ae0666107c34a1a99c1be9e18ec7a0826",
+      "source_inputs": [
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/mt5_tick.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0011-R0001-MT5-TICK-BY-FOLD-KPI",
+      "artifact_role": "mt5_tick_by_fold_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0011_r0001_probe",
+      "repo_relative_path": "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+      "sha256": "6e73fa09e1d2156f7d84bdd8d3a9d4a1a1c44aa8d7594cee1bf89ee8bf65ab4d",
+      "source_inputs": [
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/artifacts/c0011_r0001_schedule.csv",
+        "registries/rolling_windows.yaml",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0011-R0001-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0011_r0001_probe",
+      "repo_relative_path": "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+      "sha256": "269236dc0c93047a331b7471c096e99cff1167be9f215cb34c085177beda5ecb",
+      "source_inputs": [
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "registries/rolling_windows.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0011-R0001-RUN-MANIFEST-CLOSEOUT",
+      "artifact_role": "run_manifest_closeout",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "run_closeout",
+      "mutable": false,
+      "produced_by": "c0011_r0001_closeout_review",
+      "repo_relative_path": "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/run_manifest.json",
+      "sha256": "bacc509d49c0150c130d712694dde41ed955714b99d9f5f06b2af00760f6d3fb",
+      "source_inputs": [
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/execution_divergence_by_fold.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0011-R0001-GATE-CLOSEOUT",
+      "artifact_role": "gate_report_closeout",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "run_closeout",
+      "mutable": false,
+      "produced_by": "c0011_r0001_closeout_review",
+      "repo_relative_path": "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/gate_report.json",
+      "sha256": "cb9f2112a096473f02402dadb203f09db7680d29a02d0d92fc8d07b5afa9193c",
+      "source_inputs": [
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/execution_divergence_by_fold.json"
+      ]
     }
   ],
   "claim_boundary": {
@@ -57,9 +192,9 @@
   "created_at_utc": "2026-07-04T16:00:51Z",
   "deferred_with_reason": [
     {
-      "field": "mt5_artifact_hashes",
-      "next_action": "produce_c0011_r0001_mt5_logic_parity_evidence",
-      "reason": "MT5 artifacts are produced after proxy evidence in the mandatory paired validation sequence"
+      "field": "next_work",
+      "next_action": "decide_c0011_r0002_or_close_c0011_after_r0001",
+      "reason": "R0001 is closed no-candidate; next work is deciding whether C0011 has a materially new R0002 variant or should close"
     }
   ],
   "lineage_id": "L-C0011-R0001",
