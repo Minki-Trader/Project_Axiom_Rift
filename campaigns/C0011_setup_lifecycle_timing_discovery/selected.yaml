@@ -40,9 +40,10 @@ latest_negative_memory:
   blocks:
   - setup_lifecycle_phase_timing_rank_retry
   - setup_invalidation_reversal_rank_retry
+  - setup_lifecycle_timing_campaign_retry_as_phase_score_or_invalidation_nudge
   - lifecycle_score_floor_phase_whitelist_retry_nudge
   - failed_setup_decay_trigger_freshness_stop_target_hold_session_retry_nudge
-  next_required_action: decide_c0011_r0003_or_close_c0011_after_r0002
+  next_required_action: choose_c0012_new_major_hypothesis_after_c0011
   claim_boundary:
     claim_authority: false
     selected: false

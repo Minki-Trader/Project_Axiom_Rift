@@ -15,10 +15,10 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0012
-    active_work_unit: campaigns/C0011_setup_lifecycle_timing_discovery
+    next_id: C0013
+    active_work_unit: campaigns/C0012_session_auction_rotation_discovery
     open_work_units:
-    - campaigns/C0011_setup_lifecycle_timing_discovery
+    - campaigns/C0012_session_auction_rotation_discovery
     closed_work_units:
     - campaigns/C0001_regime_response_discovery
     - campaigns/C0002_score_conditioned_intraday_edge
@@ -30,6 +30,7 @@ streams:
     - campaigns/C0008_multi_timeframe_structural_context_discovery
     - campaigns/C0009_execution_friction_aware_entry_discovery
     - campaigns/C0010_monthly_regime_risk_control_discovery
+    - campaigns/C0011_setup_lifecycle_timing_discovery
     numbering_policy:
       width: 4
       example: C0001

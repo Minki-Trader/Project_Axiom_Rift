@@ -100,24 +100,22 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: campaigns/C0011_setup_lifecycle_timing_discovery
+active_campaign: campaigns/C0012_session_auction_rotation_discovery
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0011_r0002_no_candidate
+  id: open_c0012_session_auction_rotation_discovery
   status: completed
-  recorded_at_source: campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0002/gate_report.json
-  evidence_status: closed_no_candidate
-  proxy_trade_count: 4358
-  entries_per_active_day: 7.513793
-  mt5_tick_trade_count: 4344
-  total_tick_net_pnl: -81.49
-  profitable_fold_count: 1
-  losing_fold_count: 8
-  reason_not_candidate: fold-isolated MT5 tick evidence had only one profitable fold and eight
-    losing folds, negative total tick net PnL, aggregate tick PF below 1.0, and negative proxy
-    and MT5 economics despite target-range activity
-  next_required_action: decide_c0011_r0003_or_close_c0011_after_r0002
+  recorded_at_source: campaigns/C0012_session_auction_rotation_discovery/campaign.yaml
+  evidence_status: campaign_opened_no_claim
+  previous_campaign_closeout: campaigns/C0011_setup_lifecycle_timing_discovery/campaign.yaml
+  new_campaign_id: C0012
+  new_campaign_hypothesis: session_auction_rotation_discovery
+  reason_opened: C0011 closed no-candidate and repo-state requires an active campaign pointer;
+    C0012 changes the major hypothesis to closed-bar intraday auction balance, value rotation,
+    and edge acceptance or rejection rather than lifecycle, monthly, structural, score, cost,
+    stop, target, hold, or session threshold retry work.
+  next_required_action: design_c0012_r0001_session_auction_rotation_run
   claim_boundary:
     claim_authority: false
     selected: false
