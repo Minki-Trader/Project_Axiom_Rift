@@ -1,0 +1,219 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-04T18:37:04Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "candidate_evidence": {
+      "asset_type": "candidate_evidence",
+      "candidate_status": "recorded_not_selected",
+      "economics_pass": false,
+      "evidence_paths": [
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local session auction rotation rank over opening range balance, value rotation, edge rejection, edge acceptance, failed value return, and inventory pressure",
+      "next_boundary": "fragile candidate evidence only: MT5 tick profit factor is 1.095762, three rolling-window folds lose money, and tick-vs-closed-bar divergence remains material; next work must audit robustness, cost buffer, monthly streaks, and portability before any selected, economics-pass, runtime, ONNX, promotion, or live claim",
+      "onnx_ready": false,
+      "reason_candidate_evidence": "target-range activity, positive proxy, passed schedule replay parity, positive MT5 tick total net PnL, and six profitable rolling-window tick folds with three losing folds",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "candidate_evidence",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "session auction rotation rank produced 7.33564 entries per active day, positive total fold-isolated tick net PnL, six profitable folds, and three losing folds"
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "tick execution improved total net PnL by 4.92 versus closed-bar logic, with six tick-better folds, three tick-worse folds, and minimum exit-reason match rate 0.881633"
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "candidate quality remains unselected because robustness audit, cost and slippage stress, monthly drawdown/streak review, and native materialization or ONNX portability evidence are not complete"
+        }
+      ]
+    },
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "candidate_evidence_recorded_after_fold_isolated_mt5_tick_and_execution_divergence_evidence",
+    "closed_at_utc": "2026-07-04T18:37:04Z",
+    "required_kpi_summary": {
+      "candidate_robustness_status": "fragile_requires_audit",
+      "completed_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.33564,
+      "execution_divergence_by_fold_status": "completed",
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "losing_fold_count": 3,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.995556,
+      "minimum_exit_reason_match_rate": 0.881633,
+      "minimum_exit_time_direction_match_rate": 0.893878,
+      "mismatch_count": 0,
+      "mt5_logic_net_pnl": 45.87,
+      "mt5_logic_profit_factor": 1.081698,
+      "mt5_logic_trade_count": 4240,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_net_pnl": 50.79,
+      "mt5_tick_profit_factor": 1.095762,
+      "mt5_tick_trade_count": 4228,
+      "profitable_fold_count": 6,
+      "proxy_expectancy_points_per_entry": 0.989755,
+      "proxy_net_pnl_points": 4196.56,
+      "proxy_profit_factor": 1.078929,
+      "proxy_trade_count": 4240,
+      "tick_better_fold_count": 6,
+      "tick_worse_fold_count": 3,
+      "total_tick_minus_logic_net_pnl": 4.92,
+      "total_tick_net_pnl": 50.79,
+      "total_tick_trade_count": 4228,
+      "worst_fold_id": "rw_007",
+      "worst_fold_net_pnl": -11.11
+    },
+    "status": "closed_with_candidate_evidence"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0012_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0012_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "session_auction_rotation_summary": "artifacts/c0012_r0001_session_auction_rotation_summary.json"
+  },
+  "gate_status": "closed_with_candidate_evidence",
+  "hypothesis_variant": {
+    "summary": "fold_local_session_auction_rotation_rank",
+    "variant_boundary": "tests session-local auction balance, value rotation, edge rejection, edge acceptance, failed return to value, and late inventory pressure as primary entry timing; not a lifecycle, invalidation, monthly, structural, score, cost-buffer, stop, target, hold, session threshold, or retry nudge"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_session_auction_rotation_schedule_vs_ea_closed_bar_schedule_replay_parity",
+    "notes": [],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-04T17:57:38Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "not a threshold, window, stop, target, hold, session, activity, score-floor, cost-buffer, or retry nudge; it changes the label, feature, model, and trade logic surfaces to auction-state rotation",
+    "adjacent_tuning_risk": "low",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": "campaigns/C0011_setup_lifecycle_timing_discovery/selected.yaml; campaigns/C0010_monthly_regime_risk_control_discovery/selected.yaml; campaigns/SC0003_post_sc0002_mixed_evidence_synthesis/selected.yaml",
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "pre_open_decision_id": "POD-C0012-R0001",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "recorded_before_run_open",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "first C0012 variant uses session auction state and value rotation timing rather than repeating setup lifecycle, invalidation reversal, monthly loss memory, or structural trap hardening"
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "weak_proxy_results_must_still_continue_to_mt5_paired_validation"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "source_ingredient_ids": [
+    "c0011_r0001_setup_lifecycle_timing_negative_memory",
+    "c0011_r0002_setup_invalidation_reversal_negative_memory",
+    "c0010_monthly_regime_risk_control_negative_memory",
+    "sc0003_fragile_candidate_cost_buffer_memory"
+  ],
+  "status": "closed_with_candidate_evidence",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "closed-M5 session opening range, rolling session value proxy, auction balance width, rotation count, range extension, edge rejection wick and close-back state, edge acceptance continuation state, failed return to value, late-session inventory pressure, realized spread, and volatility transition features"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "target-before-stop and value-rotation follow-through label that rewards edge rejection or acceptance continuation and penalizes adverse-first path, failed value return, spread drift, and fold inconsistency"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "fold-local standardized session auction rotation rank over balance location, value proxy, rotation completion, edge rejection, edge acceptance, failed value return, inventory pressure, volatility transition, and spread state"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "fixed-lot dual-direction schedule enters value-edge rejection, failed value-return, or edge-acceptance continuation states with fold-local daily ranking and schedule replay for MT5 parity"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0012"
+}

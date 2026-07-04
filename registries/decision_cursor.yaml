@@ -2,70 +2,72 @@ schema: axiom_rift_decision_cursor_v1
 status: active
 encoding: ascii_only
 updated_local_date: '2026-07-05'
-
-canonical_source: campaigns/C0012_session_auction_rotation_discovery/campaign.yaml
-canonical_status: campaign_open
-current_decision: design_c0012_r0001_session_auction_rotation_run
+canonical_source: campaigns/C0012_session_auction_rotation_discovery/runs/R0001/run_manifest.json
+canonical_status: closed_with_candidate_evidence
+current_decision: audit_c0012_r0001_candidate_robustness
 active_campaign: campaigns/C0012_session_auction_rotation_discovery
 active_run: null
 active_synthesis: null
-next_required_action: design_c0012_r0001_session_auction_rotation_run
-
+next_required_action: audit_c0012_r0001_candidate_robustness
 terminal_evidence_priority:
   enabled: true
   resolved_from:
-    current_campaign_status: open
-    claim_state_latest_operation: open_c0012_session_auction_rotation_discovery
-    reentry_task: design_c0012_r0001_session_auction_rotation_run
+    run_gate_report_status: closed_with_candidate_evidence
+    run_manifest_status: closed_with_candidate_evidence
+    required_kpi_receipts: complete_fold_isolated_mt5_tick_and_execution_divergence
   authority_order:
-    - run_gate_report_decision_or_status
-    - run_manifest_status
-    - required_kpi_files_and_closeout_receipts
-    - artifact_lineage_deferred_with_reason
-    - campaign_yaml_active_run_and_closeout_state
-    - claim_state_latest_operation
-    - reentry_next_work
+  - run_gate_report_decision_or_status
+  - run_manifest_status
+  - required_kpi_files_and_closeout_receipts
+  - artifact_lineage_deferred_with_reason
+  - campaign_yaml_active_run_and_closeout_state
+  - claim_state_latest_operation
+  - reentry_next_work
   stale_pointer_rule: terminal_run_receipt_outranks_planning_pointer
   reentry_completed_log_role: history_only_not_decision_authority
-
 current_evidence_summary:
   source_campaign: campaigns/C0012_session_auction_rotation_discovery
-  previous_campaign_closeout: campaigns/C0011_setup_lifecycle_timing_discovery/campaign.yaml
-  current_task: design_c0012_r0001_session_auction_rotation_run
-  run_terminal_receipt_available: false
-  note: no_active_run_is_open_in_this_cursor_snapshot
-
+  source_run: campaigns/C0012_session_auction_rotation_discovery/runs/R0001
+  current_task: audit_c0012_r0001_candidate_robustness
+  run_terminal_receipt_available: true
+  evidence_status: closed_with_candidate_evidence_not_selected
+  entries_per_active_day: 7.33564
+  mt5_tick_net_pnl: 50.79
+  mt5_tick_profit_factor: 1.095762
+  profitable_fold_count: 6
+  losing_fold_count: 3
+  note: fragile candidate evidence only; audit required before selection or hardening
 repo_debt_scope:
   global_repo_state_ok: false
   observed_error_count: 31
   observed_warning_count: 1
   nonblocking_debts:
-    - debt_id: known_historical_artifact_lineage_debt
-      status: observed
-      observed_codes:
-        - artifact_lineage_hash_mismatch
-        - artifact_lineage_hash_missing
-      observed_error_count: 31
-      current_decision_class: known_nonblocking_for_next_run_decision
-      may_continue_current_decision: true
-      blocks_selected_claim: true
-      blocks_promotion: true
-      blocks_handoff: true
-      blocks_reproducibility_claim: true
-      repair_scope: deferred_unless_current_evidence_closeout_selection_promotion_handoff_or_reproducibility_is_blocked
+  - debt_id: known_historical_artifact_lineage_debt
+    status: observed
+    observed_codes:
+    - artifact_lineage_hash_mismatch
+    - artifact_lineage_hash_missing
+    observed_error_count: 31
+    current_decision_class: known_nonblocking_for_current_closeout_and_next_audit
+    may_continue_current_decision: true
+    blocks_selected_claim: true
+    blocks_promotion: true
+    blocks_handoff: true
+    blocks_reproducibility_claim: true
+    repair_scope: deferred_unless_current_evidence_closeout_selection_promotion_handoff_or_reproducibility_is_blocked
   blocking_debts: []
   warning_observations:
-    - code: price_quality_warnings_recorded
-      observed_warning_count: 1
-      role: data_quality_guardrail_not_claim_authority
+  - code: price_quality_warnings_recorded
+    observed_warning_count: 1
+    role: data_quality_guardrail_not_claim_authority
   note: keep_repo_state_errors_visible_do_not_mark_global_repo_state_ok
-
 claim_boundary_snapshot:
   claim_authority: false
   selected: false
   label_selected: false
   feature_set_selected: false
   model_selected: false
+  trade_logic_selected: false
   runtime_probe_completed: false
   economics_pass: false
   materialization_ready: false
@@ -73,14 +75,13 @@ claim_boundary_snapshot:
   onnx_ready: false
   promotion_ready: false
   live_ready: false
-
 next_decision_basis:
-  - path: campaigns/C0012_session_auction_rotation_discovery/campaign.yaml
-    role: active_campaign_manifest
-    summary: C0012_is_the_active_major_campaign_after_C0011_closed_no_candidate
-  - path: registries/claim_state.yaml
-    role: active_state_pointer
-    summary: latest_operation_points_to_C0012_campaign_open_and_R0001_design_next
-  - path: registries/reentry.yaml
-    role: historical_and_boot_context
-    summary: use_completed_history_as_context_only_not_decision_authority
+- path: campaigns/C0012_session_auction_rotation_discovery/runs/R0001/run_manifest.json
+  role: closed_run_manifest
+  summary: R0001_closed_with_fragile_candidate_evidence_not_selected
+- path: campaigns/C0012_session_auction_rotation_discovery/runs/R0001/gate_report.json
+  role: terminal_run_gate_report
+  summary: closeout_gate_closed_with_candidate_evidence_and_next_action_audit_c0012_r0001_candidate_robustness
+- path: campaigns/C0012_session_auction_rotation_discovery/selected.yaml
+  role: selection_boundary
+  summary: candidate_evidence_fragile_requires_audit_selected_false
