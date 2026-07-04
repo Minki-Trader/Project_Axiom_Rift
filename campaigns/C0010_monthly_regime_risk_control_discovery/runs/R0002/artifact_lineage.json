@@ -1,0 +1,205 @@
+{
+  "artifact_records": [
+    {
+      "artifact_id": "A-C0010-R0002-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0010_r0002_monthly_loss_memory_abstention",
+      "repo_relative_path": "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/proxy.json",
+      "sha256": "028da7d40bd3d9a62ba10192a6f444b5f52f1c331e58167a9365d39cd433ffb6",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0010-R0002-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0010_r0002_monthly_loss_memory_abstention",
+      "repo_relative_path": "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/artifacts/c0010_r0002_proxy_trades.csv",
+      "sha256": "2028eb1bbc0a9cd474bc7102ed0a5989e24d6a92e2cdfe0010f0eece416eb90c",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0010-R0002-MONTHLY-LOSS-MEMORY-ABSTENTION-SUMMARY",
+      "artifact_role": "monthly_loss_memory_abstention_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0010_r0002_monthly_loss_memory_abstention",
+      "repo_relative_path": "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/artifacts/c0010_r0002_monthly_loss_memory_abstention_summary.json",
+      "sha256": "2b29b43be8616f41a98e8aef63bd889d12379cdc3b17d4b558ccefbd84f6a68e",
+      "source_inputs": [
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0010-R0002-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0010_r0002_probe",
+      "repo_relative_path": "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/artifacts/c0010_r0002_schedule.csv",
+      "sha256": "cffa80d0bef73e665d09d4e04a837c166adfdb5fbb004d554dabf488b65a6a3d",
+      "source_inputs": [
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0010-R0002-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0010_r0002_probe",
+      "repo_relative_path": "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/mt5_logic_parity.json",
+      "sha256": "6cb46de75bf978ab8195610143a672942fe5b4ba4b7eabf843f7a20b5ba672fc",
+      "source_inputs": [
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/artifacts/c0010_r0002_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0010-R0002-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0010_r0002_probe",
+      "repo_relative_path": "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "38db082314e6fa0375062cb40a65d280c29248751651493eaf0c53010a84a5bd",
+      "source_inputs": [
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/proxy.json",
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/mt5_logic_parity.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0010-R0002-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0010_r0002_probe",
+      "repo_relative_path": "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/mt5_tick.json",
+      "sha256": "5d76e15c729eec5983a1e77e86cfdd7b59b25881f51437016ed51f3e36398a35",
+      "source_inputs": [
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/artifacts/c0010_r0002_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0010-R0002-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0010_r0002_probe",
+      "repo_relative_path": "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/execution_divergence.json",
+      "sha256": "cdec53b6b83cd8a76a9655f77256cc96602a3c5604128b3aad7b4ae03e35a9a6",
+      "source_inputs": [
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/mt5_logic_parity.json",
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/mt5_tick.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0010-R0002-MT5-TICK-BY-FOLD-KPI",
+      "artifact_role": "mt5_tick_by_fold_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0010_r0002_probe",
+      "repo_relative_path": "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
+      "sha256": "71d135729359261ce7df2b0ec216e0b71571f799caad887978a51796d0b772d2",
+      "source_inputs": [
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/artifacts/c0010_r0002_schedule.csv",
+        "registries/rolling_windows.yaml",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0010-R0002-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0010_r0002_probe",
+      "repo_relative_path": "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/execution_divergence_by_fold.json",
+      "sha256": "46be731b7e77a5f68a5a74f8716ac517af4703d2975d837ec8fd920a22fb0a74",
+      "source_inputs": [
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
+        "registries/rolling_windows.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0010-R0002-RUN-MANIFEST-CLOSEOUT",
+      "artifact_role": "run_manifest_closeout",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "run_closeout",
+      "mutable": false,
+      "produced_by": "c0010_r0002_closeout_review",
+      "repo_relative_path": "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/run_manifest.json",
+      "sha256": "b1176b46b8d03ea7a1819bb4bf67ad86ce2722a882b9109dd3720116e0ab8f9a",
+      "source_inputs": [
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/execution_divergence_by_fold.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0010-R0002-GATE-CLOSEOUT",
+      "artifact_role": "gate_report_closeout",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "run_closeout",
+      "mutable": false,
+      "produced_by": "c0010_r0002_closeout_review",
+      "repo_relative_path": "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/gate_report.json",
+      "sha256": "dcf9e10d0290f3d103baf0a1a4ca976afa33134266cf7aa1d379aeb1768600b8",
+      "source_inputs": [
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
+        "campaigns/C0010_monthly_regime_risk_control_discovery/runs/R0002/kpi/execution_divergence_by_fold.json"
+      ]
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "onnx_ready": false,
+    "runtime_authority": false,
+    "selected": false
+  },
+  "created_at_utc": "2026-07-04T15:19:09Z",
+  "deferred_with_reason": [
+    {
+      "field": "next_work",
+      "next_action": "decide_c0010_r0003_or_close_c0010_after_r0002",
+      "reason": "R0002 is closed no-candidate; next work is deciding whether C0010 has a materially new R0003 variant or should close"
+    }
+  ],
+  "lineage_id": "L-C0010-R0002",
+  "run_id": "R0002",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "template": false,
+  "work_unit_id": "C0010"
+}

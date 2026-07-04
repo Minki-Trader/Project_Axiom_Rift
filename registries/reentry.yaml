@@ -1,5 +1,5 @@
 schema: axiom_rift_reentry_v2
-updated_local_date: '2026-07-04'
+updated_local_date: '2026-07-05'
 read_budget:
   boot_files:
   - AGENTS.md
@@ -606,8 +606,20 @@ next_work:
   - produce_c0010_r0001_fold_isolated_execution_divergence
   - review_c0010_r0001_tick_execution_kpi_and_closeout
   - close_c0010_r0001_no_candidate
-  tasks:
   - decide_c0010_r0002_or_close_c0010_after_r0001
+  - open_c0010_r0002_monthly_loss_memory_abstention_run
+  - produce_c0010_r0002_proxy_evidence
+  - produce_c0010_r0002_mt5_logic_parity_evidence
+  - record_c0010_r0002_proxy_vs_mt5_logic_parity_evidence
+  - produce_c0010_r0002_mt5_tick_execution_evidence
+  - record_c0010_r0002_execution_divergence
+  - produce_c0010_r0002_fold_isolated_mt5_tick_kpi
+  - produce_c0010_r0002_fold_isolated_execution_divergence
+  - repair_c0010_r0002_center_score_scale_after_empty_proxy
+  - review_c0010_r0002_tick_execution_kpi_and_closeout
+  - close_c0010_r0002_no_candidate
+  tasks:
+  - decide_c0010_r0003_or_close_c0010_after_r0002
   not_yet:
   - label_freeze
   - feature_set_freeze

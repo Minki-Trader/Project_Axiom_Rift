@@ -51,12 +51,13 @@ run_index:
   active_run: null
   closed_runs:
   - runs/R0001
+  - runs/R0002
   next_run_candidate:
-    run_id: R0002
-    direction: decide_c0010_r0002_or_close_c0010_after_r0001
-    reason: R0001 closed no-candidate after fold-isolated MT5 tick and execution divergence
-      evidence; next work is to decide whether C0010 has a materially new monthly/regime risk-control
-      variant or should close.
+    run_id: R0003
+    direction: decide_c0010_r0003_or_close_c0010_after_r0002
+    reason: R0002 closed no-candidate after fold-isolated MT5 tick evidence; next work is
+      to decide whether C0010 has a materially new monthly/regime risk-control variant or
+      should close.
     status: decision_required
 synthesis_readiness:
   check_required_at_closeout: true
@@ -74,7 +75,20 @@ closeout:
   - runs/R0001/kpi/execution_divergence.json
   - runs/R0001/kpi/mt5_tick_by_fold.json
   - runs/R0001/kpi/execution_divergence_by_fold.json
-  remaining_question: decide_c0010_r0002_or_close_c0010_after_r0001
+  - runs/R0002/run_manifest.json
+  - runs/R0002/gate_report.json
+  - runs/R0002/artifact_lineage.json
+  - runs/R0002/kpi/proxy.json
+  - runs/R0002/kpi/mt5_logic_parity.json
+  - runs/R0002/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0002/kpi/mt5_tick.json
+  - runs/R0002/kpi/execution_divergence.json
+  - runs/R0002/kpi/mt5_tick_by_fold.json
+  - runs/R0002/kpi/execution_divergence_by_fold.json
+  - runs/R0002/artifacts/c0010_r0002_proxy_trades.csv
+  - runs/R0002/artifacts/c0010_r0002_monthly_loss_memory_abstention_summary.json
+  - runs/R0002/artifacts/c0010_r0002_schedule.csv
+  remaining_question: decide_c0010_r0003_or_close_c0010_after_r0002
 claim_boundary:
   claim_authority: false
   selected: false

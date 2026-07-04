@@ -2076,3 +2076,51 @@ decisions:
     selected: false
     onnx_ready: false
     promotion_ready: false
+- decision_id: dec_20260705_open_c0010_r0002_monthly_loss_memory_abstention_run
+  created_local_date: '2026-07-05'
+  status: active
+  decision: open_c0010_r0002_monthly_loss_memory_abstention_run
+  refines:
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260704_close_c0010_r0001_no_candidate
+  rationale:
+  - c0010_remains_broad_after_r0001_closed_no_candidate
+  - r0002_changes_from_static_monthly_regime_rank_to_sequential_month_to_date_loss_memory_abstention
+  - variant_uses_train_state_reliability_and_realized_selected_trade_memory_before_each_candidate
+  - variant_is_not_score_floor_month_edge_daily_count_session_stop_target_hold_spread_cost_or_retry_nudge
+  - mandatory_proxy_mt5_logic_parity_proxy_vs_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence_remain_required_even_if_proxy_is_weak
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    onnx_ready: false
+    promotion_ready: false
+- decision_id: dec_20260705_close_c0010_r0002_no_candidate
+  created_local_date: '2026-07-05'
+  status: active
+  decision: close_c0010_r0002_no_candidate_after_fold_isolated_mt5_tick
+  refines:
+  - dec_20260705_open_c0010_r0002_monthly_loss_memory_abstention_run
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  rationale:
+  - r0002_completed_proxy_mt5_logic_parity_proxy_vs_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - fold_isolated_mt5_tick_evidence_completed_all_nine_required_folds
+  - r0002_had_three_profitable_folds_six_losing_folds_and_negative_total_fold_isolated_tick_net_pnl
+  - aggregate_tick_pf_was_below_one_and_did_not_meet_strong_profitability_requirement
+  - loss_memory_abstention_reduced_drawdown_but_compressed_activity_to_the_lower_target_boundary_and_did_not_create_candidate_quality
+  - r0002_is_recorded_as_negative_memory_not_selected_candidate_economics_pass_runtime_onnx_promotion_or_live_claim
+  - next_work_is_decide_c0010_r0003_or_close_c0010_after_r0002
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    onnx_ready: false
+    promotion_ready: false
