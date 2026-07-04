@@ -319,6 +319,16 @@ def build_commands() -> dict[str, CommandSpec]:
     add_command(
         commands,
         CommandSpec(
+            "run-c0011-r0001-proxy",
+            "run C0011 R0001 proxy evidence",
+            "proxy_required_kpis",
+            target("axiom_rift.proxies.c0011_r0001_setup_lifecycle_timing", "run_c0011_r0001_proxy"),
+            args=(DRY_RUN_ARG,),
+        ),
+    )
+    add_command(
+        commands,
+        CommandSpec(
             "validate-templates",
             "validate campaign templates and contract alignment",
             "validate_templates",

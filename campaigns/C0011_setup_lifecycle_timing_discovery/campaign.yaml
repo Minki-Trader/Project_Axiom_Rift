@@ -1,6 +1,6 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: open
+status: mt5_probe_attempts
 campaign_id: C0011
 campaign_slug: setup_lifecycle_timing_discovery
 campaign_type: campaign
@@ -12,8 +12,8 @@ hypothesis:
     preserving target activity and improving cost buffer after MT5 tick execution
   boundary: model setup birth, maturation, trigger, early confirmation, decay, and invalidation
     states from closed US100 M5 bars using train-only rolling-window features; generate fixed-lot
-    entry schedules from lifecycle timing rather than adding post-hoc monthly, structural, cost,
-    score, stop, target, hold, or session filters to earlier fragile candidates
+    entry schedules from lifecycle timing rather than adding post-hoc monthly, structural,
+    cost, score, stop, target, hold, or session filters to earlier fragile candidates
   not_in_scope:
   - selected_claim
   - runtime_authority
@@ -54,10 +54,10 @@ run_index:
   closed_runs: []
   next_run_candidate:
     run_id: R0001
-    direction: produce_c0011_r0001_proxy_evidence
-    reason: R0001 is opened to test fold-local setup lifecycle phase timing as the first true
-      C0011 variant; proxy evidence is next and cannot be used as a gate to skip MT5.
-    status: opened_pending_proxy
+    direction: active_c0011_r0001_mt5_logic_parity
+    reason: R0001 proxy evidence is recorded; next work is mandatory MT5 logic parity before
+      any hypothesis judgment.
+    status: active_run_open
 synthesis_readiness:
   check_required_at_closeout: true
   result: not_checked
@@ -67,7 +67,7 @@ closeout:
   status: open
   close_reason: null
   evidence_paths: []
-  remaining_question: produce_c0011_r0001_proxy_evidence
+  remaining_question: produce_c0011_r0001_mt5_logic_parity_evidence
 claim_boundary:
   claim_authority: false
   selected: false

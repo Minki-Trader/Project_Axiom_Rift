@@ -1,23 +1,70 @@
 {
-  "schema": "axiom_rift_artifact_lineage_v1",
-  "template": false,
-  "work_unit_id": "C0011",
-  "run_id": "R0001",
-  "lineage_id": "L-C0011-R0001",
-  "created_at_utc": "2026-07-04T16:00:51Z",
-  "artifact_records": [],
-  "deferred_with_reason": [
+  "artifact_records": [
     {
-      "artifact_role": "proxy_and_mt5_artifacts",
-      "reason": "run_opened_artifacts_not_produced_yet",
-      "next_action": "produce_c0011_r0001_proxy_evidence"
+      "artifact_id": "A-C0011-R0001-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0011_r0001_setup_lifecycle_timing",
+      "repo_relative_path": "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/proxy.json",
+      "sha256": "07c042a38eeab069339fd8aeeeeb6dd225324d9ebefc5c12bcfa203fa925c88b",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0011-R0001-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0011_r0001_setup_lifecycle_timing",
+      "repo_relative_path": "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/artifacts/c0011_r0001_proxy_trades.csv",
+      "sha256": "55cb31fe07ca73ddcff61006d3108333793005be31241b726f6d2a0ef73259bd",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0011-R0001-SETUP-LIFECYCLE-SUMMARY",
+      "artifact_role": "setup_lifecycle_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0011_r0001_setup_lifecycle_timing",
+      "repo_relative_path": "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/artifacts/c0011_r0001_setup_lifecycle_summary.json",
+      "sha256": "64eec06e8662f8674b8d23a208f0728c697652acaa8eacca7ecfc59e3027d619",
+      "source_inputs": [
+        "campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/kpi/proxy.json"
+      ]
     }
   ],
   "claim_boundary": {
     "claim_authority": false,
-    "selected": false,
-    "runtime_authority": false,
+    "live_ready": false,
     "onnx_ready": false,
-    "live_ready": false
-  }
+    "runtime_authority": false,
+    "selected": false
+  },
+  "created_at_utc": "2026-07-04T16:00:51Z",
+  "deferred_with_reason": [
+    {
+      "field": "mt5_artifact_hashes",
+      "next_action": "produce_c0011_r0001_mt5_logic_parity_evidence",
+      "reason": "MT5 artifacts are produced after proxy evidence in the mandatory paired validation sequence"
+    }
+  ],
+  "lineage_id": "L-C0011-R0001",
+  "run_id": "R0001",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "template": false,
+  "work_unit_id": "C0011"
 }
