@@ -7,15 +7,13 @@ campaign_type: campaign
 opened_at_utc: '2026-07-04T15:53:42Z'
 closed_at_utc: null
 hypothesis:
-  summary: discover whether closed-bar setup lifecycle timing can isolate US100 M5
-    entries that begin near favorable impulse instead of late, decayed, or adverse
-    path phases while preserving target activity and improving cost buffer after MT5
-    tick execution
-  boundary: model setup birth, maturation, trigger, early confirmation, decay, and
-    invalidation states from closed US100 M5 bars using train-only rolling-window
-    features; generate fixed-lot entry schedules from lifecycle timing rather than
-    adding post-hoc monthly, structural, cost, score, stop, target, hold, or session
-    filters to earlier fragile candidates
+  summary: discover whether closed-bar setup lifecycle timing can isolate US100 M5 entries
+    that begin near favorable impulse instead of late, decayed, or adverse path phases while
+    preserving target activity and improving cost buffer after MT5 tick execution
+  boundary: model setup birth, maturation, trigger, early confirmation, decay, and invalidation
+    states from closed US100 M5 bars using train-only rolling-window features; generate fixed-lot
+    entry schedules from lifecycle timing rather than adding post-hoc monthly, structural,
+    cost, score, stop, target, hold, or session filters to earlier fragile candidates
   not_in_scope:
   - selected_claim
   - runtime_authority
@@ -30,37 +28,38 @@ hypothesis:
 required_surfaces:
   model:
     status: variable
-    summary: unrestricted lifecycle state model, ranker, classifier, hazard model,
-      sequence score, ensemble, or later model family; no model family is selected
+    summary: unrestricted lifecycle state model, ranker, classifier, hazard model, sequence
+      score, ensemble, or later model family; no model family is selected
   feature:
     status: variable
-    summary: unrestricted closed-bar features for setup age, compression maturity,
-      trigger freshness, retest count, early impulse quality, adverse path pressure,
-      spread state, volatility transition, session phase, and decay risk; no feature
-      set is selected
+    summary: unrestricted closed-bar features for setup age, compression maturity, trigger
+      freshness, retest count, early impulse quality, adverse path pressure, spread state,
+      volatility transition, session phase, and decay risk; no feature set is selected
   trade_logic:
     status: variable
-    summary: variable fixed-lot lifecycle-trigger entry timing, direction selection,
-      abstention, frequency control, stop, target, hold, exit, and decay invalidation
-      logic; equity-percent sizing remains deferred
+    summary: variable fixed-lot lifecycle-trigger entry timing, direction selection, abstention,
+      frequency control, stop, target, hold, exit, and decay invalidation logic; equity-percent
+      sizing remains deferred
   label:
     status: variable
     summary: variable labels for early favorable impulse, target-before-stop, time-to-favorable
-      move, adverse-first path avoidance, decay risk, cost-buffer survival, and fold
-      consistency; no label is selected
+      move, adverse-first path avoidance, decay risk, cost-buffer survival, and fold consistency;
+      no label is selected
 run_index:
   runs_root: runs/
   run_id_format: R0001
   active_run: null
   opened_runs:
   - runs/R0001
+  - runs/R0002
   closed_runs:
   - runs/R0001
+  - runs/R0002
   next_run_candidate:
-    run_id: R0002
-    direction: decide_c0011_r0002_or_close_c0011_after_r0001
-    reason: R0001 closed no-candidate after fold-isolated MT5 tick and execution-divergence
-      evidence; decide whether C0011 has a materially different R0002 or should close.
+    run_id: R0003
+    direction: decide_c0011_r0003_or_close_c0011_after_r0002
+    reason: R0002 closed no-candidate after fold-isolated MT5 tick and execution-divergence
+      evidence; decide whether C0011 has a materially different R0003 or should close.
     status: pending_decision
 synthesis_readiness:
   check_required_at_closeout: true
@@ -71,7 +70,7 @@ closeout:
   status: open
   close_reason: null
   evidence_paths: []
-  remaining_question: decide_c0011_r0002_or_close_c0011_after_r0001
+  remaining_question: decide_c0011_r0003_or_close_c0011_after_r0002
 claim_boundary:
   claim_authority: false
   selected: false

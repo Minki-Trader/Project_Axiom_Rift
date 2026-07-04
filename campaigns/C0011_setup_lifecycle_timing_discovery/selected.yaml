@@ -31,16 +31,18 @@ claim_boundary:
 latest_negative_memory:
   source_runs:
   - runs/R0001
+  - runs/R0002
   status: recorded
   basis: rolling_window_fold_isolated_mt5_tick
-  reason_not_candidate: fold-isolated MT5 tick evidence had zero profitable folds,
-    nine losing folds, negative total tick net PnL, aggregate tick PF below 1.0, and
-    severe full-period tick drawdown despite target-range proxy activity
+  reason_not_candidate: fold-isolated MT5 tick evidence had only one profitable fold and eight
+    losing folds, negative total tick net PnL, aggregate tick PF below 1.0, and negative proxy
+    and MT5 economics despite target-range activity
   blocks:
   - setup_lifecycle_phase_timing_rank_retry
+  - setup_invalidation_reversal_rank_retry
   - lifecycle_score_floor_phase_whitelist_retry_nudge
-  - trigger_freshness_setup_age_duplicate_spacing_stop_target_hold_session_retry_nudge
-  next_required_action: decide_c0011_r0002_or_close_c0011_after_r0001
+  - failed_setup_decay_trigger_freshness_stop_target_hold_session_retry_nudge
+  next_required_action: decide_c0011_r0003_or_close_c0011_after_r0002
   claim_boundary:
     claim_authority: false
     selected: false

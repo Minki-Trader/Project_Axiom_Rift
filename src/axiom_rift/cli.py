@@ -184,6 +184,11 @@ RUN_SPECS: tuple[RunSpec, ...] = (
         "axiom_rift.mt5.c0011_r0001_probe",
         "axiom_rift.proxies.c0011_r0001_setup_lifecycle_timing",
     ),
+    RunSpec(
+        "c0011_r0002",
+        "axiom_rift.mt5.c0011_r0002_probe",
+        "axiom_rift.proxies.c0011_r0002_setup_invalidation_reversal",
+    ),
 )
 
 

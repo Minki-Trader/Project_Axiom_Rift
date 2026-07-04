@@ -104,20 +104,20 @@ active_campaign: campaigns/C0011_setup_lifecycle_timing_discovery
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0011_r0001_no_candidate
+  id: close_c0011_r0002_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001/gate_report.json
+  recorded_at_source: campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0002/gate_report.json
   evidence_status: closed_no_candidate
-  proxy_trade_count: 4468
-  entries_per_active_day: 7.703448
-  mt5_tick_trade_count: 4465
-  total_tick_net_pnl: -252.0
-  profitable_fold_count: 0
-  losing_fold_count: 9
-  reason_not_candidate: fold-isolated MT5 tick evidence had zero profitable folds,
-    nine losing folds, negative total tick net PnL, aggregate tick PF below 1.0, and
-    severe full-period tick drawdown despite target-range proxy activity
-  next_required_action: decide_c0011_r0002_or_close_c0011_after_r0001
+  proxy_trade_count: 4358
+  entries_per_active_day: 7.513793
+  mt5_tick_trade_count: 4344
+  total_tick_net_pnl: -81.49
+  profitable_fold_count: 1
+  losing_fold_count: 8
+  reason_not_candidate: fold-isolated MT5 tick evidence had only one profitable fold and eight
+    losing folds, negative total tick net PnL, aggregate tick PF below 1.0, and negative proxy
+    and MT5 economics despite target-range activity
+  next_required_action: decide_c0011_r0003_or_close_c0011_after_r0002
   claim_boundary:
     claim_authority: false
     selected: false
