@@ -46,11 +46,11 @@
             "required_kpis": {
               "mt5_execution_mode": "tick_execution",
               "mt5_exit_evaluation": "tick_price",
-              "mt5_expectancy_per_entry": -0.007596,
-              "mt5_max_drawdown_percent": 1.102,
-              "mt5_net_pnl": -3.57,
+              "mt5_expectancy_per_entry": -0.007617,
+              "mt5_max_drawdown_percent": 1.104,
+              "mt5_net_pnl": -3.58,
               "mt5_output_mode": "tick_execution",
-              "mt5_profit_factor": 0.871675,
+              "mt5_profit_factor": 0.871362,
               "mt5_trade_count": 470,
               "mt5_win_rate": 0.421277
             },
@@ -72,11 +72,11 @@
             "required_kpis": {
               "mt5_execution_mode": "tick_execution",
               "mt5_exit_evaluation": "tick_price",
-              "mt5_expectancy_per_entry": -0.023383,
-              "mt5_max_drawdown_percent": 2.78,
-              "mt5_net_pnl": -11.06,
+              "mt5_expectancy_per_entry": -0.023404,
+              "mt5_max_drawdown_percent": 2.782,
+              "mt5_net_pnl": -11.07,
               "mt5_output_mode": "tick_execution",
-              "mt5_profit_factor": 0.753345,
+              "mt5_profit_factor": 0.753177,
               "mt5_trade_count": 473,
               "mt5_win_rate": 0.340381
             },
@@ -176,11 +176,11 @@
             "required_kpis": {
               "mt5_execution_mode": "tick_execution",
               "mt5_exit_evaluation": "tick_price",
-              "mt5_expectancy_per_entry": -0.01079,
+              "mt5_expectancy_per_entry": -0.010813,
               "mt5_max_drawdown_percent": 1.42,
-              "mt5_net_pnl": -4.78,
+              "mt5_net_pnl": -4.79,
               "mt5_output_mode": "tick_execution",
-              "mt5_profit_factor": 0.848686,
+              "mt5_profit_factor": 0.84837,
               "mt5_trade_count": 443,
               "mt5_win_rate": 0.399549
             },
@@ -202,11 +202,11 @@
             "required_kpis": {
               "mt5_execution_mode": "tick_execution",
               "mt5_exit_evaluation": "tick_price",
-              "mt5_expectancy_per_entry": -0.015323,
-              "mt5_max_drawdown_percent": 1.434,
-              "mt5_net_pnl": -6.16,
+              "mt5_expectancy_per_entry": -0.015348,
+              "mt5_max_drawdown_percent": 1.436,
+              "mt5_net_pnl": -6.17,
               "mt5_output_mode": "tick_execution",
-              "mt5_profit_factor": 0.839038,
+              "mt5_profit_factor": 0.838819,
               "mt5_trade_count": 402,
               "mt5_win_rate": 0.378109
             },
@@ -266,7 +266,7 @@
       "fields": {}
     }
   },
-  "created_at_utc": "2026-07-02T06:50:06Z",
+  "created_at_utc": "2026-07-03T14:26:12Z",
   "deferred_with_reason": [],
   "missing_required_kpi_fields": [],
   "mt5_probe_id": "MT50005_BY_FOLD",
@@ -278,11 +278,11 @@
     "missing_required_fold_count": 0,
     "mt5_tick_by_fold_status": "completed",
     "profitable_fold_count": 0,
-    "total_tick_net_pnl": -63.22,
+    "total_tick_net_pnl": -63.26,
     "total_tick_trade_count": 4048,
     "worst_drawdown_fold_id": "rw_003",
     "worst_fold_id": "rw_001",
-    "worst_fold_max_drawdown_percent": 2.78,
+    "worst_fold_max_drawdown_percent": 2.782,
     "worst_fold_net_pnl": -12.03
   },
   "requirement_policy": "required_and_conditional_required_with_deferred_reason",

@@ -69,7 +69,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0005_r0001_probe",
       "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/kpi/mt5_logic_parity.json",
-      "sha256": "387efff8cae94a5758aaa005917bfa27b3d8370ce21f506b37dcc74402231e7c",
+      "sha256": "7239a54e91eae896ab98601d804bbf2ec6eed3e2f9c2f8c08cbc1d72a0edd492",
       "source_inputs": [
         "campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/artifacts/c0005_r0001_schedule.csv",
         "configs/market.yaml"
@@ -84,7 +84,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0005_r0001_probe",
       "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
-      "sha256": "bb089890183183c4bdae858677e620be51db9d82bb36b50eadea5fef6e51063e",
+      "sha256": "a6169b93fa24e6dc915b369de57cb5d6605f39a818c58dff5060f32fd6cdb52d",
       "source_inputs": [
         "campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/kpi/proxy.json",
         "campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/kpi/mt5_logic_parity.json"
@@ -99,7 +99,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0005_r0001_probe",
       "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/kpi/mt5_tick.json",
-      "sha256": "cb56a3ded95c70f9458273896c031032f4a0ad4513f3eeb88fee210f1cdf28f3",
+      "sha256": "16d82bb6f3116002caf5defe36f26bb9bdea7ce5f80cb6be73ab8eee3708c57e",
       "source_inputs": [
         "campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/artifacts/c0005_r0001_schedule.csv",
         "configs/market.yaml"
@@ -114,7 +114,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0005_r0001_probe",
       "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/kpi/execution_divergence.json",
-      "sha256": "f10c228404761693a1863a2b149baaac5af683cb3fa905a4986a97cd10c9a97e",
+      "sha256": "198d6d6023e89085be5c051bdc844ad4f7b4b56728bb1fcad78f8cdcdae251bf",
       "source_inputs": [
         "campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/kpi/mt5_logic_parity.json",
         "campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/kpi/mt5_tick.json"
@@ -129,7 +129,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0005_r0001_probe",
       "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
-      "sha256": "edaeedb5abab15d6aef9e2731922cc16a301bf0b9c95921a74742af0bfa84c54",
+      "sha256": "d6bc2cc069c52dca2250e4525c5f53ab761d29ccdda14d3cc3e4db18a22caa14",
       "source_inputs": [
         "campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/artifacts/c0005_r0001_schedule.csv",
         "registries/rolling_windows.yaml",
@@ -145,7 +145,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0005_r0001_probe",
       "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
-      "sha256": "9d19c51dc3a7836e1d82a9a9286e035272cbc13b2da3dfbda2214d314e3632dd",
+      "sha256": "d1b63727bbaff04aec47312e7f4de2bbc339cea3fd6c74b5d945b4ddd798dff9",
       "source_inputs": [
         "campaigns/C0005_continuous_analog_memory_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"
@@ -177,9 +177,9 @@
   "created_at_utc": "2026-07-02T23:27:27Z",
   "deferred_with_reason": [
     {
-      "field": "next_campaign_run_or_campaign_close_decision",
-      "next_action": "decide_c0005_r0002_or_close_c0005_after_r0001",
-      "reason": "C0005 R0001 is closed no candidate; C0005 remains open pending a true R0002 variant or campaign close decision"
+      "field": "closeout_review",
+      "next_action": "review_c0005_r0001_tick_execution_kpi_and_closeout",
+      "reason": "fold-isolated MT5 tick and execution divergence artifacts are recorded; closeout review is the next mandatory sequence step"
     }
   ],
   "lineage_id": "L-C0005-R0001",

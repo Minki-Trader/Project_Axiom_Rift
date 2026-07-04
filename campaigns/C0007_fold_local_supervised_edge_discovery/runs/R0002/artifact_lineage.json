@@ -69,7 +69,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0007_r0002_probe",
       "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/kpi/mt5_logic_parity.json",
-      "sha256": "bc64b0ec507ccac7e1898526ea80869cded21115925b455f300ec3586c20ba7b",
+      "sha256": "864df68106ac3a3bb2c14fa4afe42a045544101fe4c35d214501a9995fc2911f",
       "source_inputs": [
         "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/artifacts/c0007_r0002_schedule.csv",
         "configs/market.yaml"
@@ -84,7 +84,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0007_r0002_probe",
       "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/kpi/proxy_vs_mt5_logic_parity.json",
-      "sha256": "54d94ba5edbaec6d8d95a662edee578a1b5078a85ab6f54aced9c2306fa89595",
+      "sha256": "85c530cee10ed9cca26cf5a2db908cbdb58da891fa5a5360fa49b99e6a937030",
       "source_inputs": [
         "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/kpi/proxy.json",
         "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/kpi/mt5_logic_parity.json"
@@ -99,7 +99,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0007_r0002_probe",
       "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/kpi/mt5_tick.json",
-      "sha256": "059ca843405072c43be367ae1bdf702fbe150ea9d44a813c024ba9e585612b8b",
+      "sha256": "279d8223822cca9a2573809ff6ebe354e2a92db598f4c085701191b8e61fdb49",
       "source_inputs": [
         "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/artifacts/c0007_r0002_schedule.csv",
         "configs/market.yaml"
@@ -114,7 +114,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0007_r0002_probe",
       "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/kpi/execution_divergence.json",
-      "sha256": "ad399b4085603dc7ed8142569fdbcedbda732fc451caefd9ebe9e61efc4f489f",
+      "sha256": "c42df3973682455a1a290593139bc0e9e736fce34cda4b770c3202ca63393162",
       "source_inputs": [
         "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/kpi/mt5_logic_parity.json",
         "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/kpi/mt5_tick.json"
@@ -129,7 +129,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0007_r0002_probe",
       "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
-      "sha256": "160a4190925e488661a4994cf1d87100dced3c5605ec928377fba2b94a484759",
+      "sha256": "ba066d40fc7058d18f47468760d61bb50978bc0903d183c6a9d8bb4e20df5132",
       "source_inputs": [
         "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/artifacts/c0007_r0002_schedule.csv",
         "registries/rolling_windows.yaml",
@@ -145,7 +145,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0007_r0002_probe",
       "repo_relative_path": "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/kpi/execution_divergence_by_fold.json",
-      "sha256": "46641a8f1e97c8488a6a89e6ea487009a81418505a0edb5fe5a7eaab58adc3e4",
+      "sha256": "be22752b659d894212fcba38c85e697bbadbc873883499faf405289f16c6c625",
       "source_inputs": [
         "campaigns/C0007_fold_local_supervised_edge_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"

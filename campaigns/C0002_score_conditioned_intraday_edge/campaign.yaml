@@ -115,7 +115,7 @@ closeout:
   - runs/R0004/gate_report.json
   - runs/R0004/kpi/mt5_tick_by_fold.json
   - selected.yaml
-  remaining_question: choose_c0003_new_major_hypothesis_or_wait_until_more_campaign_evidence_supports_synthesis
+  remaining_question: produce_c0002_r0004_fold_isolated_mt5_tick_kpi
   decision_basis:
     closed_run_count: 4
     closed_no_candidate_run_count: 4

@@ -69,7 +69,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0006_r0002_probe",
       "repo_relative_path": "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/kpi/mt5_logic_parity.json",
-      "sha256": "5a2bb58ee535ad5e01df7304cf6d8f00e49a0ae844f80d338a2d88dd47387b16",
+      "sha256": "2d0a78665f55b3537c7febfe602d8d7b5bafd7e49b61ae2797fa5e32191f566b",
       "source_inputs": [
         "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/artifacts/c0006_r0002_schedule.csv",
         "configs/market.yaml"
@@ -84,7 +84,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0006_r0002_probe",
       "repo_relative_path": "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/kpi/proxy_vs_mt5_logic_parity.json",
-      "sha256": "d7cb3408e0e37681e79fa7b695b44031dc6ba156d4becfd0fe2fc4d0e2b823c2",
+      "sha256": "489a525cea6825a353b6935c6d1628310fa6ffee990c1fdb8b15a0c1b571be8e",
       "source_inputs": [
         "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/kpi/proxy.json",
         "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/kpi/mt5_logic_parity.json"
@@ -99,7 +99,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0006_r0002_probe",
       "repo_relative_path": "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/kpi/mt5_tick.json",
-      "sha256": "5aadb255c3b2410b129e48396bbd88a395fa99b912273699a93129a593e9205b",
+      "sha256": "3737c4b9a4191c1720763b2969c4c417c66c04d0b8f8687a29fb76bf412bbacc",
       "source_inputs": [
         "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/artifacts/c0006_r0002_schedule.csv",
         "configs/market.yaml"
@@ -114,7 +114,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0006_r0002_probe",
       "repo_relative_path": "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/kpi/execution_divergence.json",
-      "sha256": "1eb2d266ac701034e6ac6498af674e687ddaf0eb991a1699aaa3e34a6e723eb8",
+      "sha256": "9e978bcee0ef4df8f9a372e5e0efe83e66d35ad6097aaa837686bfb821af8a22",
       "source_inputs": [
         "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/kpi/mt5_logic_parity.json",
         "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/kpi/mt5_tick.json"
@@ -129,7 +129,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0006_r0002_probe",
       "repo_relative_path": "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
-      "sha256": "70a5aab1b030c51d4a09bc35694d9c238fd6cb5bc3a1d15b428ae1e514e77bd3",
+      "sha256": "17ee4f142f2c2387b19fd5e1c25b9f5eeb8b49aa2ad85bc1db62fd95292e89a0",
       "source_inputs": [
         "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/artifacts/c0006_r0002_schedule.csv",
         "registries/rolling_windows.yaml",
@@ -145,7 +145,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0006_r0002_probe",
       "repo_relative_path": "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/kpi/execution_divergence_by_fold.json",
-      "sha256": "bab2e1f9263faa4a1dc77d10474ba8791909b5de8aeb9e1420a344e1b47626dd",
+      "sha256": "26246dcfa4bfcee7a6f39e9ff120191c494ce8cfd18665d026910db017abbc26",
       "source_inputs": [
         "campaigns/C0006_liquidity_sweep_reclaim_event_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"
@@ -160,7 +160,13 @@
     "selected": false
   },
   "created_at_utc": "2026-07-03T04:11:36Z",
-  "deferred_with_reason": [],
+  "deferred_with_reason": [
+    {
+      "field": "closeout_review",
+      "next_action": "review_c0006_r0002_tick_execution_kpi_and_closeout",
+      "reason": "fold-isolated MT5 tick and execution divergence artifacts are recorded; closeout review is the next mandatory sequence step"
+    }
+  ],
   "lineage_id": "L-C0006-R0002",
   "run_id": "R0002",
   "schema": "axiom_rift_artifact_lineage_v1",

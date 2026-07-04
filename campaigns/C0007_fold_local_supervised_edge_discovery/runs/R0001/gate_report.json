@@ -96,8 +96,15 @@
     },
     "status": "closed_no_candidate"
   },
-  "decision": "close_no_candidate",
-  "deferred_with_reason": [],
+  "decision": "defer_with_reason",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "review_c0007_r0001_tick_execution_kpi_and_closeout",
+      "field": "run_closeout",
+      "reason": "fold-isolated MT5 tick KPI and fold-isolated execution divergence are recorded; closeout judgment was not performed in this step",
+      "revisit_when": "during C0007 R0001 closeout review"
+    }
+  ],
   "evidence_gate": {
     "checks": {
       "artifact_lineage_path_recorded": true,
@@ -109,7 +116,7 @@
       "proxy_kpi_path_recorded": true,
       "proxy_vs_mt5_logic_parity_kpi_path_recorded": true
     },
-    "status": "passed"
+    "status": "fold_isolated_evidence_recorded"
   },
   "evidence_paths": [
     "artifact_lineage.json",
@@ -146,7 +153,7 @@
     "claim_selected",
     "claim_runtime_authority"
   ],
-  "next_action": "decide_c0007_r0002_or_close_c0007_after_r0001",
+  "next_action": "review_c0007_r0001_tick_execution_kpi_and_closeout",
   "parity_gate": {
     "intent_parity_status": "passed_schedule_replay_boundary",
     "mechanical_parity_status": "passed",
@@ -166,7 +173,7 @@
     "fold_isolated_execution_divergence_path_recorded": true,
     "fold_isolated_mt5_tick_path_recorded": true,
     "fold_isolated_mt5_tick_required": true,
-    "status": "passed"
+    "status": "fold_isolated_evidence_recorded_pending_closeout_review"
   },
   "run_id": "R0001",
   "schema": "axiom_rift_gate_report_v1",

@@ -84,7 +84,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "test whether fold-local temporal-stability and dispersion-aware analog memory can filter unstable nearest-neighbor edges that defeated R0001 mean scoring and R0002 favorable-minus-adverse contrast scoring",
     "variant_boundary": "third C0005 true variant; changes model family, feature representation, label shape, score stability calibration, and trade-logic interpretation to recency-weighted inner-vs-outer neighborhood agreement and dispersion-aware analog scoring; not a neighbor-count, analog-distance, lift, adverse-rate, daily-count, stop, target, hold, session, or retry nudge"
@@ -141,7 +141,7 @@
     "C0005_R0001_negative_memory",
     "C0005_R0002_negative_memory"
   ],
-  "status": "closed_no_candidate",
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

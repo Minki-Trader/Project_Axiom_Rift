@@ -14,86 +14,6 @@
     "selected": false
   },
   "closed_at_utc": "2026-07-03T11:57:36Z",
-  "evidence_paths": {
-    "artifact_lineage": "artifact_lineage.json",
-    "candidate_robustness_source": "../R0002/kpi/candidate_robustness_audit.json",
-    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
-    "execution_divergence_kpi": "kpi/execution_divergence.json",
-    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
-    "mt5_schedule_artifact": "artifacts/c0008_r0003_schedule.csv",
-    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
-    "mt5_tick_kpi": "kpi/mt5_tick.json",
-    "proxy_kpi": "kpi/proxy.json",
-    "proxy_trade_artifact": "artifacts/c0008_r0003_proxy_trades.csv",
-    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
-    "structural_trap_robustness_summary": "artifacts/c0008_r0003_structural_trap_robustness_summary.json"
-  },
-  "gate_status": "close_no_candidate",
-  "hypothesis_variant": {
-    "summary": "fold_local_structural_trap_reversal_robustness_conditioner",
-    "variant_boundary": "third C0008 true variant; reuses closed-M5-derived structural trap/reclaim candidate grammar but changes the model, label, feature, and score surface to fold-local robust-positive versus fragile-adverse conditioning informed by R0002 cost-buffer and monthly-stability weaknesses; not a R0002 threshold, daily-count, stop, target, hold, session, or retry nudge"
-  },
-  "mt5_probe_plan": {
-    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
-    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
-    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
-    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
-    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
-    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
-    "logic_parity_purpose": "proxy_selected_structural_trap_reversal_schedule_vs_ea_closed_bar_lifecycle_parity",
-    "notes": [],
-    "required": true,
-    "required_even_when_proxy_is_weak": true,
-    "tick_kpi_path": "kpi/mt5_tick.json"
-  },
-  "opened_at_utc": "2026-07-03T11:33:45Z",
-  "parent_type": "campaign",
-  "proxy_plan": {
-    "kpi_path": "kpi/proxy.json",
-    "notes": [
-      "proxy_result_cannot_close_run_without_mt5_paired_validation"
-    ],
-    "required": true,
-    "screening_gate_for_mt5": false,
-    "weak_result_may_skip_mt5": false
-  },
-  "proxy_vs_mt5_plan": {
-    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
-    "notes": [],
-    "required": true
-  },
-  "repair": {
-    "hypothesis_repair_count": 0,
-    "hypothesis_repair_limit": 3,
-    "mechanical_parity_repairs_count_toward_limit": false,
-    "repair_records": []
-  },
-  "run_id": "R0003",
-  "schema": "axiom_rift_run_manifest_v1",
-  "source_ingredient_ids": [
-    "C0008-R0002-candidate-robustness-audit"
-  ],
-  "status": "closed_no_candidate",
-  "surfaces": {
-    "feature": {
-      "changed_from_campaign_default": true,
-      "summary": "R0002 structural trap context features plus derived fold-local conditioner features for base trap score, cost pressure, trap depth, reclaim strength, trend conflict, and range shock"
-    },
-    "label": {
-      "changed_from_campaign_default": true,
-      "summary": "fold-local robustness-adjusted trap reversal quality that penalizes cost pressure, range shock, and trend conflict before defining robust-positive and fragile-adverse training groups"
-    },
-    "model": {
-      "changed_from_campaign_default": true,
-      "summary": "fold-local robust-positive versus fragile-adverse centroid conditioner layered over the R0002 trap reversal centroid surface"
-    },
-    "trade_logic": {
-      "changed_from_campaign_default": true,
-      "summary": "dual-direction core-session structural trap/reclaim candidates selected by robustness-conditioned daily ranking, next-bar entry, fixed discovery stop/target/hold exits, and mandatory MT5 schedule replay"
-    }
-  },
-  "template": false,
-  "work_unit_id": "C0008",
   "closeout_review": {
     "basis": "rolling_window_fold_isolated_mt5_tick",
     "claim_boundary": {
@@ -161,12 +81,92 @@
       "proxy_profit_factor": 0.967005,
       "proxy_trade_count": 4250,
       "tick_better_fold_count": 1,
-      "tick_worse_fold_count": 8,
       "tick_minus_logic_net_pnl": -17.39,
+      "tick_worse_fold_count": 8,
       "total_tick_minus_logic_net_pnl": -17.39,
       "total_tick_net_pnl": -12.51,
       "total_tick_trade_count": 4235
     },
     "status": "closed_no_candidate"
-  }
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "candidate_robustness_source": "../R0002/kpi/candidate_robustness_audit.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0008_r0003_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0008_r0003_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "structural_trap_robustness_summary": "artifacts/c0008_r0003_structural_trap_robustness_summary.json"
+  },
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
+  "hypothesis_variant": {
+    "summary": "fold_local_structural_trap_reversal_robustness_conditioner",
+    "variant_boundary": "third C0008 true variant; reuses closed-M5-derived structural trap/reclaim candidate grammar but changes the model, label, feature, and score surface to fold-local robust-positive versus fragile-adverse conditioning informed by R0002 cost-buffer and monthly-stability weaknesses; not a R0002 threshold, daily-count, stop, target, hold, session, or retry nudge"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_structural_trap_reversal_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "notes": [],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-03T11:33:45Z",
+  "parent_type": "campaign",
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy_result_cannot_close_run_without_mt5_paired_validation"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0003",
+  "schema": "axiom_rift_run_manifest_v1",
+  "source_ingredient_ids": [
+    "C0008-R0002-candidate-robustness-audit"
+  ],
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "R0002 structural trap context features plus derived fold-local conditioner features for base trap score, cost pressure, trap depth, reclaim strength, trend conflict, and range shock"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "fold-local robustness-adjusted trap reversal quality that penalizes cost pressure, range shock, and trend conflict before defining robust-positive and fragile-adverse training groups"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "fold-local robust-positive versus fragile-adverse centroid conditioner layered over the R0002 trap reversal centroid surface"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "dual-direction core-session structural trap/reclaim candidates selected by robustness-conditioned daily ranking, next-bar entry, fixed discovery stop/target/hold exits, and mandatory MT5 schedule replay"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0008"
 }

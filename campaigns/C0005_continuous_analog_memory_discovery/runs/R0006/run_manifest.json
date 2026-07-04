@@ -1,189 +1,185 @@
 {
-    "claim_boundary":  {
-                           "claim_authority":  false,
-                           "economics_pass":  false,
-                           "feature_set_selected":  false,
-                           "label_selected":  false,
-                           "live_ready":  false,
-                           "materialization_ready":  false,
-                           "model_selected":  false,
-                           "onnx_ready":  false,
-                           "promotion_ready":  false,
-                           "runtime_authority":  false,
-                           "runtime_probe_completed":  false,
-                           "selected":  false
-                       },
-    "evidence_paths":  {
-                           "analog_memory_summary":  "artifacts/c0005_r0006_analog_memory_summary.json",
-                           "artifact_lineage":  "artifact_lineage.json",
-                           "execution_divergence_by_fold_kpi":  "kpi/execution_divergence_by_fold.json",
-                           "execution_divergence_kpi":  "kpi/execution_divergence.json",
-                           "gate_report":  "gate_report.json",
-                           "mt5_logic_parity_kpi":  "kpi/mt5_logic_parity.json",
-                           "mt5_schedule_artifact":  "artifacts/c0005_r0006_schedule.csv",
-                           "mt5_tick_by_fold_kpi":  "kpi/mt5_tick_by_fold.json",
-                           "mt5_tick_kpi":  "kpi/mt5_tick.json",
-                           "proxy_kpi":  "kpi/proxy.json",
-                           "proxy_trade_artifact":  "artifacts/c0005_r0006_proxy_trades.csv",
-                           "proxy_vs_mt5_logic_parity_kpi":  "kpi/proxy_vs_mt5_logic_parity.json"
-                       },
-    "fixed_surfaces":  {
-                           "market":  "FPMarkets US100 M5 closed-bar base frame",
-                           "sizing":  "fixed_lot_early_discovery",
-                           "split_policy":  "rolling_window_train_is_test_oos",
-                           "validation":  "proxy_plus_mt5_logic_tick_divergence_and_fold_isolated_closeout_required"
-                       },
-    "gate_status":  "close_no_candidate",
-    "hypothesis_variant":  {
-                               "summary":  "test whether fold-local supervised metric weighting plus rank-ensemble local-similarity scoring can extract a repeatable US100 M5 analog-memory edge after mean, contrast, temporal-stability, target-first hazard, and calibrated classifier analog scores failed",
-                               "variant_boundary":  "sixth C0005 true variant; changes model family, feature metric, local-similarity geometry, score aggregation, and ranking surface to train-fold supervised metric weights plus rank ensemble; not a classifier probability, logistic C, neighbor count, analog distance, daily-count, stop, target, hold, session, or retry nudge of R0001 through R0005"
-                           },
-    "mt5_probe_plan":  {
-                           "closeout_judgment_surface":  "rolling_window_fold_isolated_mt5_tick",
-                           "execution_divergence_kpi_path":  "kpi/execution_divergence.json",
-                           "fold_isolated_execution_divergence_kpi_path":  "kpi/execution_divergence_by_fold.json",
-                           "fold_isolated_tick_kpi_path":  "kpi/mt5_tick_by_fold.json",
-                           "logic_parity_boundary":  "schedule_replay_no_runtime_or_onnx_claim",
-                           "logic_parity_kpi_path":  "kpi/mt5_logic_parity.json",
-                           "logic_parity_purpose":  "proxy_selected_metric_rank_ensemble_analog_memory_schedule_vs_ea_closed_bar_lifecycle_parity",
-                           "notes":  [
-                                         "aggregate MT5 KPI is diagnostic only"
-                                     ],
-                           "required":  true,
-                           "required_even_when_proxy_is_weak":  true,
-                           "tick_kpi_path":  "kpi/mt5_tick.json"
-                       },
-    "opened_at_utc":  "2026-07-03T02:36:34Z",
-    "parent_type":  "campaign",
-    "prior_negative_memory_inputs":  [
-                                         "C0005_R0001_negative_memory",
-                                         "C0005_R0002_negative_memory",
-                                         "C0005_R0003_negative_memory",
-                                         "C0005_R0004_negative_memory",
-                                         "C0005_R0005_negative_memory"
-                                     ],
-    "proxy_plan":  {
-                       "kpi_path":  "kpi/proxy.json",
-                       "notes":  [
-                                     "proxy is a reference surface only; opened run commits to MT5 paired validation"
-                                 ],
-                       "required":  true,
-                       "screening_gate_for_mt5":  false,
-                       "weak_result_may_skip_mt5":  false
-                   },
-    "proxy_vs_mt5_plan":  {
-                              "logic_parity_kpi_path":  "kpi/proxy_vs_mt5_logic_parity.json",
-                              "notes":  [
-                                            "closed-bar schedule replay checks proxy-vs-EA logic parity"
-                                        ],
-                              "required":  true
-                          },
-    "repair":  {
-                   "hypothesis_repair_count":  0,
-                   "hypothesis_repair_limit":  3,
-                   "mechanical_parity_repairs_count_toward_limit":  false,
-                   "repair_records":  [
-
-                                      ]
-               },
-    "run_id":  "R0006",
-    "schema":  "axiom_rift_run_manifest_v1",
-    "source_ingredient_ids":  [
-
-                              ],
-    "status":  "closed_no_candidate",
-    "surfaces":  {
-                     "feature":  {
-                                     "changed_from_campaign_default":  true,
-                                     "summary":  "continuous closed-bar price, range, wick, session, spread, and path-pressure features transformed by train-fold label-conditioned metric weights; no feature set is selected"
-                                 },
-                     "label":  {
-                                   "changed_from_campaign_default":  true,
-                                   "summary":  "continuous directional favorable-path quality label for train-fold metric weighting and rank target construction; no label is selected"
-                               },
-                     "model":  {
-                                   "changed_from_campaign_default":  true,
-                                   "summary":  "fold-local train-only supervised metric weighting over continuous analog features with local nearest-neighbor diagnostics aggregated by rank ensemble; no model family is selected"
-                               },
-                     "trade_logic":  {
-                                         "changed_from_campaign_default":  true,
-                                         "summary":  "fixed-lot discovery schedule selects highest supervised metric-rank analog-memory scores per active day with spacing and schedule replay for mandatory MT5 validation"
-                                     }
-                 },
-    "template":  false,
-    "work_unit_id":  "C0005",
-    "closed_at_utc":  "2026-07-03T02:57:48Z",
-    "closeout_review":  {
-                            "status":  "closed_no_candidate",
-                            "basis":  "rolling_window_fold_isolated_mt5_tick",
-                            "closed_at_utc":  "2026-07-03T02:57:48Z",
-                            "close_reason":  "no_candidate_after_fold_isolated_mt5_tick_and_execution_divergence_evidence",
-                            "failure_asset":  {
-                                                  "asset_type":  "negative_memory",
-                                                  "hypothesis_tested":  "fold-local supervised metric weighting plus rank-ensemble local-similarity scoring for continuous analog memory entry ranking",
-                                                  "evidence_paths":  [
-                                                                         "kpi/proxy.json",
-                                                                         "kpi/mt5_logic_parity.json",
-                                                                         "kpi/proxy_vs_mt5_logic_parity.json",
-                                                                         "kpi/mt5_tick.json",
-                                                                         "kpi/execution_divergence.json",
-                                                                         "kpi/mt5_tick_by_fold.json",
-                                                                         "kpi/execution_divergence_by_fold.json"
-                                                                     ],
-                                                  "reason_not_candidate":  "fold-isolated MT5 tick evidence completed with 9 losing folds, 0 profitable folds, negative total tick net PnL, and negative proxy plus MT5 tick profitability despite target-range entry frequency",
-                                                  "next_boundary":  "C0005 continuous analog memory is exhausted after nearest-neighbor mean, directional contrast, temporal-stability, target-first tail-hazard, calibrated classifier, and supervised metric-rank ensemble variants; further work should be a new major campaign hypothesis, not analog neighbor, classifier, metric, rank, daily-count, stop, target, hold, session, or threshold nudging",
-                                                  "supporting_lessons":  [
-                                                                             {
-                                                                                 "asset_type":  "execution_divergence_lesson",
-                                                                                 "summary":  "tick execution was worse than closed-bar logic overall, with fold-isolated divergence completed and 5 tick-worse folds",
-                                                                                 "source":  "kpi/execution_divergence_by_fold.json"
-                                                                             },
-                                                                             {
-                                                                                 "asset_type":  "negative_memory",
-                                                                                 "summary":  "supervised metric weighting and rank-ensemble local similarity did not turn C0005 analog memory into a candidate; target activity was met but all fold-isolated tick folds lost",
-                                                                                 "source":  "kpi/mt5_tick_by_fold.json"
-                                                                             }
-                                                                         ]
-                                              },
-                            "required_kpi_summary":  {
-                                                         "proxy_trade_count":  4281,
-                                                         "entries_per_active_day":  7.381034,
-                                                         "proxy_net_pnl_points":  -5901.61,
-                                                         "proxy_profit_factor":  0.866445,
-                                                         "mt5_logic_trade_count":  4281,
-                                                         "mt5_logic_net_pnl":  -61.47,
-                                                         "mt5_logic_profit_factor":  0.866239,
-                                                         "mechanical_parity_status":  "passed",
-                                                         "intent_parity_status":  "passed_schedule_replay_boundary",
-                                                         "mismatch_count":  0,
-                                                         "mt5_tick_trade_count":  4260,
-                                                         "mt5_tick_net_pnl":  -62.32,
-                                                         "mt5_tick_profit_factor":  0.85937,
-                                                         "economics_shift_status":  "tick_worse_than_logic",
-                                                         "tick_minus_logic_net_pnl":  -0.85,
-                                                         "fold_count":  9,
-                                                         "completed_fold_count":  9,
-                                                         "losing_fold_count":  9,
-                                                         "profitable_fold_count":  0,
-                                                         "total_tick_trade_count":  4260,
-                                                         "total_tick_net_pnl":  -62.32,
-                                                         "mt5_tick_by_fold_status":  "completed",
-                                                         "execution_divergence_by_fold_status":  "completed",
-                                                         "total_tick_minus_logic_net_pnl":  -0.85
-                                                     },
-                            "claim_boundary":  {
-                                                   "claim_authority":  false,
-                                                   "selected":  false,
-                                                   "label_selected":  false,
-                                                   "feature_set_selected":  false,
-                                                   "model_selected":  false,
-                                                   "runtime_probe_completed":  false,
-                                                   "economics_pass":  false,
-                                                   "materialization_ready":  false,
-                                                   "runtime_authority":  false,
-                                                   "onnx_ready":  false,
-                                                   "promotion_ready":  false,
-                                                   "live_ready":  false
-                                               }
-                        }
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false
+  },
+  "closed_at_utc": "2026-07-03T02:57:48Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false
+    },
+    "close_reason": "no_candidate_after_fold_isolated_mt5_tick_and_execution_divergence_evidence",
+    "closed_at_utc": "2026-07-03T02:57:48Z",
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "evidence_paths": [
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local supervised metric weighting plus rank-ensemble local-similarity scoring for continuous analog memory entry ranking",
+      "next_boundary": "C0005 continuous analog memory is exhausted after nearest-neighbor mean, directional contrast, temporal-stability, target-first tail-hazard, calibrated classifier, and supervised metric-rank ensemble variants; further work should be a new major campaign hypothesis, not analog neighbor, classifier, metric, rank, daily-count, stop, target, hold, session, or threshold nudging",
+      "reason_not_candidate": "fold-isolated MT5 tick evidence completed with 9 losing folds, 0 profitable folds, negative total tick net PnL, and negative proxy plus MT5 tick profitability despite target-range entry frequency",
+      "supporting_lessons": [
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "tick execution was worse than closed-bar logic overall, with fold-isolated divergence completed and 5 tick-worse folds"
+        },
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "supervised metric weighting and rank-ensemble local similarity did not turn C0005 analog memory into a candidate; target activity was met but all fold-isolated tick folds lost"
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "economics_shift_status": "tick_worse_than_logic",
+      "entries_per_active_day": 7.381034,
+      "execution_divergence_by_fold_status": "completed",
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "mismatch_count": 0,
+      "mt5_logic_net_pnl": -61.47,
+      "mt5_logic_profit_factor": 0.866239,
+      "mt5_logic_trade_count": 4281,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_net_pnl": -62.32,
+      "mt5_tick_profit_factor": 0.85937,
+      "mt5_tick_trade_count": 4260,
+      "profitable_fold_count": 0,
+      "proxy_net_pnl_points": -5901.61,
+      "proxy_profit_factor": 0.866445,
+      "proxy_trade_count": 4281,
+      "tick_minus_logic_net_pnl": -0.85,
+      "total_tick_minus_logic_net_pnl": -0.85,
+      "total_tick_net_pnl": -62.32,
+      "total_tick_trade_count": 4260
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "analog_memory_summary": "artifacts/c0005_r0006_analog_memory_summary.json",
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0005_r0006_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0005_r0006_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "fixed_surfaces": {
+    "market": "FPMarkets US100 M5 closed-bar base frame",
+    "sizing": "fixed_lot_early_discovery",
+    "split_policy": "rolling_window_train_is_test_oos",
+    "validation": "proxy_plus_mt5_logic_tick_divergence_and_fold_isolated_closeout_required"
+  },
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
+  "hypothesis_variant": {
+    "summary": "test whether fold-local supervised metric weighting plus rank-ensemble local-similarity scoring can extract a repeatable US100 M5 analog-memory edge after mean, contrast, temporal-stability, target-first hazard, and calibrated classifier analog scores failed",
+    "variant_boundary": "sixth C0005 true variant; changes model family, feature metric, local-similarity geometry, score aggregation, and ranking surface to train-fold supervised metric weights plus rank ensemble; not a classifier probability, logistic C, neighbor count, analog distance, daily-count, stop, target, hold, session, or retry nudge of R0001 through R0005"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_metric_rank_ensemble_analog_memory_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "notes": [
+      "aggregate MT5 KPI is diagnostic only"
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-03T02:36:34Z",
+  "parent_type": "campaign",
+  "prior_negative_memory_inputs": [
+    "C0005_R0001_negative_memory",
+    "C0005_R0002_negative_memory",
+    "C0005_R0003_negative_memory",
+    "C0005_R0004_negative_memory",
+    "C0005_R0005_negative_memory"
+  ],
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy is a reference surface only; opened run commits to MT5 paired validation"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [
+      "closed-bar schedule replay checks proxy-vs-EA logic parity"
+    ],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0006",
+  "schema": "axiom_rift_run_manifest_v1",
+  "source_ingredient_ids": [],
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "continuous closed-bar price, range, wick, session, spread, and path-pressure features transformed by train-fold label-conditioned metric weights; no feature set is selected"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "continuous directional favorable-path quality label for train-fold metric weighting and rank target construction; no label is selected"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "fold-local train-only supervised metric weighting over continuous analog features with local nearest-neighbor diagnostics aggregated by rank ensemble; no model family is selected"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "fixed-lot discovery schedule selects highest supervised metric-rank analog-memory scores per active day with spacing and schedule replay for mandatory MT5 validation"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0005"
 }

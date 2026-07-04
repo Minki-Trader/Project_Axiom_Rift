@@ -14,11 +14,17 @@
       "applies": true,
       "fields": {
         "entry_direction_match_rate": 1.0,
-        "entry_mismatch_samples": [],
-        "entry_sequence_direction_match_rate": 1.0,
-        "entry_sequence_time_match_rate": 1.0,
+        "entry_mismatch_samples": [
+          {
+            "direction": -1,
+            "entry_time": "2026-02-05 01:00:00",
+            "side": "tick_only"
+          }
+        ],
+        "entry_sequence_direction_match_rate": 0.945551,
+        "entry_sequence_time_match_rate": 0.887118,
         "entry_time_match_rate": 1.0,
-        "logic_entry_event_count": 1507,
+        "logic_entry_event_count": 1506,
         "tick_entry_event_count": 1507
       }
     },
@@ -87,10 +93,10 @@
             "side": "tick_only"
           }
         ],
-        "exit_sequence_reason_match_rate": 0.95355,
-        "exit_sequence_time_match_rate": 0.94426,
-        "exit_time_match_rate": 0.94426,
-        "logic_exit_event_count": 1507,
+        "exit_sequence_reason_match_rate": 0.89907,
+        "exit_sequence_time_match_rate": 0.833333,
+        "exit_time_match_rate": 0.943559,
+        "logic_exit_event_count": 1506,
         "tick_exit_event_count": 1507
       }
     },
@@ -114,7 +120,7 @@
       "fields": {}
     }
   },
-  "created_at_utc": "2026-07-02T04:43:44Z",
+  "created_at_utc": "2026-07-03T13:58:34Z",
   "deferred_with_reason": [
     {
       "blocking_condition": "requires a separate controlled spread/slippage tester matrix",
@@ -132,29 +138,29 @@
   "missing_required_kpi_fields": [],
   "required_kpis": {
     "economics_shift_status": "tick_better_than_logic",
-    "entry_count_delta": 0,
+    "entry_count_delta": 1,
     "entry_key_match_rate": 1.0,
     "execution_divergence_status": "recorded_with_divergence",
-    "exit_count_delta": 0,
-    "exit_reason_match_rate": 0.913736,
-    "exit_time_direction_match_rate": 0.94426,
-    "logic_expectancy_per_entry": -0.019768,
-    "logic_max_drawdown_percent": 6.268,
-    "logic_net_pnl": -29.79,
-    "logic_profit_factor": 0.808683,
-    "logic_trade_count": 1507,
-    "logic_win_rate": 0.428666,
+    "exit_count_delta": 1,
+    "exit_reason_match_rate": 0.913015,
+    "exit_time_direction_match_rate": 0.943559,
+    "logic_expectancy_per_entry": -0.019203,
+    "logic_max_drawdown_percent": 6.106,
+    "logic_net_pnl": -28.92,
+    "logic_profit_factor": 0.813648,
+    "logic_trade_count": 1506,
+    "logic_win_rate": 0.428951,
     "run_closeout_review_ready": true,
-    "tick_expectancy_per_entry": -0.018368,
-    "tick_max_drawdown_percent": 5.844,
-    "tick_minus_logic_expectancy_per_entry": 0.0014,
-    "tick_minus_logic_max_drawdown_percent": -0.424,
-    "tick_minus_logic_net_pnl": 2.11,
-    "tick_minus_logic_profit_factor": -0.024243,
-    "tick_minus_logic_trade_count": 0,
-    "tick_minus_logic_win_rate": -0.059058,
-    "tick_net_pnl": -27.68,
-    "tick_profit_factor": 0.78444,
+    "tick_expectancy_per_entry": -0.018374,
+    "tick_max_drawdown_percent": 5.846,
+    "tick_minus_logic_expectancy_per_entry": 0.000829,
+    "tick_minus_logic_max_drawdown_percent": -0.26,
+    "tick_minus_logic_net_pnl": 1.23,
+    "tick_minus_logic_profit_factor": -0.029269,
+    "tick_minus_logic_trade_count": 1,
+    "tick_minus_logic_win_rate": -0.059343,
+    "tick_net_pnl": -27.69,
+    "tick_profit_factor": 0.784379,
     "tick_trade_count": 1507,
     "tick_win_rate": 0.369608
   },

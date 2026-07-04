@@ -84,7 +84,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "test whether fold-local continuous nearest-neighbor analog memory can rank US100 M5 entry candidates better than discrete state archetype buckets by using train-only local outcome neighborhoods",
     "variant_boundary": "first C0005 true variant; changes model family, feature representation, score interpretation, and entry selection from discrete regimes, score cells, path-exit rules, synthesis constraints, or state archetype buckets to continuous train-fold analog retrieval; not a threshold, window, stop, target, hold, session, top-count, or retry nudge"
@@ -138,7 +138,7 @@
   "run_id": "R0001",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "closed_no_candidate",
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

@@ -69,7 +69,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0004_r0003_probe",
       "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/kpi/mt5_logic_parity.json",
-      "sha256": "4e798266c2eaf5f3e01ad88501aa95f07b1bffc8c38b06d21d6cd169b9e04721",
+      "sha256": "02a8f6ebaf4b2bb7aa386ea49e8c82b0ae9e33013359c52dbd8ef3101bf745a0",
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/artifacts/c0004_r0003_schedule.csv",
         "configs/market.yaml"
@@ -84,7 +84,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0004_r0003_probe",
       "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/kpi/proxy_vs_mt5_logic_parity.json",
-      "sha256": "50379d670a32d46222eee8f570b779f9f06a053032140d75dfc373f4ba2b23c3",
+      "sha256": "400bc45deb22a4a157ef0a81a031a23602bd89fd331e553e84c99f731cf4df1c",
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/kpi/proxy.json",
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/kpi/mt5_logic_parity.json"
@@ -99,7 +99,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0004_r0003_probe",
       "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/kpi/mt5_tick.json",
-      "sha256": "4f05945b3cd48a397015ad2b074ad553e89adb91dc15d0c3a00536a221f7ab19",
+      "sha256": "186cfb9eac3361291e4900a251073027288d6ac0fe849cc8832a2ee58db56f1b",
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/artifacts/c0004_r0003_schedule.csv",
         "configs/market.yaml"
@@ -114,7 +114,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0004_r0003_probe",
       "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/kpi/execution_divergence.json",
-      "sha256": "45c7a01f4fa5c2d595e53009f1a010f21030759c668b1ef376f9788496fbf6f3",
+      "sha256": "c742bb4162baa21fc9670494026c7b804f6479850c60a1446542f49f00d74ff5",
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/kpi/mt5_logic_parity.json",
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/kpi/mt5_tick.json"
@@ -129,7 +129,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0004_r0003_probe",
       "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/kpi/mt5_tick_by_fold.json",
-      "sha256": "b0b706eddb9d72606525b058a9ad10ad998ac32d582f789deb038545257ff45a",
+      "sha256": "547d2f13b175387479514d6d8b5098827b55c14844dc38821a5905c534a421b8",
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/artifacts/c0004_r0003_schedule.csv",
         "registries/rolling_windows.yaml",
@@ -145,7 +145,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0004_r0003_probe",
       "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/kpi/execution_divergence_by_fold.json",
-      "sha256": "92a4371875a091c0d3ba61a6d67e13036890b95f8d8e3776c3b7a47a085e7d51",
+      "sha256": "9eb84ede1fba4d55758a910fa4618df503d1c4d710214f6ef6d26c628b221a4c",
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0003/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"
@@ -177,9 +177,9 @@
   "created_at_utc": "2026-07-02T21:20:45Z",
   "deferred_with_reason": [
     {
-      "field": "next_campaign_run_or_campaign_close_decision",
-      "next_action": "decide_c0004_r0004_or_close_c0004_after_r0003",
-      "reason": "C0004 R0003 is closed no candidate; C0004 remains open pending a true R0004 variant or campaign close decision"
+      "field": "closeout_review",
+      "next_action": "review_c0004_r0003_tick_execution_kpi_and_closeout",
+      "reason": "fold-isolated MT5 tick and execution divergence artifacts are recorded; closeout review is the next mandatory sequence step"
     }
   ],
   "lineage_id": "L-C0004-R0003",

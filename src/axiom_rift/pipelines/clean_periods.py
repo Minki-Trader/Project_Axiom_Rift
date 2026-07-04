@@ -10,6 +10,15 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from axiom_rift.paths import DATA_DIR, PROJECT_ROOT, REGISTRY_DIR
+from axiom_rift.pipelines.market_calendar import (
+    classify_gap as classify_gap_label,
+    classify_gap_with_calendar,
+    default_market_calendar_path,
+    gap_action_counts,
+    gap_is_blackout,
+    gap_needs_review_or_blackout,
+    load_market_calendar,
+)
 
 
 BROAD_MODELING_START = datetime(2022, 5, 1)
@@ -25,6 +34,10 @@ class GapEvent:
     delta_minutes: int
     missing_bars: int
     classification: str
+    calendar_status: str
+    training_action: str
+    reason: str
+    calendar_match_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -82,30 +95,11 @@ def read_times(path: Path) -> list[datetime]:
 
 
 def classify_gap(previous: datetime, current: datetime) -> str:
-    prev_time = previous.strftime("%H:%M")
-    current_time = current.strftime("%H:%M")
-    delta_minutes = int((current - previous).total_seconds() // 60)
-    if (
-        previous.date() + timedelta(days=1) == current.date()
-        and prev_time in {"23:50", "23:55"}
-        and current_time in {"01:00", "02:00"}
-    ):
-        return "regular_daily_close"
-    if previous.date() == current.date() and prev_time == "00:55" and current_time == "02:00":
-        return "regular_dst_daily_close"
-    if (
-        previous.weekday() == 4
-        and current.weekday() == 0
-        and prev_time >= "16:00"
-        and current_time in {"01:00", "02:00"}
-    ):
-        return "regular_weekend_close"
-    if current_time in {"01:00", "02:00"} and prev_time >= "16:00" and delta_minutes >= 285:
-        return "regular_holiday_or_early_close"
-    return "suspicious"
+    return classify_gap_label(previous, current)
 
 
-def find_gap_events(times: list[datetime]) -> list[GapEvent]:
+def find_gap_events(times: list[datetime], market_calendar: dict[str, object] | None = None) -> list[GapEvent]:
+    market_calendar = market_calendar or load_market_calendar()
     events: list[GapEvent] = []
     previous: datetime | None = None
     for current in times:
@@ -113,13 +107,18 @@ def find_gap_events(times: list[datetime]) -> list[GapEvent]:
             delta_minutes = int((current - previous).total_seconds() // 60)
             if delta_minutes > EXPECTED_STEP_MINUTES:
                 missing_bars = delta_minutes // EXPECTED_STEP_MINUTES - 1
+                decision = classify_gap_with_calendar(previous, current, market_calendar)
                 events.append(
                     GapEvent(
                         from_time=previous,
                         to_time=current,
                         delta_minutes=delta_minutes,
                         missing_bars=missing_bars,
-                        classification=classify_gap(previous, current),
+                        classification=decision.classification,
+                        calendar_status=decision.calendar_status,
+                        training_action=decision.training_action,
+                        reason=decision.reason,
+                        calendar_match_id=decision.calendar_match_id,
                     )
                 )
         previous = current
@@ -182,10 +181,14 @@ def trim_to_full_days(times: list[datetime], source: Window) -> Window:
 
 def window_gap_counts(item: Window, suspicious_gaps: list[GapEvent]) -> dict[str, int]:
     in_window = [gap for gap in suspicious_gaps if item.start <= gap.from_time and gap.to_time <= item.end]
+    action_counts = gap_action_counts(in_window)
     return {
         "suspicious_gap_count": len(in_window),
         "large_suspicious_gap_count": sum(1 for gap in in_window if gap.missing_bars >= PRACTICAL_SPLIT_MISSING_BARS),
         "single_missing_m5_gap_count": sum(1 for gap in in_window if gap.missing_bars == 1),
+        "flag_for_review_gap_count": action_counts["flag_for_review_gap_count"],
+        "blackout_gap_count": action_counts["blackout_gap_count"],
+        "unverified_special_close_candidate_count": action_counts["unverified_special_close_candidate_count"],
     }
 
 
@@ -208,6 +211,10 @@ def gap_dict(item: GapEvent) -> dict[str, object]:
         "delta_minutes": item.delta_minutes,
         "missing_bars": item.missing_bars,
         "classification": item.classification,
+        "calendar_status": item.calendar_status,
+        "training_action": item.training_action,
+        "reason": item.reason,
+        "calendar_match_id": item.calendar_match_id,
     }
 
 
@@ -215,15 +222,21 @@ def derive_clean_periods(
     base_frame_csv: Path | None = None,
     clean_periods_json: Path | None = None,
     clean_windows_csv: Path | None = None,
+    market_calendar_yaml: Path | None = None,
 ) -> dict[str, object]:
     base_frame_csv = base_frame_csv or DATA_DIR / "processed" / "datasets" / "us100_m5_base_frame.csv"
     clean_periods_json = clean_periods_json or DATA_DIR / "processed" / "coverage_audits" / "us100_m5_clean_periods.json"
     clean_windows_csv = clean_windows_csv or DATA_DIR / "processed" / "coverage_audits" / "us100_m5_clean_windows.csv"
+    market_calendar_yaml = market_calendar_yaml or default_market_calendar_path()
+    market_calendar = load_market_calendar(market_calendar_yaml)
+    calendar_hash = sha256_file(market_calendar_yaml)
     times = read_times(base_frame_csv)
-    events = find_gap_events(times)
-    suspicious = [event for event in events if event.classification == "suspicious"]
-    strict_windows = split_windows(times, suspicious, missing_bar_threshold=1)
-    practical_windows = split_windows(times, suspicious, missing_bar_threshold=PRACTICAL_SPLIT_MISSING_BARS)
+    events = find_gap_events(times, market_calendar)
+    suspicious = [event for event in events if gap_needs_review_or_blackout(event)]
+    blackout_gaps = [event for event in events if gap_is_blackout(event)]
+    action_counts = gap_action_counts(events)
+    strict_windows = split_windows(times, blackout_gaps, missing_bar_threshold=1)
+    practical_windows = split_windows(times, blackout_gaps, missing_bar_threshold=PRACTICAL_SPLIT_MISSING_BARS)
     continuous_raw = max(practical_windows, key=lambda item: (item.calendar_days, item.row_count))
     continuous_trimmed = trim_to_full_days(times, continuous_raw)
     recommended = window(times, times[0], times[-1])
@@ -232,6 +245,11 @@ def derive_clean_periods(
         "schema": "axiom_rift_clean_periods_v1",
         "created_at_utc": utc_now(),
         "source_base_frame": rel(base_frame_csv),
+        "market_calendar": {
+            "path": rel(market_calendar_yaml),
+            "sha256": calendar_hash,
+            "schema": market_calendar.get("schema"),
+        },
         "policy": {
             "broad_modeling_start": time_text(BROAD_MODELING_START),
             "legacy_practical_start": time_text(LEGACY_PRACTICAL_START),
@@ -240,8 +258,10 @@ def derive_clean_periods(
                 "daily_close",
                 "dst_daily_close",
                 "weekend_close",
-                "holiday_or_early_close",
             ],
+            "special_closure_policy": "only_configs_market_calendar_verified_special_closures_are_allowed",
+            "unverified_special_close_candidate_action": "flag_for_review",
+            "unexpected_multi_bar_gap_action": "blackout",
             "strict_windows_split_on_suspicious_missing_bars_gte": 1,
             "practical_windows_split_on_suspicious_missing_bars_gte": PRACTICAL_SPLIT_MISSING_BARS,
             "recommended_window_policy": "keep broad US100 span and treat suspicious gaps as audit or blackout events",
@@ -253,6 +273,10 @@ def derive_clean_periods(
             "row_count": len(times),
             "gap_event_count": len(events),
             "suspicious_gap_count": len(suspicious),
+            "blackout_gap_count": action_counts["blackout_gap_count"],
+            "flag_for_review_gap_count": action_counts["flag_for_review_gap_count"],
+            "verified_special_closure_count": action_counts["verified_special_closure_count"],
+            "unverified_special_close_candidate_count": action_counts["unverified_special_close_candidate_count"],
         },
         "recommended_modeling_window": window_dict(recommended, suspicious),
         "longest_practical_continuous_window": window_dict(continuous_trimmed, suspicious),
@@ -265,6 +289,7 @@ def derive_clean_periods(
             window_dict(item) for item in sorted(practical_windows, key=lambda x: x.calendar_days, reverse=True)[:8]
         ],
         "suspicious_gaps": [gap_dict(item) for item in suspicious],
+        "blackout_gaps": [gap_dict(item) for item in blackout_gaps],
         "claim_boundary": {
             "split_frozen": False,
             "label_selected": False,
@@ -288,11 +313,15 @@ def derive_clean_periods(
             "kind": "clean_period_derivation",
             "status": "completed",
             "source_base_frame": rel(base_frame_csv),
+            "market_calendar": rel(market_calendar_yaml),
+            "market_calendar_sha256": calendar_hash,
             "recommended_start": payload["recommended_modeling_window"]["start"],
             "recommended_end": payload["recommended_modeling_window"]["end"],
             "longest_continuous_start": payload["longest_practical_continuous_window"]["start"],
             "longest_continuous_end": payload["longest_practical_continuous_window"]["end"],
             "suspicious_gap_count": len(suspicious),
+            "blackout_gap_count": action_counts["blackout_gap_count"],
+            "flag_for_review_gap_count": action_counts["flag_for_review_gap_count"],
             "claim_authority": False,
         }
     )
@@ -338,10 +367,16 @@ def write_clean_period_registry(payload: dict[str, object], json_path: Path, win
         "schema: axiom_rift_clean_periods_v1",
         "created_at_utc: " + str(payload["created_at_utc"]),
         "source_base_frame: " + str(payload["source_base_frame"]),
+        "market_calendar:",
+        "  path: " + str(payload["market_calendar"]["path"]),
+        "  sha256: " + str(payload["market_calendar"]["sha256"]),
         "policy:",
         "  broad_modeling_start: " + str(payload["policy"]["broad_modeling_start"]),
         "  legacy_practical_start: " + str(payload["policy"]["legacy_practical_start"]),
-        "  regular_gap_policy: daily_close_weekend_holiday_dst",
+        "  regular_gap_policy: daily_close_weekend_dst",
+        "  special_closure_policy: calendar_verified_only",
+        "  unverified_special_close_candidate_action: flag_for_review",
+        "  unexpected_multi_bar_gap_action: blackout",
         "  practical_windows_split_on_suspicious_missing_bars_gte: "
         + str(payload["policy"]["practical_windows_split_on_suspicious_missing_bars_gte"]),
         "  single_missing_m5_bar_tolerated: true",
@@ -351,6 +386,11 @@ def write_clean_period_registry(payload: dict[str, object], json_path: Path, win
         "  last_time: " + str(observed["last_time"]),
         "  row_count: " + str(observed["row_count"]),
         "  suspicious_gap_count: " + str(observed["suspicious_gap_count"]),
+        "  flag_for_review_gap_count: " + str(observed["flag_for_review_gap_count"]),
+        "  blackout_gap_count: " + str(observed["blackout_gap_count"]),
+        "  verified_special_closure_count: " + str(observed["verified_special_closure_count"]),
+        "  unverified_special_close_candidate_count: "
+        + str(observed["unverified_special_close_candidate_count"]),
         "recommended_modeling_window:",
         "  start: " + str(recommended["start"]),
         "  end: " + str(recommended["end"]),
@@ -358,6 +398,8 @@ def write_clean_period_registry(payload: dict[str, object], json_path: Path, win
         "  calendar_days: " + str(recommended["calendar_days"]),
         "  suspicious_gap_count: " + str(recommended["suspicious_gap_count"]),
         "  large_suspicious_gap_count: " + str(recommended["large_suspicious_gap_count"]),
+        "  flag_for_review_gap_count: " + str(recommended["flag_for_review_gap_count"]),
+        "  blackout_gap_count: " + str(recommended["blackout_gap_count"]),
         "longest_practical_continuous_window:",
         "  start: " + str(continuous["start"]),
         "  end: " + str(continuous["end"]),

@@ -1,211 +1,211 @@
 {
-    "artifact_records":  [
-                             {
-                                 "artifact_id":  "A-C0005-R0006-PROXY-KPI",
-                                 "artifact_role":  "proxy_kpi",
-                                 "artifact_type":  "json",
-                                 "claim_authority":  false,
-                                 "linked_kpi_family":  "proxy",
-                                 "mutable":  false,
-                                 "produced_by":  "axiom_rift.proxies.c0005_r0006_metric_rank_ensemble_analog_memory",
-                                 "repo_relative_path":  "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/proxy.json",
-                                 "sha256":  "a2719bf158d58092c6908c620f9dbff88cfd15a9d38b574e8751d95baa10dd4c",
-                                 "source_inputs":  [
-                                                       "data/processed/datasets/us100_m5_base_frame.csv",
-                                                       "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/run_manifest.json"
-                                                   ]
-                             },
-                             {
-                                 "artifact_id":  "A-C0005-R0006-PROXY-TRADES",
-                                 "artifact_role":  "proxy_trade_artifact",
-                                 "artifact_type":  "csv",
-                                 "claim_authority":  false,
-                                 "linked_kpi_family":  "proxy",
-                                 "mutable":  false,
-                                 "produced_by":  "axiom_rift.proxies.c0005_r0006_metric_rank_ensemble_analog_memory",
-                                 "repo_relative_path":  "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/artifacts/c0005_r0006_proxy_trades.csv",
-                                 "sha256":  "401f8e50b700194caa0e9962276ad5f821db7d30eea480703d7f0283f9a1e742",
-                                 "source_inputs":  [
-                                                       "data/processed/datasets/us100_m5_base_frame.csv",
-                                                       "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/proxy.json"
-                                                   ]
-                             },
-                             {
-                                 "artifact_id":  "A-C0005-R0006-ANALOG-MEMORY-SUMMARY",
-                                 "artifact_role":  "analog_memory_summary_artifact",
-                                 "artifact_type":  "json",
-                                 "claim_authority":  false,
-                                 "linked_kpi_family":  "proxy",
-                                 "mutable":  false,
-                                 "produced_by":  "axiom_rift.proxies.c0005_r0006_metric_rank_ensemble_analog_memory",
-                                 "repo_relative_path":  "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/artifacts/c0005_r0006_analog_memory_summary.json",
-                                 "sha256":  "2e0f0cae86394636b51d2cc43d5d48e06a9093cc1d283c166146a9428ea7384f",
-                                 "source_inputs":  [
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/proxy.json"
-                                                   ]
-                             },
-                             {
-                                 "artifact_id":  "A-C0005-R0006-MT5-SCHEDULE",
-                                 "artifact_role":  "mt5_schedule_csv",
-                                 "artifact_type":  "csv",
-                                 "claim_authority":  false,
-                                 "linked_kpi_family":  "mt5_logic_parity_input",
-                                 "mutable":  false,
-                                 "produced_by":  "axiom_rift.mt5.c0005_r0006_probe",
-                                 "repo_relative_path":  "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/artifacts/c0005_r0006_schedule.csv",
-                                 "sha256":  "05822b9e518e195b5b851f7815287c3903e800dc0073d6f63bd82c521056b61d",
-                                 "source_inputs":  [
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/proxy.json"
-                                                   ]
-                             },
-                             {
-                                 "artifact_id":  "A-C0005-R0006-MT5-LOGIC-KPI",
-                                 "artifact_role":  "mt5_logic_parity_kpi",
-                                 "artifact_type":  "json",
-                                 "claim_authority":  false,
-                                 "linked_kpi_family":  "mt5_logic_parity",
-                                 "mutable":  false,
-                                 "produced_by":  "axiom_rift.mt5.c0005_r0006_probe",
-                                 "repo_relative_path":  "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_logic_parity.json",
-                                 "sha256":  "d2926236518854c8010df5f8e2677def6a4f69e24cd00a804baa4388bdf9da4d",
-                                 "source_inputs":  [
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/artifacts/c0005_r0006_schedule.csv",
-                                                       "configs/market.yaml"
-                                                   ]
-                             },
-                             {
-                                 "artifact_id":  "A-C0005-R0006-PROXY-VS-MT5-LOGIC-KPI",
-                                 "artifact_role":  "proxy_vs_mt5_logic_parity_kpi",
-                                 "artifact_type":  "json",
-                                 "claim_authority":  false,
-                                 "linked_kpi_family":  "proxy_vs_mt5_logic_parity",
-                                 "mutable":  false,
-                                 "produced_by":  "axiom_rift.mt5.c0005_r0006_probe",
-                                 "repo_relative_path":  "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/proxy_vs_mt5_logic_parity.json",
-                                 "sha256":  "3549b3d0b604c6bf1ee1277e0d76876973074da941b2214bb7eca432e180569e",
-                                 "source_inputs":  [
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/proxy.json",
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_logic_parity.json"
-                                                   ]
-                             },
-                             {
-                                 "artifact_id":  "A-C0005-R0006-MT5-TICK-KPI",
-                                 "artifact_role":  "mt5_tick_kpi",
-                                 "artifact_type":  "json",
-                                 "claim_authority":  false,
-                                 "linked_kpi_family":  "mt5_tick",
-                                 "mutable":  false,
-                                 "produced_by":  "axiom_rift.mt5.c0005_r0006_probe",
-                                 "repo_relative_path":  "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_tick.json",
-                                 "sha256":  "ad3ceaa4f53f3ed47b4142a76239b241e1532a2b2f3b345ad72ac5136f0ccb57",
-                                 "source_inputs":  [
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/artifacts/c0005_r0006_schedule.csv",
-                                                       "configs/market.yaml"
-                                                   ]
-                             },
-                             {
-                                 "artifact_id":  "A-C0005-R0006-EXECUTION-DIVERGENCE-KPI",
-                                 "artifact_role":  "diagnostic_output",
-                                 "artifact_type":  "json",
-                                 "claim_authority":  false,
-                                 "linked_kpi_family":  "execution_divergence",
-                                 "mutable":  false,
-                                 "produced_by":  "axiom_rift.mt5.c0005_r0006_probe",
-                                 "repo_relative_path":  "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/execution_divergence.json",
-                                 "sha256":  "d695cf525ee8e822b11b0d0e6dc7757d15514883a48d892fb71c2ca72e2099ab",
-                                 "source_inputs":  [
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_logic_parity.json",
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_tick.json"
-                                                   ]
-                             },
-                             {
-                                 "artifact_id":  "A-C0005-R0006-MT5-TICK-BY-FOLD-KPI",
-                                 "artifact_role":  "mt5_tick_by_fold_kpi",
-                                 "artifact_type":  "json",
-                                 "claim_authority":  false,
-                                 "linked_kpi_family":  "mt5_tick_by_fold",
-                                 "mutable":  false,
-                                 "produced_by":  "axiom_rift.mt5.c0005_r0006_probe",
-                                 "repo_relative_path":  "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_tick_by_fold.json",
-                                 "sha256":  "46f3363b1a5d464ba959d24ba4ca312dc68eb1cf7086cbd7033d27d9400c8c25",
-                                 "source_inputs":  [
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/artifacts/c0005_r0006_schedule.csv",
-                                                       "registries/rolling_windows.yaml",
-                                                       "configs/market.yaml"
-                                                   ]
-                             },
-                             {
-                                 "artifact_id":  "A-C0005-R0006-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
-                                 "artifact_role":  "diagnostic_output",
-                                 "artifact_type":  "json",
-                                 "claim_authority":  false,
-                                 "linked_kpi_family":  "execution_divergence_by_fold",
-                                 "mutable":  false,
-                                 "produced_by":  "axiom_rift.mt5.c0005_r0006_probe",
-                                 "repo_relative_path":  "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/execution_divergence_by_fold.json",
-                                 "sha256":  "cb3f49e12858739d2b5b3b4ea11652d35aeb6c5645d44167c079e67bb3b65446",
-                                 "source_inputs":  [
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_tick_by_fold.json",
-                                                       "registries/rolling_windows.yaml"
-                                                   ]
-                             },
-                             {
-                                 "artifact_id":  "A-C0005-R0006-RUN-MANIFEST",
-                                 "artifact_role":  "run_manifest",
-                                 "artifact_type":  "json",
-                                 "repo_relative_path":  "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/run_manifest.json",
-                                 "sha256":  "0150cb32a4c3313158462187b9c2889660c0f1880f2de59dd39f725320b0587f",
-                                 "produced_by":  "axiom_rift.goal_operation.closeout",
-                                 "source_inputs":  [
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_tick_by_fold.json",
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/execution_divergence_by_fold.json"
-                                                   ],
-                                 "linked_kpi_family":  "run_closeout",
-                                 "mutable":  false,
-                                 "claim_authority":  false
-                             },
-                             {
-                                 "artifact_id":  "A-C0005-R0006-CLOSEOUT-GATE",
-                                 "artifact_role":  "closeout_gate_report",
-                                 "artifact_type":  "json",
-                                 "repo_relative_path":  "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/gate_report.json",
-                                 "sha256":  "2d8cf1bd0450022c4d8ea7bf2e4a32fce6f81ca954e55ebb5faf2b18dde4b36f",
-                                 "produced_by":  "axiom_rift.goal_operation.closeout",
-                                 "source_inputs":  [
-                                                       "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/run_manifest.json"
-                                                   ],
-                                 "linked_kpi_family":  "run_closeout",
-                                 "mutable":  false,
-                                 "claim_authority":  false
-                             }
-                         ],
-    "claim_boundary":  {
-                           "claim_authority":  false,
-                           "economics_pass":  false,
-                           "feature_set_selected":  false,
-                           "label_selected":  false,
-                           "live_ready":  false,
-                           "materialization_ready":  false,
-                           "model_selected":  false,
-                           "onnx_ready":  false,
-                           "promotion_ready":  false,
-                           "runtime_authority":  false,
-                           "runtime_probe_completed":  false,
-                           "selected":  false
-                       },
-    "created_at_utc":  "2026-07-03T02:36:34Z",
-    "deferred_with_reason":  [
-                                 {
-                                     "field":  "campaign_closeout",
-                                     "reason":  "R0006 is closed no candidate; C0005 campaign closeout is recorded by the current goal operation",
-                                     "next_action":  "close_c0005_no_candidate_after_r0006"
-                                 }
-                             ],
-    "lineage_id":  "L-C0005-R0006",
-    "run_id":  "R0006",
-    "schema":  "axiom_rift_artifact_lineage_v1",
-    "template":  false,
-    "work_unit_id":  "C0005"
+  "artifact_records": [
+    {
+      "artifact_id": "A-C0005-R0006-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0005_r0006_metric_rank_ensemble_analog_memory",
+      "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/proxy.json",
+      "sha256": "a2719bf158d58092c6908c620f9dbff88cfd15a9d38b574e8751d95baa10dd4c",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0005-R0006-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0005_r0006_metric_rank_ensemble_analog_memory",
+      "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/artifacts/c0005_r0006_proxy_trades.csv",
+      "sha256": "401f8e50b700194caa0e9962276ad5f821db7d30eea480703d7f0283f9a1e742",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0005-R0006-ANALOG-MEMORY-SUMMARY",
+      "artifact_role": "analog_memory_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0005_r0006_metric_rank_ensemble_analog_memory",
+      "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/artifacts/c0005_r0006_analog_memory_summary.json",
+      "sha256": "2e0f0cae86394636b51d2cc43d5d48e06a9093cc1d283c166146a9428ea7384f",
+      "source_inputs": [
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0005-R0006-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0005_r0006_probe",
+      "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/artifacts/c0005_r0006_schedule.csv",
+      "sha256": "05822b9e518e195b5b851f7815287c3903e800dc0073d6f63bd82c521056b61d",
+      "source_inputs": [
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0005-R0006-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0005_r0006_probe",
+      "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_logic_parity.json",
+      "sha256": "e28b94220ef30832bb52858b6c4e775244e7356818a4a623510357120b69c040",
+      "source_inputs": [
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/artifacts/c0005_r0006_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0005-R0006-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0005_r0006_probe",
+      "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "0e5329010baf75d918f546e1b759d79fba51b2f54f6f161530b535bf40b229a1",
+      "source_inputs": [
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/proxy.json",
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_logic_parity.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0005-R0006-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0005_r0006_probe",
+      "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_tick.json",
+      "sha256": "8aad623998f2ae92b357d8623fd714680ffe9c0c2ea946bbead0c31451221137",
+      "source_inputs": [
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/artifacts/c0005_r0006_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0005-R0006-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0005_r0006_probe",
+      "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/execution_divergence.json",
+      "sha256": "e5ee8560e7ab56cff28e00e4da7a7a24c12256a363d737b4436e57ded5d95e1b",
+      "source_inputs": [
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_logic_parity.json",
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_tick.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0005-R0006-MT5-TICK-BY-FOLD-KPI",
+      "artifact_role": "mt5_tick_by_fold_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0005_r0006_probe",
+      "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_tick_by_fold.json",
+      "sha256": "86cad895d2e2501bea7f54c033bd748f49e7c141a55b8e39beba400238ad5a69",
+      "source_inputs": [
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/artifacts/c0005_r0006_schedule.csv",
+        "registries/rolling_windows.yaml",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0005-R0006-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0005_r0006_probe",
+      "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/execution_divergence_by_fold.json",
+      "sha256": "bda27e1046c3c3ece2906fe50b562030eac50b994a7b7250707c2e0ab2681d7a",
+      "source_inputs": [
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_tick_by_fold.json",
+        "registries/rolling_windows.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0005-R0006-RUN-MANIFEST",
+      "artifact_role": "run_manifest",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "run_closeout",
+      "mutable": false,
+      "produced_by": "axiom_rift.goal_operation.closeout",
+      "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/run_manifest.json",
+      "sha256": "0150cb32a4c3313158462187b9c2889660c0f1880f2de59dd39f725320b0587f",
+      "source_inputs": [
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/mt5_tick_by_fold.json",
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/kpi/execution_divergence_by_fold.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0005-R0006-CLOSEOUT-GATE",
+      "artifact_role": "closeout_gate_report",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "run_closeout",
+      "mutable": false,
+      "produced_by": "axiom_rift.goal_operation.closeout",
+      "repo_relative_path": "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/gate_report.json",
+      "sha256": "2d8cf1bd0450022c4d8ea7bf2e4a32fce6f81ca954e55ebb5faf2b18dde4b36f",
+      "source_inputs": [
+        "campaigns/C0005_continuous_analog_memory_discovery/runs/R0006/run_manifest.json"
+      ]
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false
+  },
+  "created_at_utc": "2026-07-03T02:36:34Z",
+  "deferred_with_reason": [
+    {
+      "field": "closeout_review",
+      "next_action": "review_c0005_r0006_tick_execution_kpi_and_closeout",
+      "reason": "fold-isolated MT5 tick and execution divergence artifacts are recorded; closeout review is the next mandatory sequence step"
+    }
+  ],
+  "lineage_id": "L-C0005-R0006",
+  "run_id": "R0006",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "template": false,
+  "work_unit_id": "C0005"
 }

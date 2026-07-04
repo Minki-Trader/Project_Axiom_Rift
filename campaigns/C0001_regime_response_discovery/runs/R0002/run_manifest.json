@@ -69,7 +69,7 @@
     "proxy_kpi": "kpi/proxy.json",
     "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "test whether US100 M5 expansion-pullback setups fail into reversal when continuation evidence is weak across rolling windows",
     "variant_boundary": "new response-shape run that reverses the R0001 post-pullback trade direction; not an R0001 repair because the trade_logic and label response surfaces change before evidence is gathered"
@@ -119,7 +119,7 @@
   "run_id": "R0002",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "closed_no_candidate",
+  "status": "execution_divergence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

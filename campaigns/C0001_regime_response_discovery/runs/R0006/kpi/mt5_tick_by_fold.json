@@ -46,11 +46,11 @@
             "required_kpis": {
               "mt5_execution_mode": "tick_execution",
               "mt5_exit_evaluation": "tick_price",
-              "mt5_expectancy_per_entry": -0.005569,
-              "mt5_max_drawdown_percent": 1.474,
-              "mt5_net_pnl": -4.6,
+              "mt5_expectancy_per_entry": -0.005581,
+              "mt5_max_drawdown_percent": 1.476,
+              "mt5_net_pnl": -4.61,
               "mt5_output_mode": "tick_execution",
-              "mt5_profit_factor": 0.905583,
+              "mt5_profit_factor": 0.905397,
               "mt5_trade_count": 826,
               "mt5_win_rate": 0.392252
             },
@@ -72,11 +72,11 @@
             "required_kpis": {
               "mt5_execution_mode": "tick_execution",
               "mt5_exit_evaluation": "tick_price",
-              "mt5_expectancy_per_entry": -0.021287,
-              "mt5_max_drawdown_percent": 4.54,
-              "mt5_net_pnl": -18.52,
+              "mt5_expectancy_per_entry": -0.021299,
+              "mt5_max_drawdown_percent": 4.542,
+              "mt5_net_pnl": -18.53,
               "mt5_output_mode": "tick_execution",
-              "mt5_profit_factor": 0.768616,
+              "mt5_profit_factor": 0.76852,
               "mt5_trade_count": 870,
               "mt5_win_rate": 0.358621
             },
@@ -124,11 +124,11 @@
             "required_kpis": {
               "mt5_execution_mode": "tick_execution",
               "mt5_exit_evaluation": "tick_price",
-              "mt5_expectancy_per_entry": -0.012007,
-              "mt5_max_drawdown_percent": 3.002,
-              "mt5_net_pnl": -10.65,
+              "mt5_expectancy_per_entry": -0.012041,
+              "mt5_max_drawdown_percent": 3.006,
+              "mt5_net_pnl": -10.68,
               "mt5_output_mode": "tick_execution",
-              "mt5_profit_factor": 0.907896,
+              "mt5_profit_factor": 0.907644,
               "mt5_trade_count": 887,
               "mt5_win_rate": 0.382187
             },
@@ -150,11 +150,11 @@
             "required_kpis": {
               "mt5_execution_mode": "tick_execution",
               "mt5_exit_evaluation": "tick_price",
-              "mt5_expectancy_per_entry": -0.01033,
+              "mt5_expectancy_per_entry": -0.010342,
               "mt5_max_drawdown_percent": 2.698,
-              "mt5_net_pnl": -9.07,
+              "mt5_net_pnl": -9.08,
               "mt5_output_mode": "tick_execution",
-              "mt5_profit_factor": 0.867649,
+              "mt5_profit_factor": 0.867503,
               "mt5_trade_count": 878,
               "mt5_win_rate": 0.381549
             },
@@ -202,11 +202,11 @@
             "required_kpis": {
               "mt5_execution_mode": "tick_execution",
               "mt5_exit_evaluation": "tick_price",
-              "mt5_expectancy_per_entry": -0.002145,
+              "mt5_expectancy_per_entry": -0.002169,
               "mt5_max_drawdown_percent": 1.658,
-              "mt5_net_pnl": -1.8,
+              "mt5_net_pnl": -1.82,
               "mt5_output_mode": "tick_execution",
-              "mt5_profit_factor": 0.97789,
+              "mt5_profit_factor": 0.97765,
               "mt5_trade_count": 839,
               "mt5_win_rate": 0.38975
             },
@@ -266,7 +266,7 @@
       "fields": {}
     }
   },
-  "created_at_utc": "2026-07-02T07:14:37Z",
+  "created_at_utc": "2026-07-03T14:37:05Z",
   "deferred_with_reason": [],
   "missing_required_kpi_fields": [],
   "mt5_probe_id": "MT50006_BY_FOLD",
@@ -278,12 +278,12 @@
     "missing_required_fold_count": 0,
     "mt5_tick_by_fold_status": "completed",
     "profitable_fold_count": 0,
-    "total_tick_net_pnl": -94.08,
+    "total_tick_net_pnl": -94.16,
     "total_tick_trade_count": 7727,
     "worst_drawdown_fold_id": "rw_003",
     "worst_fold_id": "rw_003",
-    "worst_fold_max_drawdown_percent": 4.54,
-    "worst_fold_net_pnl": -18.52
+    "worst_fold_max_drawdown_percent": 4.542,
+    "worst_fold_net_pnl": -18.53
   },
   "requirement_policy": "required_and_conditional_required_with_deferred_reason",
   "run_id": "R0006",

@@ -1,15 +1,24 @@
 schema: axiom_rift_runtime_contract_v1
-status: draft_incomplete
+status: draft_runtime_config_baseline
 encoding: ascii_only
 
 surface:
   symbol: US100
   timeframe: M5
   tester_model: real_ticks
+  logic_parity_model: 2
+  tick_execution_model: 4
+  deposit: 500
+  deposit_currency: USD
+  leverage: 100
+  terminal_mode: headless
+  execution_mode: 0
+  default_lot: 0.01
   closed_bar_signal_generation: true
   tick_execution_management: true
 
 authority:
+  active_runtime_config_complete: true
   runtime_probe_completed: false
   economics_pass: false
   materialization_ready: false

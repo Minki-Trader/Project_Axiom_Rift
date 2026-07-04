@@ -101,7 +101,7 @@
     "proxy_trade_artifact": "artifacts/c0007_r0003_proxy_trades.csv",
     "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
   },
-  "gate_status": "close_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "fold_local_nonlinear_interaction_edge_ensemble",
     "variant_boundary": "third C0007 true variant; tests fold-local class-balanced ExtraTrees positive-edge and adverse-hazard probability ensembles over interaction-expanded closed-bar features, not R0001 direct linear rank, R0002 logistic classifier, analog memory, event grammar, state archetype buckets, score-cell stumps, synthesis veto replay, or threshold, daily-count, stop, target, hold, session, or retry nudge"
@@ -144,7 +144,7 @@
   "run_id": "R0003",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "closed_no_candidate",
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

@@ -38,7 +38,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.r0006_probe",
       "repo_relative_path": "campaigns/C0001_regime_response_discovery/runs/R0006/kpi/mt5_logic_parity.json",
-      "sha256": "9ce327404172eb64b51d5db5e0cac2ba07268a8b9bc7b819c1f640213b7b1f33",
+      "sha256": "89e5ddce505634a0aa03848437698c10795d65d881133360a82ab5f71a9b1372",
       "source_inputs": [
         "data/processed/datasets/us100_m5_base_frame.csv",
         "configs/market.yaml"
@@ -53,7 +53,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.r0006_probe",
       "repo_relative_path": "campaigns/C0001_regime_response_discovery/runs/R0006/kpi/proxy_vs_mt5_logic_parity.json",
-      "sha256": "8cffa74c36fd1812f482fe987a1c0a406dc1344333556114cc9fc8bde8a6adee",
+      "sha256": "7038126c58614c6737d1fa876f9972605e91c1ead5166d93b6c579d41e902bef",
       "source_inputs": [
         "campaigns/C0001_regime_response_discovery/runs/R0006/kpi/proxy.json",
         "campaigns/C0001_regime_response_discovery/runs/R0006/kpi/mt5_logic_parity.json"
@@ -68,7 +68,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.r0006_probe",
       "repo_relative_path": "campaigns/C0001_regime_response_discovery/runs/R0006/kpi/mt5_tick.json",
-      "sha256": "b90868141947be4b9a25b2f61461975d96e0ca44f72532c8461ceefe216668dc",
+      "sha256": "ec73989fbf156a68cb7f078653193628bc5759c9bf8894f6d2e7483ee8d41297",
       "source_inputs": [
         "data/processed/datasets/us100_m5_base_frame.csv",
         "configs/market.yaml"
@@ -83,7 +83,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.r0006_probe",
       "repo_relative_path": "campaigns/C0001_regime_response_discovery/runs/R0006/kpi/execution_divergence.json",
-      "sha256": "f7be6059c36642b523a57f8160ed8ef89a4b8da49cdc75d1787220ab81aec00c",
+      "sha256": "b7fec497d1765df6633a3e0bcfb68dd189935e7ff2b4753bc34d48fe5c84d7a6",
       "source_inputs": [
         "campaigns/C0001_regime_response_discovery/runs/R0006/kpi/mt5_logic_parity.json",
         "campaigns/C0001_regime_response_discovery/runs/R0006/kpi/mt5_tick.json"
@@ -98,7 +98,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.r0006_probe",
       "repo_relative_path": "campaigns/C0001_regime_response_discovery/runs/R0006/kpi/mt5_tick_by_fold.json",
-      "sha256": "5d36390154236c8bf727ec1fb47ea326c9d36c9e0c47614ceb8a8a5ecce5bedc",
+      "sha256": "8111a5ba8b47b7e3a8b9aed4f649ba2311118b97cc04a01f7cb66c870f323969",
       "source_inputs": [
         "data/processed/datasets/us100_m5_base_frame.csv",
         "registries/rolling_windows.yaml",
@@ -114,7 +114,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.r0006_probe",
       "repo_relative_path": "campaigns/C0001_regime_response_discovery/runs/R0006/kpi/execution_divergence_by_fold.json",
-      "sha256": "7ec2d3633ee2a78beed2df2b7deba2e43f18bb4f56bbcd42505253828a0e490d",
+      "sha256": "75bf14fd05e1d9fee89d045972d95df69a1aaf3e68054b862555222632db7da6",
       "source_inputs": [
         "campaigns/C0001_regime_response_discovery/runs/R0006/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"

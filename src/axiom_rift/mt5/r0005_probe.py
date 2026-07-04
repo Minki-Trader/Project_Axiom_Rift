@@ -14,12 +14,18 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
-from axiom_rift.collectors.mt5_fresh_export import (
-    DEFAULT_METAEDITOR_EXE,
-    DEFAULT_TERMINAL_EXE,
-    rel,
-    sha256_file,
+from axiom_rift.collectors.mt5_fresh_export import rel, sha256_file
+from axiom_rift.mt5.runtime_config import (
+    lot_input_line,
+    metaeditor_exe as runtime_metaeditor_exe,
+    runtime_payload_fields,
+    runtime_symbol,
+    runtime_timeframe,
+    starting_balance_usd,
     terminal_data_dir,
+    terminal_exe as runtime_terminal_exe,
+    tester_account_lines,
+    tester_model_for_mode,
 )
 from axiom_rift.mt5.terminal_hygiene import cleanup_headless_terminal, prepare_headless_terminal
 from axiom_rift.paths import PROJECT_ROOT
@@ -49,7 +55,7 @@ RUN_MANIFEST = RUN_DIR / "run_manifest.json"
 GATE_REPORT = RUN_DIR / "gate_report.json"
 ARTIFACT_LINEAGE = RUN_DIR / "artifact_lineage.json"
 ROLLING_WINDOWS = PROJECT_ROOT / "data" / "processed" / "coverage_audits" / "us100_m5_rolling_windows.csv"
-STARTING_BALANCE_USD = 500.0
+STARTING_BALANCE_USD = starting_balance_usd()
 
 
 @dataclass(frozen=True)
@@ -79,7 +85,8 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def compile_r0005_ea(metaeditor_exe: Path = DEFAULT_METAEDITOR_EXE) -> CompileResult:
+def compile_r0005_ea(metaeditor_exe: Path | None = None) -> CompileResult:
+    metaeditor_exe = runtime_metaeditor_exe() if metaeditor_exe is None else metaeditor_exe
     if not metaeditor_exe.exists():
         raise FileNotFoundError(f"MetaEditor not found: {metaeditor_exe}")
     target_dir = terminal_data_dir() / "MQL5" / "Experts" / "AxiomRift"
@@ -196,7 +203,7 @@ def write_tester_config(
     mode = normalize_mt5_mode(mode)
     output_scope = normalize_output_scope(output_scope)
     if model is None:
-        model = 2 if mode == LOGIC_PARITY_MODE else 4
+        model = tester_model_for_mode(mode)
     use_closed_bar_exit = use_closed_bar_exit_for_mode(mode)
     config_dir = PROJECT_ROOT / "artifacts" / "reports" / "R0005_mt5_tester"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -205,16 +212,13 @@ def write_tester_config(
     lines = [
         "[Tester]",
         "Expert=AxiomRift\\AxiomR0001VolatilityExpansion",
-        "Symbol=US100",
-        "Period=M5",
+        f"Symbol={runtime_symbol()}",
+        f"Period={runtime_timeframe()}",
         f"Model={model}",
         f"FromDate={from_date}",
         f"ToDate={to_date}",
         "ForwardMode=0",
-        "Deposit=500",
-        "Currency=USD",
-        "Leverage=100",
-        "ExecutionMode=0",
+        *tester_account_lines(),
         "Optimization=0",
         "Visual=0",
         f"Report={report}",
@@ -265,7 +269,7 @@ def run_r0005_tester(
     proc = None
     try:
         proc = subprocess.Popen(
-            [str(DEFAULT_TERMINAL_EXE), f"/config:{config}"],
+            [str(runtime_terminal_exe()), f"/config:{config}"],
             cwd=str(PROJECT_ROOT),
             creationflags=creationflags,
         )
@@ -457,8 +461,9 @@ def build_mt5_payload(
         "mt5_execution_mode": mode_label,
         "mt5_output_scope": result.output_scope,
         "mt5_terminal_identity": terminal_data_dir().as_posix(),
-        "mt5_symbol": "US100",
-        "mt5_timeframe": "M5",
+        **runtime_payload_fields(),
+        "mt5_symbol": runtime_symbol(),
+        "mt5_timeframe": runtime_timeframe(),
         "mt5_tester_model": tester_model_label(result.config),
         "mt5_date_start": tester_date_to_iso(result.from_date),
         "mt5_date_end": tester_to_date_to_end_iso(result.to_date),

@@ -1,10 +1,16 @@
 schema: axiom_rift_clean_periods_v1
-created_at_utc: 2026-06-30T01:43:30Z
+created_at_utc: 2026-07-04T10:24:13Z
 source_base_frame: data/processed/datasets/us100_m5_base_frame.csv
+market_calendar:
+  path: configs/market_calendar.yaml
+  sha256: 0cd92e5b0772993e8f9df6bb5a063324678942e83f3911d6923d48ea7dd18b42
 policy:
   broad_modeling_start: 2022-05-01 00:00:00
   legacy_practical_start: 2022-09-01 00:00:00
-  regular_gap_policy: daily_close_weekend_holiday_dst
+  regular_gap_policy: daily_close_weekend_dst
+  special_closure_policy: calendar_verified_only
+  unverified_special_close_candidate_action: flag_for_review
+  unexpected_multi_bar_gap_action: blackout
   practical_windows_split_on_suspicious_missing_bars_gte: 2
   single_missing_m5_bar_tolerated: true
   recommended_window_policy: broad_span_with_gap_audit
@@ -12,14 +18,20 @@ observed:
   first_time: 2022-05-02 01:00:00
   last_time: 2026-06-26 23:50:00
   row_count: 293935
-  suspicious_gap_count: 15
+  suspicious_gap_count: 57
+  flag_for_review_gap_count: 51
+  blackout_gap_count: 6
+  verified_special_closure_count: 0
+  unverified_special_close_candidate_count: 42
 recommended_modeling_window:
   start: 2022-05-02 01:00:00
   end: 2026-06-26 23:50:00
   row_count: 293935
   calendar_days: 1516.951
-  suspicious_gap_count: 15
-  large_suspicious_gap_count: 6
+  suspicious_gap_count: 57
+  large_suspicious_gap_count: 48
+  flag_for_review_gap_count: 51
+  blackout_gap_count: 6
 longest_practical_continuous_window:
   start: 2024-06-03 01:00:00
   end: 2025-10-24 23:55:00
@@ -30,20 +42,20 @@ suggested_initial_splits:
     start: 2022-05-02 01:00:00
     end: 2024-12-31 23:55:00
     row_count: 188983
-    suspicious_gap_count: 9
-    large_suspicious_gap_count: 3
+    suspicious_gap_count: 36
+    large_suspicious_gap_count: 30
   validation:
     start: 2025-01-02 01:00:00
     end: 2025-09-30 23:55:00
     row_count: 52808
-    suspicious_gap_count: 1
-    large_suspicious_gap_count: 0
+    suspicious_gap_count: 9
+    large_suspicious_gap_count: 8
   backtest:
     start: 2025-10-01 01:00:00
     end: 2026-06-26 23:50:00
     row_count: 52144
-    suspicious_gap_count: 5
-    large_suspicious_gap_count: 3
+    suspicious_gap_count: 11
+    large_suspicious_gap_count: 9
 artifacts:
   clean_periods_json: data/processed/coverage_audits/us100_m5_clean_periods.json
   clean_windows_csv: data/processed/coverage_audits/us100_m5_clean_windows.csv

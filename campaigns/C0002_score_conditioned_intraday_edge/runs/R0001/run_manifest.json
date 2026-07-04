@@ -74,7 +74,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "test whether a rolling train-only score surface can rank closed-bar US100 M5 candidate events into a tradable subset with approximately 5 to 10 entries per active day before any equity-percent sizing",
     "variant_boundary": "first C0002 true variant; changes the selection mechanism from C0001 deterministic regime-response rules to score-conditioned candidate ranking, not a threshold nudge, repair, retry, or adjacent tuning of C0001"
@@ -142,7 +142,7 @@
   "run_id": "R0001",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "closed_no_candidate",
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

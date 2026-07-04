@@ -87,7 +87,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "test whether fold-local state archetypes become more useful when train-only labels and state keys penalize adverse excursion and unstable prior path behavior before schedule replay",
     "variant_boundary": "second C0004 true variant; changes the label, feature, model-score interpretation, and entry-quality surface from simple state archetype membership to path-quality-aware state archetype filtering; not a top-archetype-count, min-count, daily-entry, stop, target, hold, session, or retry nudge from R0001"
@@ -141,7 +141,7 @@
   "run_id": "R0002",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "closed_no_candidate",
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

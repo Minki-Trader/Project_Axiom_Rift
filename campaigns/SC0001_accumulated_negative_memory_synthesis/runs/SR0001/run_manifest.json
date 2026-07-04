@@ -85,7 +85,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "derive and test non-adjacent next-hypothesis constraints from repeated tick-execution divergence, schedule replay parity lessons, and target-frequency-without-edge failures before opening another major campaign",
     "variant_boundary": "first SC0001 synthesis run; it changes the operation from another entry, score, exit, or parameter variant into a constraint synthesis run over closed C0001 through C0003 evidence; it must produce a proxy plus MT5 paired evidence path for any derived trade-shape test and must not retry threshold, stop, target, trail, hold, or daily-entry nudges"
@@ -143,7 +143,7 @@
     "c0003_ig004_path_conditioned_execution_divergence_lesson",
     "c0003_ig005_target_frequency_is_not_edge_negative_memory"
   ],
-  "status": "closed_no_candidate",
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_synthesis_queue": true,

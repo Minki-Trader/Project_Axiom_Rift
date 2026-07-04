@@ -86,7 +86,22 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.sc0002_sr0001_probe",
       "repo_relative_path": "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/kpi/mt5_logic_parity.json",
-      "sha256": "ea624d41de2f0a66941ac071957661fce566cc4e1edea1cfebb2a87fdff39395",
+      "sha256": "786ff42c4e7228f5b7938882fc62a08fed43b7d74260c45f9068267f88042b88",
+      "source_inputs": [
+        "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/artifacts/sc0002_sr0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-SC0002-SR0001-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "mt5_tick",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_kpi",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.sc0002_sr0001_probe",
+      "repo_relative_path": "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/kpi/mt5_tick.json",
+      "sha256": "88718be4eeba3f09de7b7482f1eb13249b9a0bd377c82ae84ab8aca0b931ed4f",
       "source_inputs": [
         "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/artifacts/sc0002_sr0001_schedule.csv",
         "configs/market.yaml"
@@ -101,25 +116,10 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.sc0002_sr0001_probe",
       "repo_relative_path": "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/kpi/proxy_vs_mt5_logic_parity.json",
-      "sha256": "b318741268eb04145a8323bc83ad2d7c035283465bba6a3358417f3bbe3ee82d",
+      "sha256": "51e4c293c0fa34bda66548ca1d95c1635492e5930d954b76c038e8d43cd01bdb",
       "source_inputs": [
         "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/kpi/proxy.json",
         "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/kpi/mt5_logic_parity.json"
-      ]
-    },
-    {
-      "artifact_id": "A-SC0002-SR0001-MT5-TICK-KPI",
-      "artifact_role": "mt5_tick_kpi",
-      "artifact_type": "mt5_tick",
-      "claim_authority": false,
-      "linked_kpi_family": "mt5_tick_kpi",
-      "mutable": false,
-      "produced_by": "axiom_rift.mt5.sc0002_sr0001_probe",
-      "repo_relative_path": "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/kpi/mt5_tick.json",
-      "sha256": "01242d7a7ce9bd481b9bb61efbd34af0d23d3c83d3761b710384fe1c318f99d9",
-      "source_inputs": [
-        "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/artifacts/sc0002_sr0001_schedule.csv",
-        "configs/market.yaml"
       ]
     },
     {
@@ -131,7 +131,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.sc0002_sr0001_probe",
       "repo_relative_path": "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/kpi/execution_divergence.json",
-      "sha256": "454fea3198733ca1d17caf0e91a449e793fe72aafefc3d62973578906cd36c84",
+      "sha256": "14de3be8faf47b35ff6b635f992b222c2d3bf4f6f8e501a9908adbecdd4ea1f3",
       "source_inputs": [
         "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/kpi/mt5_logic_parity.json",
         "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/kpi/mt5_tick.json"
@@ -146,7 +146,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.sc0002_sr0001_probe",
       "repo_relative_path": "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/kpi/mt5_tick_by_fold.json",
-      "sha256": "3a450e8e74b7a100659d267696130ed7fa056e0f4f2663f541c1387fc3297029",
+      "sha256": "86a1699b8706c33b59efcda35d96a2240f8367c74669679063c69e3641a8a822",
       "source_inputs": [
         "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/artifacts/sc0002_sr0001_schedule.csv",
         "registries/rolling_windows.yaml",
@@ -162,7 +162,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.sc0002_sr0001_probe",
       "repo_relative_path": "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/kpi/execution_divergence_by_fold.json",
-      "sha256": "7cbc8944237ece6bf44b582d08f321ac4f5894b43a89e59f901a7280722f9886",
+      "sha256": "df268a8cce24f873c70a40ea23dc169e0e8d5e1dc5f25fc681bf10b7c14a87e7",
       "source_inputs": [
         "campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis/runs/SR0001/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"

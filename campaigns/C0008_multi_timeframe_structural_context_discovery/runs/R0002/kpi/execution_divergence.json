@@ -147,7 +147,7 @@
       }
     }
   },
-  "created_at_utc": "2026-07-03T11:08:00Z",
+  "created_at_utc": "2026-07-04T07:06:18Z",
   "deferred_with_reason": [
     {
       "blocking_condition": "rolling-window fold-isolated MT5 tick KPI and fold-isolated execution divergence are still required",

@@ -15,8 +15,8 @@ import yaml
 from sklearn.linear_model import LogisticRegression
 
 from axiom_rift.paths import PROJECT_ROOT
-from axiom_rift.proxies import c0004_r0001_fold_local_state_archetype as base
-from axiom_rift.proxies import c0007_r0001_fold_local_supervised_edge as linear_base
+from axiom_rift.proxies.common import base
+from axiom_rift.proxies.common import supervised_edge as linear_base
 
 
 RUN_DIR = PROJECT_ROOT / "campaigns" / "C0007_fold_local_supervised_edge_discovery" / "runs" / "R0002"

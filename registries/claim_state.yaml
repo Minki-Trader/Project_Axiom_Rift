@@ -82,7 +82,7 @@ data_state:
 claim_boundary:
   axiom_contracts_complete: false
   axiom_skills_complete: false
-  active_runtime_config_complete: false
+  active_runtime_config_complete: true
   label_selected: false
   feature_set_selected: false
   model_selected: false
@@ -98,43 +98,21 @@ research_mode:
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
 active_campaign: campaigns/C0008_multi_timeframe_structural_context_discovery
 active_synthesis: null
-active_run: null
+active_run: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003
 latest_operation:
-  id: close_c0008_r0003_no_candidate
+  id: produce_c0008_r0003_fold_isolated_mt5_tick_kpi
   status: completed
-  recorded_at_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/run_manifest.json
-  gate_report_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/gate_report.json
-  proxy_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy.json
-  mt5_logic_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json
-  mt5_tick_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick.json
-  fold_tick_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick_by_fold.json
+  recorded_at_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick_by_fold.json
   paired_divergence_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/execution_divergence_by_fold.json
-  evidence_status: closed_no_candidate
-  campaign_status: open_with_candidate_evidence_pending_decision
-  candidate_evidence_retained_from: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002
-  latest_negative_memory_source: campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003
-  reason_not_candidate: R0003 robustness-conditioned structural trap replay had negative
-    proxy and MT5 tick economics, five losing folds, four profitable folds, and tick
-    execution worse than closed-bar logic.
-  proxy_trade_count: 4250
-  proxy_net_pnl_points: -1337.75
-  proxy_profit_factor: 0.967005
-  mt5_logic_trade_count: 4250
-  mt5_logic_net_pnl: 4.88
-  mt5_logic_profit_factor: 1.011573
-  mt5_tick_trade_count: 4235
-  mt5_tick_net_pnl: -12.51
-  mt5_tick_profit_factor: 0.9693
+  evidence_status: fold_isolated_evidence_recorded_pending_closeout_review
   fold_count: 9
   completed_fold_count: 9
   total_tick_trade_count: 4235
-  total_tick_net_pnl: -12.51
-  profitable_fold_count: 4
-  losing_fold_count: 5
+  total_tick_net_pnl: -12.5
   mt5_tick_by_fold_status: completed
   execution_divergence_by_fold_status: completed
   total_tick_minus_logic_net_pnl: -17.39
-  next_required_action: decide_c0008_r0004_or_close_c0008_after_r0003
+  next_required_action: review_c0008_r0003_tick_execution_kpi_and_closeout
   claim_boundary:
     claim_authority: false
     selected: false

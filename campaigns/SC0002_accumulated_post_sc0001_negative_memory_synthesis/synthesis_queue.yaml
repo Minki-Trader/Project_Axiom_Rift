@@ -4,7 +4,7 @@ status: closed_no_candidate
 synthesis_id: SC0002
 queue:
 - synthesis_run_id: SR0001
-  status: closed_no_candidate
+  status: fold_isolated_evidence_done
   design_id: sc0002_sr0001_cross_surface_veto_inversion_synthesis
   designed_at_utc: '2026-07-03T07:03:10Z'
   opened_at_utc: '2026-07-03T07:11:12Z'
@@ -109,8 +109,8 @@ queue:
       total_tick_trade_count: 3005
       worst_fold_id: rw_007
       worst_fold_net_pnl: -8.64
-  last_completed_step: close_sc0002_sr0001_no_candidate
-  next_action: open_c0007_fold_local_supervised_edge_discovery
+  last_completed_step: produce_sc0002_sr0001_fold_isolated_execution_divergence
+  next_action: review_sc0002_sr0001_tick_execution_kpi_and_closeout
 claim_boundary:
   claim_authority: false
   selected: false

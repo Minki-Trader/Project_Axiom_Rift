@@ -14,6 +14,101 @@
     "selected": false
   },
   "closed_at_utc": "2026-07-03T11:19:15Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "candidate_evidence": {
+      "asset_type": "candidate_evidence",
+      "candidate_status": "recorded_not_selected",
+      "economics_pass": false,
+      "evidence_paths": [
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local structural trap/reclaim reversal centroid contrast over completed-M5-derived M15, H1, session, and daily context",
+      "next_boundary": "candidate robustness audit found thin cost buffer, two losing folds, and a six-month losing streak; next work should design a true C0008 R0003 structural trap reversal robustness conditioner instead of selected, economics-pass, runtime, ONNX, promotion, or live claim",
+      "onnx_ready": false,
+      "reason_candidate_evidence": "target-range activity, positive proxy, passed schedule replay parity, positive MT5 tick total net PnL, and seven profitable rolling-window tick folds with two losing folds",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "candidate_evidence",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "structural trap reversal centroid contrast produced 7.57069 entries per active day, positive total fold-isolated tick net PnL, seven profitable folds, and two losing folds"
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "tick execution was worse than closed-bar logic overall by -9.11 net PnL, with seven tick-worse folds, but tick total remained positive"
+        },
+        {
+          "asset_type": "repair_lesson",
+          "source": "src/axiom_rift/mt5/c0008_r0002_probe.py",
+          "summary": "mechanical R0002 path-marker replacement briefly pointed MT5 KPI writes to a noncanonical campaign folder; repaired before rerun and not counted as hypothesis evidence"
+        },
+        {
+          "asset_type": "candidate_robustness_audit",
+          "source": "kpi/candidate_robustness_audit.json",
+          "summary": "R0002 candidate evidence remains useful but fragile: aggregate extra cost buffer is 0.005184 account currency units per entry, rw_001 and rw_002 are losing folds, and MT5 tick deal evidence has a six-month losing streak"
+        }
+      ]
+    },
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false
+    },
+    "close_reason": "candidate_evidence_recorded_after_fold_isolated_mt5_tick_and_execution_divergence_evidence",
+    "closed_at_utc": "2026-07-03T11:19:15Z",
+    "required_kpi_summary": {
+      "aggregate_extra_cost_per_trade_to_zero": 0.005184,
+      "candidate_robustness_status": "fragile_requires_hardening",
+      "completed_fold_count": 9,
+      "economics_shift_status": "tick_worse_than_logic",
+      "entries_per_active_day": 7.57069,
+      "execution_divergence_by_fold_status": "completed",
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "longest_losing_month_streak": 6,
+      "losing_fold_count": 2,
+      "mechanical_parity_status": "passed",
+      "mismatch_count": 0,
+      "mt5_logic_net_pnl": 31.79,
+      "mt5_logic_profit_factor": 1.089454,
+      "mt5_logic_trade_count": 4391,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_net_pnl": 22.68,
+      "mt5_tick_profit_factor": 1.069012,
+      "mt5_tick_trade_count": 4375,
+      "profitable_fold_count": 7,
+      "proxy_expectancy_points_per_entry": 0.37849,
+      "proxy_net_pnl_points": 1661.95,
+      "proxy_profit_factor": 1.050917,
+      "proxy_trade_count": 4391,
+      "tick_better_fold_count": 2,
+      "tick_worse_fold_count": 7,
+      "total_tick_minus_logic_net_pnl": -9.11,
+      "total_tick_net_pnl": 22.68,
+      "total_tick_trade_count": 4375,
+      "worst_fold_id": "rw_002",
+      "worst_fold_net_pnl": -6.88
+    },
+    "status": "closed_with_candidate_evidence"
+  },
   "evidence_paths": {
     "artifact_lineage": "artifact_lineage.json",
     "candidate_robustness_audit_kpi": "kpi/candidate_robustness_audit.json",
@@ -28,7 +123,7 @@
     "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
     "structural_trap_reversal_summary": "artifacts/c0008_r0002_structural_trap_reversal_summary.json"
   },
-  "gate_status": "close_with_candidate_evidence",
+  "gate_status": "logic_tick_and_divergence_recorded",
   "hypothesis_variant": {
     "summary": "fold_local_structural_trap_reversal_centroid_contrast",
     "variant_boundary": "second C0008 true variant; tests prior M15, H1, session, and daily level trap/reclaim reversal candidates with fold-local positive/adverse centroid contrast scoring, not R0001 direct structural context rank and not threshold, daily-count, stop, target, hold, session, or retry nudge"
@@ -68,22 +163,22 @@
     "mechanical_parity_repairs_count_toward_limit": false,
     "repair_records": [
       {
+        "counts_toward_hypothesis_repair_limit": false,
+        "evidence_after_repair": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/mt5_logic_parity.json",
+        "failing_artifact_path": "campaigns/C0008_structural_trap_reversal_discovery/runs/R0002/kpi/mt5_logic_parity.json",
+        "reason": "initial MT5 logic workflow parsed tester output but attempted to write KPI under C0008_structural_trap_reversal_discovery after broad label replacement changed the campaign folder string",
+        "repair_action": "restored canonical campaigns/C0008_multi_timeframe_structural_context_discovery path and reran MT5 logic workflow successfully",
         "repair_id": "RP-C0008-R0002-001",
         "repair_type": "mechanical_path_marker_repair",
-        "reason": "initial MT5 logic workflow parsed tester output but attempted to write KPI under C0008_structural_trap_reversal_discovery after broad label replacement changed the campaign folder string",
-        "root_cause": "mechanical string replacement changed canonical campaign path in src/axiom_rift/mt5/c0008_r0002_probe.py",
         "reproduction_command": "python -m axiom_rift.cli run-c0008-r0002-mt5-logic --timeout-seconds 2400",
-        "failing_artifact_path": "campaigns/C0008_structural_trap_reversal_discovery/runs/R0002/kpi/mt5_logic_parity.json",
-        "repair_action": "restored canonical campaigns/C0008_multi_timeframe_structural_context_discovery path and reran MT5 logic workflow successfully",
-        "counts_toward_hypothesis_repair_limit": false,
-        "evidence_after_repair": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0002/kpi/mt5_logic_parity.json"
+        "root_cause": "mechanical string replacement changed canonical campaign path in src/axiom_rift/mt5/c0008_r0002_probe.py"
       }
     ]
   },
   "run_id": "R0002",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "closed_with_candidate_evidence",
+  "status": "execution_divergence_recorded_pending_fold_isolated_tick",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,
@@ -103,100 +198,5 @@
     }
   },
   "template": false,
-  "work_unit_id": "C0008",
-  "closeout_review": {
-    "status": "closed_with_candidate_evidence",
-    "basis": "rolling_window_fold_isolated_mt5_tick",
-    "close_reason": "candidate_evidence_recorded_after_fold_isolated_mt5_tick_and_execution_divergence_evidence",
-    "closed_at_utc": "2026-07-03T11:19:15Z",
-    "claim_boundary": {
-      "claim_authority": false,
-      "economics_pass": false,
-      "feature_set_selected": false,
-      "label_selected": false,
-      "live_ready": false,
-      "materialization_ready": false,
-      "model_selected": false,
-      "onnx_ready": false,
-      "promotion_ready": false,
-      "runtime_authority": false,
-      "runtime_probe_completed": false,
-      "selected": false
-    },
-    "candidate_evidence": {
-      "asset_type": "candidate_evidence",
-      "candidate_status": "recorded_not_selected",
-      "selection_status": "not_selected",
-      "economics_pass": false,
-      "runtime_authority": false,
-      "onnx_ready": false,
-      "hypothesis_tested": "fold-local structural trap/reclaim reversal centroid contrast over completed-M5-derived M15, H1, session, and daily context",
-      "evidence_paths": [
-        "kpi/proxy.json",
-        "kpi/mt5_logic_parity.json",
-        "kpi/proxy_vs_mt5_logic_parity.json",
-        "kpi/mt5_tick.json",
-        "kpi/execution_divergence.json",
-        "kpi/mt5_tick_by_fold.json",
-        "kpi/execution_divergence_by_fold.json"
-      ],
-      "reason_candidate_evidence": "target-range activity, positive proxy, passed schedule replay parity, positive MT5 tick total net PnL, and seven profitable rolling-window tick folds with two losing folds",
-      "next_boundary": "candidate robustness audit found thin cost buffer, two losing folds, and a six-month losing streak; next work should design a true C0008 R0003 structural trap reversal robustness conditioner instead of selected, economics-pass, runtime, ONNX, promotion, or live claim",
-      "supporting_lessons": [
-        {
-          "asset_type": "candidate_evidence",
-          "source": "kpi/mt5_tick_by_fold.json",
-          "summary": "structural trap reversal centroid contrast produced 7.57069 entries per active day, positive total fold-isolated tick net PnL, seven profitable folds, and two losing folds"
-        },
-        {
-          "asset_type": "execution_divergence_lesson",
-          "source": "kpi/execution_divergence_by_fold.json",
-          "summary": "tick execution was worse than closed-bar logic overall by -9.11 net PnL, with seven tick-worse folds, but tick total remained positive"
-        },
-        {
-          "asset_type": "repair_lesson",
-          "source": "src/axiom_rift/mt5/c0008_r0002_probe.py",
-          "summary": "mechanical R0002 path-marker replacement briefly pointed MT5 KPI writes to a noncanonical campaign folder; repaired before rerun and not counted as hypothesis evidence"
-        },
-        {
-          "asset_type": "candidate_robustness_audit",
-          "source": "kpi/candidate_robustness_audit.json",
-          "summary": "R0002 candidate evidence remains useful but fragile: aggregate extra cost buffer is 0.005184 account currency units per entry, rw_001 and rw_002 are losing folds, and MT5 tick deal evidence has a six-month losing streak"
-        }
-      ]
-    },
-    "required_kpi_summary": {
-      "completed_fold_count": 9,
-      "economics_shift_status": "tick_worse_than_logic",
-      "entries_per_active_day": 7.57069,
-      "execution_divergence_by_fold_status": "completed",
-      "fold_count": 9,
-      "intent_parity_status": "passed_schedule_replay_boundary",
-      "losing_fold_count": 2,
-      "mechanical_parity_status": "passed",
-      "mismatch_count": 0,
-      "mt5_logic_net_pnl": 31.79,
-      "mt5_logic_profit_factor": 1.089454,
-      "mt5_logic_trade_count": 4391,
-      "mt5_tick_by_fold_status": "completed",
-      "mt5_tick_net_pnl": 22.68,
-      "mt5_tick_profit_factor": 1.069012,
-      "mt5_tick_trade_count": 4375,
-      "profitable_fold_count": 7,
-      "candidate_robustness_status": "fragile_requires_hardening",
-      "aggregate_extra_cost_per_trade_to_zero": 0.005184,
-      "longest_losing_month_streak": 6,
-      "proxy_expectancy_points_per_entry": 0.37849,
-      "proxy_net_pnl_points": 1661.95,
-      "proxy_profit_factor": 1.050917,
-      "proxy_trade_count": 4391,
-      "tick_better_fold_count": 2,
-      "tick_worse_fold_count": 7,
-      "total_tick_minus_logic_net_pnl": -9.11,
-      "total_tick_net_pnl": 22.68,
-      "total_tick_trade_count": 4375,
-      "worst_fold_id": "rw_002",
-      "worst_fold_net_pnl": -6.88
-    }
-  }
+  "work_unit_id": "C0008"
 }

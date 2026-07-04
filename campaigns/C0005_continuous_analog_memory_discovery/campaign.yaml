@@ -55,9 +55,10 @@ run_index:
   - runs/R0006
   next_run_candidate:
     run_id: null
-    direction: not_applicable
-    reason: c0005_closed_no_meaningful_new_variant_remaining_inside_continuous_analog_memory_boundary
-    status: not_applicable_campaign_closed
+    direction: active_c0005_r0006_closeout_review
+    reason: R0006 fold-isolated MT5 tick KPI and fold-isolated execution divergence
+      are recorded; next work is closeout review.
+    status: active_run_open
 synthesis_readiness:
   check_required_at_closeout: true
   result: candidate_later
@@ -139,7 +140,7 @@ closeout:
   - runs/R0006/kpi/mt5_tick_by_fold.json
   - runs/R0006/kpi/execution_divergence_by_fold.json
   - selected.yaml
-  remaining_question: choose_c0006_new_major_hypothesis_or_wait_until_more_campaign_evidence_supports_synthesis
+  remaining_question: review_c0005_r0006_tick_execution_kpi_and_closeout
   decision_basis:
     closed_run_count: 6
     closed_no_candidate_run_count: 6

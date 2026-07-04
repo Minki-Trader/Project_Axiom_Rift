@@ -85,7 +85,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "logic_tick_and_divergence_recorded",
   "hypothesis_variant": {
     "summary": "test whether a rolling train-only supervised decision-stump rank ensemble can select directional US100 M5 candidates at the target active-day entry frequency without freezing the model family",
     "variant_boundary": "fourth C0002 true variant; changes the score model from linear and cell surfaces to a transparent supervised stump ensemble using direction-aware features, not a threshold, window, SLTP, or retry nudge"
@@ -137,7 +137,7 @@
   "run_id": "R0004",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "closed_no_candidate",
+  "status": "execution_divergence_recorded_pending_fold_isolated_tick",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

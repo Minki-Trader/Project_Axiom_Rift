@@ -84,7 +84,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "test whether fold-local state archetypes become more useful when archetype eligibility requires train-window temporal stability across chronological subsegments instead of aggregate train edge alone",
     "variant_boundary": "fourth C0004 true variant; changes the model fit and score interpretation from aggregate train-fold archetype edge, path-quality filtering, or adverse inversion to train-window temporal stability; not a label-weight, top-count, min-count, daily-entry, stop, target, hold, session, or retry nudge from R0001 through R0003"
@@ -138,7 +138,7 @@
   "run_id": "R0004",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "closed_no_candidate",
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

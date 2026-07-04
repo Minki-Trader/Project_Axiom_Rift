@@ -21,8 +21,10 @@ Before acting, read:
 6. `contracts/goal_operation_policy.yaml`
 7. Active campaign manifest when one exists or campaign work is requested.
 8. `.agents/skills/axiom-mt5-validation-guardrails/SKILL.md` before any numbered run or MT5 evidence work.
+9. `python -m axiom_rift.cli validate-repo-state` output before next-work, campaign/run, or closeout decisions.
 
 Read `references/operating_flow.md` before opening or closing a campaign, opening or closing a run, processing `/goal`, or deciding whether to keep digging.
+When data surfaces are touched, refresh in order: `build-us100-base-frame`, `derive-us100-clean-periods`, then `build-us100-rolling-windows`.
 
 ## Top-Level Target
 
@@ -41,6 +43,7 @@ Preserve this target unless a later active contract changes it:
 
 - Expand short goals into bounded work-unit actions.
 - Decide the operation class first: new campaign, new run, repair, closeout, synthesis due check, or pause.
+- Check repo state before deciding next work; separate pre-existing blockers from current-task regressions.
 - Open a run only for a true variant; do not treat threshold, window, SL/TP, or session nudges as a new run unless they ask a distinct campaign question.
 - For every opened run, complete proxy, MT5 logic parity, proxy-vs-MT5 parity, MT5 tick, execution divergence, fold-isolated tick, fold-isolated divergence, and closeout.
 - Treat aggregate MT5 KPI as diagnostic only.
@@ -67,6 +70,8 @@ Preserve this target unless a later active contract changes it:
 Run the strongest relevant subset:
 
 - `python -m axiom_rift.cli validate-work-unit <campaign_or_synthesis_path>` when a work unit changed.
+- `python -m axiom_rift.cli validate-repo-state` before next-work, campaign/run, or closeout decisions; report pre-existing blockers separately.
+- `python -m axiom_rift.cli build-us100-base-frame`, then `python -m axiom_rift.cli derive-us100-clean-periods`, then `python -m axiom_rift.cli build-us100-rolling-windows` when data baseline surfaces changed.
 - `python -m axiom_rift.cli validate-templates` when templates/contracts changed.
 - `python -m unittest discover -s tests` when code, validators, CLI, or policy tests changed.
 - `python -m compileall -q src tests` when Python changed.

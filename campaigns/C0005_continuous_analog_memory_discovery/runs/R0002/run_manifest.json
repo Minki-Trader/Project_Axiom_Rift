@@ -84,7 +84,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "test whether fold-local directional contrast analog memory can separate favorable continuation/reversal analogs from adverse-path analogs better than R0001 mean-neighborhood scoring",
     "variant_boundary": "second C0005 true variant; changes label shape, feature representation, score interpretation, and calibration from R0001 simple local outcome mean to favorable-minus-adverse directional contrast analog memory; not a neighbor-count, analog-distance, lift, daily-count, stop, target, hold, session, or retry nudge"
@@ -140,7 +140,7 @@
   "source_ingredient_ids": [
     "C0005_R0001_negative_memory"
   ],
-  "status": "closed_no_candidate",
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

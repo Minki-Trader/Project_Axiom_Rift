@@ -57,11 +57,11 @@
             "required_kpis": {
               "mt5_execution_mode": "tick_execution",
               "mt5_exit_evaluation": "tick_price",
-              "mt5_expectancy_per_entry": -0.014385,
-              "mt5_max_drawdown_percent": 1.736,
-              "mt5_net_pnl": -7.25,
+              "mt5_expectancy_per_entry": -0.014405,
+              "mt5_max_drawdown_percent": 1.738,
+              "mt5_net_pnl": -7.26,
               "mt5_output_mode": "tick_execution",
-              "mt5_profit_factor": 0.801206,
+              "mt5_profit_factor": 0.800987,
               "mt5_trade_count": 504,
               "mt5_win_rate": 0.39881
             },
@@ -109,11 +109,11 @@
             "required_kpis": {
               "mt5_execution_mode": "tick_execution",
               "mt5_exit_evaluation": "tick_price",
-              "mt5_expectancy_per_entry": -0.01858,
-              "mt5_max_drawdown_percent": 2.074,
-              "mt5_net_pnl": -9.16,
+              "mt5_expectancy_per_entry": -0.018621,
+              "mt5_max_drawdown_percent": 2.078,
+              "mt5_net_pnl": -9.18,
               "mt5_output_mode": "tick_execution",
-              "mt5_profit_factor": 0.803222,
+              "mt5_profit_factor": 0.802877,
               "mt5_trade_count": 493,
               "mt5_win_rate": 0.387424
             },
@@ -187,11 +187,11 @@
             "required_kpis": {
               "mt5_execution_mode": "tick_execution",
               "mt5_exit_evaluation": "tick_price",
-              "mt5_expectancy_per_entry": -0.008104,
+              "mt5_expectancy_per_entry": -0.008124,
               "mt5_max_drawdown_percent": 1.278,
-              "mt5_net_pnl": -4.06,
+              "mt5_net_pnl": -4.07,
               "mt5_output_mode": "tick_execution",
-              "mt5_profit_factor": 0.900563,
+              "mt5_profit_factor": 0.900318,
               "mt5_trade_count": 501,
               "mt5_win_rate": 0.421158
             },
@@ -272,7 +272,7 @@
       "fields": {}
     }
   },
-  "created_at_utc": "2026-07-03T01:05:26Z",
+  "created_at_utc": "2026-07-03T21:32:35Z",
   "deferred_with_reason": [],
   "missing_required_kpi_fields": [],
   "mt5_probe_id": "MT5-C0005-R0003-BY-FOLD",
@@ -284,7 +284,7 @@
     "missing_required_fold_count": 0,
     "mt5_tick_by_fold_status": "completed",
     "profitable_fold_count": 0,
-    "total_tick_net_pnl": -64.92,
+    "total_tick_net_pnl": -64.96,
     "total_tick_trade_count": 4416,
     "worst_drawdown_fold_id": "rw_009",
     "worst_fold_id": "rw_009",

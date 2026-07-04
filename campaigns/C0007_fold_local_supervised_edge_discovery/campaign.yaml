@@ -7,13 +7,15 @@ campaign_type: campaign
 opened_at_utc: '2026-07-03T08:01:54Z'
 closed_at_utc: '2026-07-03T09:47:08Z'
 hypothesis:
-  summary: discover whether direct fold-local supervised edge scoring over closed-bar dual-direction
-    candidates can find repeatable US100 M5 entries after prior event, analog-memory, state-archetype,
-    score-cell, exit-shape, and synthesis attempts closed no candidate
-  boundary: use rolling-window train-only path labels and fold-local standardized feature-label
-    linear rank surfaces to score all core-session closed M5 bars in both directions, select
-    fixed-lot daily schedules, and replay them through MT5 logic parity, tick execution, execution
-    divergence, and fold-isolated closeout evidence
+  summary: discover whether direct fold-local supervised edge scoring over closed-bar
+    dual-direction candidates can find repeatable US100 M5 entries after prior event,
+    analog-memory, state-archetype, score-cell, exit-shape, and synthesis attempts
+    closed no candidate
+  boundary: use rolling-window train-only path labels and fold-local standardized
+    feature-label linear rank surfaces to score all core-session closed M5 bars in
+    both directions, select fixed-lot daily schedules, and replay them through MT5
+    logic parity, tick execution, execution divergence, and fold-isolated closeout
+    evidence
   not_in_scope:
   - selected_claim
   - runtime_authority
@@ -26,21 +28,21 @@ hypothesis:
 required_surfaces:
   model:
     status: variable
-    summary: direct fold-local supervised linear rank, classifier, calibration, or later model
-      surfaces remain unrestricted; no model family is selected
+    summary: direct fold-local supervised linear rank, classifier, calibration, or
+      later model surfaces remain unrestricted; no model family is selected
   feature:
     status: variable
-    summary: closed-bar trend, reversal, range, compression, body, wick, session, and spread
-      features are exploration variables; no feature set is selected
+    summary: closed-bar trend, reversal, range, compression, body, wick, session,
+      and spread features are exploration variables; no feature set is selected
   trade_logic:
     status: variable
-    summary: dual-direction core-session candidate scoring, abstention, frequency control,
-      exit, stop, target, trail, hold, and fixed-lot discovery risk shape remain variable;
-      equity-percent sizing remains deferred
+    summary: dual-direction core-session candidate scoring, abstention, frequency
+      control, exit, stop, target, trail, hold, and fixed-lot discovery risk shape
+      remain variable; equity-percent sizing remains deferred
   label:
     status: variable
-    summary: path-quality, target-before-stop, adverse-tail, terminal, speed, and cost-adjusted
-      labels remain exploration variables; no label is selected
+    summary: path-quality, target-before-stop, adverse-tail, terminal, speed, and
+      cost-adjusted labels remain exploration variables; no label is selected
 run_index:
   runs_root: runs/
   run_id_format: R0001
@@ -51,11 +53,10 @@ run_index:
   - runs/R0003
   next_run_candidate:
     run_id: null
-    direction: campaign_closed_no_candidate
-    reason: R0001 linear rank, R0002 logistic hazard classifier, and R0003 nonlinear
-      interaction ensemble exhausted the meaningful non-adjacent supervised all-bars edge
-      variants inside C0007; remaining work would be adjacent tuning or a new major campaign.
-    status: campaign_closed
+    direction: active_c0007_r0003_closeout_review
+    reason: R0003 fold-isolated MT5 tick KPI and fold-isolated execution divergence
+      are recorded; next work is closeout review.
+    status: active_run_open
 synthesis_readiness:
   check_required_at_closeout: true
   result: candidate_later
@@ -89,7 +90,7 @@ closeout:
   - runs/R0003/kpi/execution_divergence.json
   - runs/R0003/kpi/mt5_tick_by_fold.json
   - runs/R0003/kpi/execution_divergence_by_fold.json
-  remaining_question: choose_c0008_new_major_hypothesis_or_wait_until_more_campaign_evidence_supports_synthesis
+  remaining_question: review_c0007_r0003_tick_execution_kpi_and_closeout
 claim_boundary:
   claim_authority: false
   selected: false

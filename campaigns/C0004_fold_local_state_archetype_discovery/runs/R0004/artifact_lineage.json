@@ -69,7 +69,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0004_r0004_probe",
       "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/kpi/mt5_logic_parity.json",
-      "sha256": "a341f5d30ac26de9acd6984f89389278abf23c41aaffac2438a7a73a946d756d",
+      "sha256": "721aa1bf12182ded0ac6498690dd1c1c471adb541b93d920fa04dce032758107",
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/artifacts/c0004_r0004_schedule.csv",
         "configs/market.yaml"
@@ -84,7 +84,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0004_r0004_probe",
       "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/kpi/proxy_vs_mt5_logic_parity.json",
-      "sha256": "5d415dd4e2def46085e2f10dc8d5b8559b90439fb6c473f41cb5b79224010a92",
+      "sha256": "5419800f51a577d3ee5507fbd47bc361c3b006c696142288c6e0ab9fa5819396",
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/kpi/proxy.json",
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/kpi/mt5_logic_parity.json"
@@ -99,7 +99,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0004_r0004_probe",
       "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/kpi/mt5_tick.json",
-      "sha256": "9007ff913d4495760c651e656912175c9d0cf7c45360d361519185dfc9652f93",
+      "sha256": "29e66a3ad7d3042daf3f1bfcedf520e400ad9c4e541cf125158c3ce1274816df",
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/artifacts/c0004_r0004_schedule.csv",
         "configs/market.yaml"
@@ -114,7 +114,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0004_r0004_probe",
       "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/kpi/execution_divergence.json",
-      "sha256": "9f2d8cc0b038160d34cf718253b7b7f0974a57a2771786e7a112f6220568767c",
+      "sha256": "a1f99e38638e877bd98f2821604cadce501f7ad08db564b11bf002c2050fd745",
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/kpi/mt5_logic_parity.json",
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/kpi/mt5_tick.json"
@@ -129,7 +129,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0004_r0004_probe",
       "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/kpi/mt5_tick_by_fold.json",
-      "sha256": "7f642b525fbd891e682f199b649393028f9eb8382fc86f2a86383bb9ed62cf5d",
+      "sha256": "e26feafbd7951ab179054e2c8afb923f1c81741f1205c6467fa09125f4391fd7",
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/artifacts/c0004_r0004_schedule.csv",
         "registries/rolling_windows.yaml",
@@ -145,7 +145,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0004_r0004_probe",
       "repo_relative_path": "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/kpi/execution_divergence_by_fold.json",
-      "sha256": "f39cd619bc82d9fb2c18bd705824f6ee2c0279f75fbe0dc7e10beee27939b466",
+      "sha256": "c42d8f7315436e4033c22936028f9bfd3543df80a749af5b1ed966ca13c6b48a",
       "source_inputs": [
         "campaigns/C0004_fold_local_state_archetype_discovery/runs/R0004/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"
@@ -177,9 +177,9 @@
   "created_at_utc": "2026-07-02T22:21:10Z",
   "deferred_with_reason": [
     {
-      "field": "next_major_campaign_or_synthesis_decision",
-      "next_action": "choose_c0005_new_major_hypothesis_or_wait_until_more_campaign_evidence_supports_synthesis",
-      "reason": "C0004 R0004 and campaign C0004 are closed no candidate; no selected or runtime claim was created"
+      "field": "closeout_review",
+      "next_action": "review_c0004_r0004_tick_execution_kpi_and_closeout",
+      "reason": "fold-isolated MT5 tick and execution divergence artifacts are recorded; closeout review is the next mandatory sequence step"
     }
   ],
   "lineage_id": "L-C0004-R0004",

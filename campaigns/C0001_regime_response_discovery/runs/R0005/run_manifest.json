@@ -73,7 +73,7 @@
     "proxy_kpi": "kpi/proxy.json",
     "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "test whether US100 M5 directional volatility expansion is often exhausted enough to support immediate next-bar reversal across rolling windows",
     "variant_boundary": "new response-shape run that fades the expansion bar directly instead of waiting for pullback, reclaim, or compression release; not an R0001-R0004 repair or threshold nudge"
@@ -126,7 +126,7 @@
   "run_id": "R0005",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "closed_no_candidate",
+  "status": "execution_divergence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

@@ -46,11 +46,11 @@
             "required_kpis": {
               "mt5_execution_mode": "tick_execution",
               "mt5_exit_evaluation": "tick_price",
-              "mt5_expectancy_per_entry": -0.005063,
-              "mt5_max_drawdown_percent": 0.46,
-              "mt5_net_pnl": -1.21,
+              "mt5_expectancy_per_entry": -0.005105,
+              "mt5_max_drawdown_percent": 0.462,
+              "mt5_net_pnl": -1.22,
               "mt5_output_mode": "tick_execution",
-              "mt5_profit_factor": 0.928949,
+              "mt5_profit_factor": 0.928404,
               "mt5_trade_count": 239,
               "mt5_win_rate": 0.405858
             },
@@ -176,11 +176,11 @@
             "required_kpis": {
               "mt5_execution_mode": "tick_execution",
               "mt5_exit_evaluation": "tick_price",
-              "mt5_expectancy_per_entry": -0.03262,
-              "mt5_max_drawdown_percent": 2.232,
-              "mt5_net_pnl": -10.21,
+              "mt5_expectancy_per_entry": -0.032652,
+              "mt5_max_drawdown_percent": 2.234,
+              "mt5_net_pnl": -10.22,
               "mt5_output_mode": "tick_execution",
-              "mt5_profit_factor": 0.615587,
+              "mt5_profit_factor": 0.615211,
               "mt5_trade_count": 313,
               "mt5_win_rate": 0.370607
             },
@@ -272,7 +272,7 @@
       }
     }
   },
-  "created_at_utc": "2026-07-02T21:12:56Z",
+  "created_at_utc": "2026-07-03T19:38:05Z",
   "deferred_with_reason": [],
   "missing_required_kpi_fields": [],
   "mt5_probe_id": "MT5-C0004-R0002-BY-FOLD",
@@ -284,12 +284,12 @@
     "missing_required_fold_count": 0,
     "mt5_tick_by_fold_status": "completed",
     "profitable_fold_count": 1,
-    "total_tick_net_pnl": -24.39,
+    "total_tick_net_pnl": -24.41,
     "total_tick_trade_count": 2619,
     "worst_drawdown_fold_id": "rw_007",
     "worst_fold_id": "rw_007",
-    "worst_fold_max_drawdown_percent": 2.232,
-    "worst_fold_net_pnl": -10.21
+    "worst_fold_max_drawdown_percent": 2.234,
+    "worst_fold_net_pnl": -10.22
   },
   "requirement_policy": "required_and_conditional_required_with_deferred_reason",
   "run_id": "R0002",

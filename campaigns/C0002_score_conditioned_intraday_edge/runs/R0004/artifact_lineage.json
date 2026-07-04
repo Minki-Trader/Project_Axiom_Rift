@@ -53,7 +53,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0002_r0004_probe",
       "repo_relative_path": "campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/kpi/mt5_logic_parity.json",
-      "sha256": "ada833492998c1da313646cc9ffacd8914992f9acfa4f869ee32aab3ea893023",
+      "sha256": "a74e2174b4a63c5a37ac4a3b9ae77f8c325c3fb9b6140a4e866e8b4c1626725d",
       "source_inputs": [
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/artifacts/c0002_r0004_schedule.csv",
         "configs/market.yaml"
@@ -68,7 +68,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0002_r0004_probe",
       "repo_relative_path": "campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/kpi/proxy_vs_mt5_logic_parity.json",
-      "sha256": "02ccfd3d505d9cc8fe31429001f5951f3efb5d5f45a5ca6d6b9bc6f0f43d6074",
+      "sha256": "8236331f9c6feb1cf70b0eff153cc1c1c2e2a8c8911b50db59397d1800067b19",
       "source_inputs": [
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/kpi/proxy.json",
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/kpi/mt5_logic_parity.json"
@@ -83,7 +83,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0002_r0004_probe",
       "repo_relative_path": "campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/kpi/mt5_tick.json",
-      "sha256": "0116df038bb7d391ea1bec26a35e0a855d0faf1b72b123cc9edb7ae8d60675a1",
+      "sha256": "131f75db0b8c613de0118a1246c7ad4fc4c1dac9dd1c825348826ffed73a660c",
       "source_inputs": [
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/artifacts/c0002_r0004_schedule.csv",
         "configs/market.yaml"
@@ -98,7 +98,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0002_r0004_probe",
       "repo_relative_path": "campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/kpi/execution_divergence.json",
-      "sha256": "47f07c5fafdd3f26b861e7bdc16cefeb87b3c3b8f5e6437bef56417a3db61800",
+      "sha256": "18fbd74a32379d61aeedbf958f1f2445faa22da793ee11685762d308416831ee",
       "source_inputs": [
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/kpi/mt5_logic_parity.json",
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/kpi/mt5_tick.json"
@@ -113,7 +113,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0002_r0004_probe",
       "repo_relative_path": "campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/kpi/mt5_tick_by_fold.json",
-      "sha256": "01de36c4f306fb60c8f28b2cfbc82056e49502fba69c4290fe1eeeb74c1dff95",
+      "sha256": "203b2af688bf6d74ad90ff9bd5bb47aa868bfb6008eca49b14ddd86065655efe",
       "source_inputs": [
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/artifacts/c0002_r0004_schedule.csv",
         "registries/rolling_windows.yaml",
@@ -129,7 +129,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0002_r0004_probe",
       "repo_relative_path": "campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/kpi/execution_divergence_by_fold.json",
-      "sha256": "6bca4352d47db6e3ef1396a34f514573d453cf1f164e512f051e3b95907b034d",
+      "sha256": "60932857988bb561067b8ebc22cd8902858885479511f25b942064a4f79cc636",
       "source_inputs": [
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0004/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"
@@ -161,9 +161,9 @@
   "created_at_utc": "2026-07-02T14:22:20Z",
   "deferred_with_reason": [
     {
-      "field": "next_campaign_run_or_campaign_close_decision",
-      "next_action": "decide_r0005_or_close_c0002_after_r0004",
-      "reason": "C0002 R0004 is closed no candidate; the campaign remains open pending a true R0005 variant or C0002 close decision"
+      "field": "mt5_tick_and_fold_isolated_artifact_hashes",
+      "next_action": "produce_c0002_r0004_mt5_tick_execution_evidence",
+      "reason": "logic parity artifacts are recorded; tick execution and fold-isolated evidence are later mandatory sequence steps"
     }
   ],
   "lineage_id": "L0004",

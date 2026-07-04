@@ -70,7 +70,7 @@
       "fields": {}
     }
   },
-  "created_at_utc": "2026-07-03T11:46:10Z",
+  "created_at_utc": "2026-07-04T07:08:33Z",
   "deferred_with_reason": [
     {
       "blocking_condition": "candidate quality must be established before materialization work freezes export requirements",
@@ -95,9 +95,9 @@
   "mt5_probe_id": "MT5-C0008-R0003",
   "mt5_probe_status": "completed",
   "mt5_report_hashes": [
-    "56dde4ce1296f8a440d2249778242c6f32ecfba95a784f50d585bcbc15dc8c9d",
+    "08461de337b3fb5cc7f8b5aebf7194d60e2bc319c88f59214dff00c3043281be",
     "6678b375e23b15fbdcc5c5a9ddf4b6f738cdbfb518f5640b6ee8d9b4158e6bc3",
-    "c14e16158b8eecb51a8b2077fbc2fe8f8b43860a9eff873a1d6889c82bc9f077",
+    "648c93593c44a95824f020e1a59a40794ba61ce7d7d7ae6c669b7f83feb85291",
     "ce6e731dc6ce12d6c84066a7e3f968402950341db52470e5550fc3e1a35147a0"
   ],
   "mt5_report_paths": [
@@ -107,13 +107,13 @@
     "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv"
   ],
   "mt5_status_fields": {
-    "balance": "487.49",
+    "balance": "487.50",
     "campaign_id": "C0008",
     "created_at": "2026.04.30 23:59:58",
     "currency": "USD",
     "detail": "R0003 MT5 schedule replay completed",
     "entries": "4235",
-    "equity": "487.49",
+    "equity": "487.50",
     "exit_evaluation": "tick_price",
     "exits": "4235",
     "leverage": "100",
@@ -141,16 +141,49 @@
   "required_kpis": {
     "mt5_execution_mode": "tick_execution",
     "mt5_exit_evaluation": "tick_price",
-    "mt5_expectancy_per_entry": -0.002954,
-    "mt5_max_drawdown_percent": 3.428,
-    "mt5_net_pnl": -12.51,
+    "mt5_expectancy_per_entry": -0.002952,
+    "mt5_max_drawdown_percent": 3.424,
+    "mt5_net_pnl": -12.5,
     "mt5_output_mode": "tick_execution",
-    "mt5_profit_factor": 0.9693,
+    "mt5_profit_factor": 0.969324,
     "mt5_trade_count": 4235,
     "mt5_win_rate": 0.434475
   },
   "requirement_policy": "required_and_conditional_required_with_deferred_reason",
   "run_id": "R0003",
+  "runtime_config_path": "configs/runtime.yaml",
+  "runtime_config_sha256": "7549a904443d4d0a926e55579437391c58ee82facd3f364eef58a0ee9f5ddfc7",
+  "runtime_config_snapshot": {
+    "claim_boundary": {
+      "active_runtime_config_complete": true,
+      "live_ready": false,
+      "runtime_authority": false
+    },
+    "execution": {
+      "cost_behavior": "broker_native_until_contract_says_otherwise",
+      "default_lot": 0.01,
+      "position_management": "tick_runtime",
+      "signal_timing": "closed_m5_bar"
+    },
+    "mt5": {
+      "broker_server": "FPMarketsSC-Live",
+      "deposit": 500,
+      "deposit_currency": "USD",
+      "execution_mode": 0,
+      "leverage": 100,
+      "logic_parity_model": 2,
+      "metaeditor_exe": "C:/Program Files/MetaTrader 5/MetaEditor64.exe",
+      "symbol": "US100",
+      "terminal_data_dir": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075",
+      "terminal_exe": "C:/Program Files/MetaTrader 5/terminal64.exe",
+      "terminal_mode": "headless",
+      "tester_model": "real_ticks",
+      "tick_execution_model": 4,
+      "timeframe": "M5"
+    },
+    "schema": "axiom_rift_runtime_config_v1",
+    "status": "active_runtime_baseline"
+  },
   "schema": "axiom_rift_mt5_tick_kpi_v1",
   "synthesis_id_when_applicable": null,
   "template": false,

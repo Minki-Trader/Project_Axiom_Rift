@@ -31,7 +31,7 @@ active_truth:
   campaigns_dir: campaigns
   skills_dir: .agents/skills
   contracts_complete: false
-  runtime_config_complete: false
+  runtime_config_complete: true
   skills_complete: false
   bootstrap_skills_role: temporary_planning_aids_not_complete_official_skills
   archive_is_active_truth: false
@@ -210,11 +210,8 @@ next_work:
   - record_c0002_r0001_proxy_vs_mt5_logic_parity_evidence
   - produce_c0002_r0001_mt5_logic_parity_evidence
   - repair_c0002_r0001_schedule_replay_parity
-  - produce_c0002_r0001_mt5_tick_execution_evidence
   - record_c0002_r0001_execution_divergence
-  - produce_c0002_r0001_fold_isolated_mt5_tick_kpi
   - produce_c0002_r0001_fold_isolated_execution_divergence
-  - review_c0002_r0001_tick_execution_kpi_and_closeout
   - close_c0002_r0001_no_candidate
   - decide_r0002_or_close_c0002_after_r0001
   - open_c0002_r0002_exhaustion_reversal_score_variant
@@ -222,33 +219,24 @@ next_work:
   - repair_c0002_r0002_schedule_replay_parity
   - record_c0002_r0002_proxy_vs_mt5_logic_parity_evidence
   - produce_c0002_r0002_mt5_logic_parity_evidence
-  - produce_c0002_r0002_mt5_tick_execution_evidence
   - record_c0002_r0002_execution_divergence
-  - produce_c0002_r0002_fold_isolated_mt5_tick_kpi
   - produce_c0002_r0002_fold_isolated_execution_divergence
-  - review_c0002_r0002_tick_execution_kpi_and_closeout
   - close_c0002_r0002_no_candidate
   - decide_r0003_or_close_c0002_after_r0002
   - open_c0002_r0003_dual_direction_cell_score_variant
   - produce_c0002_r0003_proxy_evidence
   - produce_c0002_r0003_mt5_logic_parity_evidence
   - record_c0002_r0003_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0002_r0003_mt5_tick_execution_evidence
   - record_c0002_r0003_execution_divergence
-  - produce_c0002_r0003_fold_isolated_mt5_tick_kpi
   - produce_c0002_r0003_fold_isolated_execution_divergence
-  - review_c0002_r0003_tick_execution_kpi_and_closeout
   - close_c0002_r0003_no_candidate
   - decide_r0004_or_close_c0002_after_r0003
   - open_c0002_r0004_stump_rank_ensemble_variant
   - produce_c0002_r0004_proxy_evidence
   - produce_c0002_r0004_mt5_logic_parity_evidence
   - record_c0002_r0004_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0002_r0004_mt5_tick_execution_evidence
   - record_c0002_r0004_execution_divergence
-  - produce_c0002_r0004_fold_isolated_mt5_tick_kpi
   - produce_c0002_r0004_fold_isolated_execution_divergence
-  - review_c0002_r0004_tick_execution_kpi_and_closeout
   - close_c0002_r0004_no_candidate
   - decide_r0005_or_close_c0002_after_r0004
   - review_c0002_synthesis_readiness_after_r0004
@@ -296,11 +284,8 @@ next_work:
   - produce_sc0001_sr0001_proxy_evidence
   - produce_sc0001_sr0001_mt5_logic_parity_evidence
   - record_sc0001_sr0001_proxy_vs_mt5_logic_parity_evidence
-  - produce_sc0001_sr0001_mt5_tick_execution_evidence
   - record_sc0001_sr0001_execution_divergence
-  - produce_sc0001_sr0001_fold_isolated_mt5_tick_kpi
   - produce_sc0001_sr0001_fold_isolated_execution_divergence
-  - review_sc0001_sr0001_tick_execution_kpi_and_closeout
   - close_sc0001_sr0001_no_candidate
   - decide_sc0001_sr0002_or_close_synthesis_after_sr0001
   - close_sc0001_no_candidate_after_sr0001
@@ -310,44 +295,32 @@ next_work:
   - produce_c0004_r0001_proxy_evidence
   - produce_c0004_r0001_mt5_logic_parity_evidence
   - record_c0004_r0001_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0004_r0001_mt5_tick_execution_evidence
   - record_c0004_r0001_execution_divergence
-  - produce_c0004_r0001_fold_isolated_mt5_tick_kpi
   - produce_c0004_r0001_fold_isolated_execution_divergence
-  - review_c0004_r0001_tick_execution_kpi_and_closeout
   - close_c0004_r0001_no_candidate
   - decide_c0004_r0002_or_close_c0004_after_r0001
   - open_c0004_r0002_path_quality_archetype_variant
   - produce_c0004_r0002_proxy_evidence
   - produce_c0004_r0002_mt5_logic_parity_evidence
   - record_c0004_r0002_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0004_r0002_mt5_tick_execution_evidence
   - record_c0004_r0002_execution_divergence
-  - produce_c0004_r0002_fold_isolated_mt5_tick_kpi
   - produce_c0004_r0002_fold_isolated_execution_divergence
-  - review_c0004_r0002_tick_execution_kpi_and_closeout
   - close_c0004_r0002_no_candidate
   - decide_c0004_r0003_or_close_c0004_after_r0002
   - open_c0004_r0003_adverse_archetype_inversion_variant
   - produce_c0004_r0003_proxy_evidence
   - produce_c0004_r0003_mt5_logic_parity_evidence
   - record_c0004_r0003_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0004_r0003_mt5_tick_execution_evidence
   - record_c0004_r0003_execution_divergence
-  - produce_c0004_r0003_fold_isolated_mt5_tick_kpi
   - produce_c0004_r0003_fold_isolated_execution_divergence
-  - review_c0004_r0003_tick_execution_kpi_and_closeout
   - close_c0004_r0003_no_candidate
   - decide_c0004_r0004_or_close_c0004_after_r0003
   - open_c0004_r0004_temporal_stability_archetype_variant
   - produce_c0004_r0004_proxy_evidence
   - produce_c0004_r0004_mt5_logic_parity_evidence
   - record_c0004_r0004_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0004_r0004_mt5_tick_execution_evidence
   - record_c0004_r0004_execution_divergence
-  - produce_c0004_r0004_fold_isolated_mt5_tick_kpi
   - produce_c0004_r0004_fold_isolated_execution_divergence
-  - review_c0004_r0004_tick_execution_kpi_and_closeout
   - close_c0004_r0004_no_candidate
   - review_c0004_synthesis_readiness_after_r0004
   - close_c0004_no_candidate_after_r0004
@@ -357,33 +330,24 @@ next_work:
   - produce_c0005_r0001_proxy_evidence
   - produce_c0005_r0001_mt5_logic_parity_evidence
   - record_c0005_r0001_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0005_r0001_mt5_tick_execution_evidence
   - record_c0005_r0001_execution_divergence
-  - produce_c0005_r0001_fold_isolated_mt5_tick_kpi
   - produce_c0005_r0001_fold_isolated_execution_divergence
-  - review_c0005_r0001_tick_execution_kpi_and_closeout
   - close_c0005_r0001_no_candidate
   - decide_c0005_r0002_or_close_c0005_after_r0001
   - open_c0005_r0002_directional_contrast_analog_memory_run
   - produce_c0005_r0002_proxy_evidence
   - produce_c0005_r0002_mt5_logic_parity_evidence
   - record_c0005_r0002_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0005_r0002_mt5_tick_execution_evidence
   - record_c0005_r0002_execution_divergence
-  - produce_c0005_r0002_fold_isolated_mt5_tick_kpi
   - produce_c0005_r0002_fold_isolated_execution_divergence
-  - review_c0005_r0002_tick_execution_kpi_and_closeout
   - close_c0005_r0002_no_candidate
   - decide_c0005_r0003_or_close_c0005_after_r0002
   - open_c0005_r0003_temporal_stability_analog_memory_run
   - produce_c0005_r0003_proxy_evidence
   - produce_c0005_r0003_mt5_logic_parity_evidence
   - record_c0005_r0003_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0005_r0003_mt5_tick_execution_evidence
   - record_c0005_r0003_execution_divergence
-  - produce_c0005_r0003_fold_isolated_mt5_tick_kpi
   - produce_c0005_r0003_fold_isolated_execution_divergence
-  - review_c0005_r0003_tick_execution_kpi_and_closeout
   - close_c0005_r0003_no_candidate
   - decide_c0005_r0004_or_close_c0005_after_r0003
   - open_c0005_r0004_target_first_tail_hazard_analog_memory_run
@@ -391,32 +355,23 @@ next_work:
   - produce_c0005_r0004_proxy_evidence
   - produce_c0005_r0004_mt5_logic_parity_evidence
   - record_c0005_r0004_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0005_r0004_mt5_tick_execution_evidence
   - record_c0005_r0004_execution_divergence
-  - produce_c0005_r0004_fold_isolated_mt5_tick_kpi
   - produce_c0005_r0004_fold_isolated_execution_divergence
-  - review_c0005_r0004_tick_execution_kpi_and_closeout
   - close_c0005_r0004_no_candidate
   - open_c0005_r0005_calibrated_analog_classifier_run
   - produce_c0005_r0005_proxy_evidence
   - produce_c0005_r0005_mt5_logic_parity_evidence
   - record_c0005_r0005_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0005_r0005_mt5_tick_execution_evidence
   - record_c0005_r0005_execution_divergence
-  - produce_c0005_r0005_fold_isolated_mt5_tick_kpi
   - produce_c0005_r0005_fold_isolated_execution_divergence
-  - review_c0005_r0005_tick_execution_kpi_and_closeout
   - close_c0005_r0005_no_candidate
   - decide_c0005_r0006_or_close_c0005_after_r0005
   - open_c0005_r0006_metric_rank_ensemble_analog_memory_run
   - produce_c0005_r0006_proxy_evidence
   - produce_c0005_r0006_mt5_logic_parity_evidence
   - record_c0005_r0006_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0005_r0006_mt5_tick_execution_evidence
   - record_c0005_r0006_execution_divergence
-  - produce_c0005_r0006_fold_isolated_mt5_tick_kpi
   - produce_c0005_r0006_fold_isolated_execution_divergence
-  - review_c0005_r0006_tick_execution_kpi_and_closeout
   - close_c0005_r0006_no_candidate
   - review_c0005_synthesis_readiness_after_r0006
   - close_c0005_no_candidate_after_r0006
@@ -425,55 +380,40 @@ next_work:
   - produce_c0006_r0001_proxy_evidence
   - produce_c0006_r0001_mt5_logic_parity_evidence
   - record_c0006_r0001_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0006_r0001_mt5_tick_execution_evidence
   - record_c0006_r0001_execution_divergence
-  - produce_c0006_r0001_fold_isolated_mt5_tick_kpi
   - produce_c0006_r0001_fold_isolated_execution_divergence
-  - review_c0006_r0001_tick_execution_kpi_and_closeout
   - close_c0006_r0001_no_candidate
   - decide_c0006_r0002_or_close_c0006_after_r0001
   - open_c0006_r0002_sweep_acceptance_continuation_run
   - produce_c0006_r0002_proxy_evidence
   - produce_c0006_r0002_mt5_logic_parity_evidence
   - record_c0006_r0002_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0006_r0002_mt5_tick_execution_evidence
   - record_c0006_r0002_execution_divergence
-  - produce_c0006_r0002_fold_isolated_mt5_tick_kpi
   - produce_c0006_r0002_fold_isolated_execution_divergence
-  - review_c0006_r0002_tick_execution_kpi_and_closeout
   - close_c0006_r0002_no_candidate
   - decide_c0006_r0003_or_close_c0006_after_r0002
   - open_c0006_r0003_delayed_sweep_trap_rejection_run
   - produce_c0006_r0003_proxy_evidence
   - produce_c0006_r0003_mt5_logic_parity_evidence
   - record_c0006_r0003_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0006_r0003_mt5_tick_execution_evidence
   - record_c0006_r0003_execution_divergence
-  - produce_c0006_r0003_fold_isolated_mt5_tick_kpi
   - produce_c0006_r0003_fold_isolated_execution_divergence
-  - review_c0006_r0003_tick_execution_kpi_and_closeout
   - close_c0006_r0003_no_candidate
   - decide_c0006_r0004_or_close_c0006_after_r0003
   - open_c0006_r0004_two_sided_sweep_reversion_run
   - produce_c0006_r0004_proxy_evidence
   - produce_c0006_r0004_mt5_logic_parity_evidence
   - record_c0006_r0004_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0006_r0004_mt5_tick_execution_evidence
   - record_c0006_r0004_execution_divergence
-  - produce_c0006_r0004_fold_isolated_mt5_tick_kpi
   - produce_c0006_r0004_fold_isolated_execution_divergence
-  - review_c0006_r0004_tick_execution_kpi_and_closeout
   - close_c0006_r0004_no_candidate
   - decide_c0006_r0005_or_close_c0006_after_r0004
   - open_c0006_r0005_reclaim_retest_rejection_run
   - produce_c0006_r0005_proxy_evidence
   - produce_c0006_r0005_mt5_logic_parity_evidence
   - record_c0006_r0005_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0006_r0005_mt5_tick_execution_evidence
   - record_c0006_r0005_execution_divergence
-  - produce_c0006_r0005_fold_isolated_mt5_tick_kpi
   - produce_c0006_r0005_fold_isolated_execution_divergence
-  - review_c0006_r0005_tick_execution_kpi_and_closeout
   - close_c0006_r0005_no_candidate
   - review_c0006_synthesis_readiness_after_r0005
   - close_c0006_no_candidate_after_r0005
@@ -483,11 +423,8 @@ next_work:
   - produce_sc0002_sr0001_proxy_evidence
   - produce_sc0002_sr0001_mt5_logic_parity_evidence
   - record_sc0002_sr0001_proxy_vs_mt5_logic_parity_evidence
-  - produce_sc0002_sr0001_mt5_tick_execution_evidence
   - record_sc0002_sr0001_execution_divergence
-  - produce_sc0002_sr0001_fold_isolated_mt5_tick_kpi
   - produce_sc0002_sr0001_fold_isolated_execution_divergence
-  - review_sc0002_sr0001_tick_execution_kpi_and_closeout
   - close_sc0002_sr0001_no_candidate
   - close_sc0002_no_candidate_after_sr0001
   - open_c0007_fold_local_supervised_edge_discovery
@@ -495,33 +432,24 @@ next_work:
   - produce_c0007_r0001_proxy_evidence
   - produce_c0007_r0001_mt5_logic_parity_evidence
   - record_c0007_r0001_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0007_r0001_mt5_tick_execution_evidence
   - record_c0007_r0001_execution_divergence
-  - produce_c0007_r0001_fold_isolated_mt5_tick_kpi
   - produce_c0007_r0001_fold_isolated_execution_divergence
-  - review_c0007_r0001_tick_execution_kpi_and_closeout
   - close_c0007_r0001_no_candidate
   - decide_c0007_r0002_or_close_c0007_after_r0001
   - open_c0007_r0002_dual_hazard_logistic_edge_classifier_run
   - produce_c0007_r0002_proxy_evidence
   - produce_c0007_r0002_mt5_logic_parity_evidence
   - record_c0007_r0002_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0007_r0002_mt5_tick_execution_evidence
   - record_c0007_r0002_execution_divergence
-  - produce_c0007_r0002_fold_isolated_mt5_tick_kpi
   - produce_c0007_r0002_fold_isolated_execution_divergence
-  - review_c0007_r0002_tick_execution_kpi_and_closeout
   - close_c0007_r0002_no_candidate
   - decide_c0007_r0003_or_close_c0007_after_r0002
   - open_c0007_r0003_nonlinear_interaction_edge_ensemble_run
   - produce_c0007_r0003_proxy_evidence
   - produce_c0007_r0003_mt5_logic_parity_evidence
   - record_c0007_r0003_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0007_r0003_mt5_tick_execution_evidence
   - record_c0007_r0003_execution_divergence
-  - produce_c0007_r0003_fold_isolated_mt5_tick_kpi
   - produce_c0007_r0003_fold_isolated_execution_divergence
-  - review_c0007_r0003_tick_execution_kpi_and_closeout
   - close_c0007_r0003_no_candidate
   - review_c0007_synthesis_readiness_after_r0003
   - close_c0007_no_candidate_after_r0003
@@ -533,23 +461,17 @@ next_work:
   - produce_c0008_r0001_proxy_evidence
   - produce_c0008_r0001_mt5_logic_parity_evidence
   - record_c0008_r0001_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0008_r0001_mt5_tick_execution_evidence
   - record_c0008_r0001_execution_divergence
-  - produce_c0008_r0001_fold_isolated_mt5_tick_kpi
   - produce_c0008_r0001_fold_isolated_execution_divergence
-  - review_c0008_r0001_tick_execution_kpi_and_closeout
   - close_c0008_r0001_no_candidate
   - decide_c0008_r0002_or_close_c0008_after_r0001
   - open_c0008_r0002_structural_trap_reversal_centroid_run
   - produce_c0008_r0002_proxy_evidence
   - produce_c0008_r0002_mt5_logic_parity_evidence
   - record_c0008_r0002_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0008_r0002_mt5_tick_execution_evidence
   - record_c0008_r0002_execution_divergence
-  - produce_c0008_r0002_fold_isolated_mt5_tick_kpi
   - produce_c0008_r0002_fold_isolated_execution_divergence
   - repair_c0008_r0002_mt5_campaign_path_marker
-  - review_c0008_r0002_tick_execution_kpi_and_closeout
   - close_c0008_r0002_with_candidate_evidence
   - audit_c0008_r0002_candidate_robustness
   - design_c0008_r0003_structural_trap_reversal_robustness_conditioner_run
@@ -557,14 +479,63 @@ next_work:
   - produce_c0008_r0003_proxy_evidence
   - produce_c0008_r0003_mt5_logic_parity_evidence
   - record_c0008_r0003_proxy_vs_mt5_logic_parity_evidence
-  - produce_c0008_r0003_mt5_tick_execution_evidence
   - record_c0008_r0003_execution_divergence
-  - produce_c0008_r0003_fold_isolated_mt5_tick_kpi
   - produce_c0008_r0003_fold_isolated_execution_divergence
-  - review_c0008_r0003_tick_execution_kpi_and_closeout
   - close_c0008_r0003_no_candidate
+  - produce_c0002_r0001_mt5_tick_execution_evidence
+  - produce_c0002_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0002_r0002_mt5_tick_execution_evidence
+  - produce_c0002_r0002_fold_isolated_mt5_tick_kpi
+  - produce_c0002_r0003_mt5_tick_execution_evidence
+  - produce_c0002_r0003_fold_isolated_mt5_tick_kpi
+  - produce_sc0001_sr0001_mt5_tick_execution_evidence
+  - produce_sc0001_sr0001_fold_isolated_mt5_tick_kpi
+  - produce_sc0002_sr0001_mt5_tick_execution_evidence
+  - produce_sc0002_sr0001_fold_isolated_mt5_tick_kpi
+  - produce_c0004_r0001_mt5_tick_execution_evidence
+  - produce_c0004_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0004_r0002_mt5_tick_execution_evidence
+  - produce_c0004_r0002_fold_isolated_mt5_tick_kpi
+  - produce_c0004_r0003_mt5_tick_execution_evidence
+  - produce_c0004_r0003_fold_isolated_mt5_tick_kpi
+  - produce_c0004_r0004_mt5_tick_execution_evidence
+  - produce_c0004_r0004_fold_isolated_mt5_tick_kpi
+  - produce_c0005_r0001_mt5_tick_execution_evidence
+  - produce_c0005_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0005_r0002_mt5_tick_execution_evidence
+  - produce_c0005_r0002_fold_isolated_mt5_tick_kpi
+  - produce_c0005_r0003_mt5_tick_execution_evidence
+  - produce_c0005_r0003_fold_isolated_mt5_tick_kpi
+  - produce_c0005_r0004_mt5_tick_execution_evidence
+  - produce_c0005_r0004_fold_isolated_mt5_tick_kpi
+  - produce_c0005_r0005_mt5_tick_execution_evidence
+  - produce_c0005_r0005_fold_isolated_mt5_tick_kpi
+  - produce_c0005_r0006_mt5_tick_execution_evidence
+  - produce_c0005_r0006_fold_isolated_mt5_tick_kpi
+  - produce_c0006_r0001_mt5_tick_execution_evidence
+  - produce_c0006_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0006_r0002_mt5_tick_execution_evidence
+  - produce_c0006_r0002_fold_isolated_mt5_tick_kpi
+  - produce_c0006_r0003_mt5_tick_execution_evidence
+  - produce_c0006_r0003_fold_isolated_mt5_tick_kpi
+  - produce_c0006_r0004_mt5_tick_execution_evidence
+  - produce_c0006_r0004_fold_isolated_mt5_tick_kpi
+  - produce_c0006_r0005_mt5_tick_execution_evidence
+  - produce_c0006_r0005_fold_isolated_mt5_tick_kpi
+  - produce_c0007_r0001_mt5_tick_execution_evidence
+  - produce_c0007_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0007_r0002_mt5_tick_execution_evidence
+  - produce_c0007_r0002_fold_isolated_mt5_tick_kpi
+  - produce_c0007_r0003_mt5_tick_execution_evidence
+  - produce_c0007_r0003_fold_isolated_mt5_tick_kpi
+  - produce_c0008_r0001_mt5_tick_execution_evidence
+  - produce_c0008_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0002_r0004_mt5_tick_execution_evidence
+  - produce_c0008_r0002_mt5_tick_execution_evidence
+  - produce_c0008_r0003_mt5_tick_execution_evidence
+  - produce_c0008_r0003_fold_isolated_mt5_tick_kpi
   tasks:
-  - decide_c0008_r0004_or_close_c0008_after_r0003
+  - review_c0008_r0003_tick_execution_kpi_and_closeout
   not_yet:
   - label_freeze
   - feature_set_freeze

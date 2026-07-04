@@ -8,20 +8,27 @@ import os
 import shutil
 import subprocess
 from collections import Counter
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
 import yaml
 
-from axiom_rift.collectors.mt5_fresh_export import (
-    DEFAULT_METAEDITOR_EXE,
-    DEFAULT_TERMINAL_EXE,
-    rel,
-    sha256_file,
+from axiom_rift.collectors.mt5_fresh_export import rel, sha256_file
+from axiom_rift.mt5.runtime_config import (
+    lot_input_line,
+    metaeditor_exe as runtime_metaeditor_exe,
+    runtime_payload_fields,
+    runtime_symbol,
+    runtime_timeframe,
+    starting_balance_usd,
     terminal_data_dir,
+    terminal_exe as runtime_terminal_exe,
+    tester_account_lines,
+    tester_model_for_mode,
 )
-from axiom_rift.mt5.c0002_r0004_probe import (
+from axiom_rift.mt5.shared import (
     LOGIC_PARITY_MODE,
     TICK_EXECUTION_MODE,
     VALID_MT5_MODES,
@@ -54,7 +61,7 @@ from axiom_rift.mt5.c0002_r0004_probe import (
     to_float,
     wait_for_status,
 )
-from axiom_rift.mt5.r0007_probe import (
+from axiom_rift.mt5.shared import (
     CompileResult,
     TesterResult,
     event_bar_time,
@@ -74,6 +81,8 @@ from axiom_rift.proxies.c0008_r0003_structural_trap_robustness import (
     load_proxy_trades,
     load_windows,
 )
+from axiom_rift.state.c0008 import validate_c0008_transaction
+from axiom_rift.state.transactions import StateTransaction
 
 
 EA_NAME = "AxiomC0002ScheduleReplay"
@@ -94,22 +103,86 @@ EXECUTION_DIVERGENCE_BY_FOLD_KPI = KPI_DIR / "execution_divergence_by_fold.json"
 RUN_MANIFEST = RUN_DIR / "run_manifest.json"
 GATE_REPORT = RUN_DIR / "gate_report.json"
 ARTIFACT_LINEAGE = RUN_DIR / "artifact_lineage.json"
+REENTRY = PROJECT_ROOT / "registries" / "reentry.yaml"
 CLAIM_STATE = PROJECT_ROOT / "registries" / "claim_state.yaml"
 SCHEDULE_ARTIFACT = RUN_ARTIFACT_DIR / "c0008_r0003_schedule.csv"
 SCHEDULE_COMMON_REL = "AxiomRift\\C0008\\R0003\\schedule\\c0008_r0003_schedule.csv"
-STARTING_BALANCE_USD = 500.0
+STARTING_BALANCE_USD = starting_balance_usd()
 RESPONSE_MODE = "fold_local_structural_trap_robustness_schedule_replay"
 MAX_HOLD_BARS = 10
 MAGIC = 800003
 TESTER_FROM_DATE = "2024.02.01"
 TESTER_TO_DATE = "2026.05.01"
+_ACTIVE_STATE_TX: StateTransaction | None = None
 
 
 def utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
-def compile_c0008_r0003_ea(metaeditor_exe: Path = DEFAULT_METAEDITOR_EXE) -> CompileResult:
+@contextmanager
+def state_transaction(label: str, expected_next_action: str | None = None):
+    global _ACTIVE_STATE_TX
+    if _ACTIVE_STATE_TX is not None:
+        yield _ACTIVE_STATE_TX
+        return
+    tx = StateTransaction(root=PROJECT_ROOT, label=label)
+    _ACTIVE_STATE_TX = tx
+    try:
+        yield tx
+        validate_c0008_transaction(
+            tx,
+            run_dir=RUN_DIR,
+            campaign_path=CAMPAIGN,
+            reentry_path=REENTRY,
+            claim_state_path=CLAIM_STATE,
+            expected_next_action=expected_next_action,
+            run_id=RUN_ID if expected_next_action is not None else None,
+        )
+        tx.commit()
+    finally:
+        _ACTIVE_STATE_TX = None
+
+
+def active_state_tx() -> StateTransaction | None:
+    return _ACTIVE_STATE_TX
+
+
+def read_json_state(path: Path) -> Any:
+    tx = active_state_tx()
+    return tx.read_json(path) if tx is not None else json.loads(path.read_text(encoding="ascii"))
+
+
+def read_yaml_state(path: Path) -> Any:
+    tx = active_state_tx()
+    return tx.read_yaml(path) if tx is not None else yaml.safe_load(path.read_text(encoding="ascii"))
+
+
+def write_json_state(path: Path, payload: Any) -> None:
+    tx = active_state_tx()
+    if tx is not None:
+        tx.write_json(path, payload)
+        return
+    with state_transaction(f"single-json-{path.name}") as single_tx:
+        single_tx.write_json(path, payload)
+
+
+def write_yaml_state(path: Path, payload: Any) -> None:
+    tx = active_state_tx()
+    if tx is not None:
+        tx.write_yaml(path, payload, sort_keys=False)
+        return
+    with state_transaction(f"single-yaml-{path.name}") as single_tx:
+        single_tx.write_yaml(path, payload, sort_keys=False)
+
+
+def state_sha256(path: Path) -> str:
+    tx = active_state_tx()
+    return tx.sha256(path) if tx is not None else sha256_file(path)
+
+
+def compile_c0008_r0003_ea(metaeditor_exe: Path | None = None) -> CompileResult:
+    metaeditor_exe = runtime_metaeditor_exe() if metaeditor_exe is None else metaeditor_exe
     if not metaeditor_exe.exists():
         raise FileNotFoundError(f"MetaEditor not found: {metaeditor_exe}")
     target_dir = terminal_data_dir() / "MQL5" / "Experts" / "AxiomRift"
@@ -278,7 +351,7 @@ def write_tester_config(
     if mode not in VALID_MT5_MODES:
         raise ValueError(f"Unsupported MT5 mode: {mode}")
     if model is None:
-        model = 2 if mode == LOGIC_PARITY_MODE else 4
+        model = tester_model_for_mode(mode)
     use_closed_bar_exit = use_closed_bar_exit_for_mode(mode)
     config_dir = PROJECT_ROOT / "artifacts" / "reports" / "c0008_r0003_mt5_tester"
     config_dir.mkdir(parents=True, exist_ok=True)
@@ -287,16 +360,13 @@ def write_tester_config(
     lines = [
         "[Tester]",
         "Expert=AxiomRift\\AxiomC0002ScheduleReplay",
-        "Symbol=US100",
-        "Period=M5",
+        f"Symbol={runtime_symbol()}",
+        f"Period={runtime_timeframe()}",
         f"Model={model}",
         f"FromDate={from_date}",
         f"ToDate={to_date}",
         "ForwardMode=0",
-        "Deposit=500",
-        "Currency=USD",
-        "Leverage=100",
-        "ExecutionMode=0",
+        *tester_account_lines(),
         "Optimization=0",
         "Visual=0",
         f"Report={report}",
@@ -311,7 +381,7 @@ def write_tester_config(
         f"InpResponseMode={RESPONSE_MODE}",
         f"InpSchedulePath={SCHEDULE_COMMON_REL}",
         f"InpMagic={MAGIC}",
-        "InpLot=0.01",
+        lot_input_line(),
         f"InpMaxHoldBars={MAX_HOLD_BARS}",
         "InpUseCommonFiles=true",
         f"InpUseClosedBarExit={bool_text(use_closed_bar_exit)}",
@@ -329,12 +399,14 @@ def run_c0008_r0003_tester(
     model: int | None = None,
     output_scope: str | None = None,
     compile_before: bool = True,
+    write_schedule: bool = True,
 ) -> TesterResult:
     mode = normalize_mt5_mode(mode)
     output_scope = normalize_output_scope(output_scope)
     if compile_before:
         compile_c0008_r0003_ea()
-    write_schedule_files()
+    if write_schedule:
+        write_schedule_files()
     clear_common_outputs(mode, output_scope)
     config = write_tester_config(mode=mode, from_date=from_date, to_date=to_date, model=model, output_scope=output_scope)
     report = tester_report_path_for_mode(mode, output_scope)
@@ -346,7 +418,7 @@ def run_c0008_r0003_tester(
     proc = None
     try:
         proc = subprocess.Popen(
-            [str(DEFAULT_TERMINAL_EXE), f"/config:{config}"],
+            [str(runtime_terminal_exe()), f"/config:{config}"],
             cwd=str(PROJECT_ROOT),
             creationflags=creationflags,
         )
@@ -412,40 +484,41 @@ def parse_c0008_r0003_mt5(
     if not write_kpi:
         return payload
     kpi_path = mt5_kpi_path_for_mode(mode)
-    kpi_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="ascii")
-    if mode == LOGIC_PARITY_MODE:
-        upsert_artifact_lineage(
-            "A-C0008-R0003-MT5-SCHEDULE",
-            "mt5_schedule_csv",
-            "mt5_logic_parity_input",
-            rel(SCHEDULE_ARTIFACT),
-            sha256_file(SCHEDULE_ARTIFACT),
-            ["campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy.json"],
-        )
-        upsert_artifact_lineage(
-            "A-C0008-R0003-MT5-LOGIC-KPI",
-            "mt5_logic_parity_kpi",
-            "mt5_logic_parity",
-            rel(MT5_LOGIC_KPI),
-            sha256_file(MT5_LOGIC_KPI),
-            [
-                "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
-                "configs/market.yaml",
-            ],
-        )
-    else:
-        upsert_artifact_lineage(
-            "A-C0008-R0003-MT5-TICK-KPI",
-            "mt5_tick_kpi",
-            "mt5_tick",
-            rel(MT5_TICK_KPI),
-            sha256_file(MT5_TICK_KPI),
-            [
-                "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
-                "configs/market.yaml",
-            ],
-        )
-    update_run_after_mt5(mode)
+    with state_transaction(f"c0008-r0003-mt5-{mode}"):
+        write_json_state(kpi_path, payload)
+        if mode == LOGIC_PARITY_MODE:
+            upsert_artifact_lineage(
+                "A-C0008-R0003-MT5-SCHEDULE",
+                "mt5_schedule_csv",
+                "mt5_logic_parity_input",
+                rel(SCHEDULE_ARTIFACT),
+                sha256_file(SCHEDULE_ARTIFACT),
+                ["campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy.json"],
+            )
+            upsert_artifact_lineage(
+                "A-C0008-R0003-MT5-LOGIC-KPI",
+                "mt5_logic_parity_kpi",
+                "mt5_logic_parity",
+                rel(MT5_LOGIC_KPI),
+                state_sha256(MT5_LOGIC_KPI),
+                [
+                    "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
+                    "configs/market.yaml",
+                ],
+            )
+        else:
+            upsert_artifact_lineage(
+                "A-C0008-R0003-MT5-TICK-KPI",
+                "mt5_tick_kpi",
+                "mt5_tick",
+                rel(MT5_TICK_KPI),
+                state_sha256(MT5_TICK_KPI),
+                [
+                    "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
+                    "configs/market.yaml",
+                ],
+            )
+        update_run_after_mt5(mode)
     return payload
 
 
@@ -534,8 +607,9 @@ def build_mt5_payload(
         "mt5_execution_mode": mode_label,
         "mt5_output_scope": result.output_scope,
         "mt5_terminal_identity": terminal_data_dir().as_posix(),
-        "mt5_symbol": "US100",
-        "mt5_timeframe": "M5",
+        **runtime_payload_fields(),
+        "mt5_symbol": runtime_symbol(),
+        "mt5_timeframe": runtime_timeframe(),
         "mt5_tester_model": tester_model_label(result.config),
         "mt5_date_start": tester_date_to_iso(result.from_date),
         "mt5_date_end": tester_to_date_to_end_iso(result.to_date),
@@ -720,27 +794,28 @@ def record_c0008_r0003_parity() -> dict[str, object]:
             "live_ready": False,
         },
     }
-    LOGIC_PARITY_KPI.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="ascii")
-    upsert_artifact_lineage(
-        "A-C0008-R0003-PROXY-VS-MT5-LOGIC-KPI",
-        "proxy_vs_mt5_logic_parity_kpi",
-        "proxy_vs_mt5_logic_parity",
-        rel(LOGIC_PARITY_KPI),
-        sha256_file(LOGIC_PARITY_KPI),
-        [
-            "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy.json",
-            "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json",
-        ],
-    )
-    update_gate_after_parity(payload)
-    update_reentry_after_logic_parity(next_action, mechanical_ok)
-    update_campaign_after_logic_parity(next_action)
-    update_claim_state_after_logic_parity(payload, mt5)
+    with state_transaction("c0008-r0003-logic-parity", expected_next_action=next_action):
+        write_json_state(LOGIC_PARITY_KPI, payload)
+        upsert_artifact_lineage(
+            "A-C0008-R0003-PROXY-VS-MT5-LOGIC-KPI",
+            "proxy_vs_mt5_logic_parity_kpi",
+            "proxy_vs_mt5_logic_parity",
+            rel(LOGIC_PARITY_KPI),
+            state_sha256(LOGIC_PARITY_KPI),
+            [
+                "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy.json",
+                "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json",
+            ],
+        )
+        update_gate_after_parity(payload)
+        update_reentry_after_logic_parity(next_action, mechanical_ok)
+        update_campaign_after_logic_parity(next_action)
+        update_claim_state_after_logic_parity(payload, mt5)
     return payload
 
 
 def update_run_after_mt5(mode: str) -> None:
-    data = json.loads(RUN_MANIFEST.read_text(encoding="ascii"))
+    data = read_json_state(RUN_MANIFEST)
     mode = normalize_mt5_mode(mode)
     evidence_paths = data.setdefault("evidence_paths", {})
     evidence_paths["mt5_logic_parity_kpi"] = "kpi/mt5_logic_parity.json"
@@ -760,11 +835,11 @@ def update_run_after_mt5(mode: str) -> None:
         mt5_plan["tick_kpi_path"] = "kpi/mt5_tick.json"
         data["status"] = "mt5_tick_recorded_pending_execution_divergence"
         data["gate_status"] = "mt5_tick_recorded_pending_execution_divergence"
-    RUN_MANIFEST.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="ascii")
+    write_json_state(RUN_MANIFEST, data)
 
 
 def update_run_after_parity(parity_payload: dict[str, object]) -> None:
-    data = json.loads(RUN_MANIFEST.read_text(encoding="ascii"))
+    data = read_json_state(RUN_MANIFEST)
     evidence_paths = data.setdefault("evidence_paths", {})
     evidence_paths["mt5_logic_parity_kpi"] = "kpi/mt5_logic_parity.json"
     evidence_paths["proxy_vs_mt5_logic_parity_kpi"] = "kpi/proxy_vs_mt5_logic_parity.json"
@@ -772,11 +847,11 @@ def update_run_after_parity(parity_payload: dict[str, object]) -> None:
     repair_required = bool(parity_payload["required_kpis"]["repair_required"])  # type: ignore[index]
     data["status"] = "mechanical_parity_failed" if repair_required else "parity_evidence_recorded"
     data["gate_status"] = "logic_parity_evidence_recorded"
-    RUN_MANIFEST.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="ascii")
+    write_json_state(RUN_MANIFEST, data)
 
 
 def update_gate_after_parity(parity_payload: dict[str, object]) -> None:
-    data = json.loads(GATE_REPORT.read_text(encoding="ascii"))
+    data = read_json_state(GATE_REPORT)
     mechanical_status = parity_payload["required_kpis"]["mechanical_parity_status"]  # type: ignore[index]
     intent_status = parity_payload["required_kpis"]["intent_parity_status"]  # type: ignore[index]
     next_action = str(parity_payload["required_kpis"]["next_action"])  # type: ignore[index]
@@ -812,13 +887,12 @@ def update_gate_after_parity(parity_payload: dict[str, object]) -> None:
                 "revisit_when": "after C0008 R0003 tick execution KPI and execution divergence are recorded",
             }
         ]
-    GATE_REPORT.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="ascii")
+    write_json_state(GATE_REPORT, data)
     update_run_after_parity(parity_payload)
 
 
 def update_reentry_after_logic_parity(next_action: str, mechanical_ok: bool) -> None:
-    path = PROJECT_ROOT / "registries" / "reentry.yaml"
-    data = yaml.safe_load(path.read_text(encoding="ascii"))
+    data = read_yaml_state(REENTRY)
     next_work = data.setdefault("next_work", {})
     completed = list(next_work.get("completed") or [])
     for item in (
@@ -830,11 +904,11 @@ def update_reentry_after_logic_parity(next_action: str, mechanical_ok: bool) -> 
     completed = [item for item in completed if item != next_action]
     next_work["completed"] = completed
     next_work["tasks"] = [next_action]
-    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="ascii")
+    write_yaml_state(REENTRY, data)
 
 
 def update_campaign_after_logic_parity(next_action: str) -> None:
-    data = yaml.safe_load(CAMPAIGN.read_text(encoding="ascii"))
+    data = read_yaml_state(CAMPAIGN)
     closeout = data.setdefault("closeout", {})
     closeout["remaining_question"] = next_action
     run_index = data.setdefault("run_index", {})
@@ -846,11 +920,11 @@ def update_campaign_after_logic_parity(next_action: str) -> None:
         else "R0003 closed-bar MT5 logic parity is recorded but mechanical parity repair is required before hypothesis judgment."
     )
     next_candidate["status"] = "active_run_open"
-    CAMPAIGN.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="ascii")
+    write_yaml_state(CAMPAIGN, data)
 
 
 def update_claim_state_after_logic_parity(parity_payload: dict[str, object], mt5_payload: dict[str, object]) -> None:
-    data = yaml.safe_load(CLAIM_STATE.read_text(encoding="ascii"))
+    data = read_yaml_state(CLAIM_STATE)
     required = parity_payload["required_kpis"]  # type: ignore[index]
     mt5_required = mt5_payload.get("required_kpis", {})
     data["active_campaign"] = "campaigns/C0008_multi_timeframe_structural_context_discovery"
@@ -879,7 +953,7 @@ def update_claim_state_after_logic_parity(parity_payload: dict[str, object], mt5
             "live_ready": False,
         },
     }
-    CLAIM_STATE.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="ascii")
+    write_yaml_state(CLAIM_STATE, data)
 
 
 def record_c0008_r0003_execution_divergence() -> dict[str, object]:
@@ -1018,27 +1092,29 @@ def record_c0008_r0003_execution_divergence() -> dict[str, object]:
             "live_ready": False,
         },
     }
-    EXECUTION_DIVERGENCE_KPI.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="ascii")
-    upsert_artifact_lineage(
-        "A-C0008-R0003-EXECUTION-DIVERGENCE-KPI",
-        "diagnostic_output",
-        "execution_divergence",
-        rel(EXECUTION_DIVERGENCE_KPI),
-        sha256_file(EXECUTION_DIVERGENCE_KPI),
-        [
-            "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json",
-            "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick.json",
-        ],
-    )
-    update_gate_after_execution_divergence(payload)
-    update_reentry_after_tick_and_divergence()
-    update_campaign_after_tick_and_divergence()
-    update_claim_state_after_tick_and_divergence(payload, tick_mt5)
+    next_action = "produce_c0008_r0003_fold_isolated_mt5_tick_kpi"
+    with state_transaction("c0008-r0003-execution-divergence", expected_next_action=next_action):
+        write_json_state(EXECUTION_DIVERGENCE_KPI, payload)
+        upsert_artifact_lineage(
+            "A-C0008-R0003-EXECUTION-DIVERGENCE-KPI",
+            "diagnostic_output",
+            "execution_divergence",
+            rel(EXECUTION_DIVERGENCE_KPI),
+            state_sha256(EXECUTION_DIVERGENCE_KPI),
+            [
+                "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json",
+                "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick.json",
+            ],
+        )
+        update_gate_after_execution_divergence(payload)
+        update_reentry_after_tick_and_divergence()
+        update_campaign_after_tick_and_divergence()
+        update_claim_state_after_tick_and_divergence(payload, tick_mt5)
     return payload
 
 
 def update_run_after_execution_divergence() -> None:
-    data = json.loads(RUN_MANIFEST.read_text(encoding="ascii"))
+    data = read_json_state(RUN_MANIFEST)
     evidence_paths = data.setdefault("evidence_paths", {})
     evidence_paths["mt5_logic_parity_kpi"] = "kpi/mt5_logic_parity.json"
     evidence_paths["mt5_tick_kpi"] = "kpi/mt5_tick.json"
@@ -1047,11 +1123,11 @@ def update_run_after_execution_divergence() -> None:
     evidence_paths["mt5_schedule_artifact"] = "artifacts/c0008_r0003_schedule.csv"
     data["status"] = "execution_divergence_recorded_pending_fold_isolated_tick"
     data["gate_status"] = "logic_tick_and_divergence_recorded"
-    RUN_MANIFEST.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="ascii")
+    write_json_state(RUN_MANIFEST, data)
 
 
 def update_gate_after_execution_divergence(divergence_payload: dict[str, object]) -> None:
-    data = json.loads(GATE_REPORT.read_text(encoding="ascii"))
+    data = read_json_state(GATE_REPORT)
     required = divergence_payload["required_kpis"]  # type: ignore[index]
     missing_required = divergence_payload.get("missing_required_kpi_fields", [])
     checks = data["evidence_gate"].setdefault("checks", {})
@@ -1087,13 +1163,12 @@ def update_gate_after_execution_divergence(divergence_payload: dict[str, object]
             "revisit_when": "after fold-isolated tick KPI and fold-isolated execution divergence are recorded",
         }
     ]
-    GATE_REPORT.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="ascii")
+    write_json_state(GATE_REPORT, data)
     update_run_after_execution_divergence()
 
 
 def update_reentry_after_tick_and_divergence() -> None:
-    path = PROJECT_ROOT / "registries" / "reentry.yaml"
-    data = yaml.safe_load(path.read_text(encoding="ascii"))
+    data = read_yaml_state(REENTRY)
     next_work = data.setdefault("next_work", {})
     completed = list(next_work.get("completed") or [])
     for item in (
@@ -1106,12 +1181,12 @@ def update_reentry_after_tick_and_divergence() -> None:
     completed = [item for item in completed if item != next_action]
     next_work["completed"] = completed
     next_work["tasks"] = [next_action]
-    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="ascii")
+    write_yaml_state(REENTRY, data)
 
 
 def update_campaign_after_tick_and_divergence() -> None:
     next_action = "produce_c0008_r0003_fold_isolated_mt5_tick_kpi"
-    data = yaml.safe_load(CAMPAIGN.read_text(encoding="ascii"))
+    data = read_yaml_state(CAMPAIGN)
     closeout = data.setdefault("closeout", {})
     closeout["remaining_question"] = next_action
     run_index = data.setdefault("run_index", {})
@@ -1119,11 +1194,11 @@ def update_campaign_after_tick_and_divergence() -> None:
     next_candidate["direction"] = "active_c0008_r0003_fold_isolated_tick"
     next_candidate["reason"] = "R0003 aggregate tick execution and execution divergence are recorded; next work is mandatory fold-isolated MT5 tick evidence."
     next_candidate["status"] = "active_run_open"
-    CAMPAIGN.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="ascii")
+    write_yaml_state(CAMPAIGN, data)
 
 
 def update_claim_state_after_tick_and_divergence(divergence_payload: dict[str, object], tick_payload: dict[str, object]) -> None:
-    data = yaml.safe_load(CLAIM_STATE.read_text(encoding="ascii"))
+    data = read_yaml_state(CLAIM_STATE)
     required = divergence_payload["required_kpis"]  # type: ignore[index]
     tick_required = tick_payload.get("required_kpis", {})
     data["active_campaign"] = "campaigns/C0008_multi_timeframe_structural_context_discovery"
@@ -1152,14 +1227,14 @@ def update_claim_state_after_tick_and_divergence(divergence_payload: dict[str, o
             "live_ready": False,
         },
     }
-    CLAIM_STATE.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="ascii")
+    write_yaml_state(CLAIM_STATE, data)
 
 
 def update_gate_after_fold_isolated_evidence(
     tick_by_fold_payload: dict[str, object],
     divergence_by_fold_payload: dict[str, object],
 ) -> None:
-    run_data = json.loads(RUN_MANIFEST.read_text(encoding="ascii"))
+    run_data = read_json_state(RUN_MANIFEST)
     run_evidence = run_data.setdefault("evidence_paths", {})
     run_evidence["mt5_tick_by_fold_kpi"] = "kpi/mt5_tick_by_fold.json"
     run_evidence["execution_divergence_by_fold_kpi"] = "kpi/execution_divergence_by_fold.json"
@@ -1169,9 +1244,9 @@ def update_gate_after_fold_isolated_evidence(
     mt5_plan["closeout_judgment_surface"] = "rolling_window_fold_isolated_mt5_tick"
     run_data["status"] = "fold_isolated_evidence_recorded_pending_closeout_review"
     run_data["gate_status"] = "fold_isolated_evidence_recorded_pending_closeout_review"
-    RUN_MANIFEST.write_text(json.dumps(run_data, indent=2, sort_keys=True) + "\n", encoding="ascii")
+    write_json_state(RUN_MANIFEST, run_data)
 
-    gate_data = json.loads(GATE_REPORT.read_text(encoding="ascii"))
+    gate_data = read_json_state(GATE_REPORT)
     checks = gate_data["evidence_gate"].setdefault("checks", {})
     checks["mt5_tick_by_fold_kpi_path_recorded"] = True
     checks["execution_divergence_by_fold_kpi_path_recorded"] = True
@@ -1215,12 +1290,11 @@ def update_gate_after_fold_isolated_evidence(
             "revisit_when": "during C0008 R0003 closeout review",
         }
     ]
-    GATE_REPORT.write_text(json.dumps(gate_data, indent=2, sort_keys=True) + "\n", encoding="ascii")
+    write_json_state(GATE_REPORT, gate_data)
 
 
 def update_reentry_after_fold_isolated() -> None:
-    path = PROJECT_ROOT / "registries" / "reentry.yaml"
-    data = yaml.safe_load(path.read_text(encoding="ascii"))
+    data = read_yaml_state(REENTRY)
     next_work = data.setdefault("next_work", {})
     completed = list(next_work.get("completed") or [])
     for item in (
@@ -1233,12 +1307,12 @@ def update_reentry_after_fold_isolated() -> None:
     completed = [item for item in completed if item != next_action]
     next_work["completed"] = completed
     next_work["tasks"] = [next_action]
-    path.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="ascii")
+    write_yaml_state(REENTRY, data)
 
 
 def update_campaign_after_fold_isolated() -> None:
     next_action = "review_c0008_r0003_tick_execution_kpi_and_closeout"
-    data = yaml.safe_load(CAMPAIGN.read_text(encoding="ascii"))
+    data = read_yaml_state(CAMPAIGN)
     closeout = data.setdefault("closeout", {})
     closeout["remaining_question"] = next_action
     run_index = data.setdefault("run_index", {})
@@ -1246,14 +1320,14 @@ def update_campaign_after_fold_isolated() -> None:
     next_candidate["direction"] = "active_c0008_r0003_closeout_review"
     next_candidate["reason"] = "R0003 fold-isolated MT5 tick KPI and fold-isolated execution divergence are recorded; next work is closeout review."
     next_candidate["status"] = "active_run_open"
-    CAMPAIGN.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="ascii")
+    write_yaml_state(CAMPAIGN, data)
 
 
 def update_claim_state_after_fold_isolated(
     tick_by_fold_payload: dict[str, object],
     divergence_by_fold_payload: dict[str, object],
 ) -> None:
-    data = yaml.safe_load(CLAIM_STATE.read_text(encoding="ascii"))
+    data = read_yaml_state(CLAIM_STATE)
     tick_required = tick_by_fold_payload["required_kpis"]  # type: ignore[index]
     divergence_required = divergence_by_fold_payload["required_kpis"]  # type: ignore[index]
     data["active_campaign"] = "campaigns/C0008_multi_timeframe_structural_context_discovery"
@@ -1284,7 +1358,7 @@ def update_claim_state_after_fold_isolated(
             "live_ready": False,
         },
     }
-    CLAIM_STATE.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False), encoding="ascii")
+    write_yaml_state(CLAIM_STATE, data)
 
 
 def upsert_artifact_lineage(
@@ -1295,7 +1369,7 @@ def upsert_artifact_lineage(
     file_hash: str,
     source_inputs: list[str],
 ) -> None:
-    data = json.loads(ARTIFACT_LINEAGE.read_text(encoding="ascii"))
+    data = read_json_state(ARTIFACT_LINEAGE)
     next_record = {
         "artifact_id": artifact_id,
         "artifact_role": artifact_role,
@@ -1347,7 +1421,7 @@ def upsert_artifact_lineage(
                 "next_action": "produce_c0008_r0003_mt5_tick_execution_evidence",
             }
         ]
-    ARTIFACT_LINEAGE.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="ascii")
+    write_json_state(ARTIFACT_LINEAGE, data)
 
 
 def run_c0008_r0003_mt5_logic_workflow(timeout_seconds: int = 1800) -> dict[str, object]:
@@ -1386,6 +1460,7 @@ def run_c0008_r0003_mt5_tick_by_fold_workflow(timeout_seconds: int = 1800) -> di
             to_date=to_date,
             output_scope=window.fold_id,
             compile_before=False,
+            write_schedule=False,
         )
         logic_payload = parse_c0008_r0003_mt5(logic_result, write_kpi=False)
         tick_result = run_c0008_r0003_tester(
@@ -1395,6 +1470,7 @@ def run_c0008_r0003_mt5_tick_by_fold_workflow(timeout_seconds: int = 1800) -> di
             to_date=to_date,
             output_scope=window.fold_id,
             compile_before=False,
+            write_schedule=False,
         )
         tick_payload = parse_c0008_r0003_mt5(tick_result, write_kpi=False)
         records.append(
@@ -1410,39 +1486,38 @@ def run_c0008_r0003_mt5_tick_by_fold_workflow(timeout_seconds: int = 1800) -> di
         )
 
     tick_by_fold_payload = build_mt5_tick_by_fold_payload(records)
-    MT5_TICK_BY_FOLD_KPI.write_text(json.dumps(tick_by_fold_payload, indent=2, sort_keys=True) + "\n", encoding="ascii")
     divergence_by_fold_payload = build_execution_divergence_by_fold_payload(records)
-    EXECUTION_DIVERGENCE_BY_FOLD_KPI.write_text(
-        json.dumps(divergence_by_fold_payload, indent=2, sort_keys=True) + "\n",
-        encoding="ascii",
-    )
-    upsert_artifact_lineage(
-        "A-C0008-R0003-MT5-TICK-BY-FOLD-KPI",
-        "mt5_tick_by_fold_kpi",
-        "mt5_tick_by_fold",
-        rel(MT5_TICK_BY_FOLD_KPI),
-        sha256_file(MT5_TICK_BY_FOLD_KPI),
-        [
-            "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
-            "registries/rolling_windows.yaml",
-            "configs/market.yaml",
-        ],
-    )
-    upsert_artifact_lineage(
-        "A-C0008-R0003-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
-        "diagnostic_output",
-        "execution_divergence_by_fold",
-        rel(EXECUTION_DIVERGENCE_BY_FOLD_KPI),
-        sha256_file(EXECUTION_DIVERGENCE_BY_FOLD_KPI),
-        [
-            "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick_by_fold.json",
-            "registries/rolling_windows.yaml",
-        ],
-    )
-    update_gate_after_fold_isolated_evidence(tick_by_fold_payload, divergence_by_fold_payload)
-    update_reentry_after_fold_isolated()
-    update_campaign_after_fold_isolated()
-    update_claim_state_after_fold_isolated(tick_by_fold_payload, divergence_by_fold_payload)
+    next_action = "review_c0008_r0003_tick_execution_kpi_and_closeout"
+    with state_transaction("c0008-r0003-fold-isolated", expected_next_action=next_action):
+        write_json_state(MT5_TICK_BY_FOLD_KPI, tick_by_fold_payload)
+        write_json_state(EXECUTION_DIVERGENCE_BY_FOLD_KPI, divergence_by_fold_payload)
+        upsert_artifact_lineage(
+            "A-C0008-R0003-MT5-TICK-BY-FOLD-KPI",
+            "mt5_tick_by_fold_kpi",
+            "mt5_tick_by_fold",
+            rel(MT5_TICK_BY_FOLD_KPI),
+            state_sha256(MT5_TICK_BY_FOLD_KPI),
+            [
+                "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
+                "registries/rolling_windows.yaml",
+                "configs/market.yaml",
+            ],
+        )
+        upsert_artifact_lineage(
+            "A-C0008-R0003-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+            "diagnostic_output",
+            "execution_divergence_by_fold",
+            rel(EXECUTION_DIVERGENCE_BY_FOLD_KPI),
+            state_sha256(EXECUTION_DIVERGENCE_BY_FOLD_KPI),
+            [
+                "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick_by_fold.json",
+                "registries/rolling_windows.yaml",
+            ],
+        )
+        update_gate_after_fold_isolated_evidence(tick_by_fold_payload, divergence_by_fold_payload)
+        update_reentry_after_fold_isolated()
+        update_campaign_after_fold_isolated()
+        update_claim_state_after_fold_isolated(tick_by_fold_payload, divergence_by_fold_payload)
     return {
         "mt5_tick_by_fold": tick_by_fold_payload["required_kpis"],
         "execution_divergence_by_fold": divergence_by_fold_payload["required_kpis"],

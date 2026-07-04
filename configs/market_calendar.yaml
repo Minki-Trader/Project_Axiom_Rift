@@ -1,0 +1,28 @@
+schema: axiom_rift_market_calendar_v1
+market:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+regular_rules:
+  daily_close:
+    enabled: true
+    action: allow
+  dst_daily_close:
+    enabled: true
+    action: allow
+  weekend_close:
+    enabled: true
+    action: allow
+verified_special_closures: []
+unknown_gap_policy:
+  unverified_special_close_candidate_action: flag_for_review
+  single_missing_m5_bar_action: flag_for_review
+  multi_bar_unexpected_gap_action: blackout
+claim_boundary:
+  calendar_authority: false
+  split_frozen: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  runtime_authority: false
+  live_ready: false

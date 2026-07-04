@@ -91,7 +91,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "cross-surface failure-mode veto and inversion synthesis from post-SC0001 negative memory",
     "variant_boundary": "SR0001 tests a new cross-family veto-inversion edge surface from C0004 state archetype failures, C0005 analog memory failures, and C0006 liquidity sweep failures; it is not a threshold, window, SL/TP, session, hold, daily-count, or retry nudge."
@@ -159,7 +159,7 @@
     "c0006_ig004_two_sided_sweep_reversion_negative_memory",
     "c0006_ig005_reclaim_retest_rejection_negative_memory"
   ],
-  "status": "closed_no_candidate",
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_synthesis_queue": true,

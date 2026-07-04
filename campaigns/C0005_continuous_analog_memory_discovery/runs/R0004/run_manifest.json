@@ -89,7 +89,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "test whether fold-local target-first tail-hazard analog memory can separate target-before-stop opportunities from adverse-tail analogs after mean, contrast, and temporal-stability analog scoring failed",
     "variant_boundary": "fourth C0005 true variant; changes label shape, feature representation, model score interpretation, and trade-logic interpretation toward asymmetric target-first probability, early favorable capture, and adverse-tail avoidance; not a neighbor-count, analog-distance, threshold, daily-count, stop, target, hold, session, or retry nudge of R0001 through R0003"
@@ -165,7 +165,7 @@
     "C0005_R0002_negative_memory",
     "C0005_R0003_negative_memory"
   ],
-  "status": "closed_no_candidate",
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

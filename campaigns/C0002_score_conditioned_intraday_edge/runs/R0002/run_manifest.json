@@ -5,10 +5,24 @@
     "trade_logic",
     "label"
   ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false
+  },
   "closed_at_utc": "2026-07-02T13:21:47Z",
   "closeout": {
-    "closed_at_utc": "2026-07-02T13:21:47Z",
     "close_reason": "fold_isolated_tick_negative_no_candidate",
+    "closed_at_utc": "2026-07-02T13:21:47Z",
     "evidence_paths": [
       "kpi/proxy.json",
       "kpi/mt5_logic_parity.json",
@@ -45,20 +59,6 @@
     },
     "status": "closed_no_candidate"
   },
-  "claim_boundary": {
-    "claim_authority": false,
-    "economics_pass": false,
-    "feature_set_selected": false,
-    "label_selected": false,
-    "live_ready": false,
-    "materialization_ready": false,
-    "model_selected": false,
-    "onnx_ready": false,
-    "promotion_ready": false,
-    "runtime_authority": false,
-    "runtime_probe_completed": false,
-    "selected": false
-  },
   "evidence_paths": {
     "artifact_lineage": "artifact_lineage.json",
     "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
@@ -80,7 +80,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "test whether rolling train-only scores can select exhaustion reversal candidates after stretched intraday moves before any equity-percent sizing",
     "variant_boundary": "second C0002 true variant; changes direction construction, label shape, feature family, score interpretation, and trade shape from R0001 momentum continuation selection rather than nudging R0001 thresholds"
@@ -148,7 +148,7 @@
   "run_id": "R0002",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "closed_no_candidate",
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

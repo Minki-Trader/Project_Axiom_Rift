@@ -1,11 +1,11 @@
 {
   "claim_boundary": {
+    "claim_authority": false,
     "economics_pass": false,
     "feature_set_selected": false,
     "label_selected": false,
-    "claim_authority": false,
-    "materialization_ready": false,
     "live_ready": false,
+    "materialization_ready": false,
     "model_selected": false,
     "onnx_ready": false,
     "promotion_ready": false,
@@ -101,7 +101,7 @@
     "proxy_trade_artifact": "artifacts/c0006_r0003_proxy_trades.csv",
     "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
   },
-  "gate_status": "close_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "delayed_sweep_trap_rejection_event_probe",
     "variant_boundary": "third C0006 true variant; tests delayed trap/rejection confirmation one to three bars after a sweep event, not an immediate reclaim or acceptance retry and not a threshold, daily-count, stop, target, hold, or scope-weight nudge"
@@ -142,7 +142,7 @@
   "run_id": "R0003",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "closed_no_candidate",
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

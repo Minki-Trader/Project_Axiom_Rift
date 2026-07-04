@@ -102,7 +102,7 @@
     "proxy_trade_artifact": "artifacts/c0007_r0002_proxy_trades.csv",
     "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
   },
-  "gate_status": "close_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "fold_local_dual_hazard_logistic_edge_classifier",
     "variant_boundary": "second C0007 true variant; tests fold-local dual logistic classifiers for target-positive probability and adverse-path hazard using interaction-expanded closed-bar features, not the R0001 direct feature-label linear rank score, analog memory, event grammar, state archetype buckets, score-cell stumps, synthesis veto replay, or threshold, daily-count, stop, target, hold, session, or retry nudge"
@@ -144,7 +144,7 @@
   "run_id": "R0002",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "closed_no_candidate",
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

@@ -14,83 +14,6 @@
     "selected": false
   },
   "closed_at_utc": "2026-07-03T10:46:25Z",
-  "evidence_paths": {
-    "artifact_lineage": "artifact_lineage.json",
-    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
-    "execution_divergence_kpi": "kpi/execution_divergence.json",
-    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
-    "mt5_schedule_artifact": "artifacts/c0008_r0001_schedule.csv",
-    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
-    "mt5_tick_kpi": "kpi/mt5_tick.json",
-    "proxy_kpi": "kpi/proxy.json",
-    "proxy_trade_artifact": "artifacts/c0008_r0001_proxy_trades.csv",
-    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
-    "structural_context_summary": "artifacts/c0008_r0001_structural_context_summary.json"
-  },
-  "gate_status": "close_no_candidate",
-  "hypothesis_variant": {
-    "summary": "fold_local_multi_timeframe_structural_context_rank",
-    "variant_boundary": "first C0008 true variant; tests completed-M5-derived M15, H1, session, and daily structural context rank scoring, not C0007 all-bars supervised edge retry, C0006 liquidity sweep event grammar, analog memory, state archetype buckets, score-cell stumps, synthesis veto replay, or threshold, daily-count, stop, target, hold, session, or retry nudge"
-  },
-  "mt5_probe_plan": {
-    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
-    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
-    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
-    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
-    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
-    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
-    "logic_parity_purpose": "proxy_selected_multi_timeframe_structural_context_schedule_vs_ea_closed_bar_lifecycle_parity",
-    "notes": [],
-    "required": true,
-    "required_even_when_proxy_is_weak": true,
-    "tick_kpi_path": "kpi/mt5_tick.json"
-  },
-  "opened_at_utc": "2026-07-03T10:19:33Z",
-  "parent_type": "campaign",
-  "proxy_plan": {
-    "kpi_path": "kpi/proxy.json",
-    "notes": [
-      "proxy_result_cannot_close_run_without_mt5_paired_validation"
-    ],
-    "required": true,
-    "screening_gate_for_mt5": false,
-    "weak_result_may_skip_mt5": false
-  },
-  "proxy_vs_mt5_plan": {
-    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
-    "notes": [],
-    "required": true
-  },
-  "repair": {
-    "hypothesis_repair_count": 0,
-    "hypothesis_repair_limit": 3,
-    "mechanical_parity_repairs_count_toward_limit": false,
-    "repair_records": []
-  },
-  "run_id": "R0001",
-  "schema": "axiom_rift_run_manifest_v1",
-  "source_ingredient_ids": [],
-  "status": "closed_no_candidate",
-  "surfaces": {
-    "feature": {
-      "changed_from_campaign_default": true,
-      "summary": "completed-M5-derived M15, H1, session, and daily structural position, breakout distance, range-ratio, compression, expansion, body, wick, session phase, and spread pressure features"
-    },
-    "label": {
-      "changed_from_campaign_default": true,
-      "summary": "directional target-before-stop path quality with adverse-tail, speed, terminal, alignment, giveback, spread, and structural context cost adjustment"
-    },
-    "model": {
-      "changed_from_campaign_default": true,
-      "summary": "fold-local standardized structural context linear rank from train-fold feature-label correlations and positive/adverse separation"
-    },
-    "trade_logic": {
-      "changed_from_campaign_default": true,
-      "summary": "dual-direction core-session structural context scoring with daily top selection, next-bar entry, fixed stop/target/hold discovery exits, and mandatory MT5 schedule replay"
-    }
-  },
-  "template": false,
-  "work_unit_id": "C0008",
   "closeout_review": {
     "basis": "rolling_window_fold_isolated_mt5_tick",
     "claim_boundary": {
@@ -164,5 +87,82 @@
       "total_tick_trade_count": 4220
     },
     "status": "closed_no_candidate"
-  }
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0008_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0008_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "structural_context_summary": "artifacts/c0008_r0001_structural_context_summary.json"
+  },
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
+  "hypothesis_variant": {
+    "summary": "fold_local_multi_timeframe_structural_context_rank",
+    "variant_boundary": "first C0008 true variant; tests completed-M5-derived M15, H1, session, and daily structural context rank scoring, not C0007 all-bars supervised edge retry, C0006 liquidity sweep event grammar, analog memory, state archetype buckets, score-cell stumps, synthesis veto replay, or threshold, daily-count, stop, target, hold, session, or retry nudge"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_multi_timeframe_structural_context_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "notes": [],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-03T10:19:33Z",
+  "parent_type": "campaign",
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy_result_cannot_close_run_without_mt5_paired_validation"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v1",
+  "source_ingredient_ids": [],
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "completed-M5-derived M15, H1, session, and daily structural position, breakout distance, range-ratio, compression, expansion, body, wick, session phase, and spread pressure features"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "directional target-before-stop path quality with adverse-tail, speed, terminal, alignment, giveback, spread, and structural context cost adjustment"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "fold-local standardized structural context linear rank from train-fold feature-label correlations and positive/adverse separation"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "dual-direction core-session structural context scoring with daily top selection, next-bar entry, fixed stop/target/hold discovery exits, and mandatory MT5 schedule replay"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0008"
 }

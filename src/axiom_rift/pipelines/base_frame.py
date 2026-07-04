@@ -9,6 +9,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from axiom_rift.paths import DATA_DIR, PROJECT_ROOT, REGISTRY_DIR
+from axiom_rift.validation.price_quality import (
+    PRICE_QUALITY_AUDIT_RELATIVE_PATH,
+    build_price_quality_audit,
+    require_no_price_quality_blockers,
+)
 
 
 EXPECTED_M5_SECONDS = 300
@@ -55,10 +60,12 @@ def build_us100_m5_base_frame(
     raw_csv: Path | None = None,
     output_csv: Path | None = None,
     coverage_json: Path | None = None,
+    price_quality_json: Path | None = None,
 ) -> dict[str, object]:
     raw_csv = raw_csv or DATA_DIR / "raw" / "mt5_bars" / "m5" / "US100_M5_max.csv"
     output_csv = output_csv or DATA_DIR / "processed" / "datasets" / "us100_m5_base_frame.csv"
     coverage_json = coverage_json or DATA_DIR / "processed" / "coverage_audits" / "us100_m5_coverage.json"
+    price_quality_json = price_quality_json or PROJECT_ROOT / PRICE_QUALITY_AUDIT_RELATIVE_PATH
 
     if not raw_csv.exists():
         raise FileNotFoundError(f"Raw bar CSV not found: {raw_csv}")
@@ -94,6 +101,15 @@ def build_us100_m5_base_frame(
                 )
         previous = current
 
+    created_at_utc = utc_now()
+    price_quality = build_price_quality_audit(
+        rows,
+        created_at_utc=created_at_utc,
+        source_raw_csv=rel(raw_csv),
+        base_frame_csv=rel(output_csv),
+    )
+    require_no_price_quality_blockers(price_quality)
+
     output_csv.parent.mkdir(parents=True, exist_ok=True)
     fieldnames = ["time", "open", "high", "low", "close", "tick_volume", "spread", "real_volume"]
     with output_csv.open("w", encoding="utf-8", newline="") as handle:
@@ -101,10 +117,16 @@ def build_us100_m5_base_frame(
         writer.writeheader()
         for row in rows:
             writer.writerow({key: row.get(key, "") for key in fieldnames})
+    output_hash = sha256_file(output_csv)
+
+    price_quality["base_frame_sha256"] = output_hash
+    price_quality_json.parent.mkdir(parents=True, exist_ok=True)
+    price_quality_json.write_text(json.dumps(price_quality, indent=2, sort_keys=True) + "\n", encoding="ascii")
+    price_quality_hash = sha256_file(price_quality_json)
 
     coverage = {
         "schema": "axiom_rift_us100_m5_coverage_v1",
-        "created_at_utc": utc_now(),
+        "created_at_utc": created_at_utc,
         "source_raw_csv": rel(raw_csv),
         "base_frame_csv": rel(output_csv),
         "row_count": len(rows),
@@ -114,7 +136,11 @@ def build_us100_m5_base_frame(
         "gap_count": len(gaps),
         "gaps_preview": gaps[:100],
         "expected_step_seconds": EXPECTED_M5_SECONDS,
-        "sha256": sha256_file(output_csv),
+        "sha256": output_hash,
+        "price_quality_audit": rel(price_quality_json),
+        "price_quality_sha256": price_quality_hash,
+        "price_quality_blocker_count": price_quality["blocker_count"],
+        "price_quality_warning_count": price_quality["warning_count"],
         "claim_boundary": {
             "label_selected": False,
             "feature_set_selected": False,
@@ -127,6 +153,7 @@ def build_us100_m5_base_frame(
     coverage_json.write_text(json.dumps(coverage, indent=2, sort_keys=True), encoding="ascii")
     register_artifact("us100_m5_base_frame", "dataset", output_csv, coverage["sha256"])
     register_artifact("us100_m5_coverage", "coverage_audit", coverage_json, sha256_file(coverage_json))
+    register_artifact("us100_m5_price_quality", "coverage_audit", price_quality_json, price_quality_hash)
     append_run_event(
         {
             "schema": "axiom_rift_run_event_v1",
@@ -141,6 +168,9 @@ def build_us100_m5_base_frame(
             "last_time": coverage["last_time"],
             "gap_count": len(gaps),
             "duplicate_count": duplicate_count,
+            "price_quality_audit": rel(price_quality_json),
+            "price_quality_blocker_count": price_quality["blocker_count"],
+            "price_quality_warning_count": price_quality["warning_count"],
             "claim_authority": False,
         }
     )

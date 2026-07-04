@@ -72,6 +72,21 @@ lessons, evidence gaps, or non-portable lessons instead of erasing failed work.
 
 If active contracts/config are missing, do not substitute archive files as active truth.
 
+## Operational Baselines
+
+- `configs/runtime.yaml` is the active MT5 runner baseline for local terminal,
+  account, symbol, timeframe, tester model, and execution defaults. It does not
+  create runtime authority, promotion, ONNX, or live-readiness claims.
+- Before choosing next work, closing a run/campaign, or trusting registry state,
+  use `python -m axiom_rift.cli validate-repo-state` as the repository state check.
+  Existing blockers must be reported separately from the current task's changes.
+- Data baseline refresh order is `python -m axiom_rift.cli build-us100-base-frame`,
+  then `python -m axiom_rift.cli derive-us100-clean-periods`, then
+  `python -m axiom_rift.cli build-us100-rolling-windows`.
+- `price_quality` and `market_calendar` outputs are data-quality guardrails. They
+  do not freeze labels, features, models, split boundaries, runtime authority, or
+  live readiness.
+
 ## Archive Rule
 
 Legacy archives:

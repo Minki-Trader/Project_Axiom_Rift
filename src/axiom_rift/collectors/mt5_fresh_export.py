@@ -12,14 +12,17 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from axiom_rift.mt5.runtime_config import (
+    metaeditor_exe as runtime_metaeditor_exe,
+    runtime_symbol,
+    runtime_timeframe,
+    terminal_data_dir,
+    terminal_exe as runtime_terminal_exe,
+)
 from axiom_rift.mt5.terminal_hygiene import cleanup_headless_terminal, prepare_headless_terminal
 from axiom_rift.paths import DATA_DIR, PROJECT_ROOT, REGISTRY_DIR
 
 
-DEFAULT_TERMINAL_EXE = Path(r"C:\Program Files\MetaTrader 5\terminal64.exe")
-DEFAULT_METAEDITOR_EXE = Path(r"C:\Program Files\MetaTrader 5\MetaEditor64.exe")
-DEFAULT_SYMBOL = "US100"
-DEFAULT_TIMEFRAME = "M5"
 EXPORT_SCRIPT_NAME = "AxiomFreshExport"
 TIME_FORMATS = ("%Y-%m-%d %H:%M:%S", "%Y.%m.%d %H:%M:%S")
 
@@ -35,10 +38,6 @@ class ExportResult:
     first_time: str | None
     last_time: str | None
     sha256: str
-
-
-def terminal_data_dir() -> Path:
-    return PROJECT_ROOT.parents[2]
 
 
 def terminal_scripts_dir() -> Path:
@@ -97,7 +96,8 @@ def copy_export_script() -> Path:
     return target
 
 
-def compile_script(script_path: Path, metaeditor_exe: Path = DEFAULT_METAEDITOR_EXE) -> Path:
+def compile_script(script_path: Path, metaeditor_exe: Path | None = None) -> Path:
+    metaeditor_exe = runtime_metaeditor_exe() if metaeditor_exe is None else metaeditor_exe
     if not metaeditor_exe.exists():
         raise FileNotFoundError(f"MetaEditor not found: {metaeditor_exe}")
     log_path = PROJECT_ROOT / "artifacts" / "reports" / "mt5_export_compile.log"
@@ -143,11 +143,14 @@ def wait_for_file(path: Path, timeout_seconds: int) -> None:
 
 
 def run_terminal_export(
-    symbol: str = DEFAULT_SYMBOL,
-    timeframe: str = DEFAULT_TIMEFRAME,
-    terminal_exe: Path = DEFAULT_TERMINAL_EXE,
+    symbol: str | None = None,
+    timeframe: str | None = None,
+    terminal_exe: Path | None = None,
     timeout_seconds: int = 240,
 ) -> ExportResult:
+    symbol = runtime_symbol() if symbol is None else symbol
+    timeframe = runtime_timeframe() if timeframe is None else timeframe
+    terminal_exe = runtime_terminal_exe() if terminal_exe is None else terminal_exe
     if not terminal_exe.exists():
         raise FileNotFoundError(f"Terminal not found: {terminal_exe}")
 

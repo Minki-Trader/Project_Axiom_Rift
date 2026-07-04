@@ -70,7 +70,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json",
-      "sha256": "85963983cf8c02a206b17792495ae679e3428f657299763d6b4b4146927e154e",
+      "sha256": "020019869a9584653087994f438c0a302c1d22434d98507c645425e666b68e74",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
         "configs/market.yaml"
@@ -85,7 +85,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy_vs_mt5_logic_parity.json",
-      "sha256": "2bf487651ac03d03fc0ba2549dc271d1ceafd01221a9a7633fc985c08cc9bc9e",
+      "sha256": "3107b55a23f15eb1e1074d2db7c9f5619b227fdbf9efccde216d0c2512d19584",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/proxy.json",
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json"
@@ -100,7 +100,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick.json",
-      "sha256": "5ec4c8f8b1758191cd2e37a2659244494c15846a6db0c6dc9c76b50eaace7f9d",
+      "sha256": "fded76ca5d4ea43d3df75bcb82accce944189925b1ffd13f7e9a10699eb79bbd",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
         "configs/market.yaml"
@@ -115,7 +115,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/execution_divergence.json",
-      "sha256": "304cbacca15199a78974111b2c1ca635b00ad761c6c7a006c0c3f96fbdae3144",
+      "sha256": "9f59bbf0360e2837f100bd8e512868ab2ed44ece5a817b5654b5d1753567f2e5",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_logic_parity.json",
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick.json"
@@ -130,7 +130,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick_by_fold.json",
-      "sha256": "27f7835a4e63a21afecbfeecb2de5f773d77cba0769518f8b36a5e482d0074a5",
+      "sha256": "d6a7c5c621112d77c70e1c8853f586886f0101aec1eb9a39208a8df69571a547",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/artifacts/c0008_r0003_schedule.csv",
         "registries/rolling_windows.yaml",
@@ -146,7 +146,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0003_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/execution_divergence_by_fold.json",
-      "sha256": "de1f7e7d2ff76ebd874ea05ab2f940449a47257a94461da90112e6c9e7133411",
+      "sha256": "069de165be490ee904b3c12e84f81cf9318b873dc742968a9c9e6c87462ae8bb",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0003/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"

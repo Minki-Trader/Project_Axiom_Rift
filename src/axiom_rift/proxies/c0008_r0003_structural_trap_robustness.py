@@ -14,8 +14,8 @@ import numpy as np
 import yaml
 
 from axiom_rift.paths import PROJECT_ROOT
-from axiom_rift.proxies import c0004_r0001_fold_local_state_archetype as base
-from axiom_rift.proxies import c0008_r0002_structural_trap_reversal as r0002
+from axiom_rift.proxies.common import base
+from axiom_rift.proxies.common import structural_trap as r0002
 
 
 RUN_DIR = PROJECT_ROOT / "campaigns" / "C0008_multi_timeframe_structural_context_discovery" / "runs" / "R0003"

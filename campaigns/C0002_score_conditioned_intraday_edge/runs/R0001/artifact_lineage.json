@@ -53,7 +53,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0002_r0001_probe",
       "repo_relative_path": "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/kpi/mt5_logic_parity.json",
-      "sha256": "71ea227d0d30f16e4335c079e4fec5dbd0aae1f8799b00eb10cba3c6af1c1e75",
+      "sha256": "159af6dc367c83bf8582a945c8cb16307ed20286cde67f726eaa7e1768adec79",
       "source_inputs": [
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/artifacts/c0002_r0001_schedule.csv",
         "configs/market.yaml"
@@ -68,7 +68,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0002_r0001_probe",
       "repo_relative_path": "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
-      "sha256": "b6f44f65a303930e62da220d3a3eda7e51ab477db20e298108f0e543b42ccf18",
+      "sha256": "6bacebc31feae35bd06f76a6e5550ef87737ba91a7ddea608ed5c93f5bf8d5ce",
       "source_inputs": [
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/kpi/proxy.json",
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/kpi/mt5_logic_parity.json"
@@ -83,7 +83,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0002_r0001_probe",
       "repo_relative_path": "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/kpi/mt5_tick.json",
-      "sha256": "c655edeff6b8c29eeaa07ff4248cf5fd11f4a7f5e2b3677c3d1af6d60b9e5d7d",
+      "sha256": "b2c7d9097875d980dac5c67d7f7415c2d0564a15d99619474c09321566eda5f2",
       "source_inputs": [
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/artifacts/c0002_r0001_schedule.csv",
         "configs/market.yaml"
@@ -98,7 +98,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0002_r0001_probe",
       "repo_relative_path": "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/kpi/execution_divergence.json",
-      "sha256": "b56e93e7bf6fe867eb0e1e5416c7cd9b1f4896d9bdb0527030e554a830c0ce89",
+      "sha256": "b271dbc6fa62927b22a402efea4c247af66c0806dc4a520cdaf6829b6f9a53e9",
       "source_inputs": [
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/kpi/mt5_logic_parity.json",
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/kpi/mt5_tick.json"
@@ -113,7 +113,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0002_r0001_probe",
       "repo_relative_path": "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/kpi/mt5_tick_by_fold.json",
-      "sha256": "c4a5f3edd4d0de9c6db19ca4a8190f38ebc2a0836a882ba0e2204bdbec097732",
+      "sha256": "1c98c11dd96f9f47a5d2786b323a7c8a23dd3630b5299b99c169df9b5d3f3398",
       "source_inputs": [
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/artifacts/c0002_r0001_schedule.csv",
         "registries/rolling_windows.yaml",
@@ -129,7 +129,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0002_r0001_probe",
       "repo_relative_path": "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/kpi/execution_divergence_by_fold.json",
-      "sha256": "ed184a635d591023ba5872d2944c9783747c886abb2e4961815e90ed7b248d8e",
+      "sha256": "6dc130d5a923c8a435e64eca92c43480d32221178f1787d266a0f0858f04415d",
       "source_inputs": [
         "campaigns/C0002_score_conditioned_intraday_edge/runs/R0001/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"
@@ -161,9 +161,9 @@
   "created_at_utc": "2026-07-02T10:56:20Z",
   "deferred_with_reason": [
     {
-      "field": "next_campaign_run_or_campaign_close_decision",
-      "next_action": "decide_r0002_or_close_c0002_after_r0001",
-      "reason": "C0002 R0001 is closed no candidate; the campaign remains open pending a true R0002 variant or C0002 close decision"
+      "field": "mt5_tick_and_fold_isolated_artifact_hashes",
+      "next_action": "produce_c0002_r0001_mt5_tick_execution_evidence",
+      "reason": "logic parity artifacts are recorded; tick execution and fold-isolated evidence are later mandatory sequence steps"
     }
   ],
   "lineage_id": "L0001",

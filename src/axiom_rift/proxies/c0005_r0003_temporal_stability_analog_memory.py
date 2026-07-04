@@ -15,7 +15,7 @@ import yaml
 from sklearn.neighbors import NearestNeighbors
 
 from axiom_rift.paths import PROJECT_ROOT
-from axiom_rift.proxies import c0004_r0001_fold_local_state_archetype as base
+from axiom_rift.proxies.common import base
 
 
 RUN_DIR = PROJECT_ROOT / "campaigns" / "C0005_continuous_analog_memory_discovery" / "runs" / "R0003"

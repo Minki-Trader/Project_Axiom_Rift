@@ -65,21 +65,6 @@
       ]
     },
     {
-      "artifact_id": "A-SC0001-SR0001-PARITY-KPI",
-      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
-      "artifact_type": "proxy_vs_mt5_logic_parity",
-      "claim_authority": false,
-      "linked_kpi_family": "proxy_vs_mt5_logic_parity_kpi",
-      "mutable": false,
-      "produced_by": "axiom_rift.mt5.sc0001_sr0001_probe",
-      "repo_relative_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/proxy_vs_mt5_logic_parity.json",
-      "sha256": "36461169353187d18f7c8fb2f6afcc3a3e421f866a852c894044c106cbabdd0c",
-      "source_inputs": [
-        "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/proxy.json",
-        "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/mt5_logic_parity.json"
-      ]
-    },
-    {
       "artifact_id": "A-SC0001-SR0001-MT5-SCHEDULE",
       "artifact_role": "mt5_schedule_csv",
       "artifact_type": "mt5_logic_parity_input",
@@ -102,7 +87,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.sc0001_sr0001_probe",
       "repo_relative_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/mt5_logic_parity.json",
-      "sha256": "16e66d51b0f7fa3be4127c80c46a6998421ba204e7e5ab52a078cd8f461100e3",
+      "sha256": "ccb080ecb8481ddd649ab994d8e8ac3b6c47d93089fed6868ecb672b1fb948ff",
       "source_inputs": [
         "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/artifacts/sc0001_sr0001_schedule.csv",
         "configs/market.yaml"
@@ -117,10 +102,25 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.sc0001_sr0001_probe",
       "repo_relative_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/mt5_tick.json",
-      "sha256": "7ab70e9dd2a2ea4c28c6837057bf0d24f13bdac2b0f75445fb2d7bb1df168253",
+      "sha256": "bd2d03d494c8d44295b32ba90af52e7b42fde8f355f68756f5e4b82900b5e602",
       "source_inputs": [
         "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/artifacts/sc0001_sr0001_schedule.csv",
         "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-SC0001-SR0001-PARITY-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "proxy_vs_mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity_kpi",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.sc0001_sr0001_probe",
+      "repo_relative_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "569dd44c2ef76ea80fe30ead53e4d460f3601b91d94c5b00deae40bea16c2e12",
+      "source_inputs": [
+        "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/proxy.json",
+        "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/mt5_logic_parity.json"
       ]
     },
     {
@@ -132,7 +132,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.sc0001_sr0001_probe",
       "repo_relative_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/execution_divergence.json",
-      "sha256": "7f95df9d1a598fa2b565902e7cf03c781677a6e681db8e17eff7136c92463094",
+      "sha256": "5728793749cb4f8161149b8b8c22ad897c7226a3324928d7058012c228758fb2",
       "source_inputs": [
         "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/mt5_logic_parity.json",
         "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/mt5_tick.json"
@@ -147,7 +147,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.sc0001_sr0001_probe",
       "repo_relative_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/mt5_tick_by_fold.json",
-      "sha256": "e2d3b85efd15688caf7314b73f12ae9575a1e8b422d7b28917b287b036452e0a",
+      "sha256": "7111b6123142c134bf8bb8ca1e610e4ac7254fddf4f129a49b81e176c64b66e4",
       "source_inputs": [
         "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/artifacts/sc0001_sr0001_schedule.csv",
         "registries/rolling_windows.yaml",
@@ -163,7 +163,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.sc0001_sr0001_probe",
       "repo_relative_path": "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/execution_divergence_by_fold.json",
-      "sha256": "5fe20131967732cca959dc181b31afff0cafff571711dfcd3c385dd14ae9f3fb",
+      "sha256": "2555a8430f99f91721798585a7de9b8e28c2870654a1f51fc3e4ab7e3652190a",
       "source_inputs": [
         "campaigns/SC0001_accumulated_negative_memory_synthesis/runs/SR0001/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"
@@ -187,9 +187,9 @@
   "created_at_utc": "2026-07-02T17:32:58Z",
   "deferred_with_reason": [
     {
-      "field": "post_closeout_synthesis_decision",
-      "next_action": "decide_sc0001_sr0002_or_close_synthesis_after_sr0001",
-      "reason": "SR0001 is closed no candidate; SC0001 now needs a decision to open a meaningful non-adjacent SR0002 or close the synthesis stream"
+      "field": "closeout_review",
+      "next_action": "review_sc0001_sr0001_tick_execution_kpi_and_closeout",
+      "reason": "fold-isolated tick and divergence artifacts are recorded; closeout review is next"
     }
   ],
   "lineage_id": "L-SC0001-SR0001",

@@ -11,8 +11,8 @@ import numpy as np
 import yaml
 
 from axiom_rift.paths import PROJECT_ROOT
-from axiom_rift.proxies import c0004_r0001_fold_local_state_archetype as base
-from axiom_rift.proxies import c0006_r0005_reclaim_retest_rejection as event
+from axiom_rift.proxies.common import base
+from axiom_rift.proxies.common import event_reclaim as event
 
 
 WORK_UNIT_ID = "SC0002"

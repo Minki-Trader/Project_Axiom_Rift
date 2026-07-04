@@ -5,7 +5,7 @@ encoding: ascii_only
 claim_flags:
   axiom_contracts_complete: false
   axiom_skills_complete: false
-  active_runtime_config_complete: false
+  active_runtime_config_complete: true
   label_selected: false
   feature_set_selected: false
   model_selected: false

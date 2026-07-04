@@ -46,7 +46,7 @@
       }
     }
   },
-  "created_at_utc": "2026-07-02T22:30:51Z",
+  "created_at_utc": "2026-07-03T20:30:02Z",
   "deferred_with_reason": [
     {
       "blocking_condition": "no C0004 candidate has fold-isolated tick evidence yet",

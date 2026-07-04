@@ -17,8 +17,8 @@
       "runtime_authority": false,
       "selected": false
     },
-    "closed_at_utc": "2026-07-02T03:47:02Z",
     "close_reason": "no_candidate_fold_isolated_tick_economics_negative",
+    "closed_at_utc": "2026-07-02T03:47:02Z",
     "decision_basis": {
       "completed_fold_count": 9,
       "fold_count": 9,
@@ -63,7 +63,7 @@
     "proxy_kpi": "kpi/proxy.json",
     "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "test whether US100 M5 volatility expansion followed by a shallow pullback produces repeatable continuation behavior across rolling windows",
     "variant_boundary": "first campaign variant focused on volatility-expansion continuation; not a repair, threshold nudge, or micro tune because it defines a distinct response question and declares feature, trade_logic, and label surfaces before evidence is gathered"
@@ -110,7 +110,7 @@
   "run_id": "R0001",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "closed_no_candidate",
+  "status": "execution_divergence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,

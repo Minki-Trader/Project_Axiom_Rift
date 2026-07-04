@@ -7,14 +7,14 @@ campaign_type: campaign
 opened_at_utc: 2026-07-02 18:44:49+00:00
 closed_at_utc: '2026-07-02T23:19:28Z'
 hypothesis:
-  summary: discover whether US100 M5 has repeatable edge when entries are generated from fold-local
-    market-state archetypes with abstention-first frequency control instead of replaying prior
-    response, score-rank, or path-exit shapes
-  boundary: use the existing closed M5 US100 base frame and rolling-window policy to explore
-    fold-local state archetypes, direction-specific event generation, and abstention-first
-    trade selection after C0001 through C0003 and SC0001 closed no candidate; prior negative
-    memory may constrain retries but must not freeze any label, feature set, model family,
-    objective, trade shape, or final sizing rule
+  summary: discover whether US100 M5 has repeatable edge when entries are generated
+    from fold-local market-state archetypes with abstention-first frequency control
+    instead of replaying prior response, score-rank, or path-exit shapes
+  boundary: use the existing closed M5 US100 base frame and rolling-window policy
+    to explore fold-local state archetypes, direction-specific event generation, and
+    abstention-first trade selection after C0001 through C0003 and SC0001 closed no
+    candidate; prior negative memory may constrain retries but must not freeze any
+    label, feature set, model family, objective, trade shape, or final sizing rule
   not_in_scope:
   - selected_claim
   - runtime_authority
@@ -25,22 +25,22 @@ required_surfaces:
   model:
     status: variable
     summary: unrestricted rules, clustering, classifiers, ranking, ensembles, or direction-specific
-      surfaces for market-state archetype membership and edge estimation; no model family
-      or objective is selected
+      surfaces for market-state archetype membership and edge estimation; no model
+      family or objective is selected
   feature:
     status: variable
-    summary: unrestricted closed-bar features for volatility, trend, range structure, session
-      context, gap behavior, compression and expansion state, and prior path behavior; no
-      feature set is selected
+    summary: unrestricted closed-bar features for volatility, trend, range structure,
+      session context, gap behavior, compression and expansion state, and prior path
+      behavior; no feature set is selected
   trade_logic:
     status: variable
-    summary: variable state-gated entry generation, abstention, frequency control, exit, stop,
-      target, trail, time-stop, and fixed-lot discovery risk shape; equity-percent sizing
-      remains deferred until candidate quality exists
+    summary: variable state-gated entry generation, abstention, frequency control,
+      exit, stop, target, trail, time-stop, and fixed-lot discovery risk shape; equity-percent
+      sizing remains deferred until candidate quality exists
   label:
     status: variable
-    summary: variable forward outcome, state-quality, excursion, adverse excursion, path stability,
-      and direction-specific labels; no label is selected
+    summary: variable forward outcome, state-quality, excursion, adverse excursion,
+      path stability, and direction-specific labels; no label is selected
 run_index:
   runs_root: runs/
   run_id_format: R0001
@@ -52,9 +52,10 @@ run_index:
   - runs/R0004
   next_run_candidate:
     run_id: null
-    direction: not_applicable
-    reason: c0004_closed_no_meaningful_new_variant_remaining_inside_fold_local_state_archetype_boundary
-    status: not_applicable_campaign_closed
+    direction: active_r0004_closeout_review
+    reason: R0004 fold-isolated MT5 tick KPI and fold-isolated execution divergence
+      are recorded; next work is closeout review.
+    status: active_run_open
 synthesis_readiness:
   check_required_at_closeout: true
   result: candidate_later
@@ -117,7 +118,7 @@ closeout:
   - runs/R0004/kpi/mt5_tick_by_fold.json
   - runs/R0004/kpi/execution_divergence_by_fold.json
   - selected.yaml
-  remaining_question: choose_c0005_new_major_hypothesis_or_wait_until_more_campaign_evidence_supports_synthesis
+  remaining_question: review_c0004_r0004_tick_execution_kpi_and_closeout
   decision_basis:
     closed_run_count: 4
     closed_no_candidate_run_count: 4

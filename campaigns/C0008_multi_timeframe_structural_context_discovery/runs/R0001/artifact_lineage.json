@@ -69,7 +69,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0001_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/kpi/mt5_logic_parity.json",
-      "sha256": "814c29af077fe6c9397c72e8a07fb4ddf4d0859cc4941bbf877e196214181bda",
+      "sha256": "63e2917bcf6830f71cfe41d07091eb38a3edd1da59528e365bc44a55c7066f14",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/artifacts/c0008_r0001_schedule.csv",
         "configs/market.yaml"
@@ -84,7 +84,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0001_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
-      "sha256": "72f75af0acb46d858c5c3b3d4cbe217d1c493c2b82a711a33624b8859c5387fd",
+      "sha256": "25b6b77c0d2650b8846855c30067bdcb7e0655ef61d7f85b92e98207013b90b9",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/kpi/proxy.json",
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/kpi/mt5_logic_parity.json"
@@ -99,7 +99,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0001_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/kpi/mt5_tick.json",
-      "sha256": "90abd2df3a47aa3098485898bdf59e500c9816401147708813c084c45d51b6ce",
+      "sha256": "d5775196a8872cb6f509d5b338dbaaa5fdeffd9bd5b61a5974b57aff0ffc450b",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/artifacts/c0008_r0001_schedule.csv",
         "configs/market.yaml"
@@ -114,7 +114,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0001_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/kpi/execution_divergence.json",
-      "sha256": "34419f722a8763e8ca4c54499ee793dce701272ead2b344d7387095d072375c8",
+      "sha256": "9a1d52539696480fea3de23d73eadc39e1de215b6b9788139d76ff8a4f894207",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/kpi/mt5_logic_parity.json",
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/kpi/mt5_tick.json"
@@ -129,7 +129,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0001_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
-      "sha256": "b64cba2b866636d107b5e4286235ca8521a7c78fdb925dce0aabdb0ad1091458",
+      "sha256": "3a4ec14ef173bcd8bc77d8239db2dfa2dc98a61bc54d1ed965b3cdf2cec76106",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/artifacts/c0008_r0001_schedule.csv",
         "registries/rolling_windows.yaml",
@@ -145,7 +145,7 @@
       "mutable": false,
       "produced_by": "axiom_rift.mt5.c0008_r0001_probe",
       "repo_relative_path": "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
-      "sha256": "dba0cd7a550b8c67965909b9f0158d24cd87565467fa55aff569dc2640cf18c3",
+      "sha256": "27dbf1b1fd74b18d8f59deaa2dc27860e263c5767c6663d6ff301d5b9c48990a",
       "source_inputs": [
         "campaigns/C0008_multi_timeframe_structural_context_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
         "registries/rolling_windows.yaml"
@@ -154,7 +154,13 @@
   ],
   "campaign_id": "C0008",
   "claim_authority": false,
-  "deferred_with_reason": [],
+  "deferred_with_reason": [
+    {
+      "field": "closeout_review",
+      "next_action": "review_c0008_r0001_tick_execution_kpi_and_closeout",
+      "reason": "fold-isolated MT5 tick and execution divergence artifacts are recorded; closeout review is the next mandatory sequence step"
+    }
+  ],
   "lineage_id": "L-C0008-R0001",
   "run_id": "R0001",
   "schema": "axiom_rift_artifact_lineage_v1",

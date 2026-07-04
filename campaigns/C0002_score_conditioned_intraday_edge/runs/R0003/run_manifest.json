@@ -80,7 +80,7 @@
     "split_policy": "rolling_window",
     "synthetic_commission_allowed": false
   },
-  "gate_status": "closed_no_candidate",
+  "gate_status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "hypothesis_variant": {
     "summary": "test whether a rolling train-only discrete dual-direction cell score can choose both direction and timing from closed-bar US100 M5 candidates without freezing any model family or feature set",
     "variant_boundary": "third C0002 true variant; changes the score model family from R0001 and R0002 linear score surfaces to quantile-cell directional score ranking, not a threshold, window, SLTP, or retry nudge"
@@ -132,7 +132,7 @@
   "run_id": "R0003",
   "schema": "axiom_rift_run_manifest_v1",
   "source_ingredient_ids": [],
-  "status": "closed_no_candidate",
+  "status": "fold_isolated_evidence_recorded_pending_closeout_review",
   "surfaces": {
     "feature": {
       "changed_from_campaign_default": true,
