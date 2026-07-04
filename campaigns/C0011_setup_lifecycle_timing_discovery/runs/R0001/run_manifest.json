@@ -1,0 +1,91 @@
+{
+  "schema": "axiom_rift_run_manifest_v1",
+  "template": false,
+  "status": "proxy_planned",
+  "work_unit_id": "C0011",
+  "run_id": "R0001",
+  "parent_type": "campaign",
+  "opened_at_utc": "2026-07-04T16:00:51Z",
+  "source_ingredient_ids": [],
+  "hypothesis_variant": {
+    "summary": "fold_local_setup_lifecycle_phase_timing_rank",
+    "variant_boundary": "tests setup birth, maturity, trigger freshness, early confirmation, and decay timing as the primary entry surface; not a monthly loss limit, score floor, cost-buffer, stop, target, hold, session, or retry nudge from C0008, SC0003, C0009, or C0010"
+  },
+  "surfaces": {
+    "model": {
+      "summary": "fold-local standardized lifecycle timing rank over setup maturity, trigger freshness, early impulse quality, adverse-first pressure, decay risk, and spread/session context",
+      "changed_from_campaign_default": true
+    },
+    "feature": {
+      "summary": "closed-M5 setup age, compression maturity, range-location, retest count, trigger freshness, first-impulse follow-through, adverse excursion pressure, volatility transition, spread state, and session phase features",
+      "changed_from_campaign_default": true
+    },
+    "trade_logic": {
+      "summary": "dual-direction fixed-lot candidate schedule that enters only near lifecycle trigger or early confirmation states, avoids decayed setups, limits duplicate lifecycle entries, and uses schedule replay for MT5 parity",
+      "changed_from_campaign_default": true
+    },
+    "label": {
+      "summary": "early favorable impulse and target-before-stop label penalized by adverse-first path, delayed favorable movement, decay after trigger, spread drift, and fold inconsistency",
+      "changed_from_campaign_default": true
+    }
+  },
+  "proxy_plan": {
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false,
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "weak_proxy_results_must_still_continue_to_mt5_paired_validation"
+    ]
+  },
+  "mt5_probe_plan": {
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_purpose": "proxy_selected_setup_lifecycle_timing_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "tick_kpi_path": "kpi/mt5_tick.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "notes": []
+  },
+  "proxy_vs_mt5_plan": {
+    "required": true,
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": []
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "gate_status": "proxy_planned",
+  "evidence_paths": {
+    "proxy_kpi": "kpi/proxy.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "gate_report": "gate_report.json",
+    "artifact_lineage": "artifact_lineage.json"
+  },
+  "claim_boundary": {
+    "claim_authority": false,
+    "selected": false,
+    "label_selected": false,
+    "feature_set_selected": false,
+    "model_selected": false,
+    "runtime_probe_completed": false,
+    "economics_pass": false,
+    "materialization_ready": false,
+    "runtime_authority": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "live_ready": false
+  }
+}

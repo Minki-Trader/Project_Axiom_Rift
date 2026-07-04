@@ -623,13 +623,15 @@ next_work:
   - close_c0010_no_candidate_after_r0002
   - choose_c0011_new_major_hypothesis_after_c0010
   - open_c0011_setup_lifecycle_timing_discovery
-  tasks:
   - design_c0011_r0001_setup_lifecycle_timing_run
+  - open_c0011_r0001_setup_lifecycle_timing_run
+  tasks:
+  - produce_c0011_r0001_proxy_evidence
   not_yet:
   - label_freeze
   - feature_set_freeze
   - model_training
   - mt5_runtime_claim
-active_run: null
+active_run: campaigns/C0011_setup_lifecycle_timing_discovery/runs/R0001
 active_campaign: campaigns/C0011_setup_lifecycle_timing_discovery
 active_synthesis: null

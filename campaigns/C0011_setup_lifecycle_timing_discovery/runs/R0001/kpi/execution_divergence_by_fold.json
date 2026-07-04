@@ -1,0 +1,30 @@
+{
+  "schema": "axiom_rift_execution_divergence_by_fold_kpi_v1",
+  "template": false,
+  "requirement_policy": "required_before_run_closeout",
+  "work_unit_id": "C0011",
+  "campaign_id": "C0011",
+  "run_id": "R0001",
+  "required_kpis": {
+    "execution_divergence_by_fold_status": "not_run",
+    "fold_count": null,
+    "completed_fold_count": null,
+    "tick_better_fold_count": null,
+    "tick_worse_fold_count": null,
+    "total_tick_minus_logic_net_pnl": null
+  },
+  "fold_results": [],
+  "missing_required_kpi_fields": [],
+  "deferred_with_reason": [
+    {
+      "surface": "fold_isolated_execution_divergence",
+      "reason": "run_opened_fold_isolated_divergence_not_executed_yet",
+      "next_action": "produce_c0011_r0001_proxy_evidence"
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "runtime_authority": false,
+    "live_ready": false
+  }
+}

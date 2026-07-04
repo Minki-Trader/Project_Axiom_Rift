@@ -48,15 +48,16 @@ required_surfaces:
 run_index:
   runs_root: runs/
   run_id_format: R0001
-  active_run: null
+  active_run: runs/R0001
+  opened_runs:
+  - runs/R0001
   closed_runs: []
   next_run_candidate:
     run_id: R0001
-    direction: design_c0011_r0001_setup_lifecycle_timing_run
-    reason: C0011 is open as a new major hypothesis after C0010 closed no-candidate; the first
-      run should test a true setup lifecycle timing surface, not an adjacent filter or threshold
-      retry from C0008, SC0003, C0009, or C0010.
-    status: design_required
+    direction: produce_c0011_r0001_proxy_evidence
+    reason: R0001 is opened to test fold-local setup lifecycle phase timing as the first true
+      C0011 variant; proxy evidence is next and cannot be used as a gate to skip MT5.
+    status: opened_pending_proxy
 synthesis_readiness:
   check_required_at_closeout: true
   result: not_checked
@@ -66,7 +67,7 @@ closeout:
   status: open
   close_reason: null
   evidence_paths: []
-  remaining_question: design_c0011_r0001_setup_lifecycle_timing_run
+  remaining_question: produce_c0011_r0001_proxy_evidence
 claim_boundary:
   claim_authority: false
   selected: false

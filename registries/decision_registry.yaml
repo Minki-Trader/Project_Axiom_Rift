@@ -2177,3 +2177,28 @@ decisions:
     selected: false
     onnx_ready: false
     promotion_ready: false
+- decision_id: dec_20260705_open_c0011_r0001_setup_lifecycle_timing_run
+  created_local_date: '2026-07-05'
+  status: active
+  decision: open_c0011_r0001_setup_lifecycle_timing_run
+  refines:
+  - dec_20260705_open_c0011_setup_lifecycle_timing_discovery
+  - dec_20260705_close_c0010_no_candidate_after_r0002
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0001_tests_fold_local_setup_lifecycle_phase_timing_rank_as_the_first_c0011_variant
+  - changed_surfaces_are_setup_age_maturity_trigger_freshness_early_confirmation_decay_risk_and_early_favorable_impulse_labeling
+  - r0001_is_not_a_monthly_loss_limit_score_floor_cost_buffer_stop_target_hold_session_or_retry_nudge_from_prior_campaigns
+  - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence_even_if_proxy_is_weak
+  - no_label_feature_model_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  - next_work_is_produce_c0011_r0001_proxy_evidence
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    selected: false
+    onnx_ready: false
+    promotion_ready: false
