@@ -105,11 +105,20 @@ active_campaign: campaigns/C0012_session_auction_rotation_discovery
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: audit_c0012_r0001_candidate_robustness
+  id: close_c0012_r0002_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0012_session_auction_rotation_discovery/runs/R0001/kpi/candidate_robustness_audit.json
-  evidence_status: candidate_evidence_audited_retained_not_selected
-  next_required_action: design_c0012_r0002_session_auction_rotation_robustness_conditioner_run
+  recorded_at_source: campaigns/C0012_session_auction_rotation_discovery/runs/R0002/gate_report.json
+  evidence_status: closed_no_candidate
+  asset_type: negative_memory
+  next_required_action: decide_c0012_r0003_or_close_c0012_after_r0002
+  entries_per_active_day: 7.416955
+  proxy_net_pnl_points: -1451.59
+  proxy_profit_factor: 0.974012
+  mt5_tick_net_pnl: -6.29
+  mt5_tick_profit_factor: 0.98872
+  profitable_fold_count: 4
+  losing_fold_count: 5
+  total_tick_minus_logic_net_pnl: -10.09
   claim_boundary:
     claim_authority: false
     selected: false
@@ -124,16 +133,6 @@ latest_operation:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
-  candidate_status: retained_not_selected
-  candidate_robustness_status: fragile_requires_hardening
-  entries_per_active_day: 7.33564
-  mt5_tick_net_pnl: 50.79
-  mt5_tick_profit_factor: 1.095762
-  aggregate_extra_cost_per_trade_to_zero: 0.012013
-  weakest_positive_fold_extra_cost_per_trade_to_zero: 8.6e-05
-  profitable_fold_count: 6
-  losing_fold_count: 3
-  longest_losing_month_streak: 6
 active_truth:
   contracts_dir: contracts
   configs_dir: configs

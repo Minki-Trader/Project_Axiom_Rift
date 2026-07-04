@@ -1,14 +1,21 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: candidate_evidence_audited_requires_hardening
+status: active_after_r0002_closeout
 campaign_id: C0012
 campaign_slug: session_auction_rotation_discovery
 campaign_type: campaign
 opened_at_utc: '2026-07-04T17:17:33Z'
 closed_at_utc: null
 hypothesis:
-  summary: discover whether closed-bar intraday auction balance, value rotation, and edge acceptance or rejection states can isolate US100 M5 entries that keep target activity while improving fold consistency, cost buffer, and MT5 tick execution economics
-  boundary: model session-local auction state from closed US100 M5 bars using train-only rolling-window features for opening range, session value proxy, rotation count, balance expansion, edge rejection, edge acceptance, failed return to value, and late-session inventory pressure; generate fixed-lot discovery schedules from auction rotation timing rather than post-hoc lifecycle, monthly, structural, score, cost-buffer, stop, target, hold, or session threshold retries
+  summary: discover whether closed-bar intraday auction balance, value rotation, and edge
+    acceptance or rejection states can isolate US100 M5 entries that keep target activity
+    while improving fold consistency, cost buffer, and MT5 tick execution economics
+  boundary: model session-local auction state from closed US100 M5 bars using train-only rolling-window
+    features for opening range, session value proxy, rotation count, balance expansion, edge
+    rejection, edge acceptance, failed return to value, and late-session inventory pressure;
+    generate fixed-lot discovery schedules from auction rotation timing rather than post-hoc
+    lifecycle, monthly, structural, score, cost-buffer, stop, target, hold, or session threshold
+    retries
   not_in_scope:
   - selected_claim
   - runtime_authority
@@ -24,29 +31,41 @@ hypothesis:
 required_surfaces:
   model:
     status: variable
-    summary: unrestricted auction-state ranker, classifier, hazard model, sequence model, ensemble, rule surface, or later model family; no model family is selected
+    summary: unrestricted auction-state ranker, classifier, hazard model, sequence model,
+      ensemble, rule surface, or later model family; no model family is selected
   feature:
     status: variable
-    summary: unrestricted closed-bar features for session opening range, value proxy, auction balance, rotation count, range extension, edge rejection, edge acceptance, failed value return, volatility transition, spread state, and session inventory pressure; no feature set is selected
+    summary: unrestricted closed-bar features for session opening range, value proxy, auction
+      balance, rotation count, range extension, edge rejection, edge acceptance, failed value
+      return, volatility transition, spread state, and session inventory pressure; no feature
+      set is selected
   trade_logic:
     status: variable
-    summary: variable fixed-lot auction-rotation entry timing, direction selection, abstention, frequency control, stop, target, hold, exit, and invalidation logic; equity-percent sizing remains deferred
+    summary: variable fixed-lot auction-rotation entry timing, direction selection, abstention,
+      frequency control, stop, target, hold, exit, and invalidation logic; equity-percent
+      sizing remains deferred
   label:
     status: variable
-    summary: variable labels for value rotation completion, edge rejection follow-through, acceptance continuation, target-before-stop, adverse-first path avoidance, cost-buffer survival, and fold consistency; no label is selected
+    summary: variable labels for value rotation completion, edge rejection follow-through,
+      acceptance continuation, target-before-stop, adverse-first path avoidance, cost-buffer
+      survival, and fold consistency; no label is selected
 run_index:
   runs_root: runs/
   run_id_format: R0001
   active_run: null
   opened_runs:
   - runs/R0001
+  - runs/R0002
   closed_runs:
   - runs/R0001
+  - runs/R0002
   next_run_candidate:
-    run_id: R0002
-    direction: design_c0012_r0002_session_auction_rotation_robustness_conditioner_run
-    reason: R0001 robustness audit retained candidate evidence but blocks selection due weak PF, three losing folds, near-zero weakest-fold cost buffer, and six-month losing streak.
-    status: true_variant_design_required
+    run_id: R0003
+    direction: decide_c0012_r0003_or_close_c0012_after_r0002
+    reason: R0002 robustness conditioner closed no-candidate; decide whether a materially
+      different C0012 R0003 auction variant remains or close C0012 with fragile R0001 candidate
+      evidence retained.
+    status: decision_required
 synthesis_readiness:
   check_required_at_closeout: true
   result: not_checked
@@ -64,7 +83,14 @@ closeout:
   - runs/R0001/kpi/mt5_tick_by_fold.json
   - runs/R0001/kpi/execution_divergence_by_fold.json
   - runs/R0001/kpi/candidate_robustness_audit.json
-  remaining_question: design_c0012_r0002_session_auction_rotation_robustness_conditioner_run
+  - runs/R0002/kpi/proxy.json
+  - runs/R0002/kpi/mt5_logic_parity.json
+  - runs/R0002/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0002/kpi/mt5_tick.json
+  - runs/R0002/kpi/execution_divergence.json
+  - runs/R0002/kpi/mt5_tick_by_fold.json
+  - runs/R0002/kpi/execution_divergence_by_fold.json
+  remaining_question: decide_c0012_r0003_or_close_c0012_after_r0002
 claim_boundary:
   claim_authority: false
   selected: false
@@ -84,4 +110,4 @@ candidate_robustness_audit:
   source_run: runs/R0001
   source: runs/R0001/kpi/candidate_robustness_audit.json
   conclusion: candidate_evidence_retained_not_selected_hardening_required
-  next_required_action: design_c0012_r0002_session_auction_rotation_robustness_conditioner_run
+  next_required_action: produce_c0012_r0002_proxy_evidence

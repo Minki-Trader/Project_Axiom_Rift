@@ -46,7 +46,33 @@ candidate_evidence:
     monthly_tick_profitable_month_count: 16
     monthly_tick_losing_month_count: 11
     conclusion: candidate_evidence_retained_not_selected_hardening_required
-  next_required_action: design_c0012_r0002_session_auction_rotation_robustness_conditioner_run
+  next_required_action: decide_c0012_r0003_or_close_c0012_after_r0002
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+latest_negative_memory:
+  source_run: runs/R0002
+  status: recorded
+  basis: rolling_window_fold_isolated_mt5_tick
+  reason_not_candidate: proxy was negative, MT5 tick total net PnL was negative, fold-isolated
+    MT5 tick completed all nine folds with five losing folds and four profitable folds, and
+    tick execution worsened closed-bar logic by -10.09 net PnL
+  blocks:
+  - simple_session_auction_robustness_conditioner_retry
+  - simple_cost_pressure_or_fragile_centroid_filter_retry
+  - threshold_daily_count_stop_target_hold_session_monthly_retry_nudge
+  next_required_action: decide_c0012_r0003_or_close_c0012_after_r0002
   claim_boundary:
     claim_authority: false
     selected: false

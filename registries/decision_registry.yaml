@@ -2358,3 +2358,61 @@ decisions:
     selected: false
     onnx_ready: false
     promotion_ready: false
+- decision_id: dec_20260705_open_c0012_r0002_session_auction_rotation_robustness_conditioner_run
+  created_local_date: '2026-07-05'
+  status: active
+  decision: open_c0012_r0002_session_auction_rotation_robustness_conditioner_run
+  refines:
+  - dec_20260705_audit_c0012_r0001_candidate_robustness
+  - dec_20260705_open_c0012_r0001_session_auction_rotation_run
+  - dec_20260705_decision_intelligence_layer
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0002_is_a_true_c0012_variant_from_r0001_fragile_candidate_audit_not_a_selected_claim
+  - pre_open_decision_records_novelty_score_4_low_adjacent_tuning_risk_high_information_gain_clear_mt5_portability_and_high_decision_payoff
+  - changed_surfaces_are_label_feature_model_and_trade_logic_for_robust_positive_versus_fragile_adverse_auction_rotation_conditioning
+  - r0002_is_not_a_threshold_window_stop_target_hold_session_activity_cost_buffer_monthly_or_retry_nudge
+  - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence_even_if_proxy_is_weak
+  - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  - next_work_is_produce_c0012_r0002_proxy_evidence
+  claim_boundary:
+    claim_authority: false
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    economics_pass: false
+    selected: false
+    onnx_ready: false
+    promotion_ready: false
+- decision_id: dec_20260705_close_c0012_r0002_no_candidate
+  created_local_date: '2026-07-05'
+  status: active
+  decision: close_c0012_r0002_no_candidate
+  refines:
+  - dec_20260705_open_c0012_r0002_session_auction_rotation_robustness_conditioner_run
+  - dec_20260705_audit_c0012_r0001_candidate_robustness
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0002_completed_proxy_mt5_logic_parity_proxy_vs_mt5_parity_mt5_tick_execution_divergence_and_fold_isolated_tick_and_divergence_evidence
+  - r0002_proxy_was_negative_and_mt5_tick_total_net_pnl_was_negative
+  - fold_isolated_mt5_tick_has_four_profitable_folds_five_losing_folds_and_worst_fold_rw_006_net_pnl_-10_11
+  - tick_execution_worsened_closed_bar_logic_by_-10_09_total_net_pnl
+  - closeout_records_negative_memory_not_selection_and_next_work_is_decide_c0012_r0003_or_close_c0012_after_r0002
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
