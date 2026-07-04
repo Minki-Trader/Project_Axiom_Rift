@@ -1,0 +1,218 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "no_candidate_after_negative_proxy_negative_mt5_tick_and_eight_losing_fold_isolated_tick_folds",
+    "closed_at_utc": "2026-07-04T22:55:09Z",
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "evidence_paths": [
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday directional imbalance rank over close-sign imbalance, persistence, churn, directional efficiency, body and wick alignment, day position, timing, and spread features",
+      "next_boundary": "do not retry this intraday directional imbalance surface with simple thresholds, score floors, stop, target, hold, activity, spread, session, capital, or retry nudges; next work must choose a materially new C0017 major hypothesis or record a clearly non-adjacent C0016 variant before reopening this axis",
+      "reason_not_candidate": "proxy was strongly negative, aggregate MT5 tick was negative, and eight of nine fold-isolated MT5 tick folds lost",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "intraday directional imbalance rank lost eight of nine rolling-window OOS folds; total tick net PnL was -213.06 and worst fold rw_009 net PnL was -55.93"
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "schedule replay logic parity passed with mismatch_count 0, so failure is hypothesis quality and execution behavior rather than a proxy-to-EA schedule mismatch"
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "tick execution was slightly better than closed-bar logic by 1.25 total net PnL but remained strongly negative; six folds were tick-worse and three were tick-better"
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.377586,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "losing_fold_count": 8,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.99345,
+      "minimum_exit_reason_match_rate": 0.815789,
+      "minimum_exit_time_direction_match_rate": 0.824561,
+      "mismatch_count": 0,
+      "mt5_logic_net_pnl": -214.31,
+      "mt5_logic_profit_factor": 0.622175,
+      "mt5_logic_trade_count": 4279,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_max_drawdown_percent": 43.438,
+      "mt5_tick_net_pnl": -213.06,
+      "mt5_tick_profit_factor": 0.611254,
+      "mt5_tick_trade_count": 4266,
+      "profitable_fold_count": 1,
+      "proxy_expectancy_points_per_entry": -4.989283,
+      "proxy_net_pnl_points": -21349.14,
+      "proxy_profit_factor": 0.608093,
+      "proxy_trade_count": 4279,
+      "proxy_win_rate": 0.348446,
+      "remaining_work_classification": "intraday_directional_imbalance_threshold_score_stop_target_hold_activity_spread_session_capital_or_retry_nudge_not_next",
+      "tick_better_fold_count": 3,
+      "tick_minus_logic_net_pnl": 1.25,
+      "tick_worse_fold_count": 6,
+      "total_tick_minus_logic_net_pnl": 1.25,
+      "total_tick_net_pnl": -213.06,
+      "total_tick_trade_count": 4266,
+      "worst_fold_id": "rw_009",
+      "worst_fold_max_drawdown_percent": 11.382,
+      "worst_fold_net_pnl": -55.93,
+      "worst_tick_minus_logic_fold_id": "rw_007",
+      "worst_tick_minus_logic_net_pnl": -1.67
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "intraday_directional_imbalance_summary": "artifacts/c0016_r0001_intraday_directional_imbalance_summary.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0016_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0016_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday directional imbalance rank over close-sign imbalance, persistence, churn, directional efficiency, body and wick alignment, timing, and spread features",
+    "variant_boundary": "new major hypothesis after C0015 closeout; not a liquidity-vacuum rebound, range handoff, threshold, score-floor, stop, target, hold, activity, spread, session, capital, or retry nudge"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "notes": [
+      "MT5 validation remains required even if proxy KPI is weak."
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "Changes the major hypothesis from liquidity-vacuum rebound to intraday directional imbalance memory; not a threshold, window, stop, target, session, activity, capital, or retry nudge.",
+    "adjacent_tuning_risk": "low",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0015_liquidity_vacuum_rebound_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0014_interday_range_handoff_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0013_path_resilience_recovery_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 5,
+    "pre_open_decision_id": "POD-C0016-R0001",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "passed",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "Tests closed-bar intraday directional imbalance memory and mandatory schedule-replay MT5 pairing as a new C0016 campaign surface."
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "Proxy output is reference evidence and cannot stop MT5 validation."
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "closed-bar directional return, close-sign imbalance, persistence, churn, efficiency, body and wick alignment, day position, timing, and spread pressure features"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "directional continuation quality with target-first, early follow-through, adverse avoidance, path efficiency, churn, giveback, and spread-drift penalties"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "fold-local linear rank surface for intraday directional imbalance candidates"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "fixed-lot dual-direction top intraday directional imbalance schedule replay candidates per active day"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0016"
+}
