@@ -148,6 +148,11 @@ RUN_SPECS: tuple[RunSpec, ...] = (
         "axiom_rift.mt5.c0008_r0004_probe",
         "axiom_rift.proxies.c0008_r0004_structural_acceptance_continuation",
     ),
+    RunSpec(
+        "c0009_r0001",
+        "axiom_rift.mt5.c0009_r0001_probe",
+        "axiom_rift.proxies.c0009_r0001_execution_friction_regime",
+    ),
 )
 
 
