@@ -16,9 +16,8 @@ streams:
     id_prefix: C
     role: major_hypothesis_discovery
     next_id: C0013
-    active_work_unit: campaigns/C0012_session_auction_rotation_discovery
-    open_work_units:
-    - campaigns/C0012_session_auction_rotation_discovery
+    active_work_unit: null
+    open_work_units: []
     closed_work_units:
     - campaigns/C0001_regime_response_discovery
     - campaigns/C0002_score_conditioned_intraday_edge
@@ -31,6 +30,7 @@ streams:
     - campaigns/C0009_execution_friction_aware_entry_discovery
     - campaigns/C0010_monthly_regime_risk_control_discovery
     - campaigns/C0011_setup_lifecycle_timing_discovery
+    - campaigns/C0012_session_auction_rotation_discovery
     numbering_policy:
       width: 4
       example: C0001
@@ -38,9 +38,10 @@ streams:
   synthesis_stream:
     id_prefix: SC
     role: accumulated_ingredient_synthesis
-    next_id: SC0004
-    active_work_unit: null
-    open_work_units: []
+    next_id: SC0005
+    active_work_unit: campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
+    open_work_units:
+    - campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
     closed_work_units:
     - campaigns/SC0001_accumulated_negative_memory_synthesis
     - campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis

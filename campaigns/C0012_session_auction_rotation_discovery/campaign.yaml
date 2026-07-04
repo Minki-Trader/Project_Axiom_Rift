@@ -1,11 +1,11 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: active_after_r0003_closeout
+status: closed_with_candidate_evidence
 campaign_id: C0012
 campaign_slug: session_auction_rotation_discovery
 campaign_type: campaign
 opened_at_utc: '2026-07-04T17:17:33Z'
-closed_at_utc: null
+closed_at_utc: '2026-07-04T19:50:00Z'
 hypothesis:
   summary: discover whether closed-bar intraday auction balance, value rotation, and edge
     acceptance or rejection states can isolate US100 M5 entries that keep target activity
@@ -62,21 +62,101 @@ run_index:
   - runs/R0002
   - runs/R0003
   next_run_candidate:
-    run_id: R0004
-    direction: decide_c0012_r0004_or_close_c0012_after_r0003
-    reason: R0003 closed no-candidate with all nine fold-isolated MT5 tick folds losing; decide
-      whether any materially different C0012 R0004 remains or close C0012 with fragile R0001
-      candidate evidence retained.
-    status: decision_required
+    run_id: null
+    direction: open_sc0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
+    reason: R0001 retained fragile candidate evidence, while R0002 robustness conditioning
+      and R0003 transition hazard both closed no-candidate after complete MT5 paired evidence;
+      remaining C0012 work would be adjacent auction hardening unless a broader synthesis
+      first finds a materially new source mix.
+    status: closed_campaign
 synthesis_readiness:
   check_required_at_closeout: true
-  result: not_checked
-  usable_ingredient_group_count: 0
-  readiness_notes: []
+  result: open_synthesis
+  checked_at_utc: '2026-07-04T19:50:00Z'
+  closed_run_count: 3
+  observed_closed_campaign_count_since_last_synthesis: 3
+  usable_ingredient_group_count: 8
+  minimums:
+    closed_campaign_count_since_last_synthesis: 3
+    usable_ingredient_group_count: 8
+    required_surface_count: 3
+  open_synthesis_now: true
+  readiness_notes:
+  - c0010_c0011_c0012_complete_three_closed_campaigns_since_sc0003
+  - c0012_retains_r0001_fragile_candidate_evidence_but_r0002_and_r0003_failed
+  - synthesis_should_compare_monthly_regime_lifecycle_and_session_auction_lessons_before_new_campaign
+  ingredient_groups:
+  - group_id: c0010_ig001_monthly_regime_risk_control_negative_memory
+    source_campaign_id: C0010
+    source_runs:
+    - R0001
+    source_evidence_keys:
+    - C0010_R0001
+    group_type: negative_memory
+    summary: static_monthly_regime_risk_control_rank_met_activity_but_lost_all_fold_isolated_tick_folds
+  - group_id: c0010_ig002_monthly_loss_memory_abstention_negative_memory
+    source_campaign_id: C0010
+    source_runs:
+    - R0002
+    source_evidence_keys:
+    - C0010_R0002
+    group_type: negative_memory
+    summary: sequential_monthly_loss_memory_abstention_reduced_drawdown_but_still_lost_and_compressed_activity_below_target_boundary
+  - group_id: c0011_ig001_setup_lifecycle_phase_timing_negative_memory
+    source_campaign_id: C0011
+    source_runs:
+    - R0001
+    source_evidence_keys:
+    - C0011_R0001
+    group_type: negative_memory
+    summary: setup_lifecycle_phase_timing_rank_met_activity_but_lost_all_fold_isolated_tick_folds
+  - group_id: c0011_ig002_setup_invalidation_reversal_negative_memory
+    source_campaign_id: C0011
+    source_runs:
+    - R0002
+    source_evidence_keys:
+    - C0011_R0002
+    group_type: negative_memory
+    summary: setup_invalidation_reversal_met_activity_but_had_one_profitable_fold_and_negative_total_tick_net_pnl
+  - group_id: c0012_ig001_session_auction_rotation_fragile_candidate_evidence
+    source_campaign_id: C0012
+    source_runs:
+    - R0001
+    source_evidence_keys:
+    - C0012_R0001
+    group_type: fragile_candidate_evidence
+    summary: session_auction_rotation_met_target_activity_and_positive_total_tick_net_but_has_weak_pf_three_losing_folds_thin_fold_cost_buffer_and_long_losing_month_streak
+  - group_id: c0012_ig002_session_auction_rotation_robustness_fragility_lesson
+    source_campaign_id: C0012
+    source_runs:
+    - R0001
+    source_evidence_keys:
+    - C0012_R0001_ROBUSTNESS
+    group_type: evidence_gap
+    summary: r0001_candidate_quality_is_not_established_due_weak_cost_buffer_losing_folds_and_six_month_losing_streak
+  - group_id: c0012_ig003_session_auction_robustness_conditioner_negative_memory
+    source_campaign_id: C0012
+    source_runs:
+    - R0002
+    source_evidence_keys:
+    - C0012_R0002
+    group_type: negative_memory
+    summary: session_auction_robustness_conditioner_failed_to_harden_r0001_and_closed_no_candidate
+  - group_id: c0012_ig004_session_auction_transition_hazard_negative_memory
+    source_campaign_id: C0012
+    source_runs:
+    - R0003
+    source_evidence_keys:
+    - C0012_R0003
+    group_type: negative_memory
+    summary: session_auction_transition_hazard_lost_all_nine_fold_isolated_tick_folds
+  recommended_next_action: open_sc0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
 closeout:
-  status: open
-  close_reason: null
+  status: closed_with_candidate_evidence
+  close_reason: no_meaningful_new_non_adjacent_session_auction_variant_remains_after_r0001_to_r0003_and_r0001_fragile_candidate_evidence_retained_not_selected
   evidence_paths:
+  - runs/R0001/run_manifest.json
+  - runs/R0001/gate_report.json
   - runs/R0001/kpi/proxy.json
   - runs/R0001/kpi/mt5_logic_parity.json
   - runs/R0001/kpi/proxy_vs_mt5_logic_parity.json
@@ -85,6 +165,8 @@ closeout:
   - runs/R0001/kpi/mt5_tick_by_fold.json
   - runs/R0001/kpi/execution_divergence_by_fold.json
   - runs/R0001/kpi/candidate_robustness_audit.json
+  - runs/R0002/run_manifest.json
+  - runs/R0002/gate_report.json
   - runs/R0002/kpi/proxy.json
   - runs/R0002/kpi/mt5_logic_parity.json
   - runs/R0002/kpi/proxy_vs_mt5_logic_parity.json
@@ -92,6 +174,8 @@ closeout:
   - runs/R0002/kpi/execution_divergence.json
   - runs/R0002/kpi/mt5_tick_by_fold.json
   - runs/R0002/kpi/execution_divergence_by_fold.json
+  - runs/R0003/run_manifest.json
+  - runs/R0003/gate_report.json
   - runs/R0003/kpi/proxy.json
   - runs/R0003/kpi/mt5_logic_parity.json
   - runs/R0003/kpi/proxy_vs_mt5_logic_parity.json
@@ -99,7 +183,39 @@ closeout:
   - runs/R0003/kpi/execution_divergence.json
   - runs/R0003/kpi/mt5_tick_by_fold.json
   - runs/R0003/kpi/execution_divergence_by_fold.json
-  remaining_question: decide_c0012_r0004_or_close_c0012_after_r0003
+  - selected.yaml
+  remaining_question: design_sc0004_sr0001_post_sc0003_mixed_evidence_synthesis_run
+  closed_at_utc: '2026-07-04T19:50:00Z'
+  decision_basis:
+    closed_run_count: 3
+    closed_with_candidate_evidence_run_count: 1
+    closed_no_candidate_run_count: 2
+    retained_candidate_source_run: R0001
+    retained_candidate_status: fragile_requires_hardening
+    r0001_entries_per_active_day: 7.33564
+    r0001_mt5_tick_net_pnl: 50.79
+    r0001_mt5_tick_profit_factor: 1.095762
+    r0001_profitable_fold_count: 6
+    r0001_losing_fold_count: 3
+    r0001_aggregate_extra_cost_per_trade_to_zero: 0.012013
+    r0001_weakest_positive_fold_extra_cost_per_trade_to_zero: 8.6e-05
+    r0001_longest_losing_month_streak: 6
+    r0002_entries_per_active_day: 7.416955
+    r0002_mt5_tick_net_pnl: -6.29
+    r0002_mt5_tick_profit_factor: 0.98872
+    r0002_profitable_fold_count: 4
+    r0002_losing_fold_count: 5
+    r0003_entries_per_active_day: 7.852941
+    r0003_mt5_tick_net_pnl: -401.74
+    r0003_mt5_tick_profit_factor: 0.295996
+    r0003_profitable_fold_count: 0
+    r0003_losing_fold_count: 9
+    remaining_work_classification: adjacent_auction_filter_threshold_hazard_or_robustness_hardening_or_new_synthesis_not_c0012_r0004
+  campaign_lessons:
+  - r0001_met_target_activity_and_positive_fold_isolated_tick_net_but_remains_fragile
+  - r0002_failed_to_harden_r0001_under_complete_paired_mt5_evidence
+  - r0003_transition_hazard_was_strongly_negative_across_all_fold_isolated_tick_folds
+  - next_non_adjacent_step_is_sc0004_mixed_evidence_synthesis_not_c0012_r0004
 claim_boundary:
   claim_authority: false
   selected: false
@@ -119,4 +235,4 @@ candidate_robustness_audit:
   source_run: runs/R0001
   source: runs/R0001/kpi/candidate_robustness_audit.json
   conclusion: candidate_evidence_retained_not_selected_hardening_required
-  next_required_action: produce_c0012_r0002_proxy_evidence
+  next_required_action: design_sc0004_sr0001_post_sc0003_mixed_evidence_synthesis_run

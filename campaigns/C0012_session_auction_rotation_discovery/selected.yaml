@@ -1,6 +1,6 @@
 schema: axiom_rift_selected_v1
 template: false
-status: candidate_evidence_fragile_requires_hardening
+status: candidate_evidence_fragile_requires_hardening_closed
 selected: false
 selected_reason: null
 surfaces:
@@ -46,7 +46,7 @@ candidate_evidence:
     monthly_tick_profitable_month_count: 16
     monthly_tick_losing_month_count: 11
     conclusion: candidate_evidence_retained_not_selected_hardening_required
-  next_required_action: decide_c0012_r0004_or_close_c0012_after_r0003
+  next_required_action: design_sc0004_sr0001_post_sc0003_mixed_evidence_synthesis_run
   claim_boundary:
     claim_authority: false
     selected: false
@@ -72,7 +72,7 @@ latest_negative_memory:
   - simple_session_auction_transition_hazard_retry
   - adverse_persistence_weight_or_threshold_retry
   - threshold_daily_count_stop_target_hold_session_monthly_retry_nudge
-  next_required_action: decide_c0012_r0004_or_close_c0012_after_r0003
+  next_required_action: design_sc0004_sr0001_post_sc0003_mixed_evidence_synthesis_run
   claim_boundary:
     claim_authority: false
     selected: false
@@ -87,3 +87,11 @@ latest_negative_memory:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
+campaign_closeout:
+  status: closed_with_candidate_evidence
+  remaining_question: design_sc0004_sr0001_post_sc0003_mixed_evidence_synthesis_run
+  selected: false
+  claim_authority: false
+  reason: R0001 fragile candidate evidence is retained but not selected; R0002 and R0003
+    failed as hardening or transition variants, so another C0012 run would likely be adjacent
+    auction filtering or threshold work without SC0004 mixed-evidence synthesis first.

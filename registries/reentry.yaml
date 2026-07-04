@@ -8,7 +8,7 @@ read_budget:
   - registries/claim_state.yaml
   conditional_files:
     active_campaign: campaigns/C0012_session_auction_rotation_discovery
-    active_synthesis: null
+    active_synthesis: campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
     active_contracts: contracts/
     active_config: configs/
   skip_by_default:
@@ -23,7 +23,7 @@ project:
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
   active_campaign: campaigns/C0012_session_auction_rotation_discovery
-  active_synthesis: null
+  active_synthesis: campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
 active_truth:
   contracts_dir: contracts
   config_dir: configs
@@ -114,7 +114,7 @@ data_state:
     split_boundaries_frozen: false
 next_work:
   campaign: campaigns/C0012_session_auction_rotation_discovery
-  synthesis: null
+  synthesis: campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
   completed:
   - fresh_export_us100_m5_max_available
   - record_source_path_decision_fresh_export
@@ -686,8 +686,11 @@ next_work:
   - produce_c0012_r0003_mt5_logic_parity_evidence
   - review_c0012_r0003_tick_execution_kpi_and_closeout
   - close_c0012_r0003_no_candidate
+  - review_c0012_synthesis_readiness_after_r0003
+  - close_c0012_with_fragile_candidate_evidence
+  - open_sc0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
   tasks:
-  - decide_c0012_r0004_or_close_c0012_after_r0003
+  - design_sc0004_sr0001_post_sc0003_mixed_evidence_synthesis_run
   not_yet:
   - label_freeze
   - feature_set_freeze
@@ -697,4 +700,4 @@ next_work:
   active_run: null
 active_run: null
 active_campaign: campaigns/C0012_session_auction_rotation_discovery
-active_synthesis: null
+active_synthesis: campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis

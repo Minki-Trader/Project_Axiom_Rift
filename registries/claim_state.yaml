@@ -102,23 +102,34 @@ research_mode:
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
 active_campaign: campaigns/C0012_session_auction_rotation_discovery
-active_synthesis: null
+active_synthesis: campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
 active_run: null
 latest_operation:
-  id: close_c0012_r0003_no_candidate
+  id: open_sc0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
   status: completed
-  recorded_at_source: campaigns/C0012_session_auction_rotation_discovery/runs/R0003/gate_report.json
-  evidence_status: closed_no_candidate
-  asset_type: negative_memory
-  next_required_action: decide_c0012_r0004_or_close_c0012_after_r0003
-  entries_per_active_day: 7.852941
-  proxy_net_pnl_points: -42697.92
-  proxy_profit_factor: 0.264517
-  mt5_tick_net_pnl: -401.74
-  mt5_tick_profit_factor: 0.295996
-  profitable_fold_count: 0
-  losing_fold_count: 9
-  total_tick_minus_logic_net_pnl: 132.07
+  recorded_at_source: campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis/synthesis.yaml
+  evidence_status: synthesis_opened_after_c0012_closeout
+  asset_type: synthesis_work_unit
+  next_required_action: design_sc0004_sr0001_post_sc0003_mixed_evidence_synthesis_run
+  source_campaigns:
+  - C0010
+  - C0011
+  - C0012
+  usable_ingredient_group_count: 8
+  retained_candidate_source: campaigns/C0012_session_auction_rotation_discovery/runs/R0001
+  retained_candidate_status: fragile_requires_hardening
+  retained_candidate_entries_per_active_day: 7.33564
+  retained_candidate_mt5_tick_net_pnl: 50.79
+  retained_candidate_mt5_tick_profit_factor: 1.095762
+  retained_candidate_profitable_fold_count: 6
+  retained_candidate_losing_fold_count: 3
+  retained_candidate_aggregate_extra_cost_per_trade_to_zero: 0.012013
+  retained_candidate_longest_losing_month_streak: 6
+  negative_memory_sources:
+  - campaigns/C0010_monthly_regime_risk_control_discovery
+  - campaigns/C0011_setup_lifecycle_timing_discovery
+  - campaigns/C0012_session_auction_rotation_discovery/runs/R0002
+  - campaigns/C0012_session_auction_rotation_discovery/runs/R0003
   claim_boundary:
     claim_authority: false
     selected: false
