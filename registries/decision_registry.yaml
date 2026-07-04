@@ -2124,3 +2124,29 @@ decisions:
     economics_pass: false
     onnx_ready: false
     promotion_ready: false
+- decision_id: dec_20260705_close_c0010_no_candidate_after_r0002
+  created_local_date: '2026-07-05'
+  status: active
+  decision: close_c0010_monthly_regime_risk_control_discovery_no_candidate_after_r0002
+  refines:
+  - dec_20260705_close_c0010_r0002_no_candidate
+  - dec_20260704_close_sc0003_with_fragile_candidate_evidence
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0010_r0001_static_monthly_regime_rank_met_activity_but_lost_all_nine_fold_isolated_tick_folds
+  - c0010_r0002_sequential_month_loss_memory_abstention_reduced_drawdown_but_still_had_negative_total_tick_net_pnl_six_losing_folds_and_below_target_activity_boundary
+  - remaining_c0010_work_would_be_adjacent_score_floor_month_loss_limit_loss_streak_daily_budget_stop_target_hold_session_or_retry_tuning
+  - synthesis_readiness_is_candidate_later_not_open_synthesis_because_only_one_campaign_has_closed_since_sc0003_and_only_two_c0010_ingredient_groups_are_available
+  - next_work_is_choose_c0011_new_major_hypothesis_after_c0010
+  - no_label_feature_model_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    selected: false
+    onnx_ready: false
+    promotion_ready: false

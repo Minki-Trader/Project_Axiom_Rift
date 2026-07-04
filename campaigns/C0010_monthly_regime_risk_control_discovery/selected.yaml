@@ -28,3 +28,30 @@ claim_boundary:
   - selected_label
   - runtime_authority
   - live_ready
+latest_negative_memory:
+  source_runs:
+  - runs/R0001
+  - runs/R0002
+  status: recorded
+  basis: rolling_window_fold_isolated_mt5_tick
+  reason_not_candidate: C0010 monthly/regime risk-control variants either met activity with
+    severe negative economics or controlled drawdown while remaining negative and below the
+    target activity boundary.
+  blocks:
+  - static_monthly_regime_risk_rank_retry
+  - monthly_loss_memory_abstention_parameter_retry
+  - score_floor_month_loss_limit_daily_budget_stop_target_hold_session_retry_nudge
+  next_required_action: choose_c0011_new_major_hypothesis_after_c0010
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

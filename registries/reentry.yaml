@@ -6,7 +6,7 @@ read_budget:
   - registries/reentry.yaml
   - registries/claim_state.yaml
   conditional_files:
-    active_campaign: null
+    active_campaign: campaigns/C0010_monthly_regime_risk_control_discovery
     active_synthesis: null
     active_contracts: contracts/
     active_config: configs/
@@ -618,8 +618,11 @@ next_work:
   - repair_c0010_r0002_center_score_scale_after_empty_proxy
   - review_c0010_r0002_tick_execution_kpi_and_closeout
   - close_c0010_r0002_no_candidate
-  tasks:
   - decide_c0010_r0003_or_close_c0010_after_r0002
+  - review_c0010_synthesis_readiness_after_r0002
+  - close_c0010_no_candidate_after_r0002
+  tasks:
+  - choose_c0011_new_major_hypothesis_after_c0010
   not_yet:
   - label_freeze
   - feature_set_freeze
