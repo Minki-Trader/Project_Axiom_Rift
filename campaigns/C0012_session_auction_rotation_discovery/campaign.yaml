@@ -1,6 +1,6 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: active_after_r0002_closeout
+status: active_after_r0003_closeout
 campaign_id: C0012
 campaign_slug: session_auction_rotation_discovery
 campaign_type: campaign
@@ -56,15 +56,17 @@ run_index:
   opened_runs:
   - runs/R0001
   - runs/R0002
+  - runs/R0003
   closed_runs:
   - runs/R0001
   - runs/R0002
+  - runs/R0003
   next_run_candidate:
-    run_id: R0003
-    direction: decide_c0012_r0003_or_close_c0012_after_r0002
-    reason: R0002 robustness conditioner closed no-candidate; decide whether a materially
-      different C0012 R0003 auction variant remains or close C0012 with fragile R0001 candidate
-      evidence retained.
+    run_id: R0004
+    direction: decide_c0012_r0004_or_close_c0012_after_r0003
+    reason: R0003 closed no-candidate with all nine fold-isolated MT5 tick folds losing; decide
+      whether any materially different C0012 R0004 remains or close C0012 with fragile R0001
+      candidate evidence retained.
     status: decision_required
 synthesis_readiness:
   check_required_at_closeout: true
@@ -90,7 +92,14 @@ closeout:
   - runs/R0002/kpi/execution_divergence.json
   - runs/R0002/kpi/mt5_tick_by_fold.json
   - runs/R0002/kpi/execution_divergence_by_fold.json
-  remaining_question: decide_c0012_r0003_or_close_c0012_after_r0002
+  - runs/R0003/kpi/proxy.json
+  - runs/R0003/kpi/mt5_logic_parity.json
+  - runs/R0003/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0003/kpi/mt5_tick.json
+  - runs/R0003/kpi/execution_divergence.json
+  - runs/R0003/kpi/mt5_tick_by_fold.json
+  - runs/R0003/kpi/execution_divergence_by_fold.json
+  remaining_question: decide_c0012_r0004_or_close_c0012_after_r0003
 claim_boundary:
   claim_authority: false
   selected: false

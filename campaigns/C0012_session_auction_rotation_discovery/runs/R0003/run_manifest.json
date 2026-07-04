@@ -1,0 +1,245 @@
+{
+  "campaign_id": "C0012",
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-04T19:41:41Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "no_candidate_after_fold_isolated_mt5_tick_and_execution_divergence_evidence",
+    "closed_at_utc": "2026-07-04T19:41:41Z",
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "evidence_paths": [
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local session auction transition hazard rank over session auction events",
+      "next_boundary": "R0003 blocks retrying session auction transition hazard or adverse-persistence weighting as a simple threshold, session, stop, target, hold, cost, monthly, or retry nudge; next work must decide whether C0012 still has a materially different R0004 or should close with fragile R0001 candidate evidence retained",
+      "reason_not_candidate": "proxy was deeply negative, MT5 tick aggregate net PnL was negative, and fold-isolated MT5 tick completed all nine folds with zero profitable folds and nine losing folds",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "transition hazard replay lost every rolling-window OOS fold; total tick net PnL was -401.74 with zero profitable folds and worst fold rw_005 net PnL -67.84"
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "tick execution was better than closed-bar logic by +132.07 total net PnL but both surfaces remained strongly negative, so divergence did not rescue candidate quality"
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "src/axiom_rift/mt5/c0012_r0003_probe.py",
+          "summary": "catastrophic logic-parity schedules can deplete the 500 USD tester account before all scheduled entries execute; R0003 repaired logic parity by using a high-deposit closed-bar mechanical parity override while preserving the 500 USD baseline for tick execution evidence"
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.852941,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.998054,
+      "minimum_exit_reason_match_rate": 0.871486,
+      "minimum_exit_time_direction_match_rate": 0.903614,
+      "mismatch_count": 0,
+      "mt5_logic_net_pnl": -533.81,
+      "mt5_logic_profit_factor": 0.206643,
+      "mt5_logic_trade_count": 4539,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_max_drawdown_percent": 80.436,
+      "mt5_tick_net_pnl": -401.74,
+      "mt5_tick_profit_factor": 0.295996,
+      "mt5_tick_trade_count": 4538,
+      "profitable_fold_count": 0,
+      "proxy_expectancy_points_per_entry": -9.4069,
+      "proxy_net_pnl_points": -42697.92,
+      "proxy_profit_factor": 0.264517,
+      "proxy_trade_count": 4539,
+      "tick_better_fold_count": 9,
+      "tick_minus_logic_net_pnl": 132.07,
+      "tick_worse_fold_count": 0,
+      "total_tick_minus_logic_net_pnl": 132.07,
+      "total_tick_net_pnl": -401.74,
+      "total_tick_trade_count": 4538,
+      "worst_drawdown_fold_id": "rw_005",
+      "worst_fold_id": "rw_005",
+      "worst_fold_max_drawdown_percent": 13.726,
+      "worst_fold_net_pnl": -67.84
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0012_r0003_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0012_r0003_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "session_auction_transition_hazard_summary": "artifacts/c0012_r0003_session_auction_transition_hazard_summary.json"
+  },
+  "gate_status": "close_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold_local_session_auction_transition_hazard_sequence",
+    "variant_boundary": "third C0012 true variant; learns fold-local session auction transition and adverse persistence hazards from train-only rolling windows, using event alignment, event persistence, opening-range migration, value-mid slope, and rotation acceleration rather than R0001 value rotation rank, R0002 robustness conditioning, or any threshold/session/stop/target/hold/cost/monthly retry"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_session_auction_transition_hazard_schedule_vs_ea_closed_bar_schedule_replay_parity",
+    "notes": [],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-04T19:26:13Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "not a threshold, window, stop, target, hold, session, activity, cost-buffer, monthly, or retry nudge; it changes label, feature, model objective, and state surface while preserving schedule replay MT5 portability",
+    "adjacent_tuning_risk": "low",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0012_session_auction_rotation_discovery/runs/R0001/kpi/candidate_robustness_audit.json",
+      "campaigns/C0012_session_auction_rotation_discovery/runs/R0002/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "pre_open_decision_id": "POD-C0012-R0003",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "recorded_before_run_open",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "fold-local session auction transition hazard rank that scores event transition alignment, persistence, opening range migration, and adverse path persistence instead of retrying R0001 rotation rank or R0002 robustness conditioning"
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "weak_proxy_results_must_still_continue_to_mt5_paired_validation"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": [
+      {
+        "claim_boundary": {
+          "claim_authority": false,
+          "economics_pass": false,
+          "feature_set_selected": false,
+          "label_selected": false,
+          "live_ready": false,
+          "materialization_ready": false,
+          "model_selected": false,
+          "onnx_ready": false,
+          "promotion_ready": false,
+          "runtime_authority": false,
+          "runtime_probe_completed": false,
+          "selected": false,
+          "trade_logic_selected": false
+        },
+        "repair_action": "apply a logic-parity-only high-deposit tester account override in the R0003 wrapper so mechanical schedule replay is isolated from account depletion; keep tick execution on the runtime 500 USD baseline",
+        "repair_id": "repair_c0012_r0003_logic_parity_deposit_override",
+        "reproduction_command": "python -m axiom_rift.cli run-c0012-r0003-mt5-logic --timeout-seconds 1800",
+        "root_cause": "initial closed-bar logic parity used the 500 USD runtime deposit and the catastrophic R0003 schedule depleted account capacity before all proxy schedule entries could execute",
+        "status": "completed",
+        "surface": "mt5_logic_parity_runner_config",
+        "validation_after_repair": "logic parity rerun passed with trade_count_delta 0 and mismatch_count 0"
+      }
+    ]
+  },
+  "run_id": "R0003",
+  "schema": "axiom_rift_run_manifest_v2",
+  "source_ingredient_ids": [
+    "C0012-R0001-candidate-robustness-audit",
+    "C0012-R0002-negative-memory"
+  ],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "session auction context plus transition features for event alignment, event persistence, value-mid slope, opening-range migration, rotation acceleration, and prior event pressure"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "target-first auction transition resolution label that rewards fast favorable resolution and penalizes adverse-first path, adverse close pressure, spread pressure, and adverse persistence"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "fold-local linear transition hazard ranker trained only on rolling train_is candidates with no selected model claim"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "fixed-lot dual-direction schedule selected from transition hazard daily ranks with existing next-bar entry and fixed discovery stop-target-hold exits, then replayed in MT5"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0012"
+}

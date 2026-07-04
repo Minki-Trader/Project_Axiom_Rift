@@ -105,20 +105,20 @@ active_campaign: campaigns/C0012_session_auction_rotation_discovery
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0012_r0002_no_candidate
+  id: close_c0012_r0003_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0012_session_auction_rotation_discovery/runs/R0002/gate_report.json
+  recorded_at_source: campaigns/C0012_session_auction_rotation_discovery/runs/R0003/gate_report.json
   evidence_status: closed_no_candidate
   asset_type: negative_memory
-  next_required_action: decide_c0012_r0003_or_close_c0012_after_r0002
-  entries_per_active_day: 7.416955
-  proxy_net_pnl_points: -1451.59
-  proxy_profit_factor: 0.974012
-  mt5_tick_net_pnl: -6.29
-  mt5_tick_profit_factor: 0.98872
-  profitable_fold_count: 4
-  losing_fold_count: 5
-  total_tick_minus_logic_net_pnl: -10.09
+  next_required_action: decide_c0012_r0004_or_close_c0012_after_r0003
+  entries_per_active_day: 7.852941
+  proxy_net_pnl_points: -42697.92
+  proxy_profit_factor: 0.264517
+  mt5_tick_net_pnl: -401.74
+  mt5_tick_profit_factor: 0.295996
+  profitable_fold_count: 0
+  losing_fold_count: 9
+  total_tick_minus_logic_net_pnl: 132.07
   claim_boundary:
     claim_authority: false
     selected: false
