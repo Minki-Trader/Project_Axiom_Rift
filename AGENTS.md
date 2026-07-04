@@ -11,10 +11,11 @@ active_text_encoding: ascii_only
 Read order for any new session or compacted context:
 
 1. `AGENTS.md`
-2. `registries/reentry.yaml`
-3. `registries/claim_state.yaml`
-4. Active campaign manifest only when campaign work is requested.
-5. Active contracts only when the task touches their surface.
+2. `registries/decision_cursor.yaml`
+3. `registries/reentry.yaml`
+4. `registries/claim_state.yaml`
+5. Active campaign manifest only when campaign work is requested.
+6. Active contracts only when the task touches their surface.
 
 Do not read archive files during boot.
 
@@ -65,10 +66,15 @@ lessons, evidence gaps, or non-portable lessons instead of erasing failed work.
 
 - Active contracts live in `contracts/`.
 - Active config lives in `configs/`.
+- Decision cursor lives in `registries/decision_cursor.yaml`.
 - Current claim state lives in `registries/claim_state.yaml`.
 - Reentry summary lives in `registries/reentry.yaml`.
 - Campaign work lives in `campaigns/`.
 - Source code lives in `src/axiom_rift/`.
+
+The decision cursor is a compact pointer, not evidence. When it conflicts with
+a terminal run gate report, closed run manifest, or KPI receipt, terminal run
+evidence wins.
 
 If active contracts/config are missing, do not substitute archive files as active truth.
 
@@ -80,6 +86,12 @@ If active contracts/config are missing, do not substitute archive files as activ
 - Before choosing next work, closing a run/campaign, or trusting registry state,
   use `python -m axiom_rift.cli validate-repo-state` as the repository state check.
   Existing blockers must be reported separately from the current task's changes.
+- Before opening a new run, classify whether the next action is a true variant,
+  repair, closeout, synthesis due check, or pause. New runs require a pre-open
+  decision block and must not be adjacent tuning.
+- Repo-state debt must be classified by blocking scope. Hash debt may be
+  nonblocking for next-run discovery while still blocking selection, promotion,
+  handoff, or reproducibility claims.
 - Data baseline refresh order is `python -m axiom_rift.cli build-us100-base-frame`,
   then `python -m axiom_rift.cli derive-us100-clean-periods`, then
   `python -m axiom_rift.cli build-us100-rolling-windows`.

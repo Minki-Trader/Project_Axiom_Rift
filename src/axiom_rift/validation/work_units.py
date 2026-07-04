@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from axiom_rift.paths import PROJECT_ROOT
+from axiom_rift.validation.decision_intelligence import validate_pre_open_decision
 
 try:
     import yaml
@@ -386,6 +387,7 @@ def validate_run_folder(
         for surface in ("model", "feature", "trade_logic", "label"):
             require_non_empty_path(issues, run_dir / "run_manifest.json", run_manifest, f"surfaces.{surface}.summary")
         check_claim_false_values(issues, run_dir / "run_manifest.json", run_manifest)
+        validate_pre_open_decision(issues, run_dir / "run_manifest.json", run_manifest)
 
     for rel_path in RUN_REQUIRED_FILES:
         path = run_dir / rel_path

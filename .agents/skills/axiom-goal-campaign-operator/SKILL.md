@@ -14,14 +14,15 @@ Operate Project Axiom Rift from a short goal prompt without losing the top-level
 Before acting, read:
 
 1. `AGENTS.md`
-2. `registries/reentry.yaml`
-3. `registries/claim_state.yaml`
-4. `contracts/project_goal_contract.md`
-5. `contracts/evaluation_contract.md`
-6. `contracts/goal_operation_policy.yaml`
-7. Active campaign manifest when one exists or campaign work is requested.
-8. `.agents/skills/axiom-mt5-validation-guardrails/SKILL.md` before any numbered run or MT5 evidence work.
-9. `python -m axiom_rift.cli validate-repo-state` output before next-work, campaign/run, or closeout decisions.
+2. `registries/decision_cursor.yaml`
+3. `registries/reentry.yaml`
+4. `registries/claim_state.yaml`
+5. `contracts/project_goal_contract.md`
+6. `contracts/evaluation_contract.md`
+7. `contracts/goal_operation_policy.yaml`
+8. Active campaign manifest when one exists or campaign work is requested.
+9. `.agents/skills/axiom-mt5-validation-guardrails/SKILL.md` before any numbered run or MT5 evidence work.
+10. `python -m axiom_rift.cli validate-repo-state` output before next-work, campaign/run, or closeout decisions.
 
 Read `references/operating_flow.md` before opening or closing a campaign, opening or closing a run, processing `/goal`, or deciding whether to keep digging.
 When data surfaces are touched, refresh in order: `build-us100-base-frame`, `derive-us100-clean-periods`, then `build-us100-rolling-windows`.
@@ -44,6 +45,13 @@ Preserve this target unless a later active contract changes it:
 - Expand short goals into bounded work-unit actions.
 - Decide the operation class first: new campaign, new run, repair, closeout, synthesis due check, or pause.
 - Check repo state before deciding next work; separate pre-existing blockers from current-task regressions.
+- Resolve the decision cursor before using reentry history as next-work authority.
+- Apply terminal evidence priority in this order: run gate report decision/status, run manifest status, required KPI closeout receipts, artifact lineage deferred state, campaign active/closeout state, claim_state latest_operation, then reentry next_work.
+- Treat `registries/reentry.yaml` completed history as historical context only, not decision authority.
+- If repo-state validation reports hash debt, classify its blocking scope before deciding work: nonblocking_for_next_run_decision, active_path_blocker, or closeout_blocker.
+- Do not repair unrelated hash debt during an active evidence loop unless it blocks the current run evidence, closeout, selected claim, promotion, handoff, or reproducibility claim being made.
+- Before opening a new run, write or verify a pre-open decision block with novelty score, surface distance, adjacent tuning risk, MT5 portability, decision payoff, and failure memory used.
+- Do not open a new run when expected information gain is low, adjacent tuning risk is high, or the failure would only repeat known negative memory.
 - Open a run only for a true variant; do not treat threshold, window, SL/TP, or session nudges as a new run unless they ask a distinct campaign question.
 - For every opened run, complete proxy, MT5 logic parity, proxy-vs-MT5 parity, MT5 tick, execution divergence, fold-isolated tick, fold-isolated divergence, and closeout.
 - Treat aggregate MT5 KPI as diagnostic only.
@@ -59,6 +67,7 @@ Preserve this target unless a later active contract changes it:
 
 - Close a run only from fold-isolated evidence or a complete exception.
 - Do not close a run, campaign, or goal from broken code, parser failure, compile failure, runner failure, or KPI missing because code failed.
+- A terminal run gate report or closed run manifest outranks stale claim_state or reentry pointers when deciding whether to continue, close, or open the next variant.
 - After every run closeout, validate changed surfaces, reflect closeout-scoped changes on local `main`, and push `main` to `origin`.
 - Do not report a run closeout as operationally complete if the closeout changes were not pushed to `origin/main`.
 - Preserve unrelated dirty work; do not force-push, hard reset, or stage unrelated files to satisfy closeout git sync.

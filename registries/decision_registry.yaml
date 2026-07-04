@@ -2255,3 +2255,27 @@ decisions:
     selected: false
     onnx_ready: false
     promotion_ready: false
+- decision_id: dec_20260705_decision_intelligence_layer
+  created_local_date: '2026-07-05'
+  status: active
+  decision: add_terminal_evidence_priority_decision_cursor_debt_scope_and_pre_open_run_intelligence
+  refines:
+  - dec_20260702_goal_driven_operation_policy
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - next_work_decisions_must_use_terminal_run_evidence_before_stale_reentry_or_claim_state_pointers
+  - repo_state_hash_debt_should_remain_visible_but_be_classified_by_blocking_scope
+  - new_run_opening_should_require_pre_open_intelligence_to_prevent_adjacent_tuning_disguised_as_variant
+  - reentry_completed_history_should_remain_history_not_current_decision_authority
+  - mandatory_mt5_paired_validation_sequence_is_unchanged
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

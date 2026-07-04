@@ -7,6 +7,7 @@ encoding: ascii_only
 ## Pointers
 
 - agent rules: `AGENTS.md`
+- decision cursor: `registries/decision_cursor.yaml`
 - boot summary: `registries/reentry.yaml`
 - claim state: `registries/claim_state.yaml`
 - active contracts: `contracts/`

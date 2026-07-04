@@ -11,6 +11,7 @@ governing_sources:
   campaign_lifecycle: contracts/campaign_lifecycle.yaml
   work_unit_creation: contracts/work_unit_creation.yaml
   claims: contracts/claims.yaml
+  decision_cursor: registries/decision_cursor.yaml
   mt5_guardrail_skill: .agents/skills/axiom-mt5-validation-guardrails/SKILL.md
 
 top_level_goal:
@@ -96,7 +97,11 @@ operation_flow:
   - load_goal_policy
   - classify_goal
   - check_active_work_unit_state
+  - resolve_decision_cursor
+  - apply_terminal_evidence_priority
+  - classify_repo_debt_scope
   - choose_operation_class
+  - require_pre_open_intelligence_when_new_run
   - create_or_update_only_required_artifacts
   - run_required_evidence_loop
   - record_failure_or_candidate_as_evidence
@@ -110,6 +115,98 @@ operation_classes:
   closeout: evidence_based_only
   synthesis: only_when_readiness_minimums_met
   pause: when_next_work_requires_user_hypothesis_or_external_state
+
+decision_state_policy:
+  terminal_evidence_priority_enabled: true
+  cursor_registry: registries/decision_cursor.yaml
+  cursor_role: compact_next_decision_pointer_not_evidence
+  authority_order:
+    - run_gate_report_decision_or_status
+    - run_manifest_status
+    - required_kpi_files_and_closeout_receipts
+    - artifact_lineage_deferred_with_reason
+    - campaign_yaml_active_run_and_closeout_state
+    - claim_state_latest_operation
+    - reentry_next_work
+  stale_pointer_rule: terminal_run_receipt_outranks_planning_pointer
+  reentry_completed_log_role: history_only_not_decision_authority
+  must_not:
+    - use_reentry_completed_history_as_current_decision_authority
+    - continue_old_next_action_when_run_gate_report_is_terminal
+    - treat_decision_cursor_as_evidence_or_claim_authority
+
+repo_debt_scope_policy:
+  enabled: true
+  keep_validate_repo_state_errors_visible: true
+  debt_classes:
+    known_nonblocking_for_next_run_decision:
+      may_continue_discovery: true
+      blocks_selected_claim: true
+      blocks_promotion: true
+      blocks_handoff: true
+      blocks_reproducibility_claim: true
+    active_path_blocker:
+      may_continue_discovery: false
+      requires_repair_before_current_run_evidence: true
+    closeout_blocker:
+      may_continue_current_evidence_loop: true
+      blocks_run_or_campaign_closeout: true
+  hash_debt_rule:
+    default_class: known_nonblocking_for_next_run_decision
+    active_run_artifact_hash_debt_class: closeout_blocker
+    selected_or_promotion_hash_debt_class: active_path_blocker
+    covered_codes:
+      - artifact_lineage_hash_mismatch
+      - artifact_lineage_hash_missing
+  must_not:
+    - hide_hash_mismatch_errors
+    - mark_repo_state_ok_when_global_lineage_errors_exist
+    - repair_unrelated_hash_debt_during_active_goal_session_without_scope_need
+
+pre_open_intelligence_policy:
+  enabled: true
+  applies_to: future_new_runs
+  effective_local_date: '2026-07-05'
+  not_retroactive_for_existing_runs: true
+  storage: run_manifest.pre_open_decision
+  required_fields:
+    - novelty_score
+    - adjacent_tuning_risk
+    - expected_information_gain
+    - failure_memory_used
+    - surface_distance
+    - mt5_portability
+    - decision_payoff
+    - reject_if_failure_only_repeats_known_negative_memory
+    - true_variant_summary
+    - adjacent_tuning_rejection_reason
+  score_rules:
+    novelty_score_min_for_new_run: 3
+    adjacent_tuning_risk_allowed:
+      - low
+      - medium
+    expected_information_gain_allowed:
+      - medium
+      - high
+    decision_payoff_allowed:
+      - medium
+      - high
+    mt5_portability_allowed:
+      - clear
+      - risky
+    mt5_portability_non_portable_action: do_not_open_run
+  surface_distance_rule:
+    at_least_one_surface_must_change: true
+    surfaces:
+      - label
+      - feature
+      - model
+      - trade_logic
+  must_not:
+    - open_run_with_low_information_gain
+    - open_run_with_high_adjacent_tuning_risk
+    - open_run_when_failure_only_repeats_known_negative_memory
+    - open_run_for_threshold_window_sltp_session_or_activity_nudge_only
 
 run_required_sequence:
   - proxy_kpi
@@ -186,6 +283,10 @@ anti_drift_rules:
   threshold_window_sltp_nudge_as_new_run_allowed: false
   campaign_close_without_synthesis_due_check_allowed: false
   run_closeout_without_main_push_allowed: false
+  stale_reentry_pointer_may_override_terminal_run_evidence: false
+  reentry_completed_log_as_decision_authority_allowed: false
+  new_run_without_pre_open_decision_allowed: false
+  hash_debt_may_be_hidden_or_marked_ok_without_scope_classification: false
 
 closeout_rules:
   run_closeout_basis:
@@ -242,6 +343,9 @@ validation_minimums:
   validate_active_or_closed_work_unit_when_changed: true
   unit_tests_for_changed_validators_or_cli: true
   git_diff_check: true
+  decision_cursor_structured_parse: true
+  future_run_pre_open_decision_required: true
+  repo_debt_scope_summary_required_when_repo_state_has_errors: true
 
 claim_boundary:
   claim_authority: false

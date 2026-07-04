@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from axiom_rift.paths import PROJECT_ROOT
+from axiom_rift.validation.decision_intelligence import debt_scope_summary
 from axiom_rift.validation.price_quality import BASE_FRAME_RELATIVE_PATH, PRICE_QUALITY_AUDIT_RELATIVE_PATH
 from axiom_rift.validation.work_units import (
     CLOSEOUT_DECISIONS,
@@ -31,7 +33,10 @@ FORBIDDEN_ACTIVE_CLAIMS = {
 }
 
 
+@dataclass(frozen=True)
 class RepoStateValidationResult(ValidationResult):
+    active_run_path: str | None = None
+
     def to_dict(self) -> dict[str, object]:
         payload = super().to_dict()
         payload["blocking_issues"] = [
@@ -40,6 +45,10 @@ class RepoStateValidationResult(ValidationResult):
         payload["warnings"] = [
             issue.to_dict() for issue in self.issues if issue.severity == "warning"
         ]
+        payload["decision_scope"] = debt_scope_summary(
+            self.issues,
+            active_run_path=self.active_run_path,
+        )
         return payload
 
 
@@ -79,7 +88,8 @@ def validate_repo_state(root: Path = PROJECT_ROOT) -> RepoStateValidationResult:
 
     check_closed_runs(root, issues)
     check_artifact_lineage_hashes(root, issues)
-    return RepoStateValidationResult("repo-state", tuple(issues.issues))
+    active_run_display = display_rel(root, latest_run) if latest_run is not None else None
+    return RepoStateValidationResult("repo-state", tuple(issues.issues), active_run_display)
 
 
 def check_runtime_config(issues: IssueCollector, path: Path, data: Any) -> None:

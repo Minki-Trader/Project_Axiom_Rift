@@ -1,5 +1,5 @@
 {
-  "schema": "axiom_rift_run_manifest_template_v1",
+  "schema": "axiom_rift_run_manifest_template_v2",
   "template": true,
   "status": "draft",
   "work_unit_id": "C0000",
@@ -9,6 +9,32 @@
   "hypothesis_variant": {
     "summary": "placeholder_run_variant",
     "variant_boundary": "placeholder_why_this_is_not_repair_or_micro_tuning"
+  },
+  "pre_open_decision": {
+    "pre_open_decision_id": "POD-C0000-R0000",
+    "status": "required_before_run_open",
+    "novelty_score": 0,
+    "adjacent_tuning_risk": "medium",
+    "expected_information_gain": "medium",
+    "failure_memory_used": "repo_relative_path_or_decision_id",
+    "surface_distance": {
+      "label_changed": false,
+      "feature_changed": false,
+      "model_changed": false,
+      "trade_logic_changed": false
+    },
+    "mt5_portability": "clear",
+    "decision_payoff": "medium",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "true_variant_summary": "placeholder_true_variant_summary",
+    "adjacent_tuning_rejection_reason": "placeholder_why_this_is_not_threshold_window_sltp_session_activity_or_retry_nudge",
+    "claim_boundary": {
+      "claim_authority": false,
+      "selected": false,
+      "runtime_authority": false,
+      "onnx_ready": false,
+      "live_ready": false
+    }
   },
   "surfaces": {
     "model": {

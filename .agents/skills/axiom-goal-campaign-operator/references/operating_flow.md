@@ -11,24 +11,68 @@ A short `/goal` means: continue toward the active top-level Axiom target while o
 ```mermaid
 flowchart TD
   A["short goal input"] --> B["boot context"]
-  B --> C["load goal operation policy"]
-  C --> D["classify operation"]
-  D --> E{"active campaign?"}
-  E -->|no| F["choose or open next major C campaign"]
-  E -->|yes| G["inspect campaign boundary and next run need"]
-  G --> H{"true variant remains?"}
-  H -->|yes| I["open or continue R run"]
-  H -->|no| J["campaign closeout and synthesis due check"]
-  I --> K["proxy plus MT5 evidence loop"]
-  K --> L["fold-isolated closeout review"]
-  L --> M{"candidate evidence?"}
-  M -->|yes| N["record candidate evidence only"]
-  M -->|no| O["record failure asset"]
-  N --> P["update reentry, registries, claim state"]
-  O --> P
-  J --> P
-  P --> Q["validate changed surfaces"]
+  B --> C["load decision cursor and goal operation policy"]
+  C --> D["apply terminal evidence priority"]
+  D --> E["classify repo debt scope"]
+  E --> F["classify operation"]
+  F --> G{"active campaign?"}
+  G -->|no| H["choose or open next major C campaign"]
+  G -->|yes| I["inspect campaign boundary and next run need"]
+  I --> J{"true variant remains?"}
+  J -->|yes| K["verify pre-open decision, then open or continue R run"]
+  J -->|no| L["campaign closeout and synthesis due check"]
+  K --> M["proxy plus MT5 evidence loop"]
+  M --> N["fold-isolated closeout review"]
+  N --> O{"candidate evidence?"}
+  O -->|yes| P["record candidate evidence only"]
+  O -->|no| Q["record failure asset"]
+  P --> R["update decision cursor, reentry, registries, claim state"]
+  Q --> R
+  L --> R
+  R --> S["validate changed surfaces"]
 ```
+
+## Decision State Priority
+
+Use `registries/decision_cursor.yaml` as a compact pointer before reentry history.
+The cursor is not evidence and does not create claim authority.
+
+Authority order for next-work decisions:
+
+1. Run gate report decision/status.
+2. Run manifest status.
+3. Required KPI closeout receipts.
+4. Artifact lineage deferred state.
+5. Campaign active/closeout state.
+6. `registries/claim_state.yaml` latest_operation.
+7. `registries/reentry.yaml` next_work.
+
+Completed history in `registries/reentry.yaml` is historical context only. If a
+terminal run receipt conflicts with a stale planning pointer, terminal run
+evidence wins.
+
+## Repo Debt Scope
+
+Repo-state errors stay visible. Classify debt before choosing work:
+
+- known_nonblocking_for_next_run_decision: discovery may continue, but selected,
+  promotion, handoff, and reproducibility claims remain blocked.
+- active_path_blocker: repair before current run evidence or next-work decisions.
+- closeout_blocker: current evidence may continue, but closeout is blocked.
+
+Do not repair unrelated artifact hash debt during an active evidence loop unless
+it blocks current evidence, closeout, selection, promotion, handoff, or a
+reproducibility claim.
+
+## Pre-Open Decision
+
+Before opening a new run, record or verify a pre-open decision block. It must
+show novelty score, changed surface distance, adjacent tuning risk, expected
+information gain, MT5 portability, decision payoff, and failure memory used.
+
+Do not open a run when expected information gain is low, adjacent tuning risk is
+high, MT5 portability is non-portable, or the failure would only repeat known
+negative memory.
 
 ## Operation Classes
 

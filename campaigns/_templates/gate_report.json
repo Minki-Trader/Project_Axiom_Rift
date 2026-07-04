@@ -1,5 +1,5 @@
 {
-  "schema": "axiom_rift_gate_report_template_v1",
+  "schema": "axiom_rift_gate_report_template_v2",
   "template": true,
   "role": "lightweight_decision_receipt",
   "work_unit_id": "C0000",
@@ -14,6 +14,20 @@
       "proxy_vs_mt5_logic_parity_kpi_path_recorded": false,
       "execution_divergence_kpi_path_recorded": false,
       "artifact_lineage_path_recorded": false
+    }
+  },
+  "pre_open_decision_gate": {
+    "status": "not_checked",
+    "checks": {
+      "pre_open_decision_present": false,
+      "novelty_score_valid": false,
+      "adjacent_tuning_risk_not_high": false,
+      "expected_information_gain_not_low": false,
+      "decision_payoff_not_low": false,
+      "mt5_portability_not_non_portable": false,
+      "failure_memory_used_recorded": false,
+      "at_least_one_surface_changed": false,
+      "adjacent_tuning_rejection_reason_recorded": false
     }
   },
   "parity_gate": {

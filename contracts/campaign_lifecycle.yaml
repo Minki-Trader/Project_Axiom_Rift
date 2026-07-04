@@ -56,6 +56,7 @@ required_fields:
     - proxy_plan
     - mt5_probe_plan
     - proxy_vs_mt5_plan
+    - pre_open_decision
     - evidence_paths
     - repair.hypothesis_repair_count
     - gate_status
@@ -94,6 +95,7 @@ required_fields:
     - work_unit_id
     - run_id
     - evidence_gate
+    - pre_open_decision_gate
     - parity_gate
     - rolling_window_closeout_gate
     - claim_gate
@@ -207,6 +209,38 @@ run_policy:
   full_period_mt5_kpi_is_diagnostic_only_for_closeout: true
   run_may_close_without_mt5_pair: false
   weak_proxy_result_may_skip_mt5_probe: false
+  pre_open_decision_required_for_new_runs: true
+  pre_open_decision_effective_local_date: '2026-07-05'
+  pre_open_decision_not_retroactive_for_existing_runs: true
+  pre_open_decision_storage: run_manifest.pre_open_decision
+  pre_open_decision_requires:
+    - novelty_score
+    - adjacent_tuning_risk
+    - expected_information_gain
+    - failure_memory_used
+    - surface_distance
+    - mt5_portability
+    - decision_payoff
+    - reject_if_failure_only_repeats_known_negative_memory
+    - true_variant_summary
+    - adjacent_tuning_rejection_reason
+  pre_open_decision_rules:
+    novelty_score_min: 3
+    adjacent_tuning_risk_allowed:
+      - low
+      - medium
+    expected_information_gain_allowed:
+      - medium
+      - high
+    decision_payoff_allowed:
+      - medium
+      - high
+    mt5_portability_allowed:
+      - clear
+      - risky
+    at_least_one_surface_distance_true: true
+    high_adjacent_tuning_risk_must_not_open: true
+    non_portable_must_not_open: true
   every_run_must_declare_all_surfaces:
     - model
     - feature
@@ -255,6 +289,7 @@ lifecycle:
         - run_id
         - hypothesis_variant
         - all_required_surfaces
+        - pre_open_decision
         - variant_boundary
     proxy_diverse_probe:
       purpose: create the proxy side of the run evidence pair
@@ -398,6 +433,18 @@ gate_report_policy:
         - proxy_vs_mt5_logic_parity_kpi_path_recorded
         - execution_divergence_kpi_path_recorded
         - artifact_lineage_path_recorded
+    pre_open_decision_gate:
+      purpose: confirm the run was opened as a true variant rather than adjacent tuning
+      checks:
+        - pre_open_decision_present
+        - novelty_score_valid
+        - adjacent_tuning_risk_not_high
+        - expected_information_gain_not_low
+        - decision_payoff_not_low
+        - mt5_portability_not_non_portable
+        - failure_memory_used_recorded
+        - at_least_one_surface_changed
+        - adjacent_tuning_rejection_reason_recorded
     parity_gate:
       purpose: summarize parity status from proxy_vs_mt5 evidence
       checks:

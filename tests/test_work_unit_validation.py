@@ -147,6 +147,22 @@ def make_run(campaign: Path) -> Path:
     manifest["run_id"] = "R0001"
     manifest["hypothesis_variant"]["summary"] = "smoke run variant"
     manifest["hypothesis_variant"]["variant_boundary"] = "smoke variant boundary"
+    pre_open = manifest["pre_open_decision"]
+    pre_open["pre_open_decision_id"] = "POD-C0001-R0001"
+    pre_open["status"] = "recorded_before_run_open"
+    pre_open["novelty_score"] = 3
+    pre_open["adjacent_tuning_risk"] = "low"
+    pre_open["expected_information_gain"] = "medium"
+    pre_open["failure_memory_used"] = "unit_test_negative_memory"
+    pre_open["surface_distance"]["label_changed"] = True
+    pre_open["surface_distance"]["feature_changed"] = False
+    pre_open["surface_distance"]["model_changed"] = False
+    pre_open["surface_distance"]["trade_logic_changed"] = False
+    pre_open["mt5_portability"] = "clear"
+    pre_open["decision_payoff"] = "medium"
+    pre_open["reject_if_failure_only_repeats_known_negative_memory"] = True
+    pre_open["true_variant_summary"] = "smoke run variant"
+    pre_open["adjacent_tuning_rejection_reason"] = "not a threshold, window, stop, target, hold, session, or retry nudge"
     for surface, entry in manifest["surfaces"].items():
         entry["summary"] = f"smoke {surface} run surface"
     write_json(run / "run_manifest.json", manifest)

@@ -3,6 +3,7 @@ updated_local_date: '2026-07-05'
 read_budget:
   boot_files:
   - AGENTS.md
+  - registries/decision_cursor.yaml
   - registries/reentry.yaml
   - registries/claim_state.yaml
   conditional_files:
@@ -27,6 +28,7 @@ active_truth:
   contracts_dir: contracts
   config_dir: configs
   registries_dir: registries
+  decision_cursor: registries/decision_cursor.yaml
   source_package: src/axiom_rift
   campaigns_dir: campaigns
   skills_dir: .agents/skills
