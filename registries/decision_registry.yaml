@@ -2024,3 +2024,55 @@ decisions:
     selected: false
     onnx_ready: false
     promotion_ready: false
+- decision_id: dec_20260704_open_c0010_r0001_monthly_regime_risk_control_run
+  created_local_date: '2026-07-04'
+  status: active
+  decision: open_c0010_r0001_monthly_regime_risk_control_run
+  refines:
+  - dec_20260704_open_c0010_monthly_regime_risk_control_discovery
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0001_tests_fold_local_monthly_regime_risk_control_rank_with_new_month_phase_volatility_recent_drawdown_spread_and_path_risk_surfaces
+  - r0001_label_penalizes_adverse_excursion_spread_drift_recent_drawdown_pressure_path_shock_and_month_edge_pressure
+  - r0001_state_keys_include_side_month_phase_volatility_state_and_recent_risk_pressure
+  - r0001_is_not_a_c0008_or_sc0003_cost_buffer_fold_month_threshold_filter_retry_and_not_a_c0009_intrabar_ambiguity_retry
+  - opened_run_commits_to_proxy_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence_even_if_proxy_is_weak
+  - no_label_feature_model_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    selected: false
+    onnx_ready: false
+    promotion_ready: false
+- decision_id: dec_20260704_close_c0010_r0001_no_candidate
+  created_local_date: '2026-07-04'
+  status: active
+  decision: close_c0010_r0001_no_candidate
+  refines:
+  - dec_20260704_open_c0010_r0001_monthly_regime_risk_control_run
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0001_proxy_reached_7_489655_entries_per_active_day_but_proxy_net_pnl_points_was_negative_33469_69_and_profit_factor_0_386144
+  - mt5_logic_parity_passed_with_zero_mismatches_so_the_hypothesis_was_not_discarded_as_broken_code
+  - mt5_tick_execution_was_negative_335_17_with_profit_factor_0_387471_and_max_drawdown_67_134_percent
+  - fold_isolated_mt5_tick_had_zero_profitable_folds_nine_losing_folds_and_total_tick_net_pnl_negative_335_17
+  - tick_execution_improved_closed_bar_logic_by_31_22_but_absolute_economics_remained_strongly_negative
+  - r0001_failure_is_recorded_as_negative_memory_and_execution_divergence_lesson_not_erased
+  - next_work_is_decide_c0010_r0002_or_close_c0010_after_r0001
+  - no_label_feature_model_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    runtime_authority: false
+    live_ready: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    economics_pass: false
+    selected: false
+    onnx_ready: false
+    promotion_ready: false

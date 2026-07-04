@@ -28,36 +28,36 @@ hypothesis:
 required_surfaces:
   model:
     status: variable
-    summary: unrestricted regime-risk classifier, ranker, state model, hazard model,
-      ensemble, rule surface, or later model family; no model family is selected
+    summary: unrestricted regime-risk classifier, ranker, state model, hazard model, ensemble,
+      rule surface, or later model family; no model family is selected
   feature:
     status: variable
-    summary: unrestricted closed-bar features for monthly seasonality, rolling drawdown
-      pressure, volatility regime, range state, session structure, spread pressure,
-      trend persistence, adverse-tail risk, and recent opportunity quality; no feature
-      set is selected
+    summary: unrestricted closed-bar features for monthly seasonality, rolling drawdown pressure,
+      volatility regime, range state, session structure, spread pressure, trend persistence,
+      adverse-tail risk, and recent opportunity quality; no feature set is selected
   trade_logic:
     status: variable
-    summary: variable fixed-lot entry timing, abstention, direction selection, activity
-      budgeting, exit, stop, target, hold, and risk-shape logic designed around regime
-      stability; equity-percent sizing remains deferred
+    summary: variable fixed-lot entry timing, abstention, direction selection, activity budgeting,
+      exit, stop, target, hold, and risk-shape logic designed around regime stability; equity-percent
+      sizing remains deferred
   label:
     status: variable
     summary: variable labels for target-before-stop, cost-buffer survival, monthly drawdown
-      risk, adverse-tail avoidance, fold consistency, and risk-adjusted expectancy; no
-      label is selected
+      risk, adverse-tail avoidance, fold consistency, and risk-adjusted expectancy; no label
+      is selected
 run_index:
   runs_root: runs/
   run_id_format: R0001
   active_run: null
-  closed_runs: []
+  closed_runs:
+  - runs/R0001
   next_run_candidate:
-    run_id: R0001
-    direction: design_c0010_r0001_monthly_regime_risk_control_run
-    reason: C0010 is open as a new major campaign after SC0003 closed with fragile candidate
-      evidence; first run should test a true monthly/regime risk-control surface, not an
-      adjacent threshold, cost-buffer, fold, session, stop, target, hold, or retry nudge.
-    status: design_required
+    run_id: R0002
+    direction: decide_c0010_r0002_or_close_c0010_after_r0001
+    reason: R0001 closed no-candidate after fold-isolated MT5 tick and execution divergence
+      evidence; next work is to decide whether C0010 has a materially new monthly/regime risk-control
+      variant or should close.
+    status: decision_required
 synthesis_readiness:
   check_required_at_closeout: true
   result: not_checked
@@ -66,8 +66,15 @@ synthesis_readiness:
 closeout:
   status: open
   close_reason: null
-  evidence_paths: []
-  remaining_question: design_c0010_r0001_monthly_regime_risk_control_run
+  evidence_paths:
+  - runs/R0001/kpi/proxy.json
+  - runs/R0001/kpi/mt5_logic_parity.json
+  - runs/R0001/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0001/kpi/mt5_tick.json
+  - runs/R0001/kpi/execution_divergence.json
+  - runs/R0001/kpi/mt5_tick_by_fold.json
+  - runs/R0001/kpi/execution_divergence_by_fold.json
+  remaining_question: decide_c0010_r0002_or_close_c0010_after_r0001
 claim_boundary:
   claim_authority: false
   selected: false
