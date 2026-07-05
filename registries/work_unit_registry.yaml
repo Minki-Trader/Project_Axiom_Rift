@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0022
+    next_id: C0023
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -40,6 +40,7 @@ streams:
     - campaigns/C0019_bar_quality_asymmetry_discovery
     - campaigns/C0020_excursion_decay_memory_discovery
     - campaigns/C0021_daily_profile_energy_balance_discovery
+    - campaigns/C0022_volatility_term_structure_discovery
     numbering_policy:
       width: 4
       example: C0001

@@ -7,7 +7,7 @@ read_budget:
   - registries/reentry.yaml
   - registries/claim_state.yaml
   conditional_files:
-    active_campaign: campaigns/C0021_daily_profile_energy_balance_discovery
+    active_campaign: campaigns/C0022_volatility_term_structure_discovery
     active_synthesis: null
     active_contracts: contracts/
     active_config: configs/
@@ -22,7 +22,7 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: campaigns/C0021_daily_profile_energy_balance_discovery
+  active_campaign: campaigns/C0022_volatility_term_structure_discovery
   active_synthesis: null
 active_truth:
   contracts_dir: contracts
@@ -113,7 +113,7 @@ data_state:
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
 next_work:
-  campaign: campaigns/C0021_daily_profile_energy_balance_discovery
+  campaign: campaigns/C0022_volatility_term_structure_discovery
   synthesis: null
   completed:
   - fresh_export_us100_m5_max_available
@@ -810,15 +810,28 @@ next_work:
   - review_c0021_r0001_tick_execution_kpi_and_closeout
   - close_c0021_r0001_no_candidate
   - close_c0021_no_candidate_after_r0001
-  tasks:
   - choose_c0022_new_major_hypothesis_after_c0021_closeout
+  - open_c0022_volatility_term_structure_discovery
+  - open_c0022_r0001_fold_local_volatility_term_structure_rank_run
+  - produce_c0022_r0001_proxy_evidence
+  - record_c0022_r0001_proxy_vs_mt5_logic_parity_evidence
+  - record_c0022_r0001_execution_divergence
+  - produce_c0022_r0001_mt5_tick_execution_evidence
+  - produce_c0022_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0022_r0001_fold_isolated_execution_divergence
+  - produce_c0022_r0001_mt5_logic_parity_evidence
+  - review_c0022_r0001_tick_execution_kpi_and_closeout
+  - close_c0022_r0001_no_candidate
+  - close_c0022_no_candidate_after_r0001
+  tasks:
+  - open_sc0005_post_c0022_negative_memory_synthesis
   not_yet:
   - label_freeze
   - feature_set_freeze
   - model_training
   - mt5_runtime_claim
-  active_campaign: campaigns/C0021_daily_profile_energy_balance_discovery
-  active_run: campaigns/C0021_daily_profile_energy_balance_discovery/runs/R0001
-active_run: campaigns/C0021_daily_profile_energy_balance_discovery/runs/R0001
-active_campaign: campaigns/C0021_daily_profile_energy_balance_discovery
+  active_campaign: campaigns/C0022_volatility_term_structure_discovery
+  active_run: campaigns/C0022_volatility_term_structure_discovery/runs/R0001
+active_run: campaigns/C0022_volatility_term_structure_discovery/runs/R0001
+active_campaign: campaigns/C0022_volatility_term_structure_discovery
 active_synthesis: null
