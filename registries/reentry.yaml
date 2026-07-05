@@ -8,7 +8,7 @@ read_budget:
   - registries/claim_state.yaml
   conditional_files:
     active_campaign: campaigns/C0030_intraday_vwap_repricing_pressure_discovery
-    active_synthesis: null
+    active_synthesis: campaigns/SC0006_post_c0030_negative_memory_synthesis
     active_contracts: contracts/
     active_config: configs/
   skip_by_default:
@@ -23,7 +23,7 @@ project:
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
   active_campaign: campaigns/C0030_intraday_vwap_repricing_pressure_discovery
-  active_synthesis: null
+  active_synthesis: campaigns/SC0006_post_c0030_negative_memory_synthesis
 active_truth:
   contracts_dir: contracts
   config_dir: configs
@@ -114,7 +114,7 @@ data_state:
     split_boundaries_frozen: false
 next_work:
   campaign: campaigns/C0030_intraday_vwap_repricing_pressure_discovery
-  synthesis: null
+  synthesis: campaigns/SC0006_post_c0030_negative_memory_synthesis
   completed:
   - fresh_export_us100_m5_max_available
   - record_source_path_decision_fresh_export
@@ -919,16 +919,17 @@ next_work:
   - produce_c0030_r0001_fold_isolated_execution_divergence
   - review_c0030_r0001_tick_execution_kpi_and_closeout
   - close_c0030_r0001_no_candidate
-  tasks:
   - open_sc0006_post_c0030_negative_memory_synthesis
+  tasks:
+  - open_sc0006_sr0001_post_c0030_negative_memory_synthesis_run
   not_yet:
   - label_freeze
   - feature_set_freeze
   - model_training
   - mt5_runtime_claim
   active_campaign: campaigns/C0030_intraday_vwap_repricing_pressure_discovery
-  active_run: campaigns/C0030_intraday_vwap_repricing_pressure_discovery/runs/R0001
-  run: campaigns/C0030_intraday_vwap_repricing_pressure_discovery/runs/R0001
-active_run: campaigns/C0030_intraday_vwap_repricing_pressure_discovery/runs/R0001
+  active_run: null
+  run: null
+active_run: null
 active_campaign: campaigns/C0030_intraday_vwap_repricing_pressure_discovery
-active_synthesis: null
+active_synthesis: campaigns/SC0006_post_c0030_negative_memory_synthesis

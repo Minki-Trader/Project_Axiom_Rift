@@ -63,6 +63,49 @@ class RepoStateValidationTest(unittest.TestCase):
             self.assertTrue(result.ok, result.to_dict())
             self.assertNotIn("next_action_missing", issue_codes(result))
 
+    def test_active_synthesis_next_action_uses_synthesis_queue(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = make_repo_state(Path(temp_dir))
+            write_yaml(
+                root / SYNTHESIS_REL / "synthesis.yaml",
+                {
+                    "synthesis_id": "SC0001",
+                    "synthesis_slug": "smoke_synthesis",
+                    "status": "open",
+                    "opened_at_utc": "2026-01-01T00:00:00Z",
+                    "synthesis_question": {"summary": "smoke", "boundary": "smoke"},
+                    "claim_boundary": false_boundary(),
+                },
+            )
+            write_yaml(
+                root / SYNTHESIS_REL / "synthesis_queue.yaml",
+                {
+                    "synthesis_id": "SC0001",
+                    "queue": [{"synthesis_run_id": "SR0001", "next_action": SYNTHESIS_NEXT_ACTION}],
+                    "claim_boundary": false_boundary(),
+                },
+            )
+
+            claim_path = root / "registries" / "claim_state.yaml"
+            claim = yaml.safe_load(claim_path.read_text(encoding="ascii"))
+            claim["active_synthesis"] = SYNTHESIS_REL.as_posix()
+            claim["active_run"] = None
+            claim["latest_operation"]["recorded_at_source"] = (SYNTHESIS_REL / "synthesis.yaml").as_posix()
+            claim["latest_operation"]["next_required_action"] = SYNTHESIS_NEXT_ACTION
+            write_yaml(claim_path, claim)
+
+            reentry_path = root / "registries" / "reentry.yaml"
+            reentry = yaml.safe_load(reentry_path.read_text(encoding="ascii"))
+            reentry["project"]["active_synthesis"] = SYNTHESIS_REL.as_posix()
+            reentry["next_work"]["synthesis"] = SYNTHESIS_REL.as_posix()
+            reentry["next_work"]["tasks"] = [SYNTHESIS_NEXT_ACTION]
+            write_yaml(reentry_path, reentry)
+
+            result = validate_repo_state(root)
+
+            self.assertTrue(result.ok, result.to_dict())
+            self.assertNotIn("next_action_mismatch", issue_codes(result))
+
     def test_missing_evidence_path_is_blocking(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = make_repo_state(Path(temp_dir))
@@ -165,7 +208,9 @@ class RepoStateValidationTest(unittest.TestCase):
 
 RUN_REL = Path("campaigns/C0001_smoke/runs/R0001")
 CAMPAIGN_REL = Path("campaigns/C0001_smoke")
+SYNTHESIS_REL = Path("campaigns/SC0001_smoke_synthesis")
 NEXT_ACTION = "review_c0001_r0001_tick_execution_kpi_and_closeout"
+SYNTHESIS_NEXT_ACTION = "open_sc0001_sr0001_smoke_synthesis_run"
 
 
 def issue_codes(result) -> set[str]:

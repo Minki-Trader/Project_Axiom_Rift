@@ -56,9 +56,10 @@ streams:
   synthesis_stream:
     id_prefix: SC
     role: accumulated_ingredient_synthesis
-    next_id: SC0006
-    active_work_unit: null
-    open_work_units: []
+    next_id: SC0007
+    active_work_unit: campaigns/SC0006_post_c0030_negative_memory_synthesis
+    open_work_units:
+    - campaigns/SC0006_post_c0030_negative_memory_synthesis
     closed_work_units:
     - campaigns/SC0001_accumulated_negative_memory_synthesis
     - campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis

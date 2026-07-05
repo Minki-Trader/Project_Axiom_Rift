@@ -1,0 +1,72 @@
+schema: axiom_rift_synthesis_v1
+template: false
+status: open
+synthesis_id: SC0006
+synthesis_slug: post_c0030_negative_memory_synthesis
+synthesis_level: synthesis_6
+opened_at_utc: '2026-07-05T07:40:33Z'
+closed_at_utc: null
+synthesis_question:
+  summary: synthesize accumulated post-SC0005 negative memory from C0023 through C0030 before
+    choosing the next major campaign axis
+  boundary: use only closed campaign evidence and source proxy schedules from C0023 through
+    C0030; do not use source OOS PnL to select entries; combine post-SC0005 activity-preserving
+    failure patterns across tick participation, calendar rhythm, range topology, price curvature,
+    symbolic grammar, swing-leg maturity, fractal pivot transition, and VWAP repricing pressure;
+    preserve unrestricted discovery; do not create selected, runtime, economics, ONNX, promotion,
+    or live-readiness claims; do not treat synthesis as a shortcut around MT5 paired validation
+source_campaign_ids:
+- C0023
+- C0024
+- C0025
+- C0026
+- C0027
+- C0028
+- C0029
+- C0030
+readiness:
+  closed_campaign_count: 8
+  usable_ingredient_group_count: 8
+  required_surface_count: 3
+  has_explicit_mt5_evidence: true
+  unresolved_mechanical_parity_as_main_blocker: false
+  synthesis_due_source: campaigns/C0030_intraday_vwap_repricing_pressure_discovery/campaign.yaml
+ingredient_refs_path: ingredient_refs.yaml
+synthesis_queue_path: synthesis_queue.yaml
+runs_root: runs/
+synthesis_run_id_format: SR0001
+run_index:
+  active_run: null
+  opened_runs: []
+  closed_runs: []
+  next_run_candidate:
+    run_id: SR0001
+    direction: open_sc0006_sr0001_post_c0030_negative_memory_synthesis_run
+    reason: SC0006 opened after C0023-C0030 supplied eight usable negative-memory ingredient
+      groups with explicit MT5 paired and fold-isolated evidence.
+    status: draft_queued
+stream_policy:
+  stream: synthesis
+  independent_from_campaign_stream: true
+  does_not_set_next_campaign_id: true
+must_not:
+- create_selected_claim
+- create_runtime_authority
+- create_onnx_ready_claim
+- create_live_ready_claim
+- use_weak_proxy_as_mt5_skip_gate
+- disguise_adjacent_tuning_as_new_campaign
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

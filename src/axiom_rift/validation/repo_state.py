@@ -171,6 +171,17 @@ def active_campaign_from_state(claim_state: Any, reentry: Any) -> str | None:
     return None
 
 
+def active_synthesis_from_state(claim_state: Any, reentry: Any) -> str | None:
+    for value in (
+        get_path(claim_state, "active_synthesis"),
+        get_path(reentry, "next_work.synthesis"),
+        get_path(reentry, "project.active_synthesis"),
+    ):
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
 def check_active_campaign_alignment(issues: IssueCollector, claim_state: Any, reentry: Any) -> None:
     observed = {
         "claim_state.active_campaign": get_path(claim_state, "active_campaign"),
@@ -237,14 +248,29 @@ def check_latest_operation_alignment(
     gate_report = None
     if latest_run is not None and (latest_run / "gate_report.json").exists():
         gate_report = safe_load_structured(issues, latest_run / "gate_report.json")
+    recorded = get_path(claim_state, "latest_operation.recorded_at_source")
+    recorded_path = resolve_repo_path(root, recorded) if isinstance(recorded, str) else None
+    active_synthesis = active_synthesis_from_state(claim_state, reentry)
+    active_synthesis_root = resolve_repo_path(root, active_synthesis) if active_synthesis else None
+    latest_operation_is_active_synthesis = (
+        recorded_path is not None
+        and active_synthesis_root is not None
+        and path_is_relative_to(recorded_path, active_synthesis_root)
+    )
     expected_values = {
         "claim_state.latest_operation.next_required_action": get_path(
             claim_state, "latest_operation.next_required_action"
         ),
         "reentry.next_work.tasks[0]": first_task(reentry),
-        "campaign.closeout.remaining_question": get_path(campaign, "closeout.remaining_question"),
     }
-    if latest_run is not None:
+    if latest_operation_is_active_synthesis and active_synthesis_root is not None:
+        synthesis_queue = safe_load_structured(issues, active_synthesis_root / "synthesis_queue.yaml")
+        expected_values["synthesis_queue.queue[0].next_action"] = first_synthesis_queue_next_action(
+            synthesis_queue
+        )
+    else:
+        expected_values["campaign.closeout.remaining_question"] = get_path(campaign, "closeout.remaining_question")
+    if latest_run is not None and not latest_operation_is_active_synthesis:
         expected_values["gate_report.next_action"] = get_path(gate_report, "next_action")
     filled = {name: value for name, value in expected_values.items() if isinstance(value, str) and value}
     if len(set(filled.values())) > 1:
@@ -258,8 +284,7 @@ def check_latest_operation_alignment(
             "missing next action fields: " + ", ".join(missing),
             severity="warning",
         )
-    recorded = get_path(claim_state, "latest_operation.recorded_at_source")
-    if isinstance(recorded, str) and not resolve_repo_path(root, recorded).exists():
+    if isinstance(recorded, str) and recorded_path is not None and not recorded_path.exists():
         issues.add("latest_operation_source_missing", recorded, "latest operation source file is missing")
 
 
@@ -420,6 +445,25 @@ def first_task(reentry: Any) -> str | None:
     if isinstance(tasks, list) and tasks:
         return tasks[0] if isinstance(tasks[0], str) else None
     return None
+
+
+def first_synthesis_queue_next_action(synthesis_queue: Any) -> str | None:
+    queue = get_path(synthesis_queue, "queue")
+    if isinstance(queue, list) and queue:
+        first = queue[0]
+        if isinstance(first, dict):
+            value = first.get("next_action")
+            if isinstance(value, str):
+                return value
+    return None
+
+
+def path_is_relative_to(path: Path, parent: Path) -> bool:
+    try:
+        path.resolve().relative_to(parent.resolve())
+    except ValueError:
+        return False
+    return True
 
 
 def display_rel(root: Path, path: Path) -> str:
