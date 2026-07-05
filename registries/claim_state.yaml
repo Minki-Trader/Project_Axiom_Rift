@@ -101,60 +101,15 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: campaigns/C0019_bar_quality_asymmetry_discovery
+active_campaign: campaigns/C0020_excursion_decay_memory_discovery
 active_synthesis: null
-active_run: null
+active_run: campaigns/C0020_excursion_decay_memory_discovery/runs/R0001
 latest_operation:
-  id: close_c0019_r0001_and_c0019_no_candidate
+  id: close_c0020_r0001_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0019_bar_quality_asymmetry_discovery/runs/R0001/gate_report.json
+  recorded_at_source: campaigns/C0020_excursion_decay_memory_discovery/runs/R0001/gate_report.json
   evidence_status: closed_no_candidate
-  asset_type: negative_memory_and_campaign_closeout
-  active_campaign: campaigns/C0019_bar_quality_asymmetry_discovery
-  active_synthesis: null
-  active_run: null
-  next_required_action: choose_c0020_new_major_hypothesis_after_c0019_closeout
-  entries_per_active_day: 7.281034
-  proxy_net_pnl_points: -16179.24
-  proxy_profit_factor: 0.686856
-  proxy_expectancy_points_per_entry: -3.83122
-  proxy_trade_count: 4223
-  proxy_win_rate: 0.372484
-  mt5_logic_net_pnl: -166.17
-  mt5_logic_profit_factor: 0.693803
-  mt5_logic_trade_count: 4223
-  mechanical_parity_status: passed
-  intent_parity_status: passed_schedule_replay_boundary
-  mismatch_count: 0
-  mt5_tick_net_pnl: -167.51
-  mt5_tick_profit_factor: 0.679768
-  mt5_tick_max_drawdown_percent: 33.694
-  mt5_tick_trade_count: 4207
-  execution_divergence_status: recorded_with_divergence
-  economics_shift_status: tick_worse_than_logic
-  tick_minus_logic_net_pnl: -1.34
-  mt5_tick_by_fold_status: completed
-  fold_count: 9
-  completed_fold_count: 9
-  profitable_fold_count: 0
-  losing_fold_count: 9
-  total_tick_net_pnl: -167.51
-  total_tick_trade_count: 4207
-  worst_fold_id: rw_009
-  worst_fold_net_pnl: -41.2
-  worst_fold_max_drawdown_percent: 8.638
-  execution_divergence_by_fold_status: completed
-  minimum_entry_key_match_rate: 0.99117
-  minimum_exit_reason_match_rate: 0.89404
-  minimum_exit_time_direction_match_rate: 0.905782
-  tick_better_fold_count: 4
-  tick_worse_fold_count: 5
-  total_tick_minus_logic_net_pnl: -1.34
-  worst_tick_minus_logic_fold_id: rw_009
-  worst_tick_minus_logic_net_pnl: -2.62
-  remaining_work_classification: bar_quality_asymmetry_threshold_score_stop_target_hold_activity_spread_session_capital_or_retry_nudge_not_next
-  candidate_status: closed_no_candidate
-  negative_memory: C0019 R0001 bar-quality asymmetry rank met target activity but proxy, aggregate MT5 tick, and all nine fold-isolated MT5 tick folds were negative; do not retry this surface with simple thresholds, score floors, stop, target, hold, activity, spread, session, capital, or retry nudges.
+  next_required_action: choose_c0021_new_major_hypothesis_after_c0020_closeout
   claim_boundary:
     claim_authority: false
     selected: false
@@ -169,6 +124,13 @@ latest_operation:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
+  mt5_tick_by_fold_status: completed
+  execution_divergence_by_fold_status: completed
+  total_tick_net_pnl: -154.73
+  profitable_fold_count: 0
+  losing_fold_count: 9
+  close_reason: no_candidate_after_negative_proxy_negative_mt5_tick_and_zero_profitable_fold_isolated_tick_folds
+  failure_asset: negative_memory
 active_truth:
   contracts_dir: contracts
   configs_dir: configs
