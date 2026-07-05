@@ -1,0 +1,149 @@
+schema: axiom_rift_synthesis_v1
+template: false
+status: closed_no_candidate
+synthesis_id: SC0005
+synthesis_slug: post_c0022_negative_memory_synthesis
+synthesis_level: synthesis_5
+opened_at_utc: '2026-07-05T02:33:39Z'
+closed_at_utc: '2026-07-05T02:47:53Z'
+synthesis_question:
+  summary: synthesize accumulated post-SC0004 negative memory from C0013 through C0022 before
+    choosing the next major campaign axis
+  boundary: use only closed campaign evidence and source proxy schedules from C0013 through
+    C0022; do not use source OOS PnL to select entries; combine source score conflict, same-direction
+    failed-source clustering, opposite-direction conflict, source diversity, and spread pressure;
+    preserve unrestricted discovery; do not create selected, runtime, economics, ONNX, promotion,
+    or live-readiness claims; do not treat synthesis as a shortcut around MT5 paired validation
+source_campaign_ids:
+- C0013
+- C0014
+- C0015
+- C0016
+- C0017
+- C0018
+- C0019
+- C0020
+- C0021
+- C0022
+readiness:
+  closed_campaign_count: 10
+  usable_ingredient_group_count: 10
+  required_surface_count: 3
+  has_explicit_mt5_evidence: true
+  unresolved_mechanical_parity_as_main_blocker: false
+  synthesis_due_source: campaigns/C0022_volatility_term_structure_discovery/campaign.yaml
+ingredient_refs_path: ingredient_refs.yaml
+synthesis_queue_path: synthesis_queue.yaml
+runs_root: runs/
+synthesis_run_id_format: SR0001
+run_index:
+  active_run: null
+  opened_runs:
+  - runs/SR0001
+  closed_runs:
+  - runs/SR0001
+  next_run_candidate:
+    run_id: null
+    direction: choose_c0023_new_major_hypothesis_after_sc0005_closeout
+    reason: SR0001 closed no-candidate after negative proxy, negative aggregate MT5 tick,
+      and zero profitable fold-isolated MT5 tick folds; further SC0005 work would be adjacent
+      score-weight, cluster-spacing, source-weight, stop, target, hold, activity, spread,
+      session, capital, or retry tuning.
+    status: synthesis_closed_no_candidate
+stream_policy:
+  stream: synthesis
+  independent_from_campaign_stream: true
+  does_not_set_next_campaign_id: true
+must_not:
+- create_selected_claim
+- create_runtime_authority
+- create_onnx_ready_claim
+- create_live_ready_claim
+- use_weak_proxy_as_mt5_skip_gate
+- disguise_adjacent_tuning_as_new_campaign
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
+closeout:
+  status: closed_no_candidate
+  close_reason: no_candidate_after_negative_proxy_negative_mt5_tick_and_zero_profitable_fold_isolated_tick_folds
+  evidence_paths:
+  - artifact_lineage.json
+  - run_manifest.json
+  - kpi/proxy.json
+  - kpi/mt5_logic_parity.json
+  - kpi/proxy_vs_mt5_logic_parity.json
+  - kpi/mt5_tick.json
+  - kpi/execution_divergence.json
+  - artifacts/sc0005_sr0001_proxy_trades.csv
+  - artifacts/sc0005_sr0001_negative_memory_synthesis_summary.json
+  - artifacts/sc0005_sr0001_schedule.csv
+  - kpi/mt5_tick_by_fold.json
+  - kpi/execution_divergence_by_fold.json
+  remaining_question: choose_c0023_new_major_hypothesis_after_sc0005_closeout
+  closed_at_utc: '2026-07-05T02:47:53Z'
+  decision_basis:
+    entries_per_active_day: 7.725862
+    proxy_net_pnl_points: -17381.43
+    proxy_profit_factor: 0.642867
+    proxy_expectancy_points_per_entry: -3.878918
+    proxy_trade_count: 4481
+    proxy_win_rate: 0.351038
+    mt5_logic_net_pnl: -198.67
+    mt5_logic_profit_factor: 0.629451
+    mt5_logic_trade_count: 4481
+    mechanical_parity_status: passed
+    intent_parity_status: passed_schedule_replay_boundary
+    mismatch_count: 0
+    mt5_tick_net_pnl: -164.71
+    mt5_tick_profit_factor: 0.659943
+    mt5_tick_max_drawdown_percent: 33.008
+    mt5_tick_trade_count: 4467
+    execution_divergence_status: recorded_with_divergence
+    economics_shift_status: tick_better_than_logic
+    tick_minus_logic_net_pnl: 33.96
+    mt5_tick_by_fold_status: completed
+    fold_count: 9
+    completed_fold_count: 9
+    profitable_fold_count: 0
+    losing_fold_count: 9
+    total_tick_net_pnl: -164.71
+    total_tick_trade_count: 4467
+    worst_fold_id: rw_009
+    worst_fold_net_pnl: -31.74
+    worst_fold_max_drawdown_percent: 6.348
+    execution_divergence_by_fold_status: completed
+    minimum_entry_key_match_rate: 0.992048
+    minimum_exit_reason_match_rate: 0.817097
+    minimum_exit_time_direction_match_rate: 0.848907
+    tick_better_fold_count: 9
+    tick_worse_fold_count: 0
+    total_tick_minus_logic_net_pnl: 33.96
+    worst_tick_minus_logic_fold_id: rw_007
+    worst_tick_minus_logic_net_pnl: 1.4
+    remaining_work_classification: post_c0022_negative_memory_conflict_threshold_score_stop_target_hold_activity_spread_session_capital_or_retry_nudge_not_next
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

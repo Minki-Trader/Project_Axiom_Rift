@@ -57,11 +57,11 @@ run_index:
   - runs/R0001
   next_run_candidate:
     run_id: null
-    direction: open_sc0005_post_c0022_negative_memory_synthesis
-    reason: R0001 met target activity but lost proxy, aggregate MT5 tick, and all nine fold-isolated
-      MT5 tick folds; further C0022 work would be adjacent threshold, score, stop, target,
-      hold, activity, spread, session, capital, or retry nudging.
-    status: closed_campaign_anchor
+    direction: choose_c0023_new_major_hypothesis_after_sc0005_closeout
+    reason: SC0005 was opened from C0022 synthesis readiness and closed no-candidate; next
+      work should choose a materially new C0023 major hypothesis axis rather than adjacent
+      C0022 or SC0005 tuning.
+    status: post_synthesis_closed_anchor
 synthesis_readiness:
   check_required_at_closeout: true
   result: ready
@@ -93,7 +93,7 @@ closeout:
   - artifacts/c0022_r0001_schedule.csv
   - kpi/mt5_tick_by_fold.json
   - kpi/execution_divergence_by_fold.json
-  remaining_question: open_sc0005_post_c0022_negative_memory_synthesis
+  remaining_question: choose_c0023_new_major_hypothesis_after_sc0005_closeout
   closed_at_utc: '2026-07-05T02:17:54Z'
   decision_basis:
     entries_per_active_day: 7.182759
@@ -154,3 +154,24 @@ campaign_lessons:
 - r0001_lost_all_nine_fold_isolated_mt5_tick_folds
 - logic_parity_passed_with_mismatch_count_zero
 - tick_execution_was_better_than_logic_but_did_not_rescue_candidate_quality
+post_closeout_synthesis:
+  synthesis_id: SC0005
+  path: campaigns/SC0005_post_c0022_negative_memory_synthesis
+  status: closed_no_candidate
+  run_id: SR0001
+  evidence_path: campaigns/SC0005_post_c0022_negative_memory_synthesis/runs/SR0001/gate_report.json
+  next_required_action: choose_c0023_new_major_hypothesis_after_sc0005_closeout
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

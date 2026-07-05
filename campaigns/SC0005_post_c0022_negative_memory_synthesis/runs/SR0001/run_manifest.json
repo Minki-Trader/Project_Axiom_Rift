@@ -1,0 +1,245 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-05T02:47:53Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "no_candidate_after_negative_proxy_negative_mt5_tick_and_zero_profitable_fold_isolated_tick_folds",
+    "closed_at_utc": "2026-07-05T02:47:53Z",
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "evidence_paths": [
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "SC0005 SR0001 fold-local post-C0022 negative-memory conflict synthesis over C0013-C0022 source schedules without source OOS PnL selection",
+      "next_boundary": "close SC0005 with negative memory; do not retry this synthesis with simple score weights, cluster spacing, stop, target, hold, activity, spread, session, capital, or retry nudges; next work should choose a materially new C0023 major hypothesis axis",
+      "reason_not_candidate": "proxy was negative, aggregate MT5 tick was negative, and all nine fold-isolated MT5 tick folds lost",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "post-C0022 negative-memory conflict synthesis met target-seed activity but lost all nine rolling-window OOS folds; total tick net PnL was -164.71 and worst fold rw_009 net PnL was -31.74"
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "schedule replay logic parity passed with mismatch_count 0, so failure is hypothesis quality and execution behavior rather than a proxy-to-EA schedule mismatch"
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "tick execution was better than closed-bar logic in all nine folds by 33.96 total net PnL but remained economically negative"
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.725862,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.992048,
+      "minimum_exit_reason_match_rate": 0.817097,
+      "minimum_exit_time_direction_match_rate": 0.848907,
+      "mismatch_count": 0,
+      "mt5_logic_net_pnl": -198.67,
+      "mt5_logic_profit_factor": 0.629451,
+      "mt5_logic_trade_count": 4481,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_max_drawdown_percent": 33.008,
+      "mt5_tick_net_pnl": -164.71,
+      "mt5_tick_profit_factor": 0.659943,
+      "mt5_tick_trade_count": 4467,
+      "profitable_fold_count": 0,
+      "proxy_expectancy_points_per_entry": -3.878918,
+      "proxy_net_pnl_points": -17381.43,
+      "proxy_profit_factor": 0.642867,
+      "proxy_trade_count": 4481,
+      "proxy_win_rate": 0.351038,
+      "remaining_work_classification": "post_c0022_negative_memory_conflict_threshold_score_stop_target_hold_activity_spread_session_capital_or_retry_nudge_not_next",
+      "tick_better_fold_count": 9,
+      "tick_minus_logic_net_pnl": 33.96,
+      "tick_worse_fold_count": 0,
+      "total_tick_minus_logic_net_pnl": 33.96,
+      "total_tick_net_pnl": -164.71,
+      "total_tick_trade_count": 4467,
+      "worst_fold_id": "rw_009",
+      "worst_fold_max_drawdown_percent": 6.348,
+      "worst_fold_net_pnl": -31.74,
+      "worst_tick_minus_logic_fold_id": "rw_007",
+      "worst_tick_minus_logic_net_pnl": 1.4
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/sc0005_sr0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "negative_memory_synthesis_summary": "artifacts/sc0005_sr0001_negative_memory_synthesis_summary.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/sc0005_sr0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "post_c0022_negative_memory_conflict_synthesis",
+    "variant_boundary": "tests whether C0013-C0022 source schedules can be re-ranked by cross-surface failure conflict without using source OOS PnL; not a C0022 threshold, score, stop, target, hold, activity, spread, session, capital, or retry nudge"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_post_c0022_negative_memory_synthesis_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "notes": [
+      "closed-bar MT5 mode is required for proxy-vs-EA logic parity",
+      "tick-mode MT5 is required for execution economics",
+      "fold-isolated MT5 tick and execution divergence are required before closeout"
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-05T02:33:39Z",
+  "parent_type": "synthesis",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "not a threshold, window, stop, target, hold, session, activity, spread, capital, or retry nudge; it changes the source mix, feature surface, score surface, and trade ranking question while preserving MT5 schedule replay portability",
+    "adjacent_tuning_risk": "low",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0013_path_resilience_recovery_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0014_interday_range_handoff_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0015_liquidity_vacuum_rebound_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0016_intraday_directional_imbalance_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0017_round_level_magnet_rejection_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0018_micro_gap_absorption_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0019_bar_quality_asymmetry_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0020_excursion_decay_memory_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0021_daily_profile_energy_balance_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0022_volatility_term_structure_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "pre_open_decision_id": "POD-SC0005-SR0001",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "recorded_before_run_open",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "fold-local negative-memory conflict synthesis using source schedules and scores from C0013-C0022 while explicitly excluding source OOS PnL from selection"
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy evidence is a reference surface only",
+      "weak proxy results must still continue to MT5 paired validation"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [
+      "mechanical parity compares scheduled entries, directions, exits, exit reasons, and lifecycle behavior"
+    ],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "SR0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "source_ingredient_ids": [
+    "c0013_ig001_path_resilience_recovery_negative_memory",
+    "c0014_ig001_interday_range_handoff_negative_memory",
+    "c0015_ig001_liquidity_vacuum_rebound_negative_memory",
+    "c0016_ig001_intraday_directional_imbalance_negative_memory",
+    "c0017_ig001_round_level_magnet_rejection_negative_memory",
+    "c0018_ig001_micro_gap_absorption_negative_memory",
+    "c0019_ig001_bar_quality_asymmetry_negative_memory",
+    "c0020_ig001_excursion_decay_memory_negative_memory",
+    "c0021_ig001_daily_profile_energy_balance_negative_memory",
+    "c0022_ig001_volatility_term_structure_negative_memory"
+  ],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_synthesis_queue": true,
+      "summary": "source score z, same-direction failed-source clustering, opposite-direction conflict, source diversity, spread pressure, and schedule timing from closed source campaigns; no feature set selected"
+    },
+    "label": {
+      "changed_from_synthesis_queue": true,
+      "summary": "source schedule score conflict without source OOS PnL selection; no label selected"
+    },
+    "model": {
+      "changed_from_synthesis_queue": true,
+      "summary": "fold-local cross-surface negative-memory conflict ranker over C0013-C0022 source schedules; no model family selected"
+    },
+    "trade_logic": {
+      "changed_from_synthesis_queue": true,
+      "summary": "fixed-lot daily-ranked source schedule entries re-ranked by negative-memory conflict context and replayed through existing MT5 schedule parity and tick evidence"
+    }
+  },
+  "template": false,
+  "work_unit_id": "SC0005"
+}

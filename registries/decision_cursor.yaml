@@ -2,13 +2,13 @@ schema: axiom_rift_decision_cursor_v1
 status: active
 encoding: ascii_only
 updated_local_date: '2026-07-05'
-canonical_source: campaigns/C0022_volatility_term_structure_discovery/runs/R0001/gate_report.json
+canonical_source: campaigns/SC0005_post_c0022_negative_memory_synthesis/runs/SR0001/gate_report.json
 canonical_status: closed_no_candidate
-current_decision: open_sc0005_post_c0022_negative_memory_synthesis
+current_decision: choose_c0023_new_major_hypothesis_after_sc0005_closeout
 active_campaign: campaigns/C0022_volatility_term_structure_discovery
-active_run: campaigns/C0022_volatility_term_structure_discovery/runs/R0001
-active_synthesis: null
-next_required_action: open_sc0005_post_c0022_negative_memory_synthesis
+active_run: campaigns/SC0005_post_c0022_negative_memory_synthesis/runs/SR0001
+active_synthesis: campaigns/SC0005_post_c0022_negative_memory_synthesis
+next_required_action: choose_c0023_new_major_hypothesis_after_sc0005_closeout
 terminal_evidence_priority:
   enabled: true
   resolved_from:
@@ -27,29 +27,29 @@ terminal_evidence_priority:
   stale_pointer_rule: terminal_run_receipt_outranks_planning_pointer
   reentry_completed_log_role: history_only_not_decision_authority
 current_evidence_summary:
-  source_campaign: campaigns/C0022_volatility_term_structure_discovery
-  source_synthesis: null
-  current_task: open_sc0005_post_c0022_negative_memory_synthesis
-  active_run: campaigns/C0022_volatility_term_structure_discovery/runs/R0001
+  source_campaign: null
+  source_synthesis: campaigns/SC0005_post_c0022_negative_memory_synthesis
+  current_task: choose_c0023_new_major_hypothesis_after_sc0005_closeout
+  active_run: campaigns/SC0005_post_c0022_negative_memory_synthesis/runs/SR0001
   active_run_status: closed_no_candidate
   campaign_terminal_receipt_available: true
   evidence_status: closed_no_candidate
-  hypothesis_family: fold_local_volatility_term_structure_rank
-  label_surface: directional_volatility_term_structure_transition_quality
-  feature_surface: short_medium_long_realized_range_term_structure_slope_convexity_compression_expansion_variability_directional_position_churn_timing_spread
-  trade_logic_surface: fixed_lot_dual_direction_top_volatility_term_structure_candidates_per_active_day
-  entries_per_active_day: 7.182759
-  proxy_net_pnl_points: -6159.89
-  proxy_profit_factor: 0.848123
-  proxy_trade_count: 4166
-  mt5_tick_net_pnl: -66.34
-  mt5_tick_profit_factor: 0.837934
-  mt5_tick_trade_count: 4146
+  hypothesis_family: fold_local_post_c0022_negative_memory_conflict_synthesis
+  label_surface: source_schedule_score_conflict_without_source_pnl_selection
+  feature_surface: source_schedule_score_cluster_conflict_without_source_pnl_selection
+  trade_logic_surface: fixed_lot_dual_direction_post_c0022_negative_memory_conflict_schedule
+  entries_per_active_day: 7.725862
+  proxy_net_pnl_points: -17381.43
+  proxy_profit_factor: 0.642867
+  proxy_trade_count: 4481
+  mt5_tick_net_pnl: -164.71
+  mt5_tick_profit_factor: 0.659943
+  mt5_tick_trade_count: 4467
   profitable_fold_count: 0
   losing_fold_count: 9
-  negative_memory: c0022_volatility_term_structure_no_candidate_zero_profitable_fold_isolated_tick_folds
-  note: C0022 R0001 is closed no-candidate; synthesis readiness is now met and next work should
-    open SC0005 rather than adjacent C0022 tuning.
+  negative_memory: sc0005_post_c0022_negative_memory_conflict_no_candidate_zero_profitable_fold_isolated_tick_folds
+  note: SC0005 SR0001 is closed no-candidate; next work should choose C0023 rather than adjacent
+    SC0005 tuning.
 repo_debt_scope:
   global_repo_state_ok: false
   observed_error_count: 31
@@ -89,15 +89,15 @@ claim_boundary_snapshot:
   promotion_ready: false
   live_ready: false
 next_decision_basis:
-- path: campaigns/C0022_volatility_term_structure_discovery/runs/R0001/run_manifest.json
-  role: active_run_manifest
-  summary: C0022_R0001_closed_no_candidate_zero_profitable_fold_isolated_tick_folds
-- path: campaigns/C0022_volatility_term_structure_discovery/runs/R0001/gate_report.json
-  role: terminal_run_gate
-  summary: C0022_R0001_closed_no_candidate_after_negative_proxy_negative_mt5_tick_and_all_nine_losing_folds
+- path: campaigns/SC0005_post_c0022_negative_memory_synthesis/runs/SR0001/run_manifest.json
+  role: active_synthesis_run_manifest
+  summary: SC0005_SR0001_closed_no_candidate_zero_profitable_fold_isolated_tick_folds
+- path: campaigns/SC0005_post_c0022_negative_memory_synthesis/runs/SR0001/gate_report.json
+  role: terminal_synthesis_run_gate
+  summary: SC0005_SR0001_closed_no_candidate_after_negative_proxy_negative_mt5_tick_and_all_nine_losing_folds
+- path: campaigns/SC0005_post_c0022_negative_memory_synthesis/synthesis.yaml
+  role: closed_synthesis_manifest
+  summary: SC0005_closed_no_candidate_next_choose_C0023
 - path: campaigns/C0022_volatility_term_structure_discovery/campaign.yaml
-  role: closed_campaign_manifest
-  summary: C0022_closed_no_candidate_synthesis_ready_next_open_SC0005
-- path: campaigns/C0021_daily_profile_energy_balance_discovery/runs/R0001/gate_report.json
-  role: failure_memory
-  summary: C0021_R0001_closed_no_candidate_zero_profitable_fold_isolated_tick_folds
+  role: source_campaign_anchor
+  summary: C0022_triggered_SC0005_and_now_points_to_C0023_after_SC0005_closeout

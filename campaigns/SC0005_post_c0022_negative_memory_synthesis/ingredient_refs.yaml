@@ -1,0 +1,305 @@
+schema: axiom_rift_ingredient_refs_v1
+template: false
+status: open
+synthesis_id: SC0005
+source_campaign_refs:
+- campaign_id: C0013
+  path: campaigns/C0013_path_resilience_recovery_discovery/campaign.yaml
+  sha256: 86e96fdd8a83f2dc2a10fb685ae1a6a847b6dd76d8cb10c9cb19a90ce911e106
+- campaign_id: C0014
+  path: campaigns/C0014_interday_range_handoff_discovery/campaign.yaml
+  sha256: b219c3eae164d7c53828b370025dd7daaa8dd0ad7a5edc7f359bf6a3e62135d7
+- campaign_id: C0015
+  path: campaigns/C0015_liquidity_vacuum_rebound_discovery/campaign.yaml
+  sha256: 4827fcdef6c9253852210e9697af76a692538683e5ff46cefa753f029e8497cb
+- campaign_id: C0016
+  path: campaigns/C0016_intraday_directional_imbalance_discovery/campaign.yaml
+  sha256: 8fddb89cf01dcfbc13f968bfbb4bf7ee014dab3d6b19cd1f6c5710e355de8cb6
+- campaign_id: C0017
+  path: campaigns/C0017_round_level_magnet_rejection_discovery/campaign.yaml
+  sha256: 151b387f2c2261456d502158399985eac867f6897fc3b3ddf69dc98e2661d422
+- campaign_id: C0018
+  path: campaigns/C0018_micro_gap_absorption_discovery/campaign.yaml
+  sha256: 222d53abb390a9fa2d7f106cc972d5f75b5b365f2aeb864d093c3b5c1a215cfb
+- campaign_id: C0019
+  path: campaigns/C0019_bar_quality_asymmetry_discovery/campaign.yaml
+  sha256: 974231bc15059289c903a9cd278f176b1e7d22a710f847f1310dfe2433015790
+- campaign_id: C0020
+  path: campaigns/C0020_excursion_decay_memory_discovery/campaign.yaml
+  sha256: 2f4698fcd1817450d3549ee3eb9e4facbe781dc168a032bc48267c74bb796691
+- campaign_id: C0021
+  path: campaigns/C0021_daily_profile_energy_balance_discovery/campaign.yaml
+  sha256: 3b38af359396d8f1754df37c1d557d0531b4d52105001201d547c1aeb9b29d25
+- campaign_id: C0022
+  path: campaigns/C0022_volatility_term_structure_discovery/campaign.yaml
+  sha256: 413d3618d3e05f808d2240720984fe19de78656c5a0286e44c266fe92dd5ede3
+run_evidence_index:
+- evidence_key: C0013_R0001
+  run_manifest:
+    path: campaigns/C0013_path_resilience_recovery_discovery/runs/R0001/run_manifest.json
+    sha256: 892fa866cdb4285a724cbd33e2ed22f7a6c5b0d7a0ec064ef6bfd4ed11258288
+  gate_report:
+    path: campaigns/C0013_path_resilience_recovery_discovery/runs/R0001/gate_report.json
+    sha256: 2f9fd4311170d4dd6311079441f9a5d27fb9c95b6e7f3bdea1be9923f3393204
+  proxy_trade_artifact:
+    path: campaigns/C0013_path_resilience_recovery_discovery/runs/R0001/artifacts/c0013_r0001_proxy_trades.csv
+    sha256: cd4a33d651c8c0a7ebd56ff2cbd18a87774c2c647f77c50bf8f42b750e29cef2
+  mt5_tick_by_fold:
+    path: campaigns/C0013_path_resilience_recovery_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 65f582f461658b5b85d582210377ade099463d8b22500af8a243b4a270c6f63b
+  execution_divergence_by_fold:
+    path: campaigns/C0013_path_resilience_recovery_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: 52e4e0bbbb91e946fcffc9d411489f86b117b9a615e7e3fa93d32a29dac8db49
+- evidence_key: C0014_R0001
+  run_manifest:
+    path: campaigns/C0014_interday_range_handoff_discovery/runs/R0001/run_manifest.json
+    sha256: dd09eb41ea54b4f1d253399c4cc089d76bef0409fcb938ff4abfd8c0d934cd06
+  gate_report:
+    path: campaigns/C0014_interday_range_handoff_discovery/runs/R0001/gate_report.json
+    sha256: 27d01b82b8df8c7b0b5bb25230f41969aed6b041b5cc2f31d01bfb2a5007fd2a
+  proxy_trade_artifact:
+    path: campaigns/C0014_interday_range_handoff_discovery/runs/R0001/artifacts/c0014_r0001_proxy_trades.csv
+    sha256: cae3c7f9e60c6a3f295bcede061541b996df99805f4af9ffed547c4c5683f905
+  mt5_tick_by_fold:
+    path: campaigns/C0014_interday_range_handoff_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 588f37f59444d74bdf54195ad3c62f53f06d3613d90a967ab9f7d42edf11b9ff
+  execution_divergence_by_fold:
+    path: campaigns/C0014_interday_range_handoff_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: b04fb6e0bfb1b4414735d07eb807c1448f4e22cba4ce39900e4b5fac753633a7
+- evidence_key: C0015_R0001
+  run_manifest:
+    path: campaigns/C0015_liquidity_vacuum_rebound_discovery/runs/R0001/run_manifest.json
+    sha256: c7988c82cc19c77cae3a3b4e4383d30ec21b27a74cfa29f418206c5a2b9d9937
+  gate_report:
+    path: campaigns/C0015_liquidity_vacuum_rebound_discovery/runs/R0001/gate_report.json
+    sha256: 620c4a74c2815b572d14acd7f28ab5bdbce975014aa70c0b285a8d2697ec95fa
+  proxy_trade_artifact:
+    path: campaigns/C0015_liquidity_vacuum_rebound_discovery/runs/R0001/artifacts/c0015_r0001_proxy_trades.csv
+    sha256: 03f784c00605cecb10192a08ee4533b314780784755e65a23f9bfce9a398b5ad
+  mt5_tick_by_fold:
+    path: campaigns/C0015_liquidity_vacuum_rebound_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 892444a81d3f906e18808b5b43bdc28d42e3dbb3eb660b3f0b76099792f21523
+  execution_divergence_by_fold:
+    path: campaigns/C0015_liquidity_vacuum_rebound_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: d73484a054a62205b92771cc7e3d3e4bc880e7a408ed52ce6a8cf8154edb0b23
+- evidence_key: C0016_R0001
+  run_manifest:
+    path: campaigns/C0016_intraday_directional_imbalance_discovery/runs/R0001/run_manifest.json
+    sha256: 7211ea30f692398b2d4ee13f626c408e29e301aec2fdbaddc2cb959d846bee2e
+  gate_report:
+    path: campaigns/C0016_intraday_directional_imbalance_discovery/runs/R0001/gate_report.json
+    sha256: 2908993af59ce3b06b7a0bc27e70cabcdc1a55994d069ee847759e59b7d3e661
+  proxy_trade_artifact:
+    path: campaigns/C0016_intraday_directional_imbalance_discovery/runs/R0001/artifacts/c0016_r0001_proxy_trades.csv
+    sha256: 5ebf915ea949ca63566b8183552b61daed1ca4c0a29a4df7caf93741272e7b87
+  mt5_tick_by_fold:
+    path: campaigns/C0016_intraday_directional_imbalance_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 4b90a22b3d4b23cfc526c1a253ab364b07f91efd3f7c58ed577a12d4feab65a6
+  execution_divergence_by_fold:
+    path: campaigns/C0016_intraday_directional_imbalance_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: 68031dbaa2b31a3fead8bda003a1e0153e836f27ab6e5fc0504db9f77ea5ad2c
+- evidence_key: C0017_R0001
+  run_manifest:
+    path: campaigns/C0017_round_level_magnet_rejection_discovery/runs/R0001/run_manifest.json
+    sha256: 0cf57d60709f91eb43bcbc389eda49d588d2fb8d3ed947de3b8eee3d2a25f2f1
+  gate_report:
+    path: campaigns/C0017_round_level_magnet_rejection_discovery/runs/R0001/gate_report.json
+    sha256: 2885e94ba90353d74cc5d0f335e9f18ac8a4e0addbce47558e65dd3d127337a0
+  proxy_trade_artifact:
+    path: campaigns/C0017_round_level_magnet_rejection_discovery/runs/R0001/artifacts/c0017_r0001_proxy_trades.csv
+    sha256: fda34cfd38d3ba805ae8e9b7622b165b2ac8e7b573a1249d728ec3dc2e0cbcef
+  mt5_tick_by_fold:
+    path: campaigns/C0017_round_level_magnet_rejection_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 4f9faee95f87d1242a59715e05bbac41ddfa8b8b863b067e4de7696cf3f4fced
+  execution_divergence_by_fold:
+    path: campaigns/C0017_round_level_magnet_rejection_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: 3513688237b7fa7e3731940b9e60682124d7868ff699e1183fa69161a313f86b
+- evidence_key: C0018_R0001
+  run_manifest:
+    path: campaigns/C0018_micro_gap_absorption_discovery/runs/R0001/run_manifest.json
+    sha256: 0ad93acdf4e36dff9a9b8f9064844ae7ffcbed58611724b0bef465727b0cce34
+  gate_report:
+    path: campaigns/C0018_micro_gap_absorption_discovery/runs/R0001/gate_report.json
+    sha256: 32311d5a3356a60cb5781a7d6caaa4b2153158c7da1c1a299141269628c7fe22
+  proxy_trade_artifact:
+    path: campaigns/C0018_micro_gap_absorption_discovery/runs/R0001/artifacts/c0018_r0001_proxy_trades.csv
+    sha256: f4a03867513f73f839e4f8594a8e12ce7b5c1db75bd3518e5279c48981894983
+  mt5_tick_by_fold:
+    path: campaigns/C0018_micro_gap_absorption_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: b0712370d851f09bc16219cfab049c3cb5a212297ba03844348c88c830269d77
+  execution_divergence_by_fold:
+    path: campaigns/C0018_micro_gap_absorption_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: 0f1d3e0062db0c9bffb0b3c5843c0a6cebef368d6e80071c0763ba842b0651b1
+- evidence_key: C0019_R0001
+  run_manifest:
+    path: campaigns/C0019_bar_quality_asymmetry_discovery/runs/R0001/run_manifest.json
+    sha256: b2ff0e5a984b70246b16bfc5e8d69587f37521c623c60da4e8835a1de317ec73
+  gate_report:
+    path: campaigns/C0019_bar_quality_asymmetry_discovery/runs/R0001/gate_report.json
+    sha256: 99f78dfe0ac3651b5f672b73c082d5abc654f7382194b6894e38e14f648d8558
+  proxy_trade_artifact:
+    path: campaigns/C0019_bar_quality_asymmetry_discovery/runs/R0001/artifacts/c0019_r0001_proxy_trades.csv
+    sha256: 0dbcf523c6576a401640ddd85a76adb2d6c0becd59638c93d5c012aadc228700
+  mt5_tick_by_fold:
+    path: campaigns/C0019_bar_quality_asymmetry_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: fa1b585b8a27fe67fe66c209a7085023abd30f4ca9c0fead98883a6c1e6e536f
+  execution_divergence_by_fold:
+    path: campaigns/C0019_bar_quality_asymmetry_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: 009037252ac7482def94fa50db28514c1dbe046d6b0cf536b9219dc75cd7381c
+- evidence_key: C0020_R0001
+  run_manifest:
+    path: campaigns/C0020_excursion_decay_memory_discovery/runs/R0001/run_manifest.json
+    sha256: ba3d2666f0ad841bb92df2f6ffa326ec653240fa427c7c683f5e38a77fff8cc8
+  gate_report:
+    path: campaigns/C0020_excursion_decay_memory_discovery/runs/R0001/gate_report.json
+    sha256: 8372f8f965f7e281e2e49a087565c392b5de2ac37f32189000727d87cfdc1ff2
+  proxy_trade_artifact:
+    path: campaigns/C0020_excursion_decay_memory_discovery/runs/R0001/artifacts/c0020_r0001_proxy_trades.csv
+    sha256: 1e9447de28a31b72e7db3d46d67493e4df33fa797f93d1ddcd263e8340410e81
+  mt5_tick_by_fold:
+    path: campaigns/C0020_excursion_decay_memory_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 4ac70317700aad9be50c65916cc007944431348bb6afa0e8b51779d070324369
+  execution_divergence_by_fold:
+    path: campaigns/C0020_excursion_decay_memory_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: fbb14e18bf3eb1372e4b34ecc5588df96d694f5321bb1a37bba2b9c3cfe9d643
+- evidence_key: C0021_R0001
+  run_manifest:
+    path: campaigns/C0021_daily_profile_energy_balance_discovery/runs/R0001/run_manifest.json
+    sha256: 45e3f36d79f6fe5ad9bc3ae79754bf582a63434f6c6ab83a5de2515b9365f93b
+  gate_report:
+    path: campaigns/C0021_daily_profile_energy_balance_discovery/runs/R0001/gate_report.json
+    sha256: 1c17e5e364c5c8db39fda008834d954a3bb20007a48a5b5b792b62566aa58aad
+  proxy_trade_artifact:
+    path: campaigns/C0021_daily_profile_energy_balance_discovery/runs/R0001/artifacts/c0021_r0001_proxy_trades.csv
+    sha256: c0ddf4f8011bd9efab8390b23eee345c732862db1b58ca50458255e2635c497d
+  mt5_tick_by_fold:
+    path: campaigns/C0021_daily_profile_energy_balance_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 397dce3fc36c3a00c7b4846171f3c819cec929d2e41cd9af62d01de922c21fa1
+  execution_divergence_by_fold:
+    path: campaigns/C0021_daily_profile_energy_balance_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: 4344bc0ec21b9da43c54a7685fbd10ccb56dd41506d629b513c90302b2684209
+- evidence_key: C0022_R0001
+  run_manifest:
+    path: campaigns/C0022_volatility_term_structure_discovery/runs/R0001/run_manifest.json
+    sha256: 96c05228ef13615d192700ce8ba710224372c963496e21e4ed2df81a9ccafc4f
+  gate_report:
+    path: campaigns/C0022_volatility_term_structure_discovery/runs/R0001/gate_report.json
+    sha256: 9c231f255da525d5ad2f331f379fe8fd24fd4c2f10583e2dc0d055e0a2d859dd
+  proxy_trade_artifact:
+    path: campaigns/C0022_volatility_term_structure_discovery/runs/R0001/artifacts/c0022_r0001_proxy_trades.csv
+    sha256: 68cda6f1916507d77e55c2f81ee21529e080de1936cc920ff17bb58d60cc50ac
+  mt5_tick_by_fold:
+    path: campaigns/C0022_volatility_term_structure_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: ea21cc543c86a14cff17c64df479b8b71e276f13b3bc2dd53a0753359e9b5d8d
+  execution_divergence_by_fold:
+    path: campaigns/C0022_volatility_term_structure_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: 7e29134f9de91d2f3c298d4464c91de02022d4c13294a149013e8d504261ccee
+ingredient_groups:
+- group_id: c0013_ig001_path_resilience_recovery_negative_memory
+  source_campaign_id: C0013
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0013_R0001
+  group_type: negative_memory
+  summary: path_resilience_recovery_closed_no_candidate_with_mandatory_fold_isolated_mt5_tick_evidence
+- group_id: c0014_ig001_interday_range_handoff_negative_memory
+  source_campaign_id: C0014
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0014_R0001
+  group_type: negative_memory
+  summary: interday_range_handoff_closed_no_candidate_with_mandatory_fold_isolated_mt5_tick_evidence
+- group_id: c0015_ig001_liquidity_vacuum_rebound_negative_memory
+  source_campaign_id: C0015
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0015_R0001
+  group_type: negative_memory
+  summary: liquidity_vacuum_rebound_closed_no_candidate_with_mandatory_fold_isolated_mt5_tick_evidence
+- group_id: c0016_ig001_intraday_directional_imbalance_negative_memory
+  source_campaign_id: C0016
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0016_R0001
+  group_type: negative_memory
+  summary: intraday_directional_imbalance_closed_no_candidate_with_mandatory_fold_isolated_mt5_tick_evidence
+- group_id: c0017_ig001_round_level_magnet_rejection_negative_memory
+  source_campaign_id: C0017
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0017_R0001
+  group_type: negative_memory
+  summary: round_level_magnet_rejection_closed_no_candidate_with_mandatory_fold_isolated_mt5_tick_evidence
+- group_id: c0018_ig001_micro_gap_absorption_negative_memory
+  source_campaign_id: C0018
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0018_R0001
+  group_type: negative_memory
+  summary: micro_gap_absorption_closed_no_candidate_with_mandatory_fold_isolated_mt5_tick_evidence
+- group_id: c0019_ig001_bar_quality_asymmetry_negative_memory
+  source_campaign_id: C0019
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0019_R0001
+  group_type: negative_memory
+  summary: bar_quality_asymmetry_closed_no_candidate_with_mandatory_fold_isolated_mt5_tick_evidence
+- group_id: c0020_ig001_excursion_decay_memory_negative_memory
+  source_campaign_id: C0020
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0020_R0001
+  group_type: negative_memory
+  summary: excursion_decay_memory_closed_no_candidate_with_mandatory_fold_isolated_mt5_tick_evidence
+- group_id: c0021_ig001_daily_profile_energy_balance_negative_memory
+  source_campaign_id: C0021
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0021_R0001
+  group_type: negative_memory
+  summary: daily_profile_energy_balance_closed_no_candidate_with_mandatory_fold_isolated_mt5_tick_evidence
+- group_id: c0022_ig001_volatility_term_structure_negative_memory
+  source_campaign_id: C0022
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0022_R0001
+  group_type: negative_memory
+  summary: volatility_term_structure_closed_no_candidate_with_mandatory_fold_isolated_mt5_tick_evidence
+blocked_ingredients: []
+deferred_with_reason:
+- item: selected_surface_or_runtime_materialization
+  reason: C0013 through C0022 contain no selected surface, runtime authority, ONNX readiness,
+    promotion, or live-readiness claim.
+- item: source_oos_pnl_selection
+  reason: SC0005 SR0001 may record source OOS PnL as evidence but must not use it to select
+    entries.
+- item: equity_percent_sizing
+  reason: candidate quality is not established; early discovery remains fixed-lot.
+rules:
+  unresolved_mechanical_parity_as_main_blocker_allowed: false
+  adjacent_tuning_as_ingredient_allowed: false
+  evidence_gap_disguised_as_ingredient_allowed: false
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

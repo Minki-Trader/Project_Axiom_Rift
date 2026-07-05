@@ -48,7 +48,7 @@ streams:
   synthesis_stream:
     id_prefix: SC
     role: accumulated_ingredient_synthesis
-    next_id: SC0005
+    next_id: SC0006
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -56,6 +56,7 @@ streams:
     - campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis
     - campaigns/SC0003_post_sc0002_mixed_evidence_synthesis
     - campaigns/SC0004_post_sc0003_c0010_c0012_mixed_evidence_synthesis
+    - campaigns/SC0005_post_c0022_negative_memory_synthesis
     numbering_policy:
       width: 4
       example: SC0001

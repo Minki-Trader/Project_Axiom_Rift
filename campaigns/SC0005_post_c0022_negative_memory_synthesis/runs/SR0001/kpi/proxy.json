@@ -1,0 +1,1250 @@
+{
+  "campaign_id": null,
+  "claim_boundary": {
+    "claim_authority": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "selected": false
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "average_spread_cost_points": 1.112417,
+        "commission_per_trade": 0,
+        "round_trip_cost_model": "subtract_entry_spread_once",
+        "slippage_stress_test_allowed": true,
+        "spread_point_value": 0.01,
+        "spread_source": "entry_bar_spread_column",
+        "spread_stress_test_allowed": true,
+        "synthetic_commission_allowed": false,
+        "total_spread_cost_points": 4984.74
+      }
+    },
+    "direction_profile": {
+      "applies": true,
+      "fields": {
+        "long": {
+          "max_drawdown_points": 8652.49,
+          "net_pnl_points": -8593.37,
+          "profit_factor": 0.607398,
+          "trade_count": 1996,
+          "win_rate": 0.336172
+        },
+        "short": {
+          "max_drawdown_points": 8797.21,
+          "net_pnl_points": -8788.06,
+          "profit_factor": 0.671856,
+          "trade_count": 2485,
+          "win_rate": 0.362978
+        }
+      }
+    },
+    "mt5_pairing_profile": {
+      "applies": true,
+      "fields": {
+        "fold_isolated_mt5_closeout_required": true,
+        "mt5_logic_parity_required_next": true,
+        "mt5_tick_required_after_logic_parity": true,
+        "next_action": "produce_sc0005_sr0001_mt5_logic_parity_evidence",
+        "proxy_is_screening_gate_for_mt5": false,
+        "proxy_result_may_close_run": false,
+        "weak_proxy_may_skip_mt5": false
+      }
+    },
+    "negative_memory_synthesis_profile": {
+      "applies": true,
+      "fields": {
+        "base_score_weight": 0.72,
+        "candidates_by_fold": {
+          "rw_001": {
+            "eligible_candidate_count": 4629,
+            "selected_candidate_count": 504,
+            "selection_uses_source_pnl": 0,
+            "source_candidate_count": 4629,
+            "source_surface_count": 10,
+            "synthesized_candidate_count": 4629
+          },
+          "rw_002": {
+            "eligible_candidate_count": 4867,
+            "selected_candidate_count": 528,
+            "selection_uses_source_pnl": 0,
+            "source_candidate_count": 4867,
+            "source_surface_count": 10,
+            "synthesized_candidate_count": 4867
+          },
+          "rw_003": {
+            "eligible_candidate_count": 4860,
+            "selected_candidate_count": 528,
+            "selection_uses_source_pnl": 0,
+            "source_candidate_count": 4860,
+            "source_surface_count": 10,
+            "synthesized_candidate_count": 4860
+          },
+          "rw_004": {
+            "eligible_candidate_count": 4698,
+            "selected_candidate_count": 512,
+            "selection_uses_source_pnl": 0,
+            "source_candidate_count": 4698,
+            "source_surface_count": 10,
+            "synthesized_candidate_count": 4698
+          },
+          "rw_005": {
+            "eligible_candidate_count": 4613,
+            "selected_candidate_count": 496,
+            "selection_uses_source_pnl": 0,
+            "source_candidate_count": 4613,
+            "source_surface_count": 10,
+            "synthesized_candidate_count": 4613
+          },
+          "rw_006": {
+            "eligible_candidate_count": 4804,
+            "selected_candidate_count": 528,
+            "selection_uses_source_pnl": 0,
+            "source_candidate_count": 4804,
+            "source_surface_count": 10,
+            "synthesized_candidate_count": 4804
+          },
+          "rw_007": {
+            "eligible_candidate_count": 4876,
+            "selected_candidate_count": 528,
+            "selection_uses_source_pnl": 0,
+            "source_candidate_count": 4876,
+            "source_surface_count": 10,
+            "synthesized_candidate_count": 4876
+          },
+          "rw_008": {
+            "eligible_candidate_count": 4622,
+            "selected_candidate_count": 504,
+            "selection_uses_source_pnl": 0,
+            "source_candidate_count": 4622,
+            "source_surface_count": 10,
+            "synthesized_candidate_count": 4622
+          },
+          "rw_009": {
+            "eligible_candidate_count": 4695,
+            "selected_candidate_count": 512,
+            "selection_uses_source_pnl": 0,
+            "source_candidate_count": 4695,
+            "source_surface_count": 10,
+            "synthesized_candidate_count": 4695
+          }
+        },
+        "cluster_spacing_bars": 3,
+        "feature_set_selected": false,
+        "fold_models": [
+          {
+            "fold_id": "rw_001",
+            "label_shape": "source_schedule_score_conflict_without_source_pnl_selection",
+            "model_family": "fold_local_post_c0022_negative_memory_conflict_synthesis",
+            "model_selected": false,
+            "score_component_names": [
+              "source_schedule_score_z",
+              "same_direction_failed_source_cluster_penalty",
+              "opposite_direction_failed_source_conflict_credit",
+              "source_diversity_credit",
+              "spread_pressure_penalty"
+            ],
+            "selected_candidate_count": 504,
+            "selected_source_counts": {
+              "C0013": 30,
+              "C0014": 73,
+              "C0015": 30,
+              "C0016": 28,
+              "C0017": 110,
+              "C0018": 79,
+              "C0019": 35,
+              "C0020": 39,
+              "C0021": 30,
+              "C0022": 50
+            },
+            "selection_uses_source_pnl": false,
+            "source_candidate_counts": {
+              "C0013": 462,
+              "C0014": 470,
+              "C0015": 459,
+              "C0016": 456,
+              "C0017": 460,
+              "C0018": 493,
+              "C0019": 453,
+              "C0020": 452,
+              "C0021": 467,
+              "C0022": 457
+            },
+            "source_ingredient_ids": [
+              "c0013_ig001_path_resilience_recovery_negative_memory",
+              "c0014_ig001_interday_range_handoff_negative_memory",
+              "c0015_ig001_liquidity_vacuum_rebound_negative_memory",
+              "c0016_ig001_intraday_directional_imbalance_negative_memory",
+              "c0017_ig001_round_level_magnet_rejection_negative_memory",
+              "c0018_ig001_micro_gap_absorption_negative_memory",
+              "c0019_ig001_bar_quality_asymmetry_negative_memory",
+              "c0020_ig001_excursion_decay_memory_negative_memory",
+              "c0021_ig001_daily_profile_energy_balance_negative_memory",
+              "c0022_ig001_volatility_term_structure_negative_memory"
+            ],
+            "synthesized_candidate_count": 4629
+          },
+          {
+            "fold_id": "rw_002",
+            "label_shape": "source_schedule_score_conflict_without_source_pnl_selection",
+            "model_family": "fold_local_post_c0022_negative_memory_conflict_synthesis",
+            "model_selected": false,
+            "score_component_names": [
+              "source_schedule_score_z",
+              "same_direction_failed_source_cluster_penalty",
+              "opposite_direction_failed_source_conflict_credit",
+              "source_diversity_credit",
+              "spread_pressure_penalty"
+            ],
+            "selected_candidate_count": 528,
+            "selected_source_counts": {
+              "C0013": 52,
+              "C0014": 57,
+              "C0015": 15,
+              "C0016": 63,
+              "C0017": 125,
+              "C0018": 99,
+              "C0019": 29,
+              "C0020": 21,
+              "C0021": 14,
+              "C0022": 53
+            },
+            "selection_uses_source_pnl": false,
+            "source_candidate_counts": {
+              "C0013": 477,
+              "C0014": 501,
+              "C0015": 479,
+              "C0016": 493,
+              "C0017": 485,
+              "C0018": 515,
+              "C0019": 477,
+              "C0020": 470,
+              "C0021": 493,
+              "C0022": 477
+            },
+            "source_ingredient_ids": [
+              "c0013_ig001_path_resilience_recovery_negative_memory",
+              "c0014_ig001_interday_range_handoff_negative_memory",
+              "c0015_ig001_liquidity_vacuum_rebound_negative_memory",
+              "c0016_ig001_intraday_directional_imbalance_negative_memory",
+              "c0017_ig001_round_level_magnet_rejection_negative_memory",
+              "c0018_ig001_micro_gap_absorption_negative_memory",
+              "c0019_ig001_bar_quality_asymmetry_negative_memory",
+              "c0020_ig001_excursion_decay_memory_negative_memory",
+              "c0021_ig001_daily_profile_energy_balance_negative_memory",
+              "c0022_ig001_volatility_term_structure_negative_memory"
+            ],
+            "synthesized_candidate_count": 4867
+          },
+          {
+            "fold_id": "rw_003",
+            "label_shape": "source_schedule_score_conflict_without_source_pnl_selection",
+            "model_family": "fold_local_post_c0022_negative_memory_conflict_synthesis",
+            "model_selected": false,
+            "score_component_names": [
+              "source_schedule_score_z",
+              "same_direction_failed_source_cluster_penalty",
+              "opposite_direction_failed_source_conflict_credit",
+              "source_diversity_credit",
+              "spread_pressure_penalty"
+            ],
+            "selected_candidate_count": 528,
+            "selected_source_counts": {
+              "C0013": 64,
+              "C0014": 58,
+              "C0015": 10,
+              "C0016": 3,
+              "C0017": 133,
+              "C0018": 146,
+              "C0019": 19,
+              "C0020": 25,
+              "C0021": 15,
+              "C0022": 55
+            },
+            "selection_uses_source_pnl": false,
+            "source_candidate_counts": {
+              "C0013": 474,
+              "C0014": 502,
+              "C0015": 477,
+              "C0016": 487,
+              "C0017": 479,
+              "C0018": 521,
+              "C0019": 488,
+              "C0020": 477,
+              "C0021": 483,
+              "C0022": 472
+            },
+            "source_ingredient_ids": [
+              "c0013_ig001_path_resilience_recovery_negative_memory",
+              "c0014_ig001_interday_range_handoff_negative_memory",
+              "c0015_ig001_liquidity_vacuum_rebound_negative_memory",
+              "c0016_ig001_intraday_directional_imbalance_negative_memory",
+              "c0017_ig001_round_level_magnet_rejection_negative_memory",
+              "c0018_ig001_micro_gap_absorption_negative_memory",
+              "c0019_ig001_bar_quality_asymmetry_negative_memory",
+              "c0020_ig001_excursion_decay_memory_negative_memory",
+              "c0021_ig001_daily_profile_energy_balance_negative_memory",
+              "c0022_ig001_volatility_term_structure_negative_memory"
+            ],
+            "synthesized_candidate_count": 4860
+          },
+          {
+            "fold_id": "rw_004",
+            "label_shape": "source_schedule_score_conflict_without_source_pnl_selection",
+            "model_family": "fold_local_post_c0022_negative_memory_conflict_synthesis",
+            "model_selected": false,
+            "score_component_names": [
+              "source_schedule_score_z",
+              "same_direction_failed_source_cluster_penalty",
+              "opposite_direction_failed_source_conflict_credit",
+              "source_diversity_credit",
+              "spread_pressure_penalty"
+            ],
+            "selected_candidate_count": 512,
+            "selected_source_counts": {
+              "C0013": 55,
+              "C0014": 60,
+              "C0015": 7,
+              "C0016": 5,
+              "C0017": 133,
+              "C0018": 128,
+              "C0019": 10,
+              "C0020": 32,
+              "C0021": 18,
+              "C0022": 64
+            },
+            "selection_uses_source_pnl": false,
+            "source_candidate_counts": {
+              "C0013": 459,
+              "C0014": 482,
+              "C0015": 458,
+              "C0016": 469,
+              "C0017": 469,
+              "C0018": 508,
+              "C0019": 467,
+              "C0020": 457,
+              "C0021": 470,
+              "C0022": 459
+            },
+            "source_ingredient_ids": [
+              "c0013_ig001_path_resilience_recovery_negative_memory",
+              "c0014_ig001_interday_range_handoff_negative_memory",
+              "c0015_ig001_liquidity_vacuum_rebound_negative_memory",
+              "c0016_ig001_intraday_directional_imbalance_negative_memory",
+              "c0017_ig001_round_level_magnet_rejection_negative_memory",
+              "c0018_ig001_micro_gap_absorption_negative_memory",
+              "c0019_ig001_bar_quality_asymmetry_negative_memory",
+              "c0020_ig001_excursion_decay_memory_negative_memory",
+              "c0021_ig001_daily_profile_energy_balance_negative_memory",
+              "c0022_ig001_volatility_term_structure_negative_memory"
+            ],
+            "synthesized_candidate_count": 4698
+          },
+          {
+            "fold_id": "rw_005",
+            "label_shape": "source_schedule_score_conflict_without_source_pnl_selection",
+            "model_family": "fold_local_post_c0022_negative_memory_conflict_synthesis",
+            "model_selected": false,
+            "score_component_names": [
+              "source_schedule_score_z",
+              "same_direction_failed_source_cluster_penalty",
+              "opposite_direction_failed_source_conflict_credit",
+              "source_diversity_credit",
+              "spread_pressure_penalty"
+            ],
+            "selected_candidate_count": 496,
+            "selected_source_counts": {
+              "C0013": 65,
+              "C0014": 53,
+              "C0015": 2,
+              "C0016": 5,
+              "C0017": 119,
+              "C0018": 126,
+              "C0019": 24,
+              "C0020": 24,
+              "C0021": 24,
+              "C0022": 54
+            },
+            "selection_uses_source_pnl": false,
+            "source_candidate_counts": {
+              "C0013": 449,
+              "C0014": 477,
+              "C0015": 456,
+              "C0016": 458,
+              "C0017": 453,
+              "C0018": 492,
+              "C0019": 460,
+              "C0020": 453,
+              "C0021": 463,
+              "C0022": 452
+            },
+            "source_ingredient_ids": [
+              "c0013_ig001_path_resilience_recovery_negative_memory",
+              "c0014_ig001_interday_range_handoff_negative_memory",
+              "c0015_ig001_liquidity_vacuum_rebound_negative_memory",
+              "c0016_ig001_intraday_directional_imbalance_negative_memory",
+              "c0017_ig001_round_level_magnet_rejection_negative_memory",
+              "c0018_ig001_micro_gap_absorption_negative_memory",
+              "c0019_ig001_bar_quality_asymmetry_negative_memory",
+              "c0020_ig001_excursion_decay_memory_negative_memory",
+              "c0021_ig001_daily_profile_energy_balance_negative_memory",
+              "c0022_ig001_volatility_term_structure_negative_memory"
+            ],
+            "synthesized_candidate_count": 4613
+          },
+          {
+            "fold_id": "rw_006",
+            "label_shape": "source_schedule_score_conflict_without_source_pnl_selection",
+            "model_family": "fold_local_post_c0022_negative_memory_conflict_synthesis",
+            "model_selected": false,
+            "score_component_names": [
+              "source_schedule_score_z",
+              "same_direction_failed_source_cluster_penalty",
+              "opposite_direction_failed_source_conflict_credit",
+              "source_diversity_credit",
+              "spread_pressure_penalty"
+            ],
+            "selected_candidate_count": 528,
+            "selected_source_counts": {
+              "C0013": 43,
+              "C0014": 71,
+              "C0015": 11,
+              "C0016": 8,
+              "C0017": 127,
+              "C0018": 139,
+              "C0019": 20,
+              "C0020": 24,
+              "C0021": 24,
+              "C0022": 61
+            },
+            "selection_uses_source_pnl": false,
+            "source_candidate_counts": {
+              "C0013": 459,
+              "C0014": 502,
+              "C0015": 469,
+              "C0016": 481,
+              "C0017": 466,
+              "C0018": 524,
+              "C0019": 478,
+              "C0020": 475,
+              "C0021": 482,
+              "C0022": 468
+            },
+            "source_ingredient_ids": [
+              "c0013_ig001_path_resilience_recovery_negative_memory",
+              "c0014_ig001_interday_range_handoff_negative_memory",
+              "c0015_ig001_liquidity_vacuum_rebound_negative_memory",
+              "c0016_ig001_intraday_directional_imbalance_negative_memory",
+              "c0017_ig001_round_level_magnet_rejection_negative_memory",
+              "c0018_ig001_micro_gap_absorption_negative_memory",
+              "c0019_ig001_bar_quality_asymmetry_negative_memory",
+              "c0020_ig001_excursion_decay_memory_negative_memory",
+              "c0021_ig001_daily_profile_energy_balance_negative_memory",
+              "c0022_ig001_volatility_term_structure_negative_memory"
+            ],
+            "synthesized_candidate_count": 4804
+          },
+          {
+            "fold_id": "rw_007",
+            "label_shape": "source_schedule_score_conflict_without_source_pnl_selection",
+            "model_family": "fold_local_post_c0022_negative_memory_conflict_synthesis",
+            "model_selected": false,
+            "score_component_names": [
+              "source_schedule_score_z",
+              "same_direction_failed_source_cluster_penalty",
+              "opposite_direction_failed_source_conflict_credit",
+              "source_diversity_credit",
+              "spread_pressure_penalty"
+            ],
+            "selected_candidate_count": 528,
+            "selected_source_counts": {
+              "C0013": 32,
+              "C0014": 76,
+              "C0015": 15,
+              "C0016": 18,
+              "C0017": 118,
+              "C0018": 133,
+              "C0019": 41,
+              "C0020": 29,
+              "C0021": 19,
+              "C0022": 47
+            },
+            "selection_uses_source_pnl": false,
+            "source_candidate_counts": {
+              "C0013": 469,
+              "C0014": 503,
+              "C0015": 480,
+              "C0016": 492,
+              "C0017": 485,
+              "C0018": 523,
+              "C0019": 485,
+              "C0020": 482,
+              "C0021": 488,
+              "C0022": 469
+            },
+            "source_ingredient_ids": [
+              "c0013_ig001_path_resilience_recovery_negative_memory",
+              "c0014_ig001_interday_range_handoff_negative_memory",
+              "c0015_ig001_liquidity_vacuum_rebound_negative_memory",
+              "c0016_ig001_intraday_directional_imbalance_negative_memory",
+              "c0017_ig001_round_level_magnet_rejection_negative_memory",
+              "c0018_ig001_micro_gap_absorption_negative_memory",
+              "c0019_ig001_bar_quality_asymmetry_negative_memory",
+              "c0020_ig001_excursion_decay_memory_negative_memory",
+              "c0021_ig001_daily_profile_energy_balance_negative_memory",
+              "c0022_ig001_volatility_term_structure_negative_memory"
+            ],
+            "synthesized_candidate_count": 4876
+          },
+          {
+            "fold_id": "rw_008",
+            "label_shape": "source_schedule_score_conflict_without_source_pnl_selection",
+            "model_family": "fold_local_post_c0022_negative_memory_conflict_synthesis",
+            "model_selected": false,
+            "score_component_names": [
+              "source_schedule_score_z",
+              "same_direction_failed_source_cluster_penalty",
+              "opposite_direction_failed_source_conflict_credit",
+              "source_diversity_credit",
+              "spread_pressure_penalty"
+            ],
+            "selected_candidate_count": 504,
+            "selected_source_counts": {
+              "C0013": 40,
+              "C0014": 76,
+              "C0015": 11,
+              "C0016": 16,
+              "C0017": 112,
+              "C0018": 135,
+              "C0019": 23,
+              "C0020": 23,
+              "C0021": 28,
+              "C0022": 40
+            },
+            "selection_uses_source_pnl": false,
+            "source_candidate_counts": {
+              "C0013": 443,
+              "C0014": 479,
+              "C0015": 457,
+              "C0016": 468,
+              "C0017": 467,
+              "C0018": 503,
+              "C0019": 455,
+              "C0020": 447,
+              "C0021": 449,
+              "C0022": 454
+            },
+            "source_ingredient_ids": [
+              "c0013_ig001_path_resilience_recovery_negative_memory",
+              "c0014_ig001_interday_range_handoff_negative_memory",
+              "c0015_ig001_liquidity_vacuum_rebound_negative_memory",
+              "c0016_ig001_intraday_directional_imbalance_negative_memory",
+              "c0017_ig001_round_level_magnet_rejection_negative_memory",
+              "c0018_ig001_micro_gap_absorption_negative_memory",
+              "c0019_ig001_bar_quality_asymmetry_negative_memory",
+              "c0020_ig001_excursion_decay_memory_negative_memory",
+              "c0021_ig001_daily_profile_energy_balance_negative_memory",
+              "c0022_ig001_volatility_term_structure_negative_memory"
+            ],
+            "synthesized_candidate_count": 4622
+          },
+          {
+            "fold_id": "rw_009",
+            "label_shape": "source_schedule_score_conflict_without_source_pnl_selection",
+            "model_family": "fold_local_post_c0022_negative_memory_conflict_synthesis",
+            "model_selected": false,
+            "score_component_names": [
+              "source_schedule_score_z",
+              "same_direction_failed_source_cluster_penalty",
+              "opposite_direction_failed_source_conflict_credit",
+              "source_diversity_credit",
+              "spread_pressure_penalty"
+            ],
+            "selected_candidate_count": 512,
+            "selected_source_counts": {
+              "C0013": 44,
+              "C0014": 60,
+              "C0015": 7,
+              "C0016": 18,
+              "C0017": 124,
+              "C0018": 132,
+              "C0019": 36,
+              "C0020": 28,
+              "C0021": 21,
+              "C0022": 42
+            },
+            "selection_uses_source_pnl": false,
+            "source_candidate_counts": {
+              "C0013": 458,
+              "C0014": 487,
+              "C0015": 464,
+              "C0016": 475,
+              "C0017": 470,
+              "C0018": 505,
+              "C0019": 460,
+              "C0020": 466,
+              "C0021": 452,
+              "C0022": 458
+            },
+            "source_ingredient_ids": [
+              "c0013_ig001_path_resilience_recovery_negative_memory",
+              "c0014_ig001_interday_range_handoff_negative_memory",
+              "c0015_ig001_liquidity_vacuum_rebound_negative_memory",
+              "c0016_ig001_intraday_directional_imbalance_negative_memory",
+              "c0017_ig001_round_level_magnet_rejection_negative_memory",
+              "c0018_ig001_micro_gap_absorption_negative_memory",
+              "c0019_ig001_bar_quality_asymmetry_negative_memory",
+              "c0020_ig001_excursion_decay_memory_negative_memory",
+              "c0021_ig001_daily_profile_energy_balance_negative_memory",
+              "c0022_ig001_volatility_term_structure_negative_memory"
+            ],
+            "synthesized_candidate_count": 4695
+          }
+        ],
+        "label_selected": false,
+        "label_shape": "source_schedule_score_conflict_without_source_pnl_selection",
+        "model_family": "fold_local_post_c0022_negative_memory_conflict_synthesis",
+        "model_selected": false,
+        "opposite_failure_conflict_credit": 0.1,
+        "same_failure_cluster_penalty": 0.22,
+        "score_component_names": [
+          "source_schedule_score_z",
+          "same_direction_failed_source_cluster_penalty",
+          "opposite_direction_failed_source_conflict_credit",
+          "source_diversity_credit",
+          "spread_pressure_penalty"
+        ],
+        "selection_rule": "top_fold_local_negative_memory_conflict_candidates_per_active_day",
+        "source_diversity_credit": 0.04,
+        "source_ingredient_ids": [
+          "c0013_ig001_path_resilience_recovery_negative_memory",
+          "c0014_ig001_interday_range_handoff_negative_memory",
+          "c0015_ig001_liquidity_vacuum_rebound_negative_memory",
+          "c0016_ig001_intraday_directional_imbalance_negative_memory",
+          "c0017_ig001_round_level_magnet_rejection_negative_memory",
+          "c0018_ig001_micro_gap_absorption_negative_memory",
+          "c0019_ig001_bar_quality_asymmetry_negative_memory",
+          "c0020_ig001_excursion_decay_memory_negative_memory",
+          "c0021_ig001_daily_profile_energy_balance_negative_memory",
+          "c0022_ig001_volatility_term_structure_negative_memory"
+        ],
+        "source_pnl_used_for_selection": false,
+        "source_trade_artifacts": [
+          "campaigns/C0013_path_resilience_recovery_discovery/runs/R0001/artifacts/c0013_r0001_proxy_trades.csv",
+          "campaigns/C0014_interday_range_handoff_discovery/runs/R0001/artifacts/c0014_r0001_proxy_trades.csv",
+          "campaigns/C0015_liquidity_vacuum_rebound_discovery/runs/R0001/artifacts/c0015_r0001_proxy_trades.csv",
+          "campaigns/C0016_intraday_directional_imbalance_discovery/runs/R0001/artifacts/c0016_r0001_proxy_trades.csv",
+          "campaigns/C0017_round_level_magnet_rejection_discovery/runs/R0001/artifacts/c0017_r0001_proxy_trades.csv",
+          "campaigns/C0018_micro_gap_absorption_discovery/runs/R0001/artifacts/c0018_r0001_proxy_trades.csv",
+          "campaigns/C0019_bar_quality_asymmetry_discovery/runs/R0001/artifacts/c0019_r0001_proxy_trades.csv",
+          "campaigns/C0020_excursion_decay_memory_discovery/runs/R0001/artifacts/c0020_r0001_proxy_trades.csv",
+          "campaigns/C0021_daily_profile_energy_balance_discovery/runs/R0001/artifacts/c0021_r0001_proxy_trades.csv",
+          "campaigns/C0022_volatility_term_structure_discovery/runs/R0001/artifacts/c0022_r0001_proxy_trades.csv"
+        ],
+        "spread_pressure_penalty_weight": 0.1,
+        "state_distributions": {
+          "rw_001": {
+            "opposite_failed_source_count_p50": 3.0,
+            "same_failed_source_count_p50": 4.0,
+            "selected_count": 504,
+            "selected_score_max": 11.64737,
+            "selected_score_min": -0.477614,
+            "source_candidate_count": 4629,
+            "source_score_z_p50": -0.124396,
+            "synthesis_score_p10": -1.205733,
+            "synthesis_score_p50": -0.328565,
+            "synthesis_score_p90": 0.726665,
+            "synthesized_candidate_count": 4629
+          },
+          "rw_002": {
+            "opposite_failed_source_count_p50": 2.0,
+            "same_failed_source_count_p50": 4.0,
+            "selected_count": 528,
+            "selected_score_max": 7.942614,
+            "selected_score_min": -0.537715,
+            "source_candidate_count": 4867,
+            "source_score_z_p50": -0.135332,
+            "synthesis_score_p10": -1.449341,
+            "synthesis_score_p50": -0.498163,
+            "synthesis_score_p90": 0.633394,
+            "synthesized_candidate_count": 4867
+          },
+          "rw_003": {
+            "opposite_failed_source_count_p50": 1.0,
+            "same_failed_source_count_p50": 5.0,
+            "selected_count": 528,
+            "selected_score_max": 5.850612,
+            "selected_score_min": -0.689824,
+            "source_candidate_count": 4860,
+            "source_score_z_p50": -0.174322,
+            "synthesis_score_p10": -1.693234,
+            "synthesis_score_p50": -0.736891,
+            "synthesis_score_p90": 0.486035,
+            "synthesized_candidate_count": 4860
+          },
+          "rw_004": {
+            "opposite_failed_source_count_p50": 1.0,
+            "same_failed_source_count_p50": 4.0,
+            "selected_count": 512,
+            "selected_score_max": 11.934475,
+            "selected_score_min": -0.585029,
+            "source_candidate_count": 4698,
+            "source_score_z_p50": -0.149924,
+            "synthesis_score_p10": -1.612033,
+            "synthesis_score_p50": -0.663009,
+            "synthesis_score_p90": 0.522831,
+            "synthesized_candidate_count": 4698
+          },
+          "rw_005": {
+            "opposite_failed_source_count_p50": 1.0,
+            "same_failed_source_count_p50": 5.0,
+            "selected_count": 496,
+            "selected_score_max": 5.316718,
+            "selected_score_min": -0.385793,
+            "source_candidate_count": 4613,
+            "source_score_z_p50": -0.132495,
+            "synthesis_score_p10": -1.635687,
+            "synthesis_score_p50": -0.643692,
+            "synthesis_score_p90": 0.497692,
+            "synthesized_candidate_count": 4613
+          },
+          "rw_006": {
+            "opposite_failed_source_count_p50": 1.0,
+            "same_failed_source_count_p50": 5.0,
+            "selected_count": 528,
+            "selected_score_max": 11.475793,
+            "selected_score_min": -0.506742,
+            "source_candidate_count": 4804,
+            "source_score_z_p50": -0.135054,
+            "synthesis_score_p10": -1.727056,
+            "synthesis_score_p50": -0.727122,
+            "synthesis_score_p90": 0.374246,
+            "synthesized_candidate_count": 4804
+          },
+          "rw_007": {
+            "opposite_failed_source_count_p50": 0.0,
+            "same_failed_source_count_p50": 5.0,
+            "selected_count": 528,
+            "selected_score_max": 8.801696,
+            "selected_score_min": -0.556509,
+            "source_candidate_count": 4876,
+            "source_score_z_p50": -0.171485,
+            "synthesis_score_p10": -1.728322,
+            "synthesis_score_p50": -0.782153,
+            "synthesis_score_p90": 0.318157,
+            "synthesized_candidate_count": 4876
+          },
+          "rw_008": {
+            "opposite_failed_source_count_p50": 1.0,
+            "same_failed_source_count_p50": 4.0,
+            "selected_count": 504,
+            "selected_score_max": 6.325567,
+            "selected_score_min": -1.60345,
+            "source_candidate_count": 4622,
+            "source_score_z_p50": -0.108494,
+            "synthesis_score_p10": -1.556928,
+            "synthesis_score_p50": -0.630396,
+            "synthesis_score_p90": 0.44105,
+            "synthesized_candidate_count": 4622
+          },
+          "rw_009": {
+            "opposite_failed_source_count_p50": 1.0,
+            "same_failed_source_count_p50": 5.0,
+            "selected_count": 512,
+            "selected_score_max": 12.303543,
+            "selected_score_min": -0.430515,
+            "source_candidate_count": 4695,
+            "source_score_z_p50": -0.130498,
+            "synthesis_score_p10": -1.592088,
+            "synthesis_score_p50": -0.587011,
+            "synthesis_score_p90": 0.523268,
+            "synthesized_candidate_count": 4695
+          }
+        },
+        "state_model": "fold_local_post_c0022_negative_memory_conflict_synthesis",
+        "trade_logic_selected": false
+      }
+    },
+    "stability_profile": {
+      "applies": true,
+      "fields": {
+        "fold_summary": [
+          {
+            "bucket": "rw_001",
+            "max_drawdown_points": 911.91,
+            "net_pnl_points": -873.61,
+            "profit_factor": 0.769383,
+            "trade_count": 486,
+            "win_rate": 0.390947
+          },
+          {
+            "bucket": "rw_002",
+            "max_drawdown_points": 1080.3,
+            "net_pnl_points": -799.64,
+            "profit_factor": 0.792462,
+            "trade_count": 503,
+            "win_rate": 0.385686
+          },
+          {
+            "bucket": "rw_003",
+            "max_drawdown_points": 1360.13,
+            "net_pnl_points": -1226.24,
+            "profit_factor": 0.772485,
+            "trade_count": 511,
+            "win_rate": 0.401174
+          },
+          {
+            "bucket": "rw_004",
+            "max_drawdown_points": 2311.84,
+            "net_pnl_points": -2017.1,
+            "profit_factor": 0.612291,
+            "trade_count": 492,
+            "win_rate": 0.357724
+          },
+          {
+            "bucket": "rw_005",
+            "max_drawdown_points": 2112.86,
+            "net_pnl_points": -1970.72,
+            "profit_factor": 0.72359,
+            "trade_count": 482,
+            "win_rate": 0.373444
+          },
+          {
+            "bucket": "rw_006",
+            "max_drawdown_points": 2262.17,
+            "net_pnl_points": -2156.91,
+            "profit_factor": 0.559267,
+            "trade_count": 512,
+            "win_rate": 0.316406
+          },
+          {
+            "bucket": "rw_007",
+            "max_drawdown_points": 2815.58,
+            "net_pnl_points": -2733.99,
+            "profit_factor": 0.467586,
+            "trade_count": 510,
+            "win_rate": 0.309804
+          },
+          {
+            "bucket": "rw_008",
+            "max_drawdown_points": 2410.4,
+            "net_pnl_points": -2353.92,
+            "profit_factor": 0.59352,
+            "trade_count": 487,
+            "win_rate": 0.312115
+          },
+          {
+            "bucket": "rw_009",
+            "max_drawdown_points": 3249.3,
+            "net_pnl_points": -3249.3,
+            "profit_factor": 0.565964,
+            "trade_count": 498,
+            "win_rate": 0.313253
+          }
+        ],
+        "losing_month_count": 27,
+        "month_summary": [
+          {
+            "bucket": "2024-02",
+            "max_drawdown_points": 439.39,
+            "net_pnl_points": -407.66,
+            "profit_factor": 0.663119,
+            "trade_count": 164,
+            "win_rate": 0.371951
+          },
+          {
+            "bucket": "2024-03",
+            "max_drawdown_points": 210.66,
+            "net_pnl_points": -140.61,
+            "profit_factor": 0.877658,
+            "trade_count": 153,
+            "win_rate": 0.398693
+          },
+          {
+            "bucket": "2024-04",
+            "max_drawdown_points": 336.11,
+            "net_pnl_points": -325.34,
+            "profit_factor": 0.772287,
+            "trade_count": 169,
+            "win_rate": 0.402367
+          },
+          {
+            "bucket": "2024-05",
+            "max_drawdown_points": 326.4,
+            "net_pnl_points": -190.45,
+            "profit_factor": 0.815818,
+            "trade_count": 177,
+            "win_rate": 0.378531
+          },
+          {
+            "bucket": "2024-06",
+            "max_drawdown_points": 411.39,
+            "net_pnl_points": -388.07,
+            "profit_factor": 0.678415,
+            "trade_count": 152,
+            "win_rate": 0.375
+          },
+          {
+            "bucket": "2024-07",
+            "max_drawdown_points": 460.99,
+            "net_pnl_points": -221.12,
+            "profit_factor": 0.862847,
+            "trade_count": 174,
+            "win_rate": 0.402299
+          },
+          {
+            "bucket": "2024-08",
+            "max_drawdown_points": 988.85,
+            "net_pnl_points": -893.72,
+            "profit_factor": 0.626754,
+            "trade_count": 170,
+            "win_rate": 0.335294
+          },
+          {
+            "bucket": "2024-09",
+            "max_drawdown_points": 445.12,
+            "net_pnl_points": -316.77,
+            "profit_factor": 0.800976,
+            "trade_count": 163,
+            "win_rate": 0.392638
+          },
+          {
+            "bucket": "2024-10",
+            "max_drawdown_points": 296.97,
+            "net_pnl_points": -15.75,
+            "profit_factor": 0.988779,
+            "trade_count": 178,
+            "win_rate": 0.47191
+          },
+          {
+            "bucket": "2024-11",
+            "max_drawdown_points": 672.09,
+            "net_pnl_points": -334.88,
+            "profit_factor": 0.76592,
+            "trade_count": 162,
+            "win_rate": 0.407407
+          },
+          {
+            "bucket": "2024-12",
+            "max_drawdown_points": 856.8,
+            "net_pnl_points": -710.31,
+            "profit_factor": 0.562892,
+            "trade_count": 164,
+            "win_rate": 0.347561
+          },
+          {
+            "bucket": "2025-01",
+            "max_drawdown_points": 978.63,
+            "net_pnl_points": -971.91,
+            "profit_factor": 0.547311,
+            "trade_count": 166,
+            "win_rate": 0.319277
+          },
+          {
+            "bucket": "2025-02",
+            "max_drawdown_points": 640.26,
+            "net_pnl_points": -565.37,
+            "profit_factor": 0.66526,
+            "trade_count": 157,
+            "win_rate": 0.382166
+          },
+          {
+            "bucket": "2025-03",
+            "max_drawdown_points": 1027.27,
+            "net_pnl_points": -1006.05,
+            "profit_factor": 0.57856,
+            "trade_count": 164,
+            "win_rate": 0.347561
+          },
+          {
+            "bucket": "2025-04",
+            "max_drawdown_points": 1301.45,
+            "net_pnl_points": -399.3,
+            "profit_factor": 0.869234,
+            "trade_count": 161,
+            "win_rate": 0.391304
+          },
+          {
+            "bucket": "2025-05",
+            "max_drawdown_points": 768.2,
+            "net_pnl_points": -687.62,
+            "profit_factor": 0.639387,
+            "trade_count": 172,
+            "win_rate": 0.331395
+          },
+          {
+            "bucket": "2025-06",
+            "max_drawdown_points": 791.04,
+            "net_pnl_points": -791.04,
+            "profit_factor": 0.514387,
+            "trade_count": 163,
+            "win_rate": 0.300613
+          },
+          {
+            "bucket": "2025-07",
+            "max_drawdown_points": 702.93,
+            "net_pnl_points": -678.25,
+            "profit_factor": 0.500607,
+            "trade_count": 177,
+            "win_rate": 0.316384
+          },
+          {
+            "bucket": "2025-08",
+            "max_drawdown_points": 936.49,
+            "net_pnl_points": -879.46,
+            "profit_factor": 0.463296,
+            "trade_count": 161,
+            "win_rate": 0.31677
+          },
+          {
+            "bucket": "2025-09",
+            "max_drawdown_points": 666.47,
+            "net_pnl_points": -658.74,
+            "profit_factor": 0.533764,
+            "trade_count": 169,
+            "win_rate": 0.319527
+          },
+          {
+            "bucket": "2025-10",
+            "max_drawdown_points": 1231.06,
+            "net_pnl_points": -1195.79,
+            "profit_factor": 0.426083,
+            "trade_count": 180,
+            "win_rate": 0.294444
+          },
+          {
+            "bucket": "2025-11",
+            "max_drawdown_points": 858.77,
+            "net_pnl_points": -858.77,
+            "profit_factor": 0.606307,
+            "trade_count": 155,
+            "win_rate": 0.296774
+          },
+          {
+            "bucket": "2025-12",
+            "max_drawdown_points": 872.81,
+            "net_pnl_points": -851.36,
+            "profit_factor": 0.519188,
+            "trade_count": 168,
+            "win_rate": 0.27381
+          },
+          {
+            "bucket": "2026-01",
+            "max_drawdown_points": 745.84,
+            "net_pnl_points": -643.79,
+            "profit_factor": 0.649922,
+            "trade_count": 164,
+            "win_rate": 0.365854
+          },
+          {
+            "bucket": "2026-02",
+            "max_drawdown_points": 801.75,
+            "net_pnl_points": -801.75,
+            "profit_factor": 0.654792,
+            "trade_count": 154,
+            "win_rate": 0.344156
+          },
+          {
+            "bucket": "2026-03",
+            "max_drawdown_points": 1705.55,
+            "net_pnl_points": -1705.55,
+            "profit_factor": 0.469197,
+            "trade_count": 173,
+            "win_rate": 0.260116
+          },
+          {
+            "bucket": "2026-04",
+            "max_drawdown_points": 770.71,
+            "net_pnl_points": -742.0,
+            "profit_factor": 0.619602,
+            "trade_count": 171,
+            "win_rate": 0.339181
+          }
+        ],
+        "worst_month_pnl_points": -1705.55
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": true,
+      "fields": {
+        "average_capture_ratio": 0.242549,
+        "average_mae_points": 18.34391,
+        "average_mfe_points": 15.959799,
+        "median_mae_points": 13.12,
+        "median_mfe_points": 9.38
+      }
+    }
+  },
+  "created_at_utc": "2026-07-05T02:35:26Z",
+  "dataset_identity": "data/processed/datasets/us100_m5_base_frame.csv",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "record the matching MT5 symbol specification and fixed-lot sizing for the 500 USD account",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_net_pnl, proxy_max_drawdown_percent, proxy_expectancy_per_entry",
+      "reason": "proxy measures raw US100 index points only; USD conversion requires MT5 symbol contract, tick value, and fixed-lot discovery sizing",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "during SC0005 SSR0001 MT5 evidence production"
+    },
+    {
+      "blocking_condition": "proxy.json content must be stable before hashing",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_artifact_hashes",
+      "reason": "self-hash is recorded in artifact_lineage after proxy.json is written",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "before SC0005 SSR0001 closeout"
+    }
+  ],
+  "fold_ids": [
+    "rw_001",
+    "rw_002",
+    "rw_003",
+    "rw_004",
+    "rw_005",
+    "rw_006",
+    "rw_007",
+    "rw_008",
+    "rw_009",
+    "tail"
+  ],
+  "proxy_artifact_hashes": [
+    "4f3ef9816e04748f066ae0fe9bdb4faeca405619a2a603188331cad83d52b1d3",
+    "cd08977fa384b96a790d8830d71af75169a51b615ed22142bdc0374d9d019c1c"
+  ],
+  "proxy_artifact_paths": [
+    "campaigns/SC0005_post_c0022_negative_memory_synthesis/runs/SR0001/kpi/proxy.json",
+    "campaigns/SC0005_post_c0022_negative_memory_synthesis/runs/SR0001/artifacts/sc0005_sr0001_proxy_trades.csv",
+    "campaigns/SC0005_post_c0022_negative_memory_synthesis/runs/SR0001/artifacts/sc0005_sr0001_negative_memory_synthesis_summary.json"
+  ],
+  "proxy_code_version_or_commit": "uncommitted_local_worktree_at_proxy_creation",
+  "proxy_config": {
+    "bar_basis": "closed_m5",
+    "candidate_direction": "dual_direction_long_and_short_per_closed_bar",
+    "core_session_end_minute": 1260,
+    "core_session_start_minute": 360,
+    "entry_basis": "next_bar_open_after_scored_closed_bar",
+    "equity_percent_sizing": "deferred_until_candidate_quality",
+    "evaluation_splits": "rolling_windows_test_oos",
+    "fixed_lot_policy": "early_discovery_fixed_lot_no_equity_percent_sizing_rescue",
+    "gap_blocked_exit_policy": "skip_when_exit_bar_next_tick_gap_exceeds_5_minutes",
+    "gap_carried_entry_policy": "skip_when_next_bar_gap_exceeds_5_minutes",
+    "label_horizon_bars": 10,
+    "label_shape": "source_schedule_score_conflict_without_source_pnl_selection",
+    "lookback_range_bars": 48,
+    "max_entries_per_active_day": 8,
+    "max_hold_bars": 10,
+    "min_signal_spacing_bars": 6,
+    "min_train_archetype_count": 80,
+    "model_family": "fold_local_post_c0022_negative_memory_conflict_synthesis",
+    "momentum_bars": 6,
+    "money_conversion_status": "deferred_until_mt5_symbol_spec_and_fixed_lot_size",
+    "position_bars": 36,
+    "positive_score_gate": false,
+    "price_precision_digits": 2,
+    "same_bar_stop_target_policy": "stop_first_conservative",
+    "score_component_names": [
+      "source_schedule_score_z",
+      "same_direction_failed_source_cluster_penalty",
+      "opposite_direction_failed_source_conflict_credit",
+      "source_diversity_credit",
+      "spread_pressure_penalty"
+    ],
+    "selection_rule": "top_fold_local_negative_memory_conflict_candidates_per_active_day",
+    "short_range_bars": 12,
+    "sizing_mode": "fixed_lot_discovery",
+    "source_ingredient_ids": [
+      "c0013_ig001_path_resilience_recovery_negative_memory",
+      "c0014_ig001_interday_range_handoff_negative_memory",
+      "c0015_ig001_liquidity_vacuum_rebound_negative_memory",
+      "c0016_ig001_intraday_directional_imbalance_negative_memory",
+      "c0017_ig001_round_level_magnet_rejection_negative_memory",
+      "c0018_ig001_micro_gap_absorption_negative_memory",
+      "c0019_ig001_bar_quality_asymmetry_negative_memory",
+      "c0020_ig001_excursion_decay_memory_negative_memory",
+      "c0021_ig001_daily_profile_energy_balance_negative_memory",
+      "c0022_ig001_volatility_term_structure_negative_memory"
+    ],
+    "source_pnl_used_for_selection": false,
+    "source_trade_artifacts": [
+      "campaigns/C0013_path_resilience_recovery_discovery/runs/R0001/artifacts/c0013_r0001_proxy_trades.csv",
+      "campaigns/C0014_interday_range_handoff_discovery/runs/R0001/artifacts/c0014_r0001_proxy_trades.csv",
+      "campaigns/C0015_liquidity_vacuum_rebound_discovery/runs/R0001/artifacts/c0015_r0001_proxy_trades.csv",
+      "campaigns/C0016_intraday_directional_imbalance_discovery/runs/R0001/artifacts/c0016_r0001_proxy_trades.csv",
+      "campaigns/C0017_round_level_magnet_rejection_discovery/runs/R0001/artifacts/c0017_r0001_proxy_trades.csv",
+      "campaigns/C0018_micro_gap_absorption_discovery/runs/R0001/artifacts/c0018_r0001_proxy_trades.csv",
+      "campaigns/C0019_bar_quality_asymmetry_discovery/runs/R0001/artifacts/c0019_r0001_proxy_trades.csv",
+      "campaigns/C0020_excursion_decay_memory_discovery/runs/R0001/artifacts/c0020_r0001_proxy_trades.csv",
+      "campaigns/C0021_daily_profile_energy_balance_discovery/runs/R0001/artifacts/c0021_r0001_proxy_trades.csv",
+      "campaigns/C0022_volatility_term_structure_discovery/runs/R0001/artifacts/c0022_r0001_proxy_trades.csv"
+    ],
+    "starting_balance_usd": 500.0,
+    "state_model": "fold_local_train_only_state_archetype_membership",
+    "stop_range_multiple": 0.8,
+    "target_range_multiple": 1.1,
+    "top_archetypes_per_fold": 28,
+    "training_splits": "rolling_windows_train_is",
+    "trend_bars": 18,
+    "variant_boundary": "post_c0022_negative_memory_conflict_synthesis_not_c0022_threshold_score_stop_target_hold_activity_spread_session_or_retry_nudge",
+    "weights": {
+      "base_score": 0.72,
+      "opposite_failure_conflict_credit": 0.1,
+      "same_failure_cluster_penalty": 0.22,
+      "source_diversity_credit": 0.04,
+      "spread_pressure_penalty": 0.1
+    }
+  },
+  "proxy_config_path": "campaigns/SC0005_post_c0022_negative_memory_synthesis/runs/SR0001/run_manifest.json",
+  "proxy_engine": "axiom_rift.proxies.sc0005_sr0001_post_c0022_negative_memory_synthesis",
+  "proxy_id": "PX-SC0005-SR0001",
+  "proxy_summary": {
+    "active_day_count": 580,
+    "average_bars_in_trade": 2.856282,
+    "balance_after_proxy_usd": null,
+    "entries_per_active_day": 7.725862,
+    "entry_target_max": 10,
+    "entry_target_min": 5,
+    "evaluation_surface": "rolling_window_test_oos_only",
+    "gross_loss_points": -48669.38,
+    "gross_profit_points": 31287.95,
+    "long_trade_count": 1996,
+    "max_hold_exit_count": 159,
+    "money_model_status": "deferred_until_mt5_symbol_spec_and_fixed_lot_size",
+    "net_pnl_points": -17381.43,
+    "net_pnl_usd": null,
+    "short_trade_count": 2485,
+    "signal_count": 4481,
+    "starting_balance_usd": 500.0,
+    "stop_exit_count": 2835,
+    "target_exit_count": 1487,
+    "trade_count": 4481
+  },
+  "required_kpis": {
+    "proxy_expectancy_per_entry": null,
+    "proxy_expectancy_points_per_entry": -3.878918,
+    "proxy_max_drawdown_percent": null,
+    "proxy_max_drawdown_points": 17413.16,
+    "proxy_net_pnl": null,
+    "proxy_net_pnl_points": -17381.43,
+    "proxy_profit_factor": 0.642867,
+    "proxy_signal_count": 4481,
+    "proxy_trade_count": 4481,
+    "proxy_win_rate": 0.351038
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "SR0001",
+  "schema": "axiom_rift_proxy_kpi_v1",
+  "split_policy": "rolling_window_test_oos_only_with_source_schedule_score_conflict_synthesis",
+  "synthesis_id_when_applicable": "SC0005",
+  "template": false,
+  "work_unit_id": "SC0005"
+}
