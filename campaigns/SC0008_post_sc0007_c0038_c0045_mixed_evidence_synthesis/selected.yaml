@@ -1,8 +1,10 @@
 schema: axiom_rift_selected_v1
 template: false
-status: open_no_selection
+status: candidate_evidence_retained_not_selected_closed
 selected: false
-selected_reason: null
+selected_reason: SC0008 SR0001 retained candidate evidence but remains unselected
+  because rw_001 zero-trade coverage, native materialization, ONNX portability, historical
+  lineage debt, and claim authority remain unresolved.
 surfaces:
   label_selected: false
   feature_set_selected: false
@@ -34,12 +36,12 @@ claim_boundary:
   - promotion_ready
   - live_ready
 latest_synthesis_state:
-  status: open_pending_synthesis_run_design
-  source: synthesis.yaml
+  status: closed_with_candidate_evidence
+  source: runs/SR0001/gate_report.json
   candidate_evidence_retained: true
-  negative_memory_recorded: true
+  negative_memory_recorded: false
   active_run: null
-  next_required_action: design_sc0008_sr0001_post_sc0007_regression_channel_residual_mixed_evidence_synthesis_run
+  next_required_action: choose_c0046_new_major_hypothesis_after_sc0008_closeout
   claim_boundary:
     claim_authority: false
     selected: false
@@ -54,3 +56,18 @@ latest_synthesis_state:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
+candidate_evidence:
+  latest_run: runs/SR0001
+  status: retained_not_selected
+  evidence_path: runs/SR0001/gate_report.json
+  basis: rolling_window_fold_isolated_mt5_tick_plus_execution_divergence
+  entries_per_active_day: 7.259188
+  proxy_net_pnl_points: 18266.16
+  proxy_profit_factor: 1.648274
+  mt5_tick_net_pnl: 187.75
+  mt5_tick_profit_factor: 1.662538
+  profitable_fold_count: 8
+  losing_fold_count: 0
+  zero_trade_fold_count: 1
+  evidence_gap: rw_001_zero_trade_fold_and_schedule_replay_only_no_native_onnx_claim
+  next_required_action: choose_c0046_new_major_hypothesis_after_sc0008_closeout

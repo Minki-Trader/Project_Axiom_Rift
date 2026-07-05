@@ -1,10 +1,10 @@
 schema: axiom_rift_synthesis_queue_v1
 template: false
-status: open_pending_design
+status: closed_with_candidate_evidence
 synthesis_id: SC0008
 queue:
 - synthesis_run_id: SR0001
-  status: design_required
+  status: closed_with_candidate_evidence
   design_id: sc0008_sr0001_post_sc0007_regression_channel_residual_mixed_evidence_synthesis
   source_ingredient_ids:
   - c0038_ig001_intraday_dwell_transition_timing_negative_memory
@@ -48,8 +48,9 @@ queue:
   - skip_mt5_after_proxy
   - create_selected_claim
   - create_runtime_or_onnx_claim
-  last_completed_step: open_sc0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
-  next_action: design_sc0008_sr0001_post_sc0007_regression_channel_residual_mixed_evidence_synthesis_run
+  last_completed_step: close_sc0008_sr0001_with_candidate_evidence
+  next_action: choose_c0046_new_major_hypothesis_after_sc0008_closeout
+  closed_at_utc: '2026-07-05T22:23:22Z'
 claim_boundary:
   claim_authority: false
   selected: false
@@ -64,3 +65,21 @@ claim_boundary:
   onnx_ready: false
   promotion_ready: false
   live_ready: false
+closeout:
+  status: closed_with_candidate_evidence
+  closed_at_utc: '2026-07-05T22:23:22Z'
+  remaining_question: choose_c0046_new_major_hypothesis_after_sc0008_closeout
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

@@ -3,8 +3,8 @@ status: draft_active
 encoding: ascii_only
 source_of_truth_scope: work_unit_numbering_index
 no_active_truth_for_external_refs: true
-purpose: track Axiom C campaign and SC synthesis numbering without creating campaign completion,
-  selected, runtime, promotion, ONNX, or live claims
+purpose: track Axiom C campaign and SC synthesis numbering without creating campaign
+  completion, selected, runtime, promotion, ONNX, or live claims
 template_registry: registries/template_registry.yaml
 governing_contracts:
 - contracts/campaign_lifecycle.yaml
@@ -72,9 +72,8 @@ streams:
     id_prefix: SC
     role: accumulated_ingredient_synthesis
     next_id: SC0009
-    active_work_unit: campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
-    open_work_units:
-    - campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
+    active_work_unit: null
+    open_work_units: []
     closed_work_units:
     - campaigns/SC0001_accumulated_negative_memory_synthesis
     - campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis
@@ -83,6 +82,7 @@ streams:
     - campaigns/SC0005_post_c0022_negative_memory_synthesis
     - campaigns/SC0006_post_c0030_negative_memory_synthesis
     - campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
+    - campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
     numbering_policy:
       width: 4
       example: SC0001

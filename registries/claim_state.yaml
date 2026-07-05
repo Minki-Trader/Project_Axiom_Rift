@@ -81,63 +81,58 @@ data_state:
     split_boundaries_frozen: false
 claim_boundary:
   claim_authority: false
-  economics_pass: false
-  feature_set_selected: false
+  selected: false
   label_selected: false
-  live_ready: false
-  materialization_ready: false
+  feature_set_selected: false
   model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
   onnx_ready: false
   promotion_ready: false
-  runtime_authority: false
-  runtime_probe_completed: false
-  selected: false
-  trade_logic_selected: false
+  live_ready: false
 research_mode:
   label_policy: autonomous_discovery_until_frozen
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
 active_campaign: null
-active_synthesis: campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
+active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0045_with_candidate_evidence_and_open_sc0008
+  id: close_sc0008_sr0001_with_candidate_evidence
   status: completed
-  recorded_at_source: campaigns/C0045_intraday_regression_channel_residual_discovery/campaign.yaml
-  evidence_status: c0045_closed_with_candidate_evidence_sc0008_open
-  active_campaign: null
-  active_synthesis: campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
+  recorded_at_source: campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis/runs/SR0001/gate_report.json
+  evidence_status: closed_with_candidate_evidence
+  active_synthesis: null
   active_run: null
-  negative_memory_recorded: true
+  negative_memory_recorded: false
   candidate_evidence_retained: true
-  entries_per_active_day: 7.743103
-  proxy_net_pnl_points: 23965.91
-  proxy_profit_factor: 1.7391
-  mt5_tick_net_pnl: 241.35
-  mt5_tick_profit_factor: 1.734524
-  profitable_fold_count: 9
+  entries_per_active_day: 7.259188
+  proxy_net_pnl_points: 18266.16
+  proxy_profit_factor: 1.648274
+  mt5_tick_net_pnl: 187.75
+  mt5_tick_profit_factor: 1.662538
+  profitable_fold_count: 8
   losing_fold_count: 0
-  cost_slippage_stress_status: baseline_profitable_but_weakest_fold_fails_0_02_adverse_cost
-  materialization_probe_status: schedule_replay_portable_feature_surface_recorded_no_native_onnx_claim
-  synthesis_ready: true
-  synthesis_id: SC0008
-  usable_ingredient_group_count: 10
-  next_required_action: design_sc0008_sr0001_post_sc0007_regression_channel_residual_mixed_evidence_synthesis_run
+  zero_trade_fold_count: 1
+  next_required_action: choose_c0046_new_major_hypothesis_after_sc0008_closeout
   claim_boundary:
     claim_authority: false
-    economics_pass: false
-    feature_set_selected: false
+    selected: false
     label_selected: false
-    live_ready: false
-    materialization_ready: false
+    feature_set_selected: false
     model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
     onnx_ready: false
     promotion_ready: false
-    runtime_authority: false
-    runtime_probe_completed: false
-    selected: false
-    trade_logic_selected: false
+    live_ready: false
 active_truth:
   contracts_dir: contracts
   configs_dir: configs
