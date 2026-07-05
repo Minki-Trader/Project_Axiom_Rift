@@ -1,6 +1,6 @@
 schema: axiom_rift_selected_v1
 template: false
-status: proxy_recorded_pending_mt5
+status: logic_parity_recorded_pending_tick
 selected: false
 selected_reason: null
 surfaces:
@@ -34,12 +34,12 @@ claim_boundary:
   - promotion_ready
   - live_ready
 latest_synthesis_state:
-  status: proxy_recorded_pending_mt5
-  source: runs/SR0001/kpi/proxy.json
+  status: logic_parity_recorded_pending_tick
+  source: runs/SR0001/kpi/proxy_vs_mt5_logic_parity.json
   candidate_evidence_retained: false
   negative_memory_recorded: false
   active_run: runs/SR0001
-  next_required_action: produce_sc0007_sr0001_mt5_logic_parity_evidence
+  next_required_action: produce_sc0007_sr0001_mt5_tick_execution_evidence
   claim_boundary:
     claim_authority: false
     selected: false

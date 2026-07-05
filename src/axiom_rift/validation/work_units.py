@@ -79,6 +79,8 @@ CLOSEOUT_DECISIONS = {"close_no_candidate", "close_with_candidate_evidence", "cl
 CLOSED_RUN_STATUSES = {"closed_no_candidate", "closed_with_candidate_evidence", "closed_non_portable"}
 RUN_STATUSES_WITH_DEFERRED_REQUIRED_KPI = {"open_pending_proxy"}
 RUN_STATUSES_WITH_DEFERRED_REQUIRED_MT5_KPI = {"mt5_probe_ready"}
+RUN_STATUSES_WITH_DEFERRED_REQUIRED_PARITY_KPI = {"mt5_logic_parity_recorded_pending_parity"}
+RUN_STATUSES_WITH_DEFERRED_REQUIRED_TICK_KPI = {"logic_parity_recorded_pending_tick", "logic_parity_repair_required"}
 
 
 @dataclass(frozen=True)
@@ -440,6 +442,10 @@ def required_run_kpi_files(run_manifest: Any, gate_report: Any) -> tuple[str, ..
     if run_manifest.get("status") not in RUN_STATUSES_WITH_DEFERRED_REQUIRED_KPI:
         if run_manifest.get("status") in RUN_STATUSES_WITH_DEFERRED_REQUIRED_MT5_KPI:
             return ("kpi/proxy.json",)
+        if run_manifest.get("status") in RUN_STATUSES_WITH_DEFERRED_REQUIRED_PARITY_KPI:
+            return ("kpi/proxy.json", "kpi/mt5_logic_parity.json")
+        if run_manifest.get("status") in RUN_STATUSES_WITH_DEFERRED_REQUIRED_TICK_KPI:
+            return ("kpi/proxy.json", "kpi/mt5_logic_parity.json", "kpi/proxy_vs_mt5_logic_parity.json")
         return RUN_KPI_REQUIRED_FILES
     return ()
 

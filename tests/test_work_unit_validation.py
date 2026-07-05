@@ -122,6 +122,42 @@ class WorkUnitValidationTest(unittest.TestCase):
             codes = {issue.code for issue in result.issues}
             self.assertIn("missing_required_file", codes)
 
+    def test_logic_parity_recorded_run_defers_tick_and_divergence_kpi_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            campaign = make_campaign(root, leave_placeholder=False)
+            run = make_run(campaign)
+            manifest = load_json(run / "run_manifest.json")
+            manifest["status"] = "logic_parity_recorded_pending_tick"
+            write_json(run / "run_manifest.json", manifest)
+            for rel_path in (
+                "kpi/mt5_tick.json",
+                "kpi/execution_divergence.json",
+                "kpi/mt5_tick_by_fold.json",
+                "kpi/execution_divergence_by_fold.json",
+            ):
+                (run / rel_path).unlink(missing_ok=True)
+
+            result = validate_work_unit(campaign, root=root)
+
+            self.assertTrue(result.ok, result.to_dict())
+
+    def test_logic_parity_recorded_run_still_requires_proxy_vs_mt5_kpi_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            campaign = make_campaign(root, leave_placeholder=False)
+            run = make_run(campaign)
+            manifest = load_json(run / "run_manifest.json")
+            manifest["status"] = "logic_parity_recorded_pending_tick"
+            write_json(run / "run_manifest.json", manifest)
+            (run / "kpi" / "proxy_vs_mt5_logic_parity.json").unlink()
+
+            result = validate_work_unit(campaign, root=root)
+
+            self.assertFalse(result.ok)
+            codes = {issue.code for issue in result.issues}
+            self.assertIn("missing_required_file", codes)
+
     def test_run_closeout_requires_fold_isolated_mt5_tick_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

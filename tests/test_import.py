@@ -22,7 +22,7 @@ class ImportTest(unittest.TestCase):
         command_actions = [action for action in parser._actions if action.dest == "command"]
         choices = set(command_actions[0].choices)
         self.assertEqual(choices, set(COMMANDS))
-        self.assertEqual(len(COMMANDS), 624)
+        self.assertEqual(len(COMMANDS), 632)
         self.assertIn("status", choices)
         self.assertIn("validate-templates", choices)
         self.assertIn("validate-repo-state", choices)

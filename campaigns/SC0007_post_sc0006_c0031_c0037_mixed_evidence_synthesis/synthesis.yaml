@@ -7,13 +7,14 @@ synthesis_level: synthesis_7
 opened_at_utc: '2026-07-05T14:18:00Z'
 closed_at_utc: null
 synthesis_question:
-  summary: synthesize post-SC0006 evidence from C0031 through C0037 before choosing the next
-    synthesis run or major campaign axis
-  boundary: use only closed campaign and run evidence from C0031 through C0037; treat C0037
-    R0003 as retained candidate evidence only; preserve unrestricted discovery of labels,
-    features, model families, objectives, and trade shapes; do not create selected, economics,
-    runtime, materialization, ONNX, promotion, or live-readiness claims; do not treat synthesis
-    as a shortcut around MT5 paired validation for any opened SR run
+  summary: synthesize post-SC0006 evidence from C0031 through C0037 before choosing
+    the next synthesis run or major campaign axis
+  boundary: use only closed campaign and run evidence from C0031 through C0037; treat
+    C0037 R0003 as retained candidate evidence only; preserve unrestricted discovery
+    of labels, features, model families, objectives, and trade shapes; do not create
+    selected, economics, runtime, materialization, ONNX, promotion, or live-readiness
+    claims; do not treat synthesis as a shortcut around MT5 paired validation for
+    any opened SR run
 source_campaign_ids:
 - C0031
 - C0032
@@ -40,9 +41,9 @@ run_index:
   closed_runs: []
   next_run_candidate:
     run_id: SR0001
-    direction: produce_sc0007_sr0001_mt5_logic_parity_evidence
-    reason: SR0001 proxy evidence is recorded; next work is mandatory MT5 logic parity before
-      any hypothesis judgment.
+    direction: produce_sc0007_sr0001_mt5_tick_execution_evidence
+    reason: SR0001 closed-bar MT5 logic parity and proxy-vs-MT5 parity are recorded;
+      tick execution KPI is next.
     status: active_run_open
 stream_policy:
   stream: synthesis

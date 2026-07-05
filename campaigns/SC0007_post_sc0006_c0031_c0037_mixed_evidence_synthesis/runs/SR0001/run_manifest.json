@@ -17,11 +17,14 @@
   "evidence_paths": {
     "artifact_lineage": "artifact_lineage.json",
     "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/sc0007_sr0001_schedule.csv",
     "negative_context_synthesis_summary": "artifacts/sc0007_sr0001_negative_context_synthesis_summary.json",
     "proxy_kpi": "kpi/proxy.json",
-    "proxy_trade_artifact": "artifacts/sc0007_sr0001_proxy_trades.csv"
+    "proxy_trade_artifact": "artifacts/sc0007_sr0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
   },
-  "gate_status": "proxy_recorded_pending_mt5",
+  "gate_status": "logic_parity_recorded_pending_tick",
   "hypothesis_variant": {
     "summary": "post_sc0006_price_memory_negative_context_synthesis",
     "variant_boundary": "tests whether C0037 R0003 price-memory-density candidate schedule entries can be re-ranked by C0031-C0036 recent negative-memory same-direction and opposite-direction schedule context plus C0037 robustness fragility evidence; not a C0037 threshold, score, cost-buffer, stop, target, hold, session, activity, spread, capital, monthly filter, or retry nudge"
@@ -33,12 +36,15 @@
     "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
     "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
     "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
-    "logic_parity_purpose": "proxy_post_sc0006_price_memory_negative_context_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "logic_parity_purpose": "proxy_post_sc0006_price_memory_negative_context_synthesis_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "logic_parity_recorded": true,
+    "next_required_action": "produce_sc0007_sr0001_mt5_tick_execution_evidence",
     "notes": [
       "closed-bar MT5 mode is required for proxy-vs-EA logic parity",
       "tick-mode MT5 is required for execution economics",
       "fold-isolated MT5 tick and execution divergence are required before closeout"
     ],
+    "proxy_vs_mt5_logic_parity_recorded": true,
     "required": true,
     "required_even_when_proxy_is_weak": true,
     "tick_kpi_path": "kpi/mt5_tick.json"
@@ -127,7 +133,7 @@
     "c0037_ig002_price_memory_density_robustness_fragility_lesson",
     "c0037_ig003_price_memory_density_monthly_distribution_hardening_negative_memory"
   ],
-  "status": "mt5_probe_ready",
+  "status": "logic_parity_recorded_pending_tick",
   "surfaces": {
     "feature": {
       "changed_from_synthesis_queue": true,

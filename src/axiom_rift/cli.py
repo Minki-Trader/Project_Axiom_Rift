@@ -138,6 +138,12 @@ RUN_SPECS: tuple[RunSpec, ...] = (
         "axiom_rift.proxies.sc0006_sr0001_post_c0030_negative_memory_synthesis",
         logic_func="run_sc0006_sr0001_logic_parity_workflow",
     ),
+    RunSpec(
+        "sc0007_sr0001",
+        "axiom_rift.mt5.sc0007_sr0001_probe",
+        "axiom_rift.proxies.sc0007_sr0001_post_sc0006_price_memory_negative_context",
+        logic_func="run_sc0007_sr0001_logic_parity_workflow",
+    ),
     RunSpec("c0004_r0001", "axiom_rift.mt5.c0004_r0001_probe", "axiom_rift.proxies.c0004_r0001_fold_local_state_archetype"),
     RunSpec("c0004_r0002", "axiom_rift.mt5.c0004_r0002_probe", "axiom_rift.proxies.c0004_r0002_path_quality_archetype"),
     RunSpec("c0004_r0003", "axiom_rift.mt5.c0004_r0003_probe", "axiom_rift.proxies.c0004_r0003_adverse_archetype_inversion"),

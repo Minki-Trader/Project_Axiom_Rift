@@ -26,27 +26,31 @@
   "decision": "defer_with_reason",
   "deferred_with_reason": [
     {
-      "blocking_condition": "SR0001 cannot close until mandatory MT5 logic parity, MT5 tick, execution divergence, and fold-isolated evidence are recorded",
+      "blocking_condition": "SR0001 cannot close until mandatory MT5 tick, execution divergence, and fold-isolated evidence are recorded",
       "field": "decision",
-      "reason": "proxy evidence is recorded but MT5 and proxy-vs-MT5 evidence are still missing",
-      "revisit_when": "produce_sc0007_sr0001_mt5_logic_parity_evidence"
+      "reason": "closed-bar MT5 logic parity and proxy-vs-MT5 parity are recorded; tick execution KPI is still required",
+      "revisit_when": "produce_sc0007_sr0001_mt5_tick_execution_evidence"
     }
   ],
   "evidence_gate": {
     "checks": {
       "artifact_lineage_path_recorded": true,
-      "mt5_logic_parity_kpi_path_recorded": false,
+      "mt5_logic_parity_kpi_path_recorded": true,
       "mt5_tick_kpi_path_recorded": false,
       "proxy_kpi_path_recorded": true,
+      "proxy_vs_mt5_logic_parity_kpi_path_recorded": true,
       "run_manifest_path_recorded": true
     },
-    "status": "proxy_recorded_pending_mt5"
+    "status": "logic_parity_evidence_recorded"
   },
   "evidence_paths": [
     "artifact_lineage.json",
     "artifacts/sc0007_sr0001_proxy_trades.csv",
     "artifacts/sc0007_sr0001_negative_context_synthesis_summary.json",
-    "kpi/proxy.json"
+    "kpi/proxy.json",
+    "kpi/mt5_logic_parity.json",
+    "kpi/proxy_vs_mt5_logic_parity.json",
+    "artifacts/sc0007_sr0001_schedule.csv"
   ],
   "gate_report_id": "GR-SC0007-SR0001-OPEN",
   "mt5_gate": {
@@ -54,19 +58,20 @@
     "closed_bar_logic_parity_required": true,
     "fold_isolated_closeout_required": true,
     "required_even_when_proxy_is_weak": true,
-    "status": "mt5_logic_parity_required_next"
+    "status": "mt5_tick_required_next"
   },
-  "next_action": "produce_sc0007_sr0001_mt5_logic_parity_evidence",
+  "next_action": "produce_sc0007_sr0001_mt5_tick_execution_evidence",
   "opened_at_utc": "2026-07-05T14:30:00Z",
   "parity_gate": {
-    "intent_parity_status": "pending",
-    "mechanical_parity_status": "pending",
-    "status": "blocked_until_mt5"
+    "intent_parity_status": "passed_schedule_replay_boundary",
+    "mechanical_parity_status": "passed",
+    "repair_required": false,
+    "status": "passed"
   },
   "pre_open_decision_status": "passed",
   "run_id": "SR0001",
   "schema": "axiom_rift_gate_report_v1",
-  "status": "proxy_recorded_pending_mt5",
+  "status": "logic_parity_recorded_pending_tick",
   "template": false,
   "work_unit_id": "SC0007"
 }
