@@ -1,11 +1,11 @@
 schema: axiom_rift_synthesis_v1
 template: false
-status: mt5_probe_attempts
+status: closed_no_candidate
 synthesis_id: SC0007
 synthesis_slug: post_sc0006_c0031_c0037_mixed_evidence_synthesis
 synthesis_level: synthesis_7
 opened_at_utc: '2026-07-05T14:18:00Z'
-closed_at_utc: null
+closed_at_utc: '2026-07-05T15:41:40Z'
 synthesis_question:
   summary: synthesize post-SC0006 evidence from C0031 through C0037 before choosing
     the next synthesis run or major campaign axis
@@ -35,16 +35,19 @@ synthesis_queue_path: synthesis_queue.yaml
 runs_root: runs/
 synthesis_run_id_format: SR0001
 run_index:
-  active_run: runs/SR0001
+  active_run: null
   opened_runs:
   - runs/SR0001
-  closed_runs: []
+  closed_runs:
+  - runs/SR0001
   next_run_candidate:
-    run_id: SR0001
-    direction: produce_sc0007_sr0001_mt5_tick_execution_evidence
-    reason: SR0001 closed-bar MT5 logic parity and proxy-vs-MT5 parity are recorded;
-      tick execution KPI is next.
-    status: active_run_open
+    run_id: null
+    direction: choose_c0038_new_major_hypothesis_after_sc0007_closeout
+    reason: SR0001 closed no-candidate after weak losing proxy, near-flat aggregate
+      MT5 tick, and unstable fold-isolated MT5 tick evidence; further SC0007 work
+      would be adjacent negative-context weight, fragility, threshold, monthly-filter,
+      stop, target, hold, activity, spread, session, capital, or retry tuning.
+    status: synthesis_closed_no_candidate
 stream_policy:
   stream: synthesis
   independent_from_campaign_stream: true
@@ -74,3 +77,82 @@ claim_boundary:
   onnx_ready: false
   promotion_ready: false
   live_ready: false
+closeout:
+  status: closed_no_candidate
+  close_reason: no_candidate_after_weak_proxy_near_flat_tick_and_unstable_fold_isolated_tick_evidence
+  evidence_paths:
+  - artifact_lineage.json
+  - run_manifest.json
+  - kpi/proxy.json
+  - kpi/mt5_logic_parity.json
+  - kpi/proxy_vs_mt5_logic_parity.json
+  - kpi/mt5_tick.json
+  - kpi/execution_divergence.json
+  - artifacts/sc0007_sr0001_proxy_trades.csv
+  - artifacts/sc0007_sr0001_negative_context_synthesis_summary.json
+  - artifacts/sc0007_sr0001_schedule.csv
+  - kpi/mt5_tick_by_fold.json
+  - kpi/execution_divergence_by_fold.json
+  remaining_question: choose_c0038_new_major_hypothesis_after_sc0007_closeout
+  closed_at_utc: '2026-07-05T15:41:40Z'
+  decision_basis:
+    entries_per_active_day: 6.025292
+    proxy_net_pnl_points: -816.62
+    proxy_profit_factor: 0.96836
+    proxy_expectancy_points_per_entry: -0.263681
+    proxy_trade_count: 3097
+    proxy_win_rate: 0.455602
+    mt5_logic_net_pnl: -10.3
+    mt5_logic_profit_factor: 0.966117
+    mt5_logic_trade_count: 3097
+    mechanical_parity_status: passed
+    intent_parity_status: passed_schedule_replay_boundary
+    mismatch_count: 0
+    entry_key_match_rate: 1.0
+    exit_reason_match_rate: 1.0
+    mt5_tick_net_pnl: 3.33
+    mt5_tick_profit_factor: 1.012928
+    mt5_tick_max_drawdown_percent: 2.588
+    mt5_tick_trade_count: 3089
+    mt5_tick_win_rate: 0.442862
+    mt5_tick_expectancy_per_entry: 0.001078
+    execution_divergence_status: recorded_with_divergence
+    economics_shift_status: tick_better_than_logic
+    tick_minus_logic_net_pnl: 13.63
+    entry_count_delta: -8
+    exit_count_delta: -8
+    mt5_tick_by_fold_status: completed
+    fold_count: 9
+    completed_fold_count: 9
+    profitable_fold_count: 3
+    losing_fold_count: 5
+    zero_trade_fold_count: 1
+    total_tick_net_pnl: 3.33
+    total_tick_trade_count: 3089
+    worst_fold_id: rw_006
+    worst_fold_net_pnl: -5.48
+    worst_fold_max_drawdown_percent: 1.648
+    execution_divergence_by_fold_status: completed
+    minimum_entry_key_match_rate: 0.995
+    minimum_exit_reason_match_rate: 0.792176
+    minimum_exit_time_direction_match_rate: 0.814181
+    tick_better_fold_count: 6
+    tick_worse_fold_count: 2
+    total_tick_minus_logic_net_pnl: 13.63
+    worst_tick_minus_logic_fold_id: rw_006
+    worst_tick_minus_logic_net_pnl: -1.09
+    remaining_work_classification: post_sc0006_price_memory_negative_context_weight_fragility_threshold_monthly_filter_stop_target_hold_activity_spread_session_capital_or_retry_nudge_not_next
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

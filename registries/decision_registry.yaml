@@ -2712,3 +2712,58 @@ decisions:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
+- decision_id: dec_20260706_close_sc0007_sr0001_no_candidate
+  created_local_date: '2026-07-06'
+  status: active
+  decision: close_sc0007_sr0001_no_candidate
+  refines:
+  - dec_20260706_produce_sc0007_sr0001_mt5_logic_parity_evidence
+  - dec_20260705_produce_sc0007_sr0001_proxy_evidence
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - sr0001_completed_proxy_mt5_logic_parity_proxy_vs_mt5_parity_mt5_tick_execution_divergence_and_fold_isolated_tick_and_divergence_evidence
+  - proxy_net_pnl_points_-816.62_profit_factor_0.96836
+  - mt5_tick_net_pnl_3.33_profit_factor_1.012928
+  - fold_isolated_tick_has_3_profitable_5_losing_and_1_zero_trade_folds
+  - closeout_records_negative_memory_not_selection_or_economics_pass
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260706_close_sc0007_no_candidate_after_sr0001
+  created_local_date: '2026-07-06'
+  status: active
+  decision: close_sc0007_no_candidate_after_sr0001
+  refines:
+  - dec_20260706_close_sc0007_sr0001_no_candidate
+  - dec_20260705_close_c0037_with_candidate_evidence
+  rationale:
+  - sc0007_synthesis_boundary_was_answered_by_sr0001_fold_isolated_mt5_evidence
+  - remaining_sc0007_work_is_adjacent_negative_context_weight_fragility_threshold_monthly_filter_stop_target_hold_activity_spread_session_capital_or_retry_tuning
+  - next_work_is_choose_c0038_new_major_hypothesis_after_sc0007_closeout
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

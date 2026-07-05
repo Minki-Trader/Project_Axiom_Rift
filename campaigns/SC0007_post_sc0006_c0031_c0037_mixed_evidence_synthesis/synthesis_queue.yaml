@@ -1,10 +1,10 @@
 schema: axiom_rift_synthesis_queue_v1
 template: false
-status: mt5_probe_attempts
+status: closed_no_candidate
 synthesis_id: SC0007
 queue:
 - synthesis_run_id: SR0001
-  status: logic_parity_done
+  status: closed_no_candidate
   design_id: sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis
   opened_at_utc: '2026-07-05T14:30:00Z'
   source_ingredient_ids:
@@ -48,8 +48,9 @@ queue:
   - skip_mt5_after_proxy
   - create_selected_claim
   - create_runtime_or_onnx_claim
-  last_completed_step: produce_sc0007_sr0001_mt5_logic_parity_evidence
-  next_action: produce_sc0007_sr0001_mt5_tick_execution_evidence
+  last_completed_step: close_sc0007_sr0001_no_candidate
+  next_action: choose_c0038_new_major_hypothesis_after_sc0007_closeout
+  closed_at_utc: '2026-07-05T15:41:40Z'
 claim_boundary:
   claim_authority: false
   selected: false
@@ -64,3 +65,21 @@ claim_boundary:
   onnx_ready: false
   promotion_ready: false
   live_ready: false
+closeout:
+  status: closed_no_candidate
+  closed_at_utc: '2026-07-05T15:41:40Z'
+  remaining_question: choose_c0038_new_major_hypothesis_after_sc0007_closeout
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

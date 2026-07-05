@@ -99,22 +99,26 @@ research_mode:
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
 active_campaign: null
-active_synthesis: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
-active_run: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001
+active_synthesis: null
+active_run: null
 latest_operation:
-  id: produce_sc0007_sr0001_mt5_logic_parity_evidence
+  id: close_sc0007_sr0001_no_candidate
   status: completed
-  recorded_at_source: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/kpi/proxy_vs_mt5_logic_parity.json
-  evidence_status: logic_parity_recorded_pending_tick
-  active_synthesis: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
-  active_run: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001
-  mt5_trade_count_delta: 0
-  entry_key_match_rate: 1.0
-  exit_reason_match_rate: 1.0
-  mechanical_parity_status: passed
-  intent_parity_status: passed_schedule_replay_boundary
-  repair_required: false
-  next_required_action: produce_sc0007_sr0001_mt5_tick_execution_evidence
+  recorded_at_source: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/gate_report.json
+  evidence_status: closed_no_candidate
+  active_synthesis: null
+  active_run: null
+  negative_memory_recorded: true
+  candidate_evidence_retained: false
+  entries_per_active_day: 6.025292
+  proxy_net_pnl_points: -816.62
+  proxy_profit_factor: 0.96836
+  mt5_tick_net_pnl: 3.33
+  mt5_tick_profit_factor: 1.012928
+  profitable_fold_count: 3
+  losing_fold_count: 5
+  zero_trade_fold_count: 1
+  next_required_action: choose_c0038_new_major_hypothesis_after_sc0007_closeout
   claim_boundary:
     claim_authority: false
     selected: false
