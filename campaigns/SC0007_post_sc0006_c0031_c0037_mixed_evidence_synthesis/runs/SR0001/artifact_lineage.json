@@ -5,11 +5,11 @@
       "artifact_role": "run_manifest",
       "artifact_type": "json",
       "claim_authority": false,
-      "linked_kpi_family": "run_open",
+      "linked_kpi_family": "run_state",
       "mutable": false,
-      "produced_by": "manual_goal_operation_open_sc0007_sr0001",
+      "produced_by": "axiom_rift.proxies.sc0007_sr0001_post_sc0006_price_memory_negative_context",
       "repo_relative_path": "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/run_manifest.json",
-      "sha256": "fbf321c128d7bef709069cda064b0c4156deee8ffc672481342fde2d4e0e11a1",
+      "sha256": "68a00819b5e3eff32e9524fc6da3f1315e026c7531006d49e46dcb7ba5b33a4e",
       "source_inputs": [
         "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/synthesis.yaml",
         "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/ingredient_refs.yaml",
@@ -18,17 +18,66 @@
       ]
     },
     {
-      "artifact_id": "A-SC0007-SR0001-GATE-OPEN",
+      "artifact_id": "A-SC0007-SR0001-GATE-REPORT",
       "artifact_role": "gate_report",
       "artifact_type": "json",
       "claim_authority": false,
-      "linked_kpi_family": "run_open",
+      "linked_kpi_family": "run_state",
       "mutable": false,
-      "produced_by": "manual_goal_operation_open_sc0007_sr0001",
+      "produced_by": "axiom_rift.proxies.sc0007_sr0001_post_sc0006_price_memory_negative_context",
       "repo_relative_path": "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/gate_report.json",
-      "sha256": "047e647cf94c863a5ddc9e48dec8e0ba2c502adf4936dd2e008a95297bc24d88",
+      "sha256": "451897674f5025b39599308eb5ae7541b7a4e614eb819837a92be34bb56dab58",
       "source_inputs": [
+        "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/run_manifest.json",
+        "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-SC0007-SR0001-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.sc0007_sr0001_post_sc0006_price_memory_negative_context",
+      "repo_relative_path": "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/kpi/proxy.json",
+      "sha256": "08cc4a3a07c9c4d64ab23826d3317a8b4a70145ecd7b06b3da748c27b4c02214",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/ingredient_refs.yaml",
+        "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/synthesis_queue.yaml",
         "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-SC0007-SR0001-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.sc0007_sr0001_post_sc0006_price_memory_negative_context",
+      "repo_relative_path": "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/artifacts/sc0007_sr0001_proxy_trades.csv",
+      "sha256": "1cf62f08d4d7fe05fa0f8ea41f23bf851f7ba389243f8a2a51088563f19a2377",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-SC0007-SR0001-NEGATIVE-CONTEXT-SYNTHESIS-SUMMARY",
+      "artifact_role": "negative_context_synthesis_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.sc0007_sr0001_post_sc0006_price_memory_negative_context",
+      "repo_relative_path": "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/artifacts/sc0007_sr0001_negative_context_synthesis_summary.json",
+      "sha256": "044c65e26ab169c0c72e39a4db5e669b57c5b1d29467774be95388e14f937002",
+      "source_inputs": [
+        "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/kpi/proxy.json"
       ]
     }
   ],
@@ -47,18 +96,15 @@
     "selected": false,
     "trade_logic_selected": false
   },
+  "created_at_utc": "2026-07-05T14:47:25Z",
   "deferred_with_reason": [
-    {
-      "field": "proxy_artifact_hashes",
-      "next_action": "produce_sc0007_sr0001_proxy_evidence",
-      "reason": "proxy artifacts are produced after run open in the mandatory paired validation sequence"
-    },
     {
       "field": "mt5_artifact_hashes",
       "next_action": "produce_sc0007_sr0001_mt5_logic_parity_evidence",
       "reason": "MT5 artifacts are produced after proxy evidence in the mandatory paired validation sequence"
     }
   ],
+  "lineage_id": "L-SC0007-SR0001",
   "run_id": "SR0001",
   "schema": "axiom_rift_artifact_lineage_v1",
   "template": false,

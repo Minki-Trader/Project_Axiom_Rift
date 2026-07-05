@@ -102,11 +102,17 @@ active_campaign: null
 active_synthesis: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
 active_run: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001
 latest_operation:
-  id: open_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
+  id: produce_sc0007_sr0001_proxy_evidence
   status: completed
-  recorded_at_source: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/run_manifest.json
-  evidence_status: run_open_pending_proxy
-  next_required_action: produce_sc0007_sr0001_proxy_evidence
+  recorded_at_source: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/kpi/proxy.json
+  evidence_status: proxy_recorded_pending_mt5
+  active_synthesis: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
+  active_run: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001
+  proxy_trade_count: 3097
+  entries_per_active_day: 6.025292
+  proxy_net_pnl_points: -816.62
+  proxy_profit_factor: 0.96836
+  next_required_action: produce_sc0007_sr0001_mt5_logic_parity_evidence
   claim_boundary:
     claim_authority: false
     selected: false
@@ -121,16 +127,6 @@ latest_operation:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
-  synthesis_id: SC0007
-  synthesis_status: run_open_pending_proxy
-  active_run: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001
-  run_id: SR0001
-  source_campaign_count: 7
-  usable_ingredient_group_count: 9
-  retained_candidate_source_run_status: candidate_evidence_requires_hardening
-  closeout_decision: null
-  reason_not_selected: sc0007_sr0001_is_open_pending_proxy_no_selection_or_economics_evidence
-  reference_candidate_source_run: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003
 active_truth:
   contracts_dir: contracts
   configs_dir: configs

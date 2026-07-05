@@ -78,6 +78,7 @@ ROLLING_WINDOW_CLOSEOUT_REQUIRED_FILES = (
 CLOSEOUT_DECISIONS = {"close_no_candidate", "close_with_candidate_evidence", "close_non_portable"}
 CLOSED_RUN_STATUSES = {"closed_no_candidate", "closed_with_candidate_evidence", "closed_non_portable"}
 RUN_STATUSES_WITH_DEFERRED_REQUIRED_KPI = {"open_pending_proxy"}
+RUN_STATUSES_WITH_DEFERRED_REQUIRED_MT5_KPI = {"mt5_probe_ready"}
 
 
 @dataclass(frozen=True)
@@ -381,9 +382,8 @@ def validate_run_folder(
     require_child_files(issues, run_dir, RUN_BASE_REQUIRED_FILES)
     run_manifest = safe_load_structured(issues, run_dir / "run_manifest.json")
     gate_report = safe_load_structured(issues, run_dir / "gate_report.json")
-    required_kpi_deferred = run_required_kpi_deferred(run_manifest, gate_report)
-    if not required_kpi_deferred:
-        require_child_files(issues, run_dir, RUN_KPI_REQUIRED_FILES)
+    required_kpi_files = required_run_kpi_files(run_manifest, gate_report)
+    require_child_files(issues, run_dir, required_kpi_files)
     if isinstance(run_manifest, dict):
         require_actual_file(issues, run_dir / "run_manifest.json", run_manifest)
         require_equal(issues, run_dir / "run_manifest.json", run_manifest.get("work_unit_id"), work_unit_id, "work_unit_id")
@@ -397,10 +397,10 @@ def validate_run_folder(
         validate_pre_open_decision(issues, run_dir / "run_manifest.json", run_manifest)
 
     files_to_validate = list(RUN_BASE_REQUIRED_FILES)
-    if required_kpi_deferred:
-        files_to_validate.extend(rel_path for rel_path in RUN_KPI_REQUIRED_FILES if (run_dir / rel_path).exists())
-    else:
-        files_to_validate.extend(RUN_KPI_REQUIRED_FILES)
+    files_to_validate.extend(required_kpi_files)
+    files_to_validate.extend(
+        rel_path for rel_path in RUN_KPI_REQUIRED_FILES if rel_path not in required_kpi_files and (run_dir / rel_path).exists()
+    )
     for rel_path in files_to_validate:
         path = run_dir / rel_path
         if rel_path == "run_manifest.json":
@@ -432,12 +432,16 @@ def validate_run_folder(
         check_rolling_window_closeout_evidence(issues, run_dir, run_manifest, gate_report)
 
 
-def run_required_kpi_deferred(run_manifest: Any, gate_report: Any) -> bool:
+def required_run_kpi_files(run_manifest: Any, gate_report: Any) -> tuple[str, ...]:
     if not isinstance(run_manifest, dict) or not isinstance(gate_report, dict):
-        return False
+        return RUN_KPI_REQUIRED_FILES
+    if gate_report.get("decision") in CLOSEOUT_DECISIONS:
+        return RUN_KPI_REQUIRED_FILES
     if run_manifest.get("status") not in RUN_STATUSES_WITH_DEFERRED_REQUIRED_KPI:
-        return False
-    return gate_report.get("decision") not in CLOSEOUT_DECISIONS
+        if run_manifest.get("status") in RUN_STATUSES_WITH_DEFERRED_REQUIRED_MT5_KPI:
+            return ("kpi/proxy.json",)
+        return RUN_KPI_REQUIRED_FILES
+    return ()
 
 
 def check_rolling_window_closeout_evidence(

@@ -1,14 +1,14 @@
 schema: axiom_rift_synthesis_v1
 template: false
-status: run_open_pending_proxy
+status: mt5_probe_attempts
 synthesis_id: SC0007
 synthesis_slug: post_sc0006_c0031_c0037_mixed_evidence_synthesis
 synthesis_level: synthesis_7
 opened_at_utc: '2026-07-05T14:18:00Z'
 closed_at_utc: null
 synthesis_question:
-  summary: synthesize post-SC0006 evidence from C0031 through C0037 before choosing the
-    next synthesis run or major campaign axis
+  summary: synthesize post-SC0006 evidence from C0031 through C0037 before choosing the next
+    synthesis run or major campaign axis
   boundary: use only closed campaign and run evidence from C0031 through C0037; treat C0037
     R0003 as retained candidate evidence only; preserve unrestricted discovery of labels,
     features, model families, objectives, and trade shapes; do not create selected, economics,
@@ -40,10 +40,10 @@ run_index:
   closed_runs: []
   next_run_candidate:
     run_id: SR0001
-    direction: produce_sc0007_sr0001_proxy_evidence
-    reason: SR0001 was opened with a non-adjacent pre-open decision; next work is proxy
-      evidence before mandatory MT5 paired validation.
-    status: active_run_open_pending_proxy
+    direction: produce_sc0007_sr0001_mt5_logic_parity_evidence
+    reason: SR0001 proxy evidence is recorded; next work is mandatory MT5 logic parity before
+      any hypothesis judgment.
+    status: active_run_open
 stream_policy:
   stream: synthesis
   independent_from_campaign_stream: true

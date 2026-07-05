@@ -2659,3 +2659,32 @@ decisions:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
+
+- decision_id: dec_20260705_produce_sc0007_sr0001_proxy_evidence
+  created_local_date: '2026-07-05'
+  status: active
+  decision: produce_sc0007_sr0001_proxy_evidence
+  refines:
+  - dec_20260705_open_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - sc0007_sr0001_proxy_reranks_c0037_r0003_candidate_schedule_entries_with_c0031_through_c0036_negative_memory_context
+  - source_oos_pnl_and_source_proxy_pnl_are_not_used_for_entry_selection
+  - proxy_trade_count_3097_and_entries_per_active_day_6.025292_are_reference_proxy_evidence_only
+  - proxy_net_pnl_points_-816.62_and_profit_factor_0.96836_do_not_create_selection_or_economics_claims
+  - weak_or_strong_proxy_must_continue_to_mt5_logic_parity_proxy_vs_mt5_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - next_work_is_produce_sc0007_sr0001_mt5_logic_parity_evidence
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

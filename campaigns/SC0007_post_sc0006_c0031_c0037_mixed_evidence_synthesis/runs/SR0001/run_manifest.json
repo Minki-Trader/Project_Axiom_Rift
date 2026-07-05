@@ -16,9 +16,12 @@
   },
   "evidence_paths": {
     "artifact_lineage": "artifact_lineage.json",
-    "gate_report": "gate_report.json"
+    "gate_report": "gate_report.json",
+    "negative_context_synthesis_summary": "artifacts/sc0007_sr0001_negative_context_synthesis_summary.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/sc0007_sr0001_proxy_trades.csv"
   },
-  "gate_status": "open_pending_proxy",
+  "gate_status": "proxy_recorded_pending_mt5",
   "hypothesis_variant": {
     "summary": "post_sc0006_price_memory_negative_context_synthesis",
     "variant_boundary": "tests whether C0037 R0003 price-memory-density candidate schedule entries can be re-ranked by C0031-C0036 recent negative-memory same-direction and opposite-direction schedule context plus C0037 robustness fragility evidence; not a C0037 threshold, score, cost-buffer, stop, target, hold, session, activity, spread, capital, monthly filter, or retry nudge"
@@ -124,7 +127,7 @@
     "c0037_ig002_price_memory_density_robustness_fragility_lesson",
     "c0037_ig003_price_memory_density_monthly_distribution_hardening_negative_memory"
   ],
-  "status": "open_pending_proxy",
+  "status": "mt5_probe_ready",
   "surfaces": {
     "feature": {
       "changed_from_synthesis_queue": true,
