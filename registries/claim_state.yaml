@@ -98,41 +98,41 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: null
+active_campaign: campaigns/C0046_intraday_flow_convexity_release_discovery
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_sc0008_sr0001_with_candidate_evidence
+  id: close_c0046_r0001_with_candidate_evidence
   status: completed
-  recorded_at_source: campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis/runs/SR0001/gate_report.json
+  recorded_at_source: campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0001/gate_report.json
   evidence_status: closed_with_candidate_evidence
+  active_campaign: campaigns/C0046_intraday_flow_convexity_release_discovery
   active_synthesis: null
   active_run: null
   negative_memory_recorded: false
   candidate_evidence_retained: true
-  entries_per_active_day: 7.259188
-  proxy_net_pnl_points: 18266.16
-  proxy_profit_factor: 1.648274
-  mt5_tick_net_pnl: 187.75
-  mt5_tick_profit_factor: 1.662538
-  profitable_fold_count: 8
+  entries_per_active_day: 7.794828
+  proxy_net_pnl_points: 15067.02
+  proxy_profit_factor: 1.466084
+  mt5_tick_net_pnl: 155.23
+  mt5_tick_profit_factor: 1.473753
+  profitable_fold_count: 9
   losing_fold_count: 0
-  zero_trade_fold_count: 1
-  next_required_action: choose_c0046_new_major_hypothesis_after_sc0008_closeout
+  next_required_action: decide_c0046_r0002_or_close_c0046_after_r0001
   claim_boundary:
     claim_authority: false
-    selected: false
-    label_selected: false
-    feature_set_selected: false
-    model_selected: false
-    trade_logic_selected: false
-    runtime_probe_completed: false
     economics_pass: false
+    feature_set_selected: false
+    label_selected: false
+    live_ready: false
     materialization_ready: false
-    runtime_authority: false
+    model_selected: false
     onnx_ready: false
     promotion_ready: false
-    live_ready: false
+    runtime_authority: false
+    runtime_probe_completed: false
+    selected: false
+    trade_logic_selected: false
 active_truth:
   contracts_dir: contracts
   configs_dir: configs

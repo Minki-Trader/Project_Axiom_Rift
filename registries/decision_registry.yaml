@@ -3795,3 +3795,90 @@ decisions:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
+- decision_id: dec_20260706_choose_c0046_intraday_flow_convexity_release_after_sc0008
+  created_local_date: '2026-07-06'
+  status: active
+  decision: choose_c0046_intraday_flow_convexity_release_after_sc0008_closeout
+  refines:
+  - dec_20260706_close_sc0008_with_candidate_evidence_after_sr0001
+  - dec_20260705_decision_intelligence_layer
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - sc0008_sr0001_retained_candidate_evidence_but_did_not_create_selected_economics_runtime_materialization_onnx_promotion_or_live_claims
+  - remaining_sc0008_or_c0045_work_would_be_adjacent_rerank_cost_gap_threshold_materialization_onnx_monthly_filter_stop_target_hold_activity_spread_session_capital_or_retry_hardening
+  - c0046_opens_a_non_adjacent_signed_flow_convexity_pressure_build_and_release_acceptance_major_hypothesis
+  - labels_features_models_objectives_and_trade_shapes_remain_discovery_variables_until_evidence_based_freeze
+  - early_discovery_remains_fixed_lot_and_equity_percent_sizing_is_deferred
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260706_open_c0046_r0001_flow_convexity_release_rank_run
+  created_local_date: '2026-07-06'
+  status: active
+  decision: open_c0046_r0001_fold_local_intraday_flow_convexity_release_rank_run
+  refines:
+  - dec_20260706_choose_c0046_intraday_flow_convexity_release_after_sc0008
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0001_declares_model_feature_trade_logic_and_label_surfaces_for_fold_local_signed_flow_convexity_release_rank
+  - pre_open_decision_records_novelty_score_4_low_adjacent_tuning_risk_high_information_gain_and_clear_mt5_portability
+  - run_is_open_pending_proxy_and_proxy_result_cannot_skip_mt5_logic_parity_tick_execution_divergence_or_fold_isolated_closeout_evidence
+  - schedule_replay_validation_reuses_existing_thin_mt5_ea_without_creating_runtime_or_materialization_authority
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260706_close_c0046_r0001_with_candidate_evidence
+  created_local_date: '2026-07-06'
+  status: active
+  decision: close_c0046_r0001_with_candidate_evidence
+  refines:
+  - dec_20260706_open_c0046_r0001_flow_convexity_release_rank_run
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0001_completed_proxy_mt5_logic_parity_proxy_vs_mt5_parity_mt5_tick_execution_divergence_and_fold_isolated_tick_and_divergence_evidence
+  - proxy_net_pnl_points_15067.02_profit_factor_1.466084_entries_per_active_day_7.794828
+  - mt5_tick_net_pnl_155.23_profit_factor_1.473753_trade_count_4516
+  - fold_isolated_tick_has_9_profitable_and_0_losing_folds_with_worst_fold_net_pnl_2.04
+  - tick_execution_worsened_logic_by_-64.89_total_net_pnl_with_0_tick_better_and_9_tick_worse_folds
+  - closeout_records_candidate_evidence_retained_not_selection_or_economics_pass
+  - next_work_is_decide_c0046_r0002_or_close_c0046_after_r0001
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    economics_pass: false
+    feature_set_selected: false
+    label_selected: false
+    live_ready: false
+    materialization_ready: false
+    model_selected: false
+    onnx_ready: false
+    promotion_ready: false
+    runtime_authority: false
+    runtime_probe_completed: false
+    selected: false
+    trade_logic_selected: false

@@ -1,0 +1,94 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: proxy_exploration
+campaign_id: C0046
+campaign_slug: intraday_flow_convexity_release_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-05T22:38:41Z'
+closed_at_utc: null
+hypothesis:
+  summary: discover whether closed-bar intraday signed flow convexity and pressure-release
+    states can rank FPMarkets US100 M5 entries
+  boundary: closed-bar signed close-flow, body-flow, acceleration, flow-energy contraction
+    or expansion, prior opposing pressure build, immediate release impulse, wick acceptance
+    or rejection, day pressure balance, session progress, and spread-flow stress; not C0045
+    regression-channel residual, SC0008 rerank, C0044 extreme recency gradient, C0043 range
+    shock digest, C0042 path symmetry imbalance, C0041 autocorrelation decay, C0040 return
+    distribution shape, C0039 moving-average ribbon phase, C0038 dwell transition timing,
+    threshold, stop, target, hold, session, activity, spread, capital, monthly filter, materialization,
+    ONNX, or retry-only work
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - economics_pass
+  - materialization_ready
+  - onnx_ready
+  - final_sizing_rule
+  - equity_percent_sizing_rescue
+  - c0045_regression_channel_residual_hardening
+  - sc0008_candidate_rerank_hardening
+  - threshold_or_score_filter_rescue
+required_surfaces:
+  model:
+    status: variable
+    summary: fold-local linear rank surface for intraday signed flow convexity and pressure-release
+      candidates
+  feature:
+    status: variable
+    summary: closed M5 signed flow, flow acceleration, energy contraction or expansion, pressure
+      build, release impulse, body and wick acceptance, day pressure, session, and spread-flow
+      stress features
+  trade_logic:
+    status: variable
+    summary: fixed-lot dual-direction top signed-flow convexity release schedule replay candidates
+      per active day
+  label:
+    status: variable
+    summary: directional pressure-release quality with target-first reward, early follow-through
+      reward, adverse path, churn, giveback, and spread penalties
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: R0002
+    direction: decide_c0046_r0002_or_close_c0046_after_r0001
+    reason: R0001 retained candidate evidence after complete proxy, MT5 logic parity, tick
+      execution, execution divergence, and fold-isolated validation; next work must choose
+      a non-adjacent C0046 variant or close the campaign without stronger claims.
+    status: candidate_decision_required
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_checked
+  usable_ingredient_group_count: 0
+  readiness_notes: []
+closeout:
+  status: open
+  close_reason: null
+  evidence_paths:
+  - runs/R0001/gate_report.json
+  - runs/R0001/kpi/proxy.json
+  - runs/R0001/kpi/mt5_logic_parity.json
+  - runs/R0001/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0001/kpi/mt5_tick.json
+  - runs/R0001/kpi/execution_divergence.json
+  - runs/R0001/kpi/mt5_tick_by_fold.json
+  - runs/R0001/kpi/execution_divergence_by_fold.json
+  remaining_question: decide_c0046_r0002_or_close_c0046_after_r0001
+claim_boundary:
+  claim_authority: false
+  economics_pass: false
+  feature_set_selected: false
+  label_selected: false
+  live_ready: false
+  materialization_ready: false
+  model_selected: false
+  onnx_ready: false
+  promotion_ready: false
+  runtime_authority: false
+  runtime_probe_completed: false
+  selected: false
+  trade_logic_selected: false

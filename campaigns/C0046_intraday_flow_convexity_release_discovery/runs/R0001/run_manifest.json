@@ -1,0 +1,232 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-05T22:57:31Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "candidate_evidence": {
+      "asset_type": "candidate_evidence",
+      "candidate_status": "recorded_not_selected",
+      "economics_pass": false,
+      "evidence_paths": [
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday signed flow convexity pressure-build and release acceptance rank over closed M5 bars",
+      "next_boundary": "R0001 remains unselected because native materialization, ONNX portability, adverse cost stress, and historical repo lineage debt are unresolved; next work must decide whether a non-adjacent C0046 R0002 question exists or close the campaign without stronger claims",
+      "onnx_ready": false,
+      "reason_candidate_evidence": "target-range activity, positive proxy, passed schedule replay parity, positive MT5 tick net PnL, and nine profitable fold-isolated MT5 tick folds",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "candidate_evidence",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0001 produced 9 profitable fold-isolated MT5 tick folds, total tick net PnL 155.23, worst fold rw_001 net PnL 2.04, and target-range activity."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution worsened closed-bar logic by -64.89 total net PnL, with 0 tick-better folds and 9 tick-worse folds."
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "gate_report.json",
+          "summary": "Native materialization, ONNX portability, adverse cost stress, and historical lineage debt remain unresolved before any stronger claim."
+        }
+      ]
+    },
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "candidate_evidence_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
+    "closed_at_utc": "2026-07-05T22:57:31Z",
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "economics_shift_status": "tick_worse_than_logic",
+      "entries_per_active_day": 7.794828,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "long_trade_count_proxy": 1643,
+      "losing_fold_count": 0,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.995935,
+      "minimum_exit_reason_match_rate": 0.788306,
+      "minimum_exit_time_direction_match_rate": 0.820565,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": 220.12,
+      "mt5_logic_profit_factor": 1.666203,
+      "mt5_logic_trade_count": 4521,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_max_drawdown_percent": 0.844,
+      "mt5_tick_net_pnl": 155.23,
+      "mt5_tick_profit_factor": 1.473753,
+      "mt5_tick_trade_count": 4516,
+      "profitable_fold_count": 9,
+      "proxy_expectancy_points_per_entry": 3.332674,
+      "proxy_net_pnl_points": 15067.02,
+      "proxy_profit_factor": 1.466084,
+      "proxy_trade_count": 4521,
+      "short_trade_count_proxy": 2878,
+      "tick_better_fold_count": 0,
+      "tick_minus_logic_net_pnl": -64.89,
+      "tick_minus_logic_trade_count": -5,
+      "tick_worse_fold_count": 9,
+      "total_tick_minus_logic_net_pnl": -64.89,
+      "total_tick_net_pnl": 155.23,
+      "total_tick_trade_count": 4516,
+      "worst_fold_id": "rw_001",
+      "worst_fold_max_drawdown_percent": 0.752,
+      "worst_fold_net_pnl": 2.04,
+      "worst_tick_minus_logic_fold_id": "rw_001",
+      "worst_tick_minus_logic_net_pnl": -11.55
+    },
+    "status": "closed_with_candidate_evidence"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "intraday_flow_convexity_release_summary": "artifacts/c0046_r0001_flow_convexity_release_summary.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0046_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0046_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "gate_status": "closed_with_candidate_evidence",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday signed flow convexity and pressure-release rank run",
+    "variant_boundary": "R0001 opens a new major C0046 signed-flow pressure-release surface after SC0008 closeout; it changes model, feature, trade logic, and label surfaces and is not C0045 regression-channel residual hardening, SC0008 rerank hardening, threshold, window, stop, target, hold, session, activity, spread, capital, monthly filter, materialization, ONNX, or retry-only work."
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "next_required_action": "decide_c0046_r0002_or_close_c0046_after_r0001",
+    "notes": [
+      "MT5 validation remains mandatory even if proxy KPI is weak.",
+      "Schedule replay is used only for paired validation and does not create runtime, materialization, ONNX, promotion, or live authority."
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-05T22:38:41Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "This run introduces signed flow convexity, pressure build, release impulse, body and wick acceptance, and day pressure features; it is not a threshold, window, stop, target, hold, session, spread, capital, monthly filter, materialization, ONNX, or retry nudge.",
+    "adjacent_tuning_risk": "low",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis/runs/SR0001/gate_report.json",
+      "campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0003/gate_report.json",
+      "campaigns/C0044_intraday_extreme_recency_gradient_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0043_intraday_range_shock_digest_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "pre_open_decision_id": "POD-C0046-R0001",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "passed",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "Tests whether closed M5 signed flow acceleration, pressure build, and release acceptance can rank next-bar schedule entries under the same proxy plus mandatory MT5 paired validation rules."
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "Proxy output is reference evidence and cannot stop MT5 validation."
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "source_ingredient_ids": [],
+  "status": "closed_with_candidate_evidence",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": false,
+      "summary": "closed M5 signed flow returns, acceleration, energy contraction or expansion, pressure build, release impulse, body and wick acceptance, day pressure, session progress, and spread-flow stress"
+    },
+    "label": {
+      "changed_from_campaign_default": false,
+      "summary": "directional signed-flow release quality with target-first reward, early follow-through reward, adverse excursion, churn, giveback, and spread penalties"
+    },
+    "model": {
+      "changed_from_campaign_default": false,
+      "summary": "fold-local linear rank surface fit on train-is signed-flow pressure-release candidates"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": false,
+      "summary": "fixed-lot dual-direction top signed-flow convexity release schedule replay candidates per active day"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0046"
+}

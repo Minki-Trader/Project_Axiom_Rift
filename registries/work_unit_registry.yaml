@@ -15,9 +15,10 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0046
-    active_work_unit: null
-    open_work_units: []
+    next_id: C0047
+    active_work_unit: campaigns/C0046_intraday_flow_convexity_release_discovery
+    open_work_units:
+    - campaigns/C0046_intraday_flow_convexity_release_discovery
     closed_work_units:
     - campaigns/C0001_regime_response_discovery
     - campaigns/C0002_score_conditioned_intraday_edge
