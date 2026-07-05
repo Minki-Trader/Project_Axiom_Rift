@@ -2,13 +2,13 @@ schema: axiom_rift_decision_cursor_v1
 status: active
 encoding: ascii_only
 updated_local_date: '2026-07-05'
-canonical_source: campaigns/SC0006_post_c0030_negative_memory_synthesis/synthesis.yaml
-canonical_status: open
-current_decision: open_sc0006_sr0001_post_c0030_negative_memory_synthesis_run
-active_campaign: campaigns/C0030_intraday_vwap_repricing_pressure_discovery
+canonical_source: campaigns/SC0006_post_c0030_negative_memory_synthesis/runs/SR0001/gate_report.json
+canonical_status: closed_no_candidate
+current_decision: choose_c0031_new_major_hypothesis_after_sc0006_closeout
+active_campaign: null
 active_run: null
-active_synthesis: campaigns/SC0006_post_c0030_negative_memory_synthesis
-next_required_action: open_sc0006_sr0001_post_c0030_negative_memory_synthesis_run
+active_synthesis: null
+next_required_action: choose_c0031_new_major_hypothesis_after_sc0006_closeout
 terminal_evidence_priority:
   enabled: true
   resolved_from:
@@ -27,14 +27,24 @@ terminal_evidence_priority:
   stale_pointer_rule: terminal_run_receipt_outranks_planning_pointer
   reentry_completed_log_role: history_only_not_decision_authority
 current_evidence_summary:
-  source_campaign: campaigns/C0030_intraday_vwap_repricing_pressure_discovery
   source_synthesis: campaigns/SC0006_post_c0030_negative_memory_synthesis
-  current_task: open_sc0006_sr0001_post_c0030_negative_memory_synthesis_run
+  current_task: choose_c0031_new_major_hypothesis_after_sc0006_closeout
   active_run: null
-  active_run_status: not_opened
-  synthesis_terminal_receipt_available: false
-  evidence_status: synthesis_open
+  active_run_status: closed_no_candidate
+  synthesis_terminal_receipt_available: true
+  evidence_status: closed_no_candidate
   synthesis_family: post_c0030_negative_memory_synthesis
+  entries_per_active_day: 7.805172
+  proxy_trade_count: 4527
+  proxy_net_pnl_points: -21971.56
+  proxy_profit_factor: 0.592808
+  mt5_tick_net_pnl: -208.34
+  mt5_tick_profit_factor: 0.611856
+  mt5_tick_trade_count: 4512
+  profitable_fold_count: 0
+  losing_fold_count: 9
+  worst_fold_id: rw_009
+  worst_fold_net_pnl: -37.99
   source_campaign_ids:
   - C0023
   - C0024
@@ -45,8 +55,8 @@ current_evidence_summary:
   - C0029
   - C0030
   ingredient_group_count: 8
-  note: SC0006 opened from eight post-SC0005 closed campaign negative-memory groups; SR0001
-    is queued but not opened.
+  note: SC0006 SR0001 closed no-candidate; next work is to choose a materially new C0031 major
+    hypothesis axis.
   source_synthesis_manifest: campaigns/SC0006_post_c0030_negative_memory_synthesis/synthesis.yaml
 repo_debt_scope:
   global_repo_state_ok: false
@@ -87,23 +97,19 @@ claim_boundary_snapshot:
   selected: false
   trade_logic_selected: false
 next_decision_basis:
-- path: campaigns/SC0006_post_c0030_negative_memory_synthesis/synthesis_queue.yaml
-  role: active_synthesis_queue
-  summary: SC0006 SR0001 is drafted as a post-C0030 negative-memory conflict synthesis run;
-    opening it commits to proxy plus mandatory MT5 paired and fold-isolated validation.
-- path: campaigns/C0030_intraday_vwap_repricing_pressure_discovery/runs/R0001/gate_report.json
+- path: campaigns/SC0006_post_c0030_negative_memory_synthesis/runs/SR0001/gate_report.json
   role: latest_terminal_negative_memory
-  summary: C0030 closed no-candidate after negative proxy, negative MT5 tick, and all nine
-    fold-isolated tick folds lost; synthesis readiness is now met
-- path: campaigns/C0029_intraday_fractal_pivot_transition_discovery/runs/R0001/gate_report.json
+  summary: SC0006 SR0001 closed no-candidate after negative proxy, negative MT5 tick, and
+    all nine fold-isolated tick folds lost.
+- path: campaigns/C0030_intraday_vwap_repricing_pressure_discovery/runs/R0001/gate_report.json
   role: prior_terminal_negative_memory
-  summary: C0029 closed no-candidate after all nine fold-isolated tick folds lost
+  summary: C0030 closed no-candidate and triggered SC0006 synthesis readiness.
 recent_terminal_evidence:
+- path: campaigns/SC0006_post_c0030_negative_memory_synthesis/runs/SR0001/gate_report.json
+  status: closed_no_candidate
+  summary: SC0006 SR0001 closed no-candidate after negative proxy, negative MT5 tick, and
+    all nine fold-isolated tick folds lost.
 - path: campaigns/C0030_intraday_vwap_repricing_pressure_discovery/runs/R0001/gate_report.json
   status: closed_no_candidate
   summary: C0030 closed no-candidate after negative proxy, negative MT5 tick, and all nine
-    fold-isolated tick folds lost
-- path: campaigns/C0029_intraday_fractal_pivot_transition_discovery/runs/R0001/gate_report.json
-  status: closed_no_candidate
-  summary: C0029 closed no-candidate after negative proxy, negative MT5 tick, and all nine
-    fold-isolated tick folds lost
+    fold-isolated tick folds lost.

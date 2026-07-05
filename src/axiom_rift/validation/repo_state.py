@@ -69,10 +69,12 @@ def validate_repo_state(root: Path = PROJECT_ROOT) -> RepoStateValidationResult:
     check_forbidden_claims(issues, reentry_path, reentry)
 
     active_campaign_rel = active_campaign_from_state(claim_state, reentry)
+    allow_no_active_campaign = no_active_campaign_after_closeout_allowed(claim_state, reentry)
     campaign_root = resolve_repo_path(root, active_campaign_rel) if active_campaign_rel else None
     campaign = None
     if campaign_root is None:
-        issues.add("active_campaign_missing", claim_state_path, "active campaign is not recorded")
+        if not allow_no_active_campaign:
+            issues.add("active_campaign_missing", claim_state_path, "active campaign is not recorded")
     elif not campaign_root.exists():
         issues.add("active_campaign_path_missing", campaign_root, "active campaign path does not exist")
     else:
@@ -82,7 +84,15 @@ def validate_repo_state(root: Path = PROJECT_ROOT) -> RepoStateValidationResult:
     check_active_campaign_alignment(issues, claim_state, reentry)
     latest_run = latest_run_from_state(root, issues, claim_state)
     check_active_run_alignment(issues, claim_state, campaign, campaign_root, latest_run)
-    check_latest_operation_alignment(issues, root, claim_state, reentry, campaign, latest_run)
+    check_latest_operation_alignment(
+        issues,
+        root,
+        claim_state,
+        reentry,
+        campaign,
+        latest_run,
+        allow_no_active_campaign=allow_no_active_campaign,
+    )
     if latest_run is not None:
         check_latest_run_evidence(issues, latest_run)
 
@@ -182,6 +192,26 @@ def active_synthesis_from_state(claim_state: Any, reentry: Any) -> str | None:
     return None
 
 
+def no_active_campaign_after_closeout_allowed(claim_state: Any, reentry: Any) -> bool:
+    active_campaign = active_campaign_from_state(claim_state, reentry)
+    active_run = get_path(claim_state, "active_run")
+    if active_campaign or active_run:
+        return False
+    evidence_status = get_path(claim_state, "latest_operation.evidence_status")
+    if evidence_status not in {"closed_no_candidate", "closed_with_candidate_evidence", "closed_non_portable"}:
+        return False
+    next_action = get_path(claim_state, "latest_operation.next_required_action")
+    if not isinstance(next_action, str) or not next_action:
+        next_action = first_task(reentry)
+    if not isinstance(next_action, str):
+        return False
+    return (
+        next_action.startswith("choose_c")
+        or next_action.startswith("open_c")
+        or next_action == "choose_or_open_next_major_campaign"
+    )
+
+
 def check_active_campaign_alignment(issues: IssueCollector, claim_state: Any, reentry: Any) -> None:
     observed = {
         "claim_state.active_campaign": get_path(claim_state, "active_campaign"),
@@ -244,6 +274,8 @@ def check_latest_operation_alignment(
     reentry: Any,
     campaign: Any,
     latest_run: Path | None,
+    *,
+    allow_no_active_campaign: bool = False,
 ) -> None:
     gate_report = None
     if latest_run is not None and (latest_run / "gate_report.json").exists():
@@ -268,7 +300,7 @@ def check_latest_operation_alignment(
         expected_values["synthesis_queue.queue[0].next_action"] = first_synthesis_queue_next_action(
             synthesis_queue
         )
-    else:
+    elif not allow_no_active_campaign:
         expected_values["campaign.closeout.remaining_question"] = get_path(campaign, "closeout.remaining_question")
     if latest_run is not None and not latest_operation_is_active_synthesis:
         expected_values["gate_report.next_action"] = get_path(gate_report, "next_action")

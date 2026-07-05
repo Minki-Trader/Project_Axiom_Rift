@@ -106,6 +106,44 @@ class RepoStateValidationTest(unittest.TestCase):
             self.assertTrue(result.ok, result.to_dict())
             self.assertNotIn("next_action_mismatch", issue_codes(result))
 
+    def test_no_active_campaign_after_closeout_can_choose_next_major_campaign(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = make_repo_state(Path(temp_dir))
+            next_action = "choose_c0002_new_major_hypothesis_after_c0001_closeout"
+
+            claim_path = root / "registries" / "claim_state.yaml"
+            claim = yaml.safe_load(claim_path.read_text(encoding="ascii"))
+            claim["active_campaign"] = None
+            claim["active_run"] = None
+            claim["latest_operation"]["recorded_at_source"] = (RUN_REL / "gate_report.json").as_posix()
+            claim["latest_operation"]["evidence_status"] = "closed_no_candidate"
+            claim["latest_operation"]["next_required_action"] = next_action
+            write_yaml(claim_path, claim)
+
+            reentry_path = root / "registries" / "reentry.yaml"
+            reentry = yaml.safe_load(reentry_path.read_text(encoding="ascii"))
+            reentry["project"]["active_campaign"] = None
+            reentry["next_work"]["campaign"] = None
+            reentry["next_work"]["tasks"] = [next_action]
+            write_yaml(reentry_path, reentry)
+
+            manifest_path = root / RUN_REL / "run_manifest.json"
+            manifest = json.loads(manifest_path.read_text(encoding="ascii"))
+            manifest["status"] = "closed_no_candidate"
+            write_json(manifest_path, manifest)
+
+            gate_path = root / RUN_REL / "gate_report.json"
+            gate = json.loads(gate_path.read_text(encoding="ascii"))
+            gate["decision"] = "close_no_candidate"
+            gate["next_action"] = next_action
+            write_json(gate_path, gate)
+
+            result = validate_repo_state(root)
+
+            self.assertTrue(result.ok, result.to_dict())
+            self.assertNotIn("active_campaign_missing", issue_codes(result))
+            self.assertNotIn("next_action_missing", issue_codes(result))
+
     def test_missing_evidence_path_is_blocking(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = make_repo_state(Path(temp_dir))

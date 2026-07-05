@@ -79,7 +79,7 @@ data_state:
     tail_holdout_partial_start: 2026-05-01 01:00:00
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
-claim_boundary: &id001
+claim_boundary:
   claim_authority: false
   economics_pass: false
   feature_set_selected: false
@@ -98,30 +98,42 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: campaigns/C0030_intraday_vwap_repricing_pressure_discovery
-active_synthesis: campaigns/SC0006_post_c0030_negative_memory_synthesis
+active_campaign: null
+active_synthesis: null
 active_run: null
 latest_operation:
-  id: open_sc0006_post_c0030_negative_memory_synthesis
+  id: close_sc0006_no_candidate_after_sr0001
   status: completed
-  recorded_at_source: campaigns/SC0006_post_c0030_negative_memory_synthesis/synthesis.yaml
-  evidence_status: synthesis_open
-  source_campaign_count: 8
-  usable_ingredient_group_count: 8
-  source_campaign_ids:
-  - C0023
-  - C0024
-  - C0025
-  - C0026
-  - C0027
-  - C0028
-  - C0029
-  - C0030
-  synthesis_question: post_c0030_negative_memory_synthesis
-  active_synthesis: campaigns/SC0006_post_c0030_negative_memory_synthesis
+  recorded_at_source: campaigns/SC0006_post_c0030_negative_memory_synthesis/runs/SR0001/gate_report.json
+  evidence_status: closed_no_candidate
+  active_synthesis: null
   active_run: null
-  next_required_action: open_sc0006_sr0001_post_c0030_negative_memory_synthesis_run
-  claim_boundary: *id001
+  source_synthesis: campaigns/SC0006_post_c0030_negative_memory_synthesis
+  run_id: SR0001
+  entries_per_active_day: 7.805172
+  proxy_trade_count: 4527
+  proxy_net_pnl_points: -21971.56
+  proxy_profit_factor: 0.592808
+  mt5_tick_net_pnl: -208.34
+  mt5_tick_profit_factor: 0.611856
+  profitable_fold_count: 0
+  losing_fold_count: 9
+  failure_asset_recorded: true
+  next_required_action: choose_c0031_new_major_hypothesis_after_sc0006_closeout
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
 active_truth:
   contracts_dir: contracts
   configs_dir: configs

@@ -1,11 +1,11 @@
 schema: axiom_rift_synthesis_v1
 template: false
-status: open
+status: closed_no_candidate
 synthesis_id: SC0006
 synthesis_slug: post_c0030_negative_memory_synthesis
 synthesis_level: synthesis_6
 opened_at_utc: '2026-07-05T07:40:33Z'
-closed_at_utc: null
+closed_at_utc: '2026-07-05T08:16:55Z'
 synthesis_question:
   summary: synthesize accumulated post-SC0005 negative memory from C0023 through C0030 before
     choosing the next major campaign axis
@@ -37,14 +37,18 @@ runs_root: runs/
 synthesis_run_id_format: SR0001
 run_index:
   active_run: null
-  opened_runs: []
-  closed_runs: []
+  opened_runs:
+  - runs/SR0001
+  closed_runs:
+  - runs/SR0001
   next_run_candidate:
-    run_id: SR0001
-    direction: open_sc0006_sr0001_post_c0030_negative_memory_synthesis_run
-    reason: SC0006 opened after C0023-C0030 supplied eight usable negative-memory ingredient
-      groups with explicit MT5 paired and fold-isolated evidence.
-    status: draft_queued
+    run_id: null
+    direction: choose_c0031_new_major_hypothesis_after_sc0006_closeout
+    reason: SR0001 closed no-candidate after negative proxy, negative aggregate MT5 tick,
+      and zero profitable fold-isolated MT5 tick folds; further SC0006 work would be adjacent
+      source-weight, fold-loss, recent-pressure, cluster-spacing, score, stop, target, hold,
+      activity, spread, session, capital, or retry tuning.
+    status: synthesis_closed_no_candidate
 stream_policy:
   stream: synthesis
   independent_from_campaign_stream: true
@@ -70,3 +74,75 @@ claim_boundary:
   onnx_ready: false
   promotion_ready: false
   live_ready: false
+closeout:
+  status: closed_no_candidate
+  close_reason: no_candidate_after_negative_proxy_negative_mt5_tick_and_zero_profitable_fold_isolated_tick_folds
+  evidence_paths:
+  - artifact_lineage.json
+  - run_manifest.json
+  - kpi/proxy.json
+  - kpi/mt5_logic_parity.json
+  - kpi/proxy_vs_mt5_logic_parity.json
+  - kpi/mt5_tick.json
+  - kpi/execution_divergence.json
+  - artifacts/sc0006_sr0001_proxy_trades.csv
+  - artifacts/sc0006_sr0001_negative_memory_synthesis_summary.json
+  - artifacts/sc0006_sr0001_schedule.csv
+  - kpi/mt5_tick_by_fold.json
+  - kpi/execution_divergence_by_fold.json
+  remaining_question: choose_c0031_new_major_hypothesis_after_sc0006_closeout
+  closed_at_utc: '2026-07-05T08:16:55Z'
+  decision_basis:
+    entries_per_active_day: 7.805172
+    proxy_net_pnl_points: -21971.56
+    proxy_profit_factor: 0.592808
+    proxy_expectancy_points_per_entry: -4.853448
+    proxy_trade_count: 4527
+    proxy_win_rate: 0.327369
+    mt5_logic_net_pnl: -279.62
+    mt5_logic_profit_factor: 0.53791
+    mt5_logic_trade_count: 4527
+    mechanical_parity_status: passed
+    intent_parity_status: passed_schedule_replay_boundary
+    mismatch_count: 0
+    mt5_tick_net_pnl: -208.34
+    mt5_tick_profit_factor: 0.611856
+    mt5_tick_max_drawdown_percent: 41.74
+    mt5_tick_trade_count: 4512
+    execution_divergence_status: recorded_with_divergence
+    economics_shift_status: tick_better_than_logic
+    tick_minus_logic_net_pnl: 71.28
+    mt5_tick_by_fold_status: completed
+    fold_count: 9
+    completed_fold_count: 9
+    profitable_fold_count: 0
+    losing_fold_count: 9
+    total_tick_net_pnl: -208.34
+    total_tick_trade_count: 4512
+    worst_fold_id: rw_009
+    worst_fold_net_pnl: -37.99
+    worst_fold_max_drawdown_percent: 7.6
+    execution_divergence_by_fold_status: completed
+    minimum_entry_key_match_rate: 0.992263
+    minimum_exit_reason_match_rate: 0.852998
+    minimum_exit_time_direction_match_rate: 0.866538
+    tick_better_fold_count: 9
+    tick_worse_fold_count: 0
+    total_tick_minus_logic_net_pnl: 71.28
+    worst_tick_minus_logic_fold_id: rw_006
+    worst_tick_minus_logic_net_pnl: 3.17
+    remaining_work_classification: post_c0030_negative_memory_conflict_source_weight_fold_loss_recent_pressure_cluster_score_stop_target_hold_activity_spread_session_capital_or_retry_nudge_not_next
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

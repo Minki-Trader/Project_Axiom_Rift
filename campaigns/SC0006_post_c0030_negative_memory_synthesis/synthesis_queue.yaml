@@ -1,12 +1,12 @@
 schema: axiom_rift_synthesis_queue_v1
 template: false
-status: open
+status: closed_no_candidate
 synthesis_id: SC0006
 queue:
 - synthesis_run_id: SR0001
-  status: draft
+  status: closed_no_candidate
   design_id: sc0006_sr0001_post_c0030_negative_memory_synthesis
-  opened_at_utc: null
+  opened_at_utc: '2026-07-05T07:58:49Z'
   source_ingredient_ids:
   - c0023_ig001_tick_participation_pressure_negative_memory
   - c0024_ig001_calendar_phase_rhythm_negative_memory
@@ -70,8 +70,9 @@ queue:
   - skip_mt5_after_proxy
   - create_selected_claim
   - create_runtime_or_onnx_claim
-  next_action: open_sc0006_sr0001_post_c0030_negative_memory_synthesis_run
-  last_completed_step: open_sc0006_post_c0030_negative_memory_synthesis
+  next_action: choose_c0031_new_major_hypothesis_after_sc0006_closeout
+  last_completed_step: close_sc0006_sr0001_no_candidate
+  closed_at_utc: '2026-07-05T08:16:55Z'
 claim_boundary:
   claim_authority: false
   selected: false
@@ -86,3 +87,21 @@ claim_boundary:
   onnx_ready: false
   promotion_ready: false
   live_ready: false
+closeout:
+  status: closed_no_candidate
+  closed_at_utc: '2026-07-05T08:16:55Z'
+  remaining_question: choose_c0031_new_major_hypothesis_after_sc0006_closeout
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

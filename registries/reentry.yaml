@@ -22,8 +22,8 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: campaigns/C0030_intraday_vwap_repricing_pressure_discovery
-  active_synthesis: campaigns/SC0006_post_c0030_negative_memory_synthesis
+  active_campaign: null
+  active_synthesis: null
 active_truth:
   contracts_dir: contracts
   config_dir: configs
@@ -113,8 +113,8 @@ data_state:
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
 next_work:
-  campaign: campaigns/C0030_intraday_vwap_repricing_pressure_discovery
-  synthesis: campaigns/SC0006_post_c0030_negative_memory_synthesis
+  campaign: null
+  synthesis: null
   completed:
   - fresh_export_us100_m5_max_available
   - record_source_path_decision_fresh_export
@@ -920,16 +920,26 @@ next_work:
   - review_c0030_r0001_tick_execution_kpi_and_closeout
   - close_c0030_r0001_no_candidate
   - open_sc0006_post_c0030_negative_memory_synthesis
-  tasks:
   - open_sc0006_sr0001_post_c0030_negative_memory_synthesis_run
+  - produce_sc0006_sr0001_proxy_evidence
+  - produce_sc0006_sr0001_mt5_logic_parity_evidence
+  - record_sc0006_sr0001_proxy_vs_mt5_logic_parity_evidence
+  - produce_sc0006_sr0001_mt5_tick_execution_evidence
+  - record_sc0006_sr0001_execution_divergence
+  - produce_sc0006_sr0001_fold_isolated_mt5_tick_kpi
+  - produce_sc0006_sr0001_fold_isolated_execution_divergence
+  - close_sc0006_sr0001_no_candidate
+  - close_sc0006_no_candidate_after_sr0001
+  tasks:
+  - choose_c0031_new_major_hypothesis_after_sc0006_closeout
   not_yet:
   - label_freeze
   - feature_set_freeze
   - model_training
   - mt5_runtime_claim
-  active_campaign: campaigns/C0030_intraday_vwap_repricing_pressure_discovery
+  active_campaign: null
   active_run: null
   run: null
 active_run: null
-active_campaign: campaigns/C0030_intraday_vwap_repricing_pressure_discovery
-active_synthesis: campaigns/SC0006_post_c0030_negative_memory_synthesis
+active_campaign: null
+active_synthesis: null
