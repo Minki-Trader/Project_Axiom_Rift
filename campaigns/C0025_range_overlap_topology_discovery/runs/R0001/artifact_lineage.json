@@ -1,0 +1,170 @@
+{
+  "artifact_records": [
+    {
+      "artifact_id": "A-C0025-R0001-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0025_r0001_probe",
+      "repo_relative_path": "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+      "sha256": "74ab7c03a89164f4784f89a591dbfc2af5611311e0dae8fb460fa8f16cb2a51f",
+      "source_inputs": [
+        "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "registries/rolling_windows.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0025-R0001-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0025_r0001_probe",
+      "repo_relative_path": "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/execution_divergence.json",
+      "sha256": "f2dfd9b076aea4b959d35ca2f5ba5905d9c017ce62018641a3521ab680cb9de9",
+      "source_inputs": [
+        "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+        "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/mt5_tick.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0025-R0001-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0025_r0001_probe",
+      "repo_relative_path": "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+      "sha256": "75f54b0a8b21e2bc858e6aadd11257d248905cc71eb3b19733a4920388b3a85c",
+      "source_inputs": [
+        "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/artifacts/c0025_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0025-R0001-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "mt5_logic_parity_input",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0025_r0001_probe",
+      "repo_relative_path": "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/artifacts/c0025_r0001_schedule.csv",
+      "sha256": "d020759de06bdc7ab56b244bf617a482c561dd4e0078121375e723ee7a7c5cff",
+      "source_inputs": [
+        "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0025-R0001-MT5-TICK-BY-FOLD-KPI",
+      "artifact_role": "mt5_tick_by_fold_kpi",
+      "artifact_type": "mt5_tick_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0025_r0001_probe",
+      "repo_relative_path": "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+      "sha256": "5befcbc692406f154989e9096c4caedbc77b787b62804e035aa4e5a592599afa",
+      "source_inputs": [
+        "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/artifacts/c0025_r0001_schedule.csv",
+        "registries/rolling_windows.yaml",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0025-R0001-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "mt5_tick",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0025_r0001_probe",
+      "repo_relative_path": "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/mt5_tick.json",
+      "sha256": "a49d8ec73d9d8039c94c0f3078d4e0d541f92ef169ec8b6e1a1835b5766df0a6",
+      "source_inputs": [
+        "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/artifacts/c0025_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0025-R0001-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0025_r0001_range_overlap_topology",
+      "repo_relative_path": "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/proxy.json",
+      "sha256": "897a0f437ba7c081fcc0376d20a8681e3930294183de0dd4188120430e9141db",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0025-R0001-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0025_r0001_range_overlap_topology",
+      "repo_relative_path": "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/artifacts/c0025_r0001_proxy_trades.csv",
+      "sha256": "3ea98e7f5dc02b565d9ed578f2605dc0d954bf9a326b6b834cf6d007438c08f8",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0025-R0001-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "proxy_vs_mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0025_r0001_probe",
+      "repo_relative_path": "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "98a70171672c1e28e6624fd25bfcfc594127ca72f2f71b2a4483ba11c2ba105e",
+      "source_inputs": [
+        "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/proxy.json",
+        "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/mt5_logic_parity.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0025-R0001-RANGE-OVERLAP-TOPOLOGY-SUMMARY",
+      "artifact_role": "range_overlap_topology_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0025_r0001_range_overlap_topology",
+      "repo_relative_path": "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/artifacts/c0025_r0001_range_overlap_topology_summary.json",
+      "sha256": "59aaa0f1d2c078683a0568497de827208f1f3b957a18737776e0fbf16179064b",
+      "source_inputs": [
+        "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "onnx_ready": false,
+    "runtime_authority": false,
+    "selected": false
+  },
+  "created_at_utc": "2026-07-05T04:00:50Z",
+  "deferred_with_reason": [],
+  "lineage_id": "L-C0025-R0001",
+  "run_id": "R0001",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "status": "closed_no_candidate",
+  "template": false,
+  "work_unit_id": "C0025"
+}

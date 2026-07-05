@@ -1,0 +1,196 @@
+{
+  "campaign_id": "C0025",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "commission_assumption": "broker_native",
+        "economics_claim_authority": false,
+        "execution_source": "mt5_strategy_tester",
+        "logic_parity_capital_override_applies": false,
+        "logic_parity_capital_override_reason": null,
+        "logic_parity_capital_override_usd": null,
+        "lot": "0.0100",
+        "runtime_baseline_starting_balance_usd": 500.0,
+        "slippage_source": "mt5_strategy_tester",
+        "spread_source": "mt5_strategy_tester",
+        "starting_balance_usd": 500.0
+      }
+    },
+    "direction_profile": {
+      "applies": true,
+      "fields": {
+        "closed_deal_count": 4373,
+        "long_entry_count": 3236,
+        "short_entry_count": 1137
+      }
+    },
+    "range_overlap_topology_schedule_profile": {
+      "applies": true,
+      "fields": {
+        "feature_set_selected": false,
+        "label_selected": false,
+        "model_selected": false,
+        "range_overlap_topology_source": "rolling_train_is_proxy_schedule",
+        "runtime_portability_claim": false,
+        "schedule_artifact_path": "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/artifacts/c0025_r0001_schedule.csv",
+        "schedule_rows": 4377
+      }
+    },
+    "runtime_reproducibility_profile": {
+      "applies": true,
+      "fields": {
+        "ea_mode": "schedule_replay_for_tick_execution",
+        "known_runtime_blockers": [],
+        "mt5_tester_status": "completed",
+        "runtime_data_availability_status": "tester_output_present"
+      }
+    },
+    "stability_profile": {
+      "applies": true,
+      "fields": {
+        "entry_count_by_fold": {
+          "rw_001": 477,
+          "rw_002": 493,
+          "rw_003": 488,
+          "rw_004": 485,
+          "rw_005": 473,
+          "rw_006": 496,
+          "rw_007": 501,
+          "rw_008": 476,
+          "rw_009": 484
+        },
+        "profit_count": 4373,
+        "trade_count_total": 4373
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": false,
+      "fields": {}
+    }
+  },
+  "created_at_utc": "2026-07-05T04:06:49Z",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "candidate quality must be established before materialization work freezes export requirements",
+      "claim_boundary": {
+        "claim_authority": false,
+        "onnx_ready": false,
+        "runtime_authority": false
+      },
+      "field": "native_mql_or_onnx_range_overlap_topology_surface",
+      "reason": "logic parity replays the proxy schedule; native model or ONNX materialization is not claimed at this stage",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "after fold-isolated MT5 tick evidence supports candidate quality"
+    }
+  ],
+  "missing_required_kpi_fields": [],
+  "mt5_date_end": "2026-04-30",
+  "mt5_date_start": "2024-02-01",
+  "mt5_execution_mode": "tick_execution",
+  "mt5_known_blockers": [],
+  "mt5_kpi_family": "mt5_tick",
+  "mt5_output_scope": null,
+  "mt5_probe_id": "MT5-C0025-R0001",
+  "mt5_probe_status": "completed",
+  "mt5_report_hashes": [
+    "7ab4c22ea5bdb77570d82b1a85c6514352f1c19332cc3ce72656de3f14cb97a3",
+    "26cf4b7a2cfa46f6ec0c4b752916445c9c92fff96c9bc84a1dc5c8d86bb314d0",
+    "de4d88236c99289f5ef5133ed02360ec7bb80ccc9e22c0f4f15c6c42525ec15e",
+    "d020759de06bdc7ab56b244bf617a482c561dd4e0078121375e723ee7a7c5cff"
+  ],
+  "mt5_report_paths": [
+    "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0025/R0001/tick_execution/mt5_status.csv",
+    "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0025/R0001/tick_execution/mt5_events.csv",
+    "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0025/R0001/tick_execution/mt5_deals.csv",
+    "campaigns/C0025_range_overlap_topology_discovery/runs/R0001/artifacts/c0025_r0001_schedule.csv"
+  ],
+  "mt5_status_fields": {
+    "balance": "355.27",
+    "campaign_id": "C0025",
+    "created_at": "2026.04.30 23:59:58",
+    "currency": "USD",
+    "detail": "R0001 MT5 schedule replay completed",
+    "entries": "4373",
+    "equity": "355.27",
+    "exit_evaluation": "tick_price",
+    "exits": "4373",
+    "leverage": "100",
+    "logical_entry_price_basis": "schedule_entry_bar_open",
+    "lot": "0.0100",
+    "magic": "1024001",
+    "max_hold_bars": "10",
+    "output_mode": "tick_execution",
+    "output_scope": "",
+    "period_seconds": "300",
+    "response_mode": "fold_local_range_overlap_topology_schedule_replay",
+    "run_id": "R0001",
+    "schedule_path": "AxiomRift\\C0025\\R0001\\schedule\\c0025_r0001_schedule.csv",
+    "schedule_rows": "4377",
+    "signals": "4373",
+    "skips": "4",
+    "status": "completed",
+    "symbol": "US100"
+  },
+  "mt5_symbol": "US100",
+  "mt5_terminal_identity": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075",
+  "mt5_tester_model": "real_ticks_model_4",
+  "mt5_tester_to_date": "2026-05-01",
+  "mt5_timeframe": "M5",
+  "required_kpis": {
+    "mt5_execution_mode": "tick_execution",
+    "mt5_exit_evaluation": "tick_price",
+    "mt5_expectancy_per_entry": -0.033096,
+    "mt5_max_drawdown_percent": 29.076,
+    "mt5_net_pnl": -144.73,
+    "mt5_output_mode": "tick_execution",
+    "mt5_profit_factor": 0.697357,
+    "mt5_trade_count": 4373,
+    "mt5_win_rate": 0.365653
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "runtime_config_path": "configs/runtime.yaml",
+  "runtime_config_sha256": "7549a904443d4d0a926e55579437391c58ee82facd3f364eef58a0ee9f5ddfc7",
+  "runtime_config_snapshot": {
+    "claim_boundary": {
+      "active_runtime_config_complete": true,
+      "live_ready": false,
+      "runtime_authority": false
+    },
+    "execution": {
+      "cost_behavior": "broker_native_until_contract_says_otherwise",
+      "default_lot": 0.01,
+      "position_management": "tick_runtime",
+      "signal_timing": "closed_m5_bar"
+    },
+    "mt5": {
+      "broker_server": "FPMarketsSC-Live",
+      "deposit": 500,
+      "deposit_currency": "USD",
+      "execution_mode": 0,
+      "leverage": 100,
+      "logic_parity_model": 2,
+      "metaeditor_exe": "C:/Program Files/MetaTrader 5/MetaEditor64.exe",
+      "symbol": "US100",
+      "terminal_data_dir": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075",
+      "terminal_exe": "C:/Program Files/MetaTrader 5/terminal64.exe",
+      "terminal_mode": "headless",
+      "tester_model": "real_ticks",
+      "tick_execution_model": 4,
+      "timeframe": "M5"
+    },
+    "schema": "axiom_rift_runtime_config_v1",
+    "status": "active_runtime_baseline"
+  },
+  "schema": "axiom_rift_mt5_tick_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0025"
+}

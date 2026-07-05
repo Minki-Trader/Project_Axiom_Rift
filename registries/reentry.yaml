@@ -7,7 +7,7 @@ read_budget:
   - registries/reentry.yaml
   - registries/claim_state.yaml
   conditional_files:
-    active_campaign: campaigns/C0024_calendar_phase_rhythm_discovery
+    active_campaign: campaigns/C0025_range_overlap_topology_discovery
     active_synthesis: null
     active_contracts: contracts/
     active_config: configs/
@@ -22,7 +22,7 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: campaigns/C0024_calendar_phase_rhythm_discovery
+  active_campaign: campaigns/C0025_range_overlap_topology_discovery
   active_synthesis: null
 active_truth:
   contracts_dir: contracts
@@ -113,7 +113,7 @@ data_state:
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
 next_work:
-  campaign: campaigns/C0024_calendar_phase_rhythm_discovery
+  campaign: campaigns/C0025_range_overlap_topology_discovery
   synthesis: null
   completed:
   - fresh_export_us100_m5_max_available
@@ -854,8 +854,19 @@ next_work:
   - produce_c0024_r0001_fold_isolated_execution_divergence
   - produce_c0024_r0001_mt5_logic_parity_evidence
   - close_c0024_r0001_no_candidate
+  - open_c0025_range_overlap_topology_discovery
+  - open_c0025_r0001_fold_local_range_overlap_topology_rank_run
+  - produce_c0025_r0001_proxy_evidence
+  - record_c0025_r0001_proxy_vs_mt5_logic_parity_evidence
+  - record_c0025_r0001_execution_divergence
+  - produce_c0025_r0001_mt5_tick_execution_evidence
+  - produce_c0025_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0025_r0001_fold_isolated_execution_divergence
+  - produce_c0025_r0001_mt5_logic_parity_evidence
+  - review_c0025_r0001_tick_execution_kpi_and_closeout
+  - close_c0025_r0001_no_candidate
   tasks:
-  - choose_c0025_new_major_hypothesis_after_c0024_closeout
+  - choose_c0026_new_major_hypothesis_after_c0025_closeout
   not_yet:
   - label_freeze
   - feature_set_freeze
@@ -863,6 +874,6 @@ next_work:
   - mt5_runtime_claim
   active_campaign: campaigns/C0024_calendar_phase_rhythm_discovery
   active_run: campaigns/C0024_calendar_phase_rhythm_discovery/runs/R0001
-active_run: campaigns/C0024_calendar_phase_rhythm_discovery/runs/R0001
-active_campaign: campaigns/C0024_calendar_phase_rhythm_discovery
+active_run: campaigns/C0025_range_overlap_topology_discovery/runs/R0001
+active_campaign: campaigns/C0025_range_overlap_topology_discovery
 active_synthesis: null
