@@ -2,13 +2,13 @@ schema: axiom_rift_decision_cursor_v1
 status: active
 encoding: ascii_only
 updated_local_date: '2026-07-06'
-canonical_source: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0001/gate_report.json
+canonical_source: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0002/gate_report.json
 canonical_status: closed_with_candidate_evidence
-current_decision: design_c0045_r0002_regression_channel_residual_directional_cost_buffer_hardening_run
+current_decision: design_c0045_r0003_regression_channel_residual_cost_slippage_stress_materialization_probe_run
 active_campaign: campaigns/C0045_intraday_regression_channel_residual_discovery
 active_run: null
 active_synthesis: null
-next_required_action: design_c0045_r0002_regression_channel_residual_directional_cost_buffer_hardening_run
+next_required_action: design_c0045_r0003_regression_channel_residual_cost_slippage_stress_materialization_probe_run
 terminal_evidence_priority:
   enabled: true
   resolved_from:
@@ -28,22 +28,22 @@ terminal_evidence_priority:
   reentry_completed_log_role: history_only_not_decision_authority
 current_evidence_summary:
   source_campaign: campaigns/C0045_intraday_regression_channel_residual_discovery
-  current_task: design_c0045_r0002_regression_channel_residual_directional_cost_buffer_hardening_run
+  current_task: design_c0045_r0003_regression_channel_residual_cost_slippage_stress_materialization_probe_run
   active_run: null
   active_run_status: closed_with_candidate_evidence
   evidence_status: closed_with_candidate_evidence
   campaign_family: intraday_regression_channel_residual
   campaign_status: active_candidate_evidence
-  entries_per_active_day: 7.87931
-  proxy_trade_count: 4570
-  proxy_net_pnl_points: 15601.23
-  proxy_profit_factor: 1.521306
-  mt5_tick_net_pnl: 153.04
-  mt5_tick_profit_factor: 1.499006
-  profitable_fold_count: 8
-  losing_fold_count: 1
-  next_required_action: design_c0045_r0002_regression_channel_residual_directional_cost_buffer_hardening_run
-  note: c0045_r0001_closed_with_candidate_evidence_not_selected_after_positive_proxy_positive_tick_eight_profitable_folds_one_small_losing_fold_and_tick_worse_all_folds
+  entries_per_active_day: 7.858621
+  proxy_trade_count: 4558
+  proxy_net_pnl_points: 18921.34
+  proxy_profit_factor: 1.613753
+  mt5_tick_net_pnl: 183.56
+  mt5_tick_profit_factor: 1.580262
+  profitable_fold_count: 9
+  losing_fold_count: 0
+  next_required_action: design_c0045_r0003_regression_channel_residual_cost_slippage_stress_materialization_probe_run
+  note: c0045_r0002_closed_with_stronger_candidate_evidence_not_selected_after_positive_proxy_positive_tick_all_9_profitable_folds_and_tick_worse_all_folds
   source_campaign_manifest: campaigns/C0045_intraday_regression_channel_residual_discovery/campaign.yaml
 repo_debt_scope:
   global_repo_state_ok: false
@@ -54,7 +54,7 @@ repo_debt_scope:
     status: observed_preexisting
     observed_error_count: 31
     affected_scope: historical_c0001_c0005_and_sc0001_sc0002_artifact_lineage
-    role: repo_state_debt_not_current_c0045_r0001_closeout
+    role: repo_state_debt_not_current_c0045_r0002_closeout
     current_decision_class: known_nonblocking_for_next_run_decision
     may_continue_current_decision: true
     blocks_selected_claim: true
@@ -74,7 +74,7 @@ repo_debt_scope:
     blocks_handoff: true
     blocks_reproducibility_claim: true
   note: repo_state_has_preexisting_nonblocking_artifact_lineage_debt_and_price_quality_warning;
-    current_c0045_r0001_closeout_is_complete_but_selection_promotion_handoff_and_reproducibility_claims_remain_blocked
+    current_c0045_r0002_closeout_is_complete_but_selection_promotion_handoff_and_reproducibility_claims_remain_blocked
 claim_boundary_snapshot:
   claim_authority: false
   economics_pass: false
@@ -90,16 +90,16 @@ claim_boundary_snapshot:
   selected: false
   trade_logic_selected: false
 next_decision_basis:
-- path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0001/gate_report.json
-  role: closed_c0045_r0001_candidate_evidence
-  summary: C0045 R0001 retained candidate evidence after positive proxy, passed logic parity,
-    positive MT5 tick KPI, eight profitable folds, one small losing fold, and no selected
-    claim.
-- path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0001/kpi/candidate_robustness_audit.json
+- path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0002/gate_report.json
+  role: closed_c0045_r0002_candidate_evidence
+  summary: C0045 R0002 retained stronger candidate evidence after positive proxy, passed logic
+    parity, positive MT5 tick KPI, nine profitable folds, and no selected claim.
+- path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0002/kpi/candidate_robustness_audit.json
   role: candidate_robustness_audit
-  summary: Audit requires hardening for one losing fold, all-fold tick-worse execution divergence,
-    short-dominant proxy edge, and incomplete cost/slippage/materialization evidence.
-- path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+  summary: Audit requires stress/materialization work because all folds remain tick-worse
+    than logic, cost/slippage stress is incomplete, and native materialization/ONNX portability
+    are incomplete.
+- path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0002/kpi/mt5_tick_by_fold.json
   role: fold_isolated_mt5_tick_kpi
-  summary: Fold evidence completed with eight profitable folds, one losing fold, total tick
-    net PnL 153.04, and worst fold net PnL -1.09.
+  summary: Fold evidence completed with nine profitable folds, total tick net PnL 183.56,
+    and worst fold net PnL 9.98.

@@ -57,21 +57,23 @@ run_index:
   active_run: null
   closed_runs:
   - runs/R0001
+  - runs/R0002
   next_run_candidate:
-    run_id: R0002
-    direction: design_c0045_r0002_regression_channel_residual_directional_cost_buffer_hardening_run
-    reason: R0001 retained candidate evidence but remains unselected; next run should harden
-      directional asymmetry, one losing fold, and tick-worse cost buffer without selected,
-      economics, runtime, ONNX, promotion, or live claim.
+    run_id: R0003
+    direction: design_c0045_r0003_regression_channel_residual_cost_slippage_stress_materialization_probe_run
+    reason: R0002 retained stronger candidate evidence with 9 profitable tick folds but remains
+      unselected; next run should stress spread/slippage and materialization portability without
+      selected, economics, runtime, ONNX, promotion, or live claim.
     status: design_required
 synthesis_readiness:
   check_required_at_closeout: true
-  result: not_due_candidate_hardening_required
+  result: not_due_candidate_stress_materialization_required
   open_synthesis_now: false
-  recommended_next_action: design_c0045_r0002_regression_channel_residual_directional_cost_buffer_hardening_run
+  recommended_next_action: design_c0045_r0003_regression_channel_residual_cost_slippage_stress_materialization_probe_run
   readiness_notes:
   - r0001_retained_candidate_evidence_not_selected
-  - continue_c0045_with_true_hardening_variant_before_synthesis
+  - r0002_strengthened_candidate_evidence_not_selected
+  - continue_c0045_with_cost_slippage_stress_and_materialization_probe_before_synthesis
 claim_boundary:
   claim_authority: false
   economics_pass: false
@@ -87,5 +89,5 @@ claim_boundary:
   selected: false
   trade_logic_selected: false
 closeout:
-  remaining_question: design_c0045_r0002_regression_channel_residual_directional_cost_buffer_hardening_run
   status: campaign_active_after_candidate_evidence
+  remaining_question: design_c0045_r0003_regression_channel_residual_cost_slippage_stress_materialization_probe_run
