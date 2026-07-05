@@ -3,7 +3,8 @@ status: draft_active
 encoding: ascii_only
 source_of_truth_scope: work_unit_numbering_index
 no_active_truth_for_external_refs: true
-purpose: track Axiom C campaign and SC synthesis numbering without creating campaign completion, selected, runtime, promotion, ONNX, or live claims
+purpose: track Axiom C campaign and SC synthesis numbering without creating campaign completion,
+  selected, runtime, promotion, ONNX, or live claims
 template_registry: registries/template_registry.yaml
 governing_contracts:
 - contracts/campaign_lifecycle.yaml
@@ -14,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0041
+    next_id: C0042
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -58,6 +59,7 @@ streams:
     - campaigns/C0038_intraday_dwell_transition_timing_discovery
     - campaigns/C0039_intraday_moving_average_ribbon_phase_discovery
     - campaigns/C0040_intraday_return_distribution_shape_discovery
+    - campaigns/C0041_intraday_autocorrelation_decay_discovery
     numbering_policy:
       width: 4
       example: C0001
@@ -91,14 +93,15 @@ rules:
   external_refs_are_not_active_truth: true
 claim_boundary:
   claim_authority: false
-  selected: false
-  label_selected: false
-  feature_set_selected: false
-  model_selected: false
-  runtime_probe_completed: false
   economics_pass: false
+  feature_set_selected: false
+  label_selected: false
+  live_ready: false
   materialization_ready: false
-  runtime_authority: false
+  model_selected: false
   onnx_ready: false
   promotion_ready: false
-  live_ready: false
+  runtime_authority: false
+  runtime_probe_completed: false
+  selected: false
+  trade_logic_selected: false
