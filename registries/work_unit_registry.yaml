@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0044
+    next_id: C0045
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -62,6 +62,7 @@ streams:
     - campaigns/C0041_intraday_autocorrelation_decay_discovery
     - campaigns/C0042_intraday_path_symmetry_imbalance_discovery
     - campaigns/C0043_intraday_range_shock_digest_discovery
+    - campaigns/C0044_intraday_extreme_recency_gradient_discovery
     numbering_policy:
       width: 4
       example: C0001

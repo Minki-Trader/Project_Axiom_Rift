@@ -1,0 +1,118 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: closed_no_candidate
+campaign_id: C0044
+campaign_slug: intraday_extreme_recency_gradient_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-05T19:28:00Z'
+hypothesis:
+  summary: discover whether closed-bar intraday extreme recency gradient states can rank FPMarkets
+    US100 M5 entries
+  boundary: closed-bar extreme recency gradient surface over recent high and low refresh age,
+    directional extreme age, post-extreme drift or retracement, extreme refresh density, opposite-extreme
+    pressure, range-position exhaustion, session progress, and spread-extreme stress; not
+    C0043 range shock digest, C0042 path symmetry imbalance, C0041 autocorrelation decay,
+    C0040 return distribution shape, C0039 moving-average ribbon phase, C0038 dwell-transition
+    timing, C0037 price memory density, C0036 range impulse memory, C0034 effort-price absorption,
+    C0023 tick participation pressure, C0022 volatility term structure, threshold, score,
+    stop, target, hold, session, activity, spread, capital, monthly filter, or retry nudge
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+  - equity_percent_sizing_rescue
+  - c0043_range_shock_digest_retry
+  - c0042_path_symmetry_imbalance_retry
+  - c0041_autocorrelation_decay_retry
+  - c0040_return_distribution_shape_retry
+  - c0039_moving_average_ribbon_phase_retry
+  - c0038_dwell_transition_timing_retry
+  - c0037_price_memory_density_retry
+  - c0036_range_impulse_memory_retry
+  - c0022_volatility_term_structure_retry
+  - threshold_or_score_filter_rescue
+  - synthetic_commission_model
+required_surfaces:
+  model:
+    status: variable
+    summary: fold-local linear rank surface for intraday extreme recency gradient candidates
+  feature:
+    status: variable
+    summary: extreme recency gradient features for rolling and session extreme age, refresh
+      density, post-extreme drift or retracement, opposite-extreme pressure, range-position
+      exhaustion, session progress, and spread-extreme stress
+  trade_logic:
+    status: variable
+    summary: fixed-lot dual-direction top extreme recency gradient schedule replay candidates
+      per active day
+  label:
+    status: variable
+    summary: directional extreme recency gradient quality with target-first reward, favorable
+      post-extreme drift or retracement bonus, adverse fresh-extreme continuation penalty,
+      churn penalty, and spread-extreme penalty
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: null
+    direction: choose_c0045_major_hypothesis_after_c0044_no_candidate_closeout
+    reason: R0001 closed no-candidate after negative proxy, negative aggregate MT5 tick, tick-worse
+      execution divergence, and seven losing fold-isolated MT5 tick folds; further C0044 work
+      would likely be adjacent extreme-recency gradient tuning.
+    status: closed_no_candidate_choose_new_major_axis
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_opened
+  checked_at_utc: '2026-07-05T19:56:00Z'
+  open_synthesis_now: false
+  recommended_next_action: choose_c0045_major_hypothesis_after_c0044_no_candidate_closeout
+  readiness_notes:
+  - single_c0044_run_closed_no_candidate
+  - failure_is_clear_without_needing_adjacent_extreme_recency_gradient_tuning
+  - next_work_should_choose_materially_new_c0045_major_hypothesis_not_retry_extreme_recency_gradient
+claim_boundary:
+  claim_authority: false
+  economics_pass: false
+  feature_set_selected: false
+  label_selected: false
+  live_ready: false
+  materialization_ready: false
+  model_selected: false
+  onnx_ready: false
+  promotion_ready: false
+  runtime_authority: false
+  runtime_probe_completed: false
+  selected: false
+  trade_logic_selected: false
+closeout:
+  status: closed_no_candidate
+  closed_at_utc: '2026-07-05T19:56:00Z'
+  remaining_question: choose_c0045_major_hypothesis_after_c0044_no_candidate_closeout
+  claim_boundary:
+    claim_authority: false
+    economics_pass: false
+    feature_set_selected: false
+    label_selected: false
+    live_ready: false
+    materialization_ready: false
+    model_selected: false
+    onnx_ready: false
+    promotion_ready: false
+    runtime_authority: false
+    runtime_probe_completed: false
+    selected: false
+    trade_logic_selected: false
+  reason: C0044 R0001 tested a materially new extreme recency gradient axis but failed proxy,
+    aggregate MT5 tick, and fold-isolated MT5 tick candidate standards.
+  failure_asset:
+    asset_type: negative_memory
+    source_run: runs/R0001
+    gate_report: runs/R0001/gate_report.json
+    reason_not_candidate: activity landed in the target band but proxy was negative, aggregate
+      MT5 tick remained negative, tick execution worsened logic, and fold-isolated MT5 tick
+      had two profitable folds and seven losing folds
+closed_at_utc: '2026-07-05T19:56:00Z'
