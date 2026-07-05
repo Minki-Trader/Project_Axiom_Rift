@@ -65,6 +65,27 @@ class WorkUnitValidationTest(unittest.TestCase):
             codes = {issue.code for issue in result.issues}
             self.assertIn("missing_required_file", codes)
 
+    def test_open_pending_proxy_run_allows_deferred_kpi_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            campaign = make_campaign(root, leave_placeholder=False)
+            run = make_run(campaign)
+            manifest = load_json(run / "run_manifest.json")
+            manifest["status"] = "open_pending_proxy"
+            write_json(run / "run_manifest.json", manifest)
+            for rel_path in (
+                "kpi/proxy.json",
+                "kpi/mt5_logic_parity.json",
+                "kpi/mt5_tick.json",
+                "kpi/proxy_vs_mt5_logic_parity.json",
+                "kpi/execution_divergence.json",
+            ):
+                (run / rel_path).unlink()
+
+            result = validate_work_unit(campaign, root=root)
+
+            self.assertTrue(result.ok, result.to_dict())
+
     def test_run_closeout_requires_fold_isolated_mt5_tick_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

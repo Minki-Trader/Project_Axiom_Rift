@@ -24,7 +24,7 @@ project:
   layout_mode: developer_campaign_manifest
   active_campaign: null
   active_synthesis: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
-  active_run: null
+  active_run: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001
 active_truth:
   contracts_dir: contracts
   config_dir: configs
@@ -1052,16 +1052,19 @@ next_work:
   - review_c0037_candidate_evidence_and_synthesis_readiness_after_r0004
   - close_c0037_with_candidate_evidence
   - open_sc0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
-  tasks:
   - design_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
+  - open_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
+  - repair_open_pending_proxy_work_unit_validation_kpi_deferral
+  tasks:
+  - produce_sc0007_sr0001_proxy_evidence
   not_yet:
   - label_freeze
   - feature_set_freeze
   - model_training
   - mt5_runtime_claim
   active_campaign: null
-  active_run: null
-  run: null
-active_run: null
+  active_run: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001
+  run: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001
+active_run: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001
 active_campaign: null
 active_synthesis: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis

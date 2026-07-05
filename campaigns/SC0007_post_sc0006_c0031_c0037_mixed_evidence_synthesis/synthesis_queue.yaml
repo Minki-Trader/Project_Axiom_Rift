@@ -1,11 +1,12 @@
 schema: axiom_rift_synthesis_queue_v1
 template: false
-status: open
+status: run_open_pending_proxy
 synthesis_id: SC0007
 queue:
 - synthesis_run_id: SR0001
-  status: design_required
+  status: opened_pending_proxy
   design_id: sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis
+  opened_at_utc: '2026-07-05T14:30:00Z'
   source_ingredient_ids:
   - c0031_ig001_intraday_entropy_release_negative_memory
   - c0032_ig001_intraday_tail_risk_skew_negative_memory
@@ -44,7 +45,8 @@ queue:
   - skip_mt5_after_proxy
   - create_selected_claim
   - create_runtime_or_onnx_claim
-  next_action: design_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
+  last_completed_step: open_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
+  next_action: produce_sc0007_sr0001_proxy_evidence
 claim_boundary:
   claim_authority: false
   selected: false

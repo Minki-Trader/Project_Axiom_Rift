@@ -1,0 +1,69 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "claim_gate": {
+    "claim_authority": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "model_selected": false,
+    "runtime_authority": false,
+    "status": "passed_no_claim_authority"
+  },
+  "decision": "defer_with_reason",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "SR0001 cannot be judged or closed until proxy, MT5 logic parity, proxy-vs-MT5 parity, MT5 tick, execution divergence, fold-isolated MT5 tick, and fold-isolated execution divergence are recorded",
+      "field": "decision",
+      "reason": "run opened with pre-open decision but proxy evidence is not recorded yet",
+      "revisit_when": "produce_sc0007_sr0001_proxy_evidence"
+    }
+  ],
+  "evidence_gate": {
+    "checks": {
+      "artifact_lineage_path_recorded": true,
+      "mt5_logic_parity_kpi_path_recorded": false,
+      "mt5_tick_kpi_path_recorded": false,
+      "proxy_kpi_path_recorded": false,
+      "run_manifest_path_recorded": true
+    },
+    "status": "open_pending_proxy"
+  },
+  "evidence_paths": [
+    "artifact_lineage.json"
+  ],
+  "gate_report_id": "GR-SC0007-SR0001-OPEN",
+  "mt5_gate": {
+    "aggregate_tick_is_diagnostic_only": true,
+    "closed_bar_logic_parity_required": true,
+    "fold_isolated_closeout_required": true,
+    "required_even_when_proxy_is_weak": true,
+    "status": "blocked_until_proxy"
+  },
+  "next_action": "produce_sc0007_sr0001_proxy_evidence",
+  "opened_at_utc": "2026-07-05T14:30:00Z",
+  "parity_gate": {
+    "intent_parity_status": "pending",
+    "mechanical_parity_status": "pending",
+    "status": "blocked_until_proxy_and_mt5"
+  },
+  "pre_open_decision_status": "passed",
+  "run_id": "SR0001",
+  "schema": "axiom_rift_gate_report_v1",
+  "status": "open_pending_proxy",
+  "template": false,
+  "work_unit_id": "SC0007"
+}

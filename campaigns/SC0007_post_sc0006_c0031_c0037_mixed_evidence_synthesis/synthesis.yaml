@@ -1,6 +1,6 @@
 schema: axiom_rift_synthesis_v1
 template: false
-status: open
+status: run_open_pending_proxy
 synthesis_id: SC0007
 synthesis_slug: post_sc0006_c0031_c0037_mixed_evidence_synthesis
 synthesis_level: synthesis_7
@@ -34,15 +34,16 @@ synthesis_queue_path: synthesis_queue.yaml
 runs_root: runs/
 synthesis_run_id_format: SR0001
 run_index:
-  active_run: null
-  opened_runs: []
+  active_run: runs/SR0001
+  opened_runs:
+  - runs/SR0001
   closed_runs: []
   next_run_candidate:
     run_id: SR0001
-    direction: design_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
-    reason: SC0007 was opened from post-SC0006 C0031-C0037 ingredients; SR0001 requires
-      a non-adjacent synthesis design before opening.
-    status: design_required
+    direction: produce_sc0007_sr0001_proxy_evidence
+    reason: SR0001 was opened with a non-adjacent pre-open decision; next work is proxy
+      evidence before mandatory MT5 paired validation.
+    status: active_run_open_pending_proxy
 stream_policy:
   stream: synthesis
   independent_from_campaign_stream: true

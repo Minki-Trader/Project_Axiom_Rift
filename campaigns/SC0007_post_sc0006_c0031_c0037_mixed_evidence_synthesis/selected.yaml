@@ -1,6 +1,6 @@
 schema: axiom_rift_selected_v1
 template: false
-status: none
+status: run_open_pending_proxy
 selected: false
 selected_reason: null
 surfaces:
@@ -34,11 +34,12 @@ claim_boundary:
   - promotion_ready
   - live_ready
 latest_synthesis_state:
-  status: open
-  source: synthesis.yaml
+  status: run_open_pending_proxy
+  source: runs/SR0001/run_manifest.json
   candidate_evidence_retained: false
   negative_memory_recorded: false
-  next_required_action: design_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
+  active_run: runs/SR0001
+  next_required_action: produce_sc0007_sr0001_proxy_evidence
   claim_boundary:
     claim_authority: false
     selected: false

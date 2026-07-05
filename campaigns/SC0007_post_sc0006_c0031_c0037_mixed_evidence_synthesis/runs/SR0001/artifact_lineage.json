@@ -1,0 +1,66 @@
+{
+  "artifact_records": [
+    {
+      "artifact_id": "A-SC0007-SR0001-RUN-MANIFEST",
+      "artifact_role": "run_manifest",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "run_open",
+      "mutable": false,
+      "produced_by": "manual_goal_operation_open_sc0007_sr0001",
+      "repo_relative_path": "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/run_manifest.json",
+      "sha256": "fbf321c128d7bef709069cda064b0c4156deee8ffc672481342fde2d4e0e11a1",
+      "source_inputs": [
+        "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/synthesis.yaml",
+        "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/ingredient_refs.yaml",
+        "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/synthesis_queue.yaml",
+        "contracts/goal_operation_policy.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-SC0007-SR0001-GATE-OPEN",
+      "artifact_role": "gate_report",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "run_open",
+      "mutable": false,
+      "produced_by": "manual_goal_operation_open_sc0007_sr0001",
+      "repo_relative_path": "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/gate_report.json",
+      "sha256": "047e647cf94c863a5ddc9e48dec8e0ba2c502adf4936dd2e008a95297bc24d88",
+      "source_inputs": [
+        "campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/run_manifest.json"
+      ]
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "deferred_with_reason": [
+    {
+      "field": "proxy_artifact_hashes",
+      "next_action": "produce_sc0007_sr0001_proxy_evidence",
+      "reason": "proxy artifacts are produced after run open in the mandatory paired validation sequence"
+    },
+    {
+      "field": "mt5_artifact_hashes",
+      "next_action": "produce_sc0007_sr0001_mt5_logic_parity_evidence",
+      "reason": "MT5 artifacts are produced after proxy evidence in the mandatory paired validation sequence"
+    }
+  ],
+  "run_id": "SR0001",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "template": false,
+  "work_unit_id": "SC0007"
+}

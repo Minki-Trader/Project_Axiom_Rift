@@ -2279,6 +2279,68 @@ decisions:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
+
+- decision_id: dec_20260705_open_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
+  created_local_date: '2026-07-05'
+  status: active
+  decision: open_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
+  refines:
+  - dec_20260705_close_c0037_with_candidate_evidence_and_open_sc0007
+  - dec_20260705_decision_intelligence_layer
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - sc0007_sr0001_opens_as_a_non_adjacent_synthesis_run_from_c0031_through_c0037_ingredients
+  - c0037_r0003_price_memory_density_candidate_schedule_is_used_as_generator_not_as_selected_runtime_logic
+  - c0031_through_c0036_negative_memory_and_c0037_r0003_robustness_fragility_are_used_as_cross_campaign_context
+  - c0037_r0004_monthly_distribution_hardening_failure_is_used_as_failure_memory_against_simple_monthly_or_threshold_retry_work
+  - pre_open_decision_records_novelty_score_4_low_adjacent_tuning_risk_high_information_gain_clear_mt5_portability_and_high_decision_payoff
+  - run_is_not_a_threshold_window_stop_target_hold_session_activity_spread_capital_monthly_filter_or_retry_nudge
+  - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_tick_and_divergence_evidence_even_if_proxy_is_weak
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  - next_work_is_produce_sc0007_sr0001_proxy_evidence
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260705_repair_open_pending_proxy_work_unit_validation_kpi_deferral
+  created_local_date: '2026-07-05'
+  status: active
+  decision: repair_open_pending_proxy_work_unit_validation_kpi_deferral
+  refines:
+  - dec_20260705_open_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - validate_work_unit_previously_required_proxy_and_mt5_kpi_files_immediately_after_run_open
+  - open_pending_proxy_runs_must_not_receive_placeholder_or_empty_kpi_files_before_evidence_is_produced
+  - validator_now_requires_run_manifest_gate_report_and_artifact_lineage_for_open_pending_proxy_runs
+  - existing_kpi_files_are_still_validated_when_present_and_non_open_runs_still_require_required_kpi_files
+  - closed_runs_still_require_fold_isolated_mt5_tick_and_execution_divergence_evidence_or_complete_exception
+  - sc0007_sr0001_remains_open_pending_proxy_and_next_work_is_produce_sc0007_sr0001_proxy_evidence
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
 - decision_id: dec_20260705_close_c0037_with_candidate_evidence_and_open_sc0007
   created_local_date: '2026-07-05'
   status: active

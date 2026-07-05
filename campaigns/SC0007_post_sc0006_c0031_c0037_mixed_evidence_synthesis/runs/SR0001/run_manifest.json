@@ -1,0 +1,148 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "gate_report": "gate_report.json"
+  },
+  "gate_status": "open_pending_proxy",
+  "hypothesis_variant": {
+    "summary": "post_sc0006_price_memory_negative_context_synthesis",
+    "variant_boundary": "tests whether C0037 R0003 price-memory-density candidate schedule entries can be re-ranked by C0031-C0036 recent negative-memory same-direction and opposite-direction schedule context plus C0037 robustness fragility evidence; not a C0037 threshold, score, cost-buffer, stop, target, hold, session, activity, spread, capital, monthly filter, or retry nudge"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_post_sc0006_price_memory_negative_context_schedule_vs_ea_closed_bar_lifecycle_parity",
+    "notes": [
+      "closed-bar MT5 mode is required for proxy-vs-EA logic parity",
+      "tick-mode MT5 is required for execution economics",
+      "fold-isolated MT5 tick and execution divergence are required before closeout"
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-05T14:30:00Z",
+  "parent_type": "synthesis",
+  "planned_outputs": {
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/sc0007_sr0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "negative_context_synthesis_summary": "artifacts/sc0007_sr0001_negative_context_synthesis_summary.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/sc0007_sr0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "not a threshold, window, stop, target, hold, session, activity, spread, cost-buffer, monthly filter, capital, or retry nudge; it changes the source interaction, feature, model, label, and trade-ranking surfaces by combining C0037 candidate evidence with C0031-C0036 negative-memory context while preserving MT5 schedule replay portability",
+    "adjacent_tuning_risk": "low",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0031_intraday_entropy_release_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0032_intraday_tail_risk_skew_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0033_intraday_seasonal_residual_dislocation_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0034_intraday_effort_price_absorption_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0035_intraday_cycle_phase_resonance_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0036_intraday_range_impulse_memory_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003/kpi/candidate_robustness_audit.json",
+      "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0004/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "pre_open_decision_id": "POD-SC0007-SR0001",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "recorded_before_run_open",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "fold-local post-SC0006 synthesis that uses C0037 R0003 price-memory-density candidate schedule entries as the generator and C0031-C0036 recent negative-memory schedule co-occurrence as cross-campaign context, without source OOS PnL entry selection"
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "proxy evidence is a reference surface only",
+      "weak proxy results must still continue to MT5 paired validation"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [
+      "mechanical parity compares scheduled entries, directions, exits, exit reasons, and lifecycle behavior"
+    ],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "SR0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "source_ingredient_ids": [
+    "c0031_ig001_intraday_entropy_release_negative_memory",
+    "c0032_ig001_intraday_tail_risk_skew_negative_memory",
+    "c0033_ig001_intraday_seasonal_residual_dislocation_negative_memory",
+    "c0034_ig001_intraday_effort_price_absorption_negative_memory",
+    "c0035_ig001_intraday_cycle_phase_resonance_negative_memory",
+    "c0036_ig001_intraday_range_impulse_memory_negative_memory",
+    "c0037_ig001_intraday_price_memory_density_candidate_evidence",
+    "c0037_ig002_price_memory_density_robustness_fragility_lesson",
+    "c0037_ig003_price_memory_density_monthly_distribution_hardening_negative_memory"
+  ],
+  "status": "open_pending_proxy",
+  "surfaces": {
+    "feature": {
+      "changed_from_synthesis_queue": true,
+      "summary": "C0037 R0003 price-memory-density candidate score plus C0031-C0036 same-direction negative-memory cluster, opposite-direction conflict credit, source diversity, fold-loss density, recent negative-memory pressure, C0037 robustness fragility context, and spread pressure; no feature set selected"
+    },
+    "label": {
+      "changed_from_synthesis_queue": true,
+      "summary": "price-memory-density followthrough survival conditioned by recent negative-memory co-occurrence and robustness fragility context; no label selected"
+    },
+    "model": {
+      "changed_from_synthesis_queue": true,
+      "summary": "fold-local post-SC0006 negative-context synthesis ranker over C0037 candidate schedule entries and C0031-C0036 failure-memory context; no model family selected"
+    },
+    "trade_logic": {
+      "changed_from_synthesis_queue": true,
+      "summary": "fixed-lot daily-ranked C0037 R0003 schedule entries re-ranked by cross-campaign negative-memory context and replayed through existing MT5 schedule parity and tick evidence"
+    }
+  },
+  "template": false,
+  "work_unit_id": "SC0007"
+}
