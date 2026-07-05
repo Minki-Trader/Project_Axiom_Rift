@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0039
+    next_id: C0040
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -57,6 +57,7 @@ streams:
     - campaigns/C0036_intraday_range_impulse_memory_discovery
     - campaigns/C0037_intraday_price_memory_density_discovery
     - campaigns/C0038_intraday_dwell_transition_timing_discovery
+    - campaigns/C0039_intraday_moving_average_ribbon_phase_discovery
     numbering_policy:
       width: 4
       example: C0001
