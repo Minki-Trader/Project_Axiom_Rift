@@ -98,25 +98,25 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: campaigns/C0023_tick_participation_pressure_discovery
+active_campaign: campaigns/C0024_calendar_phase_rhythm_discovery
 active_synthesis: null
-active_run: campaigns/C0023_tick_participation_pressure_discovery/runs/R0001
+active_run: campaigns/C0024_calendar_phase_rhythm_discovery/runs/R0001
 latest_operation:
-  id: close_c0023_r0001_no_candidate
+  id: close_c0024_r0001_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0023_tick_participation_pressure_discovery/runs/R0001/gate_report.json
+  recorded_at_source: campaigns/C0024_calendar_phase_rhythm_discovery/runs/R0001/gate_report.json
   evidence_status: closed_no_candidate
-  active_campaign: campaigns/C0023_tick_participation_pressure_discovery
-  active_run: campaigns/C0023_tick_participation_pressure_discovery/runs/R0001
-  entries_per_active_day: 7.196552
-  proxy_net_pnl_points: -6158.47
-  proxy_profit_factor: 0.848483
-  mt5_tick_net_pnl: -59.42
-  mt5_tick_profit_factor: 0.854413
-  profitable_fold_count: 0
-  losing_fold_count: 9
-  negative_memory: c0023_tick_participation_pressure_no_candidate_zero_profitable_fold_isolated_tick_folds
-  next_required_action: choose_c0024_new_major_hypothesis_after_c0023_closeout
+  active_campaign: campaigns/C0024_calendar_phase_rhythm_discovery
+  active_run: campaigns/C0024_calendar_phase_rhythm_discovery/runs/R0001
+  entries_per_active_day: 7.201724
+  proxy_net_pnl_points: -8411.43
+  proxy_profit_factor: 0.859381
+  mt5_tick_net_pnl: -84.51
+  mt5_tick_profit_factor: 0.858188
+  profitable_fold_count: 1
+  losing_fold_count: 8
+  negative_memory: c0024_calendar_phase_rhythm_no_candidate_eight_of_nine_fold_isolated_tick_folds_lost
+  next_required_action: choose_c0025_new_major_hypothesis_after_c0024_closeout
   claim_boundary:
     claim_authority: false
     selected: false

@@ -1,0 +1,219 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "no_candidate_after_negative_proxy_negative_mt5_tick_and_eight_of_nine_losing_fold_isolated_tick_folds",
+    "closed_at_utc": "2026-07-05T03:46:24Z",
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "evidence_paths": [
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local calendar phase rhythm rank over timestamp-derived intraday, hour, weekday, week-progress, month-progress, seasonal, direction-asymmetry, and spread-guardrail features",
+      "next_boundary": "do not retry this calendar phase rhythm surface with simple thresholds, time-slot filters, score floors, stop, target, hold, activity, spread, session, capital, or retry nudges; next work should choose a materially new C0025 major hypothesis axis",
+      "reason_not_candidate": "proxy was negative, aggregate MT5 tick was negative, and eight of nine fold-isolated MT5 tick folds lost; the only profitable fold was marginal at 0.34 net pnl and profit factor 1.005078",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "calendar phase rhythm rank met target activity but lost eight of nine rolling-window OOS folds; total tick net PnL was -84.51 and worst fold rw_006 net PnL was -22.98"
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "schedule replay logic parity passed with mismatch_count 0, so failure is hypothesis quality and execution behavior rather than a proxy-to-EA schedule mismatch"
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "tick execution was worse than closed-bar logic by -5.7 total net PnL; tick was worse in 6 folds and better in 3 folds"
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "economics_shift_status": "tick_worse_than_logic",
+      "entries_per_active_day": 7.201724,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "losing_fold_count": 8,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.985567,
+      "minimum_exit_reason_match_rate": 0.794492,
+      "minimum_exit_time_direction_match_rate": 0.802966,
+      "mismatch_count": 0,
+      "mt5_logic_net_pnl": -78.81,
+      "mt5_logic_profit_factor": 0.872573,
+      "mt5_logic_trade_count": 4177,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_max_drawdown_percent": 16.978,
+      "mt5_tick_net_pnl": -84.51,
+      "mt5_tick_profit_factor": 0.858188,
+      "mt5_tick_trade_count": 4151,
+      "profitable_fold_count": 1,
+      "proxy_expectancy_points_per_entry": -2.013749,
+      "proxy_net_pnl_points": -8411.43,
+      "proxy_profit_factor": 0.859381,
+      "proxy_trade_count": 4177,
+      "proxy_win_rate": 0.409864,
+      "remaining_work_classification": "calendar_phase_rhythm_threshold_time_slot_score_stop_target_hold_activity_spread_session_capital_or_retry_nudge_not_next",
+      "tick_better_fold_count": 3,
+      "tick_minus_logic_net_pnl": -5.7,
+      "tick_worse_fold_count": 6,
+      "total_tick_minus_logic_net_pnl": -5.7,
+      "total_tick_net_pnl": -84.51,
+      "total_tick_trade_count": 4151,
+      "worst_fold_id": "rw_006",
+      "worst_fold_max_drawdown_percent": 4.66,
+      "worst_fold_net_pnl": -22.98,
+      "worst_tick_minus_logic_fold_id": "rw_001",
+      "worst_tick_minus_logic_net_pnl": -5.53
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "calendar_phase_rhythm_summary": "artifacts/c0024_r0001_calendar_phase_rhythm_summary.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0024_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0024_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local calendar phase rhythm rank over timestamp-derived intraday, hour, weekday, week-progress, month-progress, seasonal, direction-asymmetry, and spread-guardrail features",
+    "variant_boundary": "new major C0024 hypothesis after C0023 closeout; not a tick participation pressure, volatility term structure, auction value rotation, threshold, score-floor, stop, target, hold, activity, spread, session, capital, or retry nudge"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "notes": [
+      "MT5 validation remains required even if proxy KPI is weak."
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "Changes the major hypothesis from tick_volume participation pressure and volatility term structure to timestamp-derived calendar phase rhythm; not a threshold, window, stop, target, session, activity, capital, spread, or retry nudge.",
+    "adjacent_tuning_risk": "low",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0023_tick_participation_pressure_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0022_volatility_term_structure_discovery/runs/R0001/gate_report.json",
+      "campaigns/SC0005_post_c0022_negative_memory_synthesis/runs/SR0001/gate_report.json",
+      "campaigns/C0021_daily_profile_energy_balance_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 5,
+    "pre_open_decision_id": "POD-C0024-R0001",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "passed",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "Tests closed-bar timestamp-derived calendar phase rhythm as a new C0024 campaign surface with mandatory schedule-replay MT5 pairing."
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "Proxy output is reference evidence and cannot stop MT5 validation."
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "timestamp-derived intraday, hour, weekday, week-progress, month-progress, seasonal, direction-asymmetry, and spread-guardrail features"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "directional calendar phase quality with target-first reward, adverse path penalty, path efficiency, and spread-drift penalties"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "fold-local linear rank surface for calendar phase rhythm candidates"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "fixed-lot dual-direction top calendar phase rhythm schedule replay candidates per active day"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0024"
+}

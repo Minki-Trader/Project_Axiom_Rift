@@ -271,6 +271,11 @@ RUN_SPECS: tuple[RunSpec, ...] = (
         "axiom_rift.mt5.c0023_r0001_probe",
         "axiom_rift.proxies.c0023_r0001_tick_participation_pressure",
     ),
+    RunSpec(
+        "c0024_r0001",
+        "axiom_rift.mt5.c0024_r0001_probe",
+        "axiom_rift.proxies.c0024_r0001_calendar_phase_rhythm",
+    ),
 )
 
 

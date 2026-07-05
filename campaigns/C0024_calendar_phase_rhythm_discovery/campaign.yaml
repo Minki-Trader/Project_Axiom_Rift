@@ -1,0 +1,139 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: closed_no_candidate
+campaign_id: C0024
+campaign_slug: calendar_phase_rhythm_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-05T03:27:35Z'
+hypothesis:
+  summary: discover whether closed-bar calendar phase rhythm across intraday time, weekday, week progress, month progress, and seasonal phase can isolate FPMarkets US100 M5 entries that preserve target daily activity with MT5 portability.
+  boundary: model timestamp-derived calendar phase only, including intraday phase, hour and quarter-hour rhythm, weekday, week progress, month progress, month-of-year, day-of-year, broad session bucket, direction asymmetry, and spread guardrails from own closed M5 bars; do not reuse tick participation pressure, volatility term structure, daily profile energy balance, excursion decay memory, bar-quality asymmetry, micro-gap absorption, round-level grids, liquidity-vacuum rebound, prior-day handoff, auction value rotation, monthly regime risk, stop, target, hold, activity, capital, or retry nudges as the hypothesis.
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+  - equity_percent_sizing_rescue
+  - c0023_tick_participation_pressure_retry
+  - c0022_volatility_term_structure_retry
+  - session_auction_value_rotation_retry
+  - synthetic_commission_model
+required_surfaces:
+  model:
+    status: variable
+    summary: unrestricted fold-local calendar phase rhythm ranker, classifier, hazard model, sequence model, ensemble, or later model family; no model family is selected.
+  feature:
+    status: variable
+    summary: unrestricted timestamp-derived intraday, weekday, weekly, monthly, seasonal, direction-asymmetry, and spread-guardrail features; no feature set is selected.
+  trade_logic:
+    status: variable
+    summary: variable fixed-lot dual-direction calendar phase entry timing, abstention, frequency control, stop, target, hold, exit, and invalidation logic; equity-percent sizing remains deferred.
+  label:
+    status: variable
+    summary: variable labels for directional target-first survival, adverse path avoidance, path efficiency, and fold consistency by calendar phase; no label is selected.
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  opened_runs: []
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: null
+    direction: choose_c0025_new_major_hypothesis_after_c0024_closeout
+    reason: C0024 R0001 closed no-candidate after negative proxy, negative aggregate MT5 tick, and eight of nine losing fold-isolated MT5 tick folds; next work must choose a materially new C0025 major hypothesis axis rather than adjacent C0024 tuning.
+    status: post_closeout_new_campaign_required
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_ready
+  open_synthesis_now: false
+  recommended_next_action: choose_c0025_new_major_hypothesis_after_c0024_closeout
+  checked_at_utc: '2026-07-05T03:46:24Z'
+  closed_run_count: 1
+  observed_closed_campaign_count_since_last_synthesis: 2
+  usable_ingredient_group_count: 2
+  minimums:
+    closed_campaign_count_since_last_synthesis: 3
+    usable_ingredient_group_count: 8
+    required_surface_count: 3
+  readiness_notes:
+  - c0023_negative_memory_recorded_after_sc0005
+  - c0024_single_negative_memory_recorded
+  - synthesis_not_ready_after_two_post_sc0005_campaigns
+closeout:
+  status: closed_no_candidate
+  close_reason: r0001_failed_proxy_aggregate_mt5_tick_and_eight_of_nine_fold_isolated_mt5_tick_folds
+  evidence_paths:
+  - artifact_lineage.json
+  - kpi/proxy.json
+  - kpi/mt5_logic_parity.json
+  - kpi/proxy_vs_mt5_logic_parity.json
+  - kpi/mt5_tick.json
+  - kpi/execution_divergence.json
+  - artifacts/c0024_r0001_proxy_trades.csv
+  - artifacts/c0024_r0001_calendar_phase_rhythm_summary.json
+  - artifacts/c0024_r0001_schedule.csv
+  - kpi/mt5_tick_by_fold.json
+  - kpi/execution_divergence_by_fold.json
+  remaining_question: choose_c0025_new_major_hypothesis_after_c0024_closeout
+  closed_at_utc: '2026-07-05T03:46:24Z'
+  decision_basis:
+    entries_per_active_day: 7.201724
+    proxy_net_pnl_points: -8411.43
+    proxy_profit_factor: 0.859381
+    proxy_expectancy_points_per_entry: -2.013749
+    proxy_trade_count: 4177
+    proxy_win_rate: 0.409864
+    mt5_logic_net_pnl: -78.81
+    mt5_logic_profit_factor: 0.872573
+    mt5_logic_trade_count: 4177
+    mechanical_parity_status: passed
+    intent_parity_status: passed_schedule_replay_boundary
+    mismatch_count: 0
+    mt5_tick_net_pnl: -84.51
+    mt5_tick_profit_factor: 0.858188
+    mt5_tick_max_drawdown_percent: 16.978
+    mt5_tick_trade_count: 4151
+    execution_divergence_status: recorded_with_divergence
+    economics_shift_status: tick_worse_than_logic
+    tick_minus_logic_net_pnl: -5.7
+    mt5_tick_by_fold_status: completed
+    fold_count: 9
+    completed_fold_count: 9
+    profitable_fold_count: 1
+    losing_fold_count: 8
+    total_tick_net_pnl: -84.51
+    total_tick_trade_count: 4151
+    worst_fold_id: rw_006
+    worst_fold_net_pnl: -22.98
+    worst_fold_max_drawdown_percent: 4.66
+    execution_divergence_by_fold_status: completed
+    minimum_entry_key_match_rate: 0.985567
+    minimum_exit_reason_match_rate: 0.794492
+    minimum_exit_time_direction_match_rate: 0.802966
+    tick_better_fold_count: 3
+    tick_worse_fold_count: 6
+    total_tick_minus_logic_net_pnl: -5.7
+    worst_tick_minus_logic_fold_id: rw_001
+    worst_tick_minus_logic_net_pnl: -5.53
+    remaining_work_classification: calendar_phase_rhythm_threshold_time_slot_score_stop_target_hold_activity_spread_session_capital_or_retry_nudge_not_next
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
+campaign_lessons:
+- r0001_met_target_activity_but_proxy_and_mt5_tick_economics_were_negative
+- r0001_lost_eight_of_nine_fold_isolated_mt5_tick_folds_with_only_marginal_profitable_fold
+- logic_parity_passed_with_mismatch_count_zero
+- tick_execution_was_worse_than_logic_and_did_not_rescue_candidate_quality
+closed_at_utc: '2026-07-05T03:46:24Z'
