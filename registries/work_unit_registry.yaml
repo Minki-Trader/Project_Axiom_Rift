@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0031
+    next_id: C0032
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -49,6 +49,7 @@ streams:
     - campaigns/C0028_intraday_swing_leg_maturity_discovery
     - campaigns/C0029_intraday_fractal_pivot_transition_discovery
     - campaigns/C0030_intraday_vwap_repricing_pressure_discovery
+    - campaigns/C0031_intraday_entropy_release_discovery
     numbering_policy:
       width: 4
       example: C0001
