@@ -1,0 +1,1080 @@
+{
+  "campaign_id": "C0023",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false
+  },
+  "conditional_profiles": {
+    "fold_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "folds": [
+          {
+            "conditional_profiles": {
+              "entry_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "entry_mismatch_samples": [
+                    {
+                      "direction": -1,
+                      "entry_time": "2024-04-04 20:25:00",
+                      "side": "logic_only"
+                    }
+                  ],
+                  "logic_entry_event_count": 463,
+                  "tick_entry_event_count": 462
+                }
+              },
+              "exit_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "exit_mismatch_samples": [
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-02-02 14:05:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-02-06 20:00:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-02-08 12:05:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-02-12 15:30:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-02-13 15:25:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-02-02 14:00:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-02-06 19:55:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-02-08 12:00:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-02-12 15:25:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-02-13 15:20:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    }
+                  ],
+                  "logic_exit_event_count": 463,
+                  "tick_exit_event_count": 462
+                }
+              }
+            },
+            "fold_id": "rw_001",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2024-04-30 23:55:00",
+              "start": "2024-02-01 01:00:00"
+            },
+            "required_kpis": {
+              "economics_shift_status": "tick_worse_than_logic",
+              "entry_count_delta": -1,
+              "entry_key_match_rate": 0.99784,
+              "execution_divergence_status": "recorded_with_divergence",
+              "exit_count_delta": -1,
+              "exit_reason_match_rate": 0.900648,
+              "exit_time_direction_match_rate": 0.911447,
+              "logic_max_drawdown_percent": 0.0075,
+              "logic_net_pnl": -6.11,
+              "logic_trade_count": 463,
+              "tick_max_drawdown_percent": 1.71,
+              "tick_minus_logic_max_drawdown_percent": 1.7025,
+              "tick_minus_logic_net_pnl": -1.79,
+              "tick_minus_logic_trade_count": -1,
+              "tick_net_pnl": -7.9,
+              "tick_trade_count": 462
+            }
+          },
+          {
+            "conditional_profiles": {
+              "entry_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "entry_mismatch_samples": [
+                    {
+                      "direction": -1,
+                      "entry_time": "2024-07-24 20:55:00",
+                      "side": "logic_only"
+                    }
+                  ],
+                  "logic_entry_event_count": 481,
+                  "tick_entry_event_count": 480
+                }
+              },
+              "exit_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "exit_mismatch_samples": [
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-05-01 19:50:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-05-02 18:30:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-05-08 07:55:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-05-09 14:15:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-05-14 07:30:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-05-01 19:25:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-05-02 18:50:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-05-08 08:00:00",
+                      "reason": "target",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-05-09 14:00:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-05-14 07:25:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    }
+                  ],
+                  "logic_exit_event_count": 481,
+                  "tick_exit_event_count": 480
+                }
+              }
+            },
+            "fold_id": "rw_002",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2024-07-31 23:55:00",
+              "start": "2024-05-01 01:00:00"
+            },
+            "required_kpis": {
+              "economics_shift_status": "tick_worse_than_logic",
+              "entry_count_delta": -1,
+              "entry_key_match_rate": 0.997921,
+              "execution_divergence_status": "recorded_with_divergence",
+              "exit_count_delta": -1,
+              "exit_reason_match_rate": 0.912682,
+              "exit_time_direction_match_rate": 0.931393,
+              "logic_max_drawdown_percent": 0.00701,
+              "logic_net_pnl": -5.07,
+              "logic_trade_count": 481,
+              "tick_max_drawdown_percent": 1.904,
+              "tick_minus_logic_max_drawdown_percent": 1.89699,
+              "tick_minus_logic_net_pnl": -3.06,
+              "tick_minus_logic_trade_count": -1,
+              "tick_net_pnl": -8.13,
+              "tick_trade_count": 480
+            }
+          },
+          {
+            "conditional_profiles": {
+              "entry_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "entry_mismatch_samples": [],
+                  "logic_entry_event_count": 471,
+                  "tick_entry_event_count": 471
+                }
+              },
+              "exit_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "exit_mismatch_samples": [
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-08-02 08:10:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": 1,
+                      "exit_time": "2024-08-02 15:30:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-08-20 20:40:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-08-28 20:40:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-09-02 08:00:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-08-02 08:05:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": 1,
+                      "exit_time": "2024-08-02 15:30:00",
+                      "reason": "target",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-08-20 20:25:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-08-28 20:45:00",
+                      "reason": "target",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-09-02 07:55:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    }
+                  ],
+                  "logic_exit_event_count": 471,
+                  "tick_exit_event_count": 471
+                }
+              }
+            },
+            "fold_id": "rw_003",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2024-10-31 23:55:00",
+              "start": "2024-08-01 01:00:00"
+            },
+            "required_kpis": {
+              "economics_shift_status": "tick_better_than_logic",
+              "entry_count_delta": 0,
+              "entry_key_match_rate": 1.0,
+              "execution_divergence_status": "recorded_with_divergence",
+              "exit_count_delta": 0,
+              "exit_reason_match_rate": 0.929936,
+              "exit_time_direction_match_rate": 0.936306,
+              "logic_max_drawdown_percent": 0.01389,
+              "logic_net_pnl": -12.35,
+              "logic_trade_count": 471,
+              "tick_max_drawdown_percent": 2.192,
+              "tick_minus_logic_max_drawdown_percent": 2.17811,
+              "tick_minus_logic_net_pnl": 4.82,
+              "tick_minus_logic_trade_count": 0,
+              "tick_net_pnl": -7.53,
+              "tick_trade_count": 471
+            }
+          },
+          {
+            "conditional_profiles": {
+              "entry_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "entry_mismatch_samples": [],
+                  "logic_entry_event_count": 463,
+                  "tick_entry_event_count": 463
+                }
+              },
+              "exit_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "exit_mismatch_samples": [
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-11-08 14:05:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": 1,
+                      "exit_time": "2024-11-08 21:50:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-11-12 06:25:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-11-13 06:30:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-11-13 06:50:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-11-08 14:00:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": 1,
+                      "exit_time": "2024-11-08 21:50:00",
+                      "reason": "max_hold",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-11-12 06:20:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-11-13 06:25:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2024-11-13 06:40:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    }
+                  ],
+                  "logic_exit_event_count": 463,
+                  "tick_exit_event_count": 463
+                }
+              }
+            },
+            "fold_id": "rw_004",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2025-01-31 23:50:00",
+              "start": "2024-11-01 01:00:00"
+            },
+            "required_kpis": {
+              "economics_shift_status": "tick_worse_than_logic",
+              "entry_count_delta": 0,
+              "entry_key_match_rate": 1.0,
+              "execution_divergence_status": "recorded_with_divergence",
+              "exit_count_delta": 0,
+              "exit_reason_match_rate": 0.902808,
+              "exit_time_direction_match_rate": 0.917927,
+              "logic_max_drawdown_percent": 0.01101,
+              "logic_net_pnl": -10.36,
+              "logic_trade_count": 463,
+              "tick_max_drawdown_percent": 2.134,
+              "tick_minus_logic_max_drawdown_percent": 2.12299,
+              "tick_minus_logic_net_pnl": -0.1,
+              "tick_minus_logic_trade_count": 0,
+              "tick_net_pnl": -10.46,
+              "tick_trade_count": 463
+            }
+          },
+          {
+            "conditional_profiles": {
+              "entry_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "entry_mismatch_samples": [
+                    {
+                      "direction": -1,
+                      "entry_time": "2025-03-20 15:30:00",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "entry_time": "2025-03-20 21:00:00",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "entry_time": "2025-03-27 21:00:00",
+                      "side": "logic_only"
+                    }
+                  ],
+                  "logic_entry_event_count": 442,
+                  "tick_entry_event_count": 439
+                }
+              },
+              "exit_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "exit_mismatch_samples": [
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-02-05 07:00:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": 1,
+                      "exit_time": "2025-02-11 14:00:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-02-14 15:00:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-02-17 19:35:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-02-18 13:45:00",
+                      "reason": "max_hold",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-02-05 06:55:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": 1,
+                      "exit_time": "2025-02-11 14:00:00",
+                      "reason": "target",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-02-14 14:55:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-02-17 19:30:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-02-18 13:05:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    }
+                  ],
+                  "logic_exit_event_count": 442,
+                  "tick_exit_event_count": 439
+                }
+              }
+            },
+            "fold_id": "rw_005",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2025-04-30 23:55:00",
+              "start": "2025-02-03 01:00:00"
+            },
+            "required_kpis": {
+              "economics_shift_status": "tick_better_than_logic",
+              "entry_count_delta": -3,
+              "entry_key_match_rate": 0.993213,
+              "execution_divergence_status": "recorded_with_divergence",
+              "exit_count_delta": -3,
+              "exit_reason_match_rate": 0.90724,
+              "exit_time_direction_match_rate": 0.91629,
+              "logic_max_drawdown_percent": 0.00788,
+              "logic_net_pnl": -5.24,
+              "logic_trade_count": 442,
+              "tick_max_drawdown_percent": 1.19,
+              "tick_minus_logic_max_drawdown_percent": 1.18212,
+              "tick_minus_logic_net_pnl": 2.46,
+              "tick_minus_logic_trade_count": -3,
+              "tick_net_pnl": -2.78,
+              "tick_trade_count": 439
+            }
+          },
+          {
+            "conditional_profiles": {
+              "entry_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "entry_mismatch_samples": [
+                    {
+                      "direction": -1,
+                      "entry_time": "2025-05-13 07:00:00",
+                      "side": "logic_only"
+                    }
+                  ],
+                  "logic_entry_event_count": 471,
+                  "tick_entry_event_count": 470
+                }
+              },
+              "exit_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "exit_mismatch_samples": [
+                    {
+                      "direction": 1,
+                      "exit_time": "2025-05-05 20:15:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-05-06 06:20:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-05-09 20:20:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-05-13 06:55:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-05-13 07:20:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": 1,
+                      "exit_time": "2025-05-05 20:15:00",
+                      "reason": "max_hold",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-05-06 06:15:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-05-09 20:20:00",
+                      "reason": "target",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-05-13 07:00:00",
+                      "reason": "target",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-05-14 13:55:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    }
+                  ],
+                  "logic_exit_event_count": 471,
+                  "tick_exit_event_count": 470
+                }
+              }
+            },
+            "fold_id": "rw_006",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2025-07-31 23:55:00",
+              "start": "2025-05-01 01:00:00"
+            },
+            "required_kpis": {
+              "economics_shift_status": "tick_better_than_logic",
+              "entry_count_delta": -1,
+              "entry_key_match_rate": 0.997877,
+              "execution_divergence_status": "recorded_with_divergence",
+              "exit_count_delta": -1,
+              "exit_reason_match_rate": 0.908705,
+              "exit_time_direction_match_rate": 0.940552,
+              "logic_max_drawdown_percent": 0.00924,
+              "logic_net_pnl": -5.45,
+              "logic_trade_count": 471,
+              "tick_max_drawdown_percent": 1.734,
+              "tick_minus_logic_max_drawdown_percent": 1.72476,
+              "tick_minus_logic_net_pnl": 1.78,
+              "tick_minus_logic_trade_count": -1,
+              "tick_net_pnl": -3.67,
+              "tick_trade_count": 470
+            }
+          },
+          {
+            "conditional_profiles": {
+              "entry_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "entry_mismatch_samples": [
+                    {
+                      "direction": -1,
+                      "entry_time": "2025-08-11 20:35:00",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "entry_time": "2025-08-13 19:50:00",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "entry_time": "2025-09-17 19:30:00",
+                      "side": "logic_only"
+                    }
+                  ],
+                  "logic_entry_event_count": 471,
+                  "tick_entry_event_count": 468
+                }
+              },
+              "exit_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "exit_mismatch_samples": [
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-08-01 08:05:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-08-01 13:00:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-08-05 07:30:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-08-07 21:05:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-08-11 20:25:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-08-01 08:00:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-08-01 13:05:00",
+                      "reason": "target",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-08-05 07:25:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-08-07 21:10:00",
+                      "reason": "target",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-08-13 19:50:00",
+                      "reason": "target",
+                      "side": "tick_only"
+                    }
+                  ],
+                  "logic_exit_event_count": 471,
+                  "tick_exit_event_count": 468
+                }
+              }
+            },
+            "fold_id": "rw_007",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2025-10-31 23:55:00",
+              "start": "2025-08-01 01:00:00"
+            },
+            "required_kpis": {
+              "economics_shift_status": "tick_worse_than_logic",
+              "entry_count_delta": -3,
+              "entry_key_match_rate": 0.993631,
+              "execution_divergence_status": "recorded_with_divergence",
+              "exit_count_delta": -3,
+              "exit_reason_match_rate": 0.917197,
+              "exit_time_direction_match_rate": 0.929936,
+              "logic_max_drawdown_percent": 0.00759,
+              "logic_net_pnl": -6.29,
+              "logic_trade_count": 471,
+              "tick_max_drawdown_percent": 2.056,
+              "tick_minus_logic_max_drawdown_percent": 2.04841,
+              "tick_minus_logic_net_pnl": -2.89,
+              "tick_minus_logic_trade_count": -3,
+              "tick_net_pnl": -9.18,
+              "tick_trade_count": 468
+            }
+          },
+          {
+            "conditional_profiles": {
+              "entry_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "entry_mismatch_samples": [
+                    {
+                      "direction": -1,
+                      "entry_time": "2025-12-22 20:50:00",
+                      "side": "logic_only"
+                    }
+                  ],
+                  "logic_entry_event_count": 455,
+                  "tick_entry_event_count": 454
+                }
+              },
+              "exit_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "exit_mismatch_samples": [
+                    {
+                      "direction": 1,
+                      "exit_time": "2025-11-06 07:10:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-11-06 09:15:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": 1,
+                      "exit_time": "2025-11-07 08:45:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-11-17 20:45:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": 1,
+                      "exit_time": "2025-11-21 16:30:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": 1,
+                      "exit_time": "2025-11-06 07:10:00",
+                      "reason": "max_hold",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-11-06 09:05:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": 1,
+                      "exit_time": "2025-11-07 08:45:00",
+                      "reason": "max_hold",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2025-11-17 20:20:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": 1,
+                      "exit_time": "2025-11-21 16:30:00",
+                      "reason": "target",
+                      "side": "tick_only"
+                    }
+                  ],
+                  "logic_exit_event_count": 455,
+                  "tick_exit_event_count": 454
+                }
+              }
+            },
+            "fold_id": "rw_008",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2026-01-30 23:55:00",
+              "start": "2025-11-03 01:00:00"
+            },
+            "required_kpis": {
+              "economics_shift_status": "tick_worse_than_logic",
+              "entry_count_delta": -1,
+              "entry_key_match_rate": 0.997802,
+              "execution_divergence_status": "recorded_with_divergence",
+              "exit_count_delta": -1,
+              "exit_reason_match_rate": 0.945055,
+              "exit_time_direction_match_rate": 0.969231,
+              "logic_max_drawdown_percent": 0.00821,
+              "logic_net_pnl": -5.6,
+              "logic_trade_count": 455,
+              "tick_max_drawdown_percent": 1.796,
+              "tick_minus_logic_max_drawdown_percent": 1.78779,
+              "tick_minus_logic_net_pnl": -0.82,
+              "tick_minus_logic_trade_count": -1,
+              "tick_net_pnl": -6.42,
+              "tick_trade_count": 454
+            }
+          },
+          {
+            "conditional_profiles": {
+              "entry_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "entry_mismatch_samples": [
+                    {
+                      "direction": -1,
+                      "entry_time": "2026-02-09 06:50:00",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": 1,
+                      "entry_time": "2026-03-27 06:35:00",
+                      "side": "logic_only"
+                    }
+                  ],
+                  "logic_entry_event_count": 457,
+                  "tick_entry_event_count": 455
+                }
+              },
+              "exit_divergence_profile": {
+                "applies": true,
+                "fields": {
+                  "exit_mismatch_samples": [
+                    {
+                      "direction": -1,
+                      "exit_time": "2026-02-03 13:05:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2026-02-04 07:20:00",
+                      "reason": "stop",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2026-02-09 06:45:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2026-02-09 07:05:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2026-02-16 07:35:00",
+                      "reason": "target",
+                      "side": "logic_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2026-02-03 13:10:00",
+                      "reason": "target",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2026-02-04 07:15:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2026-02-09 06:50:00",
+                      "reason": "target",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": -1,
+                      "exit_time": "2026-02-16 06:50:00",
+                      "reason": "stop",
+                      "side": "tick_only"
+                    },
+                    {
+                      "direction": 1,
+                      "exit_time": "2026-02-18 07:55:00",
+                      "reason": "max_hold",
+                      "side": "tick_only"
+                    }
+                  ],
+                  "logic_exit_event_count": 457,
+                  "tick_exit_event_count": 455
+                }
+              }
+            },
+            "fold_id": "rw_009",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2026-04-30 23:55:00",
+              "start": "2026-02-02 01:00:00"
+            },
+            "required_kpis": {
+              "economics_shift_status": "tick_worse_than_logic",
+              "entry_count_delta": -2,
+              "entry_key_match_rate": 0.995624,
+              "execution_divergence_status": "recorded_with_divergence",
+              "exit_count_delta": -2,
+              "exit_reason_match_rate": 0.956236,
+              "exit_time_direction_match_rate": 0.969365,
+              "logic_max_drawdown_percent": 0.00735,
+              "logic_net_pnl": -3.29,
+              "logic_trade_count": 457,
+              "tick_max_drawdown_percent": 1.178,
+              "tick_minus_logic_max_drawdown_percent": 1.17065,
+              "tick_minus_logic_net_pnl": -0.06,
+              "tick_minus_logic_trade_count": -2,
+              "tick_net_pnl": -3.35,
+              "tick_trade_count": 455
+            }
+          }
+        ],
+        "missing_by_fold": {}
+      }
+    },
+    "run_closeout_profile": {
+      "applies": true,
+      "fields": {
+        "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+        "closeout_status": "fold_isolated_divergence_recorded_pending_review"
+      }
+    },
+    "tick_participation_pressure_schedule_profile": {
+      "applies": true,
+      "fields": {
+        "feature_set_selected": false,
+        "label_selected": false,
+        "model_selected": false,
+        "runtime_portability_claim": false,
+        "schedule_artifact_path": "campaigns/C0023_tick_participation_pressure_discovery/runs/R0001/artifacts/c0023_r0001_schedule.csv",
+        "tick_participation_pressure_source": "rolling_train_is_proxy_schedule"
+      }
+    }
+  },
+  "created_at_utc": "2026-07-05T03:15:32Z",
+  "deferred_with_reason": [],
+  "divergence_id": "ED-C0023-R0001-BY-FOLD",
+  "missing_required_kpi_fields": [],
+  "required_kpis": {
+    "divergence_recorded_fold_count": 9,
+    "execution_divergence_by_fold_status": "completed",
+    "fold_count": 9,
+    "minimum_entry_key_match_rate": 0.993213,
+    "minimum_exit_reason_match_rate": 0.900648,
+    "minimum_exit_time_direction_match_rate": 0.911447,
+    "missing_required_fold_count": 0,
+    "tick_better_fold_count": 3,
+    "tick_worse_fold_count": 6,
+    "total_logic_net_pnl": -59.76,
+    "total_logic_trade_count": 4174,
+    "total_tick_minus_logic_net_pnl": 0.34,
+    "total_tick_minus_logic_trade_count": -12,
+    "total_tick_net_pnl": -59.42,
+    "total_tick_trade_count": 4162,
+    "worst_tick_minus_logic_fold_id": "rw_002",
+    "worst_tick_minus_logic_net_pnl": -3.06
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "schema": "axiom_rift_execution_divergence_by_fold_kpi_v1",
+  "split_policy": "rolling_window_test_oos_fold_isolated",
+  "split_registry": "registries/rolling_windows.yaml",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "tick_mt5_by_fold_kpi_path": "campaigns/C0023_tick_participation_pressure_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+  "work_unit_id": "C0023"
+}

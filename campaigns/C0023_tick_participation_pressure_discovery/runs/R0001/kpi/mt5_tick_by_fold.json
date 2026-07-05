@@ -1,0 +1,302 @@
+{
+  "campaign_id": "C0023",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false
+  },
+  "conditional_profiles": {
+    "fold_profile": {
+      "applies": true,
+      "fields": {
+        "folds": [
+          {
+            "fold_id": "rw_001",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2024-04-30 23:55:00",
+              "start": "2024-02-01 01:00:00"
+            },
+            "required_kpis": {
+              "mt5_execution_mode": "tick_execution",
+              "mt5_exit_evaluation": "tick_price",
+              "mt5_expectancy_per_entry": -0.0171,
+              "mt5_max_drawdown_percent": 1.71,
+              "mt5_net_pnl": -7.9,
+              "mt5_output_mode": "tick_execution",
+              "mt5_profit_factor": 0.792868,
+              "mt5_trade_count": 462,
+              "mt5_win_rate": 0.38961
+            },
+            "tester": {
+              "deals_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_001/mt5_deals.csv",
+              "events_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_001/mt5_events.csv",
+              "from_date": "2024.02.01",
+              "status_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_001/mt5_status.csv",
+              "to_date": "2024.05.01"
+            }
+          },
+          {
+            "fold_id": "rw_002",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2024-07-31 23:55:00",
+              "start": "2024-05-01 01:00:00"
+            },
+            "required_kpis": {
+              "mt5_execution_mode": "tick_execution",
+              "mt5_exit_evaluation": "tick_price",
+              "mt5_expectancy_per_entry": -0.016938,
+              "mt5_max_drawdown_percent": 1.904,
+              "mt5_net_pnl": -8.13,
+              "mt5_output_mode": "tick_execution",
+              "mt5_profit_factor": 0.785375,
+              "mt5_trade_count": 480,
+              "mt5_win_rate": 0.4
+            },
+            "tester": {
+              "deals_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_002/mt5_deals.csv",
+              "events_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_002/mt5_events.csv",
+              "from_date": "2024.05.01",
+              "status_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_002/mt5_status.csv",
+              "to_date": "2024.08.01"
+            }
+          },
+          {
+            "fold_id": "rw_003",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2024-10-31 23:55:00",
+              "start": "2024-08-01 01:00:00"
+            },
+            "required_kpis": {
+              "mt5_execution_mode": "tick_execution",
+              "mt5_exit_evaluation": "tick_price",
+              "mt5_expectancy_per_entry": -0.015987,
+              "mt5_max_drawdown_percent": 2.192,
+              "mt5_net_pnl": -7.53,
+              "mt5_output_mode": "tick_execution",
+              "mt5_profit_factor": 0.846421,
+              "mt5_trade_count": 471,
+              "mt5_win_rate": 0.426752
+            },
+            "tester": {
+              "deals_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_003/mt5_deals.csv",
+              "events_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_003/mt5_events.csv",
+              "from_date": "2024.08.01",
+              "status_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_003/mt5_status.csv",
+              "to_date": "2024.11.01"
+            }
+          },
+          {
+            "fold_id": "rw_004",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2025-01-31 23:50:00",
+              "start": "2024-11-01 01:00:00"
+            },
+            "required_kpis": {
+              "mt5_execution_mode": "tick_execution",
+              "mt5_exit_evaluation": "tick_price",
+              "mt5_expectancy_per_entry": -0.022592,
+              "mt5_max_drawdown_percent": 2.134,
+              "mt5_net_pnl": -10.46,
+              "mt5_output_mode": "tick_execution",
+              "mt5_profit_factor": 0.777541,
+              "mt5_trade_count": 463,
+              "mt5_win_rate": 0.382289
+            },
+            "tester": {
+              "deals_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_004/mt5_deals.csv",
+              "events_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_004/mt5_events.csv",
+              "from_date": "2024.11.01",
+              "status_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_004/mt5_status.csv",
+              "to_date": "2025.02.01"
+            }
+          },
+          {
+            "fold_id": "rw_005",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2025-04-30 23:55:00",
+              "start": "2025-02-03 01:00:00"
+            },
+            "required_kpis": {
+              "mt5_execution_mode": "tick_execution",
+              "mt5_exit_evaluation": "tick_price",
+              "mt5_expectancy_per_entry": -0.006333,
+              "mt5_max_drawdown_percent": 1.19,
+              "mt5_net_pnl": -2.78,
+              "mt5_output_mode": "tick_execution",
+              "mt5_profit_factor": 0.95225,
+              "mt5_trade_count": 439,
+              "mt5_win_rate": 0.387244
+            },
+            "tester": {
+              "deals_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_005/mt5_deals.csv",
+              "events_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_005/mt5_events.csv",
+              "from_date": "2025.02.03",
+              "status_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_005/mt5_status.csv",
+              "to_date": "2025.05.01"
+            }
+          },
+          {
+            "fold_id": "rw_006",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2025-07-31 23:55:00",
+              "start": "2025-05-01 01:00:00"
+            },
+            "required_kpis": {
+              "mt5_execution_mode": "tick_execution",
+              "mt5_exit_evaluation": "tick_price",
+              "mt5_expectancy_per_entry": -0.007809,
+              "mt5_max_drawdown_percent": 1.734,
+              "mt5_net_pnl": -3.67,
+              "mt5_output_mode": "tick_execution",
+              "mt5_profit_factor": 0.903624,
+              "mt5_trade_count": 470,
+              "mt5_win_rate": 0.410638
+            },
+            "tester": {
+              "deals_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_006/mt5_deals.csv",
+              "events_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_006/mt5_events.csv",
+              "from_date": "2025.05.01",
+              "status_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_006/mt5_status.csv",
+              "to_date": "2025.08.01"
+            }
+          },
+          {
+            "fold_id": "rw_007",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2025-10-31 23:55:00",
+              "start": "2025-08-01 01:00:00"
+            },
+            "required_kpis": {
+              "mt5_execution_mode": "tick_execution",
+              "mt5_exit_evaluation": "tick_price",
+              "mt5_expectancy_per_entry": -0.019615,
+              "mt5_max_drawdown_percent": 2.056,
+              "mt5_net_pnl": -9.18,
+              "mt5_output_mode": "tick_execution",
+              "mt5_profit_factor": 0.766946,
+              "mt5_trade_count": 468,
+              "mt5_win_rate": 0.412393
+            },
+            "tester": {
+              "deals_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_007/mt5_deals.csv",
+              "events_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_007/mt5_events.csv",
+              "from_date": "2025.08.01",
+              "status_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_007/mt5_status.csv",
+              "to_date": "2025.11.01"
+            }
+          },
+          {
+            "fold_id": "rw_008",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2026-01-30 23:55:00",
+              "start": "2025-11-03 01:00:00"
+            },
+            "required_kpis": {
+              "mt5_execution_mode": "tick_execution",
+              "mt5_exit_evaluation": "tick_price",
+              "mt5_expectancy_per_entry": -0.014141,
+              "mt5_max_drawdown_percent": 1.796,
+              "mt5_net_pnl": -6.42,
+              "mt5_output_mode": "tick_execution",
+              "mt5_profit_factor": 0.855795,
+              "mt5_trade_count": 454,
+              "mt5_win_rate": 0.400881
+            },
+            "tester": {
+              "deals_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_008/mt5_deals.csv",
+              "events_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_008/mt5_events.csv",
+              "from_date": "2025.11.03",
+              "status_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_008/mt5_status.csv",
+              "to_date": "2026.01.31"
+            }
+          },
+          {
+            "fold_id": "rw_009",
+            "missing_required_kpi_fields": [],
+            "period": {
+              "end": "2026-04-30 23:55:00",
+              "start": "2026-02-02 01:00:00"
+            },
+            "required_kpis": {
+              "mt5_execution_mode": "tick_execution",
+              "mt5_exit_evaluation": "tick_price",
+              "mt5_expectancy_per_entry": -0.007363,
+              "mt5_max_drawdown_percent": 1.178,
+              "mt5_net_pnl": -3.35,
+              "mt5_output_mode": "tick_execution",
+              "mt5_profit_factor": 0.940029,
+              "mt5_trade_count": 455,
+              "mt5_win_rate": 0.432967
+            },
+            "tester": {
+              "deals_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_009/mt5_deals.csv",
+              "events_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_009/mt5_events.csv",
+              "from_date": "2026.02.02",
+              "status_csv": "C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/Common/Files/AxiomRift/C0023/R0001/tick_execution/rw_009/mt5_status.csv",
+              "to_date": "2026.05.01"
+            }
+          }
+        ],
+        "missing_by_fold": {}
+      }
+    },
+    "run_closeout_profile": {
+      "applies": true,
+      "fields": {
+        "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+        "closeout_status": "fold_isolated_tick_kpi_recorded_pending_review"
+      }
+    },
+    "spread_slippage_stress_profile": {
+      "applies": false,
+      "deferred_with_reason": "Fold-isolated baseline tick evidence is recorded; stress sweeps are separate robustness work.",
+      "fields": {}
+    },
+    "tick_participation_pressure_schedule_profile": {
+      "applies": true,
+      "fields": {
+        "feature_set_selected": false,
+        "label_selected": false,
+        "model_selected": false,
+        "runtime_portability_claim": false,
+        "schedule_artifact_path": "campaigns/C0023_tick_participation_pressure_discovery/runs/R0001/artifacts/c0023_r0001_schedule.csv",
+        "tick_participation_pressure_source": "rolling_train_is_proxy_schedule"
+      }
+    }
+  },
+  "created_at_utc": "2026-07-05T03:15:31Z",
+  "deferred_with_reason": [],
+  "missing_required_kpi_fields": [],
+  "mt5_probe_id": "MT5-C0023-R0001-BY-FOLD",
+  "required_kpis": {
+    "all_folds_completed": true,
+    "completed_fold_count": 9,
+    "fold_count": 9,
+    "losing_fold_count": 9,
+    "missing_required_fold_count": 0,
+    "mt5_tick_by_fold_status": "completed",
+    "profitable_fold_count": 0,
+    "total_tick_net_pnl": -59.42,
+    "total_tick_trade_count": 4162,
+    "worst_drawdown_fold_id": "rw_003",
+    "worst_fold_id": "rw_004",
+    "worst_fold_max_drawdown_percent": 2.192,
+    "worst_fold_net_pnl": -10.46
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "schema": "axiom_rift_mt5_tick_by_fold_kpi_v1",
+  "split_policy": "rolling_window_test_oos_fold_isolated",
+  "split_registry": "registries/rolling_windows.yaml",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0023"
+}
