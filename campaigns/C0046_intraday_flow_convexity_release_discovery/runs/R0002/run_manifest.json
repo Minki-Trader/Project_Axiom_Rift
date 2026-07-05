@@ -1,0 +1,236 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-05T23:31:13Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
+    "closed_at_utc": "2026-07-05T23:31:13Z",
+    "negative_memory": {
+      "asset_type": "negative_memory",
+      "candidate_status": "no_candidate",
+      "economics_pass": false,
+      "evidence_paths": [
+        "artifacts/c0046_r0002_proxy_trades.csv",
+        "artifacts/c0046_r0002_flow_convexity_release_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0046_r0002_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday signed flow convexity release fragility-survival rank over cost buffer, wick fragility, adverse churn, quantized margin, and late-session spread pressure",
+      "next_boundary": "R0002 shows that cost-fragility survival overlay does not improve C0046; R0001 candidate evidence remains retained but unselected, and further C0046 work is adjacent hardening rather than a new non-adjacent campaign question",
+      "onnx_ready": false,
+      "reason_not_candidate": "proxy, closed-bar MT5 logic, aggregate MT5 tick, and fold-isolated MT5 tick economics were negative with five losing folds",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0002 produced 4 profitable and 5 losing fold-isolated MT5 tick folds, total tick net PnL -64.54, and worst fold rw_008 net PnL -27.32."
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "Schedule replay mechanical parity passed with mismatch_count 0, so the weak result is not explained by proxy-vs-MT5 logic mismatch."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution improved closed-bar logic by +15.24 total net PnL, with 5 tick-better folds and 4 tick-worse folds, but both surfaces remained negative."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "divergence_recorded_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.968966,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "losing_fold_count": 5,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.997976,
+      "minimum_exit_reason_match_rate": 0.838966,
+      "minimum_exit_time_direction_match_rate": 0.862823,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": -79.78,
+      "mt5_logic_profit_factor": 0.818678,
+      "mt5_logic_trade_count": 4622,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_max_drawdown_percent": 19.714,
+      "mt5_tick_net_pnl": -64.54,
+      "mt5_tick_profit_factor": 0.843125,
+      "mt5_tick_trade_count": 4619,
+      "mt5_tick_win_rate": 0.389478,
+      "profitable_fold_count": 4,
+      "proxy_expectancy_points_per_entry": -1.821132,
+      "proxy_net_pnl_points": -8417.27,
+      "proxy_profit_factor": 0.797161,
+      "proxy_trade_count": 4622,
+      "tick_better_fold_count": 5,
+      "tick_minus_logic_net_pnl": 15.24,
+      "tick_minus_logic_trade_count": -3,
+      "tick_worse_fold_count": 4,
+      "total_tick_minus_logic_net_pnl": 15.24,
+      "total_tick_net_pnl": -64.54,
+      "total_tick_trade_count": 4619,
+      "worst_drawdown_fold_id": "rw_008",
+      "worst_fold_id": "rw_008",
+      "worst_fold_max_drawdown_percent": 5.578,
+      "worst_fold_net_pnl": -27.32,
+      "worst_tick_minus_logic_fold_id": "rw_003",
+      "worst_tick_minus_logic_net_pnl": -17.9
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "intraday_flow_convexity_release_summary": "artifacts/c0046_r0002_flow_convexity_release_summary.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0046_r0002_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0046_r0002_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local signed flow convexity release fragility survival rank run",
+    "variant_boundary": "R0002 changes R0001 by adding cost-fragility survival features, adverse-cost label pressure, quantized margin proxy terms, and execution-fragility score surfaces; it is not selected, economics-pass, runtime, ONNX, promotion, live, threshold, stop, target, hold, session, activity, spread, capital, monthly-filter, materialization, or retry-only work."
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "next_required_action": "choose_c0047_new_major_hypothesis_after_c0046_closeout",
+    "notes": [
+      "MT5 validation remains mandatory even if proxy KPI is weak.",
+      "Schedule replay is used only for paired validation and does not create runtime, materialization, ONNX, promotion, or live authority."
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-05T23:15:00Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "This run changes feature, label, model, and scoring surfaces by testing whether signed-flow release candidates survive explicit execution-fragility and adverse-cost pressure; it is not a threshold, window, stop, target, hold, session, activity, spread, capital, monthly-filter, materialization, ONNX, or retry nudge.",
+    "adjacent_tuning_risk": "medium",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+      "campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0003/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 3,
+    "pre_open_decision_id": "POD-C0046-R0002",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "recorded_before_run_open",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "Tests whether the C0046 signed-flow release surface remains useful when ranking emphasizes cost buffer, wick fragility, adverse churn, quantized margin, and late-session spread pressure."
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "Proxy output is reference evidence and cannot stop MT5 validation."
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0002",
+  "schema": "axiom_rift_run_manifest_v2",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "R0001 signed flow convexity release features plus release-to-spread margin, fragility cost buffer, late-session spread pressure, wick execution fragility, adverse churn pressure, quantized margin proxy, and pressure-release survival interaction"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "directional signed-flow release quality with stronger adverse-cost, spread spike, ambiguous exit, and future churn penalties plus survival buffer reward"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "fold-local linear rank surface fit on train-is fragility-survival signed-flow release candidates"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "fixed-lot dual-direction top fragility-survival signed-flow release schedule replay candidates per active day"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0046"
+}

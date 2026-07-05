@@ -22,7 +22,7 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: campaigns/C0046_intraday_flow_convexity_release_discovery
+  active_campaign: null
   active_synthesis: null
   active_run: null
 active_truth:
@@ -114,7 +114,7 @@ data_state:
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
 next_work:
-  campaign: campaigns/C0046_intraday_flow_convexity_release_discovery
+  campaign: null
   synthesis: null
   completed:
   - fresh_export_us100_m5_max_available
@@ -1209,17 +1209,29 @@ next_work:
   - produce_c0046_r0001_mt5_logic_parity_evidence
   - review_c0046_r0001_tick_execution_kpi_and_closeout
   - close_c0046_r0001_with_candidate_evidence
+  - open_c0046_r0002_intraday_flow_convexity_release_fragility_survival_run
+  - produce_c0046_r0002_proxy_evidence
+  - record_c0046_r0002_proxy_vs_mt5_logic_parity_evidence
+  - record_c0046_r0002_execution_divergence
+  - produce_c0046_r0002_mt5_tick_execution_evidence
+  - produce_c0046_r0002_fold_isolated_mt5_tick_kpi
+  - produce_c0046_r0002_fold_isolated_execution_divergence
+  - review_c0046_r0002_tick_execution_kpi_and_closeout
+  - close_c0046_r0002_no_candidate
+  - close_c0046_with_candidate_evidence_and_r0002_negative_memory
   tasks:
-  - decide_c0046_r0002_or_close_c0046_after_r0001
+  - choose_c0047_new_major_hypothesis_after_c0046_closeout
   not_yet:
   - label_freeze
   - feature_set_freeze
   - model_training
   - mt5_runtime_claim
-  active_campaign: campaigns/C0046_intraday_flow_convexity_release_discovery
+  - onnx_ready_claim
+  - live_readiness
+  active_campaign: null
   active_run: null
   run: null
   active_synthesis: null
 active_run: null
-active_campaign: campaigns/C0046_intraday_flow_convexity_release_discovery
+active_campaign: null
 active_synthesis: null
