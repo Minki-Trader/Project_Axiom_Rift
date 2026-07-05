@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0019
+    next_id: C0020
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -37,6 +37,7 @@ streams:
     - campaigns/C0016_intraday_directional_imbalance_discovery
     - campaigns/C0017_round_level_magnet_rejection_discovery
     - campaigns/C0018_micro_gap_absorption_discovery
+    - campaigns/C0019_bar_quality_asymmetry_discovery
     numbering_policy:
       width: 4
       example: C0001

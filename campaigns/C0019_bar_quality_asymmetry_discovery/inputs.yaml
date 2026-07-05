@@ -1,0 +1,54 @@
+schema: axiom_rift_campaign_inputs_v1
+template: false
+campaign_id: C0019
+work_unit_id: C0019
+campaign_slug: bar_quality_asymmetry_discovery
+run_id: R0001
+market:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+data_inputs:
+  base_frame:
+    path: data/processed/datasets/us100_m5_base_frame.csv
+    role: closed_m5_us100_bars
+  rolling_windows:
+    path: registries/rolling_windows.yaml
+    role: fold_isolated_train_is_and_test_oos_splits
+  leakage_policy: no_future_leakage
+cost_model:
+  commission_per_trade: 0
+  synthetic_commission_allowed: false
+  spread_stress_test_allowed: true
+  slippage_stress_test_allowed: true
+sizing:
+  discovery_mode: fixed_lot
+  equity_percent_sizing_deferred: true
+validation_sequence:
+- proxy_kpi
+- mt5_logic_parity_kpi
+- proxy_vs_mt5_logic_parity_kpi
+- mt5_tick_kpi
+- execution_divergence_kpi
+- fold_isolated_mt5_tick_kpi
+- fold_isolated_execution_divergence_kpi
+- closeout_gate
+failure_memory_used:
+- campaigns/C0018_micro_gap_absorption_discovery/runs/R0001/gate_report.json
+- campaigns/C0017_round_level_magnet_rejection_discovery/runs/R0001/gate_report.json
+- campaigns/C0016_intraday_directional_imbalance_discovery/runs/R0001/gate_report.json
+- campaigns/C0015_liquidity_vacuum_rebound_discovery/runs/R0001/gate_report.json
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
