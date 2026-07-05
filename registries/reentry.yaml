@@ -966,8 +966,19 @@ next_work:
   - review_c0033_r0001_tick_execution_kpi_and_closeout
   - close_c0033_r0001_no_candidate
   - close_c0033_no_candidate_after_r0001
+  - open_c0034_intraday_effort_price_absorption_discovery
+  - open_c0034_r0001_fold_local_intraday_effort_price_absorption_rank_run
+  - produce_c0034_r0001_proxy_evidence
+  - record_c0034_r0001_proxy_vs_mt5_logic_parity_evidence
+  - record_c0034_r0001_execution_divergence
+  - produce_c0034_r0001_mt5_tick_execution_evidence
+  - produce_c0034_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0034_r0001_fold_isolated_execution_divergence
+  - produce_c0034_r0001_mt5_logic_parity_evidence
+  - close_c0034_r0001_no_candidate
+  - close_c0034_no_candidate_after_r0001
   tasks:
-  - choose_c0034_new_major_hypothesis_after_c0033_closeout
+  - choose_c0035_new_major_hypothesis_after_c0034_closeout
   not_yet:
   - label_freeze
   - feature_set_freeze

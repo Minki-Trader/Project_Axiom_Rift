@@ -79,7 +79,7 @@ data_state:
     tail_holdout_partial_start: 2026-05-01 01:00:00
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
-claim_boundary:
+claim_boundary: &id001
   claim_authority: false
   economics_pass: false
   feature_set_selected: false
@@ -102,37 +102,24 @@ active_campaign: null
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0033_no_candidate_after_r0001
+  id: close_c0034_no_candidate_after_r0001
   status: completed
-  recorded_at_source: campaigns/C0033_intraday_seasonal_residual_dislocation_discovery/runs/R0001/gate_report.json
+  recorded_at_source: campaigns/C0034_intraday_effort_price_absorption_discovery/runs/R0001/gate_report.json
   evidence_status: closed_no_candidate
-  source_campaign: campaigns/C0033_intraday_seasonal_residual_dislocation_discovery
+  source_campaign: campaigns/C0034_intraday_effort_price_absorption_discovery
   active_run: null
   run_id: R0001
-  entries_per_active_day: 7.618966
-  proxy_trade_count: 4419
-  proxy_net_pnl_points: -44242.68
-  proxy_profit_factor: 0.281939
-  mt5_tick_net_pnl: -436.42
-  mt5_tick_profit_factor: 0.28916
+  entries_per_active_day: 7.436207
+  proxy_trade_count: 4313
+  proxy_net_pnl_points: -23755.84
+  proxy_profit_factor: 0.530586
+  mt5_tick_net_pnl: -245.62
+  mt5_tick_profit_factor: 0.52017
   profitable_fold_count: 0
   losing_fold_count: 9
+  next_required_action: choose_c0035_new_major_hypothesis_after_c0034_closeout
+  claim_boundary: *id001
   failure_asset_recorded: true
-  next_required_action: choose_c0034_new_major_hypothesis_after_c0033_closeout
-  claim_boundary:
-    claim_authority: false
-    economics_pass: false
-    feature_set_selected: false
-    label_selected: false
-    live_ready: false
-    materialization_ready: false
-    model_selected: false
-    onnx_ready: false
-    promotion_ready: false
-    runtime_authority: false
-    runtime_probe_completed: false
-    selected: false
-    trade_logic_selected: false
 active_truth:
   contracts_dir: contracts
   configs_dir: configs
