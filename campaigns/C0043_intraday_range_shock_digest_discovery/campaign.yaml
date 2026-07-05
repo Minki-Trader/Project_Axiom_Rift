@@ -1,0 +1,117 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: closed_no_candidate
+campaign_id: C0043
+campaign_slug: intraday_range_shock_digest_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-05T19:02:00Z'
+hypothesis:
+  summary: discover whether closed-bar intraday range shock digest states can rank FPMarkets
+    US100 M5 entries
+  boundary: closed-bar range-shock lifecycle surface over multi-horizon range shock ratios,
+    shock clustering, post-shock compression or expansion, close-in-shock efficiency, directional
+    shock follow-through, shock exhaustion, day range depletion, session progress, and spread-shock
+    stress; not C0042 path symmetry imbalance, C0041 autocorrelation decay, C0040 return distribution
+    shape, C0039 moving-average ribbon phase, C0038 dwell-transition timing, C0037 price memory
+    density, C0036 range impulse memory, C0034 effort-price absorption, C0023 tick participation
+    pressure, C0022 volatility term structure, threshold, score, stop, target, hold, session,
+    activity, spread, capital, monthly filter, or retry nudge
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+  - equity_percent_sizing_rescue
+  - c0042_path_symmetry_imbalance_retry
+  - c0041_autocorrelation_decay_retry
+  - c0040_return_distribution_shape_retry
+  - c0039_moving_average_ribbon_phase_retry
+  - c0038_dwell_transition_timing_retry
+  - c0037_price_memory_density_retry
+  - c0036_range_impulse_memory_retry
+  - c0022_volatility_term_structure_retry
+  - threshold_or_score_filter_rescue
+  - synthetic_commission_model
+required_surfaces:
+  model:
+    status: variable
+    summary: fold-local linear rank surface for intraday range shock digest candidates
+  feature:
+    status: variable
+    summary: range-shock digest features for shock ratios, shock clustering, post-shock compression
+      or expansion, close-in-shock efficiency, directional shock follow-through, shock exhaustion,
+      day range depletion, session progress, and spread-shock stress
+  trade_logic:
+    status: variable
+    summary: fixed-lot dual-direction top range shock digest schedule replay candidates per
+      active day
+  label:
+    status: variable
+    summary: directional range-shock digest quality with target-first reward, shock follow-through
+      or recovery bonus, adverse post-shock continuation penalty, churn penalty, and spread-shock
+      penalty
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: null
+    direction: choose_c0044_major_hypothesis_after_c0043_no_candidate_closeout
+    reason: R0001 closed no-candidate after negative proxy, negative aggregate MT5 tick, severe
+      drawdown, and zero profitable fold-isolated MT5 tick folds; further C0043 work would
+      likely be adjacent range-shock digest tuning.
+    status: closed_no_candidate_choose_new_major_axis
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_opened
+  checked_at_utc: '2026-07-05T19:21:02Z'
+  open_synthesis_now: false
+  recommended_next_action: choose_c0044_major_hypothesis_after_c0043_no_candidate_closeout
+  readiness_notes:
+  - single_c0043_run_closed_no_candidate
+  - failure_is_clear_without_needing_adjacent_range_shock_digest_tuning
+  - next_work_should_choose_materially_new_c0044_major_hypothesis_not_retry_range_shock_digest
+closeout:
+  status: closed_no_candidate
+  closed_at_utc: '2026-07-05T19:21:02Z'
+  remaining_question: choose_c0044_major_hypothesis_after_c0043_no_candidate_closeout
+  claim_boundary:
+    claim_authority: false
+    economics_pass: false
+    feature_set_selected: false
+    label_selected: false
+    live_ready: false
+    materialization_ready: false
+    model_selected: false
+    onnx_ready: false
+    promotion_ready: false
+    runtime_authority: false
+    runtime_probe_completed: false
+    selected: false
+    trade_logic_selected: false
+  reason: C0043 R0001 tested a materially new range shock digest axis but failed proxy, aggregate
+    MT5 tick, and fold-isolated MT5 tick candidate standards.
+  failure_asset:
+    asset_type: negative_memory
+    source_run: runs/R0001
+    gate_report: runs/R0001/gate_report.json
+    reason_not_candidate: activity landed in the target band but proxy was negative, aggregate
+      MT5 tick remained negative with severe drawdown, and fold-isolated MT5 tick had zero
+      profitable folds and nine losing folds
+claim_boundary:
+  claim_authority: false
+  economics_pass: false
+  feature_set_selected: false
+  label_selected: false
+  live_ready: false
+  materialization_ready: false
+  model_selected: false
+  onnx_ready: false
+  promotion_ready: false
+  runtime_authority: false
+  runtime_probe_completed: false
+  selected: false
+  trade_logic_selected: false
+closed_at_utc: '2026-07-05T19:21:02Z'
