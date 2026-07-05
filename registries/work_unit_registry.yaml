@@ -3,7 +3,8 @@ status: draft_active
 encoding: ascii_only
 source_of_truth_scope: work_unit_numbering_index
 no_active_truth_for_external_refs: true
-purpose: track Axiom C campaign and SC synthesis numbering without creating campaign completion, selected, runtime, promotion, ONNX, or live claims
+purpose: track Axiom C campaign and SC synthesis numbering without creating campaign completion,
+  selected, runtime, promotion, ONNX, or live claims
 template_registry: registries/template_registry.yaml
 governing_contracts:
 - contracts/campaign_lifecycle.yaml
@@ -14,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0033
+    next_id: C0034
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -50,6 +51,7 @@ streams:
     - campaigns/C0030_intraday_vwap_repricing_pressure_discovery
     - campaigns/C0031_intraday_entropy_release_discovery
     - campaigns/C0032_intraday_tail_risk_skew_discovery
+    - campaigns/C0033_intraday_seasonal_residual_dislocation_discovery
     numbering_policy:
       width: 4
       example: C0001
