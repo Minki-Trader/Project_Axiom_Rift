@@ -1,0 +1,91 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: active_candidate_evidence
+campaign_id: C0045
+campaign_slug: intraday_regression_channel_residual_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-05T20:05:00Z'
+hypothesis:
+  summary: discover whether closed-bar intraday regression channel residual states can rank
+    FPMarkets US100 M5 entries
+  boundary: closed-bar rolling regression-channel surface over slope, residual z-score, channel
+    width, residual persistence, residual compression or expansion, slope acceleration, channel
+    efficiency, day residual pressure, session progress, and spread-channel stress; not C0044
+    extreme recency gradient, C0043 range shock digest, C0042 path symmetry imbalance, C0041
+    autocorrelation decay, C0040 return distribution shape, C0039 moving-average ribbon phase,
+    C0038 dwell-transition timing, C0037 price memory density, C0036 range impulse memory,
+    C0034 effort-price absorption, C0027 symbolic grammar, C0026 acceleration curvature, C0024
+    calendar rhythm, threshold, score, stop, target, hold, session, activity, spread, capital,
+    monthly filter, or retry nudge
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+  - equity_percent_sizing_rescue
+  - c0044_extreme_recency_gradient_retry
+  - c0043_range_shock_digest_retry
+  - c0042_path_symmetry_imbalance_retry
+  - c0041_autocorrelation_decay_retry
+  - c0040_return_distribution_shape_retry
+  - c0039_moving_average_ribbon_phase_retry
+  - c0038_dwell_transition_timing_retry
+  - c0037_price_memory_density_retry
+  - threshold_or_score_filter_rescue
+  - synthetic_commission_model
+required_surfaces:
+  model:
+    status: variable
+    summary: fold-local linear rank surface for intraday regression channel residual candidates
+  feature:
+    status: variable
+    summary: regression channel residual features for multi-horizon OLS slope, residual z-score,
+      channel width, residual persistence, slope acceleration, channel efficiency, day residual
+      pressure, session progress, and spread-channel stress
+  trade_logic:
+    status: variable
+    summary: fixed-lot dual-direction top regression channel residual schedule replay candidates
+      per active day
+  label:
+    status: variable
+    summary: directional regression channel residual quality with target-first reward, favorable
+      residual continuation or mean-reversion bonus, adverse channel drift penalty, churn
+      penalty, and spread-channel penalty
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: R0002
+    direction: design_c0045_r0002_regression_channel_residual_directional_cost_buffer_hardening_run
+    reason: R0001 retained candidate evidence but remains unselected; next run should harden
+      directional asymmetry, one losing fold, and tick-worse cost buffer without selected,
+      economics, runtime, ONNX, promotion, or live claim.
+    status: design_required
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_due_candidate_hardening_required
+  open_synthesis_now: false
+  recommended_next_action: design_c0045_r0002_regression_channel_residual_directional_cost_buffer_hardening_run
+  readiness_notes:
+  - r0001_retained_candidate_evidence_not_selected
+  - continue_c0045_with_true_hardening_variant_before_synthesis
+claim_boundary:
+  claim_authority: false
+  economics_pass: false
+  feature_set_selected: false
+  label_selected: false
+  live_ready: false
+  materialization_ready: false
+  model_selected: false
+  onnx_ready: false
+  promotion_ready: false
+  runtime_authority: false
+  runtime_probe_completed: false
+  selected: false
+  trade_logic_selected: false
+closeout:
+  remaining_question: design_c0045_r0002_regression_channel_residual_directional_cost_buffer_hardening_run
+  status: campaign_active_after_candidate_evidence

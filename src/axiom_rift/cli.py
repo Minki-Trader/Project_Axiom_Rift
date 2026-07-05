@@ -403,6 +403,11 @@ RUN_SPECS: tuple[RunSpec, ...] = (
         "axiom_rift.mt5.c0044_r0001_probe",
         "axiom_rift.proxies.c0044_r0001_intraday_extreme_recency_gradient",
     ),
+    RunSpec(
+        "c0045_r0001",
+        "axiom_rift.mt5.c0045_r0001_probe",
+        "axiom_rift.proxies.c0045_r0001_intraday_regression_channel_residual",
+    ),
 )
 
 

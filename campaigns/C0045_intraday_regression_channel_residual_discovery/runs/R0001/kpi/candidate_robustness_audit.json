@@ -1,0 +1,133 @@
+{
+  "audit_id": "CRA-C0045-R0001",
+  "campaign_id": "C0045",
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "created_at_utc": "2026-07-05T20:33:09Z",
+  "decision": {
+    "candidate_evidence_status": "retained_not_selected",
+    "hardening_required": true,
+    "reason": "R0001 keeps target activity and positive MT5 tick evidence with eight profitable folds, but one fold is slightly losing, every fold is tick-worse than closed-bar logic, the proxy edge is strongly short-dominant, and stress/materialization evidence is incomplete.",
+    "selection_status": "not_selected",
+    "status": "candidate_evidence_requires_hardening",
+    "suggested_next_action": "design_c0045_r0002_regression_channel_residual_directional_cost_buffer_hardening_run"
+  },
+  "evidence_paths": [
+    "campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0001/kpi/proxy.json",
+    "campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0001/kpi/mt5_tick.json",
+    "campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+    "campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0001/kpi/execution_divergence_by_fold.json"
+  ],
+  "kpi_family": "candidate_robustness_audit",
+  "monthly_tick_deal_audit": {
+    "best_month": {
+      "max_intramonth_drawdown": 2.72,
+      "month": "2025-04",
+      "net_pnl": 15.91,
+      "profit_factor": 1.732168,
+      "trade_count": 166,
+      "win_rate": 0.518072
+    },
+    "longest_losing_month_streak": {
+      "end": "2024-03",
+      "length": 1,
+      "start": "2024-03"
+    },
+    "losing_month_count": 1,
+    "month_count": 27,
+    "profitable_month_count": 26,
+    "source": "mt5_tick_deals_exit_rows",
+    "worst_intramonth_drawdown_month": {
+      "max_intramonth_drawdown": 3.1,
+      "month": "2025-11",
+      "net_pnl": 7.16,
+      "profit_factor": 1.456924,
+      "trade_count": 158,
+      "win_rate": 0.506329
+    },
+    "worst_month": {
+      "max_intramonth_drawdown": 2.38,
+      "month": "2024-03",
+      "net_pnl": -1.55,
+      "profit_factor": 0.857537,
+      "trade_count": 160,
+      "win_rate": 0.4
+    }
+  },
+  "notes": [
+    "This audit reuses existing R0001 proxy, MT5 tick, fold-isolated tick, execution divergence, and MT5 deal output. It is not a new selected, economics-pass, runtime, materialization, ONNX, promotion, or live claim.",
+    "The 0.01 adverse cost diagnostic is expressed in account currency units per entry and is only a sensitivity check, not a frozen spread or slippage rule.",
+    "C0045 R0001 retains candidate evidence but remains unselected because one fold is slightly negative, every fold is tick-worse than logic, long-side proxy evidence is weak, and robustness/materialization evidence is incomplete."
+  ],
+  "required_kpis": {
+    "aggregate_extra_cost_per_trade_to_zero": 0.033561,
+    "all_folds_positive_under_baseline_tick": false,
+    "candidate_robustness_status": "requires_hardening",
+    "completed_fold_count": 9,
+    "economics_shift_status": "tick_worse_than_logic",
+    "entries_per_active_day": 7.87931,
+    "execution_divergence_by_fold_status": "completed",
+    "fold_count": 9,
+    "intent_parity_status": "passed_schedule_replay_boundary",
+    "long_proxy_net_pnl_points": -392.72,
+    "long_trade_count_proxy": 171,
+    "longest_losing_month_streak": 1,
+    "losing_fold_count": 1,
+    "losing_fold_ids": [
+      "rw_001"
+    ],
+    "mechanical_parity_status": "passed",
+    "minimum_entry_key_match_rate": 0.992308,
+    "minimum_exit_reason_match_rate": 0.715105,
+    "minimum_exit_time_direction_match_rate": 0.743786,
+    "mismatch_count": 0,
+    "monthly_tick_losing_month_count": 1,
+    "monthly_tick_profitable_month_count": 26,
+    "mt5_logic_net_pnl": 214.41,
+    "mt5_logic_profit_factor": 1.720536,
+    "mt5_logic_trade_count": 4570,
+    "mt5_tick_by_fold_status": "completed",
+    "mt5_tick_net_pnl": 153.04,
+    "mt5_tick_profit_factor": 1.499006,
+    "mt5_tick_trade_count": 4560,
+    "profitable_fold_count": 8,
+    "profitable_fold_count_after_0_01_adverse_cost": 8,
+    "proxy_expectancy_points_per_entry": 3.413836,
+    "proxy_net_pnl_points": 15601.23,
+    "proxy_profit_factor": 1.521306,
+    "proxy_trade_count": 4570,
+    "short_proxy_net_pnl_points": 15993.95,
+    "short_trade_count_proxy": 4399,
+    "tick_better_fold_count": 0,
+    "tick_worse_fold_count": 9,
+    "total_tick_minus_logic_net_pnl": -61.37,
+    "total_tick_net_pnl": 153.04,
+    "total_tick_trade_count": 4560,
+    "weakest_positive_fold_extra_cost_per_trade_to_zero": 0.014253,
+    "weakest_positive_fold_id": "rw_002",
+    "worst_fold_id": "rw_001",
+    "worst_fold_max_drawdown_percent": 0.83,
+    "worst_fold_net_pnl": -1.09,
+    "worst_tick_minus_logic_fold_id": "rw_009",
+    "worst_tick_minus_logic_net_pnl": -13.37
+  },
+  "requirement_policy": "audit_from_existing_evidence_no_new_claim_authority",
+  "run_id": "R0001",
+  "schema": "axiom_rift_candidate_robustness_audit_v1",
+  "status": "completed",
+  "template": false,
+  "work_unit_id": "C0045"
+}

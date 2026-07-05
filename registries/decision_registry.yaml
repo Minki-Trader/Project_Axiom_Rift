@@ -3462,3 +3462,68 @@ decisions:
   - next_work_is_choose_c0045_new_major_hypothesis_after_c0044_closeout
   - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
   claim_boundary: *id004
+- decision_id: dec_20260706_open_c0045_intraday_regression_channel_residual_discovery
+  created_local_date: '2026-07-06'
+  status: active
+  decision: open_c0045_intraday_regression_channel_residual_discovery
+  refines:
+  - dec_20260706_close_c0044_no_candidate_after_r0001
+  - dec_20260706_close_c0044_r0001_no_candidate
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - no_active_campaign_after_c0044_closed_no_candidate
+  - c0045_changes_major_hypothesis_from_extreme_recency_gradient_to_closed_bar_regression_channel_residual_structure
+  - surface_focus_is_multi_horizon_ols_slope_residual_z_channel_width_residual_persistence_channel_compression_slope_acceleration_channel_efficiency_day_residual_pressure_session_progress_and_spread_channel_stress
+  - c0045_is_not_extreme_recency_range_shock_path_symmetry_autocorrelation_decay_return_distribution_ma_ribbon_dwell_price_memory_range_impulse_effort_absorption_symbolic_grammar_price_acceleration_calendar_rhythm_threshold_window_stop_target_hold_session_activity_spread_capital_monthly_filter_or_retry_tuning
+  - early_discovery_remains_fixed_lot_and_equity_percent_sizing_is_deferred
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary: &id005
+    claim_authority: false
+    economics_pass: false
+    feature_set_selected: false
+    label_selected: false
+    live_ready: false
+    materialization_ready: false
+    model_selected: false
+    onnx_ready: false
+    promotion_ready: false
+    runtime_authority: false
+    runtime_probe_completed: false
+    selected: false
+    trade_logic_selected: false
+- decision_id: dec_20260706_open_c0045_r0001_regression_channel_residual_run
+  created_local_date: '2026-07-06'
+  status: active
+  decision: open_c0045_r0001_fold_local_intraday_regression_channel_residual_rank_run
+  refines:
+  - dec_20260706_open_c0045_intraday_regression_channel_residual_discovery
+  - dec_20260705_decision_intelligence_layer
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0001_is_the_first_true_variant_inside_c0045_intraday_regression_channel_residual_discovery
+  - pre_open_decision_records_novelty_score_4_low_adjacent_tuning_risk_high_information_gain_clear_mt5_portability_and_high_decision_payoff
+  - changed_surfaces_are_label_feature_model_and_trade_logic_for_closed_bar_regression_channel_residual_structure
+  - run_is_not_a_threshold_window_stop_target_hold_session_activity_spread_capital_monthly_filter_or_retry_nudge
+  - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence_even_if_proxy_is_weak
+  - next_work_is_produce_c0045_r0001_proxy_evidence
+  - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary: *id005
+- decision_id: dec_20260706_close_c0045_r0001_with_candidate_evidence
+  created_local_date: '2026-07-06'
+  status: active
+  decision: close_c0045_r0001_with_candidate_evidence
+  refines:
+  - dec_20260706_open_c0045_r0001_regression_channel_residual_run
+  - dec_20260706_open_c0045_intraday_regression_channel_residual_discovery
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0001_completed_proxy_mt5_logic_parity_proxy_vs_mt5_parity_mt5_tick_execution_divergence_and_fold_isolated_tick_and_divergence_evidence
+  - proxy_net_pnl_points_15601.23_profit_factor_1.521306_entries_per_active_day_7.87931
+  - mt5_tick_net_pnl_153.04_profit_factor_1.499006_trade_count_4560
+  - fold_isolated_tick_has_8_profitable_and_1_losing_fold_with_worst_fold_net_pnl_-1.09
+  - tick_execution_worsened_logic_by_-61.37_total_net_pnl_and_was_worse_in_all_9_folds
+  - candidate_robustness_audit_requires_hardening_for_one_losing_fold_short_dominance_long_side_weakness_tick_worse_divergence_and_incomplete_stress_materialization_evidence
+  - closeout_records_candidate_evidence_retained_not_selection_or_economics_pass
+  - next_work_is_design_c0045_r0002_regression_channel_residual_directional_cost_buffer_hardening_run
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary: *id005
