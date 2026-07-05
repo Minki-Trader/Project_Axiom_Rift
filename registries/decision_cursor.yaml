@@ -2,20 +2,20 @@ schema: axiom_rift_decision_cursor_v1
 status: active
 encoding: ascii_only
 updated_local_date: '2026-07-06'
-canonical_source: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0003/gate_report.json
+canonical_source: campaigns/C0045_intraday_regression_channel_residual_discovery/campaign.yaml
 canonical_status: closed_with_candidate_evidence
-current_decision: review_c0045_candidate_evidence_and_synthesis_readiness_after_r0003
-active_campaign: campaigns/C0045_intraday_regression_channel_residual_discovery
+current_decision: design_sc0008_sr0001_post_sc0007_regression_channel_residual_mixed_evidence_synthesis_run
+active_campaign: null
 active_run: null
-active_synthesis: null
-next_required_action: review_c0045_candidate_evidence_and_synthesis_readiness_after_r0003
+active_synthesis: campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
+next_required_action: design_sc0008_sr0001_post_sc0007_regression_channel_residual_mixed_evidence_synthesis_run
 terminal_evidence_priority:
   enabled: true
   resolved_from:
-    run_gate_report_status: closed_with_candidate_evidence
-    run_manifest_status: closed_with_candidate_evidence
-    pre_open_decision_status: passed
-    closeout_review_status: closed_with_candidate_evidence
+    campaign_closeout_status: closed_with_candidate_evidence
+    synthesis_status: open
+    synthesis_queue_status: open_pending_design
+    selected_status: candidate_evidence_requires_synthesis_closed
   authority_order:
   - run_gate_report_decision_or_status
   - run_manifest_status
@@ -28,12 +28,13 @@ terminal_evidence_priority:
   reentry_completed_log_role: history_only_not_decision_authority
 current_evidence_summary:
   source_campaign: campaigns/C0045_intraday_regression_channel_residual_discovery
-  current_task: review_c0045_candidate_evidence_and_synthesis_readiness_after_r0003
+  current_task: design_sc0008_sr0001_post_sc0007_regression_channel_residual_mixed_evidence_synthesis_run
   active_run: null
-  active_run_status: closed_with_candidate_evidence
-  evidence_status: closed_with_candidate_evidence
+  active_run_status: null
+  evidence_status: c0045_closed_with_candidate_evidence_and_sc0008_open
   campaign_family: intraday_regression_channel_residual
-  campaign_status: active_candidate_evidence
+  campaign_status: closed_with_candidate_evidence
+  synthesis_status: open_pending_synthesis_run_design
   entries_per_active_day: 7.743103
   proxy_trade_count: 4491
   proxy_net_pnl_points: 23965.91
@@ -44,8 +45,11 @@ current_evidence_summary:
   losing_fold_count: 0
   cost_slippage_stress_status: baseline_profitable_but_weakest_fold_fails_0_02_adverse_cost
   materialization_probe_status: schedule_replay_portable_feature_surface_recorded_no_native_onnx_claim
-  next_required_action: review_c0045_candidate_evidence_and_synthesis_readiness_after_r0003
-  note: c0045_r0003_closed_with_stronger_candidate_evidence_not_selected_after_positive_proxy_positive_tick_all_9_profitable_folds_but_weakest_fold_cost_stress_and_native_materialization_gaps_remain
+  synthesis_ready: true
+  synthesis_id: SC0008
+  usable_ingredient_group_count: 10
+  next_required_action: design_sc0008_sr0001_post_sc0007_regression_channel_residual_mixed_evidence_synthesis_run
+  note: c0045_closed_with_stronger_candidate_evidence_not_selected_and_sc0008_opened_for_post_sc0007_mixed_evidence_synthesis
   source_campaign_manifest: campaigns/C0045_intraday_regression_channel_residual_discovery/campaign.yaml
 repo_debt_scope:
   global_repo_state_ok: false
@@ -56,7 +60,7 @@ repo_debt_scope:
     status: observed_preexisting
     observed_error_count: 31
     affected_scope: historical_c0001_c0005_and_sc0001_sc0002_artifact_lineage
-    role: repo_state_debt_not_current_c0045_r0002_closeout
+    role: repo_state_debt_not_current_c0045_or_sc0008_opening
     current_decision_class: known_nonblocking_for_next_run_decision
     may_continue_current_decision: true
     blocks_selected_claim: true
@@ -76,7 +80,7 @@ repo_debt_scope:
     blocks_handoff: true
     blocks_reproducibility_claim: true
   note: repo_state_has_preexisting_nonblocking_artifact_lineage_debt_and_price_quality_warning;
-    current_c0045_r0002_closeout_is_complete_but_selection_promotion_handoff_and_reproducibility_claims_remain_blocked
+    current_c0045_campaign_closeout_and_sc0008_opening_are_complete_but_selection_promotion_handoff_and_reproducibility_claims_remain_blocked
 claim_boundary_snapshot:
   claim_authority: false
   economics_pass: false
@@ -92,15 +96,15 @@ claim_boundary_snapshot:
   selected: false
   trade_logic_selected: false
 next_decision_basis:
-- path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0003/gate_report.json
-  role: closed_c0045_r0003_candidate_evidence
-  summary: C0045 R0003 retained stronger candidate evidence after positive proxy, passed logic
-    parity, positive MT5 tick KPI, and nine profitable folds without selected claim.
+- path: campaigns/C0045_intraday_regression_channel_residual_discovery/campaign.yaml
+  role: closed_c0045_candidate_evidence_and_synthesis_readiness
+  summary: C0045 closed with R0003 retained candidate evidence and SC0008 synthesis
+    readiness after eight post-SC0007 campaigns and ten usable ingredient groups.
 - path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0003/kpi/cost_slippage_materialization_audit.json
   role: cost_slippage_materialization_audit
   summary: Audit records stronger baseline evidence but weakest-fold 0.02 adverse cost fragility
     and no native materialization or ONNX readiness.
-- path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0003/kpi/mt5_tick_by_fold.json
-  role: fold_isolated_mt5_tick_kpi
-  summary: Fold evidence completed with nine profitable folds, total tick net PnL 241.35,
-    and worst fold net PnL 8.4.
+- path: campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis/synthesis.yaml
+  role: open_synthesis_work_unit
+  summary: SC0008 is open pending SR0001 design from post-SC0007 negative memory and C0045
+    candidate evidence.

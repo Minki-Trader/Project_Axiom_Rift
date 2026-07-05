@@ -1,10 +1,11 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: active_candidate_evidence
+status: closed_with_candidate_evidence
 campaign_id: C0045
 campaign_slug: intraday_regression_channel_residual_discovery
 campaign_type: campaign
 opened_at_utc: '2026-07-05T20:05:00Z'
+closed_at_utc: '2026-07-05T21:40:07Z'
 hypothesis:
   summary: discover whether closed-bar intraday regression channel residual states can rank
     FPMarkets US100 M5 entries
@@ -60,22 +61,100 @@ run_index:
   - runs/R0002
   - runs/R0003
   next_run_candidate:
-    run_id: R0004
-    direction: review_c0045_candidate_evidence_and_synthesis_readiness_after_r0003
-    reason: R0003 retained stronger candidate evidence with positive baseline MT5 tick folds
-      but weakest-fold adverse cost stress and native materialization/ONNX portability remain
-      unresolved; review candidate evidence and synthesis readiness before any new variant
-      or stronger claim.
-    status: review_required
+    run_id: null
+    direction: open_sc0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
+    reason: R0003 retained the strongest C0045 candidate evidence after positive proxy,
+      passed MT5 logic parity, positive MT5 tick economics, nine profitable fold-isolated
+      MT5 tick folds, and target-range activity, but weakest-fold 0.02 adverse cost
+      stress, native materialization, ONNX portability, historical lineage debt, and
+      claim authority remain unresolved. Further C0045 work would likely be adjacent
+      cost-buffer, materialization, threshold, score, stop, target, hold, session,
+      activity, spread, capital, monthly filter, or retry hardening rather than a new
+      campaign question.
+    status: post_closeout_synthesis_required
 synthesis_readiness:
   check_required_at_closeout: true
-  result: review_due_after_r0003_candidate_stress_materialization_evidence
-  open_synthesis_now: false
-  recommended_next_action: review_c0045_candidate_evidence_and_synthesis_readiness_after_r0003
+  result: open_synthesis
+  checked_at_utc: '2026-07-05T21:40:07Z'
+  closed_run_count: 3
+  observed_closed_campaign_count_since_last_synthesis: 8
+  usable_ingredient_group_count: 10
+  minimums:
+    closed_campaign_count_since_last_synthesis: 3
+    usable_ingredient_group_count: 8
+    required_surface_count: 3
+  open_synthesis_now: true
+  recommended_next_action: open_sc0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
   readiness_notes:
   - r0001_retained_candidate_evidence_not_selected
   - r0002_strengthened_candidate_evidence_not_selected
   - r0003_strengthened_baseline_candidate_evidence_but_cost_stress_and_materialization_gaps_remain
+  - c0038_to_c0045_complete_eight_closed_campaigns_since_sc0007
+  - synthesis_ready_because_usable_ingredient_groups_reached_minimum_8
+  - sc0008_should_compare_recent_negative_memory_with_c0045_regression_channel_residual_candidate_evidence_before_new_campaign
+  ingredient_groups:
+  - group_id: c0038_ig001_intraday_dwell_transition_timing_negative_memory
+    source_campaign_id: C0038
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: intraday_dwell_transition_timing_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - group_id: c0039_ig001_intraday_moving_average_ribbon_phase_negative_memory
+    source_campaign_id: C0039
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: intraday_moving_average_ribbon_phase_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - group_id: c0040_ig001_intraday_return_distribution_shape_negative_memory
+    source_campaign_id: C0040
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: intraday_return_distribution_shape_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - group_id: c0041_ig001_intraday_autocorrelation_decay_negative_memory
+    source_campaign_id: C0041
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: intraday_autocorrelation_decay_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - group_id: c0042_ig001_intraday_path_symmetry_imbalance_negative_memory
+    source_campaign_id: C0042
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: intraday_path_symmetry_imbalance_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - group_id: c0043_ig001_intraday_range_shock_digest_negative_memory
+    source_campaign_id: C0043
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: intraday_range_shock_digest_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - group_id: c0044_ig001_intraday_extreme_recency_gradient_negative_memory
+    source_campaign_id: C0044
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: intraday_extreme_recency_gradient_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - group_id: c0045_ig001_intraday_regression_channel_residual_candidate_evidence
+    source_campaign_id: C0045
+    source_runs:
+    - R0003
+    group_type: candidate_evidence
+    summary: r0003_positive_proxy_positive_mt5_tick_nine_profitable_folds_target_activity_but_unselected
+  - group_id: c0045_ig002_cost_slippage_materialization_evidence_gap
+    source_campaign_id: C0045
+    source_runs:
+    - R0003
+    group_type: evidence_gap
+    summary: r0003_weakest_fold_fails_0_02_adverse_cost_and_native_materialization_onnx_portability_are_incomplete
+  - group_id: c0045_ig003_regression_channel_residual_hardening_trajectory
+    source_campaign_id: C0045
+    source_runs:
+    - R0001
+    - R0002
+    - R0003
+    group_type: candidate_hardening_lesson
+    summary: r0001_to_r0003_improved_proxy_tick_and_fold_evidence_but_remaining_work_requires_synthesis_not_adjacent_hardening
 claim_boundary:
   claim_authority: false
   economics_pass: false
@@ -91,5 +170,80 @@ claim_boundary:
   selected: false
   trade_logic_selected: false
 closeout:
-  status: campaign_active_after_candidate_evidence
-  remaining_question: review_c0045_candidate_evidence_and_synthesis_readiness_after_r0003
+  status: closed_with_candidate_evidence
+  close_reason: no_meaningful_new_non_adjacent_regression_channel_residual_variant_remains_after_r0001_to_r0003_and_r0003_candidate_evidence_retained_not_selected
+  remaining_question: open_sc0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
+  closed_at_utc: '2026-07-05T21:40:07Z'
+  evidence_paths:
+  - runs/R0001/gate_report.json
+  - runs/R0001/kpi/proxy.json
+  - runs/R0001/kpi/mt5_logic_parity.json
+  - runs/R0001/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0001/kpi/mt5_tick.json
+  - runs/R0001/kpi/execution_divergence.json
+  - runs/R0001/kpi/mt5_tick_by_fold.json
+  - runs/R0001/kpi/execution_divergence_by_fold.json
+  - runs/R0001/kpi/candidate_robustness_audit.json
+  - runs/R0002/gate_report.json
+  - runs/R0002/kpi/proxy.json
+  - runs/R0002/kpi/mt5_logic_parity.json
+  - runs/R0002/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0002/kpi/mt5_tick.json
+  - runs/R0002/kpi/execution_divergence.json
+  - runs/R0002/kpi/mt5_tick_by_fold.json
+  - runs/R0002/kpi/execution_divergence_by_fold.json
+  - runs/R0002/kpi/candidate_robustness_audit.json
+  - runs/R0003/gate_report.json
+  - runs/R0003/kpi/proxy.json
+  - runs/R0003/kpi/mt5_logic_parity.json
+  - runs/R0003/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0003/kpi/mt5_tick.json
+  - runs/R0003/kpi/execution_divergence.json
+  - runs/R0003/kpi/mt5_tick_by_fold.json
+  - runs/R0003/kpi/execution_divergence_by_fold.json
+  - runs/R0003/kpi/cost_slippage_materialization_audit.json
+  - selected.yaml
+  decision_basis:
+    closed_run_count: 3
+    closed_with_candidate_evidence_run_count: 3
+    closed_no_candidate_run_count: 0
+    retained_candidate_source_run: runs/R0003
+    retained_candidate_status: requires_synthesis_and_hardening
+    r0003_entries_per_active_day: 7.743103
+    r0003_proxy_net_pnl_points: 23965.91
+    r0003_proxy_profit_factor: 1.7391
+    r0003_mt5_tick_net_pnl: 241.35
+    r0003_mt5_tick_profit_factor: 1.734524
+    r0003_profitable_fold_count: 9
+    r0003_losing_fold_count: 0
+    r0003_aggregate_extra_cost_per_trade_to_zero: 0.053957
+    r0003_weakest_positive_fold_extra_cost_per_trade_to_zero: 0.017108
+    r0003_profitable_fold_count_after_0_01_adverse_cost: 9
+    r0003_profitable_fold_count_after_0_02_adverse_cost: 8
+    r0003_profitable_fold_count_after_0_04_adverse_cost: 6
+    r0003_monthly_tick_profitable_month_count: 27
+    r0003_monthly_tick_losing_month_count: 0
+    r0003_longest_losing_month_streak: 0
+    remaining_work_classification: adjacent_cost_buffer_materialization_onnx_threshold_score_stop_target_hold_session_activity_spread_capital_monthly_filter_or_retry_hardening_not_next
+  campaign_lessons:
+  - R0003 regression channel residual evidence is useful candidate evidence but not a selected
+    model, selected feature set, economics pass, runtime authority, ONNX-ready, promotion,
+    materialization-ready, or live-ready claim.
+  - Weakest-fold 0.02 adverse cost survival and native materialization or ONNX portability
+    remain evidence gaps.
+  - R0001 through R0003 improved baseline candidate evidence, but the next non-adjacent
+    move is SC0008 synthesis over post-SC0007 negative memory and C0045 candidate evidence.
+  claim_boundary:
+    claim_authority: false
+    economics_pass: false
+    feature_set_selected: false
+    label_selected: false
+    live_ready: false
+    materialization_ready: false
+    model_selected: false
+    onnx_ready: false
+    promotion_ready: false
+    runtime_authority: false
+    runtime_probe_completed: false
+    selected: false
+    trade_logic_selected: false

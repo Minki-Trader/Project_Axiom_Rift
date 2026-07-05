@@ -1,0 +1,216 @@
+schema: axiom_rift_ingredient_refs_v1
+template: false
+status: open
+synthesis_id: SC0008
+source_campaign_refs:
+- campaign_id: C0038
+  path: campaigns/C0038_intraday_dwell_transition_timing_discovery/campaign.yaml
+  sha256: 87ec81ca7c882e1ee5131df83a7958679f0b4549b83218d41c984eb61e5533a1
+- campaign_id: C0039
+  path: campaigns/C0039_intraday_moving_average_ribbon_phase_discovery/campaign.yaml
+  sha256: 0eaad64e89a1a4d18bf9015e71906b0970692361733fb37199c07e0a78c04042
+- campaign_id: C0040
+  path: campaigns/C0040_intraday_return_distribution_shape_discovery/campaign.yaml
+  sha256: 0fefcfd484ea0c7d4cf10122e759620bc33ac4d81b5c25d645a71014c5bf478f
+- campaign_id: C0041
+  path: campaigns/C0041_intraday_autocorrelation_decay_discovery/campaign.yaml
+  sha256: 9179479230441edd83e811d12576116090d59cc3af3da5aa6cb8d5f170e5357f
+- campaign_id: C0042
+  path: campaigns/C0042_intraday_path_symmetry_imbalance_discovery/campaign.yaml
+  sha256: e2fdb410c52ca18d34de319c42a72e5636d8dab441a399f9714eb15ac697f3bd
+- campaign_id: C0043
+  path: campaigns/C0043_intraday_range_shock_digest_discovery/campaign.yaml
+  sha256: f3b611651694e0b36b9ef8a413bacd9e2da7866cb28e3a83b1da709434376fc4
+- campaign_id: C0044
+  path: campaigns/C0044_intraday_extreme_recency_gradient_discovery/campaign.yaml
+  sha256: 8bb0db7b405fe77cc81fb40494ccf2774a97911e9ab4dc10d5d5d4e01d818275
+- campaign_id: C0045
+  path: campaigns/C0045_intraday_regression_channel_residual_discovery/campaign.yaml
+  sha256: 51bd72e463a982fe6eef99b19bd222872dcad461accb5bb895c868b72e7e0ec3
+run_evidence_index:
+- evidence_key: C0038_R0001
+  gate_report:
+    path: campaigns/C0038_intraday_dwell_transition_timing_discovery/runs/R0001/gate_report.json
+    sha256: 9f052448c8b1d2ec636b0a24abf918c84e94319b209d48e81b7baf6132af9ca4
+  mt5_tick_by_fold:
+    path: campaigns/C0038_intraday_dwell_transition_timing_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: af6aa60126e816ac444e247f5c8f43bb818d19f719e707ff6b9c9f8cbdf580ec
+- evidence_key: C0039_R0001
+  gate_report:
+    path: campaigns/C0039_intraday_moving_average_ribbon_phase_discovery/runs/R0001/gate_report.json
+    sha256: 60c6a05516abd0de245e758718022afe3a74d5b3be8e24bb77f3945e10d8ad3d
+  mt5_tick_by_fold:
+    path: campaigns/C0039_intraday_moving_average_ribbon_phase_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 77416559332cacc5921484461a0f4ea1408fcca3aa3d61607e2bd97a5654d4dd
+- evidence_key: C0040_R0001
+  gate_report:
+    path: campaigns/C0040_intraday_return_distribution_shape_discovery/runs/R0001/gate_report.json
+    sha256: d2ee97a827bea98d7ff37f708343dd33cb8fd239ee8cf00f5ad2fd67e8ec550e
+  mt5_tick_by_fold:
+    path: campaigns/C0040_intraday_return_distribution_shape_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 3290a07533096950245619d819d6cb6a8369e684de51b8113e9b8c509c3bc6b7
+- evidence_key: C0041_R0001
+  gate_report:
+    path: campaigns/C0041_intraday_autocorrelation_decay_discovery/runs/R0001/gate_report.json
+    sha256: 1b99e6608793dc1ec6d037889a2e265442695b0b5e0e309ba2a96b92fc775f46
+  mt5_tick_by_fold:
+    path: campaigns/C0041_intraday_autocorrelation_decay_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: e2a5a88ea5ca572e4cad7379922d3027b2de5c78e98f8a5f4a5bc5e8c93b555b
+- evidence_key: C0042_R0001
+  gate_report:
+    path: campaigns/C0042_intraday_path_symmetry_imbalance_discovery/runs/R0001/gate_report.json
+    sha256: 1f21fadfe22b1424ae2e7a1fc545fe7e0e2a839574804e9805dd0cfe035c272c
+  mt5_tick_by_fold:
+    path: campaigns/C0042_intraday_path_symmetry_imbalance_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 046764c94144bb8e5c981eca2c3140784aa5118c4c3ac555aaad2fcda1ea2979
+- evidence_key: C0043_R0001
+  gate_report:
+    path: campaigns/C0043_intraday_range_shock_digest_discovery/runs/R0001/gate_report.json
+    sha256: 8caec4aba413ac0a5f7557656389ecd4ce6c9236c78d19418169fd18a79187e7
+  mt5_tick_by_fold:
+    path: campaigns/C0043_intraday_range_shock_digest_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 5aa16b3fcc367c20653ba280f7df79af956d78c38ad36f2d9253d125fa700646
+- evidence_key: C0044_R0001
+  gate_report:
+    path: campaigns/C0044_intraday_extreme_recency_gradient_discovery/runs/R0001/gate_report.json
+    sha256: 4b97b6acd30e0cd7b9a6f29244ccb5eae7f40b35be9e073c17d91d751e8d234e
+  mt5_tick_by_fold:
+    path: campaigns/C0044_intraday_extreme_recency_gradient_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 19f14351e04d1151464ecd2aa4a47d29c1418c0e9a2bde97441078e145ff6b06
+- evidence_key: C0045_R0001
+  gate_report:
+    path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0001/gate_report.json
+    sha256: 9689bf31eaa0f8c4902b2ff1dde82520b1e801353667efa78b2747878cd0fb6a
+  mt5_tick_by_fold:
+    path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: d69c0ed936a346df17525705615983d6a92d7a8b24b66c694edcf1c5912fc6e9
+- evidence_key: C0045_R0002
+  gate_report:
+    path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0002/gate_report.json
+    sha256: ffb7451e568dcfd2fe42c2b393fa9a2fc30bf122d4db01875e863de35b3c3aa5
+  mt5_tick_by_fold:
+    path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0002/kpi/mt5_tick_by_fold.json
+    sha256: 10910d80d501999e4190911dac0ac3c15e5098b781059863e2dabfbcef870627
+- evidence_key: C0045_R0003
+  gate_report:
+    path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0003/gate_report.json
+    sha256: 74c803589ceda7797cf29ddc830610bdb26eb3bc8e9a899f9aa492e292b48e86
+  mt5_tick_by_fold:
+    path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0003/kpi/mt5_tick_by_fold.json
+    sha256: 564f848776a7bf22852695af3632b1fdddf5cf162bc17ce33dffe74bd3ca411d
+  cost_slippage_materialization_audit:
+    path: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0003/kpi/cost_slippage_materialization_audit.json
+    sha256: da388a2107e510852ad879200953e66b31f514a1bd75251cd184e3b007bbbdea
+ingredient_groups:
+- group_id: c0038_ig001_intraday_dwell_transition_timing_negative_memory
+  source_campaign_id: C0038
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0038_R0001
+  group_type: negative_memory
+  summary: intraday_dwell_transition_timing_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+- group_id: c0039_ig001_intraday_moving_average_ribbon_phase_negative_memory
+  source_campaign_id: C0039
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0039_R0001
+  group_type: negative_memory
+  summary: intraday_moving_average_ribbon_phase_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+- group_id: c0040_ig001_intraday_return_distribution_shape_negative_memory
+  source_campaign_id: C0040
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0040_R0001
+  group_type: negative_memory
+  summary: intraday_return_distribution_shape_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+- group_id: c0041_ig001_intraday_autocorrelation_decay_negative_memory
+  source_campaign_id: C0041
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0041_R0001
+  group_type: negative_memory
+  summary: intraday_autocorrelation_decay_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+- group_id: c0042_ig001_intraday_path_symmetry_imbalance_negative_memory
+  source_campaign_id: C0042
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0042_R0001
+  group_type: negative_memory
+  summary: intraday_path_symmetry_imbalance_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+- group_id: c0043_ig001_intraday_range_shock_digest_negative_memory
+  source_campaign_id: C0043
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0043_R0001
+  group_type: negative_memory
+  summary: intraday_range_shock_digest_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+- group_id: c0044_ig001_intraday_extreme_recency_gradient_negative_memory
+  source_campaign_id: C0044
+  source_runs:
+  - R0001
+  source_evidence_keys:
+  - C0044_R0001
+  group_type: negative_memory
+  summary: intraday_extreme_recency_gradient_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+- group_id: c0045_ig001_intraday_regression_channel_residual_candidate_evidence
+  source_campaign_id: C0045
+  source_runs:
+  - R0003
+  source_evidence_keys:
+  - C0045_R0003
+  group_type: candidate_evidence
+  summary: regression_channel_residual_r0003_positive_proxy_positive_mt5_tick_nine_profitable_folds_target_activity_but_unselected
+- group_id: c0045_ig002_cost_slippage_materialization_evidence_gap
+  source_campaign_id: C0045
+  source_runs:
+  - R0003
+  source_evidence_keys:
+  - C0045_R0003
+  group_type: evidence_gap
+  summary: r0003_weakest_fold_fails_0_02_adverse_cost_and_native_materialization_onnx_portability_are_incomplete
+- group_id: c0045_ig003_regression_channel_residual_hardening_trajectory
+  source_campaign_id: C0045
+  source_runs:
+  - R0001
+  - R0002
+  - R0003
+  source_evidence_keys:
+  - C0045_R0001
+  - C0045_R0002
+  - C0045_R0003
+  group_type: candidate_hardening_lesson
+  summary: r0001_to_r0003_improved_proxy_tick_and_fold_evidence_but_remaining_work_requires_synthesis_not_adjacent_hardening
+blocked_ingredients: []
+deferred_with_reason:
+- item: selected_surface_or_runtime_materialization
+  reason: C0038 through C0045 contain no selected surface, runtime authority, economics pass,
+    materialization-ready, ONNX-ready, promotion, or live-readiness claim.
+- item: source_oos_pnl_selection
+  reason: SC0008 may use source OOS results as evidence context but must not use source OOS
+    PnL to select entries.
+- item: equity_percent_sizing
+  reason: candidate quality is not established; early discovery remains fixed-lot.
+rules:
+  unresolved_mechanical_parity_as_main_blocker_allowed: false
+  adjacent_tuning_as_ingredient_allowed: false
+  evidence_gap_disguised_as_ingredient_allowed: false
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

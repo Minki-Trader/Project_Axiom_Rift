@@ -16,9 +16,8 @@ streams:
     id_prefix: C
     role: major_hypothesis_discovery
     next_id: C0046
-    active_work_unit: campaigns/C0045_intraday_regression_channel_residual_discovery
-    open_work_units:
-    - campaigns/C0045_intraday_regression_channel_residual_discovery
+    active_work_unit: null
+    open_work_units: []
     closed_work_units:
     - campaigns/C0001_regime_response_discovery
     - campaigns/C0002_score_conditioned_intraday_edge
@@ -64,6 +63,7 @@ streams:
     - campaigns/C0042_intraday_path_symmetry_imbalance_discovery
     - campaigns/C0043_intraday_range_shock_digest_discovery
     - campaigns/C0044_intraday_extreme_recency_gradient_discovery
+    - campaigns/C0045_intraday_regression_channel_residual_discovery
     numbering_policy:
       width: 4
       example: C0001
@@ -71,9 +71,10 @@ streams:
   synthesis_stream:
     id_prefix: SC
     role: accumulated_ingredient_synthesis
-    next_id: SC0008
-    active_work_unit: null
-    open_work_units: []
+    next_id: SC0009
+    active_work_unit: campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
+    open_work_units:
+    - campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
     closed_work_units:
     - campaigns/SC0001_accumulated_negative_memory_synthesis
     - campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis

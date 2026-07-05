@@ -3624,3 +3624,34 @@ decisions:
   - next_work_is_review_c0045_candidate_evidence_and_synthesis_readiness_after_r0003
   - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
   claim_boundary: *id007
+- decision_id: dec_20260706_close_c0045_with_candidate_evidence_and_open_sc0008
+  created_local_date: '2026-07-06'
+  status: active
+  decision: close_c0045_with_candidate_evidence_and_open_sc0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
+  refines:
+  - dec_20260706_close_c0045_r0003_with_candidate_evidence
+  - dec_20260705_decision_intelligence_layer
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0045_r0003_retains_candidate_evidence_after_positive_proxy_positive_mt5_tick_and_nine_profitable_fold_isolated_tick_folds
+  - c0045_r0003_is_not_selected_because_weakest_fold_0_02_adverse_cost_stress_native_materialization_onnx_portability_and_lineage_debt_remain_unresolved
+  - r0001_to_r0003_already_tested_baseline_cost_buffer_and_stress_materialization_hardening_inside_the_regression_channel_residual_boundary
+  - remaining_c0045_work_would_likely_be_adjacent_cost_buffer_materialization_onnx_threshold_score_stop_target_hold_session_activity_spread_capital_monthly_filter_or_retry_hardening
+  - c0038_through_c0045_meet_post_sc0007_synthesis_readiness_with_eight_closed_campaigns_and_ten_usable_ingredient_groups
+  - sc0008_is_opened_as_a_synthesis_work_unit_only_and_sr0001_is_not_opened_until_a_non_adjacent_design_is_chosen
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    economics_pass: false
+    feature_set_selected: false
+    label_selected: false
+    live_ready: false
+    materialization_ready: false
+    model_selected: false
+    onnx_ready: false
+    promotion_ready: false
+    runtime_authority: false
+    runtime_probe_completed: false
+    selected: false
+    trade_logic_selected: false

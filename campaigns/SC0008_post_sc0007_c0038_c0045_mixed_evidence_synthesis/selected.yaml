@@ -1,0 +1,56 @@
+schema: axiom_rift_selected_v1
+template: false
+status: open_no_selection
+selected: false
+selected_reason: null
+surfaces:
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+runtime:
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
+claim_boundary:
+  claim_authority: false
+  may_record:
+  - evidence
+  - candidate_evidence
+  - gate_result
+  - synthesis_ingredient_refs
+  must_not_assert:
+  - selected_model
+  - selected_feature_set
+  - selected_label
+  - runtime_authority
+  - economics_pass
+  - materialization_ready
+  - onnx_ready
+  - promotion_ready
+  - live_ready
+latest_synthesis_state:
+  status: open_pending_synthesis_run_design
+  source: synthesis.yaml
+  candidate_evidence_retained: true
+  negative_memory_recorded: true
+  active_run: null
+  next_required_action: design_sc0008_sr0001_post_sc0007_regression_channel_residual_mixed_evidence_synthesis_run
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

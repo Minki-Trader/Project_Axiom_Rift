@@ -7,8 +7,8 @@ read_budget:
   - registries/reentry.yaml
   - registries/claim_state.yaml
   conditional_files:
-    active_campaign: campaigns/C0045_intraday_regression_channel_residual_discovery
-    active_synthesis: null
+    active_campaign: null
+    active_synthesis: campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
     active_contracts: contracts/
     active_config: configs/
   skip_by_default:
@@ -22,8 +22,8 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: campaigns/C0045_intraday_regression_channel_residual_discovery
-  active_synthesis: null
+  active_campaign: null
+  active_synthesis: campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
   active_run: null
 active_truth:
   contracts_dir: contracts
@@ -1182,16 +1182,20 @@ next_work:
   - audit_c0045_r0003_cost_slippage_materialization
   - review_c0045_r0003_tick_execution_kpi_and_closeout
   - close_c0045_r0003_with_candidate_evidence
-  tasks:
   - review_c0045_candidate_evidence_and_synthesis_readiness_after_r0003
+  - close_c0045_with_candidate_evidence_and_open_sc0008
+  - open_sc0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
+  tasks:
+  - design_sc0008_sr0001_post_sc0007_regression_channel_residual_mixed_evidence_synthesis_run
   not_yet:
   - label_freeze
   - feature_set_freeze
   - model_training
   - mt5_runtime_claim
-  active_campaign: campaigns/C0045_intraday_regression_channel_residual_discovery
+  active_campaign: null
   active_run: null
   run: null
+  active_synthesis: campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
 active_run: null
-active_campaign: campaigns/C0045_intraday_regression_channel_residual_discovery
-active_synthesis: null
+active_campaign: null
+active_synthesis: campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis

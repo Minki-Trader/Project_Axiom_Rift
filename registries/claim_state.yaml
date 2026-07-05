@@ -98,17 +98,18 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: campaigns/C0045_intraday_regression_channel_residual_discovery
-active_synthesis: null
+active_campaign: null
+active_synthesis: campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
 active_run: null
 latest_operation:
-  id: close_c0045_r0003_with_candidate_evidence
+  id: close_c0045_with_candidate_evidence_and_open_sc0008
   status: completed
-  recorded_at_source: campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0003/gate_report.json
-  evidence_status: closed_with_candidate_evidence
-  active_campaign: campaigns/C0045_intraday_regression_channel_residual_discovery
+  recorded_at_source: campaigns/C0045_intraday_regression_channel_residual_discovery/campaign.yaml
+  evidence_status: c0045_closed_with_candidate_evidence_sc0008_open
+  active_campaign: null
+  active_synthesis: campaigns/SC0008_post_sc0007_c0038_c0045_mixed_evidence_synthesis
   active_run: null
-  negative_memory_recorded: false
+  negative_memory_recorded: true
   candidate_evidence_retained: true
   entries_per_active_day: 7.743103
   proxy_net_pnl_points: 23965.91
@@ -119,7 +120,10 @@ latest_operation:
   losing_fold_count: 0
   cost_slippage_stress_status: baseline_profitable_but_weakest_fold_fails_0_02_adverse_cost
   materialization_probe_status: schedule_replay_portable_feature_surface_recorded_no_native_onnx_claim
-  next_required_action: review_c0045_candidate_evidence_and_synthesis_readiness_after_r0003
+  synthesis_ready: true
+  synthesis_id: SC0008
+  usable_ingredient_group_count: 10
+  next_required_action: design_sc0008_sr0001_post_sc0007_regression_channel_residual_mixed_evidence_synthesis_run
   claim_boundary:
     claim_authority: false
     economics_pass: false

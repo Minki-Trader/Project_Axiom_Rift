@@ -1,0 +1,94 @@
+schema: axiom_rift_synthesis_v1
+template: false
+status: open
+synthesis_id: SC0008
+synthesis_slug: post_sc0007_c0038_c0045_mixed_evidence_synthesis
+synthesis_level: synthesis_8
+opened_at_utc: '2026-07-05T21:40:07Z'
+synthesis_question:
+  summary: synthesize post-SC0007 evidence from C0038 through C0045 before choosing
+    the next synthesis run or major campaign axis
+  boundary: use only closed campaign and run evidence from C0038 through C0045; treat
+    C0045 R0003 as retained candidate evidence only; preserve unrestricted discovery
+    of labels, features, model families, objectives, and trade shapes; do not create
+    selected, economics, runtime, materialization, ONNX, promotion, or live-readiness
+    claims; do not treat synthesis as a shortcut around MT5 paired validation for
+    any opened SR run
+source_campaign_ids:
+- C0038
+- C0039
+- C0040
+- C0041
+- C0042
+- C0043
+- C0044
+- C0045
+readiness:
+  closed_campaign_count: 8
+  usable_ingredient_group_count: 10
+  required_surface_count: 3
+  has_explicit_mt5_evidence: true
+  unresolved_mechanical_parity_as_main_blocker: false
+  synthesis_due_source: campaigns/C0045_intraday_regression_channel_residual_discovery/campaign.yaml
+ingredient_refs_path: ingredient_refs.yaml
+synthesis_queue_path: synthesis_queue.yaml
+runs_root: runs/
+synthesis_run_id_format: SR0001
+run_index:
+  active_run: null
+  opened_runs: []
+  closed_runs: []
+  next_run_candidate:
+    run_id: SR0001
+    direction: design_sc0008_sr0001_post_sc0007_regression_channel_residual_mixed_evidence_synthesis_run
+    reason: SC0008 is open after seven post-SC0007 no-candidate campaigns and one C0045
+      retained candidate-evidence campaign; the next action is to design a non-adjacent
+      SR0001 synthesis run before any proxy or MT5 evidence loop is opened.
+    status: design_required
+stream_policy:
+  stream: synthesis
+  independent_from_campaign_stream: true
+  does_not_set_next_campaign_id: true
+must_not:
+- create_selected_claim
+- create_runtime_authority
+- create_economics_pass_claim
+- create_materialization_ready_claim
+- create_onnx_ready_claim
+- create_promotion_ready_claim
+- create_live_ready_claim
+- use_weak_proxy_as_mt5_skip_gate
+- disguise_adjacent_tuning_as_new_campaign
+- use_source_oos_pnl_as_entry_selection
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
+open_state:
+  status: open_pending_synthesis_run_design
+  opened_at_utc: '2026-07-05T21:40:07Z'
+  next_required_action: design_sc0008_sr0001_post_sc0007_regression_channel_residual_mixed_evidence_synthesis_run
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
