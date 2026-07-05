@@ -1,0 +1,59 @@
+schema: axiom_rift_selected_v1
+template: false
+status: closed_no_candidate
+selected: false
+selected_reason: null
+surfaces:
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+runtime:
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
+claim_boundary:
+  claim_authority: false
+  may_record:
+  - evidence
+  - candidate_evidence
+  - gate_result
+  must_not_assert:
+  - selected_model
+  - selected_feature_set
+  - selected_label
+  - runtime_authority
+  - live_ready
+failure_asset:
+  status: negative_memory_recorded
+  source_run: runs/R0001
+  basis: rolling_window_fold_isolated_mt5_tick
+  reason_not_candidate: activity landed in the target band but proxy was deeply negative,
+    aggregate MT5 tick remained negative, and fold-isolated MT5 tick had eight losing folds
+    out of nine
+  entries_per_active_day: 7.612069
+  mt5_tick_net_pnl: -17.45
+  mt5_tick_profit_factor: 0.957718
+  profitable_fold_count: 1
+  losing_fold_count: 8
+  worst_fold_id: rw_008
+  worst_fold_net_pnl: -6.9
+  next_required_action: choose_c0039_major_hypothesis_after_c0038_no_candidate_closeout
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

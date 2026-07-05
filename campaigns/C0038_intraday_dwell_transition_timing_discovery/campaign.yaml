@@ -1,0 +1,112 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: closed_no_candidate
+campaign_id: C0038
+campaign_slug: intraday_dwell_transition_timing_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-05T15:48:39Z'
+hypothesis:
+  summary: discover whether closed-bar intraday dwell time, stalled transition timing, fast
+    pass-through, and delayed acceptance or rejection can rank FPMarkets US100 M5 entries
+  boundary: closed-bar intraday dwell-transition timing surface over time spent near recent
+    micro-zones, stalled break or reclaim duration, fast pass-through velocity, recross cadence,
+    revisit age, dwell compression, directional transition asymmetry, day-clock aging, and
+    spread-time stress; not C0037 price memory density, SC0007 negative-context rerank, C0036
+    range impulse memory, C0035 cycle phase resonance, C0034 effort-price absorption, C0033
+    seasonal residual, C0032 tail-risk skew, C0031 entropy release, C0030 VWAP repricing,
+    C0029 fractal pivot transition, C0028 swing leg maturity, threshold, score, stop, target,
+    hold, session, activity, spread, capital, monthly filter, or retry nudge
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+  - equity_percent_sizing_rescue
+  - c0037_price_memory_density_retry
+  - sc0007_negative_context_rerank_retry
+  - monthly_distribution_filter_rescue
+  - threshold_or_score_filter_rescue
+  - synthetic_commission_model
+required_surfaces:
+  model:
+    status: variable
+    summary: fold-local linear rank surface for intraday dwell-transition timing candidates
+  feature:
+    status: variable
+    summary: dwell-transition timing features for local dwell duration, stalled breakout or
+      reclaim delay, fast pass-through velocity, recross cadence, revisit age, dwell compression,
+      direction asymmetry, day-clock aging, path efficiency, churn, and spread-time stress
+  trade_logic:
+    status: variable
+    summary: fixed-lot dual-direction top dwell-transition timing schedule replay candidates
+      per active day
+  label:
+    status: variable
+    summary: directional dwell-transition quality with target-first reward after excessive
+      dwell or fast acceptance, adverse recross penalty, delayed-stall penalty, churn penalty,
+      and spread-drift penalty
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: null
+    direction: choose_c0039_major_hypothesis_after_c0038_no_candidate_closeout
+    reason: R0001 closed no-candidate after negative proxy, negative aggregate MT5 tick, and
+      eight losing fold-isolated MT5 tick folds; further C0038 work would likely be adjacent
+      dwell-timing tuning.
+    status: closed_no_candidate_choose_new_major_axis
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_opened
+  checked_at_utc: '2026-07-05T16:26:10Z'
+  open_synthesis_now: false
+  recommended_next_action: choose_c0039_major_hypothesis_after_c0038_no_candidate_closeout
+  readiness_notes:
+  - single_c0038_run_closed_no_candidate
+  - recent_sc0007_synthesis_already_consumed_c0031_to_c0037_context
+  - next_work_should_choose_materially_new_c0039_major_hypothesis_not_retry_dwell_transition_timing
+closeout:
+  status: closed_no_candidate
+  closed_at_utc: '2026-07-05T16:26:10Z'
+  remaining_question: choose_c0039_major_hypothesis_after_c0038_no_candidate_closeout
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+  reason: C0038 R0001 tested a materially new dwell-transition timing axis but failed proxy,
+    aggregate MT5 tick, and fold-isolated MT5 tick candidate standards.
+  failure_asset:
+    asset_type: negative_memory
+    source_run: runs/R0001
+    gate_report: runs/R0001/gate_report.json
+    reason_not_candidate: activity landed in the target band but proxy was deeply negative,
+      aggregate MT5 tick remained negative, and fold-isolated MT5 tick had eight losing folds
+      out of nine
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
+closed_at_utc: '2026-07-05T16:26:10Z'

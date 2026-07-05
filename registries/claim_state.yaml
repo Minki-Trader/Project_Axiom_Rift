@@ -102,23 +102,11 @@ active_campaign: null
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_sc0007_sr0001_no_candidate
+  id: close_c0038_r0001_no_candidate
   status: completed
-  recorded_at_source: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/runs/SR0001/gate_report.json
+  recorded_at_source: campaigns/C0038_intraday_dwell_transition_timing_discovery/runs/R0001/gate_report.json
   evidence_status: closed_no_candidate
-  active_synthesis: null
-  active_run: null
-  negative_memory_recorded: true
-  candidate_evidence_retained: false
-  entries_per_active_day: 6.025292
-  proxy_net_pnl_points: -816.62
-  proxy_profit_factor: 0.96836
-  mt5_tick_net_pnl: 3.33
-  mt5_tick_profit_factor: 1.012928
-  profitable_fold_count: 3
-  losing_fold_count: 5
-  zero_trade_fold_count: 1
-  next_required_action: choose_c0038_new_major_hypothesis_after_sc0007_closeout
+  next_required_action: choose_c0039_major_hypothesis_after_c0038_no_candidate_closeout
   claim_boundary:
     claim_authority: false
     selected: false
@@ -133,6 +121,13 @@ latest_operation:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
+  entries_per_active_day: 7.612069
+  proxy_net_pnl_points: -4108.62
+  proxy_profit_factor: 0.902194
+  mt5_tick_net_pnl: -17.45
+  mt5_tick_profit_factor: 0.957718
+  profitable_fold_count: 1
+  losing_fold_count: 8
 active_truth:
   contracts_dir: contracts
   configs_dir: configs

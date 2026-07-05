@@ -1,0 +1,256 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "claim_gate": {
+    "claim_authority": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "runtime_authority": false,
+    "selected": false,
+    "status": "passed_no_claim_authority",
+    "trade_logic_selected": false
+  },
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "no_candidate_after_negative_proxy_negative_tick_and_eight_losing_fold_isolated_mt5_tick_folds",
+    "closed_at_utc": "2026-07-05T16:26:10Z",
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "evidence_paths": [
+        "artifact_lineage.json",
+        "run_manifest.json",
+        "artifacts/c0038_r0001_proxy_trades.csv",
+        "artifacts/c0038_r0001_dwell_transition_timing_summary.json",
+        "artifacts/c0038_r0001_schedule.csv",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "C0038 R0001 fold-local intraday dwell-transition timing rank over time-in-zone, stalled transition, fast pass-through, recross cadence, revisit age, and directional timing asymmetry",
+      "next_boundary": "close C0038 with negative memory; do not retry this axis as dwell threshold, recross window, stalled-transition weight, score, stop, target, hold, session, activity, spread, capital, monthly filter, or retry tuning; next work should choose a materially new C0039 major hypothesis axis",
+      "reason_not_candidate": "activity landed in the target band but proxy was deeply negative, aggregate MT5 tick remained negative, and fold-isolated MT5 tick had eight losing folds out of nine",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "dwell-transition timing produced target activity but only one profitable fold and eight losing folds, with total tick net PnL -17.45"
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "schedule replay logic parity passed with mismatch_count 0, so the failure is not a proxy-to-EA schedule mismatch"
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "tick execution improved total net versus closed-bar logic by 27.34 but still remained negative, with two tick-worse folds and minimum exit-reason match rate 0.832645"
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "kpi/proxy.json",
+          "summary": "dwell-transition features did not rank profitable candidates despite 7.612069 entries per active day; no selected, economics-pass, runtime, ONNX, promotion, or live-readiness claim is allowed"
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.612069,
+      "entry_count_delta": 0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_count_delta": 0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "losing_fold_count": 8,
+      "losing_fold_ids": [
+        "rw_001",
+        "rw_002",
+        "rw_004",
+        "rw_005",
+        "rw_006",
+        "rw_007",
+        "rw_008",
+        "rw_009"
+      ],
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.992188,
+      "minimum_exit_reason_match_rate": 0.832645,
+      "minimum_exit_time_direction_match_rate": 0.855372,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": -44.79,
+      "mt5_logic_profit_factor": 0.905931,
+      "mt5_logic_trade_count": 4415,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_expectancy_per_entry": -0.003965,
+      "mt5_tick_max_drawdown_percent": 5.736,
+      "mt5_tick_net_pnl": -17.45,
+      "mt5_tick_profit_factor": 0.957718,
+      "mt5_tick_trade_count": 4401,
+      "mt5_tick_win_rate": 0.423995,
+      "profitable_fold_count": 1,
+      "proxy_expectancy_points_per_entry": -0.930605,
+      "proxy_max_drawdown_points": 4287.67,
+      "proxy_net_pnl_points": -4108.62,
+      "proxy_profit_factor": 0.902194,
+      "proxy_trade_count": 4415,
+      "proxy_win_rate": 0.427407,
+      "remaining_work_classification": "dwell_transition_timing_threshold_window_stop_target_hold_session_activity_spread_capital_monthly_filter_or_retry_nudge_not_next",
+      "tick_better_fold_count": 7,
+      "tick_minus_logic_net_pnl": 27.34,
+      "tick_minus_logic_trade_count": -14,
+      "tick_worse_fold_count": 2,
+      "total_tick_minus_logic_net_pnl": 27.34,
+      "total_tick_net_pnl": -17.45,
+      "total_tick_trade_count": 4401,
+      "worst_fold_id": "rw_008",
+      "worst_fold_max_drawdown_percent": 1.914,
+      "worst_fold_net_pnl": -6.9,
+      "worst_tick_minus_logic_fold_id": "rw_001",
+      "worst_tick_minus_logic_net_pnl": -2.23,
+      "zero_trade_fold_count": 0
+    },
+    "status": "closed_no_candidate"
+  },
+  "decision": "close_no_candidate",
+  "deferred_with_reason": [],
+  "evidence_gate": {
+    "checks": {
+      "artifact_lineage_path_recorded": true,
+      "execution_divergence_by_fold_kpi_path_recorded": true,
+      "execution_divergence_kpi_path_recorded": true,
+      "mt5_logic_parity_kpi_path_recorded": true,
+      "mt5_tick_by_fold_kpi_path_recorded": true,
+      "mt5_tick_kpi_path_recorded": true,
+      "proxy_kpi_path_recorded": true,
+      "proxy_vs_mt5_logic_parity_kpi_path_recorded": true,
+      "run_manifest_path_recorded": true
+    },
+    "status": "passed"
+  },
+  "evidence_paths": [
+    "artifact_lineage.json",
+    "run_manifest.json",
+    "artifacts/c0038_r0001_proxy_trades.csv",
+    "artifacts/c0038_r0001_dwell_transition_timing_summary.json",
+    "artifacts/c0038_r0001_schedule.csv",
+    "kpi/proxy.json",
+    "kpi/mt5_logic_parity.json",
+    "kpi/proxy_vs_mt5_logic_parity.json",
+    "kpi/mt5_tick.json",
+    "kpi/execution_divergence.json",
+    "kpi/mt5_tick_by_fold.json",
+    "kpi/execution_divergence_by_fold.json"
+  ],
+  "execution_gate": {
+    "economics_shift_status": "tick_better_than_logic",
+    "execution_divergence_status": "recorded_with_divergence",
+    "missing_required_kpi_fields": [],
+    "run_closeout_review_ready": true,
+    "status": "recorded_with_divergence"
+  },
+  "fold_isolated_execution_gate": {
+    "execution_divergence_by_fold_status": "completed",
+    "missing_required_kpi_fields": {
+      "execution_divergence_by_fold": [],
+      "mt5_tick_by_fold": []
+    },
+    "mt5_tick_by_fold_status": "completed"
+  },
+  "gate_report_id": "G-C0038-R0001",
+  "mt5_gate": {
+    "aggregate_tick_is_diagnostic_only": true,
+    "closed_bar_logic_parity_required": true,
+    "fold_isolated_closeout_required": true,
+    "required_even_when_proxy_is_weak": true,
+    "status": "passed"
+  },
+  "must_not": [
+    "claim_selected",
+    "claim_runtime_authority",
+    "claim_onnx_ready",
+    "claim_live_ready",
+    "skip_mt5_when_proxy_is_weak",
+    "close_from_aggregate_mt5",
+    "close_from_broken_code"
+  ],
+  "next_action": "choose_c0039_major_hypothesis_after_c0038_no_candidate_closeout",
+  "opened_at_utc": "2026-07-05T15:48:39Z",
+  "parity_gate": {
+    "intent_parity_status": "passed_schedule_replay_boundary",
+    "mechanical_parity_status": "passed",
+    "mismatch_count": 0,
+    "non_portable_status": "not_applicable",
+    "repair_required": false,
+    "status": "passed"
+  },
+  "pre_open_decision_gate": {
+    "checks": {
+      "adjacent_tuning_rejection_reason_recorded": true,
+      "adjacent_tuning_risk_not_high": true,
+      "at_least_one_surface_changed": true,
+      "decision_payoff_not_low": true,
+      "expected_information_gain_not_low": true,
+      "failure_memory_used_recorded": true,
+      "mt5_portability_not_non_portable": true,
+      "novelty_score_valid": true,
+      "pre_open_decision_present": true
+    },
+    "status": "passed"
+  },
+  "role": "lightweight_decision_receipt",
+  "rolling_window_closeout_gate": {
+    "aggregate_full_period_mt5_kpi_role": "diagnostic_only",
+    "fold_isolated_exception": {
+      "applies": false,
+      "blocking_condition": "",
+      "reason": "",
+      "revisit_when": ""
+    },
+    "fold_isolated_execution_divergence_path_recorded": true,
+    "fold_isolated_mt5_tick_path_recorded": true,
+    "fold_isolated_mt5_tick_required": true,
+    "status": "passed"
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_gate_report_v2",
+  "status": "closed_no_candidate",
+  "template": false,
+  "work_unit_id": "C0038"
+}
