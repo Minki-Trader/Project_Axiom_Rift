@@ -1,0 +1,97 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: closed_no_candidate
+campaign_id: C0040
+campaign_slug: intraday_return_distribution_shape_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-05T17:11:50Z'
+hypothesis:
+  summary: discover whether closed-bar intraday return distribution shape can rank FPMarkets US100 M5 entries
+  boundary: closed-bar return distribution shape surface over local return z-scores, sign-run asymmetry, positive and negative return share, rolling skew, excess tail mass, outlier clustering, quantile position, calm-to-tail transition, tail decay, path efficiency, churn, day distribution position, session progress, and spread-tail stress; not C0039 moving-average ribbon phase, C0038 dwell-transition timing, C0037 price memory density, SC0007 negative-context rerank, C0032 tail-risk skew, C0031 entropy release, C0026 acceleration curvature, C0022 volatility term structure, C0019 candle quality, C0009 execution friction, threshold, score, stop, target, hold, session, activity, spread, capital, monthly filter, or retry nudge
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+  - equity_percent_sizing_rescue
+  - c0039_moving_average_ribbon_phase_retry
+  - c0038_dwell_transition_timing_retry
+  - c0037_price_memory_density_retry
+  - c0032_tail_risk_skew_retry
+  - c0031_entropy_release_retry
+  - volatility_term_structure_retry
+  - threshold_or_score_filter_rescue
+  - synthetic_commission_model
+required_surfaces:
+  model:
+    status: variable
+    summary: fold-local linear rank surface for intraday return distribution shape candidates
+  feature:
+    status: variable
+    summary: return distribution shape features for local z-score, quantile position, sign-run asymmetry, skew, tail mass, outlier clustering, calm-to-tail transition, tail decay, path efficiency, churn, day distribution position, and spread-tail stress
+  trade_logic:
+    status: variable
+    summary: fixed-lot dual-direction top return distribution shape schedule replay candidates per active day
+  label:
+    status: variable
+    summary: directional return distribution shape quality with target-first reward, favorable follow-through after calm-to-tail or tail-decay structure, adverse tail continuation penalty, two-sided churn penalty, and spread-tail penalty
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: null
+    direction: choose_c0041_major_hypothesis_after_c0040_no_candidate_closeout
+    reason: R0001 closed no-candidate after deeply negative proxy, negative aggregate MT5 tick, severe drawdown, and nine losing fold-isolated MT5 tick folds; further C0040 work would likely be adjacent return-distribution shape tuning.
+    status: closed_no_candidate_choose_new_major_axis
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_opened
+  checked_at_utc: '2026-07-05T17:43:15Z'
+  open_synthesis_now: false
+  recommended_next_action: choose_c0041_major_hypothesis_after_c0040_no_candidate_closeout
+  readiness_notes:
+  - single_c0040_run_closed_no_candidate
+  - failure_is_clear_without_needing_adjacent_return_distribution_shape_tuning
+  - next_work_should_choose_materially_new_c0041_major_hypothesis_not_retry_return_distribution_shape
+closeout:
+  status: closed_no_candidate
+  closed_at_utc: '2026-07-05T17:43:15Z'
+  remaining_question: choose_c0041_major_hypothesis_after_c0040_no_candidate_closeout
+  claim_boundary:
+    claim_authority: false
+    economics_pass: false
+    feature_set_selected: false
+    label_selected: false
+    live_ready: false
+    materialization_ready: false
+    model_selected: false
+    onnx_ready: false
+    promotion_ready: false
+    runtime_authority: false
+    runtime_probe_completed: false
+    selected: false
+    trade_logic_selected: false
+  reason: C0040 R0001 tested a materially new return distribution shape axis but failed proxy, aggregate MT5 tick, and fold-isolated MT5 tick candidate standards.
+  failure_asset:
+    asset_type: negative_memory
+    source_run: runs/R0001
+    gate_report: runs/R0001/gate_report.json
+    reason_not_candidate: activity landed in the target band but proxy was deeply negative, aggregate MT5 tick remained negative with severe drawdown, and fold-isolated MT5 tick had nine losing folds out of nine
+claim_boundary:
+  claim_authority: false
+  economics_pass: false
+  feature_set_selected: false
+  label_selected: false
+  live_ready: false
+  materialization_ready: false
+  model_selected: false
+  onnx_ready: false
+  promotion_ready: false
+  runtime_authority: false
+  runtime_probe_completed: false
+  selected: false
+  trade_logic_selected: false
+closed_at_utc: '2026-07-05T17:43:15Z'
