@@ -30,23 +30,23 @@ claim_boundary:
   - live_ready
 candidate_evidence:
   status: requires_hardening
-  source_run: runs/R0001
+  source_run: runs/R0002
   basis: rolling_window_fold_isolated_mt5_tick
-  entries_per_active_day: 7.477586
-  mt5_tick_net_pnl: 73.22
-  mt5_tick_profit_factor: 1.21059
+  entries_per_active_day: 7.537931
+  mt5_tick_net_pnl: 74.54
+  mt5_tick_profit_factor: 1.212383
   profitable_fold_count: 9
   losing_fold_count: 0
   robustness_audit:
-    source: runs/R0001/kpi/candidate_robustness_audit.json
+    source: runs/R0002/kpi/candidate_robustness_audit.json
     status: completed
-    aggregate_extra_cost_per_trade_to_zero: 0.016977
-    weakest_positive_fold_extra_cost_per_trade_to_zero: 0.004532
+    aggregate_extra_cost_per_trade_to_zero: 0.017108
+    weakest_positive_fold_extra_cost_per_trade_to_zero: 0.000709
     longest_losing_month_streak: 1
-    monthly_tick_profitable_month_count: 24
-    monthly_tick_losing_month_count: 3
+    monthly_tick_profitable_month_count: 21
+    monthly_tick_losing_month_count: 6
     conclusion: candidate_evidence_retained_not_selected_hardening_required
-  next_required_action: design_c0037_r0002_price_memory_density_robustness_conditioner_run
+  next_required_action: design_c0037_r0003_price_memory_density_tail_stability_stress_resilience_run
   claim_boundary:
     claim_authority: false
     economics_pass: false
@@ -61,10 +61,13 @@ candidate_evidence:
     runtime_probe_completed: false
     selected: false
     trade_logic_selected: false
+  hardening_run: runs/R0002
+  previous_source_run: runs/R0001
 campaign_closeout:
   status: open_candidate_evidence_requires_hardening
-  remaining_question: design_c0037_r0002_price_memory_density_robustness_conditioner_run
+  remaining_question: design_c0037_r0003_price_memory_density_tail_stability_stress_resilience_run
   selected: false
   claim_authority: false
-  reason: R0001 produced useful fold-isolated candidate evidence, but robustness, monthly stability,
-    cost and slippage stress, materialization, and ONNX portability evidence are not complete.
+  reason: R0002 produced useful fold-isolated candidate evidence, but weakest-fold buffer,
+    adverse-cost survival, monthly stability, materialization, and ONNX portability evidence
+    are not complete.

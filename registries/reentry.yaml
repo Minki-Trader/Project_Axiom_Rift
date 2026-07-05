@@ -1015,8 +1015,20 @@ next_work:
   - review_c0037_r0001_tick_execution_kpi_and_closeout
   - audit_c0037_r0001_candidate_robustness
   - close_c0037_r0001_with_candidate_evidence
-  tasks:
   - design_c0037_r0002_price_memory_density_robustness_conditioner_run
+  - open_c0037_r0002_price_memory_density_robustness_conditioner_run
+  - produce_c0037_r0002_proxy_evidence
+  - record_c0037_r0002_proxy_vs_mt5_logic_parity_evidence
+  - record_c0037_r0002_execution_divergence
+  - produce_c0037_r0002_mt5_tick_execution_evidence
+  - produce_c0037_r0002_fold_isolated_mt5_tick_kpi
+  - produce_c0037_r0002_fold_isolated_execution_divergence
+  - produce_c0037_r0002_mt5_logic_parity_evidence
+  - review_c0037_r0002_tick_execution_kpi_and_closeout
+  - audit_c0037_r0002_candidate_robustness
+  - close_c0037_r0002_with_candidate_evidence
+  tasks:
+  - design_c0037_r0003_price_memory_density_tail_stability_stress_resilience_run
   not_yet:
   - label_freeze
   - feature_set_freeze
