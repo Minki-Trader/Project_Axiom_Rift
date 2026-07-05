@@ -30,23 +30,23 @@ claim_boundary:
   - live_ready
 candidate_evidence:
   status: requires_hardening
-  source_run: runs/R0002
+  source_run: runs/R0003
   basis: rolling_window_fold_isolated_mt5_tick
-  entries_per_active_day: 7.537931
-  mt5_tick_net_pnl: 74.54
-  mt5_tick_profit_factor: 1.212383
+  entries_per_active_day: 7.567241
+  mt5_tick_net_pnl: 67.75
+  mt5_tick_profit_factor: 1.195369
   profitable_fold_count: 9
   losing_fold_count: 0
   robustness_audit:
-    source: runs/R0002/kpi/candidate_robustness_audit.json
+    source: runs/R0003/kpi/candidate_robustness_audit.json
     status: completed
-    aggregate_extra_cost_per_trade_to_zero: 0.017108
-    weakest_positive_fold_extra_cost_per_trade_to_zero: 0.000709
-    longest_losing_month_streak: 1
+    aggregate_extra_cost_per_trade_to_zero: 0.015507
+    weakest_positive_fold_extra_cost_per_trade_to_zero: 0.003014
+    longest_losing_month_streak: 3
     monthly_tick_profitable_month_count: 21
     monthly_tick_losing_month_count: 6
     conclusion: candidate_evidence_retained_not_selected_hardening_required
-  next_required_action: design_c0037_r0003_price_memory_density_tail_stability_stress_resilience_run
+  next_required_action: design_c0037_r0004_price_memory_density_monthly_distribution_stability_run
   claim_boundary:
     claim_authority: false
     economics_pass: false
@@ -61,13 +61,12 @@ candidate_evidence:
     runtime_probe_completed: false
     selected: false
     trade_logic_selected: false
-  hardening_run: runs/R0002
-  previous_source_run: runs/R0001
+  hardening_run: runs/R0003
+  previous_source_run: runs/R0002
 campaign_closeout:
   status: open_candidate_evidence_requires_hardening
-  remaining_question: design_c0037_r0003_price_memory_density_tail_stability_stress_resilience_run
+  remaining_question: design_c0037_r0004_price_memory_density_monthly_distribution_stability_run
   selected: false
   claim_authority: false
-  reason: R0002 produced useful fold-isolated candidate evidence, but weakest-fold buffer,
-    adverse-cost survival, monthly stability, materialization, and ONNX portability evidence
-    are not complete.
+  reason: R0003 produced useful fold-isolated candidate evidence, but monthly stability, aggregate
+    profitability, materialization, and ONNX portability evidence are not complete.

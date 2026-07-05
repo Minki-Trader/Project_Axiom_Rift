@@ -7,8 +7,8 @@ read_budget:
   - registries/reentry.yaml
   - registries/claim_state.yaml
   conditional_files:
-    active_campaign: campaigns/C0030_intraday_vwap_repricing_pressure_discovery
-    active_synthesis: campaigns/SC0006_post_c0030_negative_memory_synthesis
+    active_campaign: campaigns/C0037_intraday_price_memory_density_discovery
+    active_synthesis: null
     active_contracts: contracts/
     active_config: configs/
   skip_by_default:
@@ -1027,8 +1027,20 @@ next_work:
   - review_c0037_r0002_tick_execution_kpi_and_closeout
   - audit_c0037_r0002_candidate_robustness
   - close_c0037_r0002_with_candidate_evidence
-  tasks:
   - design_c0037_r0003_price_memory_density_tail_stability_stress_resilience_run
+  - open_c0037_r0003_price_memory_density_tail_stability_stress_resilience_run
+  - produce_c0037_r0003_proxy_evidence
+  - record_c0037_r0003_proxy_vs_mt5_logic_parity_evidence
+  - record_c0037_r0003_execution_divergence
+  - produce_c0037_r0003_mt5_tick_execution_evidence
+  - produce_c0037_r0003_fold_isolated_mt5_tick_kpi
+  - produce_c0037_r0003_fold_isolated_execution_divergence
+  - produce_c0037_r0003_mt5_logic_parity_evidence
+  - review_c0037_r0003_tick_execution_kpi_and_closeout
+  - audit_c0037_r0003_candidate_robustness
+  - close_c0037_r0003_with_candidate_evidence
+  tasks:
+  - design_c0037_r0004_price_memory_density_monthly_distribution_stability_run
   not_yet:
   - label_freeze
   - feature_set_freeze

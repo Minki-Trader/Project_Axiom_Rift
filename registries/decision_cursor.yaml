@@ -2,13 +2,13 @@ schema: axiom_rift_decision_cursor_v1
 status: active
 encoding: ascii_only
 updated_local_date: '2026-07-05'
-canonical_source: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0002/gate_report.json
+canonical_source: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003/gate_report.json
 canonical_status: closed_with_candidate_evidence
-current_decision: design_c0037_r0003_price_memory_density_tail_stability_stress_resilience_run
+current_decision: design_c0037_r0004_price_memory_density_monthly_distribution_stability_run
 active_campaign: campaigns/C0037_intraday_price_memory_density_discovery
 active_run: null
 active_synthesis: null
-next_required_action: design_c0037_r0003_price_memory_density_tail_stability_stress_resilience_run
+next_required_action: design_c0037_r0004_price_memory_density_monthly_distribution_stability_run
 terminal_evidence_priority:
   enabled: true
   resolved_from:
@@ -28,22 +28,22 @@ terminal_evidence_priority:
   reentry_completed_log_role: history_only_not_decision_authority
 current_evidence_summary:
   source_campaign: campaigns/C0037_intraday_price_memory_density_discovery
-  current_task: design_c0037_r0003_price_memory_density_tail_stability_stress_resilience_run
+  current_task: design_c0037_r0004_price_memory_density_monthly_distribution_stability_run
   active_run: null
   active_run_status: closed_with_candidate_evidence
   evidence_status: candidate_evidence_retained_not_selected_hardening_required
   campaign_family: intraday_price_memory_density
-  entries_per_active_day: 7.537931
-  proxy_trade_count: 4372
-  proxy_net_pnl_points: 5537.92
-  proxy_profit_factor: 1.156237
-  mt5_tick_net_pnl: 74.54
-  mt5_tick_profit_factor: 1.212383
-  mt5_tick_trade_count: 4357
+  entries_per_active_day: 7.567241
+  proxy_trade_count: 4389
+  proxy_net_pnl_points: 5500.17
+  proxy_profit_factor: 1.158787
+  mt5_tick_net_pnl: 67.75
+  mt5_tick_profit_factor: 1.195369
+  mt5_tick_trade_count: 4369
   profitable_fold_count: 9
   losing_fold_count: 0
   candidate_robustness_status: requires_hardening
-  next_required_action: design_c0037_r0003_price_memory_density_tail_stability_stress_resilience_run
+  next_required_action: design_c0037_r0004_price_memory_density_monthly_distribution_stability_run
   note: candidate_evidence_not_selected_no_runtime_or_onnx_claim
   source_campaign_manifest: campaigns/C0037_intraday_price_memory_density_discovery/campaign.yaml
 repo_debt_scope:
@@ -85,16 +85,20 @@ claim_boundary_snapshot:
   selected: false
   trade_logic_selected: false
 next_decision_basis:
-- path: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0002/gate_report.json
+- path: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003/gate_report.json
   role: latest_terminal_candidate_evidence
-  summary: C0037 R0002 closed with candidate evidence after positive proxy, passed parity,
+  summary: C0037 R0003 closed with candidate evidence after positive proxy, passed parity,
     positive MT5 tick aggregate, and 9/9 positive fold-isolated MT5 tick folds; not selected
     and hardening required.
-- path: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0002/kpi/candidate_robustness_audit.json
+- path: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003/kpi/candidate_robustness_audit.json
   role: robustness_boundary
-  summary: R0002 requires further hardening due to extremely thin weakest-fold buffer, partial
-    survival under a 0.01 adverse cost diagnostic, and monthly losing periods.
+  summary: R0003 improves weakest-fold and 0.01 adverse-cost survival but weakens aggregate
+    tick profitability and leaves monthly losing periods unresolved.
 recent_terminal_evidence:
+- path: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003/gate_report.json
+  status: closed_with_candidate_evidence
+  summary: C0037 R0003 retained candidate evidence after positive proxy, passed parity, positive
+    MT5 tick, and 9/9 positive fold-isolated MT5 tick folds; not selected and hardening required.
 - path: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0002/gate_report.json
   status: closed_with_candidate_evidence
   summary: C0037 R0002 retained candidate evidence after positive proxy, passed parity, positive
@@ -109,8 +113,4 @@ recent_terminal_evidence:
 - path: campaigns/C0035_intraday_cycle_phase_resonance_discovery/runs/R0001/gate_report.json
   status: closed_no_candidate
   summary: C0035 R0001 closed no-candidate after negative proxy, negative MT5 tick, and all
-    nine fold-isolated tick folds lost.
-- path: campaigns/C0034_intraday_effort_price_absorption_discovery/runs/R0001/gate_report.json
-  status: closed_no_candidate
-  summary: C0034 R0001 closed no-candidate after negative proxy, negative MT5 tick, and all
     nine fold-isolated tick folds lost.

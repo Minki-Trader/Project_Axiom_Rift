@@ -1,0 +1,164 @@
+{
+  "campaign_id": "C0037",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false
+  },
+  "conditional_profiles": {
+    "entry_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "entry_mismatch_samples": [
+          {
+            "direction": -1,
+            "entry_time": "2024-02-09 15:30:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "entry_time": "2024-04-12 07:15:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": 1,
+            "entry_time": "2024-05-31 08:05:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": 1,
+            "entry_time": "2024-07-25 07:40:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "entry_time": "2024-08-13 12:25:00",
+            "side": "logic_only"
+          }
+        ],
+        "logic_entry_event_count": 4389,
+        "tick_entry_event_count": 4369
+      }
+    },
+    "exit_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "exit_mismatch_samples": [
+          {
+            "direction": -1,
+            "exit_time": "2024-02-01 14:05:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 07:00:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 11:45:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 15:25:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-06 20:00:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-01 13:15:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 07:00:00",
+            "reason": "max_hold",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 11:40:00",
+            "reason": "stop",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 15:30:00",
+            "reason": "target",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-06 19:55:00",
+            "reason": "stop",
+            "side": "tick_only"
+          }
+        ],
+        "logic_exit_event_count": 4389,
+        "tick_exit_event_count": 4369
+      }
+    },
+    "run_closeout_profile": {
+      "applies": false,
+      "fields": {
+        "status": "aggregate_full_period_diagnostic_only_pending_fold_isolated_evidence"
+      }
+    },
+    "score_model_profile": {
+      "applies": true,
+      "fields": {
+        "runtime_portability_claim": false,
+        "score_source": "proxy_schedule_replay"
+      }
+    },
+    "spread_slippage_stress_profile": {
+      "applies": false,
+      "fields": {}
+    }
+  },
+  "created_at_utc": "2026-07-05T13:07:03Z",
+  "deferred_with_reason": [
+    {
+      "field": "fold_isolated_execution_divergence",
+      "next_action": "produce_c0037_r0003_fold_isolated_mt5_tick_kpi",
+      "reason": "aggregate execution divergence is diagnostic only before fold-isolated closeout"
+    }
+  ],
+  "divergence_id": "ED-C0037-R0003",
+  "logic_mt5_kpi_path": "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003/kpi/mt5_logic_parity.json",
+  "missing_required_kpi_fields": [],
+  "required_kpis": {
+    "economics_shift_status": "tick_better_than_logic",
+    "entry_key_match_rate": 0.995443,
+    "execution_divergence_status": "recorded_with_divergence",
+    "exit_reason_match_rate": 0.884028,
+    "exit_time_direction_match_rate": 0.902483,
+    "logic_max_drawdown_percent": 0.00984,
+    "logic_net_pnl": 61.29,
+    "logic_trade_count": 4389,
+    "tick_max_drawdown_percent": 1.176,
+    "tick_minus_logic_max_drawdown_percent": 1.16616,
+    "tick_minus_logic_net_pnl": 6.46,
+    "tick_minus_logic_trade_count": -20,
+    "tick_net_pnl": 67.75,
+    "tick_trade_count": 4369
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0003",
+  "schema": "axiom_rift_execution_divergence_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "tick_mt5_kpi_path": "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003/kpi/mt5_tick.json",
+  "work_unit_id": "C0037"
+}

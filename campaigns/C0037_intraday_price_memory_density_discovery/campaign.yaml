@@ -52,11 +52,12 @@ run_index:
   closed_runs:
   - runs/R0001
   - runs/R0002
+  - runs/R0003
   next_run_candidate:
-    run_id: R0003
-    direction: design_c0037_r0003_price_memory_density_tail_stability_stress_resilience_run
-    reason: R0002 retained candidate evidence but remains unselected because weakest-fold
-      and adverse-cost/monthly robustness are still thin.
+    run_id: R0004
+    direction: design_c0037_r0004_price_memory_density_monthly_distribution_stability_run
+    reason: R0003 retained candidate evidence and improved weakest-fold stress survival, but
+      aggregate profitability weakened and monthly losses remain.
     status: candidate_hardening_required
 synthesis_readiness:
   check_required_at_closeout: true
@@ -64,7 +65,7 @@ synthesis_readiness:
   open_synthesis_now: false
 closeout:
   status: open_candidate_evidence_requires_hardening
-  remaining_question: design_c0037_r0003_price_memory_density_tail_stability_stress_resilience_run
+  remaining_question: design_c0037_r0004_price_memory_density_monthly_distribution_stability_run
   claim_boundary: &id001
     claim_authority: false
     economics_pass: false

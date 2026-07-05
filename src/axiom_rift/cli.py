@@ -352,6 +352,11 @@ RUN_SPECS: tuple[RunSpec, ...] = (
         "axiom_rift.mt5.c0037_r0002_probe",
         "axiom_rift.proxies.c0037_r0002_price_memory_density_robustness",
     ),
+    RunSpec(
+        "c0037_r0003",
+        "axiom_rift.mt5.c0037_r0003_probe",
+        "axiom_rift.proxies.c0037_r0003_price_memory_density_tail_stability",
+    ),
 )
 
 
