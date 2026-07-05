@@ -53,19 +53,45 @@ run_index:
   - runs/R0001
   - runs/R0002
   - runs/R0003
+  - runs/R0004
   next_run_candidate:
-    run_id: R0004
-    direction: design_c0037_r0004_price_memory_density_monthly_distribution_stability_run
-    reason: R0003 retained candidate evidence and improved weakest-fold stress survival, but
-      aggregate profitability weakened and monthly losses remain.
-    status: candidate_hardening_required
+    run_id: null
+    direction: review_c0037_candidate_evidence_and_synthesis_readiness_after_r0004
+    reason: R0004 closed no-candidate after monthly distribution hardening produced one
+      losing fold and weaker aggregate tick economics than R0003; R0003 remains unselected
+      candidate evidence requiring review before any new non-adjacent run.
+    status: review_required
 synthesis_readiness:
   check_required_at_closeout: true
   result: not_due_campaign_open_for_candidate_hardening
   open_synthesis_now: false
 closeout:
   status: open_candidate_evidence_requires_hardening
-  remaining_question: design_c0037_r0004_price_memory_density_monthly_distribution_stability_run
+  remaining_question: review_c0037_candidate_evidence_and_synthesis_readiness_after_r0004
+  latest_run_closeout:
+    run_id: runs/R0004
+    status: closed_no_candidate
+    close_reason: r0004_monthly_distribution_stability_hardening_failed_fold_isolated_tick_candidate_standard
+    evidence_paths:
+    - runs/R0004/artifact_lineage.json
+    - runs/R0004/kpi/proxy.json
+    - runs/R0004/kpi/mt5_logic_parity.json
+    - runs/R0004/kpi/proxy_vs_mt5_logic_parity.json
+    - runs/R0004/kpi/mt5_tick.json
+    - runs/R0004/kpi/execution_divergence.json
+    - runs/R0004/kpi/mt5_tick_by_fold.json
+    - runs/R0004/kpi/execution_divergence_by_fold.json
+    decision_basis:
+      entries_per_active_day: 7.568966
+      mt5_tick_net_pnl: 64.89
+      mt5_tick_profit_factor: 1.188125
+      profitable_fold_count: 8
+      losing_fold_count: 1
+      worst_fold_id: rw_007
+      worst_fold_net_pnl: -1.09
+      r0003_reference_mt5_tick_net_pnl: 67.75
+      r0003_reference_mt5_tick_profit_factor: 1.195369
+      r0003_reference_profitable_fold_count: 9
   claim_boundary: &id001
     claim_authority: false
     economics_pass: false

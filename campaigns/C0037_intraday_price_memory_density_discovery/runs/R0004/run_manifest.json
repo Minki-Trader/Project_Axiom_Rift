@@ -1,0 +1,237 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-05T13:54:12Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "r0004_monthly_distribution_stability_hardening_failed_fold_isolated_tick_candidate_standard",
+    "closed_at_utc": "2026-07-05T13:54:12Z",
+    "failure_asset": {
+      "asset_type": "negative_memory",
+      "evidence_paths": [
+        "artifact_lineage.json",
+        "../R0003/kpi/candidate_robustness_audit.json",
+        "artifacts/c0037_r0004_proxy_trades.csv",
+        "artifacts/c0037_r0004_price_memory_density_monthly_distribution_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0037_r0004_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local price memory density monthly distribution stability conditioner over R0003 candidate evidence",
+      "next_boundary": "R0003 remains unselected candidate evidence, but R0004 should not be retried as monthly prior, month-phase prior, threshold, window, stop, target, hold, session, activity, spread, capital, cost-buffer, or retry nudge; next work is to review C0037 candidate evidence and decide whether a materially new non-adjacent hardening run or campaign closeout is justified",
+      "reason_not_candidate": "R0004 reduced proxy monthly-loss pressure but failed the candidate hardening standard by producing one losing fold-isolated MT5 tick fold, rw_007 at -1.09 net PnL, while aggregate tick net PnL and profit factor were lower than R0003",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "monthly distribution stability conditioning kept target activity and positive aggregate tick PnL but reduced fold robustness to 8 of 9 profitable folds, with rw_007 negative"
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "schedule replay logic parity passed with mismatch_count 0, so the hardening failure is not a proxy-to-EA schedule mismatch"
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "tick execution improved total net PnL by 8.88 versus closed-bar logic, but four folds were tick-worse and minimum exit-reason match rate was 0.789474"
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "../R0003/kpi/candidate_robustness_audit.json",
+          "summary": "candidate evidence remains unselected because monthly stability hardening did not improve fold-isolated robustness and no materialization, ONNX, promotion, or runtime authority evidence exists"
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.568966,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "losing_fold_count": 1,
+      "losing_fold_ids": [
+        "rw_007"
+      ],
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.995789,
+      "minimum_exit_reason_match_rate": 0.789474,
+      "minimum_exit_time_direction_match_rate": 0.812632,
+      "mismatch_count": 0,
+      "mt5_logic_net_pnl": 56.01,
+      "mt5_logic_profit_factor": 1.139854,
+      "mt5_logic_trade_count": 4390,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_max_drawdown_percent": 1.314,
+      "mt5_tick_net_pnl": 64.89,
+      "mt5_tick_profit_factor": 1.188125,
+      "mt5_tick_trade_count": 4377,
+      "profitable_fold_count": 8,
+      "proxy_expectancy_points_per_entry": 1.18705,
+      "proxy_max_drawdown_points": 783.41,
+      "proxy_net_pnl_points": 5211.15,
+      "proxy_profit_factor": 1.151375,
+      "proxy_trade_count": 4390,
+      "proxy_win_rate": 0.489294,
+      "r0003_reference_mt5_tick_net_pnl": 67.75,
+      "r0003_reference_mt5_tick_profit_factor": 1.195369,
+      "r0003_reference_profitable_fold_count": 9,
+      "remaining_work_classification": "review_c0037_candidate_evidence_before_any_new_non_adjacent_variant",
+      "tick_better_fold_count": 5,
+      "tick_minus_logic_net_pnl": 8.88,
+      "tick_worse_fold_count": 4,
+      "total_tick_minus_logic_net_pnl": 8.88,
+      "total_tick_net_pnl": 64.89,
+      "total_tick_trade_count": 4377,
+      "worst_fold_id": "rw_007",
+      "worst_fold_max_drawdown_percent": 1.314,
+      "worst_fold_net_pnl": -1.09,
+      "worst_tick_minus_logic_fold_id": "rw_003",
+      "worst_tick_minus_logic_net_pnl": -2.54
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "candidate_robustness_source": "../R0003/kpi/candidate_robustness_audit.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0037_r0004_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "price_memory_density_monthly_distribution_summary": "artifacts/c0037_r0004_price_memory_density_monthly_distribution_summary.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0037_r0004_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold_local_price_memory_density_monthly_distribution_stability_conditioner",
+    "variant_boundary": "fourth C0037 true variant; conditions the R0003 price memory density candidate with train-only month-of-year and month-phase distribution stability priors to test whether monthly loss clusters can be reduced without threshold, window, stop, target, hold, session, activity, spread, capital, monthly filter, cost-buffer, or retry nudge"
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_boundary": "schedule_replay_no_runtime_or_onnx_claim",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "logic_parity_purpose": "proxy_selected_price_memory_density_monthly_distribution_schedule_vs_ea_closed_bar_schedule_replay_parity",
+    "notes": [],
+    "proxy_vs_mt5_logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-05T13:29:02Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "not a threshold, window, stop, target, hold, session, activity, spread, capital, monthly filter, or retry nudge; it changes label, conditioner features, model summary, and score surface through train-only monthly and month-phase distribution priors while preserving MT5 schedule replay portability",
+    "adjacent_tuning_risk": "low",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003/kpi/candidate_robustness_audit.json",
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "pre_open_decision_id": "POD-C0037-R0004",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "recorded_before_run_open",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "fold-local price memory density monthly distribution stability conditioner over R0003 candidate evidence"
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "weak_proxy_results_must_still_continue_to_mt5_paired_validation"
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0004",
+  "schema": "axiom_rift_run_manifest_v2",
+  "source_ingredient_ids": [
+    "C0037-R0003-candidate-robustness-audit"
+  ],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "R0003 price memory density conditioner surface plus explicit month-start, month-end, quarter-turn, month-middle stability, and monthly distribution risk features"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "monthly distribution stability label that rewards stable mid-month escape quality and penalizes month-start, month-end, quarter-turn, adverse-cost, and fragile-tail pressure before robust and fragile training groups are formed"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "fold-local monthly distribution stability conditioner with train-only month-of-year and month-phase quality priors layered over the price memory density rank base model"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "fixed-lot dual-direction price memory density schedule selected by monthly-distribution-stability conditioned daily ranking with existing discovery exits and mandatory MT5 schedule replay"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0037"
+}

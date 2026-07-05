@@ -102,37 +102,33 @@ active_campaign: campaigns/C0037_intraday_price_memory_density_discovery
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0037_r0003_with_candidate_evidence
+  id: close_c0037_r0004_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003/gate_report.json
-  evidence_status: closed_with_candidate_evidence_not_selected
-  next_required_action: design_c0037_r0004_price_memory_density_monthly_distribution_stability_run
+  recorded_at_source: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0004/gate_report.json
+  evidence_status: closed_no_candidate
+  next_required_action: review_c0037_candidate_evidence_and_synthesis_readiness_after_r0004
   claim_boundary:
     claim_authority: false
-    economics_pass: false
-    feature_set_selected: false
+    selected: false
     label_selected: false
-    live_ready: false
-    materialization_ready: false
+    feature_set_selected: false
     model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
     onnx_ready: false
     promotion_ready: false
-    runtime_authority: false
-    runtime_probe_completed: false
-    selected: false
-    trade_logic_selected: false
-  entries_per_active_day: 7.567241
-  mt5_tick_net_pnl: 67.75
-  mt5_tick_profit_factor: 1.195369
-  mt5_tick_trade_count: 4369
-  profitable_fold_count: 9
-  losing_fold_count: 0
-  candidate_robustness_status: requires_hardening
-  selected: false
-  economics_pass: false
-  runtime_authority: false
-  onnx_ready: false
-  live_ready: false
+    live_ready: false
+  mt5_tick_by_fold_status: completed
+  execution_divergence_by_fold_status: completed
+  total_tick_net_pnl: 64.89
+  profitable_fold_count: 8
+  losing_fold_count: 1
+  closeout_decision: close_no_candidate
+  reason_not_candidate: monthly_distribution_stability_hardening_failed_one_losing_fold_and_weaker_r0003_comparison
+  reference_candidate_source_run: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003
 active_truth:
   contracts_dir: contracts
   configs_dir: configs
