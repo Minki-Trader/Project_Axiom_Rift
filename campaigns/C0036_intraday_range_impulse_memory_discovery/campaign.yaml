@@ -1,0 +1,154 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: closed_no_candidate
+campaign_id: C0036
+campaign_slug: intraday_range_impulse_memory_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-05T11:19:43Z'
+closed_at_utc: '2026-07-05T11:41:51Z'
+hypothesis:
+  summary: discover whether closed-bar directional range impulse memory, relief, dominance
+    decay, and day range balance can rank FPMarkets US100 M5 entries
+  boundary: closed-bar intraday range impulse memory surface over signed true-range contribution,
+    close-location impulse, directional range dominance, opposite-side relief, range expansion
+    and compression, day range balance, and spread stress; not C0035 cycle phase resonance,
+    C0034 effort-price absorption, C0033 seasonal residual, C0032 tail-risk skew, C0031 entropy
+    release, C0030 VWAP repricing, C0029 fractal pivot transition, C0028 swing leg maturity,
+    C0024 calendar rhythm, C0016 simple directional imbalance, threshold, score, stop, target,
+    hold, session, activity, spread, capital, or retry nudge
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+  - equity_percent_sizing_rescue
+  - c0035_cycle_phase_retry
+  - c0034_effort_price_absorption_retry
+  - c0016_simple_directional_imbalance_retry
+  - threshold_or_score_filter_rescue
+  - synthetic_commission_model
+required_surfaces:
+  model:
+    status: variable
+    summary: fold-local linear rank surface for intraday range impulse memory candidates
+  feature:
+    status: variable
+    summary: range impulse memory features for signed true-range contribution, close-location
+      impulse, directional dominance, opposite relief, range migration, day range balance,
+      path efficiency, churn, and spread-range stress
+  trade_logic:
+    status: variable
+    summary: fixed-lot dual-direction top range impulse memory schedule replay candidates
+      per active day
+  label:
+    status: variable
+    summary: directional range impulse memory survival quality with target-first reward, early
+      range follow-through, future impulse retention reward, adverse relief penalty, churn
+      penalty, and spread-drift penalty
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: null
+    direction: choose_c0037_new_major_hypothesis_after_c0036_closeout
+    reason: C0036 R0001 closed no-candidate; remaining work inside the range impulse memory
+      boundary would be adjacent tuning.
+    status: new_major_hypothesis_required
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_needed
+  open_synthesis_now: false
+  recommended_next_action: choose_c0037_new_major_hypothesis_after_c0036_closeout
+  checked_at_utc: '2026-07-05T11:41:51Z'
+  closed_run_count: 1
+  observed_closed_campaign_count_since_last_synthesis: 6
+  usable_ingredient_group_count: 6
+  minimums:
+    closed_campaign_count_since_last_synthesis: 3
+    usable_ingredient_group_count: 8
+    required_surface_count: 3
+  readiness_notes:
+  - c0031_c0032_c0033_c0034_c0035_c0036_negative_memory_recorded_after_sc0006
+  - closed_campaign_count_minimum_met_but_usable_ingredient_group_count_below_minimum_8
+  - synthesis_not_due_until_more_ingredient_groups_exist
+closeout:
+  status: closed_no_candidate
+  close_reason: r0001_failed_proxy_aggregate_mt5_tick_and_zero_of_nine_profitable_fold_isolated_mt5_tick_folds
+  evidence_paths:
+  - artifact_lineage.json
+  - kpi/proxy.json
+  - kpi/mt5_logic_parity.json
+  - kpi/proxy_vs_mt5_logic_parity.json
+  - kpi/mt5_tick.json
+  - kpi/execution_divergence.json
+  - artifacts/c0036_r0001_proxy_trades.csv
+  - artifacts/c0036_r0001_range_impulse_memory_summary.json
+  - artifacts/c0036_r0001_schedule.csv
+  - kpi/mt5_tick_by_fold.json
+  - kpi/execution_divergence_by_fold.json
+  remaining_question: choose_c0037_new_major_hypothesis_after_c0036_closeout
+  closed_at_utc: '2026-07-05T11:41:51Z'
+  decision_basis:
+    completed_fold_count: 9
+    economics_shift_status: tick_better_than_logic
+    entries_per_active_day: 7.981034
+    execution_divergence_by_fold_status: completed
+    execution_divergence_status: recorded_with_divergence
+    fold_count: 9
+    intent_parity_status: passed_schedule_replay_boundary
+    losing_fold_count: 9
+    mechanical_parity_status: passed
+    minimum_entry_key_match_rate: 1.0
+    minimum_exit_reason_match_rate: 0.878968
+    minimum_exit_time_direction_match_rate: 0.90873
+    mismatch_count: 0
+    mt5_logic_net_pnl: -496.39
+    mt5_logic_profit_factor: 0.230749
+    mt5_logic_trade_count: 4629
+    mt5_tick_by_fold_status: completed
+    mt5_tick_max_drawdown_percent: 68.776
+    mt5_tick_net_pnl: -343.41
+    mt5_tick_profit_factor: 0.361418
+    mt5_tick_trade_count: 4629
+    profitable_fold_count: 0
+    proxy_expectancy_points_per_entry: -8.096416
+    proxy_net_pnl_points: -37478.31
+    proxy_profit_factor: 0.318743
+    proxy_trade_count: 4629
+    proxy_win_rate: 0.215813
+    remaining_work_classification: intraday_range_impulse_memory_threshold_score_stop_target_hold_session_activity_spread_capital_or_retry_nudge_not_next
+    tick_better_fold_count: 9
+    tick_minus_logic_net_pnl: 152.98
+    tick_worse_fold_count: 0
+    total_tick_minus_logic_net_pnl: 152.98
+    total_tick_net_pnl: -343.41
+    total_tick_trade_count: 4629
+    worst_fold_id: rw_009
+    worst_fold_max_drawdown_percent: 11.068
+    worst_fold_net_pnl: -54.9
+    worst_tick_minus_logic_fold_id: rw_001
+    worst_tick_minus_logic_net_pnl: 9.99
+  claim_boundary: &id001
+    claim_authority: false
+    economics_pass: false
+    feature_set_selected: false
+    label_selected: false
+    live_ready: false
+    materialization_ready: false
+    model_selected: false
+    onnx_ready: false
+    promotion_ready: false
+    runtime_authority: false
+    runtime_probe_completed: false
+    selected: false
+    trade_logic_selected: false
+claim_boundary: *id001
+campaign_lessons:
+- r0001_met_target_activity_but_proxy_and_mt5_tick_economics_were_negative
+- r0001_lost_all_nine_fold_isolated_mt5_tick_folds
+- logic_parity_passed_with_mismatch_count_zero
+- tick_execution_was_better_than_logic_in_all_nine_folds_but_did_not_rescue_candidate_quality
+- c0036_range_impulse_memory_rank_should_not_be_retried_as_threshold_or_stop_target_nudge

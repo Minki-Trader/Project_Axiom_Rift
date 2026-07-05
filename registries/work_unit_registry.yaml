@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0036
+    next_id: C0037
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -54,6 +54,7 @@ streams:
     - campaigns/C0033_intraday_seasonal_residual_dislocation_discovery
     - campaigns/C0034_intraday_effort_price_absorption_discovery
     - campaigns/C0035_intraday_cycle_phase_resonance_discovery
+    - campaigns/C0036_intraday_range_impulse_memory_discovery
     numbering_policy:
       width: 4
       example: C0001
