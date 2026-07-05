@@ -1,0 +1,170 @@
+{
+  "artifact_records": [
+    {
+      "artifact_id": "A-C0026-R0001-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0026_r0001_probe",
+      "repo_relative_path": "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+      "sha256": "59710048bccfe4df8c5d45140a583c83833aa7ab5cefed5fc1ad641b4b7b0374",
+      "source_inputs": [
+        "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "registries/rolling_windows.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0026-R0001-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0026_r0001_probe",
+      "repo_relative_path": "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/execution_divergence.json",
+      "sha256": "6369124f118aa86548a1ef8e88b58460adf0a28a2a2c1bf4f5d3e21789e54cdc",
+      "source_inputs": [
+        "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+        "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/mt5_tick.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0026-R0001-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0026_r0001_probe",
+      "repo_relative_path": "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+      "sha256": "4d04ec7d05d2751a421efc052b32376217a087b051ecc80fdc15b195d518aa6c",
+      "source_inputs": [
+        "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/artifacts/c0026_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0026-R0001-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "mt5_logic_parity_input",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0026_r0001_probe",
+      "repo_relative_path": "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/artifacts/c0026_r0001_schedule.csv",
+      "sha256": "60be99715b81d4ce0fcb1d075ed94abf918968761ce06328123041256f407ed1",
+      "source_inputs": [
+        "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0026-R0001-MT5-TICK-BY-FOLD-KPI",
+      "artifact_role": "mt5_tick_by_fold_kpi",
+      "artifact_type": "mt5_tick_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0026_r0001_probe",
+      "repo_relative_path": "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+      "sha256": "d7cd22fa7c76b2c3285ff4759d40b7dbd5fb4a71ffb4fc91b78c6ac96ae655f4",
+      "source_inputs": [
+        "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/artifacts/c0026_r0001_schedule.csv",
+        "registries/rolling_windows.yaml",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0026-R0001-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "mt5_tick",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0026_r0001_probe",
+      "repo_relative_path": "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/mt5_tick.json",
+      "sha256": "86cec1dffd4aa3716d0d047e48d96aca6b429fe50784f46ec06a70cb6c106e6e",
+      "source_inputs": [
+        "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/artifacts/c0026_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0026-R0001-PRICE-ACCELERATION-CURVATURE-SUMMARY",
+      "artifact_role": "price_acceleration_curvature_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0026_r0001_price_acceleration_curvature",
+      "repo_relative_path": "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/artifacts/c0026_r0001_price_acceleration_curvature_summary.json",
+      "sha256": "a7b5552842b6681e3d941aa16e15dbe0d1e88c55daeddae128cb0e000e90f80c",
+      "source_inputs": [
+        "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0026-R0001-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0026_r0001_price_acceleration_curvature",
+      "repo_relative_path": "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/proxy.json",
+      "sha256": "e8f202350ca7100e8f20a98f621973c1a4c33cd7130691babe9641a7aab675f2",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0026-R0001-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0026_r0001_price_acceleration_curvature",
+      "repo_relative_path": "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/artifacts/c0026_r0001_proxy_trades.csv",
+      "sha256": "4699c59a40d85260fb6a2252bb1ef04baed4b472c2e6d7f263240f80af93944c",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0026-R0001-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "proxy_vs_mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0026_r0001_probe",
+      "repo_relative_path": "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "05911875d108175f707111e7073d4b210641e8e0aab0b3b3201e27fc62563e44",
+      "source_inputs": [
+        "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/proxy.json",
+        "campaigns/C0026_price_acceleration_curvature_discovery/runs/R0001/kpi/mt5_logic_parity.json"
+      ]
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "onnx_ready": false,
+    "runtime_authority": false,
+    "selected": false
+  },
+  "created_at_utc": "2026-07-05T04:32:13Z",
+  "deferred_with_reason": [],
+  "lineage_id": "L-C0026-R0001",
+  "run_id": "R0001",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "status": "closed_no_candidate",
+  "template": false,
+  "work_unit_id": "C0026"
+}
