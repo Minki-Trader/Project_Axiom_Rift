@@ -2,13 +2,13 @@ schema: axiom_rift_decision_cursor_v1
 status: active
 encoding: ascii_only
 updated_local_date: '2026-07-05'
-canonical_source: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0004/gate_report.json
-canonical_status: closed_no_candidate
-current_decision: review_c0037_candidate_evidence_and_synthesis_readiness_after_r0004
-active_campaign: campaigns/C0037_intraday_price_memory_density_discovery
+canonical_source: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/synthesis.yaml
+canonical_status: open_synthesis_design_required
+current_decision: design_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
+active_campaign: null
 active_run: null
-active_synthesis: null
-next_required_action: review_c0037_candidate_evidence_and_synthesis_readiness_after_r0004
+active_synthesis: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
+next_required_action: design_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
 terminal_evidence_priority:
   enabled: true
   resolved_from:
@@ -28,27 +28,28 @@ terminal_evidence_priority:
   reentry_completed_log_role: history_only_not_decision_authority
 current_evidence_summary:
   source_campaign: campaigns/C0037_intraday_price_memory_density_discovery
-  current_task: review_c0037_candidate_evidence_and_synthesis_readiness_after_r0004
+  active_synthesis: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
+  current_task: design_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
   active_run: null
   latest_run: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0004
   latest_run_status: closed_no_candidate
-  evidence_status: r0004_closed_no_candidate_after_fold_isolated_tick_review
+  evidence_status: c0037_closed_with_candidate_evidence_and_sc0007_opened_for_post_sc0006_mixed_evidence_synthesis
   campaign_family: intraday_price_memory_density
-  entries_per_active_day: 7.568966
-  proxy_trade_count: 4390
-  proxy_net_pnl_points: 5211.15
-  proxy_profit_factor: 1.151375
-  mt5_tick_net_pnl: 64.89
-  mt5_tick_profit_factor: 1.188125
-  profitable_fold_count: 8
-  losing_fold_count: 1
-  worst_fold_id: rw_007
-  worst_fold_net_pnl: -1.09
+  synthesis_id: SC0007
+  synthesis_status: open
+  source_campaign_count: 7
+  usable_ingredient_group_count: 9
+  retained_candidate_source_run: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003
   r0003_reference_mt5_tick_net_pnl: 67.75
   r0003_reference_mt5_tick_profit_factor: 1.195369
   r0003_reference_profitable_fold_count: 9
-  next_required_action: review_c0037_candidate_evidence_and_synthesis_readiness_after_r0004
-  note: R0004 failed monthly distribution hardening; R0003 remains unselected candidate evidence.
+  r0004_reference_mt5_tick_net_pnl: 64.89
+  r0004_reference_mt5_tick_profit_factor: 1.188125
+  r0004_reference_profitable_fold_count: 8
+  r0004_reference_losing_fold_count: 1
+  next_required_action: design_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
+  note: C0037 closed with R0003 candidate evidence retained but unselected; SC0007 is open
+    and SR0001 is not opened until a non-adjacent synthesis design is selected.
   source_campaign_manifest: campaigns/C0037_intraday_price_memory_density_discovery/campaign.yaml
 repo_debt_scope:
   global_repo_state_ok: false
@@ -89,20 +90,26 @@ claim_boundary_snapshot:
   selected: false
   trade_logic_selected: false
 next_decision_basis:
-- path: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0004/gate_report.json
-  role: latest_terminal_no_candidate_evidence
-  summary: C0037 R0004 closed no-candidate after monthly distribution stability hardening
-    produced one losing fold-isolated MT5 tick fold and weaker aggregate tick economics
-    than R0003.
+- path: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/synthesis.yaml
+  role: active_synthesis_work_unit
+  summary: SC0007 is open for post-SC0006 C0031-C0037 mixed-evidence synthesis; SR0001
+    requires non-adjacent design before opening.
+- path: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/ingredient_refs.yaml
+  role: active_synthesis_ingredient_index
+  summary: Ingredient refs record six recent negative-memory campaign groups plus C0037
+    R0003 candidate evidence, R0003 robustness fragility, and R0004 hardening failure.
+- path: campaigns/C0037_intraday_price_memory_density_discovery/campaign.yaml
+  role: latest_closed_campaign_manifest
+  summary: C0037 closed with candidate evidence retained but unselected and synthesis readiness
+    opened SC0007.
 - path: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003/gate_report.json
-  role: latest_terminal_candidate_evidence
-  summary: C0037 R0003 closed with candidate evidence after positive proxy, passed parity,
-    positive MT5 tick aggregate, and 9/9 positive fold-isolated MT5 tick folds; not selected
-    and hardening required.
-- path: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003/kpi/candidate_robustness_audit.json
-  role: robustness_boundary
-  summary: R0003 improves weakest-fold and 0.01 adverse-cost survival but weakens aggregate
-    tick profitability and leaves monthly losing periods unresolved.
+  role: retained_candidate_evidence
+  summary: C0037 R0003 produced positive aggregate and nine positive fold-isolated MT5 tick
+    folds but remains not selected and requires hardening.
+- path: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0004/gate_report.json
+  role: latest_hardening_negative_memory
+  summary: C0037 R0004 closed no-candidate after monthly distribution hardening produced
+    one losing fold and weaker aggregate MT5 tick economics than R0003.
 recent_terminal_evidence:
 - path: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0004/gate_report.json
   status: closed_no_candidate

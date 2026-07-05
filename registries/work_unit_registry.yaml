@@ -16,9 +16,8 @@ streams:
     id_prefix: C
     role: major_hypothesis_discovery
     next_id: C0038
-    active_work_unit: campaigns/C0037_intraday_price_memory_density_discovery
-    open_work_units:
-    - campaigns/C0037_intraday_price_memory_density_discovery
+    active_work_unit: null
+    open_work_units: []
     closed_work_units:
     - campaigns/C0001_regime_response_discovery
     - campaigns/C0002_score_conditioned_intraday_edge
@@ -56,6 +55,7 @@ streams:
     - campaigns/C0034_intraday_effort_price_absorption_discovery
     - campaigns/C0035_intraday_cycle_phase_resonance_discovery
     - campaigns/C0036_intraday_range_impulse_memory_discovery
+    - campaigns/C0037_intraday_price_memory_density_discovery
     numbering_policy:
       width: 4
       example: C0001
@@ -63,9 +63,10 @@ streams:
   synthesis_stream:
     id_prefix: SC
     role: accumulated_ingredient_synthesis
-    next_id: SC0007
-    active_work_unit: null
-    open_work_units: []
+    next_id: SC0008
+    active_work_unit: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
+    open_work_units:
+    - campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
     closed_work_units:
     - campaigns/SC0001_accumulated_negative_memory_synthesis
     - campaigns/SC0002_accumulated_post_sc0001_negative_memory_synthesis

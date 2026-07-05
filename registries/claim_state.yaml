@@ -98,15 +98,15 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: campaigns/C0037_intraday_price_memory_density_discovery
-active_synthesis: null
+active_campaign: null
+active_synthesis: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
 active_run: null
 latest_operation:
-  id: close_c0037_r0004_no_candidate
+  id: open_sc0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
   status: completed
-  recorded_at_source: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0004/gate_report.json
-  evidence_status: closed_no_candidate
-  next_required_action: review_c0037_candidate_evidence_and_synthesis_readiness_after_r0004
+  recorded_at_source: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis/synthesis.yaml
+  evidence_status: synthesis_opened_from_c0037_candidate_evidence_and_post_sc0006_negative_memory
+  next_required_action: design_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
   claim_boundary:
     claim_authority: false
     selected: false
@@ -121,13 +121,13 @@ latest_operation:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
-  mt5_tick_by_fold_status: completed
-  execution_divergence_by_fold_status: completed
-  total_tick_net_pnl: 64.89
-  profitable_fold_count: 8
-  losing_fold_count: 1
-  closeout_decision: close_no_candidate
-  reason_not_candidate: monthly_distribution_stability_hardening_failed_one_losing_fold_and_weaker_r0003_comparison
+  synthesis_id: SC0007
+  synthesis_status: open
+  source_campaign_count: 7
+  usable_ingredient_group_count: 9
+  retained_candidate_source_run_status: candidate_evidence_requires_hardening
+  closeout_decision: close_campaign_with_candidate_evidence_and_open_synthesis
+  reason_not_selected: c0037_candidate_evidence_requires_hardening_and_sc0007_is_synthesis_only
   reference_candidate_source_run: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0003
 active_truth:
   contracts_dir: contracts

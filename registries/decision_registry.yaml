@@ -2279,6 +2279,36 @@ decisions:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
+- decision_id: dec_20260705_close_c0037_with_candidate_evidence_and_open_sc0007
+  created_local_date: '2026-07-05'
+  status: active
+  decision: close_c0037_with_candidate_evidence_and_open_sc0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
+  refines:
+  - dec_20260705_decision_intelligence_layer
+  - dec_20260702_goal_policy_discovery_and_sizing_guardrails
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0037_r0003_retains_candidate_evidence_after_positive_aggregate_mt5_tick_and_nine_profitable_fold_isolated_tick_folds
+  - c0037_r0003_is_not_selected_because_monthly_loss_and_cost_survival_fragility_remain_unresolved
+  - c0037_r0004_monthly_distribution_hardening_closed_no_candidate_with_one_losing_fold_and_weaker_r0003_comparison
+  - remaining_c0037_work_would_likely_be_adjacent_monthly_distribution_score_threshold_cost_buffer_stop_target_hold_session_activity_spread_capital_or_retry_tuning
+  - c0031_through_c0037_meet_post_sc0006_synthesis_readiness_with_seven_closed_campaigns_and_nine_usable_ingredient_groups
+  - sc0007_is_opened_as_a_synthesis_work_unit_only_and_sr0001_is_not_opened_until_a_non_adjacent_design_is_chosen
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
 - decision_id: dec_20260705_open_c0012_r0001_session_auction_rotation_run
   created_local_date: '2026-07-05'
   status: active

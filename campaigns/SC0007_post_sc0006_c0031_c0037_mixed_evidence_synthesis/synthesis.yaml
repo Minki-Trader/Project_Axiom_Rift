@@ -1,0 +1,74 @@
+schema: axiom_rift_synthesis_v1
+template: false
+status: open
+synthesis_id: SC0007
+synthesis_slug: post_sc0006_c0031_c0037_mixed_evidence_synthesis
+synthesis_level: synthesis_7
+opened_at_utc: '2026-07-05T14:18:00Z'
+closed_at_utc: null
+synthesis_question:
+  summary: synthesize post-SC0006 evidence from C0031 through C0037 before choosing the
+    next synthesis run or major campaign axis
+  boundary: use only closed campaign and run evidence from C0031 through C0037; treat C0037
+    R0003 as retained candidate evidence only; preserve unrestricted discovery of labels,
+    features, model families, objectives, and trade shapes; do not create selected, economics,
+    runtime, materialization, ONNX, promotion, or live-readiness claims; do not treat synthesis
+    as a shortcut around MT5 paired validation for any opened SR run
+source_campaign_ids:
+- C0031
+- C0032
+- C0033
+- C0034
+- C0035
+- C0036
+- C0037
+readiness:
+  closed_campaign_count: 7
+  usable_ingredient_group_count: 9
+  required_surface_count: 3
+  has_explicit_mt5_evidence: true
+  unresolved_mechanical_parity_as_main_blocker: false
+  synthesis_due_source: campaigns/C0037_intraday_price_memory_density_discovery/campaign.yaml
+ingredient_refs_path: ingredient_refs.yaml
+synthesis_queue_path: synthesis_queue.yaml
+runs_root: runs/
+synthesis_run_id_format: SR0001
+run_index:
+  active_run: null
+  opened_runs: []
+  closed_runs: []
+  next_run_candidate:
+    run_id: SR0001
+    direction: design_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
+    reason: SC0007 was opened from post-SC0006 C0031-C0037 ingredients; SR0001 requires
+      a non-adjacent synthesis design before opening.
+    status: design_required
+stream_policy:
+  stream: synthesis
+  independent_from_campaign_stream: true
+  does_not_set_next_campaign_id: true
+must_not:
+- create_selected_claim
+- create_runtime_authority
+- create_economics_pass_claim
+- create_materialization_ready_claim
+- create_onnx_ready_claim
+- create_promotion_ready_claim
+- create_live_ready_claim
+- use_weak_proxy_as_mt5_skip_gate
+- disguise_adjacent_tuning_as_new_campaign
+- use_source_oos_pnl_as_entry_selection
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

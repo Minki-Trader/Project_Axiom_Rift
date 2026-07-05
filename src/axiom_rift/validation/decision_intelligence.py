@@ -123,6 +123,7 @@ def classify_issue_scope(issue: Any, active_run_path: str | None = None) -> dict
     if code in {
         "active_campaign_missing",
         "active_campaign_path_missing",
+        "active_synthesis_path_missing",
         "active_run_path_missing",
         "latest_operation_source_missing",
         "parse_error",

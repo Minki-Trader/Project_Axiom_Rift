@@ -69,9 +69,19 @@ def validate_repo_state(root: Path = PROJECT_ROOT) -> RepoStateValidationResult:
     check_forbidden_claims(issues, reentry_path, reentry)
 
     active_campaign_rel = active_campaign_from_state(claim_state, reentry)
-    allow_no_active_campaign = no_active_campaign_after_closeout_allowed(claim_state, reentry)
+    active_synthesis_rel = active_synthesis_from_state(claim_state, reentry)
+    active_synthesis_root = resolve_repo_path(root, active_synthesis_rel) if active_synthesis_rel else None
+    allow_active_synthesis_without_campaign = (
+        active_synthesis_root is not None and active_synthesis_root.exists()
+    )
+    allow_no_active_campaign = (
+        no_active_campaign_after_closeout_allowed(claim_state, reentry)
+        or allow_active_synthesis_without_campaign
+    )
     campaign_root = resolve_repo_path(root, active_campaign_rel) if active_campaign_rel else None
     campaign = None
+    if active_synthesis_root is not None and not active_synthesis_root.exists():
+        issues.add("active_synthesis_path_missing", active_synthesis_root, "active synthesis path does not exist")
     if campaign_root is None:
         if not allow_no_active_campaign:
             issues.add("active_campaign_missing", claim_state_path, "active campaign is not recorded")

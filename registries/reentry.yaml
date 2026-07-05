@@ -7,8 +7,8 @@ read_budget:
   - registries/reentry.yaml
   - registries/claim_state.yaml
   conditional_files:
-    active_campaign: campaigns/C0037_intraday_price_memory_density_discovery
-    active_synthesis: null
+    active_campaign: null
+    active_synthesis: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
     active_contracts: contracts/
     active_config: configs/
   skip_by_default:
@@ -22,8 +22,8 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: campaigns/C0037_intraday_price_memory_density_discovery
-  active_synthesis: null
+  active_campaign: null
+  active_synthesis: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
   active_run: null
 active_truth:
   contracts_dir: contracts
@@ -114,8 +114,8 @@ data_state:
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
 next_work:
-  campaign: campaigns/C0037_intraday_price_memory_density_discovery
-  synthesis: null
+  campaign: null
+  synthesis: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
   completed:
   - fresh_export_us100_m5_max_available
   - record_source_path_decision_fresh_export
@@ -1049,16 +1049,19 @@ next_work:
   - produce_c0037_r0004_fold_isolated_execution_divergence
   - review_c0037_r0004_tick_execution_kpi_and_closeout
   - close_c0037_r0004_no_candidate
-  tasks:
   - review_c0037_candidate_evidence_and_synthesis_readiness_after_r0004
+  - close_c0037_with_candidate_evidence
+  - open_sc0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
+  tasks:
+  - design_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
   not_yet:
   - label_freeze
   - feature_set_freeze
   - model_training
   - mt5_runtime_claim
-  active_campaign: campaigns/C0037_intraday_price_memory_density_discovery
+  active_campaign: null
   active_run: null
   run: null
 active_run: null
-active_campaign: campaigns/C0037_intraday_price_memory_density_discovery
-active_synthesis: null
+active_campaign: null
+active_synthesis: campaigns/SC0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis

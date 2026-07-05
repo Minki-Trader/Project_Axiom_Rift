@@ -13,9 +13,9 @@ from axiom_rift.mt5.runtime_config import (
     load_runtime_config,
     lot_input_line,
     runtime_payload_fields,
-    tester_account_lines,
-    tester_model_label_for_mode,
-    tester_model_for_mode,
+    tester_account_lines as mt5_tester_account_lines,
+    tester_model_label_for_mode as mt5_tester_model_label_for_mode,
+    tester_model_for_mode as mt5_tester_model_for_mode,
 )
 
 
@@ -31,10 +31,13 @@ class Mt5RuntimeConfigTest(unittest.TestCase):
         self.assertEqual(config.claim_boundary["live_ready"], False)
 
     def test_tester_lines_and_models_come_from_runtime_config(self) -> None:
-        self.assertEqual(tester_account_lines(), ["Deposit=500", "Currency=USD", "Leverage=100", "ExecutionMode=0"])
-        self.assertEqual(tester_model_for_mode("logic_parity"), 2)
-        self.assertEqual(tester_model_for_mode("tick_execution"), 4)
-        self.assertEqual(tester_model_label_for_mode("tick_execution"), "real_ticks_model_4")
+        self.assertEqual(
+            mt5_tester_account_lines(),
+            ["Deposit=500", "Currency=USD", "Leverage=100", "ExecutionMode=0"],
+        )
+        self.assertEqual(mt5_tester_model_for_mode("logic_parity"), 2)
+        self.assertEqual(mt5_tester_model_for_mode("tick_execution"), 4)
+        self.assertEqual(mt5_tester_model_label_for_mode("tick_execution"), "real_ticks_model_4")
         self.assertEqual(lot_input_line(), "InpLot=0.01")
 
     def test_runtime_payload_records_path_hash_and_snapshot(self) -> None:

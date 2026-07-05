@@ -1,10 +1,11 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: candidate_evidence_requires_hardening
+status: closed_with_candidate_evidence
 campaign_id: C0037
 campaign_slug: intraday_price_memory_density_discovery
 campaign_type: campaign
 opened_at_utc: '2026-07-05T11:48:03Z'
+closed_at_utc: '2026-07-05T14:18:00Z'
 hypothesis:
   summary: discover whether closed-bar local price memory density and directional sparse-lane
     asymmetry can rank FPMarkets US100 M5 entries
@@ -56,42 +57,159 @@ run_index:
   - runs/R0004
   next_run_candidate:
     run_id: null
-    direction: review_c0037_candidate_evidence_and_synthesis_readiness_after_r0004
-    reason: R0004 closed no-candidate after monthly distribution hardening produced one
-      losing fold and weaker aggregate tick economics than R0003; R0003 remains unselected
-      candidate evidence requiring review before any new non-adjacent run.
-    status: review_required
+    direction: open_sc0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
+    reason: R0003 remains unselected candidate evidence and R0004 failed monthly distribution
+      hardening; further C0037 work would likely be adjacent monthly, threshold, score,
+      cost-buffer, stop, target, hold, session, activity, spread, capital, or retry tuning.
+    status: post_closeout_synthesis_required
 synthesis_readiness:
   check_required_at_closeout: true
-  result: not_due_campaign_open_for_candidate_hardening
-  open_synthesis_now: false
+  result: open_synthesis
+  checked_at_utc: '2026-07-05T14:18:00Z'
+  closed_run_count: 4
+  observed_closed_campaign_count_since_last_synthesis: 7
+  usable_ingredient_group_count: 9
+  minimums:
+    closed_campaign_count_since_last_synthesis: 3
+    usable_ingredient_group_count: 8
+    required_surface_count: 3
+  open_synthesis_now: true
+  readiness_notes:
+  - c0031_to_c0037_complete_seven_closed_campaigns_since_sc0006
+  - c0037_retains_r0003_candidate_evidence_but_r0004_failed_monthly_distribution_hardening
+  - synthesis_ready_because_usable_ingredient_groups_reached_minimum_8
+  - sc0007_should_compare_recent_negative_memory_with_price_memory_density_candidate_evidence_before_new_campaign
+  ingredient_groups:
+  - group_id: c0031_ig001_intraday_entropy_release_negative_memory
+    source_campaign_id: C0031
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: intraday_entropy_release_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - group_id: c0032_ig001_intraday_tail_risk_skew_negative_memory
+    source_campaign_id: C0032
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: intraday_tail_risk_skew_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - group_id: c0033_ig001_intraday_seasonal_residual_dislocation_negative_memory
+    source_campaign_id: C0033
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: intraday_seasonal_residual_dislocation_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - group_id: c0034_ig001_intraday_effort_price_absorption_negative_memory
+    source_campaign_id: C0034
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: intraday_effort_price_absorption_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - group_id: c0035_ig001_intraday_cycle_phase_resonance_negative_memory
+    source_campaign_id: C0035
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: intraday_cycle_phase_resonance_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - group_id: c0036_ig001_intraday_range_impulse_memory_negative_memory
+    source_campaign_id: C0036
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: intraday_range_impulse_memory_closed_no_candidate_after_fold_isolated_mt5_tick_evidence
+  - group_id: c0037_ig001_intraday_price_memory_density_candidate_evidence
+    source_campaign_id: C0037
+    source_runs:
+    - R0003
+    group_type: candidate_evidence
+    summary: R0003 produced positive aggregate and nine positive fold-isolated MT5 tick folds
+      but remains unselected and requires hardening.
+  - group_id: c0037_ig002_price_memory_density_robustness_fragility_lesson
+    source_campaign_id: C0037
+    source_runs:
+    - R0003
+    group_type: evidence_gap
+    summary: R0003 candidate robustness audit left monthly losing periods and cost-survival
+      fragility unresolved.
+  - group_id: c0037_ig003_price_memory_density_monthly_distribution_hardening_negative_memory
+    source_campaign_id: C0037
+    source_runs:
+    - R0004
+    group_type: negative_memory
+    summary: R0004 monthly distribution hardening closed no-candidate with one losing fold
+      and weaker aggregate MT5 tick economics than R0003.
+  recommended_next_action: open_sc0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
 closeout:
-  status: open_candidate_evidence_requires_hardening
-  remaining_question: review_c0037_candidate_evidence_and_synthesis_readiness_after_r0004
-  latest_run_closeout:
-    run_id: runs/R0004
-    status: closed_no_candidate
-    close_reason: r0004_monthly_distribution_stability_hardening_failed_fold_isolated_tick_candidate_standard
-    evidence_paths:
-    - runs/R0004/artifact_lineage.json
-    - runs/R0004/kpi/proxy.json
-    - runs/R0004/kpi/mt5_logic_parity.json
-    - runs/R0004/kpi/proxy_vs_mt5_logic_parity.json
-    - runs/R0004/kpi/mt5_tick.json
-    - runs/R0004/kpi/execution_divergence.json
-    - runs/R0004/kpi/mt5_tick_by_fold.json
-    - runs/R0004/kpi/execution_divergence_by_fold.json
-    decision_basis:
-      entries_per_active_day: 7.568966
-      mt5_tick_net_pnl: 64.89
-      mt5_tick_profit_factor: 1.188125
-      profitable_fold_count: 8
-      losing_fold_count: 1
-      worst_fold_id: rw_007
-      worst_fold_net_pnl: -1.09
-      r0003_reference_mt5_tick_net_pnl: 67.75
-      r0003_reference_mt5_tick_profit_factor: 1.195369
-      r0003_reference_profitable_fold_count: 9
+  status: closed_with_candidate_evidence
+  close_reason: no_meaningful_new_non_adjacent_price_memory_density_variant_remains_after_r0001_to_r0004_and_r0003_candidate_evidence_retained_not_selected
+  remaining_question: open_sc0007_post_sc0006_c0031_c0037_mixed_evidence_synthesis
+  closed_at_utc: '2026-07-05T14:18:00Z'
+  evidence_paths:
+  - runs/R0001/gate_report.json
+  - runs/R0001/kpi/proxy.json
+  - runs/R0001/kpi/mt5_logic_parity.json
+  - runs/R0001/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0001/kpi/mt5_tick.json
+  - runs/R0001/kpi/execution_divergence.json
+  - runs/R0001/kpi/mt5_tick_by_fold.json
+  - runs/R0001/kpi/execution_divergence_by_fold.json
+  - runs/R0001/kpi/candidate_robustness_audit.json
+  - runs/R0002/gate_report.json
+  - runs/R0002/kpi/proxy.json
+  - runs/R0002/kpi/mt5_logic_parity.json
+  - runs/R0002/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0002/kpi/mt5_tick.json
+  - runs/R0002/kpi/execution_divergence.json
+  - runs/R0002/kpi/mt5_tick_by_fold.json
+  - runs/R0002/kpi/execution_divergence_by_fold.json
+  - runs/R0002/kpi/candidate_robustness_audit.json
+  - runs/R0003/gate_report.json
+  - runs/R0003/kpi/proxy.json
+  - runs/R0003/kpi/mt5_logic_parity.json
+  - runs/R0003/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0003/kpi/mt5_tick.json
+  - runs/R0003/kpi/execution_divergence.json
+  - runs/R0003/kpi/mt5_tick_by_fold.json
+  - runs/R0003/kpi/execution_divergence_by_fold.json
+  - runs/R0003/kpi/candidate_robustness_audit.json
+  - runs/R0004/gate_report.json
+  - runs/R0004/kpi/proxy.json
+  - runs/R0004/kpi/mt5_logic_parity.json
+  - runs/R0004/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0004/kpi/mt5_tick.json
+  - runs/R0004/kpi/execution_divergence.json
+  - runs/R0004/kpi/mt5_tick_by_fold.json
+  - runs/R0004/kpi/execution_divergence_by_fold.json
+  - selected.yaml
+  decision_basis:
+    closed_run_count: 4
+    closed_with_candidate_evidence_run_count: 3
+    closed_no_candidate_run_count: 1
+    retained_candidate_source_run: runs/R0003
+    retained_candidate_status: requires_hardening
+    r0003_entries_per_active_day: 7.567241
+    r0003_mt5_tick_net_pnl: 67.75
+    r0003_mt5_tick_profit_factor: 1.195369
+    r0003_profitable_fold_count: 9
+    r0003_losing_fold_count: 0
+    r0003_aggregate_extra_cost_per_trade_to_zero: 0.015507
+    r0003_weakest_positive_fold_extra_cost_per_trade_to_zero: 0.003014
+    r0003_monthly_tick_losing_month_count: 6
+    r0003_longest_losing_month_streak: 3
+    r0004_entries_per_active_day: 7.568966
+    r0004_mt5_tick_net_pnl: 64.89
+    r0004_mt5_tick_profit_factor: 1.188125
+    r0004_profitable_fold_count: 8
+    r0004_losing_fold_count: 1
+    r0004_worst_fold_id: rw_007
+    r0004_worst_fold_net_pnl: -1.09
+    remaining_work_classification: adjacent_monthly_distribution_score_threshold_cost_buffer_stop_target_hold_session_activity_spread_capital_or_retry_nudge_not_next
+  campaign_lessons:
+  - R0003 price memory density evidence is useful candidate evidence but not a selected
+    model, selected feature set, economics pass, runtime authority, ONNX-ready, promotion,
+    materialization-ready, or live-ready claim.
+  - Monthly distribution and cost-survival fragility remained after R0003 robustness audit.
+  - R0004 showed that direct monthly distribution hardening reduced the candidate surface
+    instead of producing a stronger fold-isolated MT5 tick candidate.
   claim_boundary: &id001
     claim_authority: false
     economics_pass: false

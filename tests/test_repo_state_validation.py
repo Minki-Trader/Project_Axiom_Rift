@@ -88,6 +88,7 @@ class RepoStateValidationTest(unittest.TestCase):
 
             claim_path = root / "registries" / "claim_state.yaml"
             claim = yaml.safe_load(claim_path.read_text(encoding="ascii"))
+            claim["active_campaign"] = None
             claim["active_synthesis"] = SYNTHESIS_REL.as_posix()
             claim["active_run"] = None
             claim["latest_operation"]["recorded_at_source"] = (SYNTHESIS_REL / "synthesis.yaml").as_posix()
@@ -96,7 +97,9 @@ class RepoStateValidationTest(unittest.TestCase):
 
             reentry_path = root / "registries" / "reentry.yaml"
             reentry = yaml.safe_load(reentry_path.read_text(encoding="ascii"))
+            reentry["project"]["active_campaign"] = None
             reentry["project"]["active_synthesis"] = SYNTHESIS_REL.as_posix()
+            reentry["next_work"]["campaign"] = None
             reentry["next_work"]["synthesis"] = SYNTHESIS_REL.as_posix()
             reentry["next_work"]["tasks"] = [SYNTHESIS_NEXT_ACTION]
             write_yaml(reentry_path, reentry)
@@ -104,6 +107,7 @@ class RepoStateValidationTest(unittest.TestCase):
             result = validate_repo_state(root)
 
             self.assertTrue(result.ok, result.to_dict())
+            self.assertNotIn("active_campaign_missing", issue_codes(result))
             self.assertNotIn("next_action_mismatch", issue_codes(result))
 
     def test_no_active_campaign_after_closeout_can_choose_next_major_campaign(self) -> None:
