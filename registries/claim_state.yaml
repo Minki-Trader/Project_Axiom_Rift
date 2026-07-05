@@ -98,59 +98,28 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: null
+active_campaign: campaigns/C0037_intraday_price_memory_density_discovery
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0036_no_candidate_after_r0001
+  id: close_c0037_r0001_with_candidate_evidence
   status: completed
-  recorded_at_source: campaigns/C0036_intraday_range_impulse_memory_discovery/runs/R0001/gate_report.json
-  evidence_status: closed_no_candidate
-  source_campaign: campaigns/C0036_intraday_range_impulse_memory_discovery
-  active_run: null
-  run_id: R0001
-  next_required_action: choose_c0037_new_major_hypothesis_after_c0036_closeout
+  recorded_at_source: campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/gate_report.json
+  evidence_status: closed_with_candidate_evidence_not_selected
+  next_required_action: design_c0037_r0002_price_memory_density_robustness_conditioner_run
   claim_boundary: *id001
-  failure_asset_recorded: true
-  completed_fold_count: 9
-  economics_shift_status: tick_better_than_logic
-  entries_per_active_day: 7.981034
-  execution_divergence_by_fold_status: completed
-  execution_divergence_status: recorded_with_divergence
-  fold_count: 9
-  intent_parity_status: passed_schedule_replay_boundary
-  losing_fold_count: 9
-  mechanical_parity_status: passed
-  minimum_entry_key_match_rate: 1.0
-  minimum_exit_reason_match_rate: 0.878968
-  minimum_exit_time_direction_match_rate: 0.90873
-  mismatch_count: 0
-  mt5_logic_net_pnl: -496.39
-  mt5_logic_profit_factor: 0.230749
-  mt5_logic_trade_count: 4629
-  mt5_tick_by_fold_status: completed
-  mt5_tick_max_drawdown_percent: 68.776
-  mt5_tick_net_pnl: -343.41
-  mt5_tick_profit_factor: 0.361418
-  mt5_tick_trade_count: 4629
-  profitable_fold_count: 0
-  proxy_expectancy_points_per_entry: -8.096416
-  proxy_net_pnl_points: -37478.31
-  proxy_profit_factor: 0.318743
-  proxy_trade_count: 4629
-  proxy_win_rate: 0.215813
-  remaining_work_classification: intraday_range_impulse_memory_threshold_score_stop_target_hold_session_activity_spread_capital_or_retry_nudge_not_next
-  tick_better_fold_count: 9
-  tick_minus_logic_net_pnl: 152.98
-  tick_worse_fold_count: 0
-  total_tick_minus_logic_net_pnl: 152.98
-  total_tick_net_pnl: -343.41
-  total_tick_trade_count: 4629
-  worst_fold_id: rw_009
-  worst_fold_max_drawdown_percent: 11.068
-  worst_fold_net_pnl: -54.9
-  worst_tick_minus_logic_fold_id: rw_001
-  worst_tick_minus_logic_net_pnl: 9.99
+  entries_per_active_day: 7.477586
+  mt5_tick_net_pnl: 73.22
+  mt5_tick_profit_factor: 1.21059
+  mt5_tick_trade_count: 4313
+  profitable_fold_count: 9
+  losing_fold_count: 0
+  candidate_robustness_status: requires_hardening
+  selected: false
+  economics_pass: false
+  runtime_authority: false
+  onnx_ready: false
+  live_ready: false
 active_truth:
   contracts_dir: contracts
   configs_dir: configs

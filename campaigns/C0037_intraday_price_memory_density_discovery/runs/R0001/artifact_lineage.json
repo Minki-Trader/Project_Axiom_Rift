@@ -1,0 +1,186 @@
+{
+  "artifact_records": [
+    {
+      "artifact_id": "A-C0037-R0001-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0037_r0001_probe",
+      "repo_relative_path": "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+      "sha256": "dc804690ae79c8918ce5a707e4f0c444bf9d8da13e1b47bb08d377ebbbea0514",
+      "source_inputs": [
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "registries/rolling_windows.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0037-R0001-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0037_r0001_probe",
+      "repo_relative_path": "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/execution_divergence.json",
+      "sha256": "13485f7f45a4cd6704800238acd416deb78d7248ee22915c32a52dd067704db9",
+      "source_inputs": [
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/mt5_tick.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0037-R0001-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0037_r0001_probe",
+      "repo_relative_path": "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+      "sha256": "5ec988c62c25bf6554a20d5d3af546139f9ddf69c06f0bcaae83b9c7e57c3e94",
+      "source_inputs": [
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/artifacts/c0037_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0037-R0001-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "mt5_logic_parity_input",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0037_r0001_probe",
+      "repo_relative_path": "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/artifacts/c0037_r0001_schedule.csv",
+      "sha256": "96e8e22802be2d9dc22b8c92dd9866a7f5a7cfa23326268528c8bf55ebca5272",
+      "source_inputs": [
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0037-R0001-MT5-TICK-BY-FOLD-KPI",
+      "artifact_role": "mt5_tick_by_fold_kpi",
+      "artifact_type": "mt5_tick_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0037_r0001_probe",
+      "repo_relative_path": "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+      "sha256": "2ed8a1129d369f64356cb7a6bd4506207186720ca2cef19591b5760a7aafa487",
+      "source_inputs": [
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/artifacts/c0037_r0001_schedule.csv",
+        "registries/rolling_windows.yaml",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0037-R0001-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "mt5_tick",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0037_r0001_probe",
+      "repo_relative_path": "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/mt5_tick.json",
+      "sha256": "812bc683b5a545a61d279720b28dc188674a9841925ef4b48a6d727597245b8b",
+      "source_inputs": [
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/artifacts/c0037_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0037-R0001-PRICE-MEMORY-DENSITY-SUMMARY",
+      "artifact_role": "intraday_price_memory_density_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0037_r0001_intraday_price_memory_density",
+      "repo_relative_path": "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/artifacts/c0037_r0001_price_memory_density_summary.json",
+      "sha256": "122789894f2a06a1d7b47ef739531e6eaaabb85a812f30026fe213e6873b4164",
+      "source_inputs": [
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0037-R0001-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0037_r0001_intraday_price_memory_density",
+      "repo_relative_path": "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/proxy.json",
+      "sha256": "52bb24cb2a9a8938ac746773284d4804ad9120adf126dfa7631370337f3b425d",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0037-R0001-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0037_r0001_intraday_price_memory_density",
+      "repo_relative_path": "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/artifacts/c0037_r0001_proxy_trades.csv",
+      "sha256": "d4b2d8e3a1746b5b67c391e1327258784e90ac09f9cb8167d861b4fd1f89455e",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0037-R0001-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "proxy_vs_mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0037_r0001_probe",
+      "repo_relative_path": "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "602c57bb0fdbcf023b8bdf2d3f4558f90b5965ecc89e3a487533c9788e4559e3",
+      "source_inputs": [
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/proxy.json",
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/mt5_logic_parity.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0037-R0001-CANDIDATE-ROBUSTNESS-AUDIT",
+      "artifact_role": "candidate_robustness_audit_kpi",
+      "artifact_type": "candidate_robustness_audit",
+      "claim_authority": false,
+      "linked_kpi_family": "candidate_robustness_audit",
+      "mutable": false,
+      "produced_by": "manual_existing_evidence_audit",
+      "repo_relative_path": "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/candidate_robustness_audit.json",
+      "sha256": "b27905b2105b9a61de324fc88eaea34beb92307594d531ea5058f05eac7ced56",
+      "source_inputs": [
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/proxy.json",
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/mt5_tick.json",
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "campaigns/C0037_intraday_price_memory_density_discovery/runs/R0001/kpi/execution_divergence_by_fold.json"
+      ]
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "onnx_ready": false,
+    "runtime_authority": false,
+    "selected": false
+  },
+  "created_at_utc": "2026-07-05T11:48:03Z",
+  "deferred_with_reason": [],
+  "lineage_id": "L-C0037-R0001",
+  "run_id": "R0001",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "template": false,
+  "work_unit_id": "C0037"
+}

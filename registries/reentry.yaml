@@ -22,7 +22,7 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: null
+  active_campaign: campaigns/C0037_intraday_price_memory_density_discovery
   active_synthesis: null
   active_run: null
 active_truth:
@@ -114,7 +114,7 @@ data_state:
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
 next_work:
-  campaign: null
+  campaign: campaigns/C0037_intraday_price_memory_density_discovery
   synthesis: null
   completed:
   - fresh_export_us100_m5_max_available
@@ -1002,16 +1002,29 @@ next_work:
   - review_c0036_r0001_tick_execution_kpi_and_closeout
   - close_c0036_r0001_no_candidate
   - close_c0036_no_candidate_after_r0001
-  tasks:
   - choose_c0037_new_major_hypothesis_after_c0036_closeout
+  - open_c0037_intraday_price_memory_density_discovery
+  - open_c0037_r0001_fold_local_intraday_price_memory_density_rank_run
+  - produce_c0037_r0001_proxy_evidence
+  - produce_c0037_r0001_mt5_logic_parity_evidence
+  - record_c0037_r0001_proxy_vs_mt5_logic_parity_evidence
+  - produce_c0037_r0001_mt5_tick_execution_evidence
+  - record_c0037_r0001_execution_divergence
+  - produce_c0037_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0037_r0001_fold_isolated_execution_divergence
+  - review_c0037_r0001_tick_execution_kpi_and_closeout
+  - audit_c0037_r0001_candidate_robustness
+  - close_c0037_r0001_with_candidate_evidence
+  tasks:
+  - design_c0037_r0002_price_memory_density_robustness_conditioner_run
   not_yet:
   - label_freeze
   - feature_set_freeze
   - model_training
   - mt5_runtime_claim
-  active_campaign: null
+  active_campaign: campaigns/C0037_intraday_price_memory_density_discovery
   active_run: null
   run: null
 active_run: null
-active_campaign: null
+active_campaign: campaigns/C0037_intraday_price_memory_density_discovery
 active_synthesis: null

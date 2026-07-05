@@ -1,0 +1,81 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: candidate_evidence_requires_hardening
+campaign_id: C0037
+campaign_slug: intraday_price_memory_density_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-05T11:48:03Z'
+hypothesis:
+  summary: discover whether closed-bar local price memory density and directional sparse-lane asymmetry
+    can rank FPMarkets US100 M5 entries
+  boundary: closed-bar intraday price memory density surface over recent close occupancy, nearby range
+    occupancy, above-vs-below density imbalance, sparse directional escape lanes, revisit recency,
+    failed escape pressure, accepted escape pressure, day density balance, path efficiency, churn,
+    and spread-density stress; not C0036 range impulse memory, C0035 cycle phase resonance, C0034
+    effort-price absorption, C0033 seasonal residual, C0032 tail-risk skew, C0031 entropy release,
+    C0030 VWAP repricing, C0029 fractal pivot transition, C0028 swing leg maturity, C0025 range overlap
+    topology, C0015 liquidity vacuum rebound, threshold, score, stop, target, hold, session, activity,
+    spread, capital, or retry nudge
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - final_sizing_rule
+  - equity_percent_sizing_rescue
+  - c0036_range_impulse_memory_retry
+  - c0025_range_overlap_topology_retry
+  - c0015_liquidity_vacuum_retry
+  - threshold_or_score_filter_rescue
+  - synthetic_commission_model
+required_surfaces:
+  model:
+    status: variable
+    summary: fold-local linear rank surface for intraday price memory density candidates
+  feature:
+    status: variable
+    summary: price memory density features for close and range occupancy, directional sparse lanes,
+      density gradient, revisit recency, escape acceptance, failed escape pressure, day density balance,
+      path efficiency, churn, and spread-density stress
+  trade_logic:
+    status: variable
+    summary: fixed-lot dual-direction top price memory density schedule replay candidates per active
+      day
+  label:
+    status: variable
+    summary: directional price memory density escape survival quality with target-first reward, sparse-lane
+      follow-through, dense-core revisit penalty, adverse dense-side pressure, churn penalty, and
+      spread-drift penalty
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: R0002
+    direction: design_c0037_r0002_price_memory_density_robustness_conditioner_run
+    reason: R0001 retained candidate evidence but requires true robustness conditioning, not threshold
+      or score-only tuning.
+    status: candidate_hardening_required
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_due_campaign_open_for_candidate_hardening
+  open_synthesis_now: false
+closeout:
+  status: open_candidate_evidence_requires_hardening
+  remaining_question: design_c0037_r0002_price_memory_density_robustness_conditioner_run
+  claim_boundary: &id001
+    claim_authority: false
+    economics_pass: false
+    feature_set_selected: false
+    label_selected: false
+    live_ready: false
+    materialization_ready: false
+    model_selected: false
+    onnx_ready: false
+    promotion_ready: false
+    runtime_authority: false
+    runtime_probe_completed: false
+    selected: false
+    trade_logic_selected: false
+claim_boundary: *id001
