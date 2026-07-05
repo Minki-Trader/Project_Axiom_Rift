@@ -1170,8 +1170,20 @@ next_work:
   - audit_c0045_r0002_candidate_robustness
   - review_c0045_r0002_tick_execution_kpi_and_closeout
   - close_c0045_r0002_with_candidate_evidence
-  tasks:
+  - open_c0045_r0003_regression_channel_residual_cost_slippage_stress_materialization_probe_run
+  - produce_c0045_r0003_proxy_evidence
+  - record_c0045_r0003_proxy_vs_mt5_logic_parity_evidence
+  - record_c0045_r0003_execution_divergence
+  - produce_c0045_r0003_mt5_tick_execution_evidence
+  - produce_c0045_r0003_fold_isolated_mt5_tick_kpi
+  - produce_c0045_r0003_fold_isolated_execution_divergence
   - design_c0045_r0003_regression_channel_residual_cost_slippage_stress_materialization_probe_run
+  - produce_c0045_r0003_mt5_logic_parity_evidence
+  - audit_c0045_r0003_cost_slippage_materialization
+  - review_c0045_r0003_tick_execution_kpi_and_closeout
+  - close_c0045_r0003_with_candidate_evidence
+  tasks:
+  - review_c0045_candidate_evidence_and_synthesis_readiness_after_r0003
   not_yet:
   - label_freeze
   - feature_set_freeze

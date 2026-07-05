@@ -3575,3 +3575,52 @@ decisions:
   - next_work_is_design_c0045_r0003_regression_channel_residual_cost_slippage_stress_materialization_probe_run
   - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
   claim_boundary: *id006
+- decision_id: dec_20260706_open_c0045_r0003_stress_materialization_probe_run
+  created_local_date: '2026-07-06'
+  status: active
+  decision: open_c0045_r0003_regression_channel_residual_cost_slippage_stress_materialization_probe_run
+  refines:
+  - dec_20260706_close_c0045_r0002_with_candidate_evidence
+  - dec_20260705_decision_intelligence_layer
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0003_is_a_true_variant_inside_active_c0045_after_r0002_candidate_evidence
+  - pre_open_decision_records_novelty_score_3_medium_adjacent_tuning_risk_high_information_gain_clear_mt5_portability_and_high_decision_payoff
+  - changed_surfaces_are_label_feature_model_and_trade_logic_for_short_primary_cost_slippage_stress_survival_and_materialization_portability_probe
+  - run_is_not_a_threshold_window_stop_target_hold_session_activity_spread_capital_monthly_filter_or_retry_nudge
+  - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence_even_if_proxy_is_weak
+  - no_label_feature_model_trade_logic_selected_runtime_economics_onnx_promotion_or_live_claim_is_created
+  claim_boundary: &id007
+    claim_authority: false
+    economics_pass: false
+    feature_set_selected: false
+    label_selected: false
+    live_ready: false
+    materialization_ready: false
+    model_selected: false
+    onnx_ready: false
+    promotion_ready: false
+    runtime_authority: false
+    runtime_probe_completed: false
+    selected: false
+    trade_logic_selected: false
+- decision_id: dec_20260706_close_c0045_r0003_with_candidate_evidence
+  created_local_date: '2026-07-06'
+  status: active
+  decision: close_c0045_r0003_with_candidate_evidence
+  refines:
+  - dec_20260706_open_c0045_r0003_stress_materialization_probe_run
+  - dec_20260706_close_c0045_r0002_with_candidate_evidence
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0003_completed_proxy_mt5_logic_parity_proxy_vs_mt5_parity_mt5_tick_execution_divergence_fold_isolated_tick_and_divergence_and_cost_slippage_materialization_audit_evidence
+  - proxy_net_pnl_points_23965.91_profit_factor_1.7391_entries_per_active_day_7.743103
+  - mt5_tick_net_pnl_241.35_profit_factor_1.734524_trade_count_4473
+  - fold_isolated_tick_has_9_profitable_and_0_losing_folds_with_worst_fold_net_pnl_8.4
+  - tick_execution_worsened_logic_by_-46.07_total_net_pnl_with_1_tick_better_fold_and_8_tick_worse_folds
+  - cost_slippage_stress_audit_has_9_folds_profitable_after_0_01_adverse_cost_8_after_0_02_and_6_after_0_04
+  - native_materialization_and_onnx_portability_are_not_complete_and_historical_lineage_debt_still_blocks_selected_promotion_handoff_and_reproducibility_claims
+  - closeout_records_candidate_evidence_retained_not_selection_or_economics_pass
+  - next_work_is_review_c0045_candidate_evidence_and_synthesis_readiness_after_r0003
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary: *id007

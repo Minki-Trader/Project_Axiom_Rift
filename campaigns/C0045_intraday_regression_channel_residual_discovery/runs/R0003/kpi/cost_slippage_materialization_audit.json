@@ -1,0 +1,234 @@
+{
+  "audit_id": "CSM-C0045-R0003",
+  "campaign_id": "C0045",
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "created_at_utc": "2026-07-05T21:31:07Z",
+  "decision": {
+    "candidate_evidence_status": "retained_not_selected",
+    "hardening_required": true,
+    "reason": "R0003 improves aggregate proxy and MT5 tick evidence while all nine folds remain profitable, but weakest-fold adverse cost stress fails at 0.02 per trade and native materialization, ONNX portability, and historical lineage debt still block stronger claims.",
+    "selection_status": "not_selected",
+    "status": "stronger_candidate_evidence_requires_native_materialization_and_lineage_repair",
+    "suggested_next_action": "review_c0045_candidate_evidence_and_synthesis_readiness_after_r0003"
+  },
+  "evidence_paths": [
+    "campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0003/kpi/proxy.json",
+    "campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0003/kpi/mt5_tick.json",
+    "campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0003/kpi/mt5_tick_by_fold.json",
+    "campaigns/C0045_intraday_regression_channel_residual_discovery/runs/R0003/kpi/execution_divergence_by_fold.json"
+  ],
+  "kpi_family": "cost_slippage_materialization_audit",
+  "materialization_probe": {
+    "feature_spec_recorded_in_proxy_summary": true,
+    "materialization_ready": false,
+    "native_mql_feature_surface_materialized": false,
+    "notes": [
+      "R0003 records feature and score portability probes but still uses schedule replay for MT5 validation.",
+      "No native EA signal implementation or ONNX artifact is created by this run closeout."
+    ],
+    "onnx_export_created": false,
+    "onnx_ready": false,
+    "schedule_replay_portable": true
+  },
+  "monthly_tick_deal_audit": {
+    "best_month": {
+      "max_intramonth_drawdown": 1.68,
+      "month": "2025-03",
+      "net_pnl": 20.6,
+      "profit_factor": 2.509158,
+      "trade_count": 164,
+      "win_rate": 0.628049
+    },
+    "longest_losing_month_streak": {
+      "end": null,
+      "length": 0,
+      "start": null
+    },
+    "losing_month_count": 0,
+    "month_count": 27,
+    "profitable_month_count": 27,
+    "source": "mt5_tick_deals_exit_rows",
+    "worst_intramonth_drawdown_month": {
+      "max_intramonth_drawdown": 3.82,
+      "month": "2025-11",
+      "net_pnl": 10.13,
+      "profit_factor": 1.619572,
+      "trade_count": 157,
+      "win_rate": 0.535032
+    },
+    "worst_month": {
+      "max_intramonth_drawdown": 2.09,
+      "month": "2024-03",
+      "net_pnl": 2.17,
+      "profit_factor": 1.202804,
+      "trade_count": 159,
+      "win_rate": 0.433962
+    }
+  },
+  "notes": [
+    "The adverse cost diagnostics are account-currency sensitivity checks per entry, not frozen spread or slippage rules.",
+    "This audit records candidate evidence only and does not create selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims."
+  ],
+  "required_kpis": {
+    "aggregate_extra_cost_per_trade_to_zero": 0.053957,
+    "all_folds_positive_under_baseline_tick": true,
+    "candidate_robustness_status": "stronger_candidate_evidence_requires_native_materialization_and_lineage_repair",
+    "completed_fold_count": 9,
+    "cost_slippage_stress_status": "baseline_profitable_but_weakest_fold_fails_0_02_adverse_cost",
+    "economics_shift_status": "tick_worse_than_logic",
+    "entries_per_active_day": 7.743103,
+    "execution_divergence_by_fold_status": "completed",
+    "fold_count": 9,
+    "intent_parity_status": "passed_schedule_replay_boundary",
+    "long_proxy_net_pnl_points": 0,
+    "long_trade_count_proxy": 0,
+    "longest_losing_month_streak": 0,
+    "losing_fold_count": 0,
+    "losing_fold_ids": [],
+    "materialization_probe_status": "schedule_replay_portable_feature_surface_recorded_no_native_onnx_claim",
+    "mechanical_parity_status": "passed",
+    "minimum_entry_key_match_rate": 0.987976,
+    "minimum_exit_reason_match_rate": 0.737805,
+    "minimum_exit_time_direction_match_rate": 0.762195,
+    "mismatch_count": 0,
+    "monthly_tick_losing_month_count": 0,
+    "monthly_tick_profitable_month_count": 27,
+    "mt5_logic_net_pnl": 287.42,
+    "mt5_logic_profit_factor": 1.854069,
+    "mt5_logic_trade_count": 4491,
+    "mt5_tick_by_fold_status": "completed",
+    "mt5_tick_net_pnl": 241.35,
+    "mt5_tick_profit_factor": 1.734524,
+    "mt5_tick_trade_count": 4473,
+    "profitable_fold_count": 9,
+    "profitable_fold_count_after_0.01_adverse_cost": 9,
+    "profitable_fold_count_after_0.02_adverse_cost": 8,
+    "profitable_fold_count_after_0.04_adverse_cost": 6,
+    "proxy_expectancy_points_per_entry": 5.336431,
+    "proxy_net_pnl_points": 23965.91,
+    "proxy_profit_factor": 1.7391,
+    "proxy_trade_count": 4491,
+    "short_proxy_net_pnl_points": 23965.91,
+    "short_trade_count_proxy": 4491,
+    "tick_better_fold_count": 1,
+    "tick_worse_fold_count": 8,
+    "total_tick_minus_logic_net_pnl": -46.07,
+    "total_tick_net_pnl": 241.35,
+    "total_tick_trade_count": 4473,
+    "weakest_positive_fold_extra_cost_per_trade_to_zero": 0.017108,
+    "weakest_positive_fold_id": "rw_001",
+    "worst_fold_id": "rw_001",
+    "worst_fold_max_drawdown_percent": 0.764,
+    "worst_fold_net_pnl": 8.4,
+    "worst_tick_minus_logic_fold_id": "rw_001",
+    "worst_tick_minus_logic_net_pnl": -17.98
+  },
+  "requirement_policy": "stress_and_materialization_probe_no_new_claim_authority",
+  "run_id": "R0003",
+  "schema": "axiom_rift_cost_slippage_materialization_audit_v1",
+  "status": "completed",
+  "stress_by_fold": [
+    {
+      "extra_cost_per_trade_to_zero": 0.017108,
+      "fold_id": "rw_001",
+      "net_after_0.01_adverse_cost_per_trade": 3.49,
+      "net_after_0.02_adverse_cost_per_trade": -1.42,
+      "net_after_0.04_adverse_cost_per_trade": -11.24,
+      "net_pnl": 8.4,
+      "trade_count": 491
+    },
+    {
+      "extra_cost_per_trade_to_zero": 0.042148,
+      "fold_id": "rw_002",
+      "net_after_0.01_adverse_cost_per_trade": 16.46,
+      "net_after_0.02_adverse_cost_per_trade": 11.34,
+      "net_after_0.04_adverse_cost_per_trade": 1.1,
+      "net_pnl": 21.58,
+      "trade_count": 512
+    },
+    {
+      "extra_cost_per_trade_to_zero": 0.068585,
+      "fold_id": "rw_003",
+      "net_after_0.01_adverse_cost_per_trade": 29.82,
+      "net_after_0.02_adverse_cost_per_trade": 24.73,
+      "net_after_0.04_adverse_cost_per_trade": 14.55,
+      "net_pnl": 34.91,
+      "trade_count": 509
+    },
+    {
+      "extra_cost_per_trade_to_zero": 0.057633,
+      "fold_id": "rw_004",
+      "net_after_0.01_adverse_cost_per_trade": 23.34,
+      "net_after_0.02_adverse_cost_per_trade": 18.44,
+      "net_after_0.04_adverse_cost_per_trade": 8.64,
+      "net_pnl": 28.24,
+      "trade_count": 490
+    },
+    {
+      "extra_cost_per_trade_to_zero": 0.108289,
+      "fold_id": "rw_005",
+      "net_after_0.01_adverse_cost_per_trade": 47.67,
+      "net_after_0.02_adverse_cost_per_trade": 42.82,
+      "net_after_0.04_adverse_cost_per_trade": 33.12,
+      "net_pnl": 52.52,
+      "trade_count": 485
+    },
+    {
+      "extra_cost_per_trade_to_zero": 0.02925,
+      "fold_id": "rw_006",
+      "net_after_0.01_adverse_cost_per_trade": 9.76,
+      "net_after_0.02_adverse_cost_per_trade": 4.69,
+      "net_after_0.04_adverse_cost_per_trade": -5.45,
+      "net_pnl": 14.83,
+      "trade_count": 507
+    },
+    {
+      "extra_cost_per_trade_to_zero": 0.037566,
+      "fold_id": "rw_007",
+      "net_after_0.01_adverse_cost_per_trade": 13.59,
+      "net_after_0.02_adverse_cost_per_trade": 8.66,
+      "net_after_0.04_adverse_cost_per_trade": -1.2,
+      "net_pnl": 18.52,
+      "trade_count": 493
+    },
+    {
+      "extra_cost_per_trade_to_zero": 0.066742,
+      "fold_id": "rw_008",
+      "net_after_0.01_adverse_cost_per_trade": 27.69,
+      "net_after_0.02_adverse_cost_per_trade": 22.81,
+      "net_after_0.04_adverse_cost_per_trade": 13.05,
+      "net_pnl": 32.57,
+      "trade_count": 488
+    },
+    {
+      "extra_cost_per_trade_to_zero": 0.059799,
+      "fold_id": "rw_009",
+      "net_after_0.01_adverse_cost_per_trade": 24.8,
+      "net_after_0.02_adverse_cost_per_trade": 19.82,
+      "net_after_0.04_adverse_cost_per_trade": 9.86,
+      "net_pnl": 29.78,
+      "trade_count": 498
+    }
+  ],
+  "stress_levels": [
+    0.01,
+    0.02,
+    0.04
+  ],
+  "template": false,
+  "work_unit_id": "C0045"
+}

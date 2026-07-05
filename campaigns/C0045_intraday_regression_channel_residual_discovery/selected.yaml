@@ -2,8 +2,9 @@ schema: axiom_rift_selected_v1
 template: false
 status: candidate_evidence_retained_not_selected
 selected: false
-selected_reason: C0045 R0002 retained stronger candidate evidence but still requires stress
-  and materialization validation; no selected claim is created.
+selected_reason: C0045 R0003 retained stronger candidate evidence but still fails weakest-fold
+  adverse cost stress and requires native materialization, ONNX portability, and lineage repair
+  before stronger claims.
 surfaces:
   label_selected: false
   feature_set_selected: false
@@ -32,7 +33,7 @@ claim_boundary:
   selected: false
   trade_logic_selected: false
 candidate_evidence:
-  latest_run: runs/R0002
+  latest_run: runs/R0003
   status: retained_not_selected
-  evidence_path: runs/R0002/gate_report.json
-  next_required_action: design_c0045_r0003_regression_channel_residual_cost_slippage_stress_materialization_probe_run
+  evidence_path: runs/R0003/gate_report.json
+  next_required_action: review_c0045_candidate_evidence_and_synthesis_readiness_after_r0003

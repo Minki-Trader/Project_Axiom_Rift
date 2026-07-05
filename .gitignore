@@ -35,6 +35,7 @@ campaigns/*/runs/**
 !campaigns/*/runs/*/kpi/execution_divergence.json
 !campaigns/*/runs/*/kpi/execution_divergence_by_fold.json
 !campaigns/*/runs/*/kpi/candidate_robustness_audit.json
+!campaigns/*/runs/*/kpi/cost_slippage_materialization_audit.json
 
 artifacts/**
 !artifacts/**/
