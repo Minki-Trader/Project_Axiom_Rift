@@ -79,7 +79,7 @@ data_state:
     tail_holdout_partial_start: 2026-05-01 01:00:00
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
-claim_boundary:
+claim_boundary: &id001
   claim_authority: false
   economics_pass: false
   feature_set_selected: false
@@ -98,68 +98,55 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: campaigns/C0029_intraday_fractal_pivot_transition_discovery
+active_campaign: campaigns/C0030_intraday_vwap_repricing_pressure_discovery
 active_synthesis: null
-active_run: campaigns/C0029_intraday_fractal_pivot_transition_discovery/runs/R0001
+active_run: campaigns/C0030_intraday_vwap_repricing_pressure_discovery/runs/R0001
 latest_operation:
-  id: close_c0029_r0001_no_candidate
+  id: close_c0030_r0001_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0029_intraday_fractal_pivot_transition_discovery/runs/R0001/gate_report.json
+  recorded_at_source: campaigns/C0030_intraday_vwap_repricing_pressure_discovery/runs/R0001/gate_report.json
   evidence_status: closed_no_candidate
-  entries_per_active_day: 7.467241
-  proxy_net_pnl_points: -7971.92
-  proxy_profit_factor: 0.717991
-  proxy_expectancy_points_per_entry: -1.840665
-  proxy_trade_count: 4331
-  proxy_win_rate: 0.40314
-  mt5_logic_net_pnl: -85.07
-  mt5_logic_profit_factor: 0.721566
-  mt5_logic_trade_count: 4331
+  entries_per_active_day: 7.794828
+  proxy_net_pnl_points: -46826.84
+  proxy_profit_factor: 0.192067
+  proxy_expectancy_points_per_entry: -10.357629
+  proxy_trade_count: 4521
+  proxy_win_rate: 0.138244
+  mt5_logic_net_pnl: -584.94
+  mt5_logic_profit_factor: 0.173592
+  mt5_logic_trade_count: 4521
   mechanical_parity_status: passed
   intent_parity_status: passed_schedule_replay_boundary
   mismatch_count: 0
-  mt5_tick_net_pnl: -78.64
-  mt5_tick_profit_factor: 0.725285
-  mt5_tick_max_drawdown_percent: 15.8
-  mt5_tick_trade_count: 4310
+  mt5_tick_net_pnl: -452.75
+  mt5_tick_profit_factor: 0.213074
+  mt5_tick_max_drawdown_percent: 90.638
+  mt5_tick_trade_count: 4521
   execution_divergence_status: recorded_with_divergence
   economics_shift_status: tick_better_than_logic
-  tick_minus_logic_net_pnl: 6.43
+  tick_minus_logic_net_pnl: 132.19
   mt5_tick_by_fold_status: completed
   fold_count: 9
   completed_fold_count: 9
   profitable_fold_count: 0
   losing_fold_count: 9
-  total_tick_net_pnl: -78.64
-  total_tick_trade_count: 4310
-  worst_fold_id: rw_007
-  worst_fold_net_pnl: -12.69
-  worst_fold_max_drawdown_percent: 2.592
+  total_tick_net_pnl: -452.75
+  total_tick_trade_count: 4521
+  worst_fold_id: rw_009
+  worst_fold_net_pnl: -71.05
+  worst_fold_max_drawdown_percent: 14.298
   execution_divergence_by_fold_status: completed
-  minimum_entry_key_match_rate: 0.987288
-  minimum_exit_reason_match_rate: 0.707627
-  minimum_exit_time_direction_match_rate: 0.726695
-  tick_better_fold_count: 6
-  tick_worse_fold_count: 3
-  total_tick_minus_logic_net_pnl: 6.43
-  worst_tick_minus_logic_fold_id: rw_008
-  worst_tick_minus_logic_net_pnl: -1.62
-  remaining_work_classification: intraday_fractal_pivot_transition_threshold_score_stop_target_hold_activity_spread_capital_or_retry_nudge_not_next
-  next_required_action: choose_c0030_new_major_hypothesis_after_c0029_closeout
-  claim_boundary:
-    claim_authority: false
-    selected: false
-    label_selected: false
-    feature_set_selected: false
-    model_selected: false
-    trade_logic_selected: false
-    runtime_probe_completed: false
-    economics_pass: false
-    materialization_ready: false
-    runtime_authority: false
-    onnx_ready: false
-    promotion_ready: false
-    live_ready: false
+  minimum_entry_key_match_rate: 1.0
+  minimum_exit_reason_match_rate: 0.919028
+  minimum_exit_time_direction_match_rate: 0.945344
+  tick_better_fold_count: 9
+  tick_worse_fold_count: 0
+  total_tick_minus_logic_net_pnl: 132.19
+  worst_tick_minus_logic_fold_id: rw_004
+  worst_tick_minus_logic_net_pnl: 9.9
+  remaining_work_classification: intraday_vwap_repricing_pressure_threshold_score_stop_target_hold_activity_spread_capital_or_retry_nudge_not_next
+  next_required_action: open_sc0006_post_c0030_negative_memory_synthesis
+  claim_boundary: *id001
 active_truth:
   contracts_dir: contracts
   configs_dir: configs
