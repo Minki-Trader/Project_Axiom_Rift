@@ -1,0 +1,209 @@
+{
+  "artifact_records": [
+    {
+      "artifact_id": "A-C0076-R0001-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0076_r0001_probe",
+      "repo_relative_path": "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+      "sha256": "79eca4bd74ad08ba86224e963345b52952f13e07d5c1ff98becb2b8491f0a6be",
+      "source_inputs": [
+        "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "registries/rolling_windows.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0076-R0001-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0076_r0001_probe",
+      "repo_relative_path": "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/execution_divergence.json",
+      "sha256": "6ff44bd5bfc8334140e7903f5d362dfd37cd4e031993c77cfb5033bf2361b44e",
+      "source_inputs": [
+        "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+        "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/mt5_tick.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0076-R0001-GATE-REPORT",
+      "artifact_role": "gate_report",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": null,
+      "mutable": true,
+      "produced_by": "axiom_rift.proxies.c0076_r0001_intraday_extreme_dwell_imbalance",
+      "repo_relative_path": "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/gate_report.json",
+      "sha256": "29a27109ff8a885b83674ab0a335ef07d5790004a84ac5cda58a6f18f4f6209e",
+      "source_inputs": [
+        "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/run_manifest.json",
+        "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0076-R0001-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0076_r0001_probe",
+      "repo_relative_path": "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+      "sha256": "41d980b40b8547169a8f1b7ed5760870a3507687563f8add705e8f142fda10f4",
+      "source_inputs": [
+        "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/artifacts/c0076_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0076-R0001-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "mt5_logic_parity_input",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0076_r0001_probe",
+      "repo_relative_path": "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/artifacts/c0076_r0001_schedule.csv",
+      "sha256": "50cc3964fd62e9deed17006d2e7435483b47d7dfddaeb562ddff81ad366f2fb1",
+      "source_inputs": [
+        "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0076-R0001-MT5-TICK-BY-FOLD-KPI",
+      "artifact_role": "mt5_tick_by_fold_kpi",
+      "artifact_type": "mt5_tick_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0076_r0001_probe",
+      "repo_relative_path": "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+      "sha256": "5e2ac244606b6928b45cfb2958358041570bcb0e336a3ca01b455908c24bd9ba",
+      "source_inputs": [
+        "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/artifacts/c0076_r0001_schedule.csv",
+        "registries/rolling_windows.yaml",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0076-R0001-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "mt5_tick",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0076_r0001_probe",
+      "repo_relative_path": "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/mt5_tick.json",
+      "sha256": "a44f4df33067572a94655938977389998aa0658c3b50638b9804bc8bbf64f75e",
+      "source_inputs": [
+        "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/artifacts/c0076_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0076-R0001-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0076_r0001_intraday_extreme_dwell_imbalance",
+      "repo_relative_path": "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/proxy.json",
+      "sha256": "2da7d94b9010b9c03a9a4cce6cf8de26c04ffeaea7036eda62b215cee59c8cf1",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0076-R0001-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0076_r0001_intraday_extreme_dwell_imbalance",
+      "repo_relative_path": "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/artifacts/c0076_r0001_proxy_trades.csv",
+      "sha256": "8cfcb4c3d1652d2c0a1d2435bc5c328974b1e6898df2590516b76fbe85f08f6d",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0076-R0001-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "proxy_vs_mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0076_r0001_probe",
+      "repo_relative_path": "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "dd029f6b8a8e12e2a3eb3bc84b1a16bee09cbbcc42350f09e08872cb04613019",
+      "source_inputs": [
+        "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/proxy.json",
+        "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/mt5_logic_parity.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0076-R0001-RUN-MANIFEST",
+      "artifact_role": "run_manifest",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": null,
+      "mutable": true,
+      "produced_by": "axiom_rift.proxies.c0076_r0001_intraday_extreme_dwell_imbalance",
+      "repo_relative_path": "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/run_manifest.json",
+      "sha256": "dcf85fa27e672c7969485685363b2904474cf792561b1e3266b2a8f36d5935e6",
+      "source_inputs": [
+        "registries/decision_cursor.yaml",
+        "registries/claim_state.yaml",
+        "contracts/goal_operation_policy.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0076-R0001-extreme-dwell-imbalance-SUMMARY",
+      "artifact_role": "extreme_dwell_imbalance_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0076_r0001_intraday_extreme_dwell_imbalance",
+      "repo_relative_path": "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/artifacts/c0076_r0001_edi_summary.json",
+      "sha256": "4d38e74493bfd3f8d75c2409ae8cbfb79858b16f8bacf345a1d8127ade2a38e3",
+      "source_inputs": [
+        "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "created_at_utc": "2026-07-06T15:53:19Z",
+  "deferred_with_reason": [],
+  "lineage_id": "L-C0076-R0001",
+  "run_id": "R0001",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "status": "closed_no_candidate",
+  "template": false,
+  "work_unit_id": "C0076"
+}

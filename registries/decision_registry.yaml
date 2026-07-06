@@ -2279,6 +2279,61 @@ decisions:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
+- decision_id: dec_20260707_open_c0076_intraday_extreme_dwell_imbalance_discovery
+  created_local_date: '2026-07-07'
+  status: active
+  decision: open_c0076_intraday_extreme_dwell_imbalance_discovery
+  refines:
+  - dec_20260707_close_c0075_no_candidate_after_r0001
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - no_active_campaign_after_c0075_closeout
+  - C0076_opens_new_major_extreme_dwell_imbalance_surface_not_adjacent_tuning
+  - feature_surface_changes_to_extreme_dwell_touch_density_shallow_pullback_rejection_decay_and_extreme_side_volume
+  - target_remains_fpmarkets_us100_m5_fixed_lot_discovery
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260707_open_c0076_r0001_intraday_extreme_dwell_imbalance_rank_run
+  created_local_date: '2026-07-07'
+  status: active
+  decision: open_c0076_r0001_intraday_extreme_dwell_imbalance_rank_run
+  refines:
+  - dec_20260707_open_c0076_intraday_extreme_dwell_imbalance_discovery
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - pre_open_decision_passed_with_novelty_score_4
+  - adjacent_tuning_risk_medium_expected_information_gain_high_decision_payoff_high_mt5_portability_clear
+  - failure_memory_uses_c0075_c0074_c0073_c0072_c0071_c0069_c0068_c0064_and_c0062
+  - next_work_is_produce_c0076_r0001_proxy_evidence
+  - weak_proxy_result_must_not_skip_mt5_logic_parity_tick_execution_divergence_or_fold_isolated_closeout_evidence
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
 - decision_id: dec_20260705_open_sc0007_sr0001_post_sc0006_price_memory_mixed_evidence_synthesis_run
   created_local_date: '2026-07-05'
   status: active
@@ -7839,6 +7894,91 @@ decisions:
   - remaining_C0075_work_would_be_adjacent_threshold_window_stop_target_hold_session_activity_spread_capital_or_feature_nudge_tuning
   - synthesis_readiness_candidate_later_because_post_sc0009_usable_ingredient_count_is_below_default_minimum
   - next_work_is_choose_c0076_new_major_hypothesis_after_c0075_closeout
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260707_produce_c0076_r0001_proxy_evidence
+  created_local_date: '2026-07-06'
+  status: active
+  decision: produce_c0076_r0001_proxy_evidence
+  refines:
+  - dec_20260707_open_c0076_r0001_intraday_extreme_dwell_imbalance_rank_run
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0076_r0001_proxy_records_extreme_dwell_imbalance_reference_surface
+  - proxy_trade_count_4002
+  - entries_per_active_day_6.935875
+  - proxy_net_pnl_points_-7685.16
+  - proxy_profit_factor_0.800628
+  - proxy_result_cannot_skip_mt5_logic_parity_tick_execution_divergence_or_fold_isolated_closeout_evidence
+  - next_work_is_produce_c0076_r0001_mt5_logic_parity_evidence
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260707_close_c0076_r0001_no_candidate
+  created_local_date: '2026-07-07'
+  status: active
+  decision: close_c0076_r0001_no_candidate
+  refines:
+  - dec_20260707_produce_c0076_r0001_proxy_evidence
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0076_r0001_completed_proxy_mt5_logic_parity_proxy_vs_mt5_parity_mt5_tick_execution_divergence_and_fold_isolated_tick_and_divergence_evidence
+  - proxy_net_pnl_points_-7685.16_profit_factor_0.800628
+  - mt5_tick_net_pnl_-61.65_profit_factor_0.839603
+  - fold_isolated_tick_has_0_profitable_and_9_losing_folds
+  - closeout_records_negative_memory_not_selection_or_economics_pass
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260707_close_C0076_no_candidate_after_r0001
+  created_local_date: '2026-07-07'
+  status: active
+  decision: close_C0076_no_candidate_after_r0001
+  refines:
+  - dec_20260707_close_c0076_r0001_no_candidate
+  - dec_20260707_open_c0076_intraday_extreme_dwell_imbalance_discovery
+  rationale:
+  - C0076_boundary_was_answered_by_r0001_fold_isolated_mt5_evidence
+  - remaining_C0076_work_would_be_adjacent_threshold_window_stop_target_hold_session_activity_spread_capital_or_feature_nudge_tuning
+  - synthesis_readiness_candidate_later_because_post_sc0009_usable_ingredient_count_is_below_default_minimum
+  - next_work_is_choose_c0077_new_major_hypothesis_after_c0076_closeout
   - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
   claim_boundary:
     claim_authority: false
