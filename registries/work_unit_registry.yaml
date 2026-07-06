@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0060
+    next_id: C0061
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -78,6 +78,7 @@ streams:
     - campaigns/C0057_intraday_impulse_response_latency_discovery
     - campaigns/C0058_intraday_body_overlap_resorption_discovery
     - campaigns/C0059_intraday_session_handoff_pressure_discovery
+    - campaigns/C0060_intraday_close_location_migration_discovery
     numbering_policy:
       width: 4
       example: C0001
