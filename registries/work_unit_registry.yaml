@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0087
+    next_id: C0088
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -105,6 +105,7 @@ streams:
     - campaigns/C0084_intraday_local_equilibrium_displacement_reversion_discovery
     - campaigns/C0085_intraday_zigzag_release_discovery
     - campaigns/C0086_intraday_opening_balance_reanchor_discovery
+    - campaigns/C0087_intraday_range_third_transition_discovery
     numbering_policy:
       width: 4
       example: C0001
