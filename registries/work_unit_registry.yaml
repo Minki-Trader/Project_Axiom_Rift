@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0070
+    next_id: C0071
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -88,6 +88,7 @@ streams:
     - campaigns/C0067_intraday_trapped_range_reexpansion_discovery
     - campaigns/C0068_intraday_failure_to_accept_discovery
     - campaigns/C0069_intraday_drift_realignment_discovery
+    - campaigns/C0070_intraday_volatility_signature_transition_discovery
     numbering_policy:
       width: 4
       example: C0001
