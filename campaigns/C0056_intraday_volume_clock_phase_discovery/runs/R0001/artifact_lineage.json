@@ -1,0 +1,191 @@
+{
+  "artifact_records": [
+    {
+      "artifact_id": "A-C0056-R0001-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0056_r0001_probe",
+      "repo_relative_path": "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+      "sha256": "03f72e17f1890b0365b8097a422a17f45c58db94ebaf53c4c6101ad3d203f736",
+      "source_inputs": [
+        "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "registries/rolling_windows.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0056-R0001-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0056_r0001_probe",
+      "repo_relative_path": "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/execution_divergence.json",
+      "sha256": "4669d3a3ad0670df415e884505cbafe80f1735b7aa3671c49b0d8de182d31852",
+      "source_inputs": [
+        "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+        "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/mt5_tick.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0056-R0001-GATE-REPORT",
+      "artifact_role": "gate_report",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": null,
+      "mutable": true,
+      "produced_by": "axiom_rift.proxies.c0056_r0001_intraday_volume_clock_phase",
+      "repo_relative_path": "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/gate_report.json",
+      "sha256": "b7adbf0ce2541f4572348e4291d5b0084a855c2a6ee06bc68b78f16a76c880d6",
+      "source_inputs": [
+        "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/run_manifest.json",
+        "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0056-R0001-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0056_r0001_probe",
+      "repo_relative_path": "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+      "sha256": "160105397743570465635a5b48d6f2216c98f6198f270dfe088d0b38051fe016",
+      "source_inputs": [
+        "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/artifacts/c0056_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0056-R0001-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "mt5_logic_parity_input",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0056_r0001_probe",
+      "repo_relative_path": "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/artifacts/c0056_r0001_schedule.csv",
+      "sha256": "70e98b704d86d4ebd1866d9795a8e5523330909a2f70b26e4587464569d868aa",
+      "source_inputs": [
+        "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0056-R0001-MT5-TICK-BY-FOLD-KPI",
+      "artifact_role": "mt5_tick_by_fold_kpi",
+      "artifact_type": "mt5_tick_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0056_r0001_probe",
+      "repo_relative_path": "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+      "sha256": "72a45381eae77f66df2215ef8d19784e5cabdbe3392bec211b692115721d7eba",
+      "source_inputs": [
+        "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/artifacts/c0056_r0001_schedule.csv",
+        "registries/rolling_windows.yaml",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0056-R0001-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "mt5_tick",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0056_r0001_probe",
+      "repo_relative_path": "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/mt5_tick.json",
+      "sha256": "2ab7f5f3f615b104ecbd87f2250b1ad8e5e90c66609f6eb388fba16d2c413342",
+      "source_inputs": [
+        "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/artifacts/c0056_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0056-R0001-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0056_r0001_intraday_volume_clock_phase",
+      "repo_relative_path": "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/proxy.json",
+      "sha256": "949e8f6f7b334153a52951195c3849ea15081217a93b44ec2013b7e8c3c8dacc",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0056-R0001-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0056_r0001_intraday_volume_clock_phase",
+      "repo_relative_path": "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/artifacts/c0056_r0001_proxy_trades.csv",
+      "sha256": "e8de54cbadecc0922c5d7a2f521d1128b13f85751ae3acc81f8c3e357bebbb72",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0056-R0001-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "proxy_vs_mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0056_r0001_probe",
+      "repo_relative_path": "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "860fd3bd341f0732b9eb0c6f1822655d8d15cb53fd91b0b5a1ad9a19f212d2f4",
+      "source_inputs": [
+        "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/proxy.json",
+        "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/mt5_logic_parity.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0056-R0001-RUN-MANIFEST",
+      "artifact_role": "run_manifest",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": null,
+      "mutable": true,
+      "produced_by": "axiom_rift.proxies.c0056_r0001_intraday_volume_clock_phase",
+      "repo_relative_path": "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/run_manifest.json",
+      "sha256": "50534a88163817c827381902d4013fc188c68440f884e4ff3e2bb9e8c4cf596b",
+      "source_inputs": [
+        "registries/decision_cursor.yaml",
+        "registries/claim_state.yaml",
+        "contracts/goal_operation_policy.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0056-R0001-volume-clock-phase-SUMMARY",
+      "artifact_role": "volume_clock_phase_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0056_r0001_intraday_volume_clock_phase",
+      "repo_relative_path": "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/artifacts/c0056_r0001_volume_clock_phase_summary.json",
+      "sha256": "bd27df3c38ba0e033bc05bbfaed8bfd71978c3dc573b58605cdf03aacd702306",
+      "source_inputs": [
+        "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    }
+  ],
+  "deferred_with_reason": [],
+  "run_id": "R0001",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "template": false,
+  "work_unit_id": "C0056"
+}
