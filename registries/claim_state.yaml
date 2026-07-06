@@ -98,15 +98,15 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: campaigns/C0048_intraday_range_energy_absorption_discovery
-active_synthesis: null
+active_campaign: null
+active_synthesis: campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis
 active_run: null
 latest_operation:
-  id: close_c0048_r0002_with_candidate_evidence
+  id: open_sc0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis
   status: completed
-  recorded_at_source: campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0002/gate_report.json
-  evidence_status: run_closed_with_candidate_evidence
-  next_required_action: decide_c0048_r0003_or_close_c0048_after_r0002
+  recorded_at_source: campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis/synthesis.yaml
+  evidence_status: synthesis_open_pending_sr0001_design
+  next_required_action: design_sc0009_sr0001_post_sc0008_range_energy_mixed_evidence_synthesis_run
   claim_boundary:
     claim_authority: false
     economics_pass: false
@@ -121,58 +121,11 @@ latest_operation:
     runtime_probe_completed: false
     selected: false
     trade_logic_selected: false
-  required_kpi_summary:
-    entries_per_active_day: 7.848276
-    proxy_trade_count: 4552
-    proxy_net_pnl_points: 20230.98
-    proxy_profit_factor: 1.654609
-    proxy_expectancy_points_per_entry: 4.444416
-    proxy_win_rate: 0.563928
-    proxy_max_drawdown_points: 895.85
-    long_trade_count_proxy: 1828
-    short_trade_count_proxy: 2724
-    mechanical_parity_status: passed
-    intent_parity_status: passed_schedule_replay_boundary
-    mismatch_count: 0
-    entry_key_match_rate: 1.0
-    exit_reason_match_rate: 1.0
-    exit_time_direction_match_rate: 1.0
-    mt5_logic_trade_count: 4552
-    mt5_logic_net_pnl: 286.18
-    mt5_logic_profit_factor: 2.078053
-    mt5_tick_trade_count: 4548
-    mt5_tick_net_pnl: 199.07
-    mt5_tick_profit_factor: 1.628001
-    mt5_tick_win_rate: 0.536939
-    mt5_tick_max_drawdown_percent: 1.816
-    mt5_tick_expectancy_per_entry: 0.043771
-    execution_divergence_status: recorded_with_divergence
-    economics_shift_status: tick_worse_than_logic
-    tick_minus_logic_net_pnl: -87.11
-    tick_minus_logic_trade_count: -4
-    mt5_tick_by_fold_status: completed
-    fold_count: 9
-    completed_fold_count: 9
-    missing_required_fold_count: 0
-    profitable_fold_count: 9
-    losing_fold_count: 0
-    total_tick_net_pnl: 199.07
-    total_tick_trade_count: 4548
-    worst_fold_id: rw_001
-    worst_fold_net_pnl: 9.92
-    worst_drawdown_fold_id: rw_005
-    worst_fold_max_drawdown_percent: 1.816
-    execution_divergence_by_fold_status: completed
-    divergence_recorded_fold_count: 9
-    tick_better_fold_count: 0
-    tick_worse_fold_count: 9
-    total_tick_minus_logic_net_pnl: -87.11
-    total_tick_minus_logic_trade_count: -4
-    minimum_entry_key_match_rate: 0.996032
-    minimum_exit_reason_match_rate: 0.781746
-    minimum_exit_time_direction_match_rate: 0.803571
-    worst_tick_minus_logic_fold_id: rw_003
-    worst_tick_minus_logic_net_pnl: -16.49
+  synthesis_readiness_summary:
+    source_campaign: campaigns/C0048_intraday_range_energy_absorption_discovery/campaign.yaml
+    closed_campaign_count_since_last_synthesis: 3
+    usable_ingredient_group_count: 9
+    open_synthesis_now: true
 active_truth:
   contracts_dir: contracts
   configs_dir: configs

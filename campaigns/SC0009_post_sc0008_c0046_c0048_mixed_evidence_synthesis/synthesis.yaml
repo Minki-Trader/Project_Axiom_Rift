@@ -1,0 +1,88 @@
+schema: axiom_rift_synthesis_v1
+template: false
+status: active
+synthesis_id: SC0009
+synthesis_slug: post_sc0008_c0046_c0048_mixed_evidence_synthesis
+synthesis_level: synthesis_9
+opened_at_utc: '2026-07-06T02:06:55Z'
+synthesis_question:
+  summary: synthesize post-SC0008 evidence from C0046 through C0048 before choosing the next
+    synthesis run or major campaign axis
+  boundary: use only closed campaign and run evidence from C0046 through C0048; treat C0046
+    R0001, C0047 R0001, and C0048 R0002 as retained candidate evidence only; preserve unrestricted
+    discovery of labels, features, model families, objectives, and trade shapes; do not create
+    selected, economics, runtime, materialization, ONNX, promotion, or live-readiness claims;
+    do not treat synthesis as a shortcut around MT5 paired validation for any opened SR run
+source_campaign_ids:
+- C0046
+- C0047
+- C0048
+readiness:
+  closed_campaign_count: 3
+  usable_ingredient_group_count: 9
+  required_surface_count: 3
+  has_explicit_mt5_evidence: true
+  unresolved_mechanical_parity_as_main_blocker: false
+  synthesis_due_source: campaigns/C0048_intraday_range_energy_absorption_discovery/campaign.yaml
+ingredient_refs_path: ingredient_refs.yaml
+synthesis_queue_path: synthesis_queue.yaml
+runs_root: runs/
+synthesis_run_id_format: SR0001
+run_index:
+  active_run: null
+  opened_runs: []
+  closed_runs: []
+  next_run_candidate:
+    run_id: SR0001
+    direction: design_sc0009_sr0001_post_sc0008_range_energy_mixed_evidence_synthesis_run
+    reason: SC0009 is open after C0046/C0047/C0048 evidence reached synthesis readiness; next
+      work is to design a non-adjacent SR0001 synthesis surface from the candidate, negative-memory,
+      and execution-divergence ingredient groups.
+    status: pending_synthesis_run_design
+stream_policy:
+  stream: synthesis
+  independent_from_campaign_stream: true
+  does_not_set_next_campaign_id: true
+must_not:
+- create_selected_claim
+- create_runtime_authority
+- create_economics_pass_claim
+- create_materialization_ready_claim
+- create_onnx_ready_claim
+- create_promotion_ready_claim
+- create_live_ready_claim
+- use_weak_proxy_as_mt5_skip_gate
+- disguise_adjacent_tuning_as_new_campaign
+- use_source_oos_pnl_as_entry_selection
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
+open_state:
+  status: active_pending_synthesis_run_design
+  opened_at_utc: '2026-07-06T02:06:55Z'
+  next_required_action: design_sc0009_sr0001_post_sc0008_range_energy_mixed_evidence_synthesis_run
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false

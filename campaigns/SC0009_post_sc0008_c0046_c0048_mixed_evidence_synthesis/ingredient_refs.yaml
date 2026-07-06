@@ -1,0 +1,164 @@
+schema: axiom_rift_ingredient_refs_v1
+template: false
+status: open
+synthesis_id: SC0009
+source_campaign_refs:
+- campaign_id: C0046
+  path: campaigns/C0046_intraday_flow_convexity_release_discovery/campaign.yaml
+  sha256: 996a219bd69b7999b4f74c93615c381f2b99985c54a4ce08997437735917a556
+- campaign_id: C0047
+  path: campaigns/C0047_intraday_liquidity_void_reversion_discovery/campaign.yaml
+  sha256: 5a11f0147d70f55479dad1079fe2abe9900bdc2c29cba4971280bcfa296e162f
+- campaign_id: C0048
+  path: campaigns/C0048_intraday_range_energy_absorption_discovery/campaign.yaml
+  sha256: 49a0cab8281e0612c75e4b9a8857201c251f776ddce66bf806e22df6a5fc95ac
+run_evidence_index:
+- evidence_key: C0046_R0001
+  gate_report:
+    path: campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0001/gate_report.json
+    sha256: 32456a3bd34cd781f7ef25e299f7220d897eadc9f3ca6b474d2ed31e89b4e2f1
+  mt5_tick_by_fold:
+    path: campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 16679bef622e0c16894d5a1cf87e8eb66aa47b73e12ebba957da38718ebab425
+  execution_divergence_by_fold:
+    path: campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: a8ec41cfcb73bda624e6803cf1a534ae6db4c19ccb2968dbb76facde185241ad
+- evidence_key: C0046_R0002
+  gate_report:
+    path: campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0002/gate_report.json
+    sha256: 56b33b0e85dab3ac5c62159cb3958b927cda234110f19c473b3fe9ec94eb45c8
+  mt5_tick_by_fold:
+    path: campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0002/kpi/mt5_tick_by_fold.json
+    sha256: dedc3a44d758af2aaa1af1f79421266ce18e187495c224b76cb6d915ba5eb5a5
+  execution_divergence_by_fold:
+    path: campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0002/kpi/execution_divergence_by_fold.json
+    sha256: d9e945602e2642af52dd21ac9dd1b210a7e6d86f8674dbc2bb7fd33516518813
+- evidence_key: C0047_R0001
+  gate_report:
+    path: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001/gate_report.json
+    sha256: d0cb1afeedd7ac59da963c2e4ffab0e258c0a028ce7f2b88f75fd578b56c9ac3
+  mt5_tick_by_fold:
+    path: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 4415185fbb88d41e03eb57e8fcfc235f08e6b37a58e2c45d185a72d04dc92922
+  execution_divergence_by_fold:
+    path: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: 02045d45016ecdef8d6214a76c12fd9d9ff5336259a61482f695808ce7ab0cea
+- evidence_key: C0047_R0002
+  gate_report:
+    path: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/gate_report.json
+    sha256: 5673fd8efbc31eb60cdf115df61e1cb2ce066077b829cebf477ffea51b4bfdb9
+  mt5_tick_by_fold:
+    path: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/kpi/mt5_tick_by_fold.json
+    sha256: 443ffb3fce1f12c20c132f1e024da0944e828e36ca00fc2a78eb82dece9027d5
+  execution_divergence_by_fold:
+    path: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/kpi/execution_divergence_by_fold.json
+    sha256: 69116aa05558252c12d77628009200fbe1cf8ee4dfeb2c557950917579c25d12
+- evidence_key: C0048_R0001
+  gate_report:
+    path: campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0001/gate_report.json
+    sha256: 43294dfc855d239b0778e1c279f6f5c8bb728fb463c47ff5fc737239810cdc79
+  mt5_tick_by_fold:
+    path: campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+    sha256: 645919b06b4e4123f95dc1ec06a9fcc18b62a247d1bf9e9470fb6303d05b7316
+  execution_divergence_by_fold:
+    path: campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0001/kpi/execution_divergence_by_fold.json
+    sha256: c29a8aa3a785f223c5a6877efe144952ce6c08a337c13423a3e4fb5f9f34f78f
+- evidence_key: C0048_R0002
+  gate_report:
+    path: campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0002/gate_report.json
+    sha256: 7e0aea4a231c049c832a62af2f70e693a8dba598c47fd236990225faa85ef4d1
+  mt5_tick_by_fold:
+    path: campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0002/kpi/mt5_tick_by_fold.json
+    sha256: 87088d9f0d15772202ded20149f3faa36d99614f397ec072cc0fe15fc8023007
+  execution_divergence_by_fold:
+    path: campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0002/kpi/execution_divergence_by_fold.json
+    sha256: 92cff0e599046e17bf598455ad21eecd6de7fe754d73663eb41097ecc67027df
+ingredient_groups:
+- group_id: c0046_ig001_intraday_flow_convexity_release_candidate_evidence
+  source_campaign_id: C0046
+  source_runs:
+  - R0001
+  group_type: candidate_evidence
+  summary: r0001_positive_proxy_positive_mt5_tick_nine_profitable_folds_target_activity_but_unselected
+- group_id: c0046_ig002_cost_fragility_survival_negative_memory
+  source_campaign_id: C0046
+  source_runs:
+  - R0002
+  group_type: negative_memory
+  summary: r0002_fragility_survival_overlay_negative_proxy_negative_mt5_tick_and_five_losing_folds
+- group_id: c0046_ig003_execution_divergence_contrast
+  source_campaign_id: C0046
+  source_runs:
+  - R0001
+  - R0002
+  group_type: execution_divergence_lesson
+  summary: r0001 tick worse than logic while still positive contrasts with r0002 tick better
+    than logic but negative
+- group_id: c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence
+  source_campaign_id: C0047
+  source_runs:
+  - R0001
+  group_type: candidate_evidence
+  summary: r0001_positive_proxy_positive_mt5_tick_nine_profitable_folds_target_activity_but_unselected
+- group_id: c0047_ig002_rejection_continuation_negative_memory
+  source_campaign_id: C0047
+  source_runs:
+  - R0002
+  group_type: negative_memory
+  summary: r0002_rejection_continuation_rank_negative_proxy_negative_mt5_tick_and_nine_losing_folds
+- group_id: c0047_ig003_execution_divergence_contrast
+  source_campaign_id: C0047
+  source_runs:
+  - R0001
+  - R0002
+  group_type: execution_divergence_lesson
+  summary: r0001 tick worse than logic while still positive contrasts with r0002 tick better
+    than logic but deeply negative
+- group_id: c0048_ig001_intraday_range_energy_absorption_reversal_candidate_evidence
+  source_campaign_id: C0048
+  source_runs:
+  - R0002
+  group_type: candidate_evidence
+  summary: r0002_positive_proxy_positive_mt5_tick_nine_profitable_folds_target_activity_but_unselected
+- group_id: c0048_ig002_intraday_range_energy_follow_through_negative_memory
+  source_campaign_id: C0048
+  source_runs:
+  - R0001
+  group_type: negative_memory
+  summary: r0001_range_energy_follow_through_rank_negative_proxy_negative_mt5_tick_and_nine_losing_folds
+- group_id: c0048_ig003_execution_divergence_contrast
+  source_campaign_id: C0048
+  source_runs:
+  - R0001
+  - R0002
+  group_type: execution_divergence_lesson
+  summary: r0001 tick better than logic but negative contrasts with r0002 tick worse than
+    logic while still positive
+blocked_ingredients: []
+deferred_with_reason:
+- item: selected_surface_or_runtime_materialization
+  reason: C0046 through C0048 contain no selected surface, runtime authority, economics pass,
+    materialization-ready, ONNX-ready, promotion, or live-readiness claim.
+- item: source_oos_pnl_selection
+  reason: SC0009 may use source OOS results as evidence context but must not use source OOS
+    PnL to select entries.
+- item: equity_percent_sizing
+  reason: candidate quality is not established; early discovery remains fixed-lot.
+rules:
+  unresolved_mechanical_parity_as_main_blocker_allowed: false
+  adjacent_tuning_as_ingredient_allowed: false
+  evidence_gap_disguised_as_ingredient_allowed: false
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

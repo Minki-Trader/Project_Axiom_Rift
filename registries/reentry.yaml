@@ -7,8 +7,8 @@ read_budget:
   - registries/reentry.yaml
   - registries/claim_state.yaml
   conditional_files:
-    active_campaign: campaigns/C0048_intraday_range_energy_absorption_discovery
-    active_synthesis: null
+    active_campaign: null
+    active_synthesis: campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis
     active_contracts: contracts/
     active_config: configs/
   skip_by_default:
@@ -22,8 +22,8 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: campaigns/C0048_intraday_range_energy_absorption_discovery
-  active_synthesis: null
+  active_campaign: null
+  active_synthesis: campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis
   active_run: null
 active_truth:
   contracts_dir: contracts
@@ -119,8 +119,8 @@ data_state:
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
 next_work:
-  campaign: campaigns/C0048_intraday_range_energy_absorption_discovery
-  synthesis: null
+  campaign: null
+  synthesis: campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis
   completed:
   - fresh_export_us100_m5_max_available
   - record_source_path_decision_fresh_export
@@ -1266,8 +1266,11 @@ next_work:
   - produce_c0048_r0002_mt5_logic_parity_evidence
   - review_c0048_r0002_tick_execution_kpi_and_closeout
   - close_c0048_r0002_with_candidate_evidence
+  - review_c0048_candidate_evidence_and_synthesis_readiness_after_r0002
+  - close_c0048_with_candidate_evidence_and_open_sc0009
+  - open_sc0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis
   tasks:
-  - decide_c0048_r0003_or_close_c0048_after_r0002
+  - design_sc0009_sr0001_post_sc0008_range_energy_mixed_evidence_synthesis_run
   not_yet:
   - label_freeze
   - feature_set_freeze
@@ -1275,10 +1278,10 @@ next_work:
   - mt5_runtime_claim
   - onnx_ready_claim
   - live_readiness
-  active_campaign: campaigns/C0048_intraday_range_energy_absorption_discovery
+  active_campaign: null
   active_run: null
   run: null
-  active_synthesis: null
+  active_synthesis: campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis
 active_run: null
-active_campaign: campaigns/C0048_intraday_range_energy_absorption_discovery
-active_synthesis: null
+active_campaign: null
+active_synthesis: campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis

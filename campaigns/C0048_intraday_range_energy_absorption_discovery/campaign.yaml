@@ -1,6 +1,6 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: active
+status: closed_with_candidate_evidence
 campaign_id: C0048
 campaign_slug: intraday_range_energy_absorption_discovery
 campaign_type: campaign
@@ -54,24 +54,96 @@ run_index:
   - runs/R0002
   next_run_candidate:
     run_id: null
-    direction: decide_c0048_r0003_or_close_c0048_after_r0002
-    reason: R0002 closed with candidate evidence after proxy, MT5 logic parity, MT5 tick,
-      fold-isolated tick, and fold-isolated execution divergence; decide whether any non-adjacent
-      C0048 R0003 variant remains before campaign closeout.
-    status: pending_decision_after_run_closeout
+    direction: design_sc0009_sr0001_post_sc0008_range_energy_mixed_evidence_synthesis_run
+    reason: R0002 retained range-energy absorption reversal candidate evidence and R0001 is
+      negative memory; remaining C0048 work is adjacent threshold, cost, materialization,
+      ONNX, spread, capital, or retry hardening rather than a new non-adjacent run.
+    status: post_closeout_synthesis_opened
 synthesis_readiness:
   check_required_at_closeout: true
-  result: not_checked_active_campaign
-  open_synthesis_now: false
-  recommended_next_action: decide_c0048_r0003_or_close_c0048_after_r0002
+  result: open_synthesis
+  checked_at_utc: '2026-07-06T02:06:55Z'
+  closed_run_count: 2
+  observed_closed_campaign_count_since_last_synthesis: 3
+  usable_ingredient_group_count: 9
+  minimums:
+    closed_campaign_count_since_last_synthesis: 3
+    usable_ingredient_group_count: 8
+    required_surface_count: 3
+  open_synthesis_now: true
+  recommended_next_action: design_sc0009_sr0001_post_sc0008_range_energy_mixed_evidence_synthesis_run
   readiness_notes:
-  - active_campaign_after_r0001_no_candidate_closeout
-  - synthesis_check_deferred_until_campaign_closeout
+  - r0001_range_energy_follow_through_negative_memory
+  - r0002_range_energy_absorption_reversal_candidate_evidence_retained_not_selected
+  - c0046_to_c0048_complete_three_closed_campaigns_since_sc0008
+  - synthesis_ready_because_usable_ingredient_groups_reached_minimum_8
+  - sc0009_should_compare_c0046_flow_c0047_liquidity_void_and_c0048_range_energy_candidate_and_negative_memory
+  ingredient_groups:
+  - group_id: c0046_ig001_intraday_flow_convexity_release_candidate_evidence
+    source_campaign_id: C0046
+    source_runs:
+    - R0001
+    group_type: candidate_evidence
+    summary: r0001_positive_proxy_positive_mt5_tick_nine_profitable_folds_target_activity_but_unselected
+  - group_id: c0046_ig002_cost_fragility_survival_negative_memory
+    source_campaign_id: C0046
+    source_runs:
+    - R0002
+    group_type: negative_memory
+    summary: r0002_fragility_survival_overlay_negative_proxy_negative_mt5_tick_and_five_losing_folds
+  - group_id: c0046_ig003_execution_divergence_contrast
+    source_campaign_id: C0046
+    source_runs:
+    - R0001
+    - R0002
+    group_type: execution_divergence_lesson
+    summary: r0001 tick worse than logic while still positive contrasts with r0002 tick better
+      than logic but negative
+  - group_id: c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence
+    source_campaign_id: C0047
+    source_runs:
+    - R0001
+    group_type: candidate_evidence
+    summary: r0001_positive_proxy_positive_mt5_tick_nine_profitable_folds_target_activity_but_unselected
+  - group_id: c0047_ig002_rejection_continuation_negative_memory
+    source_campaign_id: C0047
+    source_runs:
+    - R0002
+    group_type: negative_memory
+    summary: r0002_rejection_continuation_rank_negative_proxy_negative_mt5_tick_and_nine_losing_folds
+  - group_id: c0047_ig003_execution_divergence_contrast
+    source_campaign_id: C0047
+    source_runs:
+    - R0001
+    - R0002
+    group_type: execution_divergence_lesson
+    summary: r0001 tick worse than logic while still positive contrasts with r0002 tick better
+      than logic but deeply negative
+  - group_id: c0048_ig001_intraday_range_energy_absorption_reversal_candidate_evidence
+    source_campaign_id: C0048
+    source_runs:
+    - R0002
+    group_type: candidate_evidence
+    summary: r0002_positive_proxy_positive_mt5_tick_nine_profitable_folds_target_activity_but_unselected
+  - group_id: c0048_ig002_intraday_range_energy_follow_through_negative_memory
+    source_campaign_id: C0048
+    source_runs:
+    - R0001
+    group_type: negative_memory
+    summary: r0001_range_energy_follow_through_rank_negative_proxy_negative_mt5_tick_and_nine_losing_folds
+  - group_id: c0048_ig003_execution_divergence_contrast
+    source_campaign_id: C0048
+    source_runs:
+    - R0001
+    - R0002
+    group_type: execution_divergence_lesson
+    summary: r0001 tick better than logic but negative contrasts with r0002 tick worse than
+      logic while still positive
 closeout:
-  status: open
-  close_reason: null
-  remaining_question: decide_c0048_r0003_or_close_c0048_after_r0002
-  closed_at_utc: null
+  status: closed_with_candidate_evidence
+  close_reason: r0002_candidate_evidence_retained_and_r0001_negative_memory_recorded_no_non_adjacent_c0048_variant_remains
+  remaining_question: design_sc0009_sr0001_post_sc0008_range_energy_mixed_evidence_synthesis_run
+  closed_at_utc: '2026-07-06T02:06:55Z'
   evidence_paths:
   - runs/R0001/gate_report.json
   - runs/R0001/kpi/proxy.json
@@ -100,7 +172,7 @@ closeout:
     prior_candidate_evidence: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001/gate_report.json
     prior_negative_memory: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/gate_report.json
     synthesis_status_after_prior_campaign: not_due
-    remaining_work_classification: pending_decision_non_adjacent_c0048_variant_or_campaign_closeout_after_candidate_evidence
+    remaining_work_classification: adjacent_range_energy_threshold_score_stop_target_hold_session_activity_spread_capital_materialization_onnx_or_retry_hardening_not_next
     r0001_status: closed_no_candidate
     r0001_entries_per_active_day: 7.348276
     r0001_proxy_net_pnl_points: -15463.51
@@ -119,6 +191,11 @@ closeout:
     r0002_mt5_tick_profit_factor: 1.628001
     r0002_profitable_fold_count: 9
     r0002_losing_fold_count: 0
+    closed_run_count: 2
+    closed_with_candidate_evidence_run_count: 1
+    closed_no_candidate_run_count: 1
+    retained_candidate_source_run: runs/R0002
+    retained_candidate_status: candidate_evidence_retained_not_selected
   claim_boundary:
     claim_authority: false
     economics_pass: false
@@ -133,6 +210,14 @@ closeout:
     runtime_probe_completed: false
     selected: false
     trade_logic_selected: false
+  campaign_lessons:
+  - R0002 range-energy absorption reversal evidence remains useful candidate evidence but
+    not selected, economics-pass, runtime, ONNX-ready, promotion, materialization-ready, or
+    live-ready evidence.
+  - 'R0001 range-energy follow-through variant is negative memory: parity passed, but proxy
+    and MT5 tick economics failed with nine losing folds.'
+  - Further C0048 work would be adjacent hardening rather than a new non-adjacent run; SC0009
+    is open and the next move is SR0001 synthesis design.
 claim_boundary:
   claim_authority: false
   economics_pass: false
@@ -147,3 +232,4 @@ claim_boundary:
   runtime_probe_completed: false
   selected: false
   trade_logic_selected: false
+closed_at_utc: '2026-07-06T02:06:55Z'
