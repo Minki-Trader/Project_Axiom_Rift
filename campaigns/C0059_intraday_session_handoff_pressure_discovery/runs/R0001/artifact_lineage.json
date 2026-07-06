@@ -1,0 +1,207 @@
+{
+  "artifact_records": [
+    {
+      "artifact_id": "A-C0059-R0001-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0059_r0001_probe",
+      "repo_relative_path": "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+      "sha256": "86b58c6458c1fe0bff210f422b570b95dedb644a9bfd165530cf476c105caf75",
+      "source_inputs": [
+        "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "registries/rolling_windows.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0059-R0001-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0059_r0001_probe",
+      "repo_relative_path": "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/execution_divergence.json",
+      "sha256": "0e1c35303d3bfa6163174b3fb9916d3567b574a00e01bddbd29205b5efcebba6",
+      "source_inputs": [
+        "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+        "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/mt5_tick.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0059-R0001-GATE-REPORT",
+      "artifact_role": "gate_report",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": null,
+      "mutable": true,
+      "produced_by": "axiom_rift.proxies.c0059_r0001_intraday_session_handoff_pressure",
+      "repo_relative_path": "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/gate_report.json",
+      "sha256": "1bad939eef83828d9d1c9d98395b5ec4765492ccc4e4415ebbaab33e087fa96c",
+      "source_inputs": [
+        "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/run_manifest.json",
+        "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0059-R0001-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0059_r0001_probe",
+      "repo_relative_path": "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+      "sha256": "a10f71d9b384792ae5ce534ca64f450acd8de4fdd94fe66bf297f3951f58bcc3",
+      "source_inputs": [
+        "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/artifacts/c0059_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0059-R0001-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "mt5_logic_parity_input",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0059_r0001_probe",
+      "repo_relative_path": "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/artifacts/c0059_r0001_schedule.csv",
+      "sha256": "0ca4a67b61b1a1498310e18509c51f4139126910d695209f6905a413f1c309c7",
+      "source_inputs": [
+        "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0059-R0001-MT5-TICK-BY-FOLD-KPI",
+      "artifact_role": "mt5_tick_by_fold_kpi",
+      "artifact_type": "mt5_tick_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0059_r0001_probe",
+      "repo_relative_path": "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+      "sha256": "9014183366ed072e4c7f3e4683ba444f1e01cf17583c303b70a052fa52b6fea9",
+      "source_inputs": [
+        "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/artifacts/c0059_r0001_schedule.csv",
+        "registries/rolling_windows.yaml",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0059-R0001-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "mt5_tick",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0059_r0001_probe",
+      "repo_relative_path": "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/mt5_tick.json",
+      "sha256": "981d0c48a8f3c8cc5fb9f348eb21beea33af36c9e553c20ef8357716447dcbfe",
+      "source_inputs": [
+        "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/artifacts/c0059_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0059-R0001-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0059_r0001_intraday_session_handoff_pressure",
+      "repo_relative_path": "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/proxy.json",
+      "sha256": "1ee13bd7f1f7349e1d4364424da22ac85eed74bf0bf55dd6b4d4b5f56c1ca980",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0059-R0001-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0059_r0001_intraday_session_handoff_pressure",
+      "repo_relative_path": "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/artifacts/c0059_r0001_proxy_trades.csv",
+      "sha256": "ed51c24ea599a9f209cee836aac38dd3c26f48505ba1ac092e802c5bbc44ea1f",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0059-R0001-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "proxy_vs_mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0059_r0001_probe",
+      "repo_relative_path": "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "2e683db8df6b97792d4d2b447bec8d0d98250d5db5e15b2874cd05c9bdcb1209",
+      "source_inputs": [
+        "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/proxy.json",
+        "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/mt5_logic_parity.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0059-R0001-RUN-MANIFEST",
+      "artifact_role": "run_manifest",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": null,
+      "mutable": true,
+      "produced_by": "axiom_rift.proxies.c0059_r0001_intraday_session_handoff_pressure",
+      "repo_relative_path": "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/run_manifest.json",
+      "sha256": "0f8379f27832da86e8a854571559c5be80cfa926f19936f3d084e384dae83712",
+      "source_inputs": [
+        "registries/decision_cursor.yaml",
+        "registries/claim_state.yaml",
+        "contracts/goal_operation_policy.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0059-R0001-session-handoff-pressure-SUMMARY",
+      "artifact_role": "session_handoff_pressure_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0059_r0001_intraday_session_handoff_pressure",
+      "repo_relative_path": "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/artifacts/c0059_r0001_session_handoff_pressure_summary.json",
+      "sha256": "892e94bdf159494a9fb824db215db60410b58681e2890abb1104713b5345a617",
+      "source_inputs": [
+        "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "deferred_with_reason": [],
+  "lineage_id": "L-C0059-R0001",
+  "run_id": "R0001",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "template": false,
+  "work_unit_id": "C0059"
+}
