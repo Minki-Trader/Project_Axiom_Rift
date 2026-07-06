@@ -64,14 +64,19 @@ research_mode:
   proxy_only_scout_allowed: false
   run_validation_policy: explicit_mt5_logic_tick_divergence_required_before_run_closeout
 claim_boundary:
-  label_selected: false
-  feature_set_selected: false
-  model_selected: false
-  runtime_probe_completed: false
+  claim_authority: false
   economics_pass: false
-  materialization_ready: false
-  runtime_authority: false
+  feature_set_selected: false
+  label_selected: false
   live_ready: false
+  materialization_ready: false
+  model_selected: false
+  onnx_ready: false
+  promotion_ready: false
+  runtime_authority: false
+  runtime_probe_completed: false
+  selected: false
+  trade_logic_selected: false
 data_state:
   source_strategy: fresh_export
   us100_m5_raw:
@@ -1230,8 +1235,18 @@ next_work:
   - produce_c0047_r0001_mt5_logic_parity_evidence
   - review_c0047_r0001_tick_execution_kpi_and_closeout
   - close_c0047_r0001_with_candidate_evidence
+  - open_c0047_r0002_intraday_liquidity_void_rejection_continuation_run
+  - produce_c0047_r0002_proxy_evidence
+  - record_c0047_r0002_proxy_vs_mt5_logic_parity_evidence
+  - record_c0047_r0002_execution_divergence
+  - produce_c0047_r0002_mt5_tick_execution_evidence
+  - produce_c0047_r0002_fold_isolated_mt5_tick_kpi
+  - produce_c0047_r0002_fold_isolated_execution_divergence
+  - review_c0047_r0002_tick_execution_kpi_and_closeout
+  - close_c0047_r0002_no_candidate
+  - close_c0047_with_candidate_evidence_and_r0002_negative_memory
   tasks:
-  - decide_c0047_r0002_or_close_c0047_after_r0001
+  - choose_c0048_new_major_hypothesis_after_c0047_closeout
   not_yet:
   - label_freeze
   - feature_set_freeze

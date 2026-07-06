@@ -1,19 +1,13 @@
 schema: axiom_rift_campaign_v1
 template: false
-status: active
+status: closed_with_candidate_evidence
 campaign_id: C0047
 campaign_slug: intraday_liquidity_void_reversion_discovery
 campaign_type: campaign
 opened_at_utc: '2026-07-05T23:42:28Z'
 hypothesis:
-  summary: discover whether closed-bar intraday liquidity void fill and rejection states can
-    rank FPMarkets US100 M5 entries
-  boundary: closed-bar displacement voids, low-overlap price paths, opposing body imbalance,
-    void age and decay, fill pressure, boundary rejection, day-mid pressure, session progress,
-    and spread-void stress; not C0046 signed-flow convexity release, C0045 regression-channel
-    residual, SC0008 rerank, C0044 extreme recency gradient, threshold, stop, target, hold,
-    session, activity, spread, capital, monthly filter, materialization, ONNX, or retry-only
-    work
+  summary: discover whether closed-bar intraday liquidity void fill and rejection states can rank FPMarkets US100 M5 entries
+  boundary: closed-bar displacement voids, low-overlap price paths, opposing body imbalance, void age and decay, fill pressure, boundary rejection, day-mid pressure, session progress, and spread-void stress; not C0046 signed-flow convexity release, C0045 regression-channel residual, SC0008 rerank, C0044 extreme recency gradient, threshold, stop, target, hold, session, activity, spread, capital, monthly filter, materialization, ONNX, or retry-only work
   not_in_scope:
   - selected_claim
   - runtime_authority
@@ -33,34 +27,86 @@ required_surfaces:
     summary: fold-local linear rank surface for liquidity void fill and rejection candidates
   feature:
     status: variable
-    summary: closed M5 displacement void, low-overlap, body imbalance, fill pressure, rejection,
-      day-mid pressure, session, and spread-void stress features
+    summary: closed M5 displacement void, low-overlap, body imbalance, fill pressure, rejection, day-mid pressure, session, and spread-void stress features
   trade_logic:
     status: variable
-    summary: fixed-lot dual-direction top liquidity-void fill/rejection schedule replay candidates
-      per active day
+    summary: fixed-lot dual-direction top liquidity-void fill/rejection schedule replay candidates per active day
   label:
     status: variable
-    summary: directional void fill/rejection quality with target-first reward, fill completion,
-      early follow-through, adverse path, churn, giveback, and spread penalties
+    summary: directional void fill/rejection quality with target-first reward, fill completion, early follow-through, adverse path, churn, giveback, and spread penalties
 run_index:
   runs_root: runs/
   run_id_format: R0001
   active_run: null
   closed_runs:
   - runs/R0001
+  - runs/R0002
   next_run_candidate:
-    run_id: R0002
-    direction: decide_c0047_r0002_or_close_c0047_after_r0001
-    reason: R0001 retained candidate evidence but remains unselected; decide whether a non-adjacent
-      C0047 variant remains or close the campaign without stronger claims.
-    status: decision_required
+    run_id: null
+    direction: choose_c0048_new_major_hypothesis_after_c0047_closeout
+    reason: R0001 retained candidate evidence, while R0002 rejection-continuation variant closed no-candidate; remaining C0047 work is adjacent threshold, cost, materialization, ONNX, spread, capital, or retry hardening rather than a new non-adjacent run.
+    status: campaign_closed_choose_next_major_hypothesis
 synthesis_readiness:
   check_required_at_closeout: true
-  result: not_checked_active_campaign
+  result: not_due
+  checked_at_utc: '2026-07-06T00:30:39Z'
+  closed_run_count: 2
+  observed_closed_campaign_count_since_last_synthesis: 2
+  usable_ingredient_group_count: 6
+  minimums:
+    closed_campaign_count_since_last_synthesis: 3
+    usable_ingredient_group_count: 8
+    required_surface_count: 3
+  open_synthesis_now: false
+  recommended_next_action: choose_c0048_new_major_hypothesis_after_c0047_closeout
+  readiness_notes:
+  - r0001_candidate_evidence_retained_not_selected
+  - r0002_rejection_continuation_negative_memory
+  - synthesis_not_due_after_two_closed_campaigns_since_sc0008
+  ingredient_groups:
+  - group_id: c0046_ig001_intraday_flow_convexity_release_candidate_evidence
+    source_campaign_id: C0046
+    source_runs:
+    - R0001
+    group_type: candidate_evidence
+    summary: r0001_positive_proxy_positive_mt5_tick_nine_profitable_folds_target_activity_but_unselected
+  - group_id: c0046_ig002_cost_fragility_survival_negative_memory
+    source_campaign_id: C0046
+    source_runs:
+    - R0002
+    group_type: negative_memory
+    summary: r0002_fragility_survival_overlay_negative_proxy_negative_mt5_tick_and_five_losing_folds
+  - group_id: c0046_ig003_execution_divergence_contrast
+    source_campaign_id: C0046
+    source_runs:
+    - R0001
+    - R0002
+    group_type: execution_divergence_lesson
+    summary: c0046_candidate_and_negative_variant both preserve divergence lessons for later synthesis
+  - group_id: c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence
+    source_campaign_id: C0047
+    source_runs:
+    - R0001
+    group_type: candidate_evidence
+    summary: r0001_positive_proxy_positive_mt5_tick_nine_profitable_folds_target_activity_but_unselected
+  - group_id: c0047_ig002_rejection_continuation_negative_memory
+    source_campaign_id: C0047
+    source_runs:
+    - R0002
+    group_type: negative_memory
+    summary: r0002_rejection_continuation_rank_negative_proxy_negative_mt5_tick_and_nine_losing_folds
+  - group_id: c0047_ig003_execution_divergence_contrast
+    source_campaign_id: C0047
+    source_runs:
+    - R0001
+    - R0002
+    group_type: execution_divergence_lesson
+    summary: r0001 tick worse than logic while still positive contrasts with r0002 tick better than logic but deeply negative
 closeout:
-  status: active_after_r0001_candidate_evidence
-  remaining_question: decide_c0047_r0002_or_close_c0047_after_r0001
+  status: closed_with_candidate_evidence
+  close_reason: r0001_candidate_evidence_retained_and_r0002_negative_memory_recorded_no_non_adjacent_c0047_variant_remains
+  remaining_question: choose_c0048_new_major_hypothesis_after_c0047_closeout
+  closed_at_utc: '2026-07-06T00:30:39Z'
   evidence_paths:
   - runs/R0001/gate_report.json
   - runs/R0001/kpi/proxy.json
@@ -70,17 +116,36 @@ closeout:
   - runs/R0001/kpi/execution_divergence.json
   - runs/R0001/kpi/mt5_tick_by_fold.json
   - runs/R0001/kpi/execution_divergence_by_fold.json
+  - runs/R0002/gate_report.json
+  - runs/R0002/kpi/proxy.json
+  - runs/R0002/kpi/mt5_logic_parity.json
+  - runs/R0002/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0002/kpi/mt5_tick.json
+  - runs/R0002/kpi/execution_divergence.json
+  - runs/R0002/kpi/mt5_tick_by_fold.json
+  - runs/R0002/kpi/execution_divergence_by_fold.json
   - selected.yaml
   decision_basis:
-    closed_run_count: 1
+    closed_run_count: 2
     closed_with_candidate_evidence_run_count: 1
-    closed_no_candidate_run_count: 0
+    closed_no_candidate_run_count: 1
     retained_candidate_source_run: runs/R0001
+    retained_candidate_status: candidate_evidence_retained_not_selected
     r0001_entries_per_active_day: 7.991379
     r0001_mt5_tick_net_pnl: 255.97
     r0001_mt5_tick_profit_factor: 2.006725
     r0001_profitable_fold_count: 9
-    remaining_work_classification: decide_non_adjacent_r0002_or_close_campaign_not_selected
+    r0001_losing_fold_count: 0
+    r0002_mt5_tick_net_pnl: -378.38
+    r0002_mt5_tick_profit_factor: 0.291622
+    r0002_profitable_fold_count: 0
+    r0002_losing_fold_count: 9
+    r0002_total_tick_minus_logic_net_pnl: 135.49
+    remaining_work_classification: adjacent_rejection_continuation_threshold_score_stop_target_hold_session_activity_spread_capital_materialization_onnx_or_retry_hardening_not_next
+  campaign_lessons:
+  - R0001 liquidity-void fill/reversion evidence remains useful candidate evidence but not selected, economics-pass, runtime, ONNX-ready, promotion, materialization-ready, or live-ready evidence.
+  - 'R0002 rejection-continuation variant is negative memory: parity passed, but proxy and MT5 tick economics failed with nine losing folds.'
+  - Further C0047 work would be adjacent hardening rather than a new non-adjacent run; next move is a new major campaign hypothesis because synthesis is not due.
   claim_boundary:
     claim_authority: false
     economics_pass: false
@@ -109,3 +174,4 @@ claim_boundary:
   runtime_probe_completed: false
   selected: false
   trade_logic_selected: false
+closed_at_utc: '2026-07-06T00:30:39Z'
