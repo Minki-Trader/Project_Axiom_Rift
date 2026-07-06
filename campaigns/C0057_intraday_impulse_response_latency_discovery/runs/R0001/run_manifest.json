@@ -1,0 +1,256 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-06T07:15:41Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
+    "closed_at_utc": "2026-07-06T07:15:41Z",
+    "negative_memory": {
+      "asset_type": "negative_memory",
+      "candidate_status": "no_candidate",
+      "economics_pass": false,
+      "evidence_paths": [
+        "artifact_lineage.json",
+        "run_manifest.json",
+        "artifacts/c0057_r0001_proxy_trades.csv",
+        "artifacts/c0057_r0001_impulse_response_latency_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0057_r0001_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday impulse response latency rank over prior impulse extension, counter-response latency, reclaim efficiency, extreme hold decay, post-impulse compression, directional extreme pressure, counter-wick absorption, day range completion, range compression, volume confirmation, session-progress pressure, and spread stress features",
+      "next_boundary": "C0057 R0001 shows the tested impulse response latency surface is not a candidate as implemented; remaining C0057 variants would be adjacent tuning, so next work should choose a new major C0058 hypothesis without selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims",
+      "onnx_ready": false,
+      "reason_not_candidate": "activity landed inside the target band, but proxy, closed-bar MT5 logic, aggregate MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0001 produced 0 profitable and 9 losing fold-isolated MT5 tick folds, total tick net PnL -68.44, and worst fold rw_005 net PnL -15.4."
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "Schedule replay mechanical parity passed with mismatch_count 0, so the weak result is not explained by proxy-vs-MT5 logic mismatch."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution improved closed-bar logic by 17.48 total net PnL across 6 better and 3 worse folds, but both logic and tick surfaces remained negative."
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "gate_report.json",
+          "summary": "Native MQL signal logic, ONNX materialization, cost/slippage hardening, final sizing, and historical lineage debt remain unresolved; no stronger claim is created."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "divergence_recorded_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.189655,
+      "entry_count_delta": null,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_count_delta": null,
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "long_trade_count_proxy": 2518,
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.989429,
+      "minimum_exit_reason_match_rate": 0.859649,
+      "minimum_exit_time_direction_match_rate": 0.879386,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": -85.92,
+      "mt5_logic_profit_factor": 0.808223,
+      "mt5_logic_trade_count": 4170,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_expectancy_per_entry": -0.016492,
+      "mt5_tick_max_drawdown_percent": 15.306,
+      "mt5_tick_net_pnl": -68.44,
+      "mt5_tick_profit_factor": 0.837593,
+      "mt5_tick_trade_count": 4150,
+      "mt5_tick_win_rate": 0.404337,
+      "profitable_fold_count": 0,
+      "proxy_expectancy_points_per_entry": -1.614321,
+      "proxy_net_pnl_points": -6731.72,
+      "proxy_profit_factor": 0.839135,
+      "proxy_trade_count": 4170,
+      "proxy_win_rate": 0.415827,
+      "remaining_work_classification": "no_candidate; further C0057 work would be adjacent threshold, stop, target, hold, session, activity, spread, capital, or impulse-response-latency feature nudge tuning",
+      "short_trade_count_proxy": 1652,
+      "tick_better_fold_count": 6,
+      "tick_minus_logic_net_pnl": 17.48,
+      "tick_minus_logic_trade_count": -20,
+      "tick_worse_fold_count": 3,
+      "total_tick_minus_logic_net_pnl": 17.48,
+      "total_tick_minus_logic_trade_count": -20,
+      "total_tick_net_pnl": -68.44,
+      "total_tick_trade_count": 4150,
+      "worst_drawdown_fold_id": "rw_005",
+      "worst_fold_id": "rw_005",
+      "worst_fold_max_drawdown_percent": 3.294,
+      "worst_fold_net_pnl": -15.4,
+      "worst_tick_minus_logic_fold_id": "rw_008",
+      "worst_tick_minus_logic_net_pnl": -1.36
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "impulse_response_latency_summary": "artifacts/c0057_r0001_impulse_response_latency_summary.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0057_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0057_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday impulse response latency rank run",
+    "variant_boundary": "This is not C0056 volume clock phase, C0055 range ladder acceptance, C0054 late-session inventory unwind, C0053 opening range retest, C0052 orderflow dislocation recovery, C0051 gap continuity decay, C0050 volatility transfer, C0049 execution-path resilience, C0044 extreme recency gradient, C0041 autocorrelation decay, C0034 effort-price absorption, or execution-friction retry work. It tests closed-M5 impulse response latency: whether a prior directional impulse, the number of bars since that impulse extreme, delayed counter-response depth, reclaim efficiency, post-impulse compression, wick absorption, day-range completion, session progress, volume confirmation, and spread stress describe continuation versus reversal quality. It is not a threshold, window, stop, target, hold, session, activity, spread, capital, materialization, ONNX, or retry-only nudge."
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "closeout_status": "closed_no_candidate",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "next_required_action": "choose_c0058_new_major_hypothesis_after_c0057_closeout",
+    "notes": [
+      "MT5 validation remains mandatory even if proxy KPI is weak.",
+      "Schedule replay does not create runtime, materialization, ONNX, promotion, or live authority."
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-06T06:59:48Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "This is not C0056 volume clock phase, C0055 range ladder acceptance, C0054 late-session inventory unwind, C0053 opening range retest, C0052 orderflow dislocation recovery, C0051 gap continuity decay, C0050 volatility transfer, C0049 execution-path resilience, C0044 extreme recency gradient, C0041 autocorrelation decay, C0034 effort-price absorption, or execution-friction retry work. It tests closed-M5 impulse response latency: whether a prior directional impulse, the number of bars since that impulse extreme, delayed counter-response depth, reclaim efficiency, post-impulse compression, wick absorption, day-range completion, session progress, volume confirmation, and spread stress describe continuation versus reversal quality. It is not a threshold, window, stop, target, hold, session, activity, spread, capital, materialization, ONNX, or retry-only nudge.",
+    "adjacent_tuning_risk": "low",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0055_intraday_range_ladder_acceptance_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0054_intraday_late_session_inventory_unwind_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0052_intraday_orderflow_dislocation_recovery_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0044_intraday_extreme_recency_gradient_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 5,
+    "pre_open_decision_id": "POD-C0057-R0001",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "passed",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "fold-local delayed impulse response latency continuation versus reversal rank"
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "Proxy is reference evidence only and cannot gate MT5 validation."
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [
+      "Closed-bar schedule replay parity is required before tick execution interpretation."
+    ],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "prior directional impulse extension, counter-response latency, reclaim efficiency, extreme hold decay, post-impulse compression, directional extreme pressure, counter-wick absorption, day-range completion, range compression, volume confirmation, session-progress pressure, and spread stress"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "target-first path quality conditioned on delayed impulse response continuation or reversal after the scored closed bar"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "fold-local linear impulse response latency rank"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "dual-direction top fold-local impulse-response-latency scores per active day using next-bar-open fixed-lot discovery entries"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0057"
+}
