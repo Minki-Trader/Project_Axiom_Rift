@@ -81,6 +81,7 @@ streams:
     - campaigns/C0060_intraday_close_location_migration_discovery
     - campaigns/C0061_intraday_adverse_excursion_recovery_discovery
     - campaigns/C0062_intraday_microchannel_exhaustion_reversal_discovery
+    - campaigns/C0063_intraday_auction_imbalance_decay_discovery
     numbering_policy:
       width: 4
       example: C0001
