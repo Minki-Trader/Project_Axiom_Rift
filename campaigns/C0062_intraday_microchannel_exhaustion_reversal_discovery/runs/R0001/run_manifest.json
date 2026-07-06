@@ -1,0 +1,260 @@
+{
+  "campaign_id": "C0062",
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-06T09:38:41Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
+    "closed_at_utc": "2026-07-06T09:38:41Z",
+    "negative_memory": {
+      "asset_type": "negative_memory",
+      "candidate_status": "no_candidate",
+      "economics_pass": false,
+      "evidence_paths": [
+        "artifact_lineage.json",
+        "run_manifest.json",
+        "artifacts/c0062_r0001_proxy_trades.csv",
+        "artifacts/c0062_r0001_microchannel_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0062_r0001_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday microchannel exhaustion reversal rank over microchannel length, channel efficiency, channel slope, pullback compression, exhaustion wick pressure, momentum fatigue, counter-channel fracture, reversal close pressure, day-range location, participation fatigue, session maturity pressure, and spread stress features",
+      "next_boundary": "C0062 R0001 shows the tested microchannel exhaustion reversal surface is not a candidate as implemented; remaining C0062 variants would be adjacent tuning, so next work should choose a new major C0063 hypothesis without selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims",
+      "onnx_ready": false,
+      "reason_not_candidate": "activity landed inside the target band, but proxy, closed-bar MT5 logic, aggregate MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0001 produced 0 profitable and 9 losing fold-isolated MT5 tick folds, total tick net PnL -145.06, and worst fold rw_005 net PnL -26.2."
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "Schedule replay mechanical parity passed with mismatch_count 0, so the weak result is not explained by proxy-vs-MT5 logic mismatch."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution improved closed-bar logic by 13.74 total net PnL across 5 better and 4 worse folds, but both logic and tick surfaces remained negative."
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "gate_report.json",
+          "summary": "Native MQL signal logic, ONNX materialization, cost/slippage hardening, final sizing, and historical lineage debt remain unresolved; no stronger claim is created."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "divergence_recorded_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.418966,
+      "entry_count_delta": null,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_count_delta": null,
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "long_trade_count_proxy": 2424,
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.993802,
+      "minimum_exit_reason_match_rate": 0.855649,
+      "minimum_exit_time_direction_match_rate": 0.870293,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": -158.8,
+      "mt5_logic_profit_factor": 0.6764,
+      "mt5_logic_trade_count": 4303,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_expectancy_per_entry": -0.033766,
+      "mt5_tick_max_drawdown_percent": 29.332,
+      "mt5_tick_net_pnl": -145.06,
+      "mt5_tick_profit_factor": 0.689585,
+      "mt5_tick_trade_count": 4296,
+      "mt5_tick_win_rate": 0.356844,
+      "profitable_fold_count": 0,
+      "proxy_expectancy_points_per_entry": -3.400128,
+      "proxy_net_pnl_points": -14630.75,
+      "proxy_profit_factor": 0.685926,
+      "proxy_trade_count": 4303,
+      "proxy_win_rate": 0.366024,
+      "remaining_work_classification": "no_candidate; further C0062 work would be adjacent threshold, stop, target, hold, session, activity, spread, capital, or microchannel-exhaustion-reversal feature nudge tuning",
+      "short_trade_count_proxy": 1879,
+      "tick_better_fold_count": 5,
+      "tick_minus_logic_net_pnl": 13.74,
+      "tick_minus_logic_trade_count": -7,
+      "tick_worse_fold_count": 4,
+      "total_tick_minus_logic_net_pnl": 13.74,
+      "total_tick_minus_logic_trade_count": -7,
+      "total_tick_net_pnl": -145.06,
+      "total_tick_trade_count": 4296,
+      "worst_drawdown_fold_id": "rw_005",
+      "worst_fold_id": "rw_005",
+      "worst_fold_max_drawdown_percent": 5.298,
+      "worst_fold_net_pnl": -26.2,
+      "worst_tick_minus_logic_fold_id": "rw_008",
+      "worst_tick_minus_logic_net_pnl": -1.0
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "microchannel_exhaustion_reversal_summary": "artifacts/c0062_r0001_microchannel_summary.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0062_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0062_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "run_manifest": "run_manifest.json"
+  },
+  "fixed_surfaces": {
+    "data": "closed_m5_us100_base_frame",
+    "market": "FPMarkets US100 M5",
+    "sizing": "fixed_lot_discovery"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday microchannel exhaustion reversal rank run",
+    "variant_boundary": "C0062 tests mature directional microchannel exhaustion and reversal pressure before entry. It is not a threshold, window, SL/TP, hold, session, activity, spread, capital, materialization, ONNX, retry-only, adverse-excursion-recovery, close-location-migration, session-handoff, body-overlap, impulse-latency, volume-clock, range-ladder, opening-range, gap, volatility-transfer, orderflow-dislocation, late-session-inventory, return-distribution, autocorrelation, path-symmetry, moving-average-ribbon, or extreme-recency nudge."
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "closeout_status": "closed_no_candidate",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "next_required_action": "choose_c0063_new_major_hypothesis_after_c0062_closeout",
+    "notes": [
+      "MT5 validation remains mandatory even if proxy KPI is weak.",
+      "Schedule replay does not create runtime, materialization, ONNX, promotion, or live authority."
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-06T09:11:40Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "C0062 changes the major feature, label, model, and trade-logic surface to directional microchannel exhaustion and reversal pressure. It is not a parameter nudge of C0061 adverse excursion recovery or recent C0060-C0056 negative-memory surfaces.",
+    "adjacent_tuning_risk": "low",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0061_intraday_adverse_excursion_recovery_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0060_intraday_close_location_migration_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0059_intraday_session_handoff_pressure_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0058_intraday_body_overlap_resorption_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0057_intraday_impulse_response_latency_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0056_intraday_volume_clock_phase_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 5,
+    "pre_open_decision_id": "POD-C0062-R0001",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "passed",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "closed-M5 mature microchannel exhaustion reversal rank"
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "Proxy is reference evidence only and cannot gate MT5 validation."
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "required": true
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v1",
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "status": "variable",
+      "summary": "microchannel length, channel efficiency, channel slope, pullback compression, exhaustion wick pressure, momentum fatigue, counter-channel fracture, reversal close pressure, day-range location, participation fatigue, session maturity pressure, and spread stress"
+    },
+    "label": {
+      "status": "variable",
+      "summary": "target-first path quality conditioned on whether a mature directional microchannel exhausts into reversal after the scored closed bar"
+    },
+    "model": {
+      "status": "variable",
+      "summary": "fold-local linear microchannel exhaustion reversal rank"
+    },
+    "trade_logic": {
+      "status": "variable",
+      "summary": "dual-direction top fold-local microchannel-exhaustion-reversal scores per active day using next-bar-open fixed-lot discovery entries"
+    }
+  },
+  "template": false,
+  "variable_surfaces": {
+    "feature": "microchannel length, channel efficiency, channel slope, pullback compression, exhaustion wick pressure, momentum fatigue, counter-channel fracture, reversal close pressure, day-range location, participation fatigue, session maturity pressure, and spread stress",
+    "label": "target-first path quality conditioned on whether a mature directional microchannel exhausts into reversal after the scored closed bar",
+    "model": "fold-local linear microchannel exhaustion reversal rank",
+    "trade_logic": "dual-direction top fold-local microchannel-exhaustion-reversal scores per active day using next-bar-open fixed-lot discovery entries"
+  },
+  "work_unit_id": "C0062"
+}
