@@ -1,0 +1,224 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-06T17:53:13Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
+    "closed_at_utc": "2026-07-06T17:53:13Z",
+    "negative_memory": {
+      "asset_type": "negative_memory",
+      "candidate_status": "no_candidate",
+      "economics_pass": false,
+      "evidence_paths": [
+        "artifact_lineage.json",
+        "run_manifest.json",
+        "artifacts/c0080_r0001_proxy_trades.csv",
+        "artifacts/c0080_r0001_mpf_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0080_r0001_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday micro pullback failure rank over trend impulse pressure, micro pullback depth, pullback rejection wick, close rejoin strength, failed counter body ratio, range ladder retention, volume dry-up then reignite, prior-day trend context, session continuation pressure, and spread stress features",
+      "next_boundary": "C0080 R0001 shows the tested micro pullback failure surface is not a candidate as implemented; remaining C0080 variants would be adjacent tuning, so next work should choose a new major C0081 hypothesis without selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims",
+      "onnx_ready": false,
+      "reason_not_candidate": "activity landed inside the target band, but proxy, closed-bar MT5 logic, aggregate MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0001 produced 0 profitable and 9 losing fold-isolated MT5 tick folds, total tick net PnL -122.36, and worst fold rw_006 net PnL -18.67."
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "Schedule replay mechanical parity passed with mismatch_count 0, so the weak result is not explained by proxy-vs-MT5 logic mismatch."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution improved closed-bar logic by 9.32 total net PnL across 6 better and 3 worse folds, but both logic and tick surfaces remained negative."
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "gate_report.json",
+          "summary": "Native MQL signal logic, ONNX materialization, cost/slippage hardening, final sizing, and historical lineage debt remain unresolved; no stronger claim is created."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "divergence_recorded_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.386207,
+      "entry_count_delta": null,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_count_delta": null,
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "long_trade_count_proxy": 2688,
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.995816,
+      "minimum_exit_reason_match_rate": 0.880252,
+      "minimum_exit_time_direction_match_rate": 0.897059,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": -131.68,
+      "mt5_logic_profit_factor": 0.721912,
+      "mt5_logic_trade_count": 4284,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_expectancy_per_entry": -0.028622,
+      "mt5_tick_max_drawdown_percent": 24.788,
+      "mt5_tick_net_pnl": -122.36,
+      "mt5_tick_profit_factor": 0.727161,
+      "mt5_tick_trade_count": 4275,
+      "mt5_tick_win_rate": 0.369123,
+      "profitable_fold_count": 0,
+      "proxy_expectancy_points_per_entry": -2.767603,
+      "proxy_net_pnl_points": -11856.41,
+      "proxy_profit_factor": 0.732522,
+      "proxy_trade_count": 4284,
+      "proxy_win_rate": 0.382353,
+      "remaining_work_classification": "no_candidate; further C0080 work would be adjacent threshold, stop, target, hold, session, activity, spread, capital, or micro-pullback-failure feature nudge tuning",
+      "short_trade_count_proxy": 1596,
+      "tick_better_fold_count": 6,
+      "tick_minus_logic_net_pnl": 9.32,
+      "tick_minus_logic_trade_count": -9,
+      "tick_worse_fold_count": 3,
+      "total_tick_minus_logic_net_pnl": 9.32,
+      "total_tick_minus_logic_trade_count": -9,
+      "total_tick_net_pnl": -122.36,
+      "total_tick_trade_count": 4275,
+      "worst_drawdown_fold_id": "rw_006",
+      "worst_fold_id": "rw_006",
+      "worst_fold_max_drawdown_percent": 3.8,
+      "worst_fold_net_pnl": -18.67,
+      "worst_tick_minus_logic_fold_id": "rw_003",
+      "worst_tick_minus_logic_net_pnl": -2.02
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "micro_pullback_failure_summary": "artifacts/c0080_r0001_mpf_summary.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0080_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0080_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "run_manifest": "run_manifest.json"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday micro pullback failure rank",
+    "variant_boundary": "C0080 R0001 tests whether a directional impulse followed by a shallow adverse micro-pullback, rejection wick, close rejoin, failed counter-body pressure, and volume dry-up/reignite can rank continuation target-first path quality. It is not an adjacent threshold, SL/TP, hold, session, activity, spread-only, capital, materialization, ONNX, or retry-only variant."
+  },
+  "mt5_probe_plan": {
+    "closeout_status": "closed_no_candidate",
+    "next_required_action": "choose_c0081_new_major_hypothesis_after_c0080_closeout",
+    "paired_validation_required": true,
+    "proxy_is_reference_surface_only": true,
+    "weak_proxy_result_must_not_skip_mt5": true
+  },
+  "opened_at_utc": "2026-07-06T17:40:33Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "C0080 changes the primary lifecycle surface from C0079 boundary recoil elasticity and C0078 auction-skew inflection to failed adverse micro-pullback continuation. It is not a threshold, window, stop, target, hold, session, activity, spread, or capital nudge.",
+    "adjacent_tuning_risk": "low",
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0079_intraday_boundary_recoil_elasticity_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0078_intraday_auction_skew_inflection_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0077_intraday_impulse_digestion_asymmetry_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0075_intraday_conviction_decay_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0074_intraday_session_range_reset_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0073_intraday_spread_shock_relief_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0072_intraday_volume_imbalance_reconciliation_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0071_intraday_path_tortuosity_release_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0069_intraday_drift_realignment_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0068_intraday_failure_to_accept_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0064_intraday_polarity_flip_persistence_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0062_intraday_microchannel_exhaustion_reversal_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "A new fold-local micro-pullback-failure rank surface over impulse pressure, shallow adverse pullback depth, rejection/rejoin, failed counter-body pressure, volume dry-up/reignite, and session continuation pressure."
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "status": "variable",
+      "summary": "trend impulse pressure; micro pullback depth; pullback rejection wick; close rejoin strength; failed counter body ratio; range ladder retention; volume dry-up then reignite; prior-day trend context; session continuation pressure; spread stress inverse"
+    },
+    "label": {
+      "status": "variable",
+      "summary": "target-first continuation path quality conditioned on failed adverse micro-pullback state"
+    },
+    "model": {
+      "status": "variable",
+      "summary": "fold-local linear intraday micro pullback failure rank"
+    },
+    "trade_logic": {
+      "status": "variable",
+      "summary": "dual-direction top fold-local micro-pullback-failure scores per active day using next-bar-open fixed-lot discovery entries"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0080"
+}
