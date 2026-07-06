@@ -15,10 +15,10 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0048
-    active_work_unit: campaigns/C0047_intraday_liquidity_void_reversion_discovery
+    next_id: C0049
+    active_work_unit: campaigns/C0048_intraday_range_energy_absorption_discovery
     open_work_units:
-    - campaigns/C0047_intraday_liquidity_void_reversion_discovery
+    - campaigns/C0048_intraday_range_energy_absorption_discovery
     closed_work_units:
     - campaigns/C0001_regime_response_discovery
     - campaigns/C0002_score_conditioned_intraday_edge
@@ -66,6 +66,7 @@ streams:
     - campaigns/C0044_intraday_extreme_recency_gradient_discovery
     - campaigns/C0045_intraday_regression_channel_residual_discovery
     - campaigns/C0046_intraday_flow_convexity_release_discovery
+    - campaigns/C0047_intraday_liquidity_void_reversion_discovery
     numbering_policy:
       width: 4
       example: C0001

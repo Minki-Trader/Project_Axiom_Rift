@@ -1,0 +1,96 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: active
+campaign_id: C0048
+campaign_slug: intraday_range_energy_absorption_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-06T00:58:00Z'
+hypothesis:
+  summary: discover whether closed-bar intraday range energy, wick absorption, body effort, and participation pressure can rank FPMarkets US100 M5 entries
+  boundary: closed M5 body effort, wick absorption against adverse probes, close location, range expansion and compression, true-range momentum, tick-volume participation pressure, spread-normalized range stress, day range position, session progress, and path efficiency; not C0047 liquidity-void fill/reversion, C0046 signed-flow convexity release, C0045 regression-channel residual, SC0008 rerank, threshold, stop, target, hold, session, activity, spread, capital, monthly filter, materialization, ONNX, or retry-only work
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - economics_pass
+  - materialization_ready
+  - onnx_ready
+  - final_sizing_rule
+  - equity_percent_sizing_rescue
+  - c0047_liquidity_void_reversion_hardening
+  - c0046_flow_convexity_release_hardening
+  - c0045_regression_channel_residual_hardening
+  - sc0008_candidate_rerank_hardening
+  - threshold_or_score_filter_rescue
+required_surfaces:
+  model:
+    status: variable
+    summary: fold-local rank surface for range-energy absorption and participation-pressure candidates
+  feature:
+    status: variable
+    summary: closed M5 range, body, wick, close-location, true-range momentum, participation, spread-stress, day-position, and path-efficiency features
+  trade_logic:
+    status: variable
+    summary: fixed-lot dual-direction top range-energy absorption candidates per active day with MT5 schedule replay
+  label:
+    status: variable
+    summary: directional target-first quality with range-energy follow-through rewards and adverse wick, giveback, churn, and spread penalties
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs: []
+  next_run_candidate:
+    run_id: R0001
+    direction: open_c0048_r0001_intraday_range_energy_absorption_rank_run
+    reason: C0047 is closed with retained candidate evidence plus R0002 negative memory, synthesis is not due, and C0048 opens a non-adjacent major hypothesis around bar range-energy absorption rather than liquidity void, flow convexity, or regression residual hardening.
+    status: pending_pre_open_decision
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_checked_active_campaign
+  open_synthesis_now: false
+  recommended_next_action: open_c0048_r0001_intraday_range_energy_absorption_rank_run
+  readiness_notes:
+  - active_campaign_no_closeout_check_yet
+  - synthesis_not_due_after_c0047_closeout
+closeout:
+  status: open
+  close_reason: null
+  remaining_question: open_c0048_r0001_intraday_range_energy_absorption_rank_run
+  closed_at_utc: null
+  evidence_paths:
+  - selected.yaml
+  decision_basis:
+    opened_after_campaign: campaigns/C0047_intraday_liquidity_void_reversion_discovery
+    prior_candidate_evidence: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001/gate_report.json
+    prior_negative_memory: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/gate_report.json
+    synthesis_status_after_prior_campaign: not_due
+    remaining_work_classification: new_major_hypothesis_not_adjacent_hardening
+  claim_boundary:
+    claim_authority: false
+    economics_pass: false
+    feature_set_selected: false
+    label_selected: false
+    live_ready: false
+    materialization_ready: false
+    model_selected: false
+    onnx_ready: false
+    promotion_ready: false
+    runtime_authority: false
+    runtime_probe_completed: false
+    selected: false
+    trade_logic_selected: false
+claim_boundary:
+  claim_authority: false
+  economics_pass: false
+  feature_set_selected: false
+  label_selected: false
+  live_ready: false
+  materialization_ready: false
+  model_selected: false
+  onnx_ready: false
+  promotion_ready: false
+  runtime_authority: false
+  runtime_probe_completed: false
+  selected: false
+  trade_logic_selected: false

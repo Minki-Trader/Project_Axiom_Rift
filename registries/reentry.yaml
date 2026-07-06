@@ -7,7 +7,7 @@ read_budget:
   - registries/reentry.yaml
   - registries/claim_state.yaml
   conditional_files:
-    active_campaign: campaigns/C0047_intraday_liquidity_void_reversion_discovery
+    active_campaign: campaigns/C0048_intraday_range_energy_absorption_discovery
     active_synthesis: null
     active_contracts: contracts/
     active_config: configs/
@@ -22,7 +22,7 @@ project:
   root_hint: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
   purpose: clean_restart_fpmarkets_us100_m5
   layout_mode: developer_campaign_manifest
-  active_campaign: campaigns/C0047_intraday_liquidity_void_reversion_discovery
+  active_campaign: campaigns/C0048_intraday_range_energy_absorption_discovery
   active_synthesis: null
   active_run: null
 active_truth:
@@ -119,7 +119,7 @@ data_state:
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
 next_work:
-  campaign: campaigns/C0047_intraday_liquidity_void_reversion_discovery
+  campaign: campaigns/C0048_intraday_range_energy_absorption_discovery
   synthesis: null
   completed:
   - fresh_export_us100_m5_max_available
@@ -1245,8 +1245,9 @@ next_work:
   - review_c0047_r0002_tick_execution_kpi_and_closeout
   - close_c0047_r0002_no_candidate
   - close_c0047_with_candidate_evidence_and_r0002_negative_memory
+  - open_c0048_intraday_range_energy_absorption_discovery
   tasks:
-  - choose_c0048_new_major_hypothesis_after_c0047_closeout
+  - open_c0048_r0001_intraday_range_energy_absorption_rank_run
   not_yet:
   - label_freeze
   - feature_set_freeze
@@ -1254,10 +1255,10 @@ next_work:
   - mt5_runtime_claim
   - onnx_ready_claim
   - live_readiness
-  active_campaign: campaigns/C0047_intraday_liquidity_void_reversion_discovery
+  active_campaign: campaigns/C0048_intraday_range_energy_absorption_discovery
   active_run: null
   run: null
   active_synthesis: null
 active_run: null
-active_campaign: campaigns/C0047_intraday_liquidity_void_reversion_discovery
+active_campaign: campaigns/C0048_intraday_range_energy_absorption_discovery
 active_synthesis: null

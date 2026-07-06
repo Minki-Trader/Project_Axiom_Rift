@@ -98,15 +98,15 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: campaigns/C0047_intraday_liquidity_void_reversion_discovery
+active_campaign: campaigns/C0048_intraday_range_energy_absorption_discovery
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0047_with_candidate_evidence_and_r0002_negative_memory
+  id: open_c0048_intraday_range_energy_absorption_discovery
   status: completed
-  recorded_at_source: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/gate_report.json
-  evidence_status: campaign_closed_with_candidate_evidence_not_selected
-  next_required_action: choose_c0048_new_major_hypothesis_after_c0047_closeout
+  recorded_at_source: campaigns/C0048_intraday_range_energy_absorption_discovery/campaign.yaml
+  evidence_status: campaign_open_next_run_required
+  next_required_action: open_c0048_r0001_intraday_range_energy_absorption_rank_run
   claim_boundary:
     claim_authority: false
     economics_pass: false
@@ -121,13 +121,10 @@ latest_operation:
     runtime_probe_completed: false
     selected: false
     trade_logic_selected: false
-  retained_candidate_run: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001
-  negative_memory_run: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002
-  r0001_mt5_tick_net_pnl: 255.97
-  r0001_profitable_fold_count: 9
-  r0002_total_tick_net_pnl: -378.38
-  r0002_profitable_fold_count: 0
-  r0002_losing_fold_count: 9
+  active_campaign_status: active
+  prior_retained_candidate_run: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001
+  prior_negative_memory_run: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002
+  campaign_opened_without_selected_or_runtime_claims: true
 active_truth:
   contracts_dir: contracts
   configs_dir: configs

@@ -1,0 +1,38 @@
+schema: axiom_rift_selected_v1
+template: false
+status: not_selected_campaign_open
+selected: false
+selected_reason: C0048 is newly opened for range-energy absorption discovery and has no run evidence yet.
+surfaces:
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+runtime:
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
+claim_boundary:
+  claim_authority: false
+  economics_pass: false
+  feature_set_selected: false
+  label_selected: false
+  live_ready: false
+  materialization_ready: false
+  model_selected: false
+  onnx_ready: false
+  promotion_ready: false
+  runtime_authority: false
+  runtime_probe_completed: false
+  selected: false
+  trade_logic_selected: false
+next_required_action: open_c0048_r0001_intraday_range_energy_absorption_rank_run
+campaign_open:
+  status: active
+  first_run: runs/R0001
+  first_run_status: pending_pre_open_decision
+  reason: C0048 opens a non-adjacent major hypothesis after C0047 closeout; no selected, economics, runtime, materialization, ONNX, promotion, or live-readiness claims are made.

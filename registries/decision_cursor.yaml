@@ -2,19 +2,19 @@ schema: axiom_rift_decision_cursor_v1
 status: active
 encoding: ascii_only
 updated_local_date: '2026-07-06'
-canonical_source: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/gate_report.json
-canonical_status: campaign_closed_with_candidate_evidence_not_selected
-current_decision: choose_c0048_new_major_hypothesis_after_c0047_closeout
-active_campaign: campaigns/C0047_intraday_liquidity_void_reversion_discovery
+canonical_source: campaigns/C0048_intraday_range_energy_absorption_discovery/campaign.yaml
+canonical_status: campaign_open_pending_r0001
+current_decision: open_c0048_r0001_intraday_range_energy_absorption_rank_run
+active_campaign: campaigns/C0048_intraday_range_energy_absorption_discovery
 active_run: null
 active_synthesis: null
-next_required_action: choose_c0048_new_major_hypothesis_after_c0047_closeout
+next_required_action: open_c0048_r0001_intraday_range_energy_absorption_rank_run
 terminal_evidence_priority:
   enabled: true
   resolved_from:
-    run_gate_report_status: closed_no_candidate
-    campaign_status: closed_with_candidate_evidence
-    selected_status: candidate_evidence_retained_campaign_closed_not_selected
+    run_gate_report_status: not_opened
+    campaign_status: active
+    selected_status: not_selected_campaign_open
   authority_order:
   - run_gate_report_decision_or_status
   - run_manifest_status
@@ -26,26 +26,22 @@ terminal_evidence_priority:
   stale_pointer_rule: terminal_run_receipt_outranks_planning_pointer
   reentry_completed_log_role: history_only_not_decision_authority
 current_evidence_summary:
-  source_campaign: campaigns/C0047_intraday_liquidity_void_reversion_discovery
-  current_task: choose_c0048_new_major_hypothesis_after_c0047_closeout
+  source_campaign: campaigns/C0048_intraday_range_energy_absorption_discovery
+  current_task: open_c0048_r0001_intraday_range_energy_absorption_rank_run
   active_run: null
-  active_run_status: closed_no_candidate
-  evidence_status: campaign_closed_with_candidate_evidence_not_selected
-  campaign_family: intraday_liquidity_void_reversion
-  retained_candidate_run: runs/R0001
-  retained_candidate_mt5_tick_net_pnl: 255.97
-  retained_candidate_profitable_fold_count: 9
-  negative_memory_run: runs/R0002
-  r0002_entries_per_active_day: 7.996552
-  r0002_proxy_trade_count: 4638
-  r0002_proxy_net_pnl_points: -40933.98
-  r0002_proxy_profit_factor: 0.252183
-  r0002_mt5_tick_net_pnl: -378.38
-  r0002_profitable_fold_count: 0
-  r0002_losing_fold_count: 9
-  next_required_action: choose_c0048_new_major_hypothesis_after_c0047_closeout
-  note: R0001 candidate evidence retained not selected; R0002 no-candidate negative memory; synthesis not due after two closed campaigns since SC0008.
-  source_campaign_manifest: campaigns/C0047_intraday_liquidity_void_reversion_discovery/campaign.yaml
+  active_run_status: not_opened
+  evidence_status: campaign_open_next_run_required
+  campaign_family: intraday_range_energy_absorption
+  prior_campaign: campaigns/C0047_intraday_liquidity_void_reversion_discovery
+  prior_retained_candidate_run: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001
+  prior_retained_candidate_mt5_tick_net_pnl: 255.97
+  prior_retained_candidate_profitable_fold_count: 9
+  prior_negative_memory_run: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002
+  prior_r0002_mt5_tick_net_pnl: -378.38
+  prior_r0002_losing_fold_count: 9
+  next_required_action: open_c0048_r0001_intraday_range_energy_absorption_rank_run
+  note: C0048 opened as a new non-adjacent range-energy absorption hypothesis after C0047 closeout; no run evidence or selected/runtime claims yet.
+  source_campaign_manifest: campaigns/C0048_intraday_range_energy_absorption_discovery/campaign.yaml
 repo_debt_scope:
   global_repo_state_ok: false
   observed_error_count: 31
@@ -55,7 +51,7 @@ repo_debt_scope:
     status: observed_preexisting
     observed_error_count: 31
     affected_scope: historical_c0001_c0005_and_sc0001_sc0002_artifact_lineage
-    role: repo_state_debt_not_current_c0047_r0002_closeout
+    role: repo_state_debt_not_current_c0048_campaign_open
     current_decision_class: known_nonblocking_for_next_work_decision
     may_continue_current_decision: true
     blocks_selected_claim: true
@@ -74,7 +70,7 @@ repo_debt_scope:
     blocks_promotion: true
     blocks_handoff: true
     blocks_reproducibility_claim: true
-  note: repo_state_has_preexisting_nonblocking_artifact_lineage_debt_and_price_quality_warning; current_c0047_r0002_closeout_is_complete_but_selection_promotion_handoff_and_reproducibility_claims_remain_blocked
+  note: repo_state_has_preexisting_nonblocking_artifact_lineage_debt_and_price_quality_warning; current_c0048_campaign_open_makes_no_selection_promotion_handoff_or_reproducibility_claims
 claim_boundary_snapshot:
   claim_authority: false
   economics_pass: false
@@ -90,6 +86,9 @@ claim_boundary_snapshot:
   selected: false
   trade_logic_selected: false
 next_decision_basis:
+- path: campaigns/C0048_intraday_range_energy_absorption_discovery/campaign.yaml
+  role: active_campaign_hypothesis
+  summary: C0048 opens a non-adjacent range-energy absorption discovery axis with R0001 pending pre-open decision and no selected, runtime, promotion, ONNX, or live-readiness claims.
 - path: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001/gate_report.json
   role: retained_candidate_evidence
   summary: R0001 closed with target activity, positive proxy, passed parity, positive MT5 tick economics, and nine profitable fold-isolated MT5 tick folds but remains unselected.
