@@ -1,0 +1,111 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: active
+campaign_id: C0047
+campaign_slug: intraday_liquidity_void_reversion_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-05T23:42:28Z'
+hypothesis:
+  summary: discover whether closed-bar intraday liquidity void fill and rejection states can
+    rank FPMarkets US100 M5 entries
+  boundary: closed-bar displacement voids, low-overlap price paths, opposing body imbalance,
+    void age and decay, fill pressure, boundary rejection, day-mid pressure, session progress,
+    and spread-void stress; not C0046 signed-flow convexity release, C0045 regression-channel
+    residual, SC0008 rerank, C0044 extreme recency gradient, threshold, stop, target, hold,
+    session, activity, spread, capital, monthly filter, materialization, ONNX, or retry-only
+    work
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - economics_pass
+  - materialization_ready
+  - onnx_ready
+  - final_sizing_rule
+  - equity_percent_sizing_rescue
+  - c0046_flow_convexity_release_hardening
+  - c0045_regression_channel_residual_hardening
+  - sc0008_candidate_rerank_hardening
+  - threshold_or_score_filter_rescue
+required_surfaces:
+  model:
+    status: variable
+    summary: fold-local linear rank surface for liquidity void fill and rejection candidates
+  feature:
+    status: variable
+    summary: closed M5 displacement void, low-overlap, body imbalance, fill pressure, rejection,
+      day-mid pressure, session, and spread-void stress features
+  trade_logic:
+    status: variable
+    summary: fixed-lot dual-direction top liquidity-void fill/rejection schedule replay candidates
+      per active day
+  label:
+    status: variable
+    summary: directional void fill/rejection quality with target-first reward, fill completion,
+      early follow-through, adverse path, churn, giveback, and spread penalties
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: R0002
+    direction: decide_c0047_r0002_or_close_c0047_after_r0001
+    reason: R0001 retained candidate evidence but remains unselected; decide whether a non-adjacent
+      C0047 variant remains or close the campaign without stronger claims.
+    status: decision_required
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_checked_active_campaign
+closeout:
+  status: active_after_r0001_candidate_evidence
+  remaining_question: decide_c0047_r0002_or_close_c0047_after_r0001
+  evidence_paths:
+  - runs/R0001/gate_report.json
+  - runs/R0001/kpi/proxy.json
+  - runs/R0001/kpi/mt5_logic_parity.json
+  - runs/R0001/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0001/kpi/mt5_tick.json
+  - runs/R0001/kpi/execution_divergence.json
+  - runs/R0001/kpi/mt5_tick_by_fold.json
+  - runs/R0001/kpi/execution_divergence_by_fold.json
+  - selected.yaml
+  decision_basis:
+    closed_run_count: 1
+    closed_with_candidate_evidence_run_count: 1
+    closed_no_candidate_run_count: 0
+    retained_candidate_source_run: runs/R0001
+    r0001_entries_per_active_day: 7.991379
+    r0001_mt5_tick_net_pnl: 255.97
+    r0001_mt5_tick_profit_factor: 2.006725
+    r0001_profitable_fold_count: 9
+    remaining_work_classification: decide_non_adjacent_r0002_or_close_campaign_not_selected
+  claim_boundary:
+    claim_authority: false
+    economics_pass: false
+    feature_set_selected: false
+    label_selected: false
+    live_ready: false
+    materialization_ready: false
+    model_selected: false
+    onnx_ready: false
+    promotion_ready: false
+    runtime_authority: false
+    runtime_probe_completed: false
+    selected: false
+    trade_logic_selected: false
+claim_boundary:
+  claim_authority: false
+  economics_pass: false
+  feature_set_selected: false
+  label_selected: false
+  live_ready: false
+  materialization_ready: false
+  model_selected: false
+  onnx_ready: false
+  promotion_ready: false
+  runtime_authority: false
+  runtime_probe_completed: false
+  selected: false
+  trade_logic_selected: false
