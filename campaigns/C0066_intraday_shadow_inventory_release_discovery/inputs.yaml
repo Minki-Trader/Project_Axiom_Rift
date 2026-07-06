@@ -1,0 +1,35 @@
+schema: axiom_rift_campaign_inputs_v1
+template: false
+work_unit_id: C0066
+campaign_id: C0066
+status: active
+dataset_inputs:
+- path: data/processed/datasets/us100_m5_base_frame.csv
+  role: closed_m5_base_frame
+- path: data/processed/coverage_audits/us100_m5_rolling_windows.csv
+  role: rolling_window_splits
+contract_inputs:
+- contracts/project_goal_contract.md
+- contracts/evaluation_contract.md
+- contracts/goal_operation_policy.yaml
+failure_memory_used:
+- campaigns/C0065_intraday_anchor_tension_resolution_discovery/runs/R0001/gate_report.json
+- campaigns/C0064_intraday_polarity_flip_persistence_discovery/runs/R0001/gate_report.json
+- campaigns/C0063_intraday_auction_imbalance_decay_discovery/runs/R0001/gate_report.json
+- campaigns/C0062_intraday_microchannel_exhaustion_reversal_discovery/runs/R0001/gate_report.json
+- campaigns/C0061_intraday_adverse_excursion_recovery_discovery/runs/R0001/gate_report.json
+- campaigns/C0060_intraday_close_location_migration_discovery/runs/R0001/gate_report.json
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
