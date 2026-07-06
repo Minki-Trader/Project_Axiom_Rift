@@ -102,23 +102,23 @@ active_campaign: null
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0066_r0001_no_candidate
+  id: close_c0067_r0001_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0066_intraday_shadow_inventory_release_discovery/runs/R0001/gate_report.json
+  recorded_at_source: campaigns/C0067_intraday_trapped_range_reexpansion_discovery/runs/R0001/gate_report.json
   evidence_status: closed_no_candidate
   active_campaign: null
   active_synthesis: null
   active_run: null
   negative_memory_recorded: true
   candidate_evidence_retained: false
-  entries_per_active_day: 7.793103
-  proxy_net_pnl_points: -11472.62
-  proxy_profit_factor: 0.768906
-  mt5_tick_net_pnl: -109.04
-  mt5_tick_profit_factor: 0.781286
+  entries_per_active_day: 7.872414
+  proxy_net_pnl_points: -24798.79
+  proxy_profit_factor: 0.540614
+  mt5_tick_net_pnl: -231.12
+  mt5_tick_profit_factor: 0.567871
   profitable_fold_count: 0
   losing_fold_count: 9
-  next_required_action: choose_c0067_new_major_hypothesis_after_c0066_closeout
+  next_required_action: choose_c0068_new_major_hypothesis_after_c0067_closeout
   claim_boundary:
     claim_authority: false
     selected: false
