@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0075
+    next_id: C0076
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -93,6 +93,7 @@ streams:
     - campaigns/C0072_intraday_volume_imbalance_reconciliation_discovery
     - campaigns/C0073_intraday_spread_shock_relief_discovery
     - campaigns/C0074_intraday_session_range_reset_discovery
+    - campaigns/C0075_intraday_conviction_decay_discovery
     numbering_policy:
       width: 4
       example: C0001
