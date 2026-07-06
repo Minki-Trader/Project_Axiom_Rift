@@ -1,0 +1,222 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-06T18:49:32Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "candidate_evidence": {
+      "asset_type": "candidate_evidence",
+      "candidate_status": "candidate_evidence_retained_not_selected",
+      "economics_pass": false,
+      "evidence_paths": [
+        "artifact_lineage.json",
+        "run_manifest.json",
+        "artifacts/c0082_r0001_proxy_trades.csv",
+        "artifacts/c0082_r0001_mrr_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0082_r0001_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday midpoint rotation rejection rank over midpoint distance pressure, failed midpoint cross depth, rotation compression ratio, midpoint rejection wick, close escape strength, range balance skew, volume reengagement, prior-day midpoint context, session escape pressure, and spread stress features",
+      "next_boundary": "C0082 R0001 should be retained as useful candidate evidence only. Next C0082 work should design a true R0002 hardening run for cost/slippage survival and portability, not selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims.",
+      "onnx_ready": false,
+      "reason_not_selected": "profitability is modest, 3 of 9 folds are losing, tick execution is worse than logic in 7 of 9 folds, stress hardening and native materialization are not complete, ONNX readiness is absent, and historical repo lineage debt blocks selected, promotion, handoff, and reproducibility claims",
+      "reason_retained": "R0001 reached target-band activity, proxy PF 1.097229, MT5 logic parity passed with mismatch_count 0, MT5 tick PF 1.129524, total tick net PnL 36.72, and 6 of 9 fold-isolated tick folds were profitable",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "candidate_evidence",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0001 produced 6 profitable and 3 losing fold-isolated MT5 tick folds, total tick net PnL 36.72, and worst fold rw_002 net PnL -3.06."
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "Schedule replay mechanical parity passed with mismatch_count 0, so the candidate evidence is not explained by proxy-vs-MT5 logic mismatch."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution was worse than closed-bar logic by -23.74 net PnL across 7 worse and 2 better folds."
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "gate_report.json",
+          "summary": "Cost/slippage hardening, native MQL signal logic, ONNX materialization, final sizing, and historical lineage debt remain unresolved; no stronger claim is created."
+        }
+      ]
+    },
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "candidate_evidence_retained_not_selected_after_fold_isolated_mt5_tick_positive_but_fragile",
+    "closed_at_utc": "2026-07-06T18:49:32Z",
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "divergence_recorded_fold_count": 9,
+      "economics_shift_status": "tick_worse_than_logic",
+      "entries_per_active_day": 6.315315,
+      "entry_count_delta": null,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_count_delta": null,
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "long_trade_count_proxy": 1821,
+      "losing_fold_count": 3,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.997312,
+      "minimum_exit_reason_match_rate": 0.863309,
+      "minimum_exit_time_direction_match_rate": 0.884892,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": 60.46,
+      "mt5_logic_profit_factor": 1.197472,
+      "mt5_logic_trade_count": 3505,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_expectancy_per_entry": 0.010491,
+      "mt5_tick_max_drawdown_percent": 2.026,
+      "mt5_tick_net_pnl": 36.72,
+      "mt5_tick_profit_factor": 1.129524,
+      "mt5_tick_trade_count": 3500,
+      "mt5_tick_win_rate": 0.472286,
+      "profitable_fold_count": 6,
+      "proxy_expectancy_points_per_entry": 0.781301,
+      "proxy_net_pnl_points": 2738.46,
+      "proxy_profit_factor": 1.097229,
+      "proxy_trade_count": 3505,
+      "proxy_win_rate": 0.481883,
+      "remaining_work_classification": "candidate_evidence_retained_not_selected; C0082 R0001 has positive target-band activity and fold-isolated MT5 tick evidence, but 3 losing folds, modest PF, tick-worse divergence, missing stress hardening, missing native signal materialization, missing ONNX, and repo lineage debt block stronger claims",
+      "short_trade_count_proxy": 1684,
+      "tick_better_fold_count": 2,
+      "tick_minus_logic_net_pnl": -23.74,
+      "tick_minus_logic_trade_count": -5,
+      "tick_worse_fold_count": 7,
+      "total_tick_minus_logic_net_pnl": -23.74,
+      "total_tick_minus_logic_trade_count": -5,
+      "total_tick_net_pnl": 36.72,
+      "total_tick_trade_count": 3500,
+      "worst_drawdown_fold_id": "rw_005",
+      "worst_fold_id": "rw_002",
+      "worst_fold_max_drawdown_percent": 1.95,
+      "worst_fold_net_pnl": -3.06,
+      "worst_tick_minus_logic_fold_id": "rw_009",
+      "worst_tick_minus_logic_net_pnl": -7.54
+    },
+    "status": "closed_with_candidate_evidence"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "midpoint_rotation_rejection_summary": "artifacts/c0082_r0001_mrr_summary.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0082_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0082_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "run_manifest": "run_manifest.json"
+  },
+  "gate_status": "closed_with_candidate_evidence",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday midpoint rotation rejection rank",
+    "variant_boundary": "C0082 R0001 tests whether a failed intraday midpoint cross followed by compression and escape-side close can rank target-first escape path quality. It is not an adjacent threshold, SL/TP, hold, session, activity, spread-only, capital, materialization, ONNX, or retry-only variant."
+  },
+  "mt5_probe_plan": {
+    "closeout_status": "closed_with_candidate_evidence",
+    "next_required_action": "design_c0082_r0002_cost_slippage_portability_hardening_after_r0001_candidate_evidence",
+    "paired_validation_required": true,
+    "proxy_is_reference_surface_only": true,
+    "weak_proxy_result_must_not_skip_mt5": true
+  },
+  "opened_at_utc": "2026-07-06T18:34:17Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "C0082 changes the primary lifecycle surface from C0081 failed directional acceleration absorption to intraday midpoint rotation rejection and escape. It is not a threshold, window, stop, target, hold, session, activity, spread, or capital nudge.",
+    "adjacent_tuning_risk": "low",
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0081_intraday_failed_acceleration_absorption_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0080_intraday_micro_pullback_failure_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0079_intraday_boundary_recoil_elasticity_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0078_intraday_auction_skew_inflection_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0077_intraday_impulse_digestion_asymmetry_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0068_intraday_failure_to_accept_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0062_intraday_microchannel_exhaustion_reversal_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0053_intraday_opening_range_retest_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0051_intraday_gap_continuity_decay_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "A new fold-local midpoint rotation rejection rank surface over day midpoint failed cross, compression, escape-side close, range balance, volume reengagement, and target-first escape path quality."
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "status": "closed_with_candidate_evidence",
+  "surfaces": {
+    "feature": {
+      "status": "variable",
+      "summary": "midpoint distance pressure; failed midpoint cross depth; rotation compression ratio; midpoint rejection wick; close escape strength; range balance skew; volume reengagement; prior-day midpoint context; session escape pressure; spread stress inverse"
+    },
+    "label": {
+      "status": "variable",
+      "summary": "target-first escape path quality conditioned on midpoint rotation rejection state"
+    },
+    "model": {
+      "status": "variable",
+      "summary": "fold-local linear intraday midpoint rotation rejection rank"
+    },
+    "trade_logic": {
+      "status": "variable",
+      "summary": "dual-direction top fold-local midpoint-rotation-rejection scores per active day using next-bar-open fixed-lot discovery entries"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0082"
+}
