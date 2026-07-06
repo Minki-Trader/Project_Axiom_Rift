@@ -2,19 +2,20 @@ schema: axiom_rift_decision_cursor_v1
 status: active
 encoding: ascii_only
 updated_local_date: '2026-07-06'
-canonical_source: campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis/runs/SR0001/gate_report.json
-canonical_status: closed_with_candidate_evidence
-current_decision: choose_c0049_new_major_hypothesis_after_sc0009_closeout
+canonical_source: campaigns/C0049_intraday_execution_path_resilience_discovery/runs/R0001/gate_report.json
+canonical_status: closed_no_candidate
+current_decision: choose_c0050_new_major_hypothesis_after_c0049_closeout
 active_campaign: null
 active_run: null
 active_synthesis: null
-next_required_action: choose_c0049_new_major_hypothesis_after_sc0009_closeout
+next_required_action: choose_c0050_new_major_hypothesis_after_c0049_closeout
 terminal_evidence_priority:
   enabled: true
   resolved_from:
-    synthesis_status: closed_with_candidate_evidence
-    campaign_status: c0048_closed_with_candidate_evidence
-    selected_status: candidate_evidence_retained_not_selected_closed
+    previous_synthesis_status: closed_with_candidate_evidence
+    previous_synthesis: campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis
+    active_campaign_status: open
+    active_run_status: open_pending_proxy
   authority_order:
   - run_gate_report_decision_or_status
   - run_manifest_status
@@ -26,50 +27,36 @@ terminal_evidence_priority:
   stale_pointer_rule: terminal_run_receipt_outranks_planning_pointer
   reentry_completed_log_role: history_only_not_decision_authority
 current_evidence_summary:
-  source_synthesis: campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis
-  current_task: choose_c0049_new_major_hypothesis_after_sc0009_closeout
+  source_campaign: campaigns/C0049_intraday_execution_path_resilience_discovery
   active_campaign: null
   active_synthesis: null
   active_run: null
-  active_run_status: closed_with_candidate_evidence
-  evidence_status: closed_with_candidate_evidence
-  source_campaigns:
-  - C0046
-  - C0047
-  - C0048
-  source_candidate_runs:
-  - C0046_R0001
-  - C0047_R0001
-  - C0048_R0002
-  source_negative_memory_runs:
-  - C0046_R0002
-  - C0047_R0002
-  - C0048_R0001
-  next_required_action: choose_c0049_new_major_hypothesis_after_sc0009_closeout
-  note: SC0009 SR0001 closed with candidate evidence retained but not selected; native
-    materialization, ONNX portability, all-fold tick-worse divergence, and repo lineage
-    debt block stronger claims.
-  source_campaign: null
-  hypothesis_family: fold_local_post_sc0008_range_energy_mixed_evidence_synthesis
-  label_surface: candidate_source_agreement_cost_survival_under_c0046_c0048_negative_memory
-  feature_surface: c0046_c0047_c0048_candidate_schedule_agreement_negative_memory_fold_loss_and_execution_divergence_context
-  trade_logic_surface: fixed_lot_pooled_candidate_schedule_reweighted_by_post_sc0008_mixed_evidence_context
-  entries_per_active_day: 7.965517
-  proxy_net_pnl_points: 17014.15
-  proxy_profit_factor: 1.543145
-  proxy_trade_count: 4620
-  mt5_logic_parity_trade_count_delta: 0
-  entry_key_match_rate: 1.0
-  exit_reason_match_rate: 1.0
-  mechanical_parity_status: passed
-  intent_parity_status: passed_schedule_replay_boundary
-  synthesis_id: SC0009
-  synthesis_status: closed_with_candidate_evidence
-  mt5_tick_net_pnl: 175.51
-  mt5_tick_profit_factor: 1.551069
-  profitable_fold_count: 9
-  losing_fold_count: 0
-  zero_trade_fold_count: 0
+  active_run_status: closed_no_candidate
+  evidence_status: closed_no_candidate
+  current_task: choose_c0050_new_major_hypothesis_after_c0049_closeout
+  previous_terminal_evidence: campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis/runs/SR0001/gate_report.json
+  previous_terminal_status: closed_with_candidate_evidence
+  source_lessons_used:
+  - sc0009_sr0001_candidate_evidence_retained_not_selected
+  - sc0009_all_folds_tick_worse_than_closed_bar_logic
+  - c0048_r0002_range_energy_absorption_reversal_candidate_evidence
+  - c0046_r0001_and_c0047_r0001_candidate_evidence
+  hypothesis_family: intraday_execution_path_resilience_discovery
+  label_surface: target_first_quality_with_stop_before_target_ambiguity_and_execution_fragility_penalties
+  feature_surface: closed_m5_favorable_before_adverse_path_wick_recovery_compression_spread_normalized_excursion_and_participation_stability
+  trade_logic_surface: fixed_lot_dual_direction_top_execution_path_resilience_candidates_per_active_day_with_mandatory_mt5_schedule_replay
+  next_required_action: choose_c0050_new_major_hypothesis_after_c0049_closeout
+  note: C0049 R0001 and C0049 closed no-candidate; execution-path resilience surface produced
+    target-band activity but negative proxy, MT5 tick, and all fold-isolated tick folds.
+  proxy_trade_count: 4398
+  proxy_net_pnl_points: -33549.0
+  proxy_profit_factor: 0.417259
+  entries_per_active_day: 7.582759
+  campaign_status: closed_no_candidate
+  mt5_tick_net_pnl: -322.07
+  mt5_tick_profit_factor: 0.437049
+  profitable_fold_count: 0
+  losing_fold_count: 9
 repo_debt_scope:
   global_repo_state_ok: false
   observed_error_count: 31
@@ -79,7 +66,7 @@ repo_debt_scope:
     status: observed_preexisting
     observed_error_count: 31
     affected_scope: historical_c0001_c0005_and_sc0001_sc0002_artifact_lineage
-    role: repo_state_debt_not_current_sc0009_sr0001_closeout
+    role: repo_state_debt_not_current_c0049_r0001_open
     current_decision_class: known_nonblocking_for_next_work_decision
     may_continue_current_decision: true
     blocks_selected_claim: true
@@ -99,7 +86,7 @@ repo_debt_scope:
     blocks_handoff: true
     blocks_reproducibility_claim: true
   note: repo_state_has_preexisting_nonblocking_artifact_lineage_debt_and_price_quality_warning;
-    current_sc0009_sr0001_open_makes_no_selection_promotion_handoff_or_reproducibility_claims
+    current_c0049_r0001_open_makes_no_selection_promotion_handoff_or_reproducibility_claims
 claim_boundary_snapshot:
   claim_authority: false
   selected: false
@@ -115,14 +102,12 @@ claim_boundary_snapshot:
   promotion_ready: false
   live_ready: false
 next_decision_basis:
-- path: campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis/runs/SR0001/gate_report.json
-  role: closed_synthesis_run_gate_report
-  summary: SC0009 SR0001 closed with candidate evidence retained but not selected.
-- path: campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis/runs/SR0001/kpi/mt5_tick_by_fold.json
+- path: campaigns/C0049_intraday_execution_path_resilience_discovery/runs/R0001/gate_report.json
+  role: closed_run_gate_report
+  summary: C0049 R0001 closed no-candidate with negative memory recorded.
+- path: campaigns/C0049_intraday_execution_path_resilience_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
   role: fold_isolated_mt5_tick_kpi
-  summary: Fold evidence completed with nine profitable folds, zero losing folds,
-    and zero zero-trade folds.
-- path: campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis/synthesis.yaml
-  role: closed_synthesis_manifest
-  summary: SC0009 is closed with candidate evidence; remaining work is a new major
-    C0049 hypothesis or later hardening axis.
+  summary: Fold evidence completed with zero profitable folds and nine losing folds.
+- path: campaigns/C0049_intraday_execution_path_resilience_discovery/campaign.yaml
+  role: closed_campaign_manifest
+  summary: C0049 closed no-candidate; next work is a new major C0050 hypothesis.

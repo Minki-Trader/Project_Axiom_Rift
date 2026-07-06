@@ -1,0 +1,173 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: closed_no_candidate
+campaign_id: C0049
+campaign_slug: intraday_execution_path_resilience_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-06T02:54:00Z'
+hypothesis:
+  summary: discover whether closed-bar intraday execution-path resilience can rank FPMarkets
+    US100 M5 entries that survive realistic tick execution without relying on prior candidate
+    schedule weights
+  boundary: closed M5 favorable-before-adverse path tendency, stop-before-target ambiguity
+    avoidance, wick-to-body recovery, range compression before trigger, spread-normalized
+    adverse excursion risk, session progress, day-range position, and tick-volume pressure
+    stability; not SC0009 mixed-evidence reranking, C0048 range-energy absorption, C0047 liquidity-void
+    reversion, C0046 flow-convexity release, C0045 regression-channel residual hardening,
+    threshold, stop, target, hold, session, activity, spread, capital, monthly filter, materialization,
+    ONNX, or retry-only work
+  not_in_scope:
+  - selected_claim
+  - runtime_authority
+  - live_readiness
+  - economics_pass
+  - materialization_ready
+  - onnx_ready
+  - final_sizing_rule
+  - equity_percent_sizing_rescue
+  - sc0009_weight_hardening
+  - c0048_range_energy_absorption_hardening
+  - c0047_liquidity_void_reversion_hardening
+  - c0046_flow_convexity_release_hardening
+  - threshold_or_score_filter_rescue
+required_surfaces:
+  model:
+    status: variable
+    summary: fold-local rank surface for execution-path resilience and ambiguity-avoidance
+      candidates
+  feature:
+    status: variable
+    summary: closed M5 favorable and adverse path, wick recovery, compression, spread-normalized
+      excursion, session progress, day-position, and participation-stability features
+  trade_logic:
+    status: variable
+    summary: fixed-lot dual-direction top execution-path resilience candidates per active
+      day with mandatory MT5 schedule replay evidence
+  label:
+    status: variable
+    summary: directional target-first quality with explicit penalties for stop-before-target
+      ambiguity, early adverse excursion, churn, and tick-execution fragility
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: null
+    direction: choose_c0050_new_major_hypothesis_after_c0049_closeout
+    reason: C0049 R0001 closed no-candidate after proxy, MT5 logic parity, MT5 tick, execution
+      divergence, and fold-isolated MT5 evidence. Further work inside C0049 would be adjacent
+      tuning.
+    status: campaign_closed_no_candidate
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: not_due_after_single_new_negative_memory_campaign_since_sc0009
+  usable_ingredient_group_count: 1
+  readiness_notes:
+  - C0049 contributes negative memory but does not create enough new mixed evidence for a
+    synthesis work unit.
+  - Next work is a new major campaign hypothesis, not C0049 threshold or stop/target tuning.
+closeout:
+  status: closed_no_candidate
+  close_reason: negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation
+  evidence_paths:
+  - artifact_lineage.json
+  - run_manifest.json
+  - artifacts/c0049_r0001_proxy_trades.csv
+  - artifacts/c0049_r0001_execution_path_resilience_summary.json
+  - kpi/proxy.json
+  - kpi/mt5_logic_parity.json
+  - kpi/proxy_vs_mt5_logic_parity.json
+  - kpi/mt5_tick.json
+  - kpi/execution_divergence.json
+  - artifacts/c0049_r0001_schedule.csv
+  - kpi/mt5_tick_by_fold.json
+  - kpi/execution_divergence_by_fold.json
+  remaining_question: choose_c0050_new_major_hypothesis_after_c0049_closeout
+  closed_at_utc: '2026-07-06T03:26:14Z'
+  decision_basis:
+    entries_per_active_day: 7.582759
+    proxy_net_pnl_points: -33549.0
+    proxy_profit_factor: 0.417259
+    proxy_expectancy_points_per_entry: -7.62824
+    proxy_trade_count: 4398
+    proxy_win_rate: 0.269213
+    long_trade_count_proxy: 2580
+    short_trade_count_proxy: 1818
+    mt5_logic_net_pnl: -365.67
+    mt5_logic_profit_factor: 0.397539
+    mt5_logic_trade_count: 4398
+    mechanical_parity_status: passed
+    intent_parity_status: passed_schedule_replay_boundary
+    mismatch_count: 0
+    entry_key_match_rate: 1.0
+    exit_reason_match_rate: 1.0
+    exit_time_direction_match_rate: 1.0
+    mt5_tick_net_pnl: -322.07
+    mt5_tick_profit_factor: 0.437049
+    mt5_tick_max_drawdown_percent: 64.628
+    mt5_tick_trade_count: 4392
+    mt5_tick_win_rate: 0.270719
+    mt5_tick_expectancy_per_entry: -0.073331
+    execution_divergence_status: recorded_with_divergence
+    economics_shift_status: tick_better_than_logic
+    tick_minus_logic_net_pnl: 43.6
+    tick_minus_logic_trade_count: -6
+    entry_count_delta: null
+    exit_count_delta: null
+    mt5_tick_by_fold_status: completed
+    fold_count: 9
+    completed_fold_count: 9
+    profitable_fold_count: 0
+    losing_fold_count: 9
+    missing_required_fold_count: 0
+    total_tick_net_pnl: -322.07
+    total_tick_trade_count: 4392
+    worst_fold_id: rw_009
+    worst_fold_net_pnl: -48.3
+    worst_fold_max_drawdown_percent: 9.852
+    worst_drawdown_fold_id: rw_009
+    execution_divergence_by_fold_status: completed
+    divergence_recorded_fold_count: 9
+    minimum_entry_key_match_rate: 0.995781
+    minimum_exit_reason_match_rate: 0.871102
+    minimum_exit_time_direction_match_rate: 0.885655
+    tick_better_fold_count: 9
+    tick_worse_fold_count: 0
+    total_tick_minus_logic_net_pnl: 43.6
+    total_tick_minus_logic_trade_count: -6
+    worst_tick_minus_logic_fold_id: rw_001
+    worst_tick_minus_logic_net_pnl: 0.5
+    remaining_work_classification: no_candidate; further C0049 work would be adjacent threshold,
+      stop, target, hold, session, activity, spread, capital, or execution-path feature nudge
+      tuning
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
+closed_at_utc: '2026-07-06T03:26:14Z'
