@@ -1,0 +1,192 @@
+{
+  "artifact_records": [
+    {
+      "artifact_id": "A-C0088-R0001-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0088_r0001_probe",
+      "repo_relative_path": "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+      "sha256": "55a254f058bd19131ed7e6a06daed872e1af7923e43bfb14a1c4b057241a541f",
+      "source_inputs": [
+        "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "registries/rolling_windows.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0088-R0001-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0088_r0001_probe",
+      "repo_relative_path": "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/execution_divergence.json",
+      "sha256": "a5aaf4da5109a80415e0e5ae6889808cc00f7b74a92b4960b5584a84863e0b0d",
+      "source_inputs": [
+        "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+        "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/mt5_tick.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0088-R0001-GATE-REPORT",
+      "artifact_role": "gate_report",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": null,
+      "mutable": true,
+      "produced_by": "axiom_rift.proxies.c0088_r0001_intraday_prior_close_magnet_rejection",
+      "repo_relative_path": "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/gate_report.json",
+      "sha256": "28d49cd11c9dfc9258d71b8e54f5d0690e92b66f0f1233c28ba7ae94e461a26e",
+      "source_inputs": [
+        "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/run_manifest.json",
+        "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0088-R0001-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0088_r0001_probe",
+      "repo_relative_path": "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+      "sha256": "9ec0ec48e26f3bf1ba3b801f9be8dee8c5b176a2516344a7c2d7071f1b05f422",
+      "source_inputs": [
+        "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/artifacts/c0088_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0088-R0001-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "mt5_logic_parity_input",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0088_r0001_probe",
+      "repo_relative_path": "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/artifacts/c0088_r0001_schedule.csv",
+      "sha256": "ae95a6c4ba4ca4d48202045901b06e9a9f468d2a4c58e388cadabd367960e47f",
+      "source_inputs": [
+        "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0088-R0001-MT5-TICK-BY-FOLD-KPI",
+      "artifact_role": "mt5_tick_by_fold_kpi",
+      "artifact_type": "mt5_tick_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0088_r0001_probe",
+      "repo_relative_path": "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+      "sha256": "97399aa0bb630facd1b32811cc72a2aedf1ac9a16813e7777e83496549518e8f",
+      "source_inputs": [
+        "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/artifacts/c0088_r0001_schedule.csv",
+        "registries/rolling_windows.yaml",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0088-R0001-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "mt5_tick",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0088_r0001_probe",
+      "repo_relative_path": "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/mt5_tick.json",
+      "sha256": "e167dde54f5ef4e7c1a2c1435524bf0b6811dd18783a0f04e2d39a496f0e1056",
+      "source_inputs": [
+        "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/artifacts/c0088_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0088-R0001-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0088_r0001_intraday_prior_close_magnet_rejection",
+      "repo_relative_path": "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/proxy.json",
+      "sha256": "e235bdc073bf38fc6fb0df55452268565b9e19c8758d81a74c41e7b2db491698",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0088-R0001-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0088_r0001_intraday_prior_close_magnet_rejection",
+      "repo_relative_path": "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/artifacts/c0088_r0001_proxy_trades.csv",
+      "sha256": "9484e01b84a46d4b5f7a402edd6809ecc97bc1d51121db2708e928fdabcc2326",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0088-R0001-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "proxy_vs_mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0088_r0001_probe",
+      "repo_relative_path": "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "025c68485a122cf0a20f8bf5c8aa34b76461007de91571ce5aafcc95c5ea499a",
+      "source_inputs": [
+        "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/proxy.json",
+        "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/mt5_logic_parity.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0088-R0001-RUN-MANIFEST",
+      "artifact_role": "run_manifest",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": null,
+      "mutable": true,
+      "produced_by": "axiom_rift.proxies.c0088_r0001_intraday_prior_close_magnet_rejection",
+      "repo_relative_path": "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/run_manifest.json",
+      "sha256": "01bdc715c9ab8902febaeb907215a746352d11434df21599dcd0dd1f407f77c4",
+      "source_inputs": [
+        "registries/decision_cursor.yaml",
+        "registries/claim_state.yaml",
+        "contracts/goal_operation_policy.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0088-R0001-prior-close-magnet-rejection-SUMMARY",
+      "artifact_role": "prior_close_magnet_rejection_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0088_r0001_intraday_prior_close_magnet_rejection",
+      "repo_relative_path": "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/artifacts/c0088_r0001_prior_close_magnet_rejection_summary.json",
+      "sha256": "bfc3a8263ff584b9e2121cecf90bfbffef88209de7bc52344ffeafd8cb7ffee6",
+      "source_inputs": [
+        "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    }
+  ],
+  "campaign_id": "C0088",
+  "deferred_with_reason": [],
+  "run_id": "R0001",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "status": "closed_no_candidate",
+  "template": false
+}
