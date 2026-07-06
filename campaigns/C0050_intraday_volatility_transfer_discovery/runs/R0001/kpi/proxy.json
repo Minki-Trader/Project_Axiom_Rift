@@ -1,0 +1,1246 @@
+{
+  "campaign_id": "C0050",
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "average_spread_cost_points": 1.056679,
+        "commission_per_trade": 0,
+        "round_trip_cost_model": "subtract_entry_spread_once",
+        "slippage_stress_test_allowed": true,
+        "spread_point_value": 0.01,
+        "spread_source": "entry_bar_spread_column",
+        "spread_stress_test_allowed": true,
+        "synthetic_commission_allowed": false,
+        "total_spread_cost_points": 4600.78
+      }
+    },
+    "direction_profile": {
+      "applies": true,
+      "fields": {
+        "long": {
+          "max_drawdown_points": 19968.6,
+          "net_pnl_points": -19837.29,
+          "profit_factor": 0.438189,
+          "trade_count": 2401,
+          "win_rate": 0.261558
+        },
+        "short": {
+          "max_drawdown_points": 21318.15,
+          "net_pnl_points": -21318.15,
+          "profit_factor": 0.393161,
+          "trade_count": 1953,
+          "win_rate": 0.226318
+        }
+      }
+    },
+    "stability_profile": {
+      "applies": true,
+      "fields": {
+        "fold_summary": [
+          {
+            "bucket": "rw_001",
+            "max_drawdown_points": 2285.91,
+            "net_pnl_points": -2285.91,
+            "profit_factor": 0.577073,
+            "trade_count": 486,
+            "win_rate": 0.316872
+          },
+          {
+            "bucket": "rw_002",
+            "max_drawdown_points": 2649.88,
+            "net_pnl_points": -2649.88,
+            "profit_factor": 0.53214,
+            "trade_count": 499,
+            "win_rate": 0.284569
+          },
+          {
+            "bucket": "rw_003",
+            "max_drawdown_points": 4698.5,
+            "net_pnl_points": -4496.17,
+            "profit_factor": 0.434359,
+            "trade_count": 490,
+            "win_rate": 0.255102
+          },
+          {
+            "bucket": "rw_004",
+            "max_drawdown_points": 5497.68,
+            "net_pnl_points": -5497.68,
+            "profit_factor": 0.307691,
+            "trade_count": 479,
+            "win_rate": 0.212944
+          },
+          {
+            "bucket": "rw_005",
+            "max_drawdown_points": 5485.03,
+            "net_pnl_points": -5485.03,
+            "profit_factor": 0.494004,
+            "trade_count": 475,
+            "win_rate": 0.244211
+          },
+          {
+            "bucket": "rw_006",
+            "max_drawdown_points": 4294.29,
+            "net_pnl_points": -4276.79,
+            "profit_factor": 0.379312,
+            "trade_count": 496,
+            "win_rate": 0.233871
+          },
+          {
+            "bucket": "rw_007",
+            "max_drawdown_points": 4305.13,
+            "net_pnl_points": -4305.13,
+            "profit_factor": 0.375163,
+            "trade_count": 492,
+            "win_rate": 0.22561
+          },
+          {
+            "bucket": "rw_008",
+            "max_drawdown_points": 5180.29,
+            "net_pnl_points": -5111.51,
+            "profit_factor": 0.378837,
+            "trade_count": 466,
+            "win_rate": 0.225322
+          },
+          {
+            "bucket": "rw_009",
+            "max_drawdown_points": 7143.5,
+            "net_pnl_points": -7047.34,
+            "profit_factor": 0.337111,
+            "trade_count": 471,
+            "win_rate": 0.210191
+          }
+        ],
+        "losing_month_count": 27,
+        "month_summary": [
+          {
+            "bucket": "2024-02",
+            "max_drawdown_points": 672.33,
+            "net_pnl_points": -661.46,
+            "profit_factor": 0.587803,
+            "trade_count": 163,
+            "win_rate": 0.319018
+          },
+          {
+            "bucket": "2024-03",
+            "max_drawdown_points": 980.9,
+            "net_pnl_points": -831.39,
+            "profit_factor": 0.52205,
+            "trade_count": 154,
+            "win_rate": 0.292208
+          },
+          {
+            "bucket": "2024-04",
+            "max_drawdown_points": 821.81,
+            "net_pnl_points": -793.06,
+            "profit_factor": 0.615163,
+            "trade_count": 169,
+            "win_rate": 0.337278
+          },
+          {
+            "bucket": "2024-05",
+            "max_drawdown_points": 753.36,
+            "net_pnl_points": -643.0,
+            "profit_factor": 0.578504,
+            "trade_count": 176,
+            "win_rate": 0.301136
+          },
+          {
+            "bucket": "2024-06",
+            "max_drawdown_points": 1111.62,
+            "net_pnl_points": -1049.07,
+            "profit_factor": 0.415837,
+            "trade_count": 149,
+            "win_rate": 0.228188
+          },
+          {
+            "bucket": "2024-07",
+            "max_drawdown_points": 1000.82,
+            "net_pnl_points": -957.81,
+            "profit_factor": 0.591109,
+            "trade_count": 174,
+            "win_rate": 0.316092
+          },
+          {
+            "bucket": "2024-08",
+            "max_drawdown_points": 1827.13,
+            "net_pnl_points": -1706.38,
+            "profit_factor": 0.480701,
+            "trade_count": 169,
+            "win_rate": 0.272189
+          },
+          {
+            "bucket": "2024-09",
+            "max_drawdown_points": 1335.55,
+            "net_pnl_points": -1335.55,
+            "profit_factor": 0.41433,
+            "trade_count": 154,
+            "win_rate": 0.24026
+          },
+          {
+            "bucket": "2024-10",
+            "max_drawdown_points": 1535.82,
+            "net_pnl_points": -1454.24,
+            "profit_factor": 0.389613,
+            "trade_count": 167,
+            "win_rate": 0.251497
+          },
+          {
+            "bucket": "2024-11",
+            "max_drawdown_points": 1358.41,
+            "net_pnl_points": -1358.41,
+            "profit_factor": 0.372608,
+            "trade_count": 156,
+            "win_rate": 0.24359
+          },
+          {
+            "bucket": "2024-12",
+            "max_drawdown_points": 1767.71,
+            "net_pnl_points": -1757.75,
+            "profit_factor": 0.298737,
+            "trade_count": 160,
+            "win_rate": 0.21875
+          },
+          {
+            "bucket": "2025-01",
+            "max_drawdown_points": 2381.52,
+            "net_pnl_points": -2381.52,
+            "profit_factor": 0.271564,
+            "trade_count": 163,
+            "win_rate": 0.177914
+          },
+          {
+            "bucket": "2025-02",
+            "max_drawdown_points": 1566.45,
+            "net_pnl_points": -1566.45,
+            "profit_factor": 0.406964,
+            "trade_count": 152,
+            "win_rate": 0.25
+          },
+          {
+            "bucket": "2025-03",
+            "max_drawdown_points": 1994.49,
+            "net_pnl_points": -1962.79,
+            "profit_factor": 0.451124,
+            "trade_count": 164,
+            "win_rate": 0.219512
+          },
+          {
+            "bucket": "2025-04",
+            "max_drawdown_points": 1955.79,
+            "net_pnl_points": -1955.79,
+            "profit_factor": 0.57691,
+            "trade_count": 159,
+            "win_rate": 0.264151
+          },
+          {
+            "bucket": "2025-05",
+            "max_drawdown_points": 1681.5,
+            "net_pnl_points": -1664.0,
+            "profit_factor": 0.401889,
+            "trade_count": 166,
+            "win_rate": 0.240964
+          },
+          {
+            "bucket": "2025-06",
+            "max_drawdown_points": 1555.2,
+            "net_pnl_points": -1555.2,
+            "profit_factor": 0.308822,
+            "trade_count": 155,
+            "win_rate": 0.187097
+          },
+          {
+            "bucket": "2025-07",
+            "max_drawdown_points": 1076.07,
+            "net_pnl_points": -1057.59,
+            "profit_factor": 0.430865,
+            "trade_count": 175,
+            "win_rate": 0.268571
+          },
+          {
+            "bucket": "2025-08",
+            "max_drawdown_points": 1293.41,
+            "net_pnl_points": -1283.86,
+            "profit_factor": 0.395233,
+            "trade_count": 156,
+            "win_rate": 0.25641
+          },
+          {
+            "bucket": "2025-09",
+            "max_drawdown_points": 1466.71,
+            "net_pnl_points": -1466.71,
+            "profit_factor": 0.309803,
+            "trade_count": 164,
+            "win_rate": 0.176829
+          },
+          {
+            "bucket": "2025-10",
+            "max_drawdown_points": 1554.56,
+            "net_pnl_points": -1554.56,
+            "profit_factor": 0.411608,
+            "trade_count": 172,
+            "win_rate": 0.244186
+          },
+          {
+            "bucket": "2025-11",
+            "max_drawdown_points": 1953.93,
+            "net_pnl_points": -1928.87,
+            "profit_factor": 0.393208,
+            "trade_count": 150,
+            "win_rate": 0.22
+          },
+          {
+            "bucket": "2025-12",
+            "max_drawdown_points": 1788.34,
+            "net_pnl_points": -1743.08,
+            "profit_factor": 0.304496,
+            "trade_count": 159,
+            "win_rate": 0.188679
+          },
+          {
+            "bucket": "2026-01",
+            "max_drawdown_points": 1582.08,
+            "net_pnl_points": -1439.56,
+            "profit_factor": 0.43412,
+            "trade_count": 157,
+            "win_rate": 0.267516
+          },
+          {
+            "bucket": "2026-02",
+            "max_drawdown_points": 2383.91,
+            "net_pnl_points": -2371.2,
+            "profit_factor": 0.313941,
+            "trade_count": 145,
+            "win_rate": 0.2
+          },
+          {
+            "bucket": "2026-03",
+            "max_drawdown_points": 2916.77,
+            "net_pnl_points": -2852.2,
+            "profit_factor": 0.33833,
+            "trade_count": 165,
+            "win_rate": 0.206061
+          },
+          {
+            "bucket": "2026-04",
+            "max_drawdown_points": 1920.1,
+            "net_pnl_points": -1823.94,
+            "profit_factor": 0.363236,
+            "trade_count": 161,
+            "win_rate": 0.223602
+          }
+        ],
+        "worst_month_pnl_points": -2852.2
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": true,
+      "fields": {
+        "average_capture_ratio": 0.181431,
+        "average_mae_points": 27.167754,
+        "average_mfe_points": 16.304472,
+        "median_mae_points": 22.5,
+        "median_mfe_points": 9.19
+      }
+    },
+    "volatility_transfer_profile": {
+      "applies": true,
+      "fields": {
+        "candidate_direction": "dual_direction_long_and_short_per_closed_bar",
+        "candidates_by_fold": {
+          "rw_001": {
+            "eligible_candidate_count": 22638,
+            "feature_count": 12,
+            "selected_candidate_count": 504,
+            "test_candidate_count": 22638,
+            "train_candidate_count": 139628
+          },
+          "rw_002": {
+            "eligible_candidate_count": 23624,
+            "feature_count": 12,
+            "selected_candidate_count": 528,
+            "test_candidate_count": 23624,
+            "train_candidate_count": 139278
+          },
+          "rw_003": {
+            "eligible_candidate_count": 23738,
+            "feature_count": 12,
+            "selected_candidate_count": 528,
+            "test_candidate_count": 23738,
+            "train_candidate_count": 138180
+          },
+          "rw_004": {
+            "eligible_candidate_count": 22858,
+            "feature_count": 12,
+            "selected_candidate_count": 512,
+            "test_candidate_count": 22858,
+            "train_candidate_count": 138828
+          },
+          "rw_005": {
+            "eligible_candidate_count": 22296,
+            "feature_count": 12,
+            "selected_candidate_count": 496,
+            "test_candidate_count": 22296,
+            "train_candidate_count": 140024
+          },
+          "rw_006": {
+            "eligible_candidate_count": 23670,
+            "feature_count": 12,
+            "selected_candidate_count": 528,
+            "test_candidate_count": 23670,
+            "train_candidate_count": 139214
+          },
+          "rw_007": {
+            "eligible_candidate_count": 23712,
+            "feature_count": 12,
+            "selected_candidate_count": 528,
+            "test_candidate_count": 23712,
+            "train_candidate_count": 137772
+          },
+          "rw_008": {
+            "eligible_candidate_count": 22372,
+            "feature_count": 12,
+            "selected_candidate_count": 504,
+            "test_candidate_count": 22372,
+            "train_candidate_count": 138824
+          },
+          "rw_009": {
+            "eligible_candidate_count": 22902,
+            "feature_count": 12,
+            "selected_candidate_count": 512,
+            "test_candidate_count": 22902,
+            "train_candidate_count": 139898
+          }
+        },
+        "entries_per_active_day": 7.506897,
+        "entry_count_per_active_day_target": "5_to_10",
+        "feature_count": 12,
+        "feature_names": [
+          "prior_session_range_atr",
+          "prior_session_directional_return_atr",
+          "current_session_opening_range_atr",
+          "current_session_opening_directional_impulse_atr",
+          "session_realized_volatility_transfer",
+          "range_compression_12_vs_48",
+          "directional_volatility_adjusted_momentum_12",
+          "directional_range_transfer_position",
+          "intraday_volatility_normalized_location",
+          "participation_transfer_rate",
+          "spread_volatility_stress",
+          "session_progress"
+        ],
+        "feature_set_selected": false,
+        "fold_models": [
+          {
+            "feature_mean": [
+              28.208385,
+              0.0,
+              3.072817,
+              0.0,
+              0.547977,
+              1.111049,
+              0.0,
+              0.5,
+              0.0,
+              0.518649,
+              -0.160533,
+              0.495957
+            ],
+            "feature_names": [
+              "prior_session_range_atr",
+              "prior_session_directional_return_atr",
+              "current_session_opening_range_atr",
+              "current_session_opening_directional_impulse_atr",
+              "session_realized_volatility_transfer",
+              "range_compression_12_vs_48",
+              "directional_volatility_adjusted_momentum_12",
+              "directional_range_transfer_position",
+              "intraday_volatility_normalized_location",
+              "participation_transfer_rate",
+              "spread_volatility_stress",
+              "session_progress"
+            ],
+            "feature_std": [
+              16.671444,
+              20.3114,
+              2.669586,
+              6.663853,
+              0.446137,
+              0.347831,
+              2.242609,
+              0.29856,
+              0.521459,
+              0.29515,
+              0.093827,
+              0.288112
+            ],
+            "feature_weight": [
+              -0.026205,
+              -0.007471,
+              -0.016147,
+              0.004543,
+              0.016722,
+              -0.032564,
+              0.004567,
+              0.005809,
+              0.000212,
+              0.026951,
+              0.036954,
+              0.015439
+            ],
+            "fold_id": "rw_001",
+            "global_mean": -0.784177,
+            "positive_label_rate": 0.434232,
+            "train_candidate_count": 139628,
+            "transfer_failure_rate": 0.492215
+          },
+          {
+            "feature_mean": [
+              29.33626,
+              0.0,
+              3.179503,
+              0.0,
+              0.542463,
+              1.118271,
+              0.0,
+              0.5,
+              0.0,
+              0.519523,
+              -0.180133,
+              0.495986
+            ],
+            "feature_names": [
+              "prior_session_range_atr",
+              "prior_session_directional_return_atr",
+              "current_session_opening_range_atr",
+              "current_session_opening_directional_impulse_atr",
+              "session_realized_volatility_transfer",
+              "range_compression_12_vs_48",
+              "directional_volatility_adjusted_momentum_12",
+              "directional_range_transfer_position",
+              "intraday_volatility_normalized_location",
+              "participation_transfer_rate",
+              "spread_volatility_stress",
+              "session_progress"
+            ],
+            "feature_std": [
+              18.183646,
+              21.555316,
+              2.703112,
+              6.758611,
+              0.449382,
+              0.348427,
+              2.264494,
+              0.299895,
+              0.526415,
+              0.285225,
+              0.105938,
+              0.288125
+            ],
+            "feature_weight": [
+              -0.028102,
+              -0.002827,
+              -0.018911,
+              0.011637,
+              0.019003,
+              -0.03169,
+              0.005257,
+              0.014609,
+              0.009055,
+              0.03029,
+              0.038971,
+              0.019738
+            ],
+            "fold_id": "rw_002",
+            "global_mean": -0.81049,
+            "positive_label_rate": 0.432918,
+            "train_candidate_count": 139278,
+            "transfer_failure_rate": 0.493416
+          },
+          {
+            "feature_mean": [
+              30.325387,
+              0.0,
+              3.285161,
+              0.0,
+              0.540982,
+              1.123446,
+              0.0,
+              0.5,
+              0.0,
+              0.508794,
+              -0.184792,
+              0.495915
+            ],
+            "feature_names": [
+              "prior_session_range_atr",
+              "prior_session_directional_return_atr",
+              "current_session_opening_range_atr",
+              "current_session_opening_directional_impulse_atr",
+              "session_realized_volatility_transfer",
+              "range_compression_12_vs_48",
+              "directional_volatility_adjusted_momentum_12",
+              "directional_range_transfer_position",
+              "intraday_volatility_normalized_location",
+              "participation_transfer_rate",
+              "spread_volatility_stress",
+              "session_progress"
+            ],
+            "feature_std": [
+              19.179598,
+              22.348851,
+              2.794331,
+              6.87896,
+              0.461059,
+              0.348835,
+              2.272825,
+              0.2999,
+              0.529037,
+              0.29091,
+              0.11169,
+              0.28809
+            ],
+            "feature_weight": [
+              -0.028173,
+              -0.002098,
+              -0.019964,
+              0.015302,
+              0.019672,
+              -0.030881,
+              0.016071,
+              0.018228,
+              0.011467,
+              0.030815,
+              0.039328,
+              0.021937
+            ],
+            "fold_id": "rw_003",
+            "global_mean": -0.818084,
+            "positive_label_rate": 0.432718,
+            "train_candidate_count": 138180,
+            "transfer_failure_rate": 0.49382
+          },
+          {
+            "feature_mean": [
+              30.677074,
+              0.0,
+              3.37625,
+              0.0,
+              0.54813,
+              1.124638,
+              0.0,
+              0.5,
+              0.0,
+              0.505631,
+              -0.184551,
+              0.495943
+            ],
+            "feature_names": [
+              "prior_session_range_atr",
+              "prior_session_directional_return_atr",
+              "current_session_opening_range_atr",
+              "current_session_opening_directional_impulse_atr",
+              "session_realized_volatility_transfer",
+              "range_compression_12_vs_48",
+              "directional_volatility_adjusted_momentum_12",
+              "directional_range_transfer_position",
+              "intraday_volatility_normalized_location",
+              "participation_transfer_rate",
+              "spread_volatility_stress",
+              "session_progress"
+            ],
+            "feature_std": [
+              19.527981,
+              22.683621,
+              2.709279,
+              6.937637,
+              0.502981,
+              0.351153,
+              2.272824,
+              0.300103,
+              0.530813,
+              0.304817,
+              0.115106,
+              0.288073
+            ],
+            "feature_weight": [
+              -0.028311,
+              0.003769,
+              -0.021469,
+              0.011802,
+              0.018316,
+              -0.032135,
+              0.014194,
+              0.015612,
+              0.007906,
+              0.029876,
+              0.039165,
+              0.021684
+            ],
+            "fold_id": "rw_004",
+            "global_mean": -0.817369,
+            "positive_label_rate": 0.432514,
+            "train_candidate_count": 138828,
+            "transfer_failure_rate": 0.49351
+          },
+          {
+            "feature_mean": [
+              30.163974,
+              0.0,
+              3.41709,
+              0.0,
+              0.557482,
+              1.120709,
+              0.0,
+              0.5,
+              0.0,
+              0.512256,
+              -0.170695,
+              0.496238
+            ],
+            "feature_names": [
+              "prior_session_range_atr",
+              "prior_session_directional_return_atr",
+              "current_session_opening_range_atr",
+              "current_session_opening_directional_impulse_atr",
+              "session_realized_volatility_transfer",
+              "range_compression_12_vs_48",
+              "directional_volatility_adjusted_momentum_12",
+              "directional_range_transfer_position",
+              "intraday_volatility_normalized_location",
+              "participation_transfer_rate",
+              "spread_volatility_stress",
+              "session_progress"
+            ],
+            "feature_std": [
+              19.145795,
+              22.546608,
+              2.689434,
+              7.086584,
+              0.502116,
+              0.3523,
+              2.274728,
+              0.301674,
+              0.533134,
+              0.293255,
+              0.113483,
+              0.28814
+            ],
+            "feature_weight": [
+              -0.026196,
+              -0.002361,
+              -0.020393,
+              0.01466,
+              0.016727,
+              -0.032333,
+              0.015549,
+              0.0148,
+              0.010305,
+              0.028946,
+              0.038132,
+              0.017731
+            ],
+            "fold_id": "rw_005",
+            "global_mean": -0.801208,
+            "positive_label_rate": 0.43294,
+            "train_candidate_count": 140024,
+            "transfer_failure_rate": 0.491716
+          },
+          {
+            "feature_mean": [
+              30.190431,
+              0.0,
+              3.483038,
+              0.0,
+              0.567549,
+              1.118978,
+              0.0,
+              0.5,
+              0.0,
+              0.531403,
+              -0.155521,
+              0.496005
+            ],
+            "feature_names": [
+              "prior_session_range_atr",
+              "prior_session_directional_return_atr",
+              "current_session_opening_range_atr",
+              "current_session_opening_directional_impulse_atr",
+              "session_realized_volatility_transfer",
+              "range_compression_12_vs_48",
+              "directional_volatility_adjusted_momentum_12",
+              "directional_range_transfer_position",
+              "intraday_volatility_normalized_location",
+              "participation_transfer_rate",
+              "spread_volatility_stress",
+              "session_progress"
+            ],
+            "feature_std": [
+              19.383324,
+              22.476037,
+              2.540686,
+              7.140337,
+              0.510719,
+              0.35105,
+              2.280936,
+              0.303127,
+              0.529103,
+              0.288818,
+              0.108235,
+              0.288092
+            ],
+            "feature_weight": [
+              -0.02637,
+              -0.00644,
+              -0.02145,
+              0.02143,
+              0.01704,
+              -0.032004,
+              0.020478,
+              0.017195,
+              0.013968,
+              0.029382,
+              0.036795,
+              0.016465
+            ],
+            "fold_id": "rw_006",
+            "global_mean": -0.786133,
+            "positive_label_rate": 0.433556,
+            "train_candidate_count": 139214,
+            "transfer_failure_rate": 0.490841
+          },
+          {
+            "feature_mean": [
+              30.424646,
+              0.0,
+              3.735273,
+              0.0,
+              0.570466,
+              1.118022,
+              0.0,
+              0.5,
+              0.0,
+              0.542611,
+              -0.142633,
+              0.495996
+            ],
+            "feature_names": [
+              "prior_session_range_atr",
+              "prior_session_directional_return_atr",
+              "current_session_opening_range_atr",
+              "current_session_opening_directional_impulse_atr",
+              "session_realized_volatility_transfer",
+              "range_compression_12_vs_48",
+              "directional_volatility_adjusted_momentum_12",
+              "directional_range_transfer_position",
+              "intraday_volatility_normalized_location",
+              "participation_transfer_rate",
+              "spread_volatility_stress",
+              "session_progress"
+            ],
+            "feature_std": [
+              19.383941,
+              22.506249,
+              2.703695,
+              7.313667,
+              0.512248,
+              0.348696,
+              2.278786,
+              0.301348,
+              0.527611,
+              0.286572,
+              0.108642,
+              0.288086
+            ],
+            "feature_weight": [
+              -0.02534,
+              -0.002553,
+              -0.019704,
+              0.022653,
+              0.015681,
+              -0.030603,
+              0.019208,
+              0.015485,
+              0.016339,
+              0.027914,
+              0.036186,
+              0.014193
+            ],
+            "fold_id": "rw_007",
+            "global_mean": -0.773069,
+            "positive_label_rate": 0.43482,
+            "train_candidate_count": 137772,
+            "transfer_failure_rate": 0.489526
+          },
+          {
+            "feature_mean": [
+              29.073556,
+              0.0,
+              3.940865,
+              0.0,
+              0.594718,
+              1.107785,
+              0.0,
+              0.5,
+              0.0,
+              0.556726,
+              -0.12478,
+              0.495912
+            ],
+            "feature_names": [
+              "prior_session_range_atr",
+              "prior_session_directional_return_atr",
+              "current_session_opening_range_atr",
+              "current_session_opening_directional_impulse_atr",
+              "session_realized_volatility_transfer",
+              "range_compression_12_vs_48",
+              "directional_volatility_adjusted_momentum_12",
+              "directional_range_transfer_position",
+              "intraday_volatility_normalized_location",
+              "participation_transfer_rate",
+              "spread_volatility_stress",
+              "session_progress"
+            ],
+            "feature_std": [
+              17.840151,
+              20.963386,
+              3.084171,
+              7.600054,
+              0.51504,
+              0.345726,
+              2.253695,
+              0.301369,
+              0.530515,
+              0.278581,
+              0.08977,
+              0.288043
+            ],
+            "feature_weight": [
+              -0.022328,
+              0.000916,
+              -0.014571,
+              0.01458,
+              0.013463,
+              -0.030019,
+              0.016354,
+              0.010192,
+              0.008598,
+              0.025398,
+              0.032056,
+              0.010194
+            ],
+            "fold_id": "rw_008",
+            "global_mean": -0.74647,
+            "positive_label_rate": 0.4362,
+            "train_candidate_count": 138824,
+            "transfer_failure_rate": 0.488122
+          },
+          {
+            "feature_mean": [
+              28.539884,
+              0.0,
+              3.934253,
+              0.0,
+              0.59399,
+              1.10317,
+              0.0,
+              0.5,
+              0.0,
+              0.576159,
+              -0.121402,
+              0.495911
+            ],
+            "feature_names": [
+              "prior_session_range_atr",
+              "prior_session_directional_return_atr",
+              "current_session_opening_range_atr",
+              "current_session_opening_directional_impulse_atr",
+              "session_realized_volatility_transfer",
+              "range_compression_12_vs_48",
+              "directional_volatility_adjusted_momentum_12",
+              "directional_range_transfer_position",
+              "intraday_volatility_normalized_location",
+              "participation_transfer_rate",
+              "spread_volatility_stress",
+              "session_progress"
+            ],
+            "feature_std": [
+              16.79176,
+              20.369131,
+              3.009659,
+              7.63334,
+              0.4986,
+              0.34632,
+              2.243694,
+              0.303839,
+              0.531006,
+              0.269292,
+              0.080116,
+              0.288052
+            ],
+            "feature_weight": [
+              -0.020832,
+              0.006607,
+              -0.013973,
+              0.017523,
+              0.012579,
+              -0.030901,
+              0.01248,
+              0.014864,
+              0.013956,
+              0.022999,
+              0.031086,
+              0.008125
+            ],
+            "fold_id": "rw_009",
+            "global_mean": -0.740853,
+            "positive_label_rate": 0.436111,
+            "train_candidate_count": 139898,
+            "transfer_failure_rate": 0.487484
+          }
+        ],
+        "label_horizon_bars": 10,
+        "label_selected": false,
+        "label_shape": "target_first_quality_conditioned_on_volatility_transfer_state",
+        "max_entries_per_active_day": 8,
+        "model_family": "fold_local_intraday_volatility_transfer_rank",
+        "model_selected": false,
+        "selection_rule": "top_fold_local_volatility_transfer_scores_per_active_day",
+        "state_distributions": {
+          "rw_001": {
+            "candidate_count": 22638,
+            "eligible_candidate_count": 22638,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.181452,
+            "score_p50": -0.012488,
+            "score_p90": 0.17022,
+            "selected_count": 504,
+            "selected_score_max": 0.546374,
+            "selected_score_min": -0.055489,
+            "train_candidate_count": 139628
+          },
+          "rw_002": {
+            "candidate_count": 23624,
+            "eligible_candidate_count": 23624,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.18732,
+            "score_p50": -0.010016,
+            "score_p90": 0.188074,
+            "selected_count": 528,
+            "selected_score_max": 0.811921,
+            "selected_score_min": -0.110901,
+            "train_candidate_count": 139278
+          },
+          "rw_003": {
+            "candidate_count": 23738,
+            "eligible_candidate_count": 23738,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.088529,
+            "score_p50": 0.033059,
+            "score_p90": 0.199542,
+            "selected_count": 528,
+            "selected_score_max": 0.635653,
+            "selected_score_min": 0.036822,
+            "train_candidate_count": 138180
+          },
+          "rw_004": {
+            "candidate_count": 22858,
+            "eligible_candidate_count": 22858,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.124957,
+            "score_p50": 0.019743,
+            "score_p90": 0.198542,
+            "selected_count": 512,
+            "selected_score_max": 0.4885,
+            "selected_score_min": -0.053184,
+            "train_candidate_count": 138828
+          },
+          "rw_005": {
+            "candidate_count": 22296,
+            "eligible_candidate_count": 22296,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.093497,
+            "score_p50": 0.027955,
+            "score_p90": 0.169838,
+            "selected_count": 496,
+            "selected_score_max": 0.435186,
+            "selected_score_min": 0.017417,
+            "train_candidate_count": 140024
+          },
+          "rw_006": {
+            "candidate_count": 23670,
+            "eligible_candidate_count": 23670,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.125687,
+            "score_p50": 0.02257,
+            "score_p90": 0.181265,
+            "selected_count": 528,
+            "selected_score_max": 0.417539,
+            "selected_score_min": 0.017482,
+            "train_candidate_count": 139214
+          },
+          "rw_007": {
+            "candidate_count": 23712,
+            "eligible_candidate_count": 23712,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.134191,
+            "score_p50": 0.009148,
+            "score_p90": 0.16318,
+            "selected_count": 528,
+            "selected_score_max": 0.507952,
+            "selected_score_min": 0.03506,
+            "train_candidate_count": 137772
+          },
+          "rw_008": {
+            "candidate_count": 22372,
+            "eligible_candidate_count": 22372,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.053741,
+            "score_p50": 0.044299,
+            "score_p90": 0.161467,
+            "selected_count": 504,
+            "selected_score_max": 0.37757,
+            "selected_score_min": 0.004996,
+            "train_candidate_count": 138824
+          },
+          "rw_009": {
+            "candidate_count": 22902,
+            "eligible_candidate_count": 22902,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.050135,
+            "score_p50": 0.052517,
+            "score_p90": 0.172286,
+            "selected_count": 512,
+            "selected_score_max": 0.597756,
+            "selected_score_min": 0.003585,
+            "train_candidate_count": 139898
+          }
+        }
+      }
+    }
+  },
+  "created_at_utc": "2026-07-06T03:49:39Z",
+  "dataset_identity": "data/processed/datasets/us100_m5_base_frame.csv",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "produce C0050 R0001 MT5 paired validation evidence",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "mt5_paired_validation",
+      "reason": "proxy evidence is recorded as a reference surface; MT5 logic parity, tick execution, divergence, and fold-isolated evidence remain mandatory",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "produce_c0050_r0001_mt5_logic_parity_evidence"
+    },
+    {
+      "blocking_condition": "proxy.json content must be stable before hashing",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_artifact_hashes",
+      "reason": "self-hash is recorded in artifact_lineage after proxy.json is written",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "before C0050 R0001 closeout"
+    }
+  ],
+  "fold_ids": [
+    "rw_001",
+    "rw_002",
+    "rw_003",
+    "rw_004",
+    "rw_005",
+    "rw_006",
+    "rw_007",
+    "rw_008",
+    "rw_009",
+    "tail"
+  ],
+  "proxy_artifact_hashes": [
+    "f7d2c0fde07d2ac98ac3288c0951ac9c1825d7197b4170d809f96c364d94c6e8",
+    "5b9cbe0ddff0e8c40140d49f314e188cace3d93acf5a023a9f6b5178d66fd913"
+  ],
+  "proxy_artifact_paths": [
+    "campaigns/C0050_intraday_volatility_transfer_discovery/runs/R0001/kpi/proxy.json",
+    "campaigns/C0050_intraday_volatility_transfer_discovery/runs/R0001/artifacts/c0050_r0001_proxy_trades.csv",
+    "campaigns/C0050_intraday_volatility_transfer_discovery/runs/R0001/artifacts/c0050_r0001_volatility_transfer_summary.json"
+  ],
+  "proxy_code_version_or_commit": "uncommitted_local_worktree_at_proxy_creation",
+  "proxy_config": {
+    "bar_basis": "closed_m5",
+    "candidate_direction": "dual_direction_long_and_short_per_closed_bar",
+    "entry_basis": "next_bar_open_after_scored_closed_bar",
+    "equity_percent_sizing": "deferred_until_candidate_quality",
+    "evaluation_splits": "rolling_windows_test_oos",
+    "gap_blocked_exit_policy": "skip_when_exit_bar_next_tick_gap_exceeds_5_minutes",
+    "gap_carried_entry_policy": "skip_when_next_bar_gap_exceeds_5_minutes",
+    "label_horizon_bars": 10,
+    "label_shape": "target_first_quality_conditioned_on_volatility_transfer_state",
+    "lookback_range_bars": 48,
+    "max_entries_per_active_day": 8,
+    "max_hold_bars": 10,
+    "min_signal_spacing_bars": 6,
+    "model_family": "fold_local_intraday_volatility_transfer_rank",
+    "price_precision_digits": 2,
+    "same_bar_stop_target_policy": "stop_first_conservative",
+    "short_range_bars": 12,
+    "sizing_mode": "fixed_lot_discovery",
+    "stop_range_multiple": 0.8,
+    "target_range_multiple": 1.1,
+    "training_splits": "rolling_windows_train_is"
+  },
+  "proxy_config_path": "campaigns/C0050_intraday_volatility_transfer_discovery/runs/R0001/run_manifest.json",
+  "proxy_engine": "axiom_rift.proxies.c0050_r0001_intraday_volatility_transfer",
+  "proxy_id": "PX-C0050-R0001",
+  "proxy_summary": {
+    "active_day_count": 580,
+    "average_bars_in_trade": 2.938218,
+    "entries_per_active_day": 7.506897,
+    "entry_target_max": 10,
+    "entry_target_min": 5,
+    "evaluation_surface": "rolling_window_test_oos_only",
+    "gross_loss_points": -70439.36,
+    "gross_profit_points": 29283.92,
+    "long_trade_count": 2401,
+    "max_hold_exit_count": 165,
+    "net_pnl_points": -41155.44,
+    "short_trade_count": 1953,
+    "signal_count": 4354,
+    "stop_exit_count": 3223,
+    "target_exit_count": 966,
+    "trade_count": 4354
+  },
+  "required_kpis": {
+    "proxy_expectancy_per_entry": null,
+    "proxy_expectancy_points_per_entry": -9.452329,
+    "proxy_max_drawdown_percent": null,
+    "proxy_max_drawdown_points": 41251.6,
+    "proxy_net_pnl": null,
+    "proxy_net_pnl_points": -41155.44,
+    "proxy_profit_factor": 0.415732,
+    "proxy_signal_count": 4354,
+    "proxy_trade_count": 4354,
+    "proxy_win_rate": 0.245751
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "schema": "axiom_rift_proxy_kpi_v1",
+  "split_policy": "rolling_window_test_oos_only_with_train_is_volatility_transfer_fit",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0050"
+}
