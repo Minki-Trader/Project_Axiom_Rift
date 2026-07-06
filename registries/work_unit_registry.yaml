@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0063
+    next_id: C0065
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -82,6 +82,7 @@ streams:
     - campaigns/C0061_intraday_adverse_excursion_recovery_discovery
     - campaigns/C0062_intraday_microchannel_exhaustion_reversal_discovery
     - campaigns/C0063_intraday_auction_imbalance_decay_discovery
+    - campaigns/C0064_intraday_polarity_flip_persistence_discovery
     numbering_policy:
       width: 4
       example: C0001
@@ -117,15 +118,15 @@ rules:
   external_refs_are_not_active_truth: true
 claim_boundary:
   claim_authority: false
-  economics_pass: false
-  feature_set_selected: false
+  selected: false
   label_selected: false
-  live_ready: false
-  materialization_ready: false
+  feature_set_selected: false
   model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
   onnx_ready: false
   promotion_ready: false
-  runtime_authority: false
-  runtime_probe_completed: false
-  selected: false
-  trade_logic_selected: false
+  live_ready: false
