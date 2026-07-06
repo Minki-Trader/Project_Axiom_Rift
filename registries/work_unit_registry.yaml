@@ -16,9 +16,8 @@ streams:
     id_prefix: C
     role: major_hypothesis_discovery
     next_id: C0083
-    active_work_unit: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery
-    open_work_units:
-    - campaigns/C0082_intraday_midpoint_rotation_rejection_discovery
+    active_work_unit: null
+    open_work_units: []
     closed_work_units:
     - campaigns/C0001_regime_response_discovery
     - campaigns/C0002_score_conditioned_intraday_edge
@@ -101,6 +100,7 @@ streams:
     - campaigns/C0079_intraday_boundary_recoil_elasticity_discovery
     - campaigns/C0080_intraday_micro_pullback_failure_discovery
     - campaigns/C0081_intraday_failed_acceleration_absorption_discovery
+    - campaigns/C0082_intraday_midpoint_rotation_rejection_discovery
     numbering_policy:
       width: 4
       example: C0001

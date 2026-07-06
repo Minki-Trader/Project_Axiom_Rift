@@ -2,19 +2,19 @@ schema: axiom_rift_decision_cursor_v1
 status: active
 encoding: ascii_only
 updated_local_date: '2026-07-07'
-canonical_source: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery/runs/R0001/gate_report.json
+canonical_source: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery/runs/R0002/gate_report.json
 canonical_status: closed_with_candidate_evidence
-current_decision: design_c0082_r0002_cost_slippage_portability_hardening_after_r0001_candidate_evidence
-active_campaign: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery
+current_decision: choose_c0083_new_major_hypothesis_after_c0082_closeout
+active_campaign: null
 active_run: null
 active_synthesis: null
-next_required_action: design_c0082_r0002_cost_slippage_portability_hardening_after_r0001_candidate_evidence
+next_required_action: choose_c0083_new_major_hypothesis_after_c0082_closeout
 terminal_evidence_priority:
   enabled: true
   resolved_from:
     active_campaign: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery
-    active_campaign_status: active_candidate_evidence_retained
-    active_run: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery/runs/R0001
+    active_campaign_status: closed_with_candidate_evidence
+    active_run: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery/runs/R0002
     active_run_status: closed_with_candidate_evidence
     previous_campaign: campaigns/C0081_intraday_failed_acceleration_absorption_discovery
     previous_campaign_status: closed_no_candidate
@@ -30,24 +30,23 @@ terminal_evidence_priority:
   reentry_completed_log_role: history_only_not_decision_authority
 current_evidence_summary:
   source_campaign: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery
-  active_campaign: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery
+  active_campaign: null
   active_synthesis: null
   active_run: null
   active_run_status: closed_with_candidate_evidence
-  campaign_status: active_candidate_evidence_retained
+  campaign_status: closed_with_candidate_evidence
   evidence_status: closed_with_candidate_evidence
-  current_task: design_c0082_r0002_cost_slippage_portability_hardening_after_r0001_candidate_evidence
-  entries_per_active_day: 6.315315
-  proxy_net_pnl_points: 2738.46
-  proxy_profit_factor: 1.097229
-  proxy_trade_count: 3505
-  mt5_tick_net_pnl: 36.72
-  mt5_tick_profit_factor: 1.129524
+  current_task: choose_c0083_new_major_hypothesis_after_c0082_closeout
+  entries_per_active_day: 6.308108
+  proxy_net_pnl_points: 4053.45
+  proxy_profit_factor: 1.146648
+  proxy_trade_count: 3501
+  mt5_tick_net_pnl: 50.73
+  mt5_tick_profit_factor: 1.182765
   profitable_fold_count: 6
   losing_fold_count: 3
-  next_required_action: design_c0082_r0002_cost_slippage_portability_hardening_after_r0001_candidate_evidence
-  note: C0082 R0001 retained candidate evidence but is not selected; C0082 remains active
-    for R0002 hardening.
+  next_required_action: choose_c0083_new_major_hypothesis_after_c0082_closeout
+  note: C0082 closed with retained candidate evidence, not selected or promoted.
 repo_debt_scope:
   global_repo_state_ok: false
   observed_error_count: 31
@@ -93,12 +92,12 @@ claim_boundary_snapshot:
   promotion_ready: false
   live_ready: false
 next_decision_basis:
-- path: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery/runs/R0001/gate_report.json
+- path: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery/runs/R0002/gate_report.json
   role: closed_run_gate_report
-  summary: C0082 R0001 closed with candidate evidence retained, not selected.
-- path: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+  summary: C0082 R0002 closed with candidate evidence retained, not selected.
+- path: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery/runs/R0002/kpi/mt5_tick_by_fold.json
   role: fold_isolated_mt5_tick_kpi
-  summary: Fold-isolated tick evidence completed with 6 profitable and 3 losing folds.
+  summary: Fold-isolated MT5 tick evidence completed with 6 profitable and 3 losing folds.
 - path: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery/campaign.yaml
-  role: active_campaign_manifest
-  summary: C0082 remains active for R0002 hardening rather than selected or runtime claims.
+  role: closed_campaign_manifest
+  summary: C0082 closed with candidate evidence; next work is a new major C0083 hypothesis.

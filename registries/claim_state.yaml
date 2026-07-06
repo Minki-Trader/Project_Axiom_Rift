@@ -79,7 +79,7 @@ data_state:
     tail_holdout_partial_start: 2026-05-01 01:00:00
     tail_holdout_partial_end: 2026-06-26 23:50:00
     split_boundaries_frozen: false
-claim_boundary: &id001
+claim_boundary:
   claim_authority: false
   selected: false
   label_selected: false
@@ -98,28 +98,41 @@ research_mode:
   feature_policy: autonomous_discovery_until_frozen
   imported_fpmarkets_v2_label_contract_role: archived_reference_not_selection
   imported_fpmarkets_v2_feature_contract_role: archived_reference_not_selection
-active_campaign: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery
+active_campaign: null
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0082_r0001_with_candidate_evidence
+  id: close_c0082_r0002_with_candidate_evidence
   status: completed
-  recorded_at_source: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery/runs/R0001/gate_report.json
+  recorded_at_source: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery/runs/R0002/gate_report.json
   evidence_status: closed_with_candidate_evidence
-  active_campaign: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery
+  active_campaign: null
   active_synthesis: null
   active_run: null
   negative_memory_recorded: false
   candidate_evidence_retained: true
-  entries_per_active_day: 6.315315
-  proxy_net_pnl_points: 2738.46
-  proxy_profit_factor: 1.097229
-  mt5_tick_net_pnl: 36.72
-  mt5_tick_profit_factor: 1.129524
+  entries_per_active_day: 6.308108
+  proxy_net_pnl_points: 4053.45
+  proxy_profit_factor: 1.146648
+  mt5_tick_net_pnl: 50.73
+  mt5_tick_profit_factor: 1.182765
   profitable_fold_count: 6
   losing_fold_count: 3
-  next_required_action: design_c0082_r0002_cost_slippage_portability_hardening_after_r0001_candidate_evidence
-  claim_boundary: *id001
+  next_required_action: choose_c0083_new_major_hypothesis_after_c0082_closeout
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
 active_truth:
   contracts_dir: contracts
   configs_dir: configs
