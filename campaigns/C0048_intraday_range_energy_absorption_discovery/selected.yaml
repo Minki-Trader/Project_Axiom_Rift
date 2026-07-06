@@ -1,8 +1,9 @@
 schema: axiom_rift_selected_v1
 template: false
-status: not_selected_run_closed_no_candidate_campaign_open
+status: not_selected_run_closed_with_candidate_evidence_campaign_open
 selected: false
-selected_reason: C0048 R0001 closed no-candidate after required proxy, MT5 logic parity, MT5 tick, fold-isolated tick, and fold-isolated execution divergence evidence; C0048 remains open only for an R0002-or-close decision.
+selected_reason: C0048 R0002 closed with candidate evidence, but no selected, economics, runtime,
+  materialization, ONNX, promotion, or live-readiness claim is made.
 surfaces:
   label_selected: false
   feature_set_selected: false
@@ -30,12 +31,16 @@ claim_boundary:
   runtime_probe_completed: false
   selected: false
   trade_logic_selected: false
-next_required_action: decide_c0048_r0002_or_close_c0048_after_r0001
+next_required_action: decide_c0048_r0003_or_close_c0048_after_r0002
 campaign_open:
-  status: active_pending_r0002_or_close_decision
+  status: active_pending_r0003_or_close_decision
   first_run: runs/R0001
   first_run_status: closed_no_candidate
-  reason: R0001 is negative memory; no selected, economics, runtime, materialization, ONNX, promotion, or live-readiness claims are made.
+  latest_run: runs/R0002
+  latest_run_status: closed_with_candidate_evidence
+  reason: R0002 is retained candidate evidence only; stronger claims remain blocked by unresolved
+    materialization, ONNX portability, adverse cost/slippage stress, final sizing, and repo
+    lineage debt.
 negative_memory:
   latest_run: runs/R0001
   status: closed_no_candidate
@@ -48,4 +53,64 @@ negative_memory:
   mt5_tick_profit_factor: 0.671408
   profitable_fold_count: 0
   losing_fold_count: 9
-  reason_not_candidate: target-band activity but negative proxy, MT5 logic, aggregate MT5 tick, and nine losing fold-isolated MT5 tick folds
+  reason_not_candidate: target-band activity but negative proxy, MT5 logic, aggregate MT5
+    tick, and nine losing fold-isolated MT5 tick folds
+candidate_evidence:
+  latest_run: runs/R0002
+  status: recorded_not_selected
+  evidence_path: runs/R0002/gate_report.json
+  basis: rolling_window_fold_isolated_mt5_tick_and_execution_divergence
+  entries_per_active_day: 7.848276
+  proxy_trade_count: 4552
+  proxy_net_pnl_points: 20230.98
+  proxy_profit_factor: 1.654609
+  proxy_expectancy_points_per_entry: 4.444416
+  proxy_win_rate: 0.563928
+  proxy_max_drawdown_points: 895.85
+  long_trade_count_proxy: 1828
+  short_trade_count_proxy: 2724
+  mechanical_parity_status: passed
+  intent_parity_status: passed_schedule_replay_boundary
+  mismatch_count: 0
+  entry_key_match_rate: 1.0
+  exit_reason_match_rate: 1.0
+  exit_time_direction_match_rate: 1.0
+  mt5_logic_trade_count: 4552
+  mt5_logic_net_pnl: 286.18
+  mt5_logic_profit_factor: 2.078053
+  mt5_tick_trade_count: 4548
+  mt5_tick_net_pnl: 199.07
+  mt5_tick_profit_factor: 1.628001
+  mt5_tick_win_rate: 0.536939
+  mt5_tick_max_drawdown_percent: 1.816
+  mt5_tick_expectancy_per_entry: 0.043771
+  execution_divergence_status: recorded_with_divergence
+  economics_shift_status: tick_worse_than_logic
+  tick_minus_logic_net_pnl: -87.11
+  tick_minus_logic_trade_count: -4
+  mt5_tick_by_fold_status: completed
+  fold_count: 9
+  completed_fold_count: 9
+  missing_required_fold_count: 0
+  profitable_fold_count: 9
+  losing_fold_count: 0
+  total_tick_net_pnl: 199.07
+  total_tick_trade_count: 4548
+  worst_fold_id: rw_001
+  worst_fold_net_pnl: 9.92
+  worst_drawdown_fold_id: rw_005
+  worst_fold_max_drawdown_percent: 1.816
+  execution_divergence_by_fold_status: completed
+  divergence_recorded_fold_count: 9
+  tick_better_fold_count: 0
+  tick_worse_fold_count: 9
+  total_tick_minus_logic_net_pnl: -87.11
+  total_tick_minus_logic_trade_count: -4
+  minimum_entry_key_match_rate: 0.996032
+  minimum_exit_reason_match_rate: 0.781746
+  minimum_exit_time_direction_match_rate: 0.803571
+  worst_tick_minus_logic_fold_id: rw_003
+  worst_tick_minus_logic_net_pnl: -16.49
+  reason_candidate_evidence: target-band activity, positive proxy, passed schedule replay
+    parity, positive MT5 tick net PnL and profit factor, and nine profitable fold-isolated
+    MT5 tick folds
