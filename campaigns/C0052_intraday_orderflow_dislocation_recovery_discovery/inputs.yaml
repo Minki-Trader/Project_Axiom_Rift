@@ -1,0 +1,47 @@
+schema: axiom_rift_campaign_inputs_v1
+template: false
+status: active
+campaign_id: C0052
+work_unit_id: C0052
+input_scope:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+  base_frame: data/processed/datasets/us100_m5_base_frame.csv
+  rolling_windows: registries/rolling_windows.yaml
+  runtime_config: configs/runtime.yaml
+governing_contracts:
+- contracts/project_goal_contract.md
+- contracts/evaluation_contract.md
+- contracts/goal_operation_policy.yaml
+evidence_requirements:
+  proxy_kpi: required_reference_surface_not_gate
+  mt5_logic_parity: required
+  proxy_vs_mt5_logic_parity: required
+  mt5_tick: required_diagnostic_before_fold_closeout
+  execution_divergence: required
+  fold_isolated_mt5_tick: required_for_closeout
+  fold_isolated_execution_divergence: required_for_closeout
+discovery_freedom:
+  label_shape: variable
+  feature_family: variable
+  model_family: variable
+  objective: variable
+  trade_shape: variable
+sizing:
+  early_discovery: fixed_lot
+  equity_percent_sizing: deferred_not_frozen
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

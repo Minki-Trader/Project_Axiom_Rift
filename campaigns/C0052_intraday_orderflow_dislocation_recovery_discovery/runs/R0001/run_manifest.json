@@ -1,0 +1,254 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-06T04:50:28Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
+    "closed_at_utc": "2026-07-06T04:50:28Z",
+    "negative_memory": {
+      "asset_type": "negative_memory",
+      "candidate_status": "no_candidate",
+      "economics_pass": false,
+      "evidence_paths": [
+        "artifact_lineage.json",
+        "run_manifest.json",
+        "artifacts/c0052_r0001_proxy_trades.csv",
+        "artifacts/c0052_r0001_orderflow_dislocation_recovery_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0052_r0001_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday orderflow dislocation recovery rank over signed tick-volume pressure minus price-displacement residuals, residual stack, dislocation z-score, residual decay, directional recovery pressure, adverse residual pressure, volume dry-up after dislocation, close response, participation confirmation, and spread stress features",
+      "next_boundary": "C0052 R0001 shows the tested orderflow dislocation recovery surface is not a candidate as implemented; remaining C0052 variants would be adjacent tuning, so next work should choose a new major C0053 hypothesis without selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims",
+      "onnx_ready": false,
+      "reason_not_candidate": "activity landed inside the target band, but proxy, closed-bar MT5 logic, aggregate MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0001 produced 0 profitable and 9 losing fold-isolated MT5 tick folds, total tick net PnL -203.79, and worst fold rw_005 net PnL -38.21."
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "Schedule replay mechanical parity passed with mismatch_count 0, so the weak result is not explained by proxy-vs-MT5 logic mismatch."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution improved closed-bar logic by 90.8 total net PnL across 9 better and 0 worse folds, but both logic and tick surfaces remained negative."
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "gate_report.json",
+          "summary": "Native MQL signal logic, ONNX materialization, cost/slippage hardening, final sizing, and historical lineage debt remain unresolved; no stronger claim is created."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "divergence_recorded_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.962069,
+      "entry_count_delta": null,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_count_delta": null,
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "long_trade_count_proxy": 2216,
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.998095,
+      "minimum_exit_reason_match_rate": 0.868787,
+      "minimum_exit_time_direction_match_rate": 0.912548,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": -294.59,
+      "mt5_logic_profit_factor": 0.445603,
+      "mt5_logic_trade_count": 4618,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_expectancy_per_entry": -0.044139,
+      "mt5_tick_max_drawdown_percent": 40.876,
+      "mt5_tick_net_pnl": -203.79,
+      "mt5_tick_profit_factor": 0.560864,
+      "mt5_tick_trade_count": 4617,
+      "mt5_tick_win_rate": 0.304527,
+      "profitable_fold_count": 0,
+      "proxy_expectancy_points_per_entry": -5.164669,
+      "proxy_net_pnl_points": -23850.44,
+      "proxy_profit_factor": 0.499263,
+      "proxy_trade_count": 4618,
+      "proxy_win_rate": 0.296232,
+      "remaining_work_classification": "no_candidate; further C0052 work would be adjacent threshold, stop, target, hold, session, activity, spread, capital, or orderflow-dislocation-recovery feature nudge tuning",
+      "short_trade_count_proxy": 2402,
+      "tick_better_fold_count": 9,
+      "tick_minus_logic_net_pnl": 90.8,
+      "tick_minus_logic_trade_count": -1,
+      "tick_worse_fold_count": 0,
+      "total_tick_minus_logic_net_pnl": 90.8,
+      "total_tick_minus_logic_trade_count": -1,
+      "total_tick_net_pnl": -203.79,
+      "total_tick_trade_count": 4617,
+      "worst_drawdown_fold_id": "rw_005",
+      "worst_fold_id": "rw_005",
+      "worst_fold_max_drawdown_percent": 7.84,
+      "worst_fold_net_pnl": -38.21,
+      "worst_tick_minus_logic_fold_id": "rw_006",
+      "worst_tick_minus_logic_net_pnl": 7.75
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0052_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "orderflow_dislocation_recovery_summary": "artifacts/c0052_r0001_orderflow_dislocation_recovery_summary.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0052_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday orderflow-dislocation-recovery rank run",
+    "variant_boundary": "This is not C0051 gap continuity decay, C0050 volatility transfer, C0049 execution-path resilience, C0046 flow-convexity release, C0034 effort-price absorption, or C0023 tick participation pressure. It tests pressure-minus-price residual recovery and decay, not absolute participation, effort absorption, threshold, window, stop, target, hold, session, activity, spread, capital, materialization, ONNX, or retry-only work."
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "closeout_status": "closed_no_candidate",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "next_required_action": "choose_c0053_new_major_hypothesis_after_c0052_closeout",
+    "notes": [
+      "MT5 validation remains mandatory even if proxy KPI is weak.",
+      "Schedule replay does not create runtime, materialization, ONNX, promotion, or live authority."
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-06T04:36:42Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "This is not C0051 gap continuity decay, C0050 volatility transfer, C0049 execution-path resilience, C0046 flow-convexity release, C0034 effort-price absorption, or C0023 tick participation pressure. It tests pressure-minus-price residual recovery and decay, not absolute participation, effort absorption, threshold, window, stop, target, hold, session, activity, spread, capital, materialization, ONNX, or retry-only work.",
+    "adjacent_tuning_risk": "low",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0051_intraday_gap_continuity_decay_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0050_intraday_volatility_transfer_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0034_intraday_effort_price_absorption_discovery",
+      "campaigns/C0023_tick_participation_pressure_discovery",
+      "campaigns/C0046_intraday_flow_convexity_release_discovery"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 5,
+    "pre_open_decision_id": "POD-C0052-R0001",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "passed",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "fold-local intraday orderflow-dislocation recovery rank over signed pressure minus price displacement residuals"
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "Proxy is reference evidence only and cannot gate MT5 validation."
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "directional signed pressure residual, residual stack, dislocation z-score, residual decay, recovery pressure, adverse residual pressure, volume dry-up, close response, participation confirmation, spread stress"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "target-first path quality with residual recovery reward and unresolved adverse pressure penalty"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "fold_local_intraday_orderflow_dislocation_recovery_rank"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "fixed-lot dual-direction top orderflow-dislocation-recovery scores per active day with schedule replay"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0052"
+}
