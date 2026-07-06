@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0092
+    next_id: C0093
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -110,6 +110,7 @@ streams:
     - campaigns/C0089_intraday_session_vwap_dislocation_reversion_discovery
     - campaigns/C0090_intraday_volatility_regime_break_compression_release_discovery
     - campaigns/C0091_intraday_path_asymmetry_hazard_discovery
+    - campaigns/C0092_intraday_cost_pressure_absorption_discovery
     numbering_policy:
       width: 4
       example: C0001
