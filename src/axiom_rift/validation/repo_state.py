@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -72,7 +73,7 @@ def validate_repo_state(root: Path = PROJECT_ROOT) -> RepoStateValidationResult:
     active_synthesis_rel = active_synthesis_from_state(claim_state, reentry)
     active_synthesis_root = resolve_repo_path(root, active_synthesis_rel) if active_synthesis_rel else None
     allow_active_synthesis_without_campaign = (
-        active_synthesis_root is not None and active_synthesis_root.exists()
+        active_synthesis_root is not None and path_exists(active_synthesis_root)
     )
     allow_no_active_campaign = (
         no_active_campaign_after_closeout_allowed(claim_state, reentry)
@@ -80,12 +81,12 @@ def validate_repo_state(root: Path = PROJECT_ROOT) -> RepoStateValidationResult:
     )
     campaign_root = resolve_repo_path(root, active_campaign_rel) if active_campaign_rel else None
     campaign = None
-    if active_synthesis_root is not None and not active_synthesis_root.exists():
+    if active_synthesis_root is not None and not path_exists(active_synthesis_root):
         issues.add("active_synthesis_path_missing", active_synthesis_root, "active synthesis path does not exist")
     if campaign_root is None:
         if not allow_no_active_campaign:
             issues.add("active_campaign_missing", claim_state_path, "active campaign is not recorded")
-    elif not campaign_root.exists():
+    elif not path_exists(campaign_root):
         issues.add("active_campaign_path_missing", campaign_root, "active campaign path does not exist")
     else:
         campaign = safe_load_structured(issues, campaign_root / "campaign.yaml")
@@ -113,7 +114,7 @@ def validate_repo_state(root: Path = PROJECT_ROOT) -> RepoStateValidationResult:
 
 
 def check_runtime_config(issues: IssueCollector, path: Path, data: Any) -> None:
-    if not path.exists():
+    if not path_exists(path):
         issues.add("runtime_config_missing", path, "configs/runtime.yaml is missing")
         return
     if not isinstance(data, dict):
@@ -134,10 +135,10 @@ def check_runtime_config(issues: IssueCollector, path: Path, data: Any) -> None:
 def check_price_quality_audit(issues: IssueCollector, root: Path) -> None:
     audit_path = root / PRICE_QUALITY_AUDIT_RELATIVE_PATH
     base_frame_path = root / BASE_FRAME_RELATIVE_PATH
-    if not base_frame_path.exists():
+    if not path_exists(base_frame_path):
         issues.add("base_frame_missing", base_frame_path, "US100 M5 base-frame CSV is missing")
         return
-    if not audit_path.exists():
+    if not path_exists(audit_path):
         issues.add("price_quality_audit_missing", audit_path, "US100 M5 price quality audit is missing")
         return
     audit = safe_load_structured(issues, audit_path)
@@ -246,7 +247,7 @@ def latest_run_from_state(root: Path, issues: IssueCollector, claim_state: Any) 
             f"active_run={display_rel(root, explicit)!r}; latest_operation source={display_rel(root, inferred)!r}",
         )
     latest = explicit or inferred
-    if latest is not None and not latest.exists():
+    if latest is not None and not path_exists(latest):
         issues.add("active_run_path_missing", latest, "latest active_run path does not exist")
     return latest
 
@@ -288,7 +289,7 @@ def check_latest_operation_alignment(
     allow_no_active_campaign: bool = False,
 ) -> None:
     gate_report = None
-    if latest_run is not None and (latest_run / "gate_report.json").exists():
+    if latest_run is not None and path_exists(latest_run / "gate_report.json"):
         gate_report = safe_load_structured(issues, latest_run / "gate_report.json")
     recorded = get_path(claim_state, "latest_operation.recorded_at_source")
     recorded_path = resolve_repo_path(root, recorded) if isinstance(recorded, str) else None
@@ -326,7 +327,7 @@ def check_latest_operation_alignment(
             "missing next action fields: " + ", ".join(missing),
             severity="warning",
         )
-    if isinstance(recorded, str) and recorded_path is not None and not recorded_path.exists():
+    if isinstance(recorded, str) and recorded_path is not None and not path_exists(recorded_path):
         issues.add("latest_operation_source_missing", recorded, "latest operation source file is missing")
 
 
@@ -341,7 +342,7 @@ def check_latest_run_evidence(issues: IssueCollector, run_dir: Path) -> None:
         if not should_check_evidence_path(rel_path):
             continue
         target = resolve_run_evidence_path(run_dir, rel_path)
-        if not target.exists():
+        if not path_exists(target):
             issues.add("evidence_path_missing", target, f"recorded evidence path is missing: {rel_path}")
 
 
@@ -377,7 +378,7 @@ def check_artifact_lineage_hashes(root: Path, issues: IssueCollector) -> None:
                 issues.add("artifact_lineage_hash_missing", lineage_path, f"{artifact_id} has no sha256")
                 continue
             target = resolve_artifact_path(root, run_dir, rel_path)
-            if not target.exists():
+            if not path_exists(target):
                 issues.add("artifact_lineage_target_missing", target, f"{artifact_id} target is missing")
                 continue
             actual_hash = sha256_file(target)
@@ -413,7 +414,7 @@ def is_closed_run(manifest: dict[str, Any], gate_report: dict[str, Any]) -> bool
 
 def iter_run_dirs(root: Path) -> list[Path]:
     campaigns = root / "campaigns"
-    if not campaigns.exists():
+    if not path_exists(campaigns):
         return []
     return sorted(path for path in campaigns.glob("*/runs/*") if path.is_dir())
 
@@ -451,7 +452,7 @@ def resolve_artifact_path(root: Path, run_dir: Path, rel_path: str) -> Path:
     if path.is_absolute():
         return path
     root_candidate = (root / path).resolve()
-    if root_candidate.exists() or rel_path.startswith(("campaigns/", "data/", "configs/", "registries/", "contracts/")):
+    if path_exists(root_candidate) or rel_path.startswith(("campaigns/", "data/", "configs/", "registries/", "contracts/")):
         return root_candidate
     return (run_dir / path).resolve()
 
@@ -515,9 +516,20 @@ def display_rel(root: Path, path: Path) -> str:
         return path.resolve().as_posix()
 
 
+def local_io_path(path: Path) -> str:
+    resolved = str(path.resolve())
+    if len(resolved) >= 240 and not resolved.startswith("\\\\?\\"):
+        return "\\\\?\\" + resolved
+    return resolved
+
+
+def path_exists(path: Path) -> bool:
+    return path.exists() or os.path.exists(local_io_path(path))
+
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
-    with path.open("rb") as handle:
+    with open(local_io_path(path), "rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
