@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0081
+    next_id: C0082
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -99,6 +99,7 @@ streams:
     - campaigns/C0078_intraday_auction_skew_inflection_discovery
     - campaigns/C0079_intraday_boundary_recoil_elasticity_discovery
     - campaigns/C0080_intraday_micro_pullback_failure_discovery
+    - campaigns/C0081_intraday_failed_acceleration_absorption_discovery
     numbering_policy:
       width: 4
       example: C0001
