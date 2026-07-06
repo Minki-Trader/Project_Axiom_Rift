@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0068
+    next_id: C0069
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -86,6 +86,7 @@ streams:
     - campaigns/C0065_intraday_anchor_tension_resolution_discovery
     - campaigns/C0066_intraday_shadow_inventory_release_discovery
     - campaigns/C0067_intraday_trapped_range_reexpansion_discovery
+    - campaigns/C0068_intraday_failure_to_accept_discovery
     numbering_policy:
       width: 4
       example: C0001
