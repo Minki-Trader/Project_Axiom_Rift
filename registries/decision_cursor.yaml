@@ -2,17 +2,17 @@ schema: axiom_rift_decision_cursor_v1
 status: active
 encoding: ascii_only
 updated_local_date: '2026-07-06'
-canonical_source: campaigns/C0070_intraday_volatility_signature_transition_discovery/runs/R0001/gate_report.json
+canonical_source: campaigns/C0071_intraday_path_tortuosity_release_discovery/runs/R0001/gate_report.json
 canonical_status: closed_no_candidate
-current_decision: choose_c0071_new_major_hypothesis_after_c0070_closeout
+current_decision: choose_c0072_new_major_hypothesis_after_c0071_closeout
 active_campaign: null
 active_run: null
 active_synthesis: null
-next_required_action: choose_c0071_new_major_hypothesis_after_c0070_closeout
+next_required_action: choose_c0072_new_major_hypothesis_after_c0071_closeout
 terminal_evidence_priority:
   enabled: true
   resolved_from:
-    previous_campaign: campaigns/C0070_intraday_volatility_signature_transition_discovery
+    previous_campaign: campaigns/C0071_intraday_path_tortuosity_release_discovery
     previous_campaign_status: closed_no_candidate
     active_campaign_status: closed_no_candidate
     active_run_status: closed_no_candidate
@@ -27,42 +27,41 @@ terminal_evidence_priority:
   stale_pointer_rule: terminal_run_receipt_outranks_planning_pointer
   reentry_completed_log_role: history_only_not_decision_authority
 current_evidence_summary:
-  source_campaign: campaigns/C0070_intraday_volatility_signature_transition_discovery
+  source_campaign: campaigns/C0071_intraday_path_tortuosity_release_discovery
   active_campaign: null
   active_synthesis: null
   active_run: null
   active_run_status: closed_no_candidate
   campaign_status: closed_no_candidate
   evidence_status: closed_no_candidate
-  current_task: choose_c0071_new_major_hypothesis_after_c0070_closeout
-  previous_terminal_evidence: campaigns/C0069_intraday_drift_realignment_discovery/runs/R0001/gate_report.json
+  current_task: choose_c0072_new_major_hypothesis_after_c0071_closeout
+  previous_terminal_evidence: campaigns/C0070_intraday_volatility_signature_transition_discovery/runs/R0001/gate_report.json
   previous_terminal_status: closed_no_candidate
   source_lessons_used:
+  - c0070_volatility_signature_transition_negative_memory
   - c0069_drift_realignment_negative_memory
   - c0068_failure_to_accept_negative_memory
   - c0067_trapped_range_reexpansion_negative_memory
   - c0066_shadow_inventory_release_negative_memory
   - c0065_anchor_tension_resolution_negative_memory
-  - c0064_polarity_flip_persistence_negative_memory
-  hypothesis_family: intraday_volatility_signature_transition_discovery
-  label_surface: target-first path quality conditioned on closed-M5 volatility signature transition
+  hypothesis_family: intraday_path_tortuosity_release_discovery
+  label_surface: target-first path quality conditioned on closed-M5 path tortuosity release
     after the scored closed bar
-  feature_surface: short range transition; medium range transition; range acceleration; body
-    share transition; wick imbalance pressure; shock digestion score; volatility alignment
-    score; participation confirmation; prior-day volatility context; session maturity pressure;
-    and spread stress
-  trade_logic_surface: dual-direction top fold-local volatility-signature-transition scores
-    per active day using next-bar-open fixed-lot discovery entries
-  next_required_action: choose_c0071_new_major_hypothesis_after_c0070_closeout
-  note: C0070 R0001 and C0070 closed no-candidate; volatility signature transition surface
-    produced target-band activity but did not establish candidate-quality fold-isolated MT5
-    evidence.
-  proxy_trade_count: 4404
-  proxy_net_pnl_points: -23099.99
-  proxy_profit_factor: 0.598262
-  entries_per_active_day: 7.593103
-  mt5_tick_net_pnl: -229.75
-  mt5_tick_profit_factor: 0.602529
+  feature_surface: short tortuosity release; medium tortuosity release; path efficiency rebuild;
+    turn density pressure; overlap compression release; directional excursion bias; close
+    location release; volume followthrough; prior-day tortuosity context; session maturity
+    pressure; and spread stress
+  trade_logic_surface: dual-direction top fold-local path-tortuosity-release scores per active
+    day using next-bar-open fixed-lot discovery entries
+  next_required_action: choose_c0072_new_major_hypothesis_after_c0071_closeout
+  note: C0071 R0001 and C0071 closed no-candidate; path tortuosity release surface produced
+    target-band activity but did not establish candidate-quality fold-isolated MT5 evidence.
+  proxy_trade_count: 4603
+  proxy_net_pnl_points: -17564.53
+  proxy_profit_factor: 0.657142
+  entries_per_active_day: 7.936207
+  mt5_tick_net_pnl: -152.85
+  mt5_tick_profit_factor: 0.697823
   profitable_fold_count: 0
   losing_fold_count: 9
 repo_debt_scope:
@@ -74,7 +73,7 @@ repo_debt_scope:
     status: observed_preexisting
     observed_error_count: 31
     affected_scope: historical_c0001_c0005_and_sc0001_sc0002_artifact_lineage
-    role: repo_state_debt_not_current_c0070_r0001_closeout
+    role: repo_state_debt_not_current_c0071_r0001_closeout
     current_decision_class: known_nonblocking_for_next_work_decision
     may_continue_current_decision: true
     blocks_selected_claim: true
@@ -94,7 +93,7 @@ repo_debt_scope:
     blocks_handoff: true
     blocks_reproducibility_claim: true
   note: repo_state_has_preexisting_nonblocking_artifact_lineage_debt_and_price_quality_warning;
-    current_c0070_r0001_closeout_makes_no_selection_promotion_handoff_or_reproducibility_claims
+    current_c0071_r0001_closeout_makes_no_selection_promotion_handoff_or_reproducibility_claims
 claim_boundary_snapshot:
   claim_authority: false
   selected: false
@@ -110,12 +109,12 @@ claim_boundary_snapshot:
   promotion_ready: false
   live_ready: false
 next_decision_basis:
-- path: campaigns/C0070_intraday_volatility_signature_transition_discovery/runs/R0001/gate_report.json
+- path: campaigns/C0071_intraday_path_tortuosity_release_discovery/runs/R0001/gate_report.json
   role: closed_run_gate_report
-  summary: C0070 R0001 closed no-candidate with negative memory recorded.
-- path: campaigns/C0070_intraday_volatility_signature_transition_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+  summary: C0071 R0001 closed no-candidate with negative memory recorded.
+- path: campaigns/C0071_intraday_path_tortuosity_release_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
   role: fold_isolated_mt5_tick_kpi
   summary: Fold-isolated MT5 tick evidence completed for closeout review.
-- path: campaigns/C0070_intraday_volatility_signature_transition_discovery/campaign.yaml
+- path: campaigns/C0071_intraday_path_tortuosity_release_discovery/campaign.yaml
   role: closed_campaign_manifest
-  summary: C0070 closed no-candidate; next work is a new major C0071 hypothesis.
+  summary: C0071 closed no-candidate; next work is a new major C0072 hypothesis.
