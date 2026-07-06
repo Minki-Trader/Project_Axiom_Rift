@@ -102,23 +102,23 @@ active_campaign: null
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0084_r0001_no_candidate
+  id: close_c0085_r0001_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0084_intraday_local_equilibrium_displacement_reversion_discovery/runs/R0001/gate_report.json
+  recorded_at_source: campaigns/C0085_intraday_zigzag_release_discovery/runs/R0001/gate_report.json
   evidence_status: closed_no_candidate
   active_campaign: null
   active_synthesis: null
   active_run: null
   negative_memory_recorded: true
   candidate_evidence_retained: false
-  entries_per_active_day: 7.489655
-  proxy_net_pnl_points: -4471.27
-  proxy_profit_factor: 0.88965
-  mt5_tick_net_pnl: -45.55
-  mt5_tick_profit_factor: 0.888875
-  profitable_fold_count: 1
-  losing_fold_count: 8
-  next_required_action: choose_c0085_new_major_hypothesis_after_c0084_closeout
+  entries_per_active_day: 7.363793
+  proxy_net_pnl_points: 1739.74
+  proxy_profit_factor: 1.039294
+  mt5_tick_net_pnl: 17.41
+  mt5_tick_profit_factor: 1.038966
+  profitable_fold_count: 6
+  losing_fold_count: 3
+  next_required_action: choose_c0086_new_major_hypothesis_after_c0085_closeout
   claim_boundary:
     claim_authority: false
     selected: false
