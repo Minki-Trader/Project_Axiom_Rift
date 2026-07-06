@@ -1,0 +1,44 @@
+schema: axiom_rift_campaign_inputs_v1
+template: false
+work_unit_id: C0083
+campaign_id: C0083
+campaign_slug: intraday_shelf_acceptance_continuation_discovery
+market:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+data_inputs:
+  base_frame: data/processed/datasets/us100_m5_base_frame.csv
+  rolling_windows: registries/rolling_windows.yaml
+  runtime_config: configs/runtime.yaml
+failure_memory_used:
+- campaigns/C0082_intraday_midpoint_rotation_rejection_discovery/runs/R0002/gate_report.json
+- campaigns/C0082_intraday_midpoint_rotation_rejection_discovery/runs/R0001/gate_report.json
+- campaigns/C0081_intraday_failed_acceleration_absorption_discovery/runs/R0001/gate_report.json
+- campaigns/C0080_intraday_micro_pullback_failure_discovery/runs/R0001/gate_report.json
+- campaigns/C0077_intraday_impulse_digestion_asymmetry_discovery/runs/R0001/gate_report.json
+- campaigns/C0055_intraday_range_ladder_acceptance_discovery/runs/R0001/gate_report.json
+- campaigns/C0068_intraday_failure_to_accept_discovery/runs/R0001/gate_report.json
+- campaigns/C0073_intraday_spread_shock_relief_discovery/runs/R0001/gate_report.json
+pre_open_context:
+  previous_campaign: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery
+  previous_run: campaigns/C0082_intraday_midpoint_rotation_rejection_discovery/runs/R0002
+  previous_result: closed_with_candidate_evidence
+  reason_for_new_major_hypothesis: C0082 retained candidate evidence but further work inside
+    midpoint rotation rejection would be adjacent hardening; C0083 changes the primary question
+    to post-impulse shelf acceptance continuation rather than C0082 threshold, cost, or materialization
+    tuning.
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
