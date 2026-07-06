@@ -1,0 +1,222 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-06T17:03:58Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
+    "closed_at_utc": "2026-07-06T17:03:58Z",
+    "negative_memory": {
+      "asset_type": "negative_memory",
+      "candidate_status": "no_candidate",
+      "economics_pass": false,
+      "evidence_paths": [
+        "artifact_lineage.json",
+        "run_manifest.json",
+        "artifacts/c0078_r0001_proxy_trades.csv",
+        "artifacts/c0078_r0001_asi_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0078_r0001_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday auction skew inflection rank over short body skew, medium body skew, skew inflection delta, wick rejection flip, close-location shift, range expansion confirmation, participation followthrough, adverse-tail inverse, prior-day skew context, session maturity pressure, and spread stress features",
+      "next_boundary": "C0078 R0001 shows the tested auction skew inflection surface is not a candidate as implemented; remaining C0078 variants would be adjacent tuning, so next work should choose a new major C0079 hypothesis without selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims",
+      "onnx_ready": false,
+      "reason_not_candidate": "activity landed inside the target band, but proxy, closed-bar MT5 logic, aggregate MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0001 produced 0 profitable and 9 losing fold-isolated MT5 tick folds, total tick net PnL -198.18, and worst fold rw_009 net PnL -27.84."
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "Schedule replay mechanical parity passed with mismatch_count 0, so the weak result is not explained by proxy-vs-MT5 logic mismatch."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution improved closed-bar logic by 22.14 total net PnL across 6 better and 3 worse folds, but both logic and tick surfaces remained negative."
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "gate_report.json",
+          "summary": "Native MQL signal logic, ONNX materialization, cost/slippage hardening, final sizing, and historical lineage debt remain unresolved; no stronger claim is created."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "divergence_recorded_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.662069,
+      "entry_count_delta": null,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_count_delta": null,
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "long_trade_count_proxy": 2569,
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.99793,
+      "minimum_exit_reason_match_rate": 0.850932,
+      "minimum_exit_time_direction_match_rate": 0.871636,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": -220.32,
+      "mt5_logic_profit_factor": 0.593108,
+      "mt5_logic_trade_count": 4444,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_expectancy_per_entry": -0.044635,
+      "mt5_tick_max_drawdown_percent": 39.736,
+      "mt5_tick_net_pnl": -198.18,
+      "mt5_tick_profit_factor": 0.615565,
+      "mt5_tick_trade_count": 4440,
+      "mt5_tick_win_rate": 0.328604,
+      "profitable_fold_count": 0,
+      "proxy_expectancy_points_per_entry": -4.366134,
+      "proxy_net_pnl_points": -19403.1,
+      "proxy_profit_factor": 0.61892,
+      "proxy_trade_count": 4444,
+      "proxy_win_rate": 0.343834,
+      "remaining_work_classification": "no_candidate; further C0078 work would be adjacent threshold, stop, target, hold, session, activity, spread, capital, or auction-skew-inflection feature nudge tuning",
+      "short_trade_count_proxy": 1875,
+      "tick_better_fold_count": 6,
+      "tick_minus_logic_net_pnl": 22.14,
+      "tick_minus_logic_trade_count": -4,
+      "tick_worse_fold_count": 3,
+      "total_tick_minus_logic_net_pnl": 22.14,
+      "total_tick_minus_logic_trade_count": -4,
+      "total_tick_net_pnl": -198.18,
+      "total_tick_trade_count": 4440,
+      "worst_drawdown_fold_id": "rw_009",
+      "worst_fold_id": "rw_009",
+      "worst_fold_max_drawdown_percent": 5.692,
+      "worst_fold_net_pnl": -27.84,
+      "worst_tick_minus_logic_fold_id": "rw_005",
+      "worst_tick_minus_logic_net_pnl": -0.18
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "auction_skew_inflection_summary": "artifacts/c0078_r0001_asi_summary.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0078_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0078_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "run_manifest": "run_manifest.json"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday auction skew inflection rank",
+    "variant_boundary": "C0078 R0001 tests whether short-horizon body, wick, and close-location skew inflects away from medium-window auction pressure strongly enough to rank target-first path quality. It is not an adjacent threshold, SL/TP, hold, session, activity, spread-only, capital, materialization, ONNX, or retry-only variant."
+  },
+  "mt5_probe_plan": {
+    "closeout_status": "closed_no_candidate",
+    "next_required_action": "choose_c0079_new_major_hypothesis_after_c0078_closeout",
+    "paired_validation_required": true,
+    "proxy_is_reference_surface_only": true,
+    "weak_proxy_result_must_not_skip_mt5": true
+  },
+  "opened_at_utc": "2026-07-06T16:44:26Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "C0078 changes the primary lifecycle surface from impulse digestion and recent negative-memory families to short-vs-medium auction skew inflection using body, wick, close-location, participation, and adverse-tail state; it is not a threshold, window, stop, target, hold, session, activity, spread, or capital nudge.",
+    "adjacent_tuning_risk": "low",
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0077_intraday_impulse_digestion_asymmetry_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0076_intraday_extreme_dwell_imbalance_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0075_intraday_conviction_decay_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0074_intraday_session_range_reset_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0073_intraday_spread_shock_relief_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0072_intraday_volume_imbalance_reconciliation_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0071_intraday_path_tortuosity_release_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0069_intraday_drift_realignment_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0068_intraday_failure_to_accept_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0064_intraday_polarity_flip_persistence_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0062_intraday_microchannel_exhaustion_reversal_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "A new fold-local auction skew inflection rank surface over short-vs-medium body, wick, close-location, participation, and adverse-tail state."
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "status": "variable",
+      "summary": "short body skew; medium body skew; skew inflection delta; wick rejection flip; close-location shift; range expansion confirmation; participation followthrough; adverse-tail inverse; prior-day skew context; session maturity pressure; spread stress inverse"
+    },
+    "label": {
+      "status": "variable",
+      "summary": "target-first path quality conditioned on short-horizon auction skew inflecting in the candidate direction"
+    },
+    "model": {
+      "status": "variable",
+      "summary": "fold-local linear auction skew inflection rank"
+    },
+    "trade_logic": {
+      "status": "variable",
+      "summary": "dual-direction top fold-local auction skew inflection scores per active day using fixed-lot discovery entries"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0078"
+}
