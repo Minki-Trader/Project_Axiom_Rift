@@ -102,23 +102,23 @@ active_campaign: null
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0089_r0001_no_candidate
+  id: close_c0090_r0001_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0089_intraday_session_vwap_dislocation_reversion_discovery/runs/R0001/gate_report.json
+  recorded_at_source: campaigns/C0090_intraday_volatility_regime_break_compression_release_discovery/runs/R0001/gate_report.json
   evidence_status: closed_no_candidate
   active_campaign: null
   active_synthesis: null
   active_run: null
   negative_memory_recorded: true
   candidate_evidence_retained: false
-  entries_per_active_day: 7.72069
-  proxy_net_pnl_points: -11379.04
-  proxy_profit_factor: 0.757042
-  mt5_tick_net_pnl: -109.25
-  mt5_tick_profit_factor: 0.767938
+  entries_per_active_day: 7.382759
+  proxy_net_pnl_points: -18256.41
+  proxy_profit_factor: 0.588467
+  mt5_tick_net_pnl: -183.43
+  mt5_tick_profit_factor: 0.588519
   profitable_fold_count: 0
   losing_fold_count: 9
-  next_required_action: choose_c0090_new_major_hypothesis_after_c0089_closeout
+  next_required_action: choose_c0091_new_major_hypothesis_after_c0090_closeout
   claim_boundary:
     claim_authority: false
     selected: false

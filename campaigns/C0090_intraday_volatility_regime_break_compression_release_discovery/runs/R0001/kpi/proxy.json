@@ -1,0 +1,1212 @@
+{
+  "campaign_id": "C0090",
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "average_spread_cost_points": 1.151039,
+        "commission_per_trade": 0,
+        "round_trip_cost_model": "subtract_entry_spread_once",
+        "slippage_stress_test_allowed": true,
+        "spread_point_value": 0.01,
+        "spread_source": "entry_bar_spread_column",
+        "spread_stress_test_allowed": true,
+        "synthetic_commission_allowed": false,
+        "total_spread_cost_points": 4928.75
+      }
+    },
+    "direction_profile": {
+      "applies": true,
+      "fields": {
+        "long": {
+          "max_drawdown_points": 10664.12,
+          "net_pnl_points": -10537.96,
+          "profit_factor": 0.554783,
+          "trade_count": 2327,
+          "win_rate": 0.334336
+        },
+        "short": {
+          "max_drawdown_points": 7849.8,
+          "net_pnl_points": -7718.45,
+          "profit_factor": 0.626995,
+          "trade_count": 1955,
+          "win_rate": 0.33913
+        }
+      }
+    },
+    "stability_profile": {
+      "applies": true,
+      "fields": {
+        "fold_summary": [
+          {
+            "bucket": "rw_001",
+            "max_drawdown_points": 1232.34,
+            "net_pnl_points": -1198.81,
+            "profit_factor": 0.638946,
+            "trade_count": 455,
+            "win_rate": 0.338462
+          },
+          {
+            "bucket": "rw_002",
+            "max_drawdown_points": 994.58,
+            "net_pnl_points": -990.77,
+            "profit_factor": 0.692398,
+            "trade_count": 478,
+            "win_rate": 0.361925
+          },
+          {
+            "bucket": "rw_003",
+            "max_drawdown_points": 1746.0,
+            "net_pnl_points": -1570.86,
+            "profit_factor": 0.688461,
+            "trade_count": 497,
+            "win_rate": 0.37827
+          },
+          {
+            "bucket": "rw_004",
+            "max_drawdown_points": 1969.71,
+            "net_pnl_points": -1936.79,
+            "profit_factor": 0.578431,
+            "trade_count": 469,
+            "win_rate": 0.332623
+          },
+          {
+            "bucket": "rw_005",
+            "max_drawdown_points": 2563.57,
+            "net_pnl_points": -2428.4,
+            "profit_factor": 0.651299,
+            "trade_count": 474,
+            "win_rate": 0.337553
+          },
+          {
+            "bucket": "rw_006",
+            "max_drawdown_points": 2633.81,
+            "net_pnl_points": -2590.03,
+            "profit_factor": 0.454072,
+            "trade_count": 486,
+            "win_rate": 0.283951
+          },
+          {
+            "bucket": "rw_007",
+            "max_drawdown_points": 1857.15,
+            "net_pnl_points": -1813.2,
+            "profit_factor": 0.572828,
+            "trade_count": 491,
+            "win_rate": 0.350305
+          },
+          {
+            "bucket": "rw_008",
+            "max_drawdown_points": 2745.26,
+            "net_pnl_points": -2740.86,
+            "profit_factor": 0.490106,
+            "trade_count": 460,
+            "win_rate": 0.302174
+          },
+          {
+            "bucket": "rw_009",
+            "max_drawdown_points": 3132.13,
+            "net_pnl_points": -2986.69,
+            "profit_factor": 0.564352,
+            "trade_count": 472,
+            "win_rate": 0.341102
+          }
+        ],
+        "losing_month_count": 27,
+        "month_summary": [
+          {
+            "bucket": "2024-02",
+            "max_drawdown_points": 442.44,
+            "net_pnl_points": -382.93,
+            "profit_factor": 0.600936,
+            "trade_count": 148,
+            "win_rate": 0.304054
+          },
+          {
+            "bucket": "2024-03",
+            "max_drawdown_points": 599.18,
+            "net_pnl_points": -546.69,
+            "profit_factor": 0.515912,
+            "trade_count": 148,
+            "win_rate": 0.331081
+          },
+          {
+            "bucket": "2024-04",
+            "max_drawdown_points": 324.51,
+            "net_pnl_points": -269.19,
+            "profit_factor": 0.781399,
+            "trade_count": 159,
+            "win_rate": 0.377358
+          },
+          {
+            "bucket": "2024-05",
+            "max_drawdown_points": 515.28,
+            "net_pnl_points": -458.28,
+            "profit_factor": 0.499312,
+            "trade_count": 161,
+            "win_rate": 0.31677
+          },
+          {
+            "bucket": "2024-06",
+            "max_drawdown_points": 310.51,
+            "net_pnl_points": -259.02,
+            "profit_factor": 0.727307,
+            "trade_count": 149,
+            "win_rate": 0.389262
+          },
+          {
+            "bucket": "2024-07",
+            "max_drawdown_points": 282.78,
+            "net_pnl_points": -273.47,
+            "profit_factor": 0.798295,
+            "trade_count": 168,
+            "win_rate": 0.380952
+          },
+          {
+            "bucket": "2024-08",
+            "max_drawdown_points": 462.18,
+            "net_pnl_points": -370.91,
+            "profit_factor": 0.810207,
+            "trade_count": 168,
+            "win_rate": 0.386905
+          },
+          {
+            "bucket": "2024-09",
+            "max_drawdown_points": 554.48,
+            "net_pnl_points": -494.83,
+            "profit_factor": 0.671432,
+            "trade_count": 158,
+            "win_rate": 0.405063
+          },
+          {
+            "bucket": "2024-10",
+            "max_drawdown_points": 833.24,
+            "net_pnl_points": -705.12,
+            "profit_factor": 0.554272,
+            "trade_count": 171,
+            "win_rate": 0.345029
+          },
+          {
+            "bucket": "2024-11",
+            "max_drawdown_points": 544.53,
+            "net_pnl_points": -536.88,
+            "profit_factor": 0.619617,
+            "trade_count": 158,
+            "win_rate": 0.35443
+          },
+          {
+            "bucket": "2024-12",
+            "max_drawdown_points": 992.86,
+            "net_pnl_points": -936.89,
+            "profit_factor": 0.3662,
+            "trade_count": 152,
+            "win_rate": 0.25
+          },
+          {
+            "bucket": "2025-01",
+            "max_drawdown_points": 638.58,
+            "net_pnl_points": -463.02,
+            "profit_factor": 0.728372,
+            "trade_count": 159,
+            "win_rate": 0.389937
+          },
+          {
+            "bucket": "2025-02",
+            "max_drawdown_points": 821.3,
+            "net_pnl_points": -726.26,
+            "profit_factor": 0.551832,
+            "trade_count": 153,
+            "win_rate": 0.339869
+          },
+          {
+            "bucket": "2025-03",
+            "max_drawdown_points": 1017.04,
+            "net_pnl_points": -818.16,
+            "profit_factor": 0.626331,
+            "trade_count": 160,
+            "win_rate": 0.34375
+          },
+          {
+            "bucket": "2025-04",
+            "max_drawdown_points": 1061.43,
+            "net_pnl_points": -883.98,
+            "profit_factor": 0.719735,
+            "trade_count": 161,
+            "win_rate": 0.329193
+          },
+          {
+            "bucket": "2025-05",
+            "max_drawdown_points": 921.02,
+            "net_pnl_points": -867.09,
+            "profit_factor": 0.542334,
+            "trade_count": 168,
+            "win_rate": 0.297619
+          },
+          {
+            "bucket": "2025-06",
+            "max_drawdown_points": 781.39,
+            "net_pnl_points": -781.39,
+            "profit_factor": 0.479874,
+            "trade_count": 152,
+            "win_rate": 0.302632
+          },
+          {
+            "bucket": "2025-07",
+            "max_drawdown_points": 994.62,
+            "net_pnl_points": -941.55,
+            "profit_factor": 0.301194,
+            "trade_count": 166,
+            "win_rate": 0.253012
+          },
+          {
+            "bucket": "2025-08",
+            "max_drawdown_points": 773.75,
+            "net_pnl_points": -723.27,
+            "profit_factor": 0.506486,
+            "trade_count": 162,
+            "win_rate": 0.308642
+          },
+          {
+            "bucket": "2025-09",
+            "max_drawdown_points": 521.83,
+            "net_pnl_points": -457.7,
+            "profit_factor": 0.609097,
+            "trade_count": 158,
+            "win_rate": 0.367089
+          },
+          {
+            "bucket": "2025-10",
+            "max_drawdown_points": 701.55,
+            "net_pnl_points": -632.23,
+            "profit_factor": 0.606878,
+            "trade_count": 171,
+            "win_rate": 0.374269
+          },
+          {
+            "bucket": "2025-11",
+            "max_drawdown_points": 1035.34,
+            "net_pnl_points": -1005.44,
+            "profit_factor": 0.51826,
+            "trade_count": 140,
+            "win_rate": 0.307143
+          },
+          {
+            "bucket": "2025-12",
+            "max_drawdown_points": 964.49,
+            "net_pnl_points": -942.93,
+            "profit_factor": 0.442004,
+            "trade_count": 164,
+            "win_rate": 0.280488
+          },
+          {
+            "bucket": "2026-01",
+            "max_drawdown_points": 847.96,
+            "net_pnl_points": -792.49,
+            "profit_factor": 0.504198,
+            "trade_count": 156,
+            "win_rate": 0.320513
+          },
+          {
+            "bucket": "2026-02",
+            "max_drawdown_points": 1425.19,
+            "net_pnl_points": -1419.54,
+            "profit_factor": 0.37474,
+            "trade_count": 146,
+            "win_rate": 0.253425
+          },
+          {
+            "bucket": "2026-03",
+            "max_drawdown_points": 1251.91,
+            "net_pnl_points": -1035.48,
+            "profit_factor": 0.639654,
+            "trade_count": 168,
+            "win_rate": 0.380952
+          },
+          {
+            "bucket": "2026-04",
+            "max_drawdown_points": 722.62,
+            "net_pnl_points": -531.67,
+            "profit_factor": 0.689418,
+            "trade_count": 158,
+            "win_rate": 0.379747
+          }
+        ],
+        "worst_month_pnl_points": -1419.54
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": true,
+      "fields": {
+        "average_capture_ratio": 0.2314,
+        "average_mae_points": 16.558199,
+        "average_mfe_points": 14.084185,
+        "median_mae_points": 11.62,
+        "median_mfe_points": 8.25
+      }
+    },
+    "volatility_regime_break_compression_release_profile": {
+      "applies": true,
+      "fields": {
+        "candidate_direction": "dual_direction_long_and_short_per_closed_bar",
+        "candidates_by_fold": {
+          "rw_001": {
+            "eligible_candidate_count": 915,
+            "feature_count": 11,
+            "selected_candidate_count": 464,
+            "test_candidate_count": 915,
+            "train_candidate_count": 6000
+          },
+          "rw_002": {
+            "eligible_candidate_count": 991,
+            "feature_count": 11,
+            "selected_candidate_count": 491,
+            "test_candidate_count": 991,
+            "train_candidate_count": 5836
+          },
+          "rw_003": {
+            "eligible_candidate_count": 1035,
+            "feature_count": 11,
+            "selected_candidate_count": 501,
+            "test_candidate_count": 1035,
+            "train_candidate_count": 5688
+          },
+          "rw_004": {
+            "eligible_candidate_count": 953,
+            "feature_count": 11,
+            "selected_candidate_count": 479,
+            "test_candidate_count": 953,
+            "train_candidate_count": 5756
+          },
+          "rw_005": {
+            "eligible_candidate_count": 991,
+            "feature_count": 11,
+            "selected_candidate_count": 481,
+            "test_candidate_count": 991,
+            "train_candidate_count": 5857
+          },
+          "rw_006": {
+            "eligible_candidate_count": 949,
+            "feature_count": 11,
+            "selected_candidate_count": 492,
+            "test_candidate_count": 949,
+            "train_candidate_count": 5817
+          },
+          "rw_007": {
+            "eligible_candidate_count": 1002,
+            "feature_count": 11,
+            "selected_candidate_count": 497,
+            "test_candidate_count": 1002,
+            "train_candidate_count": 5781
+          },
+          "rw_008": {
+            "eligible_candidate_count": 890,
+            "feature_count": 11,
+            "selected_candidate_count": 470,
+            "test_candidate_count": 890,
+            "train_candidate_count": 5834
+          },
+          "rw_009": {
+            "eligible_candidate_count": 935,
+            "feature_count": 11,
+            "selected_candidate_count": 487,
+            "test_candidate_count": 935,
+            "train_candidate_count": 5921
+          }
+        },
+        "entries_per_active_day": 7.382759,
+        "entry_count_per_active_day_target": "5_to_10",
+        "feature_count": 11,
+        "feature_names": [
+          "compression_depth",
+          "volatility_expansion_ratio",
+          "range_break_strength",
+          "directional_body_commitment",
+          "close_location_drive",
+          "participation_expansion",
+          "prebreak_range_contraction",
+          "path_efficiency",
+          "session_phase_maturity",
+          "breakout_pressure",
+          "spread_stress_inverse"
+        ],
+        "feature_set_selected": false,
+        "fold_models": [
+          {
+            "feature_mean": [
+              0.212993,
+              1.559183,
+              0.417038,
+              0.65073,
+              0.805826,
+              0.14956,
+              0.190034,
+              0.446928,
+              0.500439,
+              0.459492,
+              0.871123
+            ],
+            "feature_names": [
+              "compression_depth",
+              "volatility_expansion_ratio",
+              "range_break_strength",
+              "directional_body_commitment",
+              "close_location_drive",
+              "participation_expansion",
+              "prebreak_range_contraction",
+              "path_efficiency",
+              "session_phase_maturity",
+              "breakout_pressure",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              0.137591,
+              0.709385,
+              0.468525,
+              0.213295,
+              0.167061,
+              0.36633,
+              0.13213,
+              0.21737,
+              0.32576,
+              0.407734,
+              0.067607
+            ],
+            "feature_weight": [
+              0.030844,
+              -0.019052,
+              -0.030022,
+              -0.007539,
+              -0.018553,
+              -0.020253,
+              0.050462,
+              -0.003224,
+              0.044334,
+              0.016499,
+              0.058701
+            ],
+            "fold_id": "rw_001",
+            "global_mean": -1.004969,
+            "positive_label_rate": 0.416333,
+            "train_candidate_count": 6000,
+            "volatility_regime_break_compression_release_failure_rate": 0.504667
+          },
+          {
+            "feature_mean": [
+              0.211864,
+              1.55688,
+              0.417226,
+              0.654508,
+              0.806287,
+              0.140983,
+              0.189578,
+              0.444847,
+              0.500696,
+              0.461502,
+              0.858462
+            ],
+            "feature_names": [
+              "compression_depth",
+              "volatility_expansion_ratio",
+              "range_break_strength",
+              "directional_body_commitment",
+              "close_location_drive",
+              "participation_expansion",
+              "prebreak_range_contraction",
+              "path_efficiency",
+              "session_phase_maturity",
+              "breakout_pressure",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              0.138847,
+              0.700517,
+              0.465024,
+              0.2148,
+              0.169533,
+              0.336565,
+              0.132577,
+              0.217644,
+              0.327774,
+              0.413146,
+              0.073881
+            ],
+            "feature_weight": [
+              0.031622,
+              -0.014015,
+              -0.029235,
+              -0.005399,
+              -0.014333,
+              -0.004051,
+              0.047846,
+              -0.010295,
+              0.048298,
+              0.025279,
+              0.063418
+            ],
+            "fold_id": "rw_002",
+            "global_mean": -1.033044,
+            "positive_label_rate": 0.419123,
+            "train_candidate_count": 5836,
+            "volatility_regime_break_compression_release_failure_rate": 0.50377
+          },
+          {
+            "feature_mean": [
+              0.211855,
+              1.561003,
+              0.416512,
+              0.653226,
+              0.804868,
+              0.145444,
+              0.190608,
+              0.445621,
+              0.500291,
+              0.463579,
+              0.855641
+            ],
+            "feature_names": [
+              "compression_depth",
+              "volatility_expansion_ratio",
+              "range_break_strength",
+              "directional_body_commitment",
+              "close_location_drive",
+              "participation_expansion",
+              "prebreak_range_contraction",
+              "path_efficiency",
+              "session_phase_maturity",
+              "breakout_pressure",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              0.139814,
+              0.699493,
+              0.463101,
+              0.217507,
+              0.170752,
+              0.341671,
+              0.134042,
+              0.218043,
+              0.330185,
+              0.420922,
+              0.078648
+            ],
+            "feature_weight": [
+              0.041525,
+              0.000539,
+              -0.011081,
+              -0.00257,
+              -0.008457,
+              0.004075,
+              0.060481,
+              0.002448,
+              0.050745,
+              0.04401,
+              0.058132
+            ],
+            "fold_id": "rw_003",
+            "global_mean": -1.109854,
+            "positive_label_rate": 0.418073,
+            "train_candidate_count": 5688,
+            "volatility_regime_break_compression_release_failure_rate": 0.502989
+          },
+          {
+            "feature_mean": [
+              0.212971,
+              1.557487,
+              0.416745,
+              0.653333,
+              0.806661,
+              0.147863,
+              0.190283,
+              0.447799,
+              0.497758,
+              0.464373,
+              0.856338
+            ],
+            "feature_names": [
+              "compression_depth",
+              "volatility_expansion_ratio",
+              "range_break_strength",
+              "directional_body_commitment",
+              "close_location_drive",
+              "participation_expansion",
+              "prebreak_range_contraction",
+              "path_efficiency",
+              "session_phase_maturity",
+              "breakout_pressure",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              0.141136,
+              0.701884,
+              0.46086,
+              0.218758,
+              0.170509,
+              0.355788,
+              0.13341,
+              0.220555,
+              0.330258,
+              0.426402,
+              0.081239
+            ],
+            "feature_weight": [
+              0.058482,
+              0.001434,
+              -0.007709,
+              -0.004578,
+              -0.00909,
+              0.005185,
+              0.057144,
+              0.015623,
+              0.058493,
+              0.053072,
+              0.0772
+            ],
+            "fold_id": "rw_004",
+            "global_mean": -1.137925,
+            "positive_label_rate": 0.41713,
+            "train_candidate_count": 5756,
+            "volatility_regime_break_compression_release_failure_rate": 0.503301
+          },
+          {
+            "feature_mean": [
+              0.216579,
+              1.564527,
+              0.421378,
+              0.65392,
+              0.805037,
+              0.156205,
+              0.193677,
+              0.451435,
+              0.492669,
+              0.465929,
+              0.866112
+            ],
+            "feature_names": [
+              "compression_depth",
+              "volatility_expansion_ratio",
+              "range_break_strength",
+              "directional_body_commitment",
+              "close_location_drive",
+              "participation_expansion",
+              "prebreak_range_contraction",
+              "path_efficiency",
+              "session_phase_maturity",
+              "breakout_pressure",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              0.142069,
+              0.711633,
+              0.483037,
+              0.219374,
+              0.171818,
+              0.368543,
+              0.134019,
+              0.223986,
+              0.329965,
+              0.440634,
+              0.080241
+            ],
+            "feature_weight": [
+              0.057236,
+              -0.000128,
+              -0.001924,
+              0.002234,
+              -0.007155,
+              0.005116,
+              0.04968,
+              0.034994,
+              0.047149,
+              0.03688,
+              0.077435
+            ],
+            "fold_id": "rw_005",
+            "global_mean": -1.080021,
+            "positive_label_rate": 0.425132,
+            "train_candidate_count": 5857,
+            "volatility_regime_break_compression_release_failure_rate": 0.496671
+          },
+          {
+            "feature_mean": [
+              0.21753,
+              1.560018,
+              0.421046,
+              0.653274,
+              0.806446,
+              0.154309,
+              0.195766,
+              0.452655,
+              0.492553,
+              0.466874,
+              0.877076
+            ],
+            "feature_names": [
+              "compression_depth",
+              "volatility_expansion_ratio",
+              "range_break_strength",
+              "directional_body_commitment",
+              "close_location_drive",
+              "participation_expansion",
+              "prebreak_range_contraction",
+              "path_efficiency",
+              "session_phase_maturity",
+              "breakout_pressure",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              0.142201,
+              0.713658,
+              0.474995,
+              0.220566,
+              0.171025,
+              0.358298,
+              0.134083,
+              0.224055,
+              0.330692,
+              0.444805,
+              0.076878
+            ],
+            "feature_weight": [
+              0.05351,
+              0.012495,
+              0.003801,
+              0.010189,
+              0.001399,
+              0.014587,
+              0.060444,
+              0.029656,
+              0.045142,
+              0.037745,
+              0.070619
+            ],
+            "fold_id": "rw_006",
+            "global_mean": -1.050796,
+            "positive_label_rate": 0.427024,
+            "train_candidate_count": 5817,
+            "volatility_regime_break_compression_release_failure_rate": 0.496132
+          },
+          {
+            "feature_mean": [
+              0.21421,
+              1.576006,
+              0.428087,
+              0.652251,
+              0.805221,
+              0.155605,
+              0.191603,
+              0.455711,
+              0.487854,
+              0.469645,
+              0.886921
+            ],
+            "feature_names": [
+              "compression_depth",
+              "volatility_expansion_ratio",
+              "range_break_strength",
+              "directional_body_commitment",
+              "close_location_drive",
+              "participation_expansion",
+              "prebreak_range_contraction",
+              "path_efficiency",
+              "session_phase_maturity",
+              "breakout_pressure",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              0.141512,
+              0.744027,
+              0.497918,
+              0.219168,
+              0.170242,
+              0.355523,
+              0.135282,
+              0.223179,
+              0.329282,
+              0.462028,
+              0.076803
+            ],
+            "feature_weight": [
+              0.073301,
+              0.022427,
+              0.007009,
+              0.014195,
+              0.018895,
+              0.019316,
+              0.06578,
+              0.023744,
+              0.026686,
+              0.028803,
+              0.066401
+            ],
+            "fold_id": "rw_007",
+            "global_mean": -1.053982,
+            "positive_label_rate": 0.435911,
+            "train_candidate_count": 5781,
+            "volatility_regime_break_compression_release_failure_rate": 0.488324
+          },
+          {
+            "feature_mean": [
+              0.218071,
+              1.596094,
+              0.438733,
+              0.651434,
+              0.805055,
+              0.164481,
+              0.195917,
+              0.457241,
+              0.483106,
+              0.476374,
+              0.897027
+            ],
+            "feature_names": [
+              "compression_depth",
+              "volatility_expansion_ratio",
+              "range_break_strength",
+              "directional_body_commitment",
+              "close_location_drive",
+              "participation_expansion",
+              "prebreak_range_contraction",
+              "path_efficiency",
+              "session_phase_maturity",
+              "breakout_pressure",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              0.142686,
+              0.780605,
+              0.527197,
+              0.216573,
+              0.16786,
+              0.369113,
+              0.13573,
+              0.223779,
+              0.327963,
+              0.489146,
+              0.066925
+            ],
+            "feature_weight": [
+              0.063646,
+              0.020896,
+              0.010739,
+              0.008996,
+              0.018887,
+              0.013441,
+              0.062401,
+              0.028454,
+              0.014412,
+              0.020313,
+              0.059074
+            ],
+            "fold_id": "rw_008",
+            "global_mean": -1.058749,
+            "positive_label_rate": 0.430408,
+            "train_candidate_count": 5834,
+            "volatility_regime_break_compression_release_failure_rate": 0.490744
+          },
+          {
+            "feature_mean": [
+              0.219715,
+              1.598214,
+              0.442425,
+              0.651972,
+              0.806581,
+              0.157992,
+              0.196152,
+              0.454885,
+              0.481947,
+              0.477567,
+              0.898012
+            ],
+            "feature_names": [
+              "compression_depth",
+              "volatility_expansion_ratio",
+              "range_break_strength",
+              "directional_body_commitment",
+              "close_location_drive",
+              "participation_expansion",
+              "prebreak_range_contraction",
+              "path_efficiency",
+              "session_phase_maturity",
+              "breakout_pressure",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              0.142742,
+              0.791487,
+              0.529978,
+              0.216869,
+              0.168021,
+              0.348396,
+              0.135808,
+              0.222147,
+              0.324686,
+              0.49615,
+              0.060687
+            ],
+            "feature_weight": [
+              0.062988,
+              0.006927,
+              0.000275,
+              0.014563,
+              0.022618,
+              -0.003885,
+              0.051053,
+              0.012585,
+              0.014461,
+              0.007038,
+              0.063462
+            ],
+            "fold_id": "rw_009",
+            "global_mean": -1.022992,
+            "positive_label_rate": 0.432528,
+            "train_candidate_count": 5921,
+            "volatility_regime_break_compression_release_failure_rate": 0.487924
+          }
+        ],
+        "label_horizon_bars": 10,
+        "label_selected": false,
+        "label_shape": "target_first_escape_quality_conditioned_on_volatility_regime_break_compression_release_state",
+        "max_entries_per_active_day": 8,
+        "model_family": "fold_local_intraday_volatility_regime_break_compression_release_rank",
+        "model_selected": false,
+        "selection_rule": "top_fold_local_volatility_regime_break_compression_release_scores_per_active_day",
+        "state_distributions": {
+          "rw_001": {
+            "candidate_count": 915,
+            "eligible_candidate_count": 915,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.191598,
+            "score_p50": 0.01275,
+            "score_p90": 0.222831,
+            "selected_count": 464,
+            "selected_score_max": 0.399879,
+            "selected_score_min": -0.422854,
+            "train_candidate_count": 6000
+          },
+          "rw_002": {
+            "candidate_count": 991,
+            "eligible_candidate_count": 991,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.184469,
+            "score_p50": 0.001614,
+            "score_p90": 0.224779,
+            "selected_count": 491,
+            "selected_score_max": 0.392459,
+            "selected_score_min": -0.372777,
+            "train_candidate_count": 5836
+          },
+          "rw_003": {
+            "candidate_count": 1035,
+            "eligible_candidate_count": 1035,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.133611,
+            "score_p50": 0.021593,
+            "score_p90": 0.265336,
+            "selected_count": 501,
+            "selected_score_max": 0.544684,
+            "selected_score_min": -0.233486,
+            "train_candidate_count": 5688
+          },
+          "rw_004": {
+            "candidate_count": 953,
+            "eligible_candidate_count": 953,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.206416,
+            "score_p50": 0.017758,
+            "score_p90": 0.323059,
+            "selected_count": 479,
+            "selected_score_max": 0.792972,
+            "selected_score_min": -0.368507,
+            "train_candidate_count": 5756
+          },
+          "rw_005": {
+            "candidate_count": 991,
+            "eligible_candidate_count": 991,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.136819,
+            "score_p50": 0.022992,
+            "score_p90": 0.22835,
+            "selected_count": 481,
+            "selected_score_max": 0.528457,
+            "selected_score_min": -0.271458,
+            "train_candidate_count": 5857
+          },
+          "rw_006": {
+            "candidate_count": 949,
+            "eligible_candidate_count": 949,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.164666,
+            "score_p50": 0.025967,
+            "score_p90": 0.266157,
+            "selected_count": 492,
+            "selected_score_max": 0.577385,
+            "selected_score_min": -0.328005,
+            "train_candidate_count": 5817
+          },
+          "rw_007": {
+            "candidate_count": 1002,
+            "eligible_candidate_count": 1002,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.196334,
+            "score_p50": 4.7e-05,
+            "score_p90": 0.249719,
+            "selected_count": 497,
+            "selected_score_max": 0.855277,
+            "selected_score_min": -0.306119,
+            "train_candidate_count": 5781
+          },
+          "rw_008": {
+            "candidate_count": 890,
+            "eligible_candidate_count": 890,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.137599,
+            "score_p50": 0.018707,
+            "score_p90": 0.249707,
+            "selected_count": 470,
+            "selected_score_max": 1.014741,
+            "selected_score_min": -0.247278,
+            "train_candidate_count": 5834
+          },
+          "rw_009": {
+            "candidate_count": 935,
+            "eligible_candidate_count": 935,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.076153,
+            "score_p50": 0.061809,
+            "score_p90": 0.239981,
+            "selected_count": 487,
+            "selected_score_max": 0.451997,
+            "selected_score_min": -0.157163,
+            "train_candidate_count": 5921
+          }
+        }
+      }
+    }
+  },
+  "created_at_utc": "2026-07-06T22:39:07Z",
+  "dataset_identity": "data/processed/datasets/us100_m5_base_frame.csv",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "produce C0090 R0001 MT5 paired validation evidence",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "mt5_paired_validation",
+      "reason": "proxy evidence is recorded as a reference surface; MT5 logic parity, tick execution, divergence, and fold-isolated evidence remain mandatory",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "produce_c0090_r0001_mt5_logic_parity_evidence"
+    },
+    {
+      "blocking_condition": "proxy.json content must be stable before hashing",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_artifact_hashes",
+      "reason": "self-hash is recorded in artifact_lineage after proxy.json is written",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "before C0090 R0001 closeout"
+    }
+  ],
+  "fold_ids": [
+    "rw_001",
+    "rw_002",
+    "rw_003",
+    "rw_004",
+    "rw_005",
+    "rw_006",
+    "rw_007",
+    "rw_008",
+    "rw_009",
+    "tail"
+  ],
+  "proxy_artifact_hashes": [
+    "3afa0f44e29cef3aad3a64c5fe1fa22c2d8cea6581aec6b349b41465f2223baf",
+    "35cf4d29a0e48cd082a26b346a6a8ba881913228f6524f0287d6c4f7cb927bfa"
+  ],
+  "proxy_artifact_paths": [
+    "campaigns/C0090_intraday_volatility_regime_break_compression_release_discovery/runs/R0001/kpi/proxy.json",
+    "campaigns/C0090_intraday_volatility_regime_break_compression_release_discovery/runs/R0001/artifacts/c0090_r0001_proxy_trades.csv",
+    "campaigns/C0090_intraday_volatility_regime_break_compression_release_discovery/runs/R0001/artifacts/c0090_r0001_volatility_regime_break_compression_release_summary.json"
+  ],
+  "proxy_code_version_or_commit": "uncommitted_local_worktree_at_proxy_creation",
+  "proxy_config": {
+    "bar_basis": "closed_m5",
+    "candidate_direction": "dual_direction_long_and_short_per_closed_bar",
+    "entry_basis": "next_bar_open_after_scored_closed_bar",
+    "equity_percent_sizing": "deferred_until_candidate_quality",
+    "evaluation_splits": "rolling_windows_test_oos",
+    "gap_blocked_exit_policy": "skip_when_exit_bar_next_tick_gap_exceeds_5_minutes",
+    "gap_carried_entry_policy": "skip_when_next_bar_gap_exceeds_5_minutes",
+    "label_horizon_bars": 10,
+    "label_shape": "target_first_escape_quality_conditioned_on_volatility_regime_break_compression_release_state",
+    "lookback_range_bars": 48,
+    "max_entries_per_active_day": 8,
+    "max_hold_bars": 10,
+    "min_signal_spacing_bars": 6,
+    "min_volatility_regime_break_compression_release_activity": 0.16,
+    "model_family": "fold_local_intraday_volatility_regime_break_compression_release_rank",
+    "price_precision_digits": 2,
+    "same_bar_stop_target_policy": "stop_first_conservative",
+    "short_range_bars": 12,
+    "sizing_mode": "fixed_lot_discovery",
+    "stop_range_multiple": 0.8,
+    "target_range_multiple": 1.1,
+    "training_splits": "rolling_windows_train_is",
+    "volatility_regime_break_compression_release_lookback_bars": 36,
+    "volatility_regime_break_compression_release_short_lookback_bars": 10
+  },
+  "proxy_config_path": "campaigns/C0090_intraday_volatility_regime_break_compression_release_discovery/runs/R0001/run_manifest.json",
+  "proxy_engine": "axiom_rift.proxies.c0090_r0001_intraday_volatility_regime_break_compression_release",
+  "proxy_id": "PX-C0090-R0001",
+  "proxy_summary": {
+    "active_day_count": 580,
+    "average_bars_in_trade": 3.330687,
+    "entries_per_active_day": 7.382759,
+    "entry_target_max": 10,
+    "entry_target_min": 5,
+    "evaluation_surface": "rolling_window_test_oos_only",
+    "gross_loss_points": -44361.91,
+    "gross_profit_points": 26105.5,
+    "long_trade_count": 2327,
+    "max_hold_exit_count": 181,
+    "net_pnl_points": -18256.41,
+    "short_trade_count": 1955,
+    "signal_count": 4282,
+    "stop_exit_count": 2769,
+    "target_exit_count": 1332,
+    "trade_count": 4282
+  },
+  "required_kpis": {
+    "proxy_expectancy_per_entry": null,
+    "proxy_expectancy_points_per_entry": -4.263524,
+    "proxy_max_drawdown_percent": null,
+    "proxy_max_drawdown_points": 18428.22,
+    "proxy_net_pnl": null,
+    "proxy_net_pnl_points": -18256.41,
+    "proxy_profit_factor": 0.588467,
+    "proxy_signal_count": 4282,
+    "proxy_trade_count": 4282,
+    "proxy_win_rate": 0.336525
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "schema": "axiom_rift_proxy_kpi_v1",
+  "split_policy": "rolling_window_test_oos_only_with_train_is_volatility_regime_break_compression_release_fit",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0090"
+}

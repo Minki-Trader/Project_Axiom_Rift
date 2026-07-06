@@ -1,0 +1,243 @@
+{
+  "campaign_id": "C0090",
+  "changed_surfaces": [
+    "label",
+    "feature",
+    "model",
+    "trade_logic"
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-06T22:48:20Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
+    "closed_at_utc": "2026-07-06T22:48:20Z",
+    "negative_memory": {
+      "asset_type": "negative_memory",
+      "candidate_status": "no_candidate",
+      "economics_pass": false,
+      "evidence_paths": [
+        "artifact_lineage.json",
+        "run_manifest.json",
+        "artifacts/c0090_r0001_proxy_trades.csv",
+        "artifacts/c0090_r0001_volatility_regime_break_compression_release_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0090_r0001_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday volatility regime break compression release rank over compression depth, volatility expansion ratio, range break strength, directional body commitment, close-location drive, participation expansion, prebreak range contraction, path efficiency, session phase maturity, breakout pressure, and spread stress features",
+      "next_boundary": "C0090 R0001 shows the tested volatility regime break compression release surface is not a candidate as implemented; remaining C0090 variants would be adjacent tuning, so next work should choose a new major C0091 hypothesis without selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims",
+      "onnx_ready": false,
+      "reason_not_candidate": "activity landed inside the target band, but proxy, closed-bar MT5 logic, aggregate MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0001 produced 0 profitable and 9 losing fold-isolated MT5 tick folds, total tick net PnL -183.43, and worst fold rw_009 net PnL -30.18."
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "Schedule replay mechanical parity passed with mismatch_count 0, so the weak result is not explained by proxy-vs-MT5 logic mismatch."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution improved closed-bar logic by 13.86 total net PnL across 6 better and 3 worse folds, but both logic and tick surfaces remained negative."
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "gate_report.json",
+          "summary": "Native MQL signal logic, ONNX materialization, cost/slippage hardening, final sizing, and historical lineage debt remain unresolved; no stronger claim is created."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "divergence_recorded_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.382759,
+      "entry_count_delta": null,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_count_delta": null,
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "long_trade_count_proxy": 2327,
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.997802,
+      "minimum_exit_reason_match_rate": 0.85336,
+      "minimum_exit_time_direction_match_rate": 0.869654,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": -197.29,
+      "mt5_logic_profit_factor": 0.579608,
+      "mt5_logic_trade_count": 4282,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_expectancy_per_entry": -0.042857,
+      "mt5_tick_max_drawdown_percent": 37.142,
+      "mt5_tick_net_pnl": -183.43,
+      "mt5_tick_profit_factor": 0.588519,
+      "mt5_tick_trade_count": 4280,
+      "mt5_tick_win_rate": 0.321963,
+      "profitable_fold_count": 0,
+      "proxy_expectancy_points_per_entry": -4.263524,
+      "proxy_net_pnl_points": -18256.41,
+      "proxy_profit_factor": 0.588467,
+      "proxy_trade_count": 4282,
+      "proxy_win_rate": 0.336525,
+      "remaining_work_classification": "no_candidate; further C0090 work would be adjacent threshold, stop, target, hold, session, activity, spread, capital, or volatility-regime-break-compression-release feature nudge tuning",
+      "short_trade_count_proxy": 1955,
+      "tick_better_fold_count": 6,
+      "tick_minus_logic_net_pnl": 13.86,
+      "tick_minus_logic_trade_count": -2,
+      "tick_worse_fold_count": 3,
+      "total_tick_minus_logic_net_pnl": 13.86,
+      "total_tick_minus_logic_trade_count": -2,
+      "total_tick_net_pnl": -183.43,
+      "total_tick_trade_count": 4280,
+      "worst_drawdown_fold_id": "rw_009",
+      "worst_fold_id": "rw_009",
+      "worst_fold_max_drawdown_percent": 6.418,
+      "worst_fold_net_pnl": -30.18,
+      "worst_tick_minus_logic_fold_id": "rw_004",
+      "worst_tick_minus_logic_net_pnl": -2.43
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0090_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0090_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "run_manifest": "run_manifest.json",
+    "volatility_regime_break_compression_release_summary": "artifacts/c0090_r0001_volatility_regime_break_compression_release_summary.json"
+  },
+  "fixed_surfaces": {
+    "broker": "FPMarkets",
+    "sizing": "fixed_lot_discovery",
+    "split_policy": "rolling_window_fold_isolated",
+    "symbol": "US100",
+    "timeframe": "M5"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday volatility regime break compression release rank run",
+    "variant_boundary": "C0090 R0001 tests whether closed-M5 intraday range compression followed by volatility expansion, directional range break, close-location drive, body commitment, and participation expansion forms a portable entry surface. It changes feature family, label conditioning, model context, and trade-logic state key from C0089 session VWAP dislocation reversion. It is not a threshold/window/SL/TP/session/spread/capital nudge, materialization step, ONNX step, selected claim, runtime claim, or retry-only run."
+  },
+  "mt5_probe_plan": {
+    "closeout_status": "closed_no_candidate",
+    "next_required_action": "choose_c0091_new_major_hypothesis_after_c0090_closeout",
+    "proxy_result_may_skip_mt5": false,
+    "required_sequence": [
+      "proxy_kpi",
+      "mt5_logic_parity_kpi",
+      "proxy_vs_mt5_logic_parity_kpi",
+      "mt5_tick_kpi",
+      "execution_divergence_kpi",
+      "fold_isolated_mt5_tick_kpi",
+      "fold_isolated_execution_divergence_kpi",
+      "closeout_gate"
+    ]
+  },
+  "opened_at_utc": "2026-07-06T22:37:04Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "No C0089 session VWAP thresholds, windows, stops, targets, sessions, spread gates, or capital sizing changes are used as the run question.",
+    "adjacent_tuning_risk": "low",
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0089_intraday_session_vwap_dislocation_reversion_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0088_intraday_prior_close_magnet_rejection_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0087_intraday_range_third_transition_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "surface_distance_rationale": {
+      "feature": "volatility compression, expansion, range-break, body, close-drive, participation, and path-efficiency features replace session VWAP dislocation/reclaim features",
+      "label": "target-first escape after volatility regime break compression release, not session VWAP reversion/reclaim",
+      "model": "fold-local linear volatility regime break compression release rank",
+      "trade_logic": "top fold-local volatility-regime-break-compression-release state scores per active day"
+    },
+    "true_variant_summary": "New major campaign surface asks whether intraday volatility compression followed by directional expansion and range break carries portable edge."
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v1",
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "status": "variable",
+      "summary": "compression depth; volatility expansion ratio; range break strength; directional body commitment; close location drive; participation expansion; prebreak range contraction; path efficiency; session phase maturity; breakout pressure; spread stress inverse"
+    },
+    "label": {
+      "status": "variable",
+      "summary": "target-first escape quality conditioned on volatility regime break after prebreak compression and directional expansion"
+    },
+    "model": {
+      "status": "variable",
+      "summary": "fold-local linear intraday volatility regime break compression release rank"
+    },
+    "trade_logic": {
+      "status": "variable",
+      "summary": "dual-direction top fold-local volatility-regime-break-compression-release scores per active day using next-bar-open fixed-lot discovery entries"
+    }
+  },
+  "template": false,
+  "work_unit": "campaigns/C0090_intraday_volatility_regime_break_compression_release_discovery",
+  "work_unit_id": "C0090"
+}
