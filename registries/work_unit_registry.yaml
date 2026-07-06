@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0054
+    next_id: C0055
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -72,6 +72,7 @@ streams:
     - campaigns/C0051_intraday_gap_continuity_decay_discovery
     - campaigns/C0052_intraday_orderflow_dislocation_recovery_discovery
     - campaigns/C0053_intraday_opening_range_retest_discovery
+    - campaigns/C0054_intraday_late_session_inventory_unwind_discovery
     numbering_policy:
       width: 4
       example: C0001
