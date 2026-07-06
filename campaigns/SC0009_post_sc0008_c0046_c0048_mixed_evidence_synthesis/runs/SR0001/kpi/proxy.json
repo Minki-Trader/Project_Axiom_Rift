@@ -1,0 +1,1284 @@
+{
+  "campaign_id": null,
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "average_spread_cost_points": 1.117898,
+        "commission_per_trade": 0,
+        "round_trip_cost_model": "subtract_entry_spread_once",
+        "slippage_stress_test_allowed": true,
+        "spread_point_value": 0.01,
+        "spread_source": "entry_bar_spread_column",
+        "spread_stress_test_allowed": true,
+        "synthetic_commission_allowed": false,
+        "total_spread_cost_points": 5164.69
+      }
+    },
+    "direction_profile": {
+      "applies": true,
+      "fields": {
+        "long": {
+          "max_drawdown_points": 294.44,
+          "net_pnl_points": 6759.48,
+          "profit_factor": 1.510087,
+          "trade_count": 1839,
+          "win_rate": 0.561718
+        },
+        "short": {
+          "max_drawdown_points": 376.33,
+          "net_pnl_points": 10254.67,
+          "profit_factor": 1.567383,
+          "trade_count": 2781,
+          "win_rate": 0.56886
+        }
+      }
+    },
+    "mt5_pairing_profile": {
+      "applies": true,
+      "fields": {
+        "fold_isolated_mt5_closeout_required": true,
+        "mt5_logic_parity_required_next": true,
+        "mt5_tick_required_after_logic_parity": true,
+        "next_action": "produce_sc0009_sr0001_mt5_logic_parity_evidence",
+        "proxy_is_screening_gate_for_mt5": false,
+        "proxy_result_may_close_run": false,
+        "weak_proxy_may_skip_mt5": false
+      }
+    },
+    "range_energy_mixed_evidence_synthesis_profile": {
+      "applies": true,
+      "fields": {
+        "candidate_fold_weakness_veto_level": 0.9,
+        "candidate_sources": [
+          {
+            "execution_divergence_by_fold": "campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+            "ingredient_id": "c0046_ig001_intraday_flow_convexity_release_candidate_evidence",
+            "source_id": "C0046_R0001",
+            "tick_by_fold": "campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+            "trade_artifact": "campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0001/artifacts/c0046_r0001_proxy_trades.csv"
+          },
+          {
+            "execution_divergence_by_fold": "campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+            "ingredient_id": "c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence",
+            "source_id": "C0047_R0001",
+            "tick_by_fold": "campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+            "trade_artifact": "campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001/artifacts/c0047_r0001_proxy_trades.csv"
+          },
+          {
+            "execution_divergence_by_fold": "campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0002/kpi/execution_divergence_by_fold.json",
+            "ingredient_id": "c0048_ig001_intraday_range_energy_absorption_reversal_candidate_evidence",
+            "source_id": "C0048_R0002",
+            "tick_by_fold": "campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
+            "trade_artifact": "campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0002/artifacts/c0048_r0002_proxy_trades.csv"
+          }
+        ],
+        "candidates_by_fold": {
+          "rw_001": {
+            "candidate_source_count": 3,
+            "eligible_candidate_count": 1499,
+            "generator_candidate_count": 1499,
+            "negative_memory_event_count": 1465,
+            "negative_source_count": 3,
+            "selected_candidate_count": 504,
+            "selection_uses_source_oos_pnl": 0,
+            "selection_uses_source_proxy_pnl": 0,
+            "synthesized_candidate_count": 1499
+          },
+          "rw_002": {
+            "candidate_source_count": 3,
+            "eligible_candidate_count": 1575,
+            "generator_candidate_count": 1575,
+            "negative_memory_event_count": 1548,
+            "negative_source_count": 3,
+            "selected_candidate_count": 528,
+            "selection_uses_source_oos_pnl": 0,
+            "selection_uses_source_proxy_pnl": 0,
+            "synthesized_candidate_count": 1575
+          },
+          "rw_003": {
+            "candidate_source_count": 3,
+            "eligible_candidate_count": 1572,
+            "generator_candidate_count": 1572,
+            "negative_memory_event_count": 1541,
+            "negative_source_count": 3,
+            "selected_candidate_count": 528,
+            "selection_uses_source_oos_pnl": 0,
+            "selection_uses_source_proxy_pnl": 0,
+            "synthesized_candidate_count": 1572
+          },
+          "rw_004": {
+            "candidate_source_count": 3,
+            "eligible_candidate_count": 1523,
+            "generator_candidate_count": 1524,
+            "negative_memory_event_count": 1488,
+            "negative_source_count": 3,
+            "selected_candidate_count": 512,
+            "selection_uses_source_oos_pnl": 0,
+            "selection_uses_source_proxy_pnl": 0,
+            "synthesized_candidate_count": 1524
+          },
+          "rw_005": {
+            "candidate_source_count": 3,
+            "eligible_candidate_count": 1474,
+            "generator_candidate_count": 1474,
+            "negative_memory_event_count": 1455,
+            "negative_source_count": 3,
+            "selected_candidate_count": 496,
+            "selection_uses_source_oos_pnl": 0,
+            "selection_uses_source_proxy_pnl": 0,
+            "synthesized_candidate_count": 1474
+          },
+          "rw_006": {
+            "candidate_source_count": 3,
+            "eligible_candidate_count": 1549,
+            "generator_candidate_count": 1549,
+            "negative_memory_event_count": 1528,
+            "negative_source_count": 3,
+            "selected_candidate_count": 528,
+            "selection_uses_source_oos_pnl": 0,
+            "selection_uses_source_proxy_pnl": 0,
+            "synthesized_candidate_count": 1549
+          },
+          "rw_007": {
+            "candidate_source_count": 3,
+            "eligible_candidate_count": 1540,
+            "generator_candidate_count": 1541,
+            "negative_memory_event_count": 1545,
+            "negative_source_count": 3,
+            "selected_candidate_count": 528,
+            "selection_uses_source_oos_pnl": 0,
+            "selection_uses_source_proxy_pnl": 0,
+            "synthesized_candidate_count": 1541
+          },
+          "rw_008": {
+            "candidate_source_count": 3,
+            "eligible_candidate_count": 1474,
+            "generator_candidate_count": 1475,
+            "negative_memory_event_count": 1462,
+            "negative_source_count": 3,
+            "selected_candidate_count": 502,
+            "selection_uses_source_oos_pnl": 0,
+            "selection_uses_source_proxy_pnl": 0,
+            "synthesized_candidate_count": 1475
+          },
+          "rw_009": {
+            "candidate_source_count": 3,
+            "eligible_candidate_count": 1499,
+            "generator_candidate_count": 1499,
+            "negative_memory_event_count": 1490,
+            "negative_source_count": 3,
+            "selected_candidate_count": 512,
+            "selection_uses_source_oos_pnl": 0,
+            "selection_uses_source_proxy_pnl": 0,
+            "synthesized_candidate_count": 1499
+          }
+        },
+        "cluster_spacing_bars": 3,
+        "feature_set_selected": false,
+        "fold_models": [
+          {
+            "candidate_source_event_counts": {
+              "C0046_R0001": 496,
+              "C0047_R0001": 503,
+              "C0048_R0002": 500
+            },
+            "fold_id": "rw_001",
+            "label_shape": "candidate_source_agreement_cost_survival_under_c0046_c0048_negative_memory",
+            "model_family": "fold_local_post_sc0008_range_energy_mixed_evidence_synthesis",
+            "model_selected": false,
+            "negative_memory_event_counts": {
+              "C0046_R0002": 503,
+              "C0047_R0002": 503,
+              "C0048_R0001": 459
+            },
+            "score_component_names": [
+              "candidate_source_score_z",
+              "same_direction_candidate_source_agreement",
+              "candidate_source_diversity",
+              "same_direction_negative_memory_collision",
+              "opposite_direction_negative_memory_conflict",
+              "negative_fold_loss_density",
+              "candidate_fold_weakness",
+              "execution_divergence_pressure",
+              "spread_pressure"
+            ],
+            "selected_candidate_count": 504,
+            "selection_uses_source_oos_pnl": false,
+            "selection_uses_source_proxy_pnl": false,
+            "source_ingredient_ids": [
+              "c0046_ig001_intraday_flow_convexity_release_candidate_evidence",
+              "c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence",
+              "c0048_ig001_intraday_range_energy_absorption_reversal_candidate_evidence",
+              "c0046_ig002_cost_fragility_survival_negative_memory",
+              "c0047_ig002_rejection_continuation_negative_memory",
+              "c0048_ig002_intraday_range_energy_follow_through_negative_memory",
+              "c0046_ig003_execution_divergence_contrast",
+              "c0047_ig003_execution_divergence_contrast",
+              "c0048_ig003_execution_divergence_contrast"
+            ],
+            "synthesized_candidate_count": 1499
+          },
+          {
+            "candidate_source_event_counts": {
+              "C0046_R0001": 521,
+              "C0047_R0001": 528,
+              "C0048_R0002": 526
+            },
+            "fold_id": "rw_002",
+            "label_shape": "candidate_source_agreement_cost_survival_under_c0046_c0048_negative_memory",
+            "model_family": "fold_local_post_sc0008_range_energy_mixed_evidence_synthesis",
+            "model_selected": false,
+            "negative_memory_event_counts": {
+              "C0046_R0002": 528,
+              "C0047_R0002": 528,
+              "C0048_R0001": 492
+            },
+            "score_component_names": [
+              "candidate_source_score_z",
+              "same_direction_candidate_source_agreement",
+              "candidate_source_diversity",
+              "same_direction_negative_memory_collision",
+              "opposite_direction_negative_memory_conflict",
+              "negative_fold_loss_density",
+              "candidate_fold_weakness",
+              "execution_divergence_pressure",
+              "spread_pressure"
+            ],
+            "selected_candidate_count": 528,
+            "selection_uses_source_oos_pnl": false,
+            "selection_uses_source_proxy_pnl": false,
+            "source_ingredient_ids": [
+              "c0046_ig001_intraday_flow_convexity_release_candidate_evidence",
+              "c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence",
+              "c0048_ig001_intraday_range_energy_absorption_reversal_candidate_evidence",
+              "c0046_ig002_cost_fragility_survival_negative_memory",
+              "c0047_ig002_rejection_continuation_negative_memory",
+              "c0048_ig002_intraday_range_energy_follow_through_negative_memory",
+              "c0046_ig003_execution_divergence_contrast",
+              "c0047_ig003_execution_divergence_contrast",
+              "c0048_ig003_execution_divergence_contrast"
+            ],
+            "synthesized_candidate_count": 1575
+          },
+          {
+            "candidate_source_event_counts": {
+              "C0046_R0001": 517,
+              "C0047_R0001": 528,
+              "C0048_R0002": 527
+            },
+            "fold_id": "rw_003",
+            "label_shape": "candidate_source_agreement_cost_survival_under_c0046_c0048_negative_memory",
+            "model_family": "fold_local_post_sc0008_range_energy_mixed_evidence_synthesis",
+            "model_selected": false,
+            "negative_memory_event_counts": {
+              "C0046_R0002": 526,
+              "C0047_R0002": 528,
+              "C0048_R0001": 487
+            },
+            "score_component_names": [
+              "candidate_source_score_z",
+              "same_direction_candidate_source_agreement",
+              "candidate_source_diversity",
+              "same_direction_negative_memory_collision",
+              "opposite_direction_negative_memory_conflict",
+              "negative_fold_loss_density",
+              "candidate_fold_weakness",
+              "execution_divergence_pressure",
+              "spread_pressure"
+            ],
+            "selected_candidate_count": 528,
+            "selection_uses_source_oos_pnl": false,
+            "selection_uses_source_proxy_pnl": false,
+            "source_ingredient_ids": [
+              "c0046_ig001_intraday_flow_convexity_release_candidate_evidence",
+              "c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence",
+              "c0048_ig001_intraday_range_energy_absorption_reversal_candidate_evidence",
+              "c0046_ig002_cost_fragility_survival_negative_memory",
+              "c0047_ig002_rejection_continuation_negative_memory",
+              "c0048_ig002_intraday_range_energy_follow_through_negative_memory",
+              "c0046_ig003_execution_divergence_contrast",
+              "c0047_ig003_execution_divergence_contrast",
+              "c0048_ig003_execution_divergence_contrast"
+            ],
+            "synthesized_candidate_count": 1572
+          },
+          {
+            "candidate_source_event_counts": {
+              "C0046_R0001": 502,
+              "C0047_R0001": 512,
+              "C0048_R0002": 510
+            },
+            "fold_id": "rw_004",
+            "label_shape": "candidate_source_agreement_cost_survival_under_c0046_c0048_negative_memory",
+            "model_family": "fold_local_post_sc0008_range_energy_mixed_evidence_synthesis",
+            "model_selected": false,
+            "negative_memory_event_counts": {
+              "C0046_R0002": 505,
+              "C0047_R0002": 512,
+              "C0048_R0001": 471
+            },
+            "score_component_names": [
+              "candidate_source_score_z",
+              "same_direction_candidate_source_agreement",
+              "candidate_source_diversity",
+              "same_direction_negative_memory_collision",
+              "opposite_direction_negative_memory_conflict",
+              "negative_fold_loss_density",
+              "candidate_fold_weakness",
+              "execution_divergence_pressure",
+              "spread_pressure"
+            ],
+            "selected_candidate_count": 512,
+            "selection_uses_source_oos_pnl": false,
+            "selection_uses_source_proxy_pnl": false,
+            "source_ingredient_ids": [
+              "c0046_ig001_intraday_flow_convexity_release_candidate_evidence",
+              "c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence",
+              "c0048_ig001_intraday_range_energy_absorption_reversal_candidate_evidence",
+              "c0046_ig002_cost_fragility_survival_negative_memory",
+              "c0047_ig002_rejection_continuation_negative_memory",
+              "c0048_ig002_intraday_range_energy_follow_through_negative_memory",
+              "c0046_ig003_execution_divergence_contrast",
+              "c0047_ig003_execution_divergence_contrast",
+              "c0048_ig003_execution_divergence_contrast"
+            ],
+            "synthesized_candidate_count": 1524
+          },
+          {
+            "candidate_source_event_counts": {
+              "C0046_R0001": 487,
+              "C0047_R0001": 495,
+              "C0048_R0002": 492
+            },
+            "fold_id": "rw_005",
+            "label_shape": "candidate_source_agreement_cost_survival_under_c0046_c0048_negative_memory",
+            "model_family": "fold_local_post_sc0008_range_energy_mixed_evidence_synthesis",
+            "model_selected": false,
+            "negative_memory_event_counts": {
+              "C0046_R0002": 494,
+              "C0047_R0002": 495,
+              "C0048_R0001": 466
+            },
+            "score_component_names": [
+              "candidate_source_score_z",
+              "same_direction_candidate_source_agreement",
+              "candidate_source_diversity",
+              "same_direction_negative_memory_collision",
+              "opposite_direction_negative_memory_conflict",
+              "negative_fold_loss_density",
+              "candidate_fold_weakness",
+              "execution_divergence_pressure",
+              "spread_pressure"
+            ],
+            "selected_candidate_count": 496,
+            "selection_uses_source_oos_pnl": false,
+            "selection_uses_source_proxy_pnl": false,
+            "source_ingredient_ids": [
+              "c0046_ig001_intraday_flow_convexity_release_candidate_evidence",
+              "c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence",
+              "c0048_ig001_intraday_range_energy_absorption_reversal_candidate_evidence",
+              "c0046_ig002_cost_fragility_survival_negative_memory",
+              "c0047_ig002_rejection_continuation_negative_memory",
+              "c0048_ig002_intraday_range_energy_follow_through_negative_memory",
+              "c0046_ig003_execution_divergence_contrast",
+              "c0047_ig003_execution_divergence_contrast",
+              "c0048_ig003_execution_divergence_contrast"
+            ],
+            "synthesized_candidate_count": 1474
+          },
+          {
+            "candidate_source_event_counts": {
+              "C0046_R0001": 513,
+              "C0047_R0001": 527,
+              "C0048_R0002": 509
+            },
+            "fold_id": "rw_006",
+            "label_shape": "candidate_source_agreement_cost_survival_under_c0046_c0048_negative_memory",
+            "model_family": "fold_local_post_sc0008_range_energy_mixed_evidence_synthesis",
+            "model_selected": false,
+            "negative_memory_event_counts": {
+              "C0046_R0002": 524,
+              "C0047_R0002": 528,
+              "C0048_R0001": 476
+            },
+            "score_component_names": [
+              "candidate_source_score_z",
+              "same_direction_candidate_source_agreement",
+              "candidate_source_diversity",
+              "same_direction_negative_memory_collision",
+              "opposite_direction_negative_memory_conflict",
+              "negative_fold_loss_density",
+              "candidate_fold_weakness",
+              "execution_divergence_pressure",
+              "spread_pressure"
+            ],
+            "selected_candidate_count": 528,
+            "selection_uses_source_oos_pnl": false,
+            "selection_uses_source_proxy_pnl": false,
+            "source_ingredient_ids": [
+              "c0046_ig001_intraday_flow_convexity_release_candidate_evidence",
+              "c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence",
+              "c0048_ig001_intraday_range_energy_absorption_reversal_candidate_evidence",
+              "c0046_ig002_cost_fragility_survival_negative_memory",
+              "c0047_ig002_rejection_continuation_negative_memory",
+              "c0048_ig002_intraday_range_energy_follow_through_negative_memory",
+              "c0046_ig003_execution_divergence_contrast",
+              "c0047_ig003_execution_divergence_contrast",
+              "c0048_ig003_execution_divergence_contrast"
+            ],
+            "synthesized_candidate_count": 1549
+          },
+          {
+            "candidate_source_event_counts": {
+              "C0046_R0001": 509,
+              "C0047_R0001": 528,
+              "C0048_R0002": 504
+            },
+            "fold_id": "rw_007",
+            "label_shape": "candidate_source_agreement_cost_survival_under_c0046_c0048_negative_memory",
+            "model_family": "fold_local_post_sc0008_range_energy_mixed_evidence_synthesis",
+            "model_selected": false,
+            "negative_memory_event_counts": {
+              "C0046_R0002": 527,
+              "C0047_R0002": 528,
+              "C0048_R0001": 490
+            },
+            "score_component_names": [
+              "candidate_source_score_z",
+              "same_direction_candidate_source_agreement",
+              "candidate_source_diversity",
+              "same_direction_negative_memory_collision",
+              "opposite_direction_negative_memory_conflict",
+              "negative_fold_loss_density",
+              "candidate_fold_weakness",
+              "execution_divergence_pressure",
+              "spread_pressure"
+            ],
+            "selected_candidate_count": 528,
+            "selection_uses_source_oos_pnl": false,
+            "selection_uses_source_proxy_pnl": false,
+            "source_ingredient_ids": [
+              "c0046_ig001_intraday_flow_convexity_release_candidate_evidence",
+              "c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence",
+              "c0048_ig001_intraday_range_energy_absorption_reversal_candidate_evidence",
+              "c0046_ig002_cost_fragility_survival_negative_memory",
+              "c0047_ig002_rejection_continuation_negative_memory",
+              "c0048_ig002_intraday_range_energy_follow_through_negative_memory",
+              "c0046_ig003_execution_divergence_contrast",
+              "c0047_ig003_execution_divergence_contrast",
+              "c0048_ig003_execution_divergence_contrast"
+            ],
+            "synthesized_candidate_count": 1541
+          },
+          {
+            "candidate_source_event_counts": {
+              "C0046_R0001": 484,
+              "C0047_R0001": 502,
+              "C0048_R0002": 489
+            },
+            "fold_id": "rw_008",
+            "label_shape": "candidate_source_agreement_cost_survival_under_c0046_c0048_negative_memory",
+            "model_family": "fold_local_post_sc0008_range_energy_mixed_evidence_synthesis",
+            "model_selected": false,
+            "negative_memory_event_counts": {
+              "C0046_R0002": 503,
+              "C0047_R0002": 504,
+              "C0048_R0001": 455
+            },
+            "score_component_names": [
+              "candidate_source_score_z",
+              "same_direction_candidate_source_agreement",
+              "candidate_source_diversity",
+              "same_direction_negative_memory_collision",
+              "opposite_direction_negative_memory_conflict",
+              "negative_fold_loss_density",
+              "candidate_fold_weakness",
+              "execution_divergence_pressure",
+              "spread_pressure"
+            ],
+            "selected_candidate_count": 502,
+            "selection_uses_source_oos_pnl": false,
+            "selection_uses_source_proxy_pnl": false,
+            "source_ingredient_ids": [
+              "c0046_ig001_intraday_flow_convexity_release_candidate_evidence",
+              "c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence",
+              "c0048_ig001_intraday_range_energy_absorption_reversal_candidate_evidence",
+              "c0046_ig002_cost_fragility_survival_negative_memory",
+              "c0047_ig002_rejection_continuation_negative_memory",
+              "c0048_ig002_intraday_range_energy_follow_through_negative_memory",
+              "c0046_ig003_execution_divergence_contrast",
+              "c0047_ig003_execution_divergence_contrast",
+              "c0048_ig003_execution_divergence_contrast"
+            ],
+            "synthesized_candidate_count": 1475
+          },
+          {
+            "candidate_source_event_counts": {
+              "C0046_R0001": 492,
+              "C0047_R0001": 512,
+              "C0048_R0002": 495
+            },
+            "fold_id": "rw_009",
+            "label_shape": "candidate_source_agreement_cost_survival_under_c0046_c0048_negative_memory",
+            "model_family": "fold_local_post_sc0008_range_energy_mixed_evidence_synthesis",
+            "model_selected": false,
+            "negative_memory_event_counts": {
+              "C0046_R0002": 512,
+              "C0047_R0002": 512,
+              "C0048_R0001": 466
+            },
+            "score_component_names": [
+              "candidate_source_score_z",
+              "same_direction_candidate_source_agreement",
+              "candidate_source_diversity",
+              "same_direction_negative_memory_collision",
+              "opposite_direction_negative_memory_conflict",
+              "negative_fold_loss_density",
+              "candidate_fold_weakness",
+              "execution_divergence_pressure",
+              "spread_pressure"
+            ],
+            "selected_candidate_count": 512,
+            "selection_uses_source_oos_pnl": false,
+            "selection_uses_source_proxy_pnl": false,
+            "source_ingredient_ids": [
+              "c0046_ig001_intraday_flow_convexity_release_candidate_evidence",
+              "c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence",
+              "c0048_ig001_intraday_range_energy_absorption_reversal_candidate_evidence",
+              "c0046_ig002_cost_fragility_survival_negative_memory",
+              "c0047_ig002_rejection_continuation_negative_memory",
+              "c0048_ig002_intraday_range_energy_follow_through_negative_memory",
+              "c0046_ig003_execution_divergence_contrast",
+              "c0047_ig003_execution_divergence_contrast",
+              "c0048_ig003_execution_divergence_contrast"
+            ],
+            "synthesized_candidate_count": 1499
+          }
+        ],
+        "label_selected": false,
+        "label_shape": "candidate_source_agreement_cost_survival_under_c0046_c0048_negative_memory",
+        "model_family": "fold_local_post_sc0008_range_energy_mixed_evidence_synthesis",
+        "model_selected": false,
+        "negative_memory_sources": [
+          {
+            "execution_divergence_by_fold": "campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0002/kpi/execution_divergence_by_fold.json",
+            "ingredient_id": "c0046_ig002_cost_fragility_survival_negative_memory",
+            "source_id": "C0046_R0002",
+            "tick_by_fold": "campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
+            "trade_artifact": "campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0002/artifacts/c0046_r0002_proxy_trades.csv"
+          },
+          {
+            "execution_divergence_by_fold": "campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/kpi/execution_divergence_by_fold.json",
+            "ingredient_id": "c0047_ig002_rejection_continuation_negative_memory",
+            "source_id": "C0047_R0002",
+            "tick_by_fold": "campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
+            "trade_artifact": "campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/artifacts/c0047_r0002_proxy_trades.csv"
+          },
+          {
+            "execution_divergence_by_fold": "campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+            "ingredient_id": "c0048_ig002_intraday_range_energy_follow_through_negative_memory",
+            "source_id": "C0048_R0001",
+            "tick_by_fold": "campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+            "trade_artifact": "campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0001/artifacts/c0048_r0001_proxy_trades.csv"
+          }
+        ],
+        "same_negative_context_veto_count": 3,
+        "score_component_names": [
+          "candidate_source_score_z",
+          "same_direction_candidate_source_agreement",
+          "candidate_source_diversity",
+          "same_direction_negative_memory_collision",
+          "opposite_direction_negative_memory_conflict",
+          "negative_fold_loss_density",
+          "candidate_fold_weakness",
+          "execution_divergence_pressure",
+          "spread_pressure"
+        ],
+        "selection_rule": "top_pooled_c0046_c0047_c0048_candidate_schedule_entries_reweighted_by_source_agreement_negative_memory_collision_fold_loss_density_and_execution_divergence_context",
+        "source_ingredient_ids": [
+          "c0046_ig001_intraday_flow_convexity_release_candidate_evidence",
+          "c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence",
+          "c0048_ig001_intraday_range_energy_absorption_reversal_candidate_evidence",
+          "c0046_ig002_cost_fragility_survival_negative_memory",
+          "c0047_ig002_rejection_continuation_negative_memory",
+          "c0048_ig002_intraday_range_energy_follow_through_negative_memory",
+          "c0046_ig003_execution_divergence_contrast",
+          "c0047_ig003_execution_divergence_contrast",
+          "c0048_ig003_execution_divergence_contrast"
+        ],
+        "source_oos_pnl_used_for_selection": false,
+        "source_proxy_pnl_used_for_selection": false,
+        "state_distributions": {
+          "rw_001": {
+            "candidate_fold_weakness_p50": 0.25,
+            "context_veto_rate": 0.0,
+            "execution_divergence_pressure_p50": 1.0,
+            "negative_fold_loss_density_p50": 0.555556,
+            "same_candidate_source_agreement_p50": 2.0,
+            "same_negative_collision_p50": 1.0,
+            "selected_count": 504,
+            "selected_score_max": 8.698672,
+            "selected_score_min": -0.724889,
+            "synthesis_score_p10": -0.642168,
+            "synthesis_score_p50": -0.098547,
+            "synthesis_score_p90": 0.729138,
+            "synthesized_candidate_count": 1499
+          },
+          "rw_002": {
+            "candidate_fold_weakness_p50": 0.25,
+            "context_veto_rate": 0.0,
+            "execution_divergence_pressure_p50": 1.0,
+            "negative_fold_loss_density_p50": 0.555556,
+            "same_candidate_source_agreement_p50": 2.0,
+            "same_negative_collision_p50": 1.0,
+            "selected_count": 528,
+            "selected_score_max": 7.229985,
+            "selected_score_min": -0.852199,
+            "synthesis_score_p10": -0.641498,
+            "synthesis_score_p50": -0.126928,
+            "synthesis_score_p90": 0.6917,
+            "synthesized_candidate_count": 1575
+          },
+          "rw_003": {
+            "candidate_fold_weakness_p50": 0.0,
+            "context_veto_rate": 0.0,
+            "execution_divergence_pressure_p50": 1.0,
+            "negative_fold_loss_density_p50": 0.555556,
+            "same_candidate_source_agreement_p50": 2.0,
+            "same_negative_collision_p50": 1.0,
+            "selected_count": 528,
+            "selected_score_max": 4.893875,
+            "selected_score_min": -0.925648,
+            "synthesis_score_p10": -0.672316,
+            "synthesis_score_p50": -0.129541,
+            "synthesis_score_p90": 0.761454,
+            "synthesized_candidate_count": 1572
+          },
+          "rw_004": {
+            "candidate_fold_weakness_p50": 0.0,
+            "context_veto_rate": 0.000656,
+            "execution_divergence_pressure_p50": 1.0,
+            "negative_fold_loss_density_p50": 0.555556,
+            "same_candidate_source_agreement_p50": 2.0,
+            "same_negative_collision_p50": 1.0,
+            "selected_count": 512,
+            "selected_score_max": 9.348884,
+            "selected_score_min": -0.57765,
+            "synthesis_score_p10": -0.585084,
+            "synthesis_score_p50": -0.125606,
+            "synthesis_score_p90": 0.706643,
+            "synthesized_candidate_count": 1524
+          },
+          "rw_005": {
+            "candidate_fold_weakness_p50": 0.0,
+            "context_veto_rate": 0.0,
+            "execution_divergence_pressure_p50": 1.0,
+            "negative_fold_loss_density_p50": 0.555556,
+            "same_candidate_source_agreement_p50": 2.0,
+            "same_negative_collision_p50": 1.0,
+            "selected_count": 496,
+            "selected_score_max": 10.826974,
+            "selected_score_min": -0.526076,
+            "synthesis_score_p10": -0.607295,
+            "synthesis_score_p50": -0.119933,
+            "synthesis_score_p90": 0.694204,
+            "synthesized_candidate_count": 1474
+          },
+          "rw_006": {
+            "candidate_fold_weakness_p50": 0.0,
+            "context_veto_rate": 0.0,
+            "execution_divergence_pressure_p50": 1.0,
+            "negative_fold_loss_density_p50": 0.0,
+            "same_candidate_source_agreement_p50": 2.0,
+            "same_negative_collision_p50": 0.0,
+            "selected_count": 528,
+            "selected_score_max": 9.740003,
+            "selected_score_min": -0.528501,
+            "synthesis_score_p10": -0.638771,
+            "synthesis_score_p50": -0.0187,
+            "synthesis_score_p90": 0.889984,
+            "synthesized_candidate_count": 1549
+          },
+          "rw_007": {
+            "candidate_fold_weakness_p50": 0.0,
+            "context_veto_rate": 0.000649,
+            "execution_divergence_pressure_p50": 1.0,
+            "negative_fold_loss_density_p50": 0.0,
+            "same_candidate_source_agreement_p50": 2.0,
+            "same_negative_collision_p50": 0.0,
+            "selected_count": 528,
+            "selected_score_max": 6.822297,
+            "selected_score_min": -0.457833,
+            "synthesis_score_p10": -0.643276,
+            "synthesis_score_p50": -0.041214,
+            "synthesis_score_p90": 0.896866,
+            "synthesized_candidate_count": 1541
+          },
+          "rw_008": {
+            "candidate_fold_weakness_p50": 0.0,
+            "context_veto_rate": 0.000678,
+            "execution_divergence_pressure_p50": 1.0,
+            "negative_fold_loss_density_p50": 0.0,
+            "same_candidate_source_agreement_p50": 2.0,
+            "same_negative_collision_p50": 0.0,
+            "selected_count": 502,
+            "selected_score_max": 7.14594,
+            "selected_score_min": -0.881828,
+            "synthesis_score_p10": -0.550932,
+            "synthesis_score_p50": 0.00961,
+            "synthesis_score_p90": 1.041767,
+            "synthesized_candidate_count": 1475
+          },
+          "rw_009": {
+            "candidate_fold_weakness_p50": 0.0,
+            "context_veto_rate": 0.0,
+            "execution_divergence_pressure_p50": 1.0,
+            "negative_fold_loss_density_p50": 0.0,
+            "same_candidate_source_agreement_p50": 2.0,
+            "same_negative_collision_p50": 0.0,
+            "selected_count": 512,
+            "selected_score_max": 9.489303,
+            "selected_score_min": -0.673102,
+            "synthesis_score_p10": -0.587352,
+            "synthesis_score_p50": 0.008369,
+            "synthesis_score_p90": 0.93735,
+            "synthesized_candidate_count": 1499
+          }
+        },
+        "state_model": "fold_local_post_sc0008_range_energy_mixed_evidence_synthesis",
+        "trade_logic_selected": false,
+        "weights": {
+          "base_score": 0.64,
+          "candidate_fold_weakness_penalty": 0.08,
+          "execution_divergence_pressure_penalty": 0.08,
+          "negative_fold_loss_density_penalty": 0.12,
+          "opposite_negative_conflict_credit": 0.07,
+          "same_negative_collision_penalty": 0.22,
+          "source_agreement_credit": 0.18,
+          "source_diversity_credit": 0.04,
+          "spread_pressure_penalty": 0.07
+        }
+      }
+    },
+    "stability_profile": {
+      "applies": true,
+      "fields": {
+        "fold_summary": [
+          {
+            "bucket": "rw_001",
+            "max_drawdown_points": 134.59,
+            "net_pnl_points": 1115.76,
+            "profit_factor": 1.454344,
+            "trade_count": 502,
+            "win_rate": 0.559761
+          },
+          {
+            "bucket": "rw_002",
+            "max_drawdown_points": 144.69,
+            "net_pnl_points": 930.22,
+            "profit_factor": 1.363154,
+            "trade_count": 528,
+            "win_rate": 0.5625
+          },
+          {
+            "bucket": "rw_003",
+            "max_drawdown_points": 130.82,
+            "net_pnl_points": 2547.37,
+            "profit_factor": 1.755502,
+            "trade_count": 527,
+            "win_rate": 0.601518
+          },
+          {
+            "bucket": "rw_004",
+            "max_drawdown_points": 182.78,
+            "net_pnl_points": 1483.09,
+            "profit_factor": 1.440783,
+            "trade_count": 512,
+            "win_rate": 0.568359
+          },
+          {
+            "bucket": "rw_005",
+            "max_drawdown_points": 523.5,
+            "net_pnl_points": 1733.4,
+            "profit_factor": 1.325075,
+            "trade_count": 495,
+            "win_rate": 0.539394
+          },
+          {
+            "bucket": "rw_006",
+            "max_drawdown_points": 87.55,
+            "net_pnl_points": 1544.96,
+            "profit_factor": 1.486536,
+            "trade_count": 527,
+            "win_rate": 0.565465
+          },
+          {
+            "bucket": "rw_007",
+            "max_drawdown_points": 235.87,
+            "net_pnl_points": 1030.89,
+            "profit_factor": 1.309377,
+            "trade_count": 525,
+            "win_rate": 0.542857
+          },
+          {
+            "bucket": "rw_008",
+            "max_drawdown_points": 164.9,
+            "net_pnl_points": 3144.73,
+            "profit_factor": 1.920985,
+            "trade_count": 498,
+            "win_rate": 0.586345
+          },
+          {
+            "bucket": "rw_009",
+            "max_drawdown_points": 182.25,
+            "net_pnl_points": 3483.73,
+            "profit_factor": 1.806949,
+            "trade_count": 506,
+            "win_rate": 0.567194
+          }
+        ],
+        "losing_month_count": 0,
+        "month_summary": [
+          {
+            "bucket": "2024-02",
+            "max_drawdown_points": 55.38,
+            "net_pnl_points": 348.06,
+            "profit_factor": 1.511109,
+            "trade_count": 168,
+            "win_rate": 0.583333
+          },
+          {
+            "bucket": "2024-03",
+            "max_drawdown_points": 134.59,
+            "net_pnl_points": 55.34,
+            "profit_factor": 1.064873,
+            "trade_count": 159,
+            "win_rate": 0.496855
+          },
+          {
+            "bucket": "2024-04",
+            "max_drawdown_points": 74.77,
+            "net_pnl_points": 712.36,
+            "profit_factor": 1.772859,
+            "trade_count": 175,
+            "win_rate": 0.594286
+          },
+          {
+            "bucket": "2024-05",
+            "max_drawdown_points": 105.17,
+            "net_pnl_points": 164.4,
+            "profit_factor": 1.224523,
+            "trade_count": 184,
+            "win_rate": 0.532609
+          },
+          {
+            "bucket": "2024-06",
+            "max_drawdown_points": 114.02,
+            "net_pnl_points": 415.42,
+            "profit_factor": 1.635335,
+            "trade_count": 160,
+            "win_rate": 0.6125
+          },
+          {
+            "bucket": "2024-07",
+            "max_drawdown_points": 144.69,
+            "net_pnl_points": 350.4,
+            "profit_factor": 1.298106,
+            "trade_count": 184,
+            "win_rate": 0.548913
+          },
+          {
+            "bucket": "2024-08",
+            "max_drawdown_points": 130.82,
+            "net_pnl_points": 1214.47,
+            "profit_factor": 1.912079,
+            "trade_count": 176,
+            "win_rate": 0.607955
+          },
+          {
+            "bucket": "2024-09",
+            "max_drawdown_points": 113.46,
+            "net_pnl_points": 605.95,
+            "profit_factor": 1.573686,
+            "trade_count": 168,
+            "win_rate": 0.589286
+          },
+          {
+            "bucket": "2024-10",
+            "max_drawdown_points": 106.15,
+            "net_pnl_points": 726.95,
+            "profit_factor": 1.738785,
+            "trade_count": 183,
+            "win_rate": 0.606557
+          },
+          {
+            "bucket": "2024-11",
+            "max_drawdown_points": 92.99,
+            "net_pnl_points": 514.59,
+            "profit_factor": 1.530844,
+            "trade_count": 168,
+            "win_rate": 0.595238
+          },
+          {
+            "bucket": "2024-12",
+            "max_drawdown_points": 144.61,
+            "net_pnl_points": 487.33,
+            "profit_factor": 1.503612,
+            "trade_count": 168,
+            "win_rate": 0.541667
+          },
+          {
+            "bucket": "2025-01",
+            "max_drawdown_points": 182.78,
+            "net_pnl_points": 481.17,
+            "profit_factor": 1.337043,
+            "trade_count": 176,
+            "win_rate": 0.568182
+          },
+          {
+            "bucket": "2025-02",
+            "max_drawdown_points": 150.01,
+            "net_pnl_points": 458.2,
+            "profit_factor": 1.407764,
+            "trade_count": 160,
+            "win_rate": 0.55
+          },
+          {
+            "bucket": "2025-03",
+            "max_drawdown_points": 160.34,
+            "net_pnl_points": 620.88,
+            "profit_factor": 1.378495,
+            "trade_count": 168,
+            "win_rate": 0.535714
+          },
+          {
+            "bucket": "2025-04",
+            "max_drawdown_points": 523.5,
+            "net_pnl_points": 654.32,
+            "profit_factor": 1.254776,
+            "trade_count": 167,
+            "win_rate": 0.532934
+          },
+          {
+            "bucket": "2025-05",
+            "max_drawdown_points": 87.55,
+            "net_pnl_points": 420.34,
+            "profit_factor": 1.29442,
+            "trade_count": 175,
+            "win_rate": 0.525714
+          },
+          {
+            "bucket": "2025-06",
+            "max_drawdown_points": 86.07,
+            "net_pnl_points": 572.36,
+            "profit_factor": 1.588303,
+            "trade_count": 168,
+            "win_rate": 0.595238
+          },
+          {
+            "bucket": "2025-07",
+            "max_drawdown_points": 70.46,
+            "net_pnl_points": 552.26,
+            "profit_factor": 1.712741,
+            "trade_count": 184,
+            "win_rate": 0.576087
+          },
+          {
+            "bucket": "2025-08",
+            "max_drawdown_points": 130.83,
+            "net_pnl_points": 412.38,
+            "profit_factor": 1.405092,
+            "trade_count": 168,
+            "win_rate": 0.529762
+          },
+          {
+            "bucket": "2025-09",
+            "max_drawdown_points": 235.6,
+            "net_pnl_points": 22.03,
+            "profit_factor": 1.021894,
+            "trade_count": 176,
+            "win_rate": 0.522727
+          },
+          {
+            "bucket": "2025-10",
+            "max_drawdown_points": 153.7,
+            "net_pnl_points": 596.48,
+            "profit_factor": 1.456038,
+            "trade_count": 181,
+            "win_rate": 0.574586
+          },
+          {
+            "bucket": "2025-11",
+            "max_drawdown_points": 164.9,
+            "net_pnl_points": 1158.79,
+            "profit_factor": 1.780567,
+            "trade_count": 156,
+            "win_rate": 0.583333
+          },
+          {
+            "bucket": "2025-12",
+            "max_drawdown_points": 106.7,
+            "net_pnl_points": 1124.75,
+            "profit_factor": 2.30896,
+            "trade_count": 174,
+            "win_rate": 0.637931
+          },
+          {
+            "bucket": "2026-01",
+            "max_drawdown_points": 158.77,
+            "net_pnl_points": 861.19,
+            "profit_factor": 1.804317,
+            "trade_count": 168,
+            "win_rate": 0.535714
+          },
+          {
+            "bucket": "2026-02",
+            "max_drawdown_points": 146.57,
+            "net_pnl_points": 1288.83,
+            "profit_factor": 2.076519,
+            "trade_count": 157,
+            "win_rate": 0.605096
+          },
+          {
+            "bucket": "2026-03",
+            "max_drawdown_points": 129.2,
+            "net_pnl_points": 1580.09,
+            "profit_factor": 1.940317,
+            "trade_count": 176,
+            "win_rate": 0.585227
+          },
+          {
+            "bucket": "2026-04",
+            "max_drawdown_points": 182.25,
+            "net_pnl_points": 614.81,
+            "profit_factor": 1.427082,
+            "trade_count": 173,
+            "win_rate": 0.514451
+          }
+        ],
+        "worst_month_pnl_points": 22.03
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": true,
+      "fields": {
+        "average_capture_ratio": 0.379689,
+        "average_mae_points": 13.068892,
+        "average_mfe_points": 21.536944,
+        "median_mae_points": 8.35,
+        "median_mfe_points": 16.0
+      }
+    }
+  },
+  "created_at_utc": "2026-07-06T02:31:40Z",
+  "dataset_identity": "data/processed/datasets/us100_m5_base_frame.csv",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "record the matching MT5 symbol specification and fixed-lot sizing for the 500 USD account",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_net_pnl, proxy_max_drawdown_percent, proxy_expectancy_per_entry",
+      "reason": "proxy measures raw US100 index points only; USD conversion requires MT5 symbol contract, tick value, and fixed-lot discovery sizing",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "during SC0009 SSR0001 MT5 evidence production"
+    },
+    {
+      "blocking_condition": "proxy.json content must be stable before hashing",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_artifact_hashes",
+      "reason": "self-hash is recorded in artifact_lineage after proxy.json is written",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "before SC0009 SSR0001 closeout"
+    }
+  ],
+  "fold_ids": [
+    "rw_001",
+    "rw_002",
+    "rw_003",
+    "rw_004",
+    "rw_005",
+    "rw_006",
+    "rw_007",
+    "rw_008",
+    "rw_009",
+    "tail"
+  ],
+  "proxy_artifact_hashes": [
+    "86bc3156a8b49b598c21c85f761af1608b89729cb168b16e2518937b3f67734a",
+    "974497fa13309421a950aa65d34a77330338eb1d5736dbc6dee9bdcdaa9080ef"
+  ],
+  "proxy_artifact_paths": [
+    "campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis/runs/SR0001/kpi/proxy.json",
+    "campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis/runs/SR0001/artifacts/sc0009_sr0001_proxy_trades.csv",
+    "campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis/runs/SR0001/artifacts/sc0009_sr0001_summary.json"
+  ],
+  "proxy_code_version_or_commit": "uncommitted_local_worktree_at_proxy_creation",
+  "proxy_config": {
+    "bar_basis": "closed_m5",
+    "candidate_direction": "dual_direction_long_and_short_per_closed_bar",
+    "candidate_execution_divergence_artifacts": [
+      "campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+      "campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+      "campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0002/kpi/execution_divergence_by_fold.json"
+    ],
+    "candidate_fold_weakness_veto_level": 0.9,
+    "candidate_tick_by_fold_artifacts": [
+      "campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+      "campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+      "campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0002/kpi/mt5_tick_by_fold.json"
+    ],
+    "candidate_trade_artifacts": [
+      "campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0001/artifacts/c0046_r0001_proxy_trades.csv",
+      "campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001/artifacts/c0047_r0001_proxy_trades.csv",
+      "campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0002/artifacts/c0048_r0002_proxy_trades.csv"
+    ],
+    "cluster_spacing_bars": 3,
+    "core_session_end_minute": 1260,
+    "core_session_start_minute": 360,
+    "entry_basis": "next_bar_open_after_scored_closed_bar",
+    "equity_percent_sizing": "deferred_until_candidate_quality",
+    "evaluation_splits": "rolling_windows_test_oos",
+    "fixed_lot_policy": "early_discovery_fixed_lot_no_equity_percent_sizing_rescue",
+    "gap_blocked_exit_policy": "skip_when_exit_bar_next_tick_gap_exceeds_5_minutes",
+    "gap_carried_entry_policy": "skip_when_next_bar_gap_exceeds_5_minutes",
+    "label_horizon_bars": 10,
+    "label_shape": "candidate_source_agreement_cost_survival_under_c0046_c0048_negative_memory",
+    "lookback_range_bars": 48,
+    "max_entries_per_active_day": 8,
+    "max_hold_bars": 10,
+    "min_signal_spacing_bars": 6,
+    "min_train_archetype_count": 80,
+    "model_family": "fold_local_post_sc0008_range_energy_mixed_evidence_synthesis",
+    "momentum_bars": 6,
+    "money_conversion_status": "deferred_until_mt5_symbol_spec_and_fixed_lot_size",
+    "negative_memory_execution_divergence_artifacts": [
+      "campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0002/kpi/execution_divergence_by_fold.json",
+      "campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/kpi/execution_divergence_by_fold.json",
+      "campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0001/kpi/execution_divergence_by_fold.json"
+    ],
+    "negative_memory_tick_by_fold_artifacts": [
+      "campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
+      "campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/kpi/mt5_tick_by_fold.json",
+      "campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0001/kpi/mt5_tick_by_fold.json"
+    ],
+    "negative_memory_trade_artifacts": [
+      "campaigns/C0046_intraday_flow_convexity_release_discovery/runs/R0002/artifacts/c0046_r0002_proxy_trades.csv",
+      "campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/artifacts/c0047_r0002_proxy_trades.csv",
+      "campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0001/artifacts/c0048_r0001_proxy_trades.csv"
+    ],
+    "position_bars": 36,
+    "positive_score_gate": false,
+    "price_precision_digits": 2,
+    "same_bar_stop_target_policy": "stop_first_conservative",
+    "same_negative_context_veto_count": 3,
+    "score_component_names": [
+      "candidate_source_score_z",
+      "same_direction_candidate_source_agreement",
+      "candidate_source_diversity",
+      "same_direction_negative_memory_collision",
+      "opposite_direction_negative_memory_conflict",
+      "negative_fold_loss_density",
+      "candidate_fold_weakness",
+      "execution_divergence_pressure",
+      "spread_pressure"
+    ],
+    "selection_rule": "top_pooled_c0046_c0047_c0048_candidate_schedule_entries_reweighted_by_source_agreement_negative_memory_collision_fold_loss_density_and_execution_divergence_context",
+    "short_range_bars": 12,
+    "sizing_mode": "fixed_lot_discovery",
+    "source_ingredient_ids": [
+      "c0046_ig001_intraday_flow_convexity_release_candidate_evidence",
+      "c0047_ig001_intraday_liquidity_void_reversion_candidate_evidence",
+      "c0048_ig001_intraday_range_energy_absorption_reversal_candidate_evidence",
+      "c0046_ig002_cost_fragility_survival_negative_memory",
+      "c0047_ig002_rejection_continuation_negative_memory",
+      "c0048_ig002_intraday_range_energy_follow_through_negative_memory",
+      "c0046_ig003_execution_divergence_contrast",
+      "c0047_ig003_execution_divergence_contrast",
+      "c0048_ig003_execution_divergence_contrast"
+    ],
+    "source_oos_pnl_used_for_selection": false,
+    "source_proxy_pnl_used_for_selection": false,
+    "starting_balance_usd": 500.0,
+    "state_model": "fold_local_train_only_state_archetype_membership",
+    "stop_range_multiple": 0.8,
+    "target_range_multiple": 1.1,
+    "top_archetypes_per_fold": 28,
+    "training_splits": "rolling_windows_train_is",
+    "trend_bars": 18,
+    "variant_boundary": "post_sc0008_range_energy_mixed_evidence_synthesis_not_threshold_score_cost_buffer_stop_target_hold_session_activity_spread_capital_monthly_filter_materialization_onnx_or_retry_nudge",
+    "weights": {
+      "base_score": 0.64,
+      "candidate_fold_weakness_penalty": 0.08,
+      "execution_divergence_pressure_penalty": 0.08,
+      "negative_fold_loss_density_penalty": 0.12,
+      "opposite_negative_conflict_credit": 0.07,
+      "same_negative_collision_penalty": 0.22,
+      "source_agreement_credit": 0.18,
+      "source_diversity_credit": 0.04,
+      "spread_pressure_penalty": 0.07
+    }
+  },
+  "proxy_config_path": "campaigns/SC0009_post_sc0008_c0046_c0048_mixed_evidence_synthesis/runs/SR0001/run_manifest.json",
+  "proxy_engine": "axiom_rift.proxies.sc0009_sr0001_post_sc0008_range_energy_mixed_evidence_synthesis",
+  "proxy_id": "PX-SC0009-SR0001",
+  "proxy_summary": {
+    "active_day_count": 580,
+    "average_bars_in_trade": 2.895022,
+    "balance_after_proxy_usd": null,
+    "entries_per_active_day": 7.965517,
+    "entry_target_max": 10,
+    "entry_target_min": 5,
+    "evaluation_surface": "rolling_window_test_oos_only",
+    "gross_loss_points": -31325.26,
+    "gross_profit_points": 48339.41,
+    "long_trade_count": 1839,
+    "max_hold_exit_count": 152,
+    "money_model_status": "deferred_until_mt5_symbol_spec_and_fixed_lot_size",
+    "net_pnl_points": 17014.15,
+    "net_pnl_usd": null,
+    "short_trade_count": 2781,
+    "signal_count": 4620,
+    "starting_balance_usd": 500.0,
+    "stop_exit_count": 1936,
+    "target_exit_count": 2532,
+    "trade_count": 4620
+  },
+  "required_kpis": {
+    "proxy_expectancy_per_entry": null,
+    "proxy_expectancy_points_per_entry": 3.682716,
+    "proxy_max_drawdown_percent": null,
+    "proxy_max_drawdown_points": 523.5,
+    "proxy_net_pnl": null,
+    "proxy_net_pnl_points": 17014.15,
+    "proxy_profit_factor": 1.543145,
+    "proxy_signal_count": 4620,
+    "proxy_trade_count": 4620,
+    "proxy_win_rate": 0.566017
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "SR0001",
+  "schema": "axiom_rift_proxy_kpi_v1",
+  "split_policy": "rolling_window_test_oos_only_with_c0046_c0047_c0048_schedule_mixed_evidence_rerank",
+  "synthesis_id_when_applicable": "SC0009",
+  "template": false,
+  "work_unit_id": "SC0009"
+}
