@@ -8272,3 +8272,143 @@ decisions:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
+- decision_id: dec_20260707_open_c0079_intraday_boundary_recoil_elasticity_discovery
+  created_local_date: '2026-07-07'
+  status: active
+  decision: open_c0079_intraday_boundary_recoil_elasticity_discovery
+  refines:
+  - dec_20260707_close_C0078_no_candidate_after_r0001
+  - dec_20260704_goal_operation_policy_discovery_freedom_and_deferred_equity_sizing
+  rationale:
+  - c0078_closed_no_candidate_and_next_work_requires_new_major_hypothesis
+  - c0079_changes_major_surface_to_session_boundary_extension_and_recoil_elasticity
+  - pre_open_boundary_is_not_threshold_window_stop_target_hold_session_activity_spread_or_capital_tuning
+  - proxy_is_reference_surface_only_and_mandatory_mt5_paired_validation_remains_required
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260707_open_c0079_r0001_intraday_boundary_recoil_elasticity_rank_run
+  created_local_date: '2026-07-07'
+  status: active
+  decision: open_c0079_r0001_intraday_boundary_recoil_elasticity_rank_run
+  refines:
+  - dec_20260707_open_c0079_intraday_boundary_recoil_elasticity_discovery
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0079_r0001_records_pre_open_decision_with_novelty_score_4_expected_information_gain_high_and_mt5_portability_clear
+  - changed_surfaces_include_label_feature_model_and_trade_logic
+  - tests_fold_local_rank_of_boundary_extreme_score_boundary_wick_rejection_close_reclaim_stretch_opening_range_dislocation_volume_climax_fade_counterpressure_prior_day_extension_context_session_elasticity_and_spread_stress
+  - weak_proxy_result_must_not_skip_mt5_logic_parity_tick_execution_divergence_or_fold_isolated_closeout_evidence
+  - next_work_is_produce_c0079_r0001_proxy_evidence
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260707_produce_c0079_r0001_proxy_evidence
+  created_local_date: '2026-07-06'
+  status: active
+  decision: produce_c0079_r0001_proxy_evidence
+  refines:
+  - dec_20260707_open_c0079_r0001_intraday_boundary_recoil_elasticity_rank_run
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0079_r0001_proxy_records_boundary_recoil_elasticity_reference_surface
+  - proxy_trade_count_4502
+  - entries_per_active_day_7.762069
+  - proxy_net_pnl_points_-13666.71
+  - proxy_profit_factor_0.734808
+  - proxy_result_cannot_skip_mt5_logic_parity_tick_execution_divergence_or_fold_isolated_closeout_evidence
+  - next_work_is_produce_c0079_r0001_mt5_logic_parity_evidence
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260707_close_c0079_r0001_no_candidate
+  created_local_date: '2026-07-07'
+  status: active
+  decision: close_c0079_r0001_no_candidate
+  refines:
+  - dec_20260707_produce_c0079_r0001_proxy_evidence
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0079_r0001_completed_proxy_mt5_logic_parity_proxy_vs_mt5_parity_mt5_tick_execution_divergence_and_fold_isolated_tick_and_divergence_evidence
+  - proxy_net_pnl_points_-13666.71_profit_factor_0.734808
+  - mt5_tick_net_pnl_-128.42_profit_factor_0.750999
+  - fold_isolated_tick_has_0_profitable_and_9_losing_folds
+  - closeout_records_negative_memory_not_selection_or_economics_pass
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260707_close_C0079_no_candidate_after_r0001
+  created_local_date: '2026-07-07'
+  status: active
+  decision: close_C0079_no_candidate_after_r0001
+  refines:
+  - dec_20260707_close_c0079_r0001_no_candidate
+  - dec_20260707_open_c0079_intraday_boundary_recoil_elasticity_discovery
+  rationale:
+  - C0079_boundary_was_answered_by_r0001_fold_isolated_mt5_evidence
+  - remaining_C0079_work_would_be_adjacent_threshold_window_stop_target_hold_session_activity_spread_capital_or_feature_nudge_tuning
+  - synthesis_readiness_candidate_later_because_post_sc0009_usable_ingredient_count_is_below_default_minimum
+  - next_work_is_choose_c0080_new_major_hypothesis_after_c0079_closeout
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
