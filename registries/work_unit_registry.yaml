@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0051
+    next_id: C0052
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -69,6 +69,7 @@ streams:
     - campaigns/C0048_intraday_range_energy_absorption_discovery
     - campaigns/C0049_intraday_execution_path_resilience_discovery
     - campaigns/C0050_intraday_volatility_transfer_discovery
+    - campaigns/C0051_intraday_gap_continuity_decay_discovery
     numbering_policy:
       width: 4
       example: C0001
