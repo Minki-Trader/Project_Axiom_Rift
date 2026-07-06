@@ -1,0 +1,259 @@
+{
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-06T01:23:26Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
+    "closed_at_utc": "2026-07-06T01:23:26Z",
+    "negative_memory": {
+      "asset_type": "negative_memory",
+      "candidate_status": "no_candidate",
+      "economics_pass": false,
+      "evidence_paths": [
+        "artifacts/c0048_r0001_proxy_trades.csv",
+        "artifacts/c0048_r0001_range_energy_absorption_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0048_r0001_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday range-energy absorption rank over closed-bar range, body, wick, close-location, participation-pressure, day-position, path-efficiency, and spread-range stress features",
+      "next_boundary": "R0001 shows the tested range-energy absorption rank surface is not a candidate as implemented; next decision is whether a non-adjacent C0048 variant remains or whether C0048 should close.",
+      "onnx_ready": false,
+      "reason_not_candidate": "activity landed inside the target band, but proxy, closed-bar MT5 logic, aggregate MT5 tick, and all nine fold-isolated MT5 tick folds were negative",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0001 produced 0 profitable and 9 losing fold-isolated MT5 tick folds, total tick net PnL -157.77, and worst fold rw_005 net PnL -32.46."
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "Schedule replay mechanical parity passed with mismatch_count 0, so the weak result is not explained by proxy-vs-MT5 logic mismatch."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution improved closed-bar logic by 5.74 total net PnL across 7 better and 2 worse folds, but both logic and tick surfaces remained negative."
+        }
+      ]
+    },
+    "repair_review": {
+      "hypothesis_evidence": false,
+      "source": "run_manifest.json.repair.repair_records",
+      "status": "completed_before_closeout",
+      "summary": "Pre-repair C0034-clone proxy output was excluded from hypothesis evidence; closeout uses only post-repair C0048 range-energy proxy and MT5 evidence."
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "divergence_recorded_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.348276,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.991285,
+      "minimum_exit_reason_match_rate": 0.864924,
+      "minimum_exit_time_direction_match_rate": 0.877996,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": -163.51,
+      "mt5_logic_profit_factor": 0.668444,
+      "mt5_logic_trade_count": 4262,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_expectancy_per_entry": -0.037131,
+      "mt5_tick_max_drawdown_percent": 31.758,
+      "mt5_tick_net_pnl": -157.77,
+      "mt5_tick_profit_factor": 0.671408,
+      "mt5_tick_trade_count": 4249,
+      "mt5_tick_win_rate": 0.363144,
+      "profitable_fold_count": 0,
+      "proxy_expectancy_points_per_entry": -3.628229,
+      "proxy_max_drawdown_points": 15565.36,
+      "proxy_net_pnl_points": -15463.51,
+      "proxy_profit_factor": 0.674899,
+      "proxy_trade_count": 4262,
+      "proxy_win_rate": 0.377053,
+      "tick_better_fold_count": 7,
+      "tick_minus_logic_net_pnl": 5.74,
+      "tick_minus_logic_trade_count": -13,
+      "tick_worse_fold_count": 2,
+      "total_tick_minus_logic_net_pnl": 5.74,
+      "total_tick_minus_logic_trade_count": -13,
+      "total_tick_net_pnl": -157.77,
+      "total_tick_trade_count": 4249,
+      "worst_drawdown_fold_id": "rw_005",
+      "worst_fold_id": "rw_005",
+      "worst_fold_max_drawdown_percent": 6.588,
+      "worst_fold_net_pnl": -32.46,
+      "worst_tick_minus_logic_fold_id": "rw_005",
+      "worst_tick_minus_logic_net_pnl": -1.86
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "intraday_range_energy_absorption_summary": "artifacts/c0048_r0001_range_energy_absorption_summary.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0048_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0048_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "range_energy_absorption_summary": "artifacts/c0048_r0001_range_energy_absorption_summary.json"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday range-energy absorption rank run",
+    "variant_boundary": "R0001 tests closed-bar range/body/wick energy geometry, adverse-probe absorption, close-location recovery, range expansion and compression, participation pressure, day-position, and spread-range stress; it is not selected, economics-pass, runtime, ONNX, promotion, live, threshold, stop, target, hold, session, activity, spread, capital, monthly-filter, materialization, or retry-only work."
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "next_required_action": "decide_c0048_r0002_or_close_c0048_after_r0001",
+    "notes": [
+      "MT5 validation remains mandatory even if proxy KPI is weak.",
+      "Schedule replay is used only for paired validation and does not create runtime, materialization, ONNX, promotion, or live authority."
+    ],
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "opened_at_utc": "2026-07-06T01:20:00Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "This run changes the active surface from C0047 liquidity void reversion and from C0034 effort-price absorption negative memory to bar range-energy geometry and adverse-probe absorption. It is not a threshold, window, stop, target, hold, session, activity, spread, capital, materialization, ONNX, or retry nudge.",
+    "adjacent_tuning_risk": "medium",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0034_intraday_effort_price_absorption_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "pre_open_decision_id": "POD-C0048-R0001",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "recorded_before_run_open",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "Tests whether closed-bar range/body/wick energy absorption can rank FPMarkets US100 M5 entries independently of prior liquidity-void and effort-price absorption results."
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "Proxy output is reference evidence and cannot stop MT5 validation."
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 1,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": [
+      {
+        "classification": "implementation_intent_repair_not_hypothesis_evidence",
+        "evidence_policy": "pre_repair_proxy_output_must_not_be_used_as_hypothesis_failure_or_closeout_evidence",
+        "failing_artifact_path": "campaigns/C0048_intraday_range_energy_absorption_discovery/runs/R0001/kpi/proxy.json",
+        "next_validation_command": "python -m axiom_rift.cli run-c0048-r0001-proxy",
+        "repair_action": "replace copied effort-price feature surface with range/body/wick energy absorption geometry before MT5 validation",
+        "repair_id": "REP-C0048-R0001-001",
+        "repair_type": "intent_surface_repair_before_mt5",
+        "reproduction_command": "python -m axiom_rift.cli run-c0048-r0001-proxy",
+        "root_cause": "initial proxy module was mechanically cloned from C0034 and produced identical C0034 proxy metrics before C0048 feature semantics were implemented"
+      }
+    ]
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "changed_from_campaign_default": true,
+      "summary": "range/body/wick energy geometry, adverse-probe absorption, close-location recovery, compression/expansion, participation pressure, day-position, path efficiency, and spread-range stress features"
+    },
+    "label": {
+      "changed_from_campaign_default": true,
+      "summary": "directional range-energy follow-through quality with target-first reward, early absorption recovery, adverse probe, giveback, churn, and spread penalties"
+    },
+    "model": {
+      "changed_from_campaign_default": true,
+      "summary": "fold-local linear rank surface fit on train-is range-energy absorption candidates"
+    },
+    "trade_logic": {
+      "changed_from_campaign_default": true,
+      "summary": "fixed-lot dual-direction top range-energy absorption schedule replay candidates per active day"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0048"
+}

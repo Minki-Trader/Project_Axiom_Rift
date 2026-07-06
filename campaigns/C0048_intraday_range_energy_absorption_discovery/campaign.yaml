@@ -39,33 +39,50 @@ run_index:
   runs_root: runs/
   run_id_format: R0001
   active_run: null
-  closed_runs: []
+  closed_runs:
+  - runs/R0001
   next_run_candidate:
-    run_id: R0001
-    direction: open_c0048_r0001_intraday_range_energy_absorption_rank_run
-    reason: C0047 is closed with retained candidate evidence plus R0002 negative memory, synthesis is not due, and C0048 opens a non-adjacent major hypothesis around bar range-energy absorption rather than liquidity void, flow convexity, or regression residual hardening.
-    status: pending_pre_open_decision
+    run_id: null
+    direction: decide_c0048_r0002_or_close_c0048_after_r0001
+    reason: R0001 closed no-candidate after full proxy, MT5 logic parity, MT5 tick, fold-isolated tick, and fold-isolated execution divergence evidence; decide whether any non-adjacent C0048 variant remains before opening R0002, otherwise close C0048.
+    status: pending_decision_after_run_closeout
 synthesis_readiness:
   check_required_at_closeout: true
   result: not_checked_active_campaign
   open_synthesis_now: false
-  recommended_next_action: open_c0048_r0001_intraday_range_energy_absorption_rank_run
+  recommended_next_action: decide_c0048_r0002_or_close_c0048_after_r0001
   readiness_notes:
-  - active_campaign_no_closeout_check_yet
-  - synthesis_not_due_after_c0047_closeout
+  - active_campaign_after_r0001_no_candidate_closeout
+  - synthesis_check_deferred_until_campaign_closeout
 closeout:
   status: open
   close_reason: null
-  remaining_question: open_c0048_r0001_intraday_range_energy_absorption_rank_run
+  remaining_question: decide_c0048_r0002_or_close_c0048_after_r0001
   closed_at_utc: null
   evidence_paths:
+  - runs/R0001/gate_report.json
+  - runs/R0001/kpi/proxy.json
+  - runs/R0001/kpi/mt5_logic_parity.json
+  - runs/R0001/kpi/proxy_vs_mt5_logic_parity.json
+  - runs/R0001/kpi/mt5_tick.json
+  - runs/R0001/kpi/execution_divergence.json
+  - runs/R0001/kpi/mt5_tick_by_fold.json
+  - runs/R0001/kpi/execution_divergence_by_fold.json
   - selected.yaml
   decision_basis:
     opened_after_campaign: campaigns/C0047_intraday_liquidity_void_reversion_discovery
     prior_candidate_evidence: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0001/gate_report.json
     prior_negative_memory: campaigns/C0047_intraday_liquidity_void_reversion_discovery/runs/R0002/gate_report.json
     synthesis_status_after_prior_campaign: not_due
-    remaining_work_classification: new_major_hypothesis_not_adjacent_hardening
+    remaining_work_classification: pending_decision_non_adjacent_c0048_variant_or_campaign_closeout
+    r0001_status: closed_no_candidate
+    r0001_entries_per_active_day: 7.348276
+    r0001_proxy_net_pnl_points: -15463.51
+    r0001_proxy_profit_factor: 0.674899
+    r0001_mt5_tick_net_pnl: -157.77
+    r0001_mt5_tick_profit_factor: 0.671408
+    r0001_profitable_fold_count: 0
+    r0001_losing_fold_count: 9
   claim_boundary:
     claim_authority: false
     economics_pass: false

@@ -1,8 +1,8 @@
 schema: axiom_rift_selected_v1
 template: false
-status: not_selected_campaign_open
+status: not_selected_run_closed_no_candidate_campaign_open
 selected: false
-selected_reason: C0048 is newly opened for range-energy absorption discovery and has no run evidence yet.
+selected_reason: C0048 R0001 closed no-candidate after required proxy, MT5 logic parity, MT5 tick, fold-isolated tick, and fold-isolated execution divergence evidence; C0048 remains open only for an R0002-or-close decision.
 surfaces:
   label_selected: false
   feature_set_selected: false
@@ -30,9 +30,22 @@ claim_boundary:
   runtime_probe_completed: false
   selected: false
   trade_logic_selected: false
-next_required_action: open_c0048_r0001_intraday_range_energy_absorption_rank_run
+next_required_action: decide_c0048_r0002_or_close_c0048_after_r0001
 campaign_open:
-  status: active
+  status: active_pending_r0002_or_close_decision
   first_run: runs/R0001
-  first_run_status: pending_pre_open_decision
-  reason: C0048 opens a non-adjacent major hypothesis after C0047 closeout; no selected, economics, runtime, materialization, ONNX, promotion, or live-readiness claims are made.
+  first_run_status: closed_no_candidate
+  reason: R0001 is negative memory; no selected, economics, runtime, materialization, ONNX, promotion, or live-readiness claims are made.
+negative_memory:
+  latest_run: runs/R0001
+  status: closed_no_candidate
+  evidence_path: runs/R0001/gate_report.json
+  basis: rolling_window_fold_isolated_mt5_tick_and_execution_divergence
+  entries_per_active_day: 7.348276
+  proxy_net_pnl_points: -15463.51
+  proxy_profit_factor: 0.674899
+  mt5_tick_net_pnl: -157.77
+  mt5_tick_profit_factor: 0.671408
+  profitable_fold_count: 0
+  losing_fold_count: 9
+  reason_not_candidate: target-band activity but negative proxy, MT5 logic, aggregate MT5 tick, and nine losing fold-isolated MT5 tick folds

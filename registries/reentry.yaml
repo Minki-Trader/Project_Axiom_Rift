@@ -1246,8 +1246,17 @@ next_work:
   - close_c0047_r0002_no_candidate
   - close_c0047_with_candidate_evidence_and_r0002_negative_memory
   - open_c0048_intraday_range_energy_absorption_discovery
+  - open_c0048_r0001_fold_local_intraday_range_energy_absorption_rank_run
+  - produce_c0048_r0001_proxy_evidence
+  - record_c0048_r0001_proxy_vs_mt5_logic_parity_evidence
+  - record_c0048_r0001_execution_divergence
+  - produce_c0048_r0001_mt5_tick_execution_evidence
+  - produce_c0048_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0048_r0001_fold_isolated_execution_divergence
+  - review_c0048_r0001_tick_execution_kpi_and_closeout
+  - close_c0048_r0001_no_candidate
   tasks:
-  - open_c0048_r0001_intraday_range_energy_absorption_rank_run
+  - decide_c0048_r0002_or_close_c0048_after_r0001
   not_yet:
   - label_freeze
   - feature_set_freeze
