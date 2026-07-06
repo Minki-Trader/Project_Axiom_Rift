@@ -1,0 +1,149 @@
+{
+  "campaign_id": "C0055",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false
+  },
+  "conditional_profiles": {
+    "entry_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "entry_mismatch_samples": [
+          {
+            "direction": -1,
+            "entry_time": "2024-06-18 08:05:00",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "entry_time": "2026-02-17 07:20:00",
+            "side": "logic_only"
+          }
+        ],
+        "logic_entry_event_count": 4379,
+        "tick_entry_event_count": 4377
+      }
+    },
+    "exit_divergence_profile": {
+      "applies": true,
+      "fields": {
+        "exit_mismatch_samples": [
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 16:50:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-06 19:00:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": 1,
+            "exit_time": "2024-02-08 16:30:00",
+            "reason": "stop",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-13 19:05:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-13 21:00:00",
+            "reason": "target",
+            "side": "logic_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-05 16:50:00",
+            "reason": "target",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-06 19:10:00",
+            "reason": "target",
+            "side": "tick_only"
+          },
+          {
+            "direction": 1,
+            "exit_time": "2024-02-08 16:30:00",
+            "reason": "target",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-13 19:10:00",
+            "reason": "target",
+            "side": "tick_only"
+          },
+          {
+            "direction": -1,
+            "exit_time": "2024-02-13 21:05:00",
+            "reason": "target",
+            "side": "tick_only"
+          }
+        ],
+        "logic_exit_event_count": 4379,
+        "tick_exit_event_count": 4377
+      }
+    },
+    "run_closeout_profile": {
+      "applies": false,
+      "fields": {
+        "status": "aggregate_full_period_diagnostic_only_pending_fold_isolated_evidence"
+      }
+    },
+    "score_model_profile": {
+      "applies": true,
+      "fields": {
+        "runtime_portability_claim": false,
+        "score_source": "proxy_schedule_replay"
+      }
+    },
+    "spread_slippage_stress_profile": {
+      "applies": false,
+      "fields": {}
+    }
+  },
+  "created_at_utc": "2026-07-06T06:18:21Z",
+  "deferred_with_reason": [
+    {
+      "field": "fold_isolated_execution_divergence",
+      "next_action": "produce_c0055_r0001_fold_isolated_mt5_tick_kpi",
+      "reason": "aggregate execution divergence is diagnostic only before fold-isolated closeout"
+    }
+  ],
+  "divergence_id": "ED-C0055-R0001",
+  "logic_mt5_kpi_path": "campaigns/C0055_intraday_range_ladder_acceptance_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+  "missing_required_kpi_fields": [],
+  "required_kpis": {
+    "economics_shift_status": "tick_better_than_logic",
+    "entry_key_match_rate": 0.999543,
+    "execution_divergence_status": "recorded_with_divergence",
+    "exit_reason_match_rate": 0.920073,
+    "exit_time_direction_match_rate": 0.938799,
+    "logic_max_drawdown_percent": 0.25132,
+    "logic_net_pnl": -250.46,
+    "logic_trade_count": 4379,
+    "tick_max_drawdown_percent": 47.404,
+    "tick_minus_logic_max_drawdown_percent": 47.15268,
+    "tick_minus_logic_net_pnl": 14.49,
+    "tick_minus_logic_trade_count": -2,
+    "tick_net_pnl": -235.97,
+    "tick_trade_count": 4377
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "schema": "axiom_rift_execution_divergence_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "tick_mt5_kpi_path": "campaigns/C0055_intraday_range_ladder_acceptance_discovery/runs/R0001/kpi/mt5_tick.json",
+  "work_unit_id": "C0055"
+}
