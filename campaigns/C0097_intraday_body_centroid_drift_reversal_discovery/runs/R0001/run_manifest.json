@@ -1,0 +1,242 @@
+{
+  "campaign_id": "C0097",
+  "changed_surfaces": [
+    "label",
+    "feature",
+    "model",
+    "trade_logic"
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-07T01:57:37Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
+    "closed_at_utc": "2026-07-07T01:57:37Z",
+    "negative_memory": {
+      "asset_type": "negative_memory",
+      "candidate_status": "no_candidate",
+      "economics_pass": false,
+      "evidence_paths": [
+        "artifact_lineage.json",
+        "run_manifest.json",
+        "artifacts/c0097_r0001_proxy_trades.csv",
+        "artifacts/c0097_r0001_body_centroid_drift_reversal_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0097_r0001_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday body centroid drift reversal rank over body centroid drift pressure, centroid acceptance failure, body range contraction, close rejection from centroid, counter-wick confirmation, volume centroid engagement, VWAP centroid reversion pressure, session phase maturity, prior-day centroid context, and spread stress inverse features",
+      "next_boundary": "C0097 R0001 shows the tested body centroid drift reversal surface is not a candidate as implemented; remaining C0097 variants would be adjacent tuning, so next work should choose a new major C0098 hypothesis without selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims",
+      "onnx_ready": false,
+      "reason_not_candidate": "activity landed inside the target band, but proxy, closed-bar MT5 logic, aggregate MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0001 produced 1 profitable and 8 losing fold-isolated MT5 tick folds, total tick net PnL -153.38, and worst fold rw_009 net PnL -34.17."
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "Schedule replay mechanical parity passed with mismatch_count 0, so the weak result is not explained by proxy-vs-MT5 logic mismatch."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution improved closed-bar logic by 23.28 total net PnL across 7 better and 2 worse folds, but both logic and tick surfaces remained negative."
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "gate_report.json",
+          "summary": "Native MQL signal logic, ONNX materialization, cost/slippage hardening, final sizing, and historical lineage debt remain unresolved; no stronger claim is created."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "divergence_recorded_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.622414,
+      "entry_count_delta": null,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_count_delta": null,
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "long_trade_count_proxy": 2449,
+      "losing_fold_count": 8,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.995772,
+      "minimum_exit_reason_match_rate": 0.864476,
+      "minimum_exit_time_direction_match_rate": 0.880903,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": -176.66,
+      "mt5_logic_profit_factor": 0.721176,
+      "mt5_logic_trade_count": 4421,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_expectancy_per_entry": -0.034756,
+      "mt5_tick_max_drawdown_percent": 31.032,
+      "mt5_tick_net_pnl": -153.38,
+      "mt5_tick_profit_factor": 0.737673,
+      "mt5_tick_trade_count": 4413,
+      "mt5_tick_win_rate": 0.370496,
+      "profitable_fold_count": 1,
+      "proxy_expectancy_points_per_entry": -3.698885,
+      "proxy_net_pnl_points": -16352.77,
+      "proxy_profit_factor": 0.720854,
+      "proxy_trade_count": 4421,
+      "proxy_win_rate": 0.37254,
+      "remaining_work_classification": "no_candidate; further C0097 work would be adjacent threshold, stop, target, hold, session, activity, spread, capital, or body-centroid-drift-reversal feature nudge tuning",
+      "short_trade_count_proxy": 1972,
+      "tick_better_fold_count": 7,
+      "tick_minus_logic_net_pnl": 23.28,
+      "tick_minus_logic_trade_count": -8,
+      "tick_worse_fold_count": 2,
+      "total_tick_minus_logic_net_pnl": 23.28,
+      "total_tick_minus_logic_trade_count": -8,
+      "total_tick_net_pnl": -153.38,
+      "total_tick_trade_count": 4413,
+      "worst_drawdown_fold_id": "rw_009",
+      "worst_fold_id": "rw_009",
+      "worst_fold_max_drawdown_percent": 7.216,
+      "worst_fold_net_pnl": -34.17,
+      "worst_tick_minus_logic_fold_id": "rw_001",
+      "worst_tick_minus_logic_net_pnl": -3.77
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "body_centroid_drift_reversal_summary": "artifacts/c0097_r0001_body_centroid_drift_reversal_summary.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0097_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0097_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "run_manifest": "run_manifest.json"
+  },
+  "fixed_surfaces": {
+    "broker": "FPMarkets",
+    "sizing": "fixed_lot_discovery",
+    "split_policy": "rolling_window_fold_isolated",
+    "symbol": "US100",
+    "timeframe": "M5"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday body centroid drift reversal rank run",
+    "variant_boundary": "C0097 R0001 tests whether candle-body centroid drift pressure, centroid acceptance failure, body contraction, centroid rejection, counter-wick confirmation, volume centroid engagement, VWAP centroid reversion pressure, session maturity, prior-day centroid context, and spread stress inverse form a portable target-first reversal surface after realistic FPMarkets US100 spread cost. It changes feature family, label conditioning, model context, and trade-logic state key from C0096 wick stack pressure reversal. It is not a threshold/window/SL/TP/session/spread/capital nudge, materialization step, ONNX step, selected claim, runtime claim, or retry-only run."
+  },
+  "mt5_probe_plan": {
+    "closeout_status": "closed_no_candidate",
+    "next_required_action": "choose_c0098_new_major_hypothesis_after_c0097_closeout",
+    "proxy_result_may_skip_mt5": false,
+    "required_sequence": [
+      "proxy_kpi",
+      "mt5_logic_parity_kpi",
+      "proxy_vs_mt5_logic_parity_kpi",
+      "mt5_tick_kpi",
+      "execution_divergence_kpi",
+      "fold_isolated_mt5_tick_kpi",
+      "fold_isolated_execution_divergence_kpi",
+      "closeout_gate"
+    ]
+  },
+  "opened_at_utc": "2026-07-07T01:41:23Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "No C0096 thresholds, windows, stops, targets, sessions, spread gates, feature nudges, or capital sizing changes are used as the run question.",
+    "adjacent_tuning_risk": "low",
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0096_intraday_wick_stack_pressure_reversal_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0095_intraday_close_cluster_escape_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0094_intraday_streak_fatigue_reversal_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "surface_distance_rationale": {
+      "feature": "candle-body centroid drift, acceptance failure, body contraction, centroid rejection, counter-wick confirmation, volume engagement, VWAP centroid pressure, and prior-day centroid context replace wick-stack pressure features",
+      "label": "target-first reversal quality after body-centroid drift failure, not wick-stack pressure reversal quality",
+      "model": "fold-local linear body centroid drift reversal rank",
+      "trade_logic": "top fold-local body-centroid-drift-reversal state scores per active day"
+    },
+    "true_variant_summary": "New major campaign surface asks whether failed candle-body centroid drift identifies portable reversal entries after realistic spread cost."
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v1",
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "status": "variable",
+      "summary": "body centroid drift pressure; centroid acceptance failure; body range contraction; close rejection from centroid; counter-wick confirmation; volume centroid engagement; VWAP centroid reversion pressure; session phase maturity; prior-day centroid context; spread stress inverse"
+    },
+    "label": {
+      "status": "variable",
+      "summary": "target-first reversal quality conditioned on body centroid drift failure and centroid rejection"
+    },
+    "model": {
+      "status": "variable",
+      "summary": "fold-local linear intraday body centroid drift reversal rank"
+    },
+    "trade_logic": {
+      "status": "variable",
+      "summary": "dual-direction top fold-local body-centroid-drift-reversal scores per active day using next-bar-open fixed-lot discovery entries"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0097"
+}
