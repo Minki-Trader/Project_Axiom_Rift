@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0095
+    next_id: C0096
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -113,6 +113,7 @@ streams:
     - campaigns/C0092_intraday_cost_pressure_absorption_discovery
     - campaigns/C0093_intraday_participation_pulse_efficiency_discovery
     - campaigns/C0094_intraday_streak_fatigue_reversal_discovery
+    - campaigns/C0095_intraday_close_cluster_escape_discovery
     numbering_policy:
       width: 4
       example: C0001

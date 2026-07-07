@@ -1,0 +1,243 @@
+{
+  "campaign_id": "C0095",
+  "changed_surfaces": [
+    "label",
+    "feature",
+    "model",
+    "trade_logic"
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-07T01:02:46Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
+    "closed_at_utc": "2026-07-07T01:02:46Z",
+    "negative_memory": {
+      "asset_type": "negative_memory",
+      "candidate_status": "no_candidate",
+      "economics_pass": false,
+      "evidence_paths": [
+        "artifact_lineage.json",
+        "run_manifest.json",
+        "artifacts/c0095_r0001_proxy_trades.csv",
+        "artifacts/c0095_r0001_close_cluster_escape_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0095_r0001_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday close cluster escape rank over close cluster tension, cluster range compression, escape body commitment, escape close displacement, pre-escape directional drift, volume reengagement, VWAP escape alignment, wick containment, session phase maturity, prior-day energy context, and spread stress inverse features",
+      "next_boundary": "C0095 R0001 shows the tested close cluster escape surface is not a candidate as implemented; remaining C0095 variants would be adjacent tuning, so next work should choose a new major C0096 hypothesis without selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims",
+      "onnx_ready": false,
+      "reason_not_candidate": "activity landed inside the target band, but proxy, closed-bar MT5 logic, aggregate MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0001 produced 0 profitable and 9 losing fold-isolated MT5 tick folds, total tick net PnL -91.49, and worst fold rw_008 net PnL -20.25."
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "Schedule replay mechanical parity passed with mismatch_count 0, so the weak result is not explained by proxy-vs-MT5 logic mismatch."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution improved closed-bar logic by 24.32 total net PnL across 7 better and 2 worse folds, but both logic and tick surfaces remained negative."
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "gate_report.json",
+          "summary": "Native MQL signal logic, ONNX materialization, cost/slippage hardening, final sizing, and historical lineage debt remain unresolved; no stronger claim is created."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "divergence_recorded_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.425862,
+      "entry_count_delta": null,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_count_delta": null,
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "long_trade_count_proxy": 2344,
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.991701,
+      "minimum_exit_reason_match_rate": 0.871369,
+      "minimum_exit_time_direction_match_rate": 0.885892,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": -115.81,
+      "mt5_logic_profit_factor": 0.773543,
+      "mt5_logic_trade_count": 4307,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_expectancy_per_entry": -0.021297,
+      "mt5_tick_max_drawdown_percent": 19.008,
+      "mt5_tick_net_pnl": -91.49,
+      "mt5_tick_profit_factor": 0.80796,
+      "mt5_tick_trade_count": 4296,
+      "mt5_tick_win_rate": 0.396648,
+      "profitable_fold_count": 0,
+      "proxy_expectancy_points_per_entry": -2.307297,
+      "proxy_net_pnl_points": -9937.53,
+      "proxy_profit_factor": 0.791611,
+      "proxy_trade_count": 4307,
+      "proxy_win_rate": 0.40144,
+      "remaining_work_classification": "no_candidate; further C0095 work would be adjacent threshold, stop, target, hold, session, activity, spread, capital, or close-cluster-escape feature nudge tuning",
+      "short_trade_count_proxy": 1963,
+      "tick_better_fold_count": 7,
+      "tick_minus_logic_net_pnl": 24.32,
+      "tick_minus_logic_trade_count": -11,
+      "tick_worse_fold_count": 2,
+      "total_tick_minus_logic_net_pnl": 24.32,
+      "total_tick_minus_logic_trade_count": -11,
+      "total_tick_net_pnl": -91.49,
+      "total_tick_trade_count": 4296,
+      "worst_drawdown_fold_id": "rw_009",
+      "worst_fold_id": "rw_008",
+      "worst_fold_max_drawdown_percent": 4.29,
+      "worst_fold_net_pnl": -20.25,
+      "worst_tick_minus_logic_fold_id": "rw_004",
+      "worst_tick_minus_logic_net_pnl": -3.42
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "close_cluster_escape_summary": "artifacts/c0095_r0001_close_cluster_escape_summary.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0095_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0095_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "run_manifest": "run_manifest.json"
+  },
+  "fixed_surfaces": {
+    "broker": "FPMarkets",
+    "sizing": "fixed_lot_discovery",
+    "split_policy": "rolling_window_fold_isolated",
+    "symbol": "US100",
+    "timeframe": "M5"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday close cluster escape rank run",
+    "variant_boundary": "C0095 R0001 tests whether tight intraday close clusters that compress range and then escape with body commitment, close displacement, volume reengagement, VWAP alignment, and wick containment form a portable target-first continuation entry surface after realistic FPMarkets US100 spread cost. It changes feature family, label conditioning, model context, and trade-logic state key from C0094 streak fatigue reversal. It is not a threshold/window/SL/TP/session/spread/capital nudge, materialization step, ONNX step, selected claim, runtime claim, or retry-only run."
+  },
+  "mt5_probe_plan": {
+    "closeout_status": "closed_no_candidate",
+    "next_required_action": "choose_c0096_new_major_hypothesis_after_c0095_closeout",
+    "proxy_result_may_skip_mt5": false,
+    "required_sequence": [
+      "proxy_kpi",
+      "mt5_logic_parity_kpi",
+      "proxy_vs_mt5_logic_parity_kpi",
+      "mt5_tick_kpi",
+      "execution_divergence_kpi",
+      "fold_isolated_mt5_tick_kpi",
+      "fold_isolated_execution_divergence_kpi",
+      "closeout_gate"
+    ]
+  },
+  "opened_at_utc": "2026-07-07T00:50:15Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "No C0094 thresholds, windows, stops, targets, sessions, spread gates, feature nudges, or capital sizing changes are used as the run question.",
+    "adjacent_tuning_risk": "low",
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0094_intraday_streak_fatigue_reversal_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0093_intraday_participation_pulse_efficiency_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0090_intraday_volatility_regime_break_compression_release_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "surface_distance_rationale": {
+      "feature": "close-cluster compression, escape displacement, VWAP alignment, wick containment, and prior-day energy replace streak-fatigue reversal features",
+      "label": "target-first continuation quality after close-cluster escape, not reversal quality after streak fatigue",
+      "model": "fold-local linear close cluster escape rank",
+      "trade_logic": "top fold-local close-cluster-escape state scores per active day"
+    },
+    "true_variant_summary": "New major campaign surface asks whether compressed intraday close clusters that escape with confirmation identify portable continuation entries after realistic spread cost."
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v1",
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "status": "variable",
+      "summary": "close cluster tension; cluster range compression; escape body commitment; escape close displacement; pre-escape directional drift; volume reengagement; VWAP escape alignment; wick containment; session phase maturity; prior-day energy context; spread stress inverse"
+    },
+    "label": {
+      "status": "variable",
+      "summary": "target-first continuation quality conditioned on close cluster escape"
+    },
+    "model": {
+      "status": "variable",
+      "summary": "fold-local linear intraday close cluster escape rank"
+    },
+    "trade_logic": {
+      "status": "variable",
+      "summary": "dual-direction top fold-local close-cluster-escape scores per active day using next-bar-open fixed-lot discovery entries"
+    }
+  },
+  "template": false,
+  "work_unit": "campaigns/C0095_intraday_close_cluster_escape_discovery",
+  "work_unit_id": "C0095"
+}
