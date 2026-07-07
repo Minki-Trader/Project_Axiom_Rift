@@ -1,0 +1,45 @@
+schema: axiom_rift_campaign_inputs_v1
+template: false
+work_unit_id: C0122
+campaign_id: C0122
+run_id: R0001
+input_scope: discovery_run_inputs
+fixed_inputs:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+  base_frame: data/processed/us100_m5_base_frame.csv
+  rolling_windows: configs/rolling_windows.yaml
+  sizing: fixed_lot_discovery
+  split_policy: rolling_window_fold_isolated
+variable_inputs:
+  label:
+    status: variable
+    summary: target-first quality after compression release failure fade
+  feature:
+    status: variable
+    summary: compression range contraction; compression volume dryness; release attempt extension;
+      failed reentry pressure; rejection wick pressure; VWAP snapback alignment; session range
+      reversion position; prior session range pressure; false breakout volume disagreement; range
+      reentry efficiency; session maturity; spread stress inverse
+  model:
+    status: variable
+    summary: fold-local linear intraday compression release failure fade rank
+  trade_logic:
+    status: variable
+    summary: dual-direction top fold-local compression-release-failure-fade scores per active day
+      using next-bar-open fixed-lot discovery entries
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
