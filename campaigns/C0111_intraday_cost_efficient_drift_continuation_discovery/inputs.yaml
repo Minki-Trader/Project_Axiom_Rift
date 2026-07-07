@@ -1,0 +1,46 @@
+schema: axiom_rift_inputs_v1
+template: false
+work_unit_id: C0111
+campaign_id: C0111
+run_id: R0001
+market:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+data:
+  base_frame: data/processed/datasets/us100_m5_base_frame.csv
+  split_policy: registries/rolling_windows.yaml
+  leakage_policy: no_future_leakage
+fixed_surfaces:
+  sizing: fixed_lot_discovery
+  commission_per_trade: 0
+  synthetic_commission_allowed: false
+  spread_source: entry_bar_spread_column
+  equity_percent_sizing: deferred_until_candidate_quality
+variable_surfaces:
+  label: target_first_quality_after_cost_efficient_drift_continuation
+  feature_family: intraday_cost_efficient_drift_continuation
+  model_family: fold_local_intraday_cost_efficient_drift_continuation_rank
+  trade_logic: top_fold_local_cost_efficient_drift_continuation_scores_per_active_day
+required_evidence:
+- proxy_kpi
+- mt5_logic_parity_kpi
+- proxy_vs_mt5_logic_parity_kpi
+- mt5_tick_kpi
+- execution_divergence_kpi
+- fold_isolated_mt5_tick_kpi
+- fold_isolated_execution_divergence_kpi
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
