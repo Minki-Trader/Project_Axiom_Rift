@@ -1,0 +1,43 @@
+schema: axiom_rift_campaign_inputs_v1
+template: false
+work_unit_id: C0117
+campaign_id: C0117
+run_id: R0001
+input_scope: discovery_run_inputs
+fixed_inputs:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+  base_frame: data/processed/us100_m5_base_frame.csv
+  rolling_windows: configs/rolling_windows.yaml
+  sizing: fixed_lot_discovery
+  split_policy: rolling_window_fold_isolated
+variable_inputs:
+  label:
+    status: variable
+    summary: target-first quality after overnight inventory unwind
+  feature:
+    status: variable
+    summary: overnight inventory skew, overnight position pressure, extension pressure, core
+      reentry depth, unwind progress, range reversion efficiency, volume unwind ratio, VWAP
+      alignment, prior day context, session maturity, and spread stress features
+  model:
+    status: variable
+    summary: fold-local linear overnight inventory unwind rank
+  trade_logic:
+    status: variable
+    summary: dual-direction top fold-local overnight-inventory-unwind scores per active day
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

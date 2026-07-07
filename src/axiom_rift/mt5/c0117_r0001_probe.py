@@ -1,4 +1,4 @@
-"""MT5 schedule-replay helpers for C0116 R0001."""
+"""MT5 schedule-replay helpers for C0117 R0001."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ from axiom_rift.mt5.shared import (
 from axiom_rift.mt5.shared import CompileResult, TesterResult, event_bar_time
 from axiom_rift.mt5.terminal_hygiene import cleanup_headless_terminal, prepare_headless_terminal
 from axiom_rift.paths import PROJECT_ROOT
-from axiom_rift.proxies.c0116_r0001_intraday_day_open_anchor_reclaim import (
+from axiom_rift.proxies.c0117_r0001_intraday_overnight_inventory_unwind import (
     BASE_FRAME,
     ROLLING_WINDOWS,
     SplitWindow,
@@ -74,9 +74,9 @@ from axiom_rift.proxies.common.base import load_bars, load_windows
 
 EA_NAME = "AxiomC0002ScheduleReplay"
 EA_SOURCE = PROJECT_ROOT / "src" / "axiom_rift" / "mt5" / "experts" / f"{EA_NAME}.mq5"
-CAMPAIGN_ID = "C0116"
+CAMPAIGN_ID = "C0117"
 RUN_ID = "R0001"
-CAMPAIGN_ROOT = PROJECT_ROOT / "campaigns" / "C0116_intraday_day_open_anchor_reclaim_discovery"
+CAMPAIGN_ROOT = PROJECT_ROOT / "campaigns" / "C0117_intraday_overnight_inventory_unwind_discovery"
 RUN_DIR = CAMPAIGN_ROOT / "runs" / RUN_ID
 CAMPAIGN = CAMPAIGN_ROOT / "campaign.yaml"
 KPI_DIR = RUN_DIR / "kpi"
@@ -96,20 +96,20 @@ CLAIM_STATE = PROJECT_ROOT / "registries" / "claim_state.yaml"
 DECISION_CURSOR = PROJECT_ROOT / "registries" / "decision_cursor.yaml"
 DECISION_REGISTRY = PROJECT_ROOT / "registries" / "decision_registry.yaml"
 WORK_UNIT_REGISTRY = PROJECT_ROOT / "registries" / "work_unit_registry.yaml"
-SCHEDULE_ARTIFACT = RUN_ARTIFACT_DIR / "c0116_r0001_schedule.csv"
-SCHEDULE_COMMON_REL = "AxiomRift\\C0116\\R0001\\schedule\\c0116_r0001_schedule.csv"
+SCHEDULE_ARTIFACT = RUN_ARTIFACT_DIR / "c0117_r0001_schedule.csv"
+SCHEDULE_COMMON_REL = "AxiomRift\\C0117\\R0001\\schedule\\c0117_r0001_schedule.csv"
 STARTING_BALANCE_USD = starting_balance_usd()
 LOGIC_PARITY_STARTING_BALANCE_USD = 100000.0
-RESPONSE_MODE = "fold_local_intraday_day_open_anchor_reclaim_schedule_replay"
+RESPONSE_MODE = "fold_local_intraday_overnight_inventory_unwind_schedule_replay"
 MAX_HOLD_BARS = 10
-MAGIC = 1114001
+MAGIC = 1117001
 TESTER_FROM_DATE = "2024.02.01"
 TESTER_TO_DATE = "2026.05.01"
-WORK_UNIT_REL = "campaigns/C0116_intraday_day_open_anchor_reclaim_discovery"
+WORK_UNIT_REL = "campaigns/C0117_intraday_overnight_inventory_unwind_discovery"
 RUN_REL = f"{WORK_UNIT_REL}/runs/R0001"
-NEXT_MAJOR_ACTION = "choose_c0117_new_major_hypothesis_after_c0116_closeout"
-PREVIOUS_CAMPAIGN_REL = "campaigns/C0115_intraday_prior_day_range_boundary_acceptance_discovery"
-C0116_CLOSE_REASON = (
+NEXT_MAJOR_ACTION = "choose_c0118_new_major_hypothesis_after_c0117_closeout"
+PREVIOUS_CAMPAIGN_REL = "campaigns/C0116_intraday_day_open_anchor_reclaim_discovery"
+C0117_CLOSE_REASON = (
     "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation"
 )
 
@@ -150,7 +150,7 @@ def required_kpis_from(path: Path) -> dict[str, Any]:
     return required
 
 
-def compile_c0116_r0001_ea(metaeditor_exe: Path | None = None) -> CompileResult:
+def compile_c0117_r0001_ea(metaeditor_exe: Path | None = None) -> CompileResult:
     metaeditor_exe = runtime_metaeditor_exe() if metaeditor_exe is None else metaeditor_exe
     if not metaeditor_exe.exists():
         raise FileNotFoundError(f"MetaEditor not found: {metaeditor_exe}")
@@ -158,7 +158,7 @@ def compile_c0116_r0001_ea(metaeditor_exe: Path | None = None) -> CompileResult:
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / EA_SOURCE.name
     shutil.copy2(EA_SOURCE, target)
-    log = PROJECT_ROOT / "artifacts" / "reports" / "c0116_r0001_mt5_compile.log"
+    log = PROJECT_ROOT / "artifacts" / "reports" / "c0117_r0001_mt5_compile.log"
     log.parent.mkdir(parents=True, exist_ok=True)
     completed = subprocess.run(
         [str(metaeditor_exe), f"/compile:{target}", f"/log:{log}"],
@@ -217,11 +217,11 @@ def scoped_name(mode: str, output_scope: str | None = None) -> str:
 
 
 def tester_config_path_for_mode(mode: str, output_scope: str | None = None) -> Path:
-    return PROJECT_ROOT / "artifacts" / "reports" / "c0116_r0001_mt5_tester" / f"c0116_r0001_{scoped_name(mode, output_scope)}_tester.ini"
+    return PROJECT_ROOT / "artifacts" / "reports" / "c0117_r0001_mt5_tester" / f"c0117_r0001_{scoped_name(mode, output_scope)}_tester.ini"
 
 
 def tester_report_path_for_mode(mode: str, output_scope: str | None = None) -> Path:
-    return PROJECT_ROOT / "artifacts" / "reports" / "c0116_r0001_mt5_tester" / f"c0116_r0001_mt5_{scoped_name(mode, output_scope)}_report.htm"
+    return PROJECT_ROOT / "artifacts" / "reports" / "c0117_r0001_mt5_tester" / f"c0117_r0001_mt5_{scoped_name(mode, output_scope)}_report.htm"
 
 
 def tester_report_stem_for_mode(mode: str, output_scope: str | None = None) -> Path:
@@ -332,7 +332,7 @@ def write_tester_config(
     if model is None:
         model = tester_model_for_mode(mode)
     use_closed_bar_exit = use_closed_bar_exit_for_mode(mode)
-    config_dir = PROJECT_ROOT / "artifacts" / "reports" / "c0116_r0001_mt5_tester"
+    config_dir = PROJECT_ROOT / "artifacts" / "reports" / "c0117_r0001_mt5_tester"
     config_dir.mkdir(parents=True, exist_ok=True)
     config = tester_config_path_for_mode(mode, output_scope)
     report = tester_report_stem_for_mode(mode, output_scope)
@@ -370,7 +370,7 @@ def write_tester_config(
     return config
 
 
-def run_c0116_r0001_tester(
+def run_c0117_r0001_tester(
     mode: str = LOGIC_PARITY_MODE,
     timeout_seconds: int = 1800,
     from_date: str = TESTER_FROM_DATE,
@@ -383,7 +383,7 @@ def run_c0116_r0001_tester(
     mode = normalize_mt5_mode(mode)
     output_scope = normalize_output_scope(output_scope)
     if compile_before:
-        compile_c0116_r0001_ea()
+        compile_c0117_r0001_ea()
     if write_schedule:
         write_schedule_files()
     clear_common_outputs(mode, output_scope)
@@ -433,7 +433,7 @@ def run_c0116_r0001_tester(
     )
 
 
-def parse_c0116_r0001_mt5(
+def parse_c0117_r0001_mt5(
     result: TesterResult | None = None,
     mode: str = LOGIC_PARITY_MODE,
     write_kpi: bool = True,
@@ -465,33 +465,33 @@ def parse_c0116_r0001_mt5(
         kpi_path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="ascii")
         if mode == LOGIC_PARITY_MODE:
             upsert_artifact_lineage(
-                "A-C0116-R0001-MT5-SCHEDULE",
+                "A-C0117-R0001-MT5-SCHEDULE",
                 "mt5_schedule_csv",
                 "mt5_logic_parity_input",
                 rel(SCHEDULE_ARTIFACT),
                 sha256_file(SCHEDULE_ARTIFACT),
-                ["campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001/kpi/proxy.json"],
+                ["campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001/kpi/proxy.json"],
             )
             upsert_artifact_lineage(
-                "A-C0116-R0001-MT5-LOGIC-KPI",
+                "A-C0117-R0001-MT5-LOGIC-KPI",
                 "mt5_logic_parity_kpi",
                 "mt5_logic_parity",
                 rel(MT5_LOGIC_KPI),
                 sha256_file(MT5_LOGIC_KPI),
                 [
-                    "campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001/artifacts/c0116_r0001_schedule.csv",
+                    "campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001/artifacts/c0117_r0001_schedule.csv",
                     "configs/market.yaml",
                 ],
             )
         else:
             upsert_artifact_lineage(
-                "A-C0116-R0001-MT5-TICK-KPI",
+                "A-C0117-R0001-MT5-TICK-KPI",
                 "mt5_tick_kpi",
                 "mt5_tick",
                 rel(MT5_TICK_KPI),
                 sha256_file(MT5_TICK_KPI),
                 [
-                    "campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001/artifacts/c0116_r0001_schedule.csv",
+                    "campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001/artifacts/c0117_r0001_schedule.csv",
                     "configs/market.yaml",
                 ],
             )
@@ -560,7 +560,7 @@ def build_mt5_payload(
         "campaign_id": CAMPAIGN_ID,
         "synthesis_id_when_applicable": None,
         "run_id": RUN_ID,
-        "mt5_probe_id": "MT5-C0116-R0001",
+        "mt5_probe_id": "MT5-C0117-R0001",
         "mt5_kpi_family": family,
         "mt5_execution_mode": mode_label,
         "mt5_output_scope": result.output_scope,
@@ -604,10 +604,10 @@ def build_mt5_payload(
                     "economics_claim_authority": False,
                 },
             },
-            "intraday_day_open_anchor_reclaim_schedule_profile": {
+            "intraday_overnight_inventory_unwind_schedule_profile": {
                 "applies": True,
                 "fields": {
-                    "intraday_day_open_anchor_reclaim_source": "rolling_train_is_proxy_schedule",
+                    "intraday_overnight_inventory_unwind_source": "rolling_train_is_proxy_schedule",
                     "schedule_rows": len(read_csv_rows(SCHEDULE_ARTIFACT)) if SCHEDULE_ARTIFACT.exists() else 0,
                     "schedule_artifact_path": rel(SCHEDULE_ARTIFACT),
                     "model_selected": False,
@@ -631,7 +631,7 @@ def build_mt5_payload(
         "missing_required_kpi_fields": missing_required,
         "deferred_with_reason": [
             {
-                "field": "native_mql_or_onnx_intraday_day_open_anchor_reclaim_surface",
+                "field": "native_mql_or_onnx_intraday_overnight_inventory_unwind_surface",
                 "requirement_class": "deferred_with_reason",
                 "reason": "logic parity replays the proxy schedule; native model or ONNX materialization is not claimed at this stage",
                 "blocking_condition": "candidate quality must be established before materialization work freezes export requirements",
@@ -679,7 +679,7 @@ def parse_mql_time(value: str | None) -> datetime | None:
     return None
 
 
-def record_c0116_r0001_parity() -> dict[str, object]:
+def record_c0117_r0001_parity() -> dict[str, object]:
     mt5 = json.loads(MT5_LOGIC_KPI.read_text(encoding="ascii"))
     proxy_trades = load_proxy_trades()
     events = read_csv_rows(common_output_dir(LOGIC_PARITY_MODE) / "mt5_events.csv")
@@ -704,7 +704,7 @@ def record_c0116_r0001_parity() -> dict[str, object]:
         + int(entry_compare["mismatch_count"])
         + int(exit_compare["mismatch_count"])
     )
-    next_action = "produce_c0116_r0001_mt5_tick_execution_evidence" if mechanical_ok else "repair_c0116_r0001_schedule_replay_parity"
+    next_action = "produce_c0117_r0001_mt5_tick_execution_evidence" if mechanical_ok else "repair_c0117_r0001_schedule_replay_parity"
     mechanical_status = "passed" if mechanical_ok else "failed"
     intent_status = "passed_schedule_replay_boundary" if mechanical_ok else "blocked_by_mechanical_mismatch"
     payload = {
@@ -716,9 +716,9 @@ def record_c0116_r0001_parity() -> dict[str, object]:
         "campaign_id": CAMPAIGN_ID,
         "synthesis_id_when_applicable": None,
         "run_id": RUN_ID,
-        "parity_id": "PVMT5-C0116-R0001",
-        "proxy_id": "PX-C0116-R0001",
-        "mt5_probe_id": "MT5-C0116-R0001",
+        "parity_id": "PVMT5-C0117-R0001",
+        "proxy_id": "PX-C0117-R0001",
+        "mt5_probe_id": "MT5-C0117-R0001",
         "parity_mode": LOGIC_PARITY_MODE,
         "mt5_kpi_family": "mt5_logic_parity",
         "compared_period": {"start": "2024-02-01", "end": "2026-04-30"},
@@ -743,7 +743,7 @@ def record_c0116_r0001_parity() -> dict[str, object]:
             "entry_count_match": "passed" if entry_count_delta == 0 else "failed",
             "exit_count_match": "passed" if exit_count_delta == 0 else "failed",
             "entry_time_direction_match": "passed" if entry_compare["key_match_rate"] == 1.0 else "failed",
-            "intraday_day_open_anchor_reclaim_schedule_match": "passed" if entry_compare["key_match_rate"] == 1.0 else "failed",
+            "intraday_overnight_inventory_unwind_schedule_match": "passed" if entry_compare["key_match_rate"] == 1.0 else "failed",
             "exit_time_reason_order_match": "passed" if exit_compare["reason_match_rate"] == 1.0 else "failed",
             "entry_exit_order_match": "passed" if exit_compare["time_direction_match_rate"] == 1.0 else "failed",
             "position_lifecycle_match": "passed" if mt5_trade_count == len(mt5_entries) == len(mt5_exits) else "failed",
@@ -764,12 +764,12 @@ def record_c0116_r0001_parity() -> dict[str, object]:
                     "exit_sequence_reason_match_rate": exit_compare["sequence_reason_match_rate"],
                 },
             },
-            "intraday_day_open_anchor_reclaim_schedule_replay_profile": {
+            "intraday_overnight_inventory_unwind_schedule_replay_profile": {
                 "applies": True,
                 "fields": {
                     "schedule_artifact_path": rel(SCHEDULE_ARTIFACT),
                     "schedule_hash": sha256_file(SCHEDULE_ARTIFACT) if SCHEDULE_ARTIFACT.exists() else None,
-                    "logic_boundary": "proxy_selected_fold_local_intraday_day_open_anchor_reclaim_schedule_replayed_in_mt5_closed_bar_mode",
+                    "logic_boundary": "proxy_selected_fold_local_intraday_overnight_inventory_unwind_schedule_replayed_in_mt5_closed_bar_mode",
                     "native_mql_or_onnx_state_surface_claim": False,
                 },
             },
@@ -782,8 +782,8 @@ def record_c0116_r0001_parity() -> dict[str, object]:
             {
                 "field": "runtime_or_onnx_portability",
                 "requirement_class": "deferred_with_reason",
-                "reason": "logic parity uses schedule replay only; native intraday day open anchor reclaim materialization is deferred until candidate quality exists",
-                "blocking_condition": "C0116 R0001 does not yet have fold-isolated tick evidence",
+                "reason": "logic parity uses schedule replay only; native intraday overnight inventory unwind materialization is deferred until candidate quality exists",
+                "blocking_condition": "C0117 R0001 does not yet have fold-isolated tick evidence",
                 "revisit_when": "after fold-isolated MT5 tick closeout review",
                 "claim_boundary": {"claim_authority": False, "runtime_authority": False, "onnx_ready": False},
             }
@@ -796,21 +796,21 @@ def record_c0116_r0001_parity() -> dict[str, object]:
     }
     LOGIC_PARITY_KPI.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="ascii")
     upsert_artifact_lineage(
-        "A-C0116-R0001-PROXY-VS-MT5-LOGIC-KPI",
+        "A-C0117-R0001-PROXY-VS-MT5-LOGIC-KPI",
         "proxy_vs_mt5_logic_parity_kpi",
         "proxy_vs_mt5_logic_parity",
         rel(LOGIC_PARITY_KPI),
         sha256_file(LOGIC_PARITY_KPI),
         [
-            "campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001/kpi/proxy.json",
-            "campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+            "campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001/kpi/proxy.json",
+            "campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001/kpi/mt5_logic_parity.json",
         ],
     )
     update_after_parity(payload, next_action)
     return payload
 
 
-def record_c0116_r0001_execution_divergence() -> dict[str, object]:
+def record_c0117_r0001_execution_divergence() -> dict[str, object]:
     logic = json.loads(MT5_LOGIC_KPI.read_text(encoding="ascii"))
     tick = json.loads(MT5_TICK_KPI.read_text(encoding="ascii"))
     logic_events = read_csv_rows(common_output_dir(LOGIC_PARITY_MODE) / "mt5_events.csv")
@@ -854,7 +854,7 @@ def record_c0116_r0001_execution_divergence() -> dict[str, object]:
         "campaign_id": CAMPAIGN_ID,
         "synthesis_id_when_applicable": None,
         "run_id": RUN_ID,
-        "divergence_id": "ED-C0116-R0001",
+        "divergence_id": "ED-C0117-R0001",
         "logic_mt5_kpi_path": rel(MT5_LOGIC_KPI),
         "tick_mt5_kpi_path": rel(MT5_TICK_KPI),
         "required_kpis": required_kpis,
@@ -890,7 +890,7 @@ def record_c0116_r0001_execution_divergence() -> dict[str, object]:
             {
                 "field": "fold_isolated_execution_divergence",
                 "reason": "aggregate execution divergence is diagnostic only before fold-isolated closeout",
-                "next_action": "produce_c0116_r0001_fold_isolated_mt5_tick_kpi",
+                "next_action": "produce_c0117_r0001_fold_isolated_mt5_tick_kpi",
             }
         ],
         "claim_boundary": {
@@ -901,24 +901,24 @@ def record_c0116_r0001_execution_divergence() -> dict[str, object]:
     }
     EXECUTION_DIVERGENCE_KPI.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="ascii")
     upsert_artifact_lineage(
-        "A-C0116-R0001-EXECUTION-DIVERGENCE-KPI",
+        "A-C0117-R0001-EXECUTION-DIVERGENCE-KPI",
         "diagnostic_output",
         "execution_divergence",
         rel(EXECUTION_DIVERGENCE_KPI),
         sha256_file(EXECUTION_DIVERGENCE_KPI),
         [
-            "campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001/kpi/mt5_logic_parity.json",
-            "campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001/kpi/mt5_tick.json",
+            "campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+            "campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001/kpi/mt5_tick.json",
         ],
     )
     update_after_execution_divergence(payload)
     return payload
 
 
-def run_c0116_r0001_mt5_logic_workflow(timeout_seconds: int = 1800) -> dict[str, object]:
-    result = run_c0116_r0001_tester(mode=LOGIC_PARITY_MODE, timeout_seconds=timeout_seconds)
-    mt5_payload = parse_c0116_r0001_mt5(result)
-    parity_payload = record_c0116_r0001_parity()
+def run_c0117_r0001_mt5_logic_workflow(timeout_seconds: int = 1800) -> dict[str, object]:
+    result = run_c0117_r0001_tester(mode=LOGIC_PARITY_MODE, timeout_seconds=timeout_seconds)
+    mt5_payload = parse_c0117_r0001_mt5(result)
+    parity_payload = record_c0117_r0001_parity()
     return {
         "mt5": mt5_payload["required_kpis"],
         "parity": parity_payload["required_kpis"],
@@ -929,10 +929,10 @@ def run_c0116_r0001_mt5_logic_workflow(timeout_seconds: int = 1800) -> dict[str,
     }
 
 
-def run_c0116_r0001_mt5_tick_workflow(timeout_seconds: int = 1800) -> dict[str, object]:
-    result = run_c0116_r0001_tester(mode=TICK_EXECUTION_MODE, timeout_seconds=timeout_seconds)
-    mt5_payload = parse_c0116_r0001_mt5(result)
-    divergence_payload = record_c0116_r0001_execution_divergence()
+def run_c0117_r0001_mt5_tick_workflow(timeout_seconds: int = 1800) -> dict[str, object]:
+    result = run_c0117_r0001_tester(mode=TICK_EXECUTION_MODE, timeout_seconds=timeout_seconds)
+    mt5_payload = parse_c0117_r0001_mt5(result)
+    divergence_payload = record_c0117_r0001_execution_divergence()
     return {
         "mt5_tick": mt5_payload["required_kpis"],
         "execution_divergence": divergence_payload["required_kpis"],
@@ -942,13 +942,13 @@ def run_c0116_r0001_mt5_tick_workflow(timeout_seconds: int = 1800) -> dict[str, 
     }
 
 
-def run_c0116_r0001_mt5_tick_by_fold_workflow(timeout_seconds: int = 1800) -> dict[str, object]:
-    compile_c0116_r0001_ea()
+def run_c0117_r0001_mt5_tick_by_fold_workflow(timeout_seconds: int = 1800) -> dict[str, object]:
+    compile_c0117_r0001_ea()
     write_schedule_files()
     records: list[dict[str, Any]] = []
     for window in load_test_windows():
         from_date, to_date = tester_dates_for_window(window)
-        logic_result = run_c0116_r0001_tester(
+        logic_result = run_c0117_r0001_tester(
             mode=LOGIC_PARITY_MODE,
             timeout_seconds=timeout_seconds,
             from_date=from_date,
@@ -957,8 +957,8 @@ def run_c0116_r0001_mt5_tick_by_fold_workflow(timeout_seconds: int = 1800) -> di
             compile_before=False,
             write_schedule=False,
         )
-        logic_payload = parse_c0116_r0001_mt5(logic_result, write_kpi=False)
-        tick_result = run_c0116_r0001_tester(
+        logic_payload = parse_c0117_r0001_mt5(logic_result, write_kpi=False)
+        tick_result = run_c0117_r0001_tester(
             mode=TICK_EXECUTION_MODE,
             timeout_seconds=timeout_seconds,
             from_date=from_date,
@@ -967,7 +967,7 @@ def run_c0116_r0001_mt5_tick_by_fold_workflow(timeout_seconds: int = 1800) -> di
             compile_before=False,
             write_schedule=False,
         )
-        tick_payload = parse_c0116_r0001_mt5(tick_result, write_kpi=False)
+        tick_payload = parse_c0117_r0001_mt5(tick_result, write_kpi=False)
         records.append(
             {
                 "window": window,
@@ -987,25 +987,25 @@ def run_c0116_r0001_mt5_tick_by_fold_workflow(timeout_seconds: int = 1800) -> di
         encoding="ascii",
     )
     upsert_artifact_lineage(
-        "A-C0116-R0001-MT5-TICK-BY-FOLD-KPI",
+        "A-C0117-R0001-MT5-TICK-BY-FOLD-KPI",
         "mt5_tick_by_fold_kpi",
         "mt5_tick_by_fold",
         rel(MT5_TICK_BY_FOLD_KPI),
         sha256_file(MT5_TICK_BY_FOLD_KPI),
         [
-            "campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001/artifacts/c0116_r0001_schedule.csv",
+            "campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001/artifacts/c0117_r0001_schedule.csv",
             "registries/rolling_windows.yaml",
             "configs/market.yaml",
         ],
     )
     upsert_artifact_lineage(
-        "A-C0116-R0001-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+        "A-C0117-R0001-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
         "diagnostic_output",
         "execution_divergence_by_fold",
         rel(EXECUTION_DIVERGENCE_BY_FOLD_KPI),
         sha256_file(EXECUTION_DIVERGENCE_BY_FOLD_KPI),
         [
-            "campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+            "campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
             "registries/rolling_windows.yaml",
         ],
     )
@@ -1094,16 +1094,16 @@ def build_mt5_tick_by_fold_payload(records: list[dict[str, Any]]) -> dict[str, o
         "campaign_id": CAMPAIGN_ID,
         "synthesis_id_when_applicable": None,
         "run_id": RUN_ID,
-        "mt5_probe_id": "MT5-C0116-R0001-BY-FOLD",
+        "mt5_probe_id": "MT5-C0117-R0001-BY-FOLD",
         "split_policy": "rolling_window_test_oos_fold_isolated",
         "split_registry": "registries/rolling_windows.yaml",
         "required_kpis": required_kpis,
         "conditional_profiles": {
             "fold_profile": {"applies": True, "fields": {"folds": fold_rows, "missing_by_fold": missing_by_fold}},
-            "intraday_day_open_anchor_reclaim_schedule_profile": {
+            "intraday_overnight_inventory_unwind_schedule_profile": {
                 "applies": True,
                 "fields": {
-                    "intraday_day_open_anchor_reclaim_source": "rolling_train_is_proxy_schedule",
+                    "intraday_overnight_inventory_unwind_source": "rolling_train_is_proxy_schedule",
                     "schedule_artifact_path": rel(SCHEDULE_ARTIFACT),
                     "model_selected": False,
                     "feature_set_selected": False,
@@ -1253,7 +1253,7 @@ def build_execution_divergence_by_fold_payload(records: list[dict[str, Any]]) ->
         "campaign_id": CAMPAIGN_ID,
         "synthesis_id_when_applicable": None,
         "run_id": RUN_ID,
-        "divergence_id": "ED-C0116-R0001-BY-FOLD",
+        "divergence_id": "ED-C0117-R0001-BY-FOLD",
         "split_policy": "rolling_window_test_oos_fold_isolated",
         "split_registry": "registries/rolling_windows.yaml",
         "tick_mt5_by_fold_kpi_path": rel(MT5_TICK_BY_FOLD_KPI),
@@ -1263,10 +1263,10 @@ def build_execution_divergence_by_fold_payload(records: list[dict[str, Any]]) ->
                 "applies": True,
                 "fields": {"folds": fold_rows, "missing_by_fold": missing_by_fold},
             },
-            "intraday_day_open_anchor_reclaim_schedule_profile": {
+            "intraday_overnight_inventory_unwind_schedule_profile": {
                 "applies": True,
                 "fields": {
-                    "intraday_day_open_anchor_reclaim_source": "rolling_train_is_proxy_schedule",
+                    "intraday_overnight_inventory_unwind_source": "rolling_train_is_proxy_schedule",
                     "schedule_artifact_path": rel(SCHEDULE_ARTIFACT),
                     "model_selected": False,
                     "feature_set_selected": False,
@@ -1293,7 +1293,7 @@ def build_execution_divergence_by_fold_payload(records: list[dict[str, Any]]) ->
 
 
 def update_after_fold_isolated(tick_payload: dict[str, object], divergence_payload: dict[str, object]) -> None:
-    next_action = "review_c0116_r0001_tick_execution_kpi_and_closeout"
+    next_action = "review_c0117_r0001_tick_execution_kpi_and_closeout"
     manifest = json.loads(RUN_MANIFEST.read_text(encoding="ascii"))
     manifest["status"] = "fold_isolated_evidence_recorded_pending_closeout_review"
     manifest["gate_status"] = "fold_isolated_evidence_recorded_pending_closeout_review"
@@ -1328,7 +1328,7 @@ def update_after_fold_isolated(tick_payload: dict[str, object], divergence_paylo
             "field": "decision",
             "reason": "fold-isolated evidence is recorded and awaits closeout review",
             "blocking_condition": "run cannot close until closeout review records candidate or failure asset",
-            "revisit_when": "during C0116 R0001 closeout review",
+            "revisit_when": "during C0117 R0001 closeout review",
         }
     ]
     GATE_REPORT.write_text(json.dumps(gate, indent=2, sort_keys=True) + "\n", encoding="ascii")
@@ -1338,23 +1338,23 @@ def update_after_fold_isolated(tick_payload: dict[str, object], divergence_paylo
     next_work = data.setdefault("next_work", {})
     completed = list(next_work.get("completed") or [])
     for item in (
-        "produce_c0116_r0001_mt5_tick_execution_evidence",
-        "record_c0116_r0001_execution_divergence",
-        "produce_c0116_r0001_fold_isolated_mt5_tick_kpi",
-        "produce_c0116_r0001_fold_isolated_execution_divergence",
+        "produce_c0117_r0001_mt5_tick_execution_evidence",
+        "record_c0117_r0001_execution_divergence",
+        "produce_c0117_r0001_fold_isolated_mt5_tick_kpi",
+        "produce_c0117_r0001_fold_isolated_execution_divergence",
     ):
         if item not in completed:
             completed.append(item)
     next_work["completed"] = [item for item in completed if item != next_action]
     next_work["tasks"] = [next_action]
-    data["active_run"] = "campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001"
+    data["active_run"] = "campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001"
     REENTRY.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False, width=88), encoding="ascii")
 
     tick_required = tick_payload.get("required_kpis", {})
     divergence_required = divergence_payload.get("required_kpis", {})
     update_claim_state(
-        operation_id="produce_c0116_r0001_fold_isolated_execution_divergence",
-        source="campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+        operation_id="produce_c0117_r0001_fold_isolated_execution_divergence",
+        source="campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
         evidence_status="fold_isolated_evidence_recorded_pending_closeout_review",
         next_action=next_action,
         extra={
@@ -1385,7 +1385,7 @@ def update_run_after_mt5(mode: str) -> None:
     data = json.loads(RUN_MANIFEST.read_text(encoding="ascii"))
     mode = normalize_mt5_mode(mode)
     evidence = data.setdefault("evidence_paths", {})
-    evidence["mt5_schedule_artifact"] = "artifacts/c0116_r0001_schedule.csv"
+    evidence["mt5_schedule_artifact"] = "artifacts/c0117_r0001_schedule.csv"
     if mode == LOGIC_PARITY_MODE:
         evidence["mt5_logic_parity_kpi"] = "kpi/mt5_logic_parity.json"
         data["status"] = "mt5_logic_parity_recorded_pending_parity"
@@ -1400,10 +1400,10 @@ def update_run_after_mt5(mode: str) -> None:
 def update_after_parity(payload: dict[str, object], next_action: str) -> None:
     update_gate_next("logic_parity_recorded", next_action)
     update_campaign_next(next_action)
-    update_reentry_next("record_c0116_r0001_proxy_vs_mt5_logic_parity_evidence", next_action)
+    update_reentry_next("record_c0117_r0001_proxy_vs_mt5_logic_parity_evidence", next_action)
     update_claim_state(
-        operation_id="record_c0116_r0001_proxy_vs_mt5_logic_parity_evidence",
-        source="campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
+        operation_id="record_c0117_r0001_proxy_vs_mt5_logic_parity_evidence",
+        source="campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
         evidence_status="logic_parity_recorded",
         next_action=next_action,
         extra={
@@ -1416,13 +1416,13 @@ def update_after_parity(payload: dict[str, object], next_action: str) -> None:
 
 
 def update_after_execution_divergence(payload: dict[str, object]) -> None:
-    next_action = "produce_c0116_r0001_fold_isolated_mt5_tick_kpi"
+    next_action = "produce_c0117_r0001_fold_isolated_mt5_tick_kpi"
     update_gate_next("execution_divergence_recorded_pending_fold_isolated", next_action)
     update_campaign_next(next_action)
-    update_reentry_next("record_c0116_r0001_execution_divergence", next_action)
+    update_reentry_next("record_c0117_r0001_execution_divergence", next_action)
     update_claim_state(
-        operation_id="record_c0116_r0001_execution_divergence",
-        source="campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001/kpi/execution_divergence.json",
+        operation_id="record_c0117_r0001_execution_divergence",
+        source="campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001/kpi/execution_divergence.json",
         evidence_status="execution_divergence_recorded_pending_fold_isolated",
         next_action=next_action,
         extra={
@@ -1446,7 +1446,7 @@ def update_gate_next(status: str, next_action: str) -> None:
         "kpi/proxy_vs_mt5_logic_parity.json",
         "kpi/mt5_tick.json",
         "kpi/execution_divergence.json",
-        "artifacts/c0116_r0001_schedule.csv",
+        "artifacts/c0117_r0001_schedule.csv",
     ):
         if path not in paths:
             paths.append(path)
@@ -1456,7 +1456,7 @@ def update_gate_next(status: str, next_action: str) -> None:
             "field": "decision",
             "reason": "mandatory MT5 evidence loop is still incomplete",
             "blocking_condition": "R0001 cannot close until MT5 tick, execution divergence, and fold-isolated evidence are recorded",
-            "revisit_when": "after C0116 R0001 fold-isolated MT5 evidence files contain measured results",
+            "revisit_when": "after C0117 R0001 fold-isolated MT5 evidence files contain measured results",
         }
     ]
     GATE_REPORT.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="ascii")
@@ -1480,20 +1480,20 @@ def update_reentry_next(completed_item: str, next_action: str) -> None:
     data = yaml.safe_load(REENTRY.read_text(encoding="ascii"))
     next_work = data.setdefault("next_work", {})
     completed = list(next_work.get("completed") or [])
-    for item in ("produce_c0116_r0001_proxy_evidence", completed_item):
+    for item in ("produce_c0117_r0001_proxy_evidence", completed_item):
         if item not in completed:
             completed.append(item)
     completed = [item for item in completed if item != next_action]
     next_work["completed"] = completed
     next_work["tasks"] = [next_action]
-    data["active_run"] = "campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001"
+    data["active_run"] = "campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001"
     REENTRY.write_text(yaml.safe_dump(data, sort_keys=False, allow_unicode=False, width=88), encoding="ascii")
 
 
 def update_claim_state(operation_id: str, source: str, evidence_status: str, next_action: str, extra: dict[str, object]) -> None:
     data = yaml.safe_load(CLAIM_STATE.read_text(encoding="ascii"))
-    data["active_campaign"] = "campaigns/C0116_intraday_day_open_anchor_reclaim_discovery"
-    data["active_run"] = "campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001"
+    data["active_campaign"] = "campaigns/C0117_intraday_overnight_inventory_unwind_discovery"
+    data["active_run"] = "campaigns/C0117_intraday_overnight_inventory_unwind_discovery/runs/R0001"
     latest = {
         "id": operation_id,
         "status": "completed",
@@ -1536,20 +1536,20 @@ def closeout_evidence_paths() -> list[str]:
     return [
         "artifact_lineage.json",
         "run_manifest.json",
-        "artifacts/c0116_r0001_proxy_trades.csv",
-        "artifacts/c0116_r0001_day_open_anchor_reclaim_summary.json",
+        "artifacts/c0117_r0001_proxy_trades.csv",
+        "artifacts/c0117_r0001_overnight_inventory_unwind_summary.json",
         "kpi/proxy.json",
         "kpi/mt5_logic_parity.json",
         "kpi/proxy_vs_mt5_logic_parity.json",
         "kpi/mt5_tick.json",
         "kpi/execution_divergence.json",
-        "artifacts/c0116_r0001_schedule.csv",
+        "artifacts/c0117_r0001_schedule.csv",
         "kpi/mt5_tick_by_fold.json",
         "kpi/execution_divergence_by_fold.json",
     ]
 
 
-def c0116_closeout_kpi_summary() -> dict[str, Any]:
+def c0117_closeout_kpi_summary() -> dict[str, Any]:
     proxy_payload = load_json_payload(KPI_DIR / "proxy.json")
     proxy_required = dict(proxy_payload.get("required_kpis", {}))
     proxy_summary = dict(proxy_payload.get("proxy_summary", {}))
@@ -1619,13 +1619,13 @@ def c0116_closeout_kpi_summary() -> dict[str, Any]:
         "worst_tick_minus_logic_fold_id": divergence_by_fold_required.get("worst_tick_minus_logic_fold_id"),
         "worst_tick_minus_logic_net_pnl": divergence_by_fold_required.get("worst_tick_minus_logic_net_pnl"),
         "remaining_work_classification": (
-            "no_candidate; further C0116 work would be adjacent threshold, stop, target, hold, session, "
-            "activity, spread, capital, or day-open-anchor-reclaim feature nudge tuning"
+            "no_candidate; further C0117 work would be adjacent threshold, stop, target, hold, session, "
+            "activity, spread, capital, or overnight-inventory-unwind feature nudge tuning"
         ),
     }
 
 
-def c0116_negative_memory_asset(summary: dict[str, Any]) -> dict[str, Any]:
+def c0117_negative_memory_asset(summary: dict[str, Any]) -> dict[str, Any]:
     return {
         "asset_type": "negative_memory",
         "candidate_status": "no_candidate",
@@ -1634,11 +1634,10 @@ def c0116_negative_memory_asset(summary: dict[str, Any]) -> dict[str, Any]:
         "runtime_authority": False,
         "onnx_ready": False,
         "hypothesis_tested": (
-            "fold-local intraday day open anchor reclaim rank over day open distance, "
-            "anchor reclaim depth, same-side reclaim ratio, failed auction absorption, close reclaim "
-            "strength, anchor impulse efficiency, volume reclaim ratio, VWAP anchor alignment, "
-            "opening range reclaim alignment, prior day direction context, session maturity, and spread stress "
-            "inverse features"
+            "fold-local intraday overnight inventory unwind rank over overnight position pressure, "
+            "overnight inventory skew, overnight extension pressure, core reentry depth, session unwind "
+            "progress, range reversion efficiency, volume unwind ratio, VWAP unwind alignment, day open "
+            "tension, prior day range context, session maturity, and spread stress inverse features"
         ),
         "evidence_paths": closeout_evidence_paths(),
         "reason_not_candidate": (
@@ -1646,8 +1645,8 @@ def c0116_negative_memory_asset(summary: dict[str, Any]) -> dict[str, Any]:
             "MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate"
         ),
         "next_boundary": (
-            "C0116 R0001 shows the tested day open anchor reclaim surface is not a candidate as implemented; "
-            "remaining C0116 variants would be adjacent tuning, so next work should choose a new major C0117 "
+            "C0117 R0001 shows the tested overnight inventory unwind surface is not a candidate as implemented; "
+            "remaining C0117 variants would be adjacent tuning, so next work should choose a new major C0118 "
             "hypothesis without selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims"
         ),
         "supporting_lessons": [
@@ -1693,15 +1692,15 @@ def c0116_negative_memory_asset(summary: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def c0116_closeout_review(closed_at: str) -> dict[str, Any]:
-    summary = c0116_closeout_kpi_summary()
+def c0117_closeout_review(closed_at: str) -> dict[str, Any]:
+    summary = c0117_closeout_kpi_summary()
     return {
         "status": "closed_no_candidate",
         "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
-        "close_reason": C0116_CLOSE_REASON,
+        "close_reason": C0117_CLOSE_REASON,
         "closed_at_utc": closed_at,
         "required_kpi_summary": summary,
-        "negative_memory": c0116_negative_memory_asset(summary),
+        "negative_memory": c0117_negative_memory_asset(summary),
         "claim_boundary": claim_boundary_payload(),
     }
 
@@ -1722,9 +1721,9 @@ def update_run_manifest_for_closeout(closeout_review: dict[str, Any], closed_at:
             "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
             "mt5_tick_kpi": "kpi/mt5_tick.json",
             "execution_divergence_kpi": "kpi/execution_divergence.json",
-            "proxy_trade_artifact": "artifacts/c0116_r0001_proxy_trades.csv",
-            "day_open_anchor_reclaim_summary": "artifacts/c0116_r0001_day_open_anchor_reclaim_summary.json",
-            "mt5_schedule_artifact": "artifacts/c0116_r0001_schedule.csv",
+            "proxy_trade_artifact": "artifacts/c0117_r0001_proxy_trades.csv",
+            "overnight_inventory_unwind_summary": "artifacts/c0117_r0001_overnight_inventory_unwind_summary.json",
+            "mt5_schedule_artifact": "artifacts/c0117_r0001_schedule.csv",
             "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
             "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
         }
@@ -1740,7 +1739,7 @@ def update_gate_report_for_closeout(closeout_review: dict[str, Any]) -> None:
     data = json.loads(GATE_REPORT.read_text(encoding="ascii"))
     summary = closeout_review["required_kpi_summary"]
     data["schema"] = "axiom_rift_gate_report_v2"
-    data["gate_report_id"] = "G-C0116-R0001"
+    data["gate_report_id"] = "G-C0117-R0001"
     data["status"] = "closed_no_candidate"
     data["decision"] = "close_no_candidate"
     data["role"] = "lightweight_decision_receipt"
@@ -1842,7 +1841,7 @@ def update_selected_for_closeout(closeout_review: dict[str, Any]) -> None:
     data["selection_status"] = "not_selected"
     data["selected"] = False
     data["selected_reason"] = (
-        "C0116 R0001 closed as no candidate: observed activity and proxy, MT5 logic, "
+        "C0117 R0001 closed as no candidate: observed activity and proxy, MT5 logic, "
         "aggregate MT5 tick, and fold-isolated MT5 evidence did not establish a candidate."
     )
     data["next_required_action"] = NEXT_MAJOR_ACTION
@@ -1887,8 +1886,8 @@ def update_campaign_for_closeout(closeout_review: dict[str, Any], closed_at: str
         "run_id": None,
         "direction": NEXT_MAJOR_ACTION,
         "reason": (
-            "C0116 R0001 closed no-candidate after proxy, MT5 logic parity, MT5 tick, execution divergence, "
-            "and fold-isolated MT5 evidence. Further work inside C0116 would be adjacent tuning."
+            "C0117 R0001 closed no-candidate after proxy, MT5 logic parity, MT5 tick, execution divergence, "
+            "and fold-isolated MT5 evidence. Further work inside C0117 would be adjacent tuning."
         ),
         "status": "campaign_closed_no_candidate",
     }
@@ -1897,13 +1896,13 @@ def update_campaign_for_closeout(closeout_review: dict[str, Any], closed_at: str
         "result": "candidate_later",
         "usable_ingredient_group_count": 31,
         "readiness_notes": [
-            "C0049, C0050, C0051, C0052, C0053, C0054, C0055, C0056, C0057, C0058, C0059, C0060, C0061, C0062, C0063, C0064, C0065, C0066, C0070, C0071, C0072, C0073, C0084, C0085, C0086, C0087, C0088, C0089, C0096, C0097, C0098, C0099, C0100, C0102, C0103, C0104, C0107, C0109, C0110, C0114, C0115, and C0116 provide post-SC0009 negative-memory ingredients, but default usable ingredient minimums are not met.",
-            "Next work can remain a new major C0117 campaign hypothesis, not C0116 threshold or stop/target tuning.",
+            "C0049, C0050, C0051, C0052, C0053, C0054, C0055, C0056, C0057, C0058, C0059, C0060, C0061, C0062, C0063, C0064, C0065, C0066, C0070, C0071, C0072, C0073, C0084, C0085, C0086, C0087, C0088, C0089, C0096, C0097, C0098, C0099, C0100, C0102, C0103, C0104, C0107, C0109, C0110, C0114, C0115, C0116, and C0117 provide post-SC0009 negative-memory ingredients, but default usable ingredient minimums are not met.",
+            "Next work can remain a new major C0118 campaign hypothesis, not C0117 threshold or stop/target tuning.",
         ],
     }
     data["closeout"] = {
         "status": "closed_no_candidate",
-        "close_reason": C0116_CLOSE_REASON,
+        "close_reason": C0117_CLOSE_REASON,
         "evidence_paths": closeout_evidence_paths(),
         "remaining_question": NEXT_MAJOR_ACTION,
         "closed_at_utc": closed_at,
@@ -1928,13 +1927,13 @@ def update_reentry_for_closeout() -> None:
     next_work = data.setdefault("next_work", {})
     completed = list(next_work.get("completed") or [])
     for item in (
-        "produce_c0116_r0001_mt5_tick_execution_evidence",
-        "record_c0116_r0001_execution_divergence",
-        "produce_c0116_r0001_fold_isolated_mt5_tick_kpi",
-        "produce_c0116_r0001_fold_isolated_execution_divergence",
-        "review_c0116_r0001_tick_execution_kpi_and_closeout",
-        "close_c0116_r0001_no_candidate",
-        "close_c0116_no_candidate_after_r0001",
+        "produce_c0117_r0001_mt5_tick_execution_evidence",
+        "record_c0117_r0001_execution_divergence",
+        "produce_c0117_r0001_fold_isolated_mt5_tick_kpi",
+        "produce_c0117_r0001_fold_isolated_execution_divergence",
+        "review_c0117_r0001_tick_execution_kpi_and_closeout",
+        "close_c0117_r0001_no_candidate",
+        "close_c0117_no_candidate_after_r0001",
     ):
         if item not in completed:
             completed.append(item)
@@ -1960,7 +1959,7 @@ def update_claim_state_for_closeout(closeout_review: dict[str, Any]) -> None:
     data["active_synthesis"] = None
     data["active_run"] = None
     data["latest_operation"] = {
-        "id": "close_c0116_r0001_no_candidate",
+        "id": "close_c0117_r0001_no_candidate",
         "status": "completed",
         "recorded_at_source": f"{RUN_REL}/gate_report.json",
         "evidence_status": "closed_no_candidate",
@@ -2004,11 +2003,11 @@ def update_decision_cursor_for_closeout(closeout_review: dict[str, Any]) -> None
     repo_scope = data.setdefault("repo_debt_scope", {})
     repo_scope["note"] = (
         "repo_state_has_preexisting_nonblocking_artifact_lineage_debt_and_price_quality_warning; "
-        "current_c0116_r0001_closeout_makes_no_selection_promotion_handoff_or_reproducibility_claims"
+        "current_c0117_r0001_closeout_makes_no_selection_promotion_handoff_or_reproducibility_claims"
     )
     for item in repo_scope.get("nonblocking_debts") or []:
         if isinstance(item, dict):
-            item["role"] = "repo_state_debt_not_current_c0116_r0001_closeout"
+            item["role"] = "repo_state_debt_not_current_c0117_r0001_closeout"
             item["current_decision_class"] = "known_nonblocking_for_next_work_decision"
     for item in repo_scope.get("warning_observations") or []:
         if isinstance(item, dict):
@@ -2034,7 +2033,7 @@ def update_decision_cursor_for_closeout(closeout_review: dict[str, Any]) -> None
             "losing_fold_count": summary.get("losing_fold_count"),
             "next_required_action": NEXT_MAJOR_ACTION,
             "note": (
-                "C0116 R0001 and C0116 closed no-candidate; day open anchor reclaim surface produced "
+                "C0117 R0001 and C0117 closed no-candidate; overnight inventory unwind surface produced "
                 "insufficient candidate-quality fold-isolated MT5 evidence."
             ),
         }
@@ -2043,7 +2042,7 @@ def update_decision_cursor_for_closeout(closeout_review: dict[str, Any]) -> None
         {
             "path": f"{RUN_REL}/gate_report.json",
             "role": "closed_run_gate_report",
-            "summary": "C0116 R0001 closed no-candidate with negative memory recorded.",
+            "summary": "C0117 R0001 closed no-candidate with negative memory recorded.",
         },
         {
             "path": f"{RUN_REL}/kpi/mt5_tick_by_fold.json",
@@ -2053,7 +2052,7 @@ def update_decision_cursor_for_closeout(closeout_review: dict[str, Any]) -> None
         {
             "path": f"{WORK_UNIT_REL}/campaign.yaml",
             "role": "closed_campaign_manifest",
-            "summary": "C0116 closed no-candidate; next work is a new major C0117 hypothesis.",
+            "summary": "C0117 closed no-candidate; next work is a new major C0118 hypothesis.",
         },
     ]
     data["claim_boundary_snapshot"] = claim_boundary_payload()
@@ -2063,7 +2062,7 @@ def update_decision_cursor_for_closeout(closeout_review: dict[str, Any]) -> None
 def update_work_unit_registry_for_closeout() -> None:
     data = yaml.safe_load(WORK_UNIT_REGISTRY.read_text(encoding="ascii"))
     campaign_stream = data.setdefault("streams", {}).setdefault("campaign_stream", {})
-    campaign_stream["next_id"] = "C0117"
+    campaign_stream["next_id"] = "C0118"
     campaign_stream["active_work_unit"] = None
     open_units = list(campaign_stream.get("open_work_units") or [])
     campaign_stream["open_work_units"] = [item for item in open_units if item != WORK_UNIT_REL]
@@ -2083,19 +2082,19 @@ def append_decision_registry_for_closeout(closeout_review: dict[str, Any]) -> No
     existing = {item.get("decision_id") for item in decisions if isinstance(item, dict)}
     summary = closeout_review["required_kpi_summary"]
     local_date = datetime.now().date().isoformat()
-    if "dec_20260707_close_c0116_r0001_no_candidate" not in existing:
+    if "dec_20260707_close_c0117_r0001_no_candidate" not in existing:
         decisions.append(
             {
-                "decision_id": "dec_20260707_close_c0116_r0001_no_candidate",
+                "decision_id": "dec_20260707_close_c0117_r0001_no_candidate",
                 "created_local_date": local_date,
                 "status": "active",
-                "decision": "close_c0116_r0001_no_candidate",
+                "decision": "close_c0117_r0001_no_candidate",
                 "refines": [
-                    "dec_20260707_produce_c0116_r0001_proxy_evidence",
+                    "dec_20260707_produce_c0117_r0001_proxy_evidence",
                     "dec_20260701_mandatory_mt5_paired_run_validation",
                 ],
                 "rationale": [
-                    "c0116_r0001_completed_proxy_mt5_logic_parity_proxy_vs_mt5_parity_mt5_tick_execution_divergence_and_fold_isolated_tick_and_divergence_evidence",
+                    "c0117_r0001_completed_proxy_mt5_logic_parity_proxy_vs_mt5_parity_mt5_tick_execution_divergence_and_fold_isolated_tick_and_divergence_evidence",
                     f"proxy_net_pnl_points_{summary.get('proxy_net_pnl_points')}_profit_factor_{summary.get('proxy_profit_factor')}",
                     f"mt5_tick_net_pnl_{summary.get('mt5_tick_net_pnl')}_profit_factor_{summary.get('mt5_tick_profit_factor')}",
                     f"fold_isolated_tick_has_{summary.get('profitable_fold_count')}_profitable_and_{summary.get('losing_fold_count')}_losing_folds",
@@ -2105,22 +2104,22 @@ def append_decision_registry_for_closeout(closeout_review: dict[str, Any]) -> No
                 "claim_boundary": claim_boundary_payload(),
             }
         )
-    if "dec_20260707_close_c0116_no_candidate_after_r0001" not in existing:
+    if "dec_20260707_close_c0117_no_candidate_after_r0001" not in existing:
         decisions.append(
             {
-                "decision_id": "dec_20260707_close_c0116_no_candidate_after_r0001",
+                "decision_id": "dec_20260707_close_c0117_no_candidate_after_r0001",
                 "created_local_date": local_date,
                 "status": "active",
-                "decision": "close_c0116_no_candidate_after_r0001",
+                "decision": "close_c0117_no_candidate_after_r0001",
                 "refines": [
-                    "dec_20260707_close_c0116_r0001_no_candidate",
-                    "dec_20260707_open_c0116_intraday_day_open_anchor_reclaim_discovery",
+                    "dec_20260707_close_c0117_r0001_no_candidate",
+                    "dec_20260707_open_c0117_intraday_overnight_inventory_unwind_discovery",
                 ],
                 "rationale": [
-                    "c0116_day_open_anchor_reclaim_boundary_was_answered_by_r0001_fold_isolated_mt5_evidence",
-                    "remaining_c0116_work_would_be_adjacent_threshold_window_stop_target_hold_session_activity_spread_capital_or_feature_nudge_tuning",
+                    "c0117_overnight_inventory_unwind_boundary_was_answered_by_r0001_fold_isolated_mt5_evidence",
+                    "remaining_c0117_work_would_be_adjacent_threshold_window_stop_target_hold_session_activity_spread_capital_or_feature_nudge_tuning",
                     "synthesis_readiness_candidate_later_because_post_sc0009_usable_ingredient_count_is_below_default_minimum",
-                    "next_work_is_choose_c0117_new_major_hypothesis_after_c0116_closeout",
+                    "next_work_is_choose_c0118_new_major_hypothesis_after_c0117_closeout",
                     "no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created",
                 ],
                 "claim_boundary": claim_boundary_payload(),
@@ -2143,9 +2142,9 @@ def refresh_state_artifact_hashes() -> None:
             record["sha256"] = sha256_file(artifact_path)
     data["deferred_with_reason"] = []
     ARTIFACT_LINEAGE.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="ascii")
-def close_c0116_r0001_no_candidate() -> dict[str, object]:
+def close_c0117_r0001_no_candidate() -> dict[str, object]:
     closed_at = utc_now()
-    closeout_review = c0116_closeout_review(closed_at)
+    closeout_review = c0117_closeout_review(closed_at)
     update_run_manifest_for_closeout(closeout_review, closed_at)
     update_gate_report_for_closeout(closeout_review)
     update_selected_for_closeout(closeout_review)
@@ -2181,7 +2180,7 @@ def upsert_artifact_lineage(
             "artifact_type": artifact_type,
             "repo_relative_path": path,
             "sha256": digest,
-            "produced_by": "axiom_rift.mt5.c0116_r0001_probe",
+            "produced_by": "axiom_rift.mt5.c0117_r0001_probe",
             "source_inputs": source_inputs,
             "linked_kpi_family": artifact_type,
             "mutable": False,
@@ -2193,7 +2192,7 @@ def upsert_artifact_lineage(
         {
             "field": "fold_isolated_mt5_artifact_hashes",
             "reason": "fold-isolated MT5 artifacts are produced after aggregate MT5 evidence",
-            "next_action": "produce_c0116_r0001_fold_isolated_mt5_tick_kpi",
+            "next_action": "produce_c0117_r0001_fold_isolated_mt5_tick_kpi",
         }
     ]
     ARTIFACT_LINEAGE.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="ascii")
