@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0123
+    next_id: C0124
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -141,6 +141,7 @@ streams:
     - campaigns/C0120_intraday_pullback_velocity_failure_reversal_discovery
     - campaigns/C0121_intraday_counter_reversal_failure_continuation_discovery
     - campaigns/C0122_intraday_compression_release_failure_fade_discovery
+    - campaigns/C0123_intraday_volatility_decay_trend_resumption_discovery
     numbering_policy:
       width: 4
       example: C0001
