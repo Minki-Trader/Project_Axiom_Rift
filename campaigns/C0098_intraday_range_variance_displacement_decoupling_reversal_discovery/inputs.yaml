@@ -1,0 +1,40 @@
+schema: axiom_rift_campaign_inputs_v1
+template: false
+campaign_id: C0098
+work_unit_id: C0098
+run_id: R0001
+created_at_utc: '2026-07-07T02:05:49Z'
+fixed_inputs:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+  bar_basis: closed_m5
+  sizing_mode: fixed_lot_discovery
+  equity_percent_sizing: deferred_until_candidate_quality
+  dataset_identity: data/processed/datasets/us100_m5_base_frame.csv
+  rolling_windows: data/processed/coverage_audits/us100_m5_rolling_windows.csv
+negative_memory_inputs:
+  direct_prior:
+  - campaigns/C0097_intraday_body_centroid_drift_reversal_discovery/runs/R0001/gate_report.json
+  supporting_recent:
+  - campaigns/C0096_intraday_wick_stack_pressure_reversal_discovery/runs/R0001/gate_report.json
+  - campaigns/C0095_intraday_close_cluster_escape_discovery/runs/R0001/gate_report.json
+  - campaigns/C0094_intraday_streak_fatigue_reversal_discovery/runs/R0001/gate_report.json
+decision_basis:
+  source: registries/decision_cursor.yaml
+  next_required_action_before_open: choose_c0098_new_major_hypothesis_after_c0097_closeout
+  open_decision: open_c0098_intraday_range_variance_displacement_decoupling_reversal_discovery
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
