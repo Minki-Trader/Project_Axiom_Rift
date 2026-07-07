@@ -1,0 +1,207 @@
+{
+  "artifact_records": [
+    {
+      "artifact_id": "A-C0102-R0001-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0102_r0001_probe",
+      "repo_relative_path": "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+      "sha256": "26b523abc60673e7368f87087fcf285cf77d7b77a7ad97fcda34a0bf5c5aba3c",
+      "source_inputs": [
+        "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "registries/rolling_windows.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0102-R0001-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0102_r0001_probe",
+      "repo_relative_path": "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/execution_divergence.json",
+      "sha256": "9b6cd2a1d93c88644bd6f49e4ee46c601739d58311b7395cc75351748389b751",
+      "source_inputs": [
+        "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+        "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/mt5_tick.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0102-R0001-GATE-REPORT",
+      "artifact_role": "gate_report",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": null,
+      "mutable": true,
+      "produced_by": "axiom_rift.proxies.c0102_r0001_intraday_open_close_energy_transfer",
+      "repo_relative_path": "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/gate_report.json",
+      "sha256": "5d5a1d2412684a6cc9710755f9690b71ba4d708c3f93c4c891f98bc869d1698b",
+      "source_inputs": [
+        "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/run_manifest.json",
+        "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0102-R0001-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0102_r0001_probe",
+      "repo_relative_path": "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+      "sha256": "8fccc5ec61db5dee08874f80a9457cd98badf9c501e8babae527ca74e0e34c7c",
+      "source_inputs": [
+        "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/artifacts/c0102_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0102-R0001-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "mt5_logic_parity_input",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0102_r0001_probe",
+      "repo_relative_path": "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/artifacts/c0102_r0001_schedule.csv",
+      "sha256": "afe61069459409f990b210c2e807215216efe6fefe946cd25aa6c0b413d810c7",
+      "source_inputs": [
+        "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0102-R0001-MT5-TICK-BY-FOLD-KPI",
+      "artifact_role": "mt5_tick_by_fold_kpi",
+      "artifact_type": "mt5_tick_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0102_r0001_probe",
+      "repo_relative_path": "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+      "sha256": "0a84f3dd4ebe4724645d322405b54ffc9fbe95e9cb2d88181e61fe036fc58f17",
+      "source_inputs": [
+        "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/artifacts/c0102_r0001_schedule.csv",
+        "registries/rolling_windows.yaml",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0102-R0001-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "mt5_tick",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0102_r0001_probe",
+      "repo_relative_path": "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/mt5_tick.json",
+      "sha256": "29cbbf9ac91add65f478b431db04a68635b8a1ad2a8a5a7b82bc8a3639bde007",
+      "source_inputs": [
+        "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/artifacts/c0102_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0102-R0001-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0102_r0001_intraday_open_close_energy_transfer",
+      "repo_relative_path": "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/proxy.json",
+      "sha256": "ccda519adf9f35b9205cd6676a14fe59ab9ca8e9e14b5487a9e0b9ae79b91e9a",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0102-R0001-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0102_r0001_intraday_open_close_energy_transfer",
+      "repo_relative_path": "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/artifacts/c0102_r0001_proxy_trades.csv",
+      "sha256": "8b07370a1b9c610268aa54c0252c806a6547e4c1cb4df17bca80cae325c8fbb1",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0102-R0001-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "proxy_vs_mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0102_r0001_probe",
+      "repo_relative_path": "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "24c675d88754410153dfe691c3a9dec2a529c357a896c4ae4340abd3a804cf53",
+      "source_inputs": [
+        "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/proxy.json",
+        "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/mt5_logic_parity.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0102-R0001-RUN-MANIFEST",
+      "artifact_role": "run_manifest",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": null,
+      "mutable": true,
+      "produced_by": "axiom_rift.proxies.c0102_r0001_intraday_open_close_energy_transfer",
+      "repo_relative_path": "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/run_manifest.json",
+      "sha256": "9c0b0bc8e055ebea072157c763234a2489125b8213be39ac794e44111e323823",
+      "source_inputs": [
+        "registries/decision_cursor.yaml",
+        "registries/claim_state.yaml",
+        "contracts/goal_operation_policy.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0102-R0001-open-close-energy-transfer-SUMMARY",
+      "artifact_role": "open_close_energy_transfer_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0102_r0001_intraday_open_close_energy_transfer",
+      "repo_relative_path": "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/artifacts/c0102_r0001_open_close_energy_transfer_summary.json",
+      "sha256": "34963f54ee59ba8a153bc544ef9030c0c1c267b9f5a236e72077b54aab69fd90",
+      "source_inputs": [
+        "campaigns/C0102_intraday_open_close_energy_transfer_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "deferred_with_reason": [],
+  "run_id": "R0001",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "status": "closed_no_candidate",
+  "template": false,
+  "work_unit_id": "C0102"
+}

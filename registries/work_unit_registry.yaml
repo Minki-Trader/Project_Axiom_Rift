@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0102
+    next_id: C0103
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -120,6 +120,7 @@ streams:
     - campaigns/C0099_intraday_failed_pullback_continuation_discovery
     - campaigns/C0100_intraday_vwap_squeeze_expansion_breakout_discovery
     - campaigns/C0101_intraday_volume_clock_desynchronization_discovery
+    - campaigns/C0102_intraday_open_close_energy_transfer_discovery
     numbering_policy:
       width: 4
       example: C0001
