@@ -1,0 +1,285 @@
+{
+  "campaign_id": "C0126",
+  "changed_surfaces": [
+    "label",
+    "feature",
+    "model",
+    "trade_logic"
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-07T17:45:42Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
+    "closed_at_utc": "2026-07-07T17:45:42Z",
+    "negative_memory": {
+      "asset_type": "negative_memory",
+      "candidate_status": "no_candidate",
+      "economics_pass": false,
+      "evidence_paths": [
+        "artifact_lineage.json",
+        "run_manifest.json",
+        "artifacts/c0126_r0001_proxy_trades.csv",
+        "artifacts/c0126_r0001_volatility_budget_exhaustion_reversal_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0126_r0001_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday volatility budget exhaustion reversal rank over range budget consumption, impulse extension pressure, participation exhaustion, effort decay pressure, adverse wick reversal pressure, VWAP tether reversion room, opening range overextension, prior session exhaustion context, micro reversal efficiency, timebox exhaustion quality, session maturity, and spread stress inverse features",
+      "next_boundary": "C0126 R0001 shows the tested volatility budget exhaustion reversal surface is not a candidate as implemented; remaining C0126 variants would be adjacent tuning, so next work should choose a new major C0127 hypothesis without selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims",
+      "onnx_ready": false,
+      "reason_not_candidate": "entry activity landed inside the target band, but proxy, closed-bar MT5 logic, aggregate MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0001 produced 0 profitable and 9 losing fold-isolated MT5 tick folds, total tick net PnL -248.92, and worst fold rw_005 net PnL -39.03."
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "Schedule replay mechanical parity passed with mismatch_count 0, so the weak result is not explained by proxy-vs-MT5 logic mismatch."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution differed from closed-bar logic by 26.15 total net PnL across 8 better and 1 worse folds; closeout remains bounded to fold-isolated MT5 tick evidence."
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "gate_report.json",
+          "summary": "Native MQL signal logic, ONNX materialization, cost/slippage hardening, final sizing, and historical lineage debt remain unresolved; no stronger claim is created."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "divergence_recorded_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.615517,
+      "entry_count_delta": null,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_count_delta": null,
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "long_trade_count_proxy": 1787,
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.995851,
+      "minimum_exit_reason_match_rate": 0.798387,
+      "minimum_exit_time_direction_match_rate": 0.810484,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": -275.07,
+      "mt5_logic_profit_factor": 0.530581,
+      "mt5_logic_trade_count": 4417,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_expectancy_per_entry": -0.056521,
+      "mt5_tick_max_drawdown_percent": 49.964,
+      "mt5_tick_net_pnl": -248.92,
+      "mt5_tick_profit_factor": 0.531171,
+      "mt5_tick_trade_count": 4404,
+      "mt5_tick_win_rate": 0.289055,
+      "profitable_fold_count": 0,
+      "proxy_expectancy_points_per_entry": -5.645837,
+      "proxy_net_pnl_points": -24937.66,
+      "proxy_profit_factor": 0.530233,
+      "proxy_trade_count": 4417,
+      "proxy_win_rate": 0.308354,
+      "remaining_work_classification": "no_candidate; further C0126 work would be adjacent threshold, stop, target, hold, session, activity, spread, capital, or volatility-budget-exhaustion-reversal feature nudge tuning",
+      "short_trade_count_proxy": 2630,
+      "tick_better_fold_count": 8,
+      "tick_minus_logic_net_pnl": 26.15,
+      "tick_minus_logic_trade_count": -13,
+      "tick_worse_fold_count": 1,
+      "total_tick_minus_logic_net_pnl": 26.15,
+      "total_tick_minus_logic_trade_count": -13,
+      "total_tick_net_pnl": -248.92,
+      "total_tick_trade_count": 4404,
+      "worst_drawdown_fold_id": "rw_005",
+      "worst_fold_id": "rw_005",
+      "worst_fold_max_drawdown_percent": 7.842,
+      "worst_fold_net_pnl": -39.03,
+      "worst_tick_minus_logic_fold_id": "rw_009",
+      "worst_tick_minus_logic_net_pnl": -3.53
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0126_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0126_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "run_manifest": "run_manifest.json",
+    "volatility_budget_exhaustion_reversal_summary": "artifacts/c0126_r0001_volatility_budget_exhaustion_reversal_summary.json"
+  },
+  "fixed_surfaces": {
+    "broker": "FPMarkets",
+    "sizing": "fixed_lot_discovery",
+    "split_policy": "rolling_window_fold_isolated",
+    "symbol": "US100",
+    "timeframe": "M5"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday volatility budget exhaustion reversal rank run",
+    "variant_boundary": "C0126 R0001 tests whether intraday volatility budget exhaustion after extended range consumption can rank target-first US100 M5 reversal entries using fold-local evidence after realistic FPMarkets spread cost. It changes feature family, label conditioning, model context, and trade-logic state key from C0125 halfback inventory transfer, C0124 percentile recoil fade, C0123 volatility decay trend resumption, C0122 compression release failure fade, and C0121 counter reversal failure continuation. It is not a threshold/window/SL/TP/session/spread/capital nudge, materialization step, ONNX step, selected claim, runtime claim, or retry-only run."
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "closeout_status": "closed_no_candidate",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "next_required_action": "choose_c0127_new_major_hypothesis_after_c0126_closeout",
+    "proxy_result_may_skip_mt5": false,
+    "proxy_vs_mt5_logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "required_sequence": [
+      "proxy_kpi",
+      "mt5_logic_parity_kpi",
+      "proxy_vs_mt5_logic_parity_kpi",
+      "mt5_tick_kpi",
+      "execution_divergence_kpi",
+      "fold_isolated_mt5_tick_kpi",
+      "fold_isolated_execution_divergence_kpi",
+      "closeout_gate"
+    ],
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "next_required_action": "produce_c0126_r0001_proxy_evidence",
+  "opened_at_utc": "2026-07-07T17:30:26Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "No C0125 halfback, C0124 percentile, C0123 volatility-decay, C0122 release-fade, or C0121 continuation thresholds, stops, targets, sessions, spread caps, or capital sizing changes are used as the run question.",
+    "adjacent_tuning_risk": "low",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0125_intraday_halfback_inventory_transfer_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0124_intraday_percentile_recoil_fade_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0123_intraday_volatility_decay_trend_resumption_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0122_intraday_compression_release_failure_fade_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0121_intraday_counter_reversal_failure_continuation_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "pre_open_decision_id": "POD-C0126-R0001",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "passed",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "Intraday volatility budget exhaustion reversal treats mature range consumption, impulse extension, participation decay, effort decay, adverse wick pressure, and VWAP tether room as a new reversal surface distinct from C0125 halfback acceptance or transfer continuation."
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "notes": [
+      "Proxy is a reference surface only and cannot stop MT5 paired validation."
+    ],
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "notes": [],
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "status": "variable",
+      "summary": "range budget consumption; impulse extension pressure; participation exhaustion; effort decay pressure; adverse wick reversal pressure; VWAP tether reversion room; opening range overextension; prior session exhaustion context; micro reversal efficiency; timebox exhaustion quality; session maturity; spread stress inverse"
+    },
+    "label": {
+      "status": "variable",
+      "summary": "target-first quality after volatility budget exhaustion reversal"
+    },
+    "model": {
+      "status": "variable",
+      "summary": "fold-local linear intraday volatility budget exhaustion reversal rank"
+    },
+    "trade_logic": {
+      "status": "variable",
+      "summary": "dual-direction top fold-local volatility-budget-exhaustion-reversal scores per active day using next-bar-open fixed-lot discovery entries"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0126"
+}

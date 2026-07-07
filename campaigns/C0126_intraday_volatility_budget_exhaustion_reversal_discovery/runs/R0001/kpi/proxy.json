@@ -1,0 +1,1251 @@
+{
+  "campaign_id": "C0126",
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "average_spread_cost_points": 1.130987,
+        "commission_per_trade": 0,
+        "round_trip_cost_model": "subtract_entry_spread_once",
+        "slippage_stress_test_allowed": true,
+        "spread_point_value": 0.01,
+        "spread_source": "entry_bar_spread_column",
+        "spread_stress_test_allowed": true,
+        "synthetic_commission_allowed": false,
+        "total_spread_cost_points": 4995.57
+      }
+    },
+    "direction_profile": {
+      "applies": true,
+      "fields": {
+        "long": {
+          "max_drawdown_points": 11088.19,
+          "net_pnl_points": -11026.88,
+          "profit_factor": 0.52893,
+          "trade_count": 1787,
+          "win_rate": 0.307778
+        },
+        "short": {
+          "max_drawdown_points": 14026.77,
+          "net_pnl_points": -13910.78,
+          "profit_factor": 0.531261,
+          "trade_count": 2630,
+          "win_rate": 0.308745
+        }
+      }
+    },
+    "stability_profile": {
+      "applies": true,
+      "fields": {
+        "fold_summary": [
+          {
+            "bucket": "rw_001",
+            "max_drawdown_points": 1929.31,
+            "net_pnl_points": -1910.05,
+            "profit_factor": 0.569488,
+            "trade_count": 482,
+            "win_rate": 0.342324
+          },
+          {
+            "bucket": "rw_002",
+            "max_drawdown_points": 2020.92,
+            "net_pnl_points": -1970.69,
+            "profit_factor": 0.551078,
+            "trade_count": 496,
+            "win_rate": 0.340726
+          },
+          {
+            "bucket": "rw_003",
+            "max_drawdown_points": 2637.8,
+            "net_pnl_points": -2636.96,
+            "profit_factor": 0.570405,
+            "trade_count": 507,
+            "win_rate": 0.315582
+          },
+          {
+            "bucket": "rw_004",
+            "max_drawdown_points": 2606.65,
+            "net_pnl_points": -2550.19,
+            "profit_factor": 0.54189,
+            "trade_count": 485,
+            "win_rate": 0.286598
+          },
+          {
+            "bucket": "rw_005",
+            "max_drawdown_points": 3915.05,
+            "net_pnl_points": -3896.98,
+            "profit_factor": 0.520491,
+            "trade_count": 472,
+            "win_rate": 0.307203
+          },
+          {
+            "bucket": "rw_006",
+            "max_drawdown_points": 3002.16,
+            "net_pnl_points": -2915.93,
+            "profit_factor": 0.472085,
+            "trade_count": 507,
+            "win_rate": 0.278107
+          },
+          {
+            "bucket": "rw_007",
+            "max_drawdown_points": 3070.36,
+            "net_pnl_points": -3056.65,
+            "profit_factor": 0.413354,
+            "trade_count": 506,
+            "win_rate": 0.284585
+          },
+          {
+            "bucket": "rw_008",
+            "max_drawdown_points": 3221.27,
+            "net_pnl_points": -3009.6,
+            "profit_factor": 0.513196,
+            "trade_count": 477,
+            "win_rate": 0.297694
+          },
+          {
+            "bucket": "rw_009",
+            "max_drawdown_points": 3146.22,
+            "net_pnl_points": -2990.61,
+            "profit_factor": 0.601806,
+            "trade_count": 485,
+            "win_rate": 0.323711
+          }
+        ],
+        "losing_month_count": 27,
+        "month_summary": [
+          {
+            "bucket": "2024-02",
+            "max_drawdown_points": 700.61,
+            "net_pnl_points": -682.81,
+            "profit_factor": 0.51085,
+            "trade_count": 159,
+            "win_rate": 0.320755
+          },
+          {
+            "bucket": "2024-03",
+            "max_drawdown_points": 555.81,
+            "net_pnl_points": -478.69,
+            "profit_factor": 0.641087,
+            "trade_count": 154,
+            "win_rate": 0.357143
+          },
+          {
+            "bucket": "2024-04",
+            "max_drawdown_points": 752.86,
+            "net_pnl_points": -748.55,
+            "profit_factor": 0.561498,
+            "trade_count": 169,
+            "win_rate": 0.349112
+          },
+          {
+            "bucket": "2024-05",
+            "max_drawdown_points": 439.48,
+            "net_pnl_points": -395.84,
+            "profit_factor": 0.657605,
+            "trade_count": 174,
+            "win_rate": 0.37931
+          },
+          {
+            "bucket": "2024-06",
+            "max_drawdown_points": 446.45,
+            "net_pnl_points": -446.45,
+            "profit_factor": 0.643385,
+            "trade_count": 151,
+            "win_rate": 0.357616
+          },
+          {
+            "bucket": "2024-07",
+            "max_drawdown_points": 1197.45,
+            "net_pnl_points": -1128.4,
+            "profit_factor": 0.430627,
+            "trade_count": 171,
+            "win_rate": 0.28655
+          },
+          {
+            "bucket": "2024-08",
+            "max_drawdown_points": 1037.57,
+            "net_pnl_points": -1000.18,
+            "profit_factor": 0.596768,
+            "trade_count": 171,
+            "win_rate": 0.339181
+          },
+          {
+            "bucket": "2024-09",
+            "max_drawdown_points": 1159.83,
+            "net_pnl_points": -1159.83,
+            "profit_factor": 0.425975,
+            "trade_count": 162,
+            "win_rate": 0.265432
+          },
+          {
+            "bucket": "2024-10",
+            "max_drawdown_points": 544.72,
+            "net_pnl_points": -476.95,
+            "profit_factor": 0.708699,
+            "trade_count": 174,
+            "win_rate": 0.33908
+          },
+          {
+            "bucket": "2024-11",
+            "max_drawdown_points": 769.12,
+            "net_pnl_points": -769.12,
+            "profit_factor": 0.529941,
+            "trade_count": 158,
+            "win_rate": 0.291139
+          },
+          {
+            "bucket": "2024-12",
+            "max_drawdown_points": 1123.59,
+            "net_pnl_points": -1050.23,
+            "profit_factor": 0.408334,
+            "trade_count": 163,
+            "win_rate": 0.226994
+          },
+          {
+            "bucket": "2025-01",
+            "max_drawdown_points": 870.73,
+            "net_pnl_points": -730.84,
+            "profit_factor": 0.660942,
+            "trade_count": 164,
+            "win_rate": 0.341463
+          },
+          {
+            "bucket": "2025-02",
+            "max_drawdown_points": 661.69,
+            "net_pnl_points": -643.62,
+            "profit_factor": 0.633426,
+            "trade_count": 149,
+            "win_rate": 0.362416
+          },
+          {
+            "bucket": "2025-03",
+            "max_drawdown_points": 934.01,
+            "net_pnl_points": -914.86,
+            "profit_factor": 0.611559,
+            "trade_count": 161,
+            "win_rate": 0.310559
+          },
+          {
+            "bucket": "2025-04",
+            "max_drawdown_points": 2416.14,
+            "net_pnl_points": -2338.5,
+            "profit_factor": 0.41771,
+            "trade_count": 162,
+            "win_rate": 0.253086
+          },
+          {
+            "bucket": "2025-05",
+            "max_drawdown_points": 1317.71,
+            "net_pnl_points": -1210.62,
+            "profit_factor": 0.464524,
+            "trade_count": 171,
+            "win_rate": 0.274854
+          },
+          {
+            "bucket": "2025-06",
+            "max_drawdown_points": 959.24,
+            "net_pnl_points": -939.34,
+            "profit_factor": 0.470153,
+            "trade_count": 159,
+            "win_rate": 0.27044
+          },
+          {
+            "bucket": "2025-07",
+            "max_drawdown_points": 802.96,
+            "net_pnl_points": -765.97,
+            "profit_factor": 0.485857,
+            "trade_count": 177,
+            "win_rate": 0.288136
+          },
+          {
+            "bucket": "2025-08",
+            "max_drawdown_points": 1008.63,
+            "net_pnl_points": -999.86,
+            "profit_factor": 0.3789,
+            "trade_count": 161,
+            "win_rate": 0.267081
+          },
+          {
+            "bucket": "2025-09",
+            "max_drawdown_points": 799.14,
+            "net_pnl_points": -617.35,
+            "profit_factor": 0.568308,
+            "trade_count": 167,
+            "win_rate": 0.323353
+          },
+          {
+            "bucket": "2025-10",
+            "max_drawdown_points": 1477.41,
+            "net_pnl_points": -1439.44,
+            "profit_factor": 0.336813,
+            "trade_count": 178,
+            "win_rate": 0.264045
+          },
+          {
+            "bucket": "2025-11",
+            "max_drawdown_points": 1637.45,
+            "net_pnl_points": -1624.75,
+            "profit_factor": 0.357034,
+            "trade_count": 152,
+            "win_rate": 0.256579
+          },
+          {
+            "bucket": "2025-12",
+            "max_drawdown_points": 841.14,
+            "net_pnl_points": -836.68,
+            "profit_factor": 0.546594,
+            "trade_count": 166,
+            "win_rate": 0.313253
+          },
+          {
+            "bucket": "2026-01",
+            "max_drawdown_points": 759.6,
+            "net_pnl_points": -548.17,
+            "profit_factor": 0.697159,
+            "trade_count": 159,
+            "win_rate": 0.320755
+          },
+          {
+            "bucket": "2026-02",
+            "max_drawdown_points": 1073.23,
+            "net_pnl_points": -989.7,
+            "profit_factor": 0.553578,
+            "trade_count": 152,
+            "win_rate": 0.315789
+          },
+          {
+            "bucket": "2026-03",
+            "max_drawdown_points": 1512.97,
+            "net_pnl_points": -1465.25,
+            "profit_factor": 0.548602,
+            "trade_count": 170,
+            "win_rate": 0.3
+          },
+          {
+            "bucket": "2026-04",
+            "max_drawdown_points": 660.88,
+            "net_pnl_points": -535.66,
+            "profit_factor": 0.738377,
+            "trade_count": 163,
+            "win_rate": 0.355828
+          }
+        ],
+        "worst_month_pnl_points": -2338.5
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": true,
+      "fields": {
+        "average_capture_ratio": 0.224631,
+        "average_mae_points": 18.989348,
+        "average_mfe_points": 14.611648,
+        "median_mae_points": 14.62,
+        "median_mfe_points": 8.12
+      }
+    },
+    "volatility_budget_exhaustion_reversal_profile": {
+      "applies": true,
+      "fields": {
+        "candidate_direction": "dual_direction_long_and_short_per_closed_bar",
+        "candidates_by_fold": {
+          "rw_001": {
+            "eligible_candidate_count": 8254,
+            "feature_count": 12,
+            "selected_candidate_count": 504,
+            "test_candidate_count": 8254,
+            "train_candidate_count": 51061
+          },
+          "rw_002": {
+            "eligible_candidate_count": 8642,
+            "feature_count": 12,
+            "selected_candidate_count": 528,
+            "test_candidate_count": 8642,
+            "train_candidate_count": 50819
+          },
+          "rw_003": {
+            "eligible_candidate_count": 8658,
+            "feature_count": 12,
+            "selected_candidate_count": 528,
+            "test_candidate_count": 8658,
+            "train_candidate_count": 50410
+          },
+          "rw_004": {
+            "eligible_candidate_count": 8370,
+            "feature_count": 12,
+            "selected_candidate_count": 512,
+            "test_candidate_count": 8370,
+            "train_candidate_count": 50673
+          },
+          "rw_005": {
+            "eligible_candidate_count": 8127,
+            "feature_count": 12,
+            "selected_candidate_count": 496,
+            "test_candidate_count": 8127,
+            "train_candidate_count": 51132
+          },
+          "rw_006": {
+            "eligible_candidate_count": 8665,
+            "feature_count": 12,
+            "selected_candidate_count": 528,
+            "test_candidate_count": 8665,
+            "train_candidate_count": 50860
+          },
+          "rw_007": {
+            "eligible_candidate_count": 8660,
+            "feature_count": 12,
+            "selected_candidate_count": 528,
+            "test_candidate_count": 8660,
+            "train_candidate_count": 50322
+          },
+          "rw_008": {
+            "eligible_candidate_count": 8194,
+            "feature_count": 12,
+            "selected_candidate_count": 504,
+            "test_candidate_count": 8194,
+            "train_candidate_count": 50716
+          },
+          "rw_009": {
+            "eligible_candidate_count": 8349,
+            "feature_count": 12,
+            "selected_candidate_count": 512,
+            "test_candidate_count": 8349,
+            "train_candidate_count": 51122
+          }
+        },
+        "entries_per_active_day": 7.615517,
+        "entry_count_per_active_day_target": "5_to_10",
+        "feature_count": 12,
+        "feature_names": [
+          "range_budget_consumption",
+          "impulse_extension_pressure",
+          "participation_exhaustion",
+          "effort_decay_pressure",
+          "adverse_wick_reversal_pressure",
+          "vwap_tether_reversion_room",
+          "opening_range_overextension",
+          "prior_session_exhaustion_context",
+          "micro_reversal_efficiency",
+          "timebox_exhaustion_quality",
+          "session_maturity",
+          "spread_stress_inverse"
+        ],
+        "feature_set_selected": false,
+        "fold_models": [
+          {
+            "feature_mean": [
+              3.336298,
+              1.032638,
+              0.027134,
+              0.153325,
+              0.265704,
+              1.043678,
+              1.637929,
+              -0.033078,
+              -0.17885,
+              0.496344,
+              0.549655,
+              0.874621
+            ],
+            "feature_names": [
+              "range_budget_consumption",
+              "impulse_extension_pressure",
+              "participation_exhaustion",
+              "effort_decay_pressure",
+              "adverse_wick_reversal_pressure",
+              "vwap_tether_reversion_room",
+              "opening_range_overextension",
+              "prior_session_exhaustion_context",
+              "micro_reversal_efficiency",
+              "timebox_exhaustion_quality",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              1.031874,
+              0.713523,
+              0.109561,
+              0.41886,
+              0.063156,
+              0.814571,
+              1.514328,
+              0.537019,
+              0.331874,
+              0.305932,
+              0.213231,
+              0.058107
+            ],
+            "feature_weight": [
+              -0.040476,
+              -0.025355,
+              0.101183,
+              -0.037936,
+              0.008014,
+              -0.022679,
+              0.006725,
+              0.019089,
+              0.013907,
+              -0.01091,
+              0.035634,
+              0.089574
+            ],
+            "fold_id": "rw_001",
+            "global_mean": -1.453989,
+            "positive_label_rate": 0.430152,
+            "train_candidate_count": 51061,
+            "volatility_budget_exhaustion_reversal_failure_rate": 0.500264
+          },
+          {
+            "feature_mean": [
+              3.33691,
+              1.036099,
+              0.023472,
+              0.136613,
+              0.263741,
+              1.055457,
+              1.629837,
+              -0.024583,
+              -0.179752,
+              0.496305,
+              0.549625,
+              0.862998
+            ],
+            "feature_names": [
+              "range_budget_consumption",
+              "impulse_extension_pressure",
+              "participation_exhaustion",
+              "effort_decay_pressure",
+              "adverse_wick_reversal_pressure",
+              "vwap_tether_reversion_room",
+              "opening_range_overextension",
+              "prior_session_exhaustion_context",
+              "micro_reversal_efficiency",
+              "timebox_exhaustion_quality",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              1.021622,
+              0.710866,
+              0.102626,
+              0.366561,
+              0.063523,
+              0.829001,
+              1.514119,
+              0.538427,
+              0.331944,
+              0.305913,
+              0.213224,
+              0.062961
+            ],
+            "feature_weight": [
+              -0.037011,
+              -0.023921,
+              0.091464,
+              -0.030325,
+              0.008221,
+              -0.023686,
+              0.000184,
+              0.012717,
+              0.006954,
+              -0.023093,
+              0.031256,
+              0.071571
+            ],
+            "fold_id": "rw_002",
+            "global_mean": -1.550167,
+            "positive_label_rate": 0.422677,
+            "train_candidate_count": 50819,
+            "volatility_budget_exhaustion_reversal_failure_rate": 0.508629
+          },
+          {
+            "feature_mean": [
+              3.363313,
+              1.042393,
+              0.022743,
+              0.142331,
+              0.264651,
+              1.055877,
+              1.609945,
+              -0.022655,
+              -0.180121,
+              0.496231,
+              0.549493,
+              0.861689
+            ],
+            "feature_names": [
+              "range_budget_consumption",
+              "impulse_extension_pressure",
+              "participation_exhaustion",
+              "effort_decay_pressure",
+              "adverse_wick_reversal_pressure",
+              "vwap_tether_reversion_room",
+              "opening_range_overextension",
+              "prior_session_exhaustion_context",
+              "micro_reversal_efficiency",
+              "timebox_exhaustion_quality",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              1.077885,
+              0.727089,
+              0.103361,
+              0.36339,
+              0.063731,
+              0.844069,
+              1.511488,
+              0.542265,
+              0.33272,
+              0.305961,
+              0.213209,
+              0.067206
+            ],
+            "feature_weight": [
+              -0.043877,
+              -0.034876,
+              0.082456,
+              -0.020889,
+              0.008002,
+              -0.036658,
+              -0.011801,
+              0.00359,
+              0.017082,
+              -0.02724,
+              0.025859,
+              0.060339
+            ],
+            "fold_id": "rw_003",
+            "global_mean": -1.547142,
+            "positive_label_rate": 0.421603,
+            "train_candidate_count": 50410,
+            "volatility_budget_exhaustion_reversal_failure_rate": 0.509581
+          },
+          {
+            "feature_mean": [
+              3.380809,
+              1.049103,
+              0.02319,
+              0.147359,
+              0.263063,
+              1.045137,
+              1.567107,
+              -0.016228,
+              -0.180994,
+              0.496616,
+              0.54976,
+              0.862168
+            ],
+            "feature_names": [
+              "range_budget_consumption",
+              "impulse_extension_pressure",
+              "participation_exhaustion",
+              "effort_decay_pressure",
+              "adverse_wick_reversal_pressure",
+              "vwap_tether_reversion_room",
+              "opening_range_overextension",
+              "prior_session_exhaustion_context",
+              "micro_reversal_efficiency",
+              "timebox_exhaustion_quality",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              1.08848,
+              0.738694,
+              0.105579,
+              0.373879,
+              0.063752,
+              0.847418,
+              1.518447,
+              0.540209,
+              0.332169,
+              0.305802,
+              0.213135,
+              0.069906
+            ],
+            "feature_weight": [
+              -0.03442,
+              -0.024116,
+              0.07317,
+              -0.022425,
+              -0.008599,
+              -0.024192,
+              -0.00608,
+              0.002456,
+              0.0153,
+              -0.019748,
+              0.023224,
+              0.048724
+            ],
+            "fold_id": "rw_004",
+            "global_mean": -1.521143,
+            "positive_label_rate": 0.422237,
+            "train_candidate_count": 50673,
+            "volatility_budget_exhaustion_reversal_failure_rate": 0.508121
+          },
+          {
+            "feature_mean": [
+              3.423702,
+              1.067959,
+              0.023781,
+              0.141143,
+              0.262609,
+              1.054112,
+              1.555086,
+              -0.020021,
+              -0.179977,
+              0.496621,
+              0.549941,
+              0.870833
+            ],
+            "feature_names": [
+              "range_budget_consumption",
+              "impulse_extension_pressure",
+              "participation_exhaustion",
+              "effort_decay_pressure",
+              "adverse_wick_reversal_pressure",
+              "vwap_tether_reversion_room",
+              "opening_range_overextension",
+              "prior_session_exhaustion_context",
+              "micro_reversal_efficiency",
+              "timebox_exhaustion_quality",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              1.123611,
+              0.764976,
+              0.105223,
+              0.363082,
+              0.063975,
+              0.864499,
+              1.520222,
+              0.542178,
+              0.331634,
+              0.305711,
+              0.213193,
+              0.069593
+            ],
+            "feature_weight": [
+              -0.039826,
+              -0.028788,
+              0.072726,
+              -0.021957,
+              -0.010914,
+              -0.029585,
+              -0.003318,
+              0.009542,
+              0.013377,
+              -0.024927,
+              0.018024,
+              0.045142
+            ],
+            "fold_id": "rw_005",
+            "global_mean": -1.493106,
+            "positive_label_rate": 0.421712,
+            "train_candidate_count": 51132,
+            "volatility_budget_exhaustion_reversal_failure_rate": 0.507725
+          },
+          {
+            "feature_mean": [
+              3.462698,
+              1.086408,
+              0.022924,
+              0.127756,
+              0.261798,
+              1.067284,
+              1.532143,
+              -0.015341,
+              -0.179152,
+              0.496551,
+              0.549622,
+              0.881116
+            ],
+            "feature_names": [
+              "range_budget_consumption",
+              "impulse_extension_pressure",
+              "participation_exhaustion",
+              "effort_decay_pressure",
+              "adverse_wick_reversal_pressure",
+              "vwap_tether_reversion_room",
+              "opening_range_overextension",
+              "prior_session_exhaustion_context",
+              "micro_reversal_efficiency",
+              "timebox_exhaustion_quality",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              1.164578,
+              0.783685,
+              0.10184,
+              0.339124,
+              0.064214,
+              0.87883,
+              1.52293,
+              0.539869,
+              0.33253,
+              0.305747,
+              0.213089,
+              0.066899
+            ],
+            "feature_weight": [
+              -0.047553,
+              -0.038349,
+              0.07737,
+              -0.012358,
+              0.001184,
+              -0.041933,
+              -0.009822,
+              0.011153,
+              0.020961,
+              -0.030711,
+              0.013266,
+              0.041995
+            ],
+            "fold_id": "rw_006",
+            "global_mean": -1.493421,
+            "positive_label_rate": 0.422709,
+            "train_candidate_count": 50860,
+            "volatility_budget_exhaustion_reversal_failure_rate": 0.506193
+          },
+          {
+            "feature_mean": [
+              3.520707,
+              1.096375,
+              0.021982,
+              0.119301,
+              0.261766,
+              1.067639,
+              1.47614,
+              -0.021947,
+              -0.174559,
+              0.496619,
+              0.549638,
+              0.890379
+            ],
+            "feature_names": [
+              "range_budget_consumption",
+              "impulse_extension_pressure",
+              "participation_exhaustion",
+              "effort_decay_pressure",
+              "adverse_wick_reversal_pressure",
+              "vwap_tether_reversion_room",
+              "opening_range_overextension",
+              "prior_session_exhaustion_context",
+              "micro_reversal_efficiency",
+              "timebox_exhaustion_quality",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              1.184544,
+              0.801178,
+              0.099751,
+              0.339138,
+              0.063481,
+              0.882667,
+              1.506488,
+              0.536979,
+              0.334096,
+              0.305713,
+              0.21306,
+              0.067607
+            ],
+            "feature_weight": [
+              -0.043464,
+              -0.037,
+              0.080306,
+              -0.011876,
+              0.008169,
+              -0.04467,
+              -0.017772,
+              0.004037,
+              0.019955,
+              -0.042582,
+              0.003143,
+              0.033018
+            ],
+            "fold_id": "rw_007",
+            "global_mean": -1.468878,
+            "positive_label_rate": 0.424506,
+            "train_candidate_count": 50322,
+            "volatility_budget_exhaustion_reversal_failure_rate": 0.503895
+          },
+          {
+            "feature_mean": [
+              3.623267,
+              1.127255,
+              0.022358,
+              0.116484,
+              0.264326,
+              1.064011,
+              1.44737,
+              -0.029604,
+              -0.16848,
+              0.496454,
+              0.549587,
+              0.900436
+            ],
+            "feature_names": [
+              "range_budget_consumption",
+              "impulse_extension_pressure",
+              "participation_exhaustion",
+              "effort_decay_pressure",
+              "adverse_wick_reversal_pressure",
+              "vwap_tether_reversion_room",
+              "opening_range_overextension",
+              "prior_session_exhaustion_context",
+              "micro_reversal_efficiency",
+              "timebox_exhaustion_quality",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              1.256453,
+              0.828531,
+              0.098635,
+              0.326345,
+              0.063366,
+              0.875247,
+              1.484236,
+              0.533885,
+              0.334616,
+              0.30576,
+              0.213105,
+              0.058656
+            ],
+            "feature_weight": [
+              -0.039646,
+              -0.03696,
+              0.080744,
+              -0.012673,
+              0.004453,
+              -0.041349,
+              -0.004091,
+              0.002134,
+              0.019211,
+              -0.017438,
+              0.016883,
+              0.037658
+            ],
+            "fold_id": "rw_008",
+            "global_mean": -1.385168,
+            "positive_label_rate": 0.42734,
+            "train_candidate_count": 50716,
+            "volatility_budget_exhaustion_reversal_failure_rate": 0.49927
+          },
+          {
+            "feature_mean": [
+              3.660195,
+              1.143245,
+              0.023543,
+              0.101317,
+              0.26362,
+              1.077546,
+              1.451254,
+              -0.02156,
+              -0.165986,
+              0.496507,
+              0.549608,
+              0.90064
+            ],
+            "feature_names": [
+              "range_budget_consumption",
+              "impulse_extension_pressure",
+              "participation_exhaustion",
+              "effort_decay_pressure",
+              "adverse_wick_reversal_pressure",
+              "vwap_tether_reversion_room",
+              "opening_range_overextension",
+              "prior_session_exhaustion_context",
+              "micro_reversal_efficiency",
+              "timebox_exhaustion_quality",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              1.239444,
+              0.830125,
+              0.097202,
+              0.286059,
+              0.062874,
+              0.874335,
+              1.477906,
+              0.53565,
+              0.335494,
+              0.305754,
+              0.213089,
+              0.053528
+            ],
+            "feature_weight": [
+              -0.03887,
+              -0.039401,
+              0.09384,
+              -0.018541,
+              0.010669,
+              -0.036757,
+              -3.7e-05,
+              0.000862,
+              0.018368,
+              -0.017434,
+              0.015361,
+              0.038671
+            ],
+            "fold_id": "rw_009",
+            "global_mean": -1.429202,
+            "positive_label_rate": 0.424279,
+            "train_candidate_count": 51122,
+            "volatility_budget_exhaustion_reversal_failure_rate": 0.502973
+          }
+        ],
+        "label_horizon_bars": 10,
+        "label_selected": false,
+        "label_shape": "target_first_quality_after_volatility_budget_exhaustion_reversal",
+        "max_entries_per_active_day": 8,
+        "model_family": "fold_local_intraday_volatility_budget_exhaustion_reversal_rank",
+        "model_selected": false,
+        "selection_rule": "top_fold_local_volatility_budget_exhaustion_reversal_scores_per_active_day",
+        "state_distributions": {
+          "rw_001": {
+            "candidate_count": 8254,
+            "eligible_candidate_count": 8254,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.280314,
+            "score_p50": 0.014087,
+            "score_p90": 0.297847,
+            "selected_count": 504,
+            "selected_score_max": 0.731395,
+            "selected_score_min": -0.128172,
+            "train_candidate_count": 51061
+          },
+          "rw_002": {
+            "candidate_count": 8642,
+            "eligible_candidate_count": 8642,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.218494,
+            "score_p50": 0.004848,
+            "score_p90": 0.237489,
+            "selected_count": 528,
+            "selected_score_max": 0.650224,
+            "selected_score_min": -0.114363,
+            "train_candidate_count": 50819
+          },
+          "rw_003": {
+            "candidate_count": 8658,
+            "eligible_candidate_count": 8658,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.197768,
+            "score_p50": 0.046112,
+            "score_p90": 0.245433,
+            "selected_count": 528,
+            "selected_score_max": 0.517966,
+            "selected_score_min": -0.196666,
+            "train_candidate_count": 50410
+          },
+          "rw_004": {
+            "candidate_count": 8370,
+            "eligible_candidate_count": 8370,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.161017,
+            "score_p50": 0.019824,
+            "score_p90": 0.189073,
+            "selected_count": 512,
+            "selected_score_max": 0.440845,
+            "selected_score_min": -0.102284,
+            "train_candidate_count": 50673
+          },
+          "rw_005": {
+            "candidate_count": 8127,
+            "eligible_candidate_count": 8127,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.137257,
+            "score_p50": 0.038706,
+            "score_p90": 0.181977,
+            "selected_count": 496,
+            "selected_score_max": 0.473146,
+            "selected_score_min": -0.270091,
+            "train_candidate_count": 51132
+          },
+          "rw_006": {
+            "candidate_count": 8665,
+            "eligible_candidate_count": 8665,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.240483,
+            "score_p50": 0.002782,
+            "score_p90": 0.189598,
+            "selected_count": 528,
+            "selected_score_max": 0.478203,
+            "selected_score_min": -0.200695,
+            "train_candidate_count": 50860
+          },
+          "rw_007": {
+            "candidate_count": 8660,
+            "eligible_candidate_count": 8660,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.238456,
+            "score_p50": 0.008768,
+            "score_p90": 0.196087,
+            "selected_count": 528,
+            "selected_score_max": 0.522443,
+            "selected_score_min": -0.152054,
+            "train_candidate_count": 50322
+          },
+          "rw_008": {
+            "candidate_count": 8194,
+            "eligible_candidate_count": 8194,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.163837,
+            "score_p50": 0.031591,
+            "score_p90": 0.190346,
+            "selected_count": 504,
+            "selected_score_max": 0.599919,
+            "selected_score_min": -0.186438,
+            "train_candidate_count": 50716
+          },
+          "rw_009": {
+            "candidate_count": 8349,
+            "eligible_candidate_count": 8349,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.149926,
+            "score_p50": 0.058853,
+            "score_p90": 0.240632,
+            "selected_count": 512,
+            "selected_score_max": 0.737375,
+            "selected_score_min": -0.134951,
+            "train_candidate_count": 51122
+          }
+        }
+      }
+    }
+  },
+  "created_at_utc": "2026-07-07T17:35:08Z",
+  "dataset_identity": "data/processed/datasets/us100_m5_base_frame.csv",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "produce C0126 R0001 MT5 paired validation evidence",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "mt5_paired_validation",
+      "reason": "proxy evidence is recorded as a reference surface; MT5 logic parity, tick execution, divergence, and fold-isolated evidence remain mandatory",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "produce_c0126_r0001_mt5_logic_parity_evidence"
+    },
+    {
+      "blocking_condition": "proxy.json content must be stable before hashing",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_artifact_hashes",
+      "reason": "self-hash is recorded in artifact_lineage after proxy.json is written",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "before C0126 R0001 closeout"
+    }
+  ],
+  "fold_ids": [
+    "rw_001",
+    "rw_002",
+    "rw_003",
+    "rw_004",
+    "rw_005",
+    "rw_006",
+    "rw_007",
+    "rw_008",
+    "rw_009",
+    "tail"
+  ],
+  "proxy_artifact_hashes": [
+    "f4c9599281e997e3497ec65d8e01dbe3de5b7e047ac54a46bc1bbefa5461a0a5",
+    "5c552b4cf49ce0412a750a4864cca353a074a3be4b0afbede9197bd39d496a83"
+  ],
+  "proxy_artifact_paths": [
+    "campaigns/C0126_intraday_volatility_budget_exhaustion_reversal_discovery/runs/R0001/kpi/proxy.json",
+    "campaigns/C0126_intraday_volatility_budget_exhaustion_reversal_discovery/runs/R0001/artifacts/c0126_r0001_proxy_trades.csv",
+    "campaigns/C0126_intraday_volatility_budget_exhaustion_reversal_discovery/runs/R0001/artifacts/c0126_r0001_volatility_budget_exhaustion_reversal_summary.json"
+  ],
+  "proxy_code_version_or_commit": "uncommitted_local_worktree_at_proxy_creation",
+  "proxy_config": {
+    "bar_basis": "closed_m5",
+    "candidate_direction": "dual_direction_long_and_short_per_closed_bar",
+    "entry_basis": "next_bar_open_after_scored_closed_bar",
+    "equity_percent_sizing": "deferred_until_candidate_quality",
+    "evaluation_splits": "rolling_windows_test_oos",
+    "gap_blocked_exit_policy": "skip_when_exit_bar_next_tick_gap_exceeds_5_minutes",
+    "gap_carried_entry_policy": "skip_when_next_bar_gap_exceeds_5_minutes",
+    "label_horizon_bars": 10,
+    "label_shape": "target_first_quality_after_volatility_budget_exhaustion_reversal",
+    "lookback_range_bars": 48,
+    "max_entries_per_active_day": 8,
+    "max_hold_bars": 10,
+    "min_impulse_extension_pressure": 0.025,
+    "min_range_budget_consumption": 0.62,
+    "min_signal_spacing_bars": 6,
+    "min_volatility_budget_exhaustion_reversal_activity": 0.05,
+    "model_family": "fold_local_intraday_volatility_budget_exhaustion_reversal_rank",
+    "price_precision_digits": 2,
+    "same_bar_stop_target_policy": "stop_first_conservative",
+    "short_range_bars": 12,
+    "sizing_mode": "fixed_lot_discovery",
+    "stop_range_multiple": 0.8,
+    "target_range_multiple": 1.1,
+    "training_splits": "rolling_windows_train_is",
+    "volatility_budget_exhaustion_reversal_lookback_bars": 48,
+    "volatility_budget_exhaustion_reversal_micro_bars": 12
+  },
+  "proxy_config_path": "campaigns/C0126_intraday_volatility_budget_exhaustion_reversal_discovery/runs/R0001/run_manifest.json",
+  "proxy_engine": "axiom_rift.proxies.c0126_r0001_intraday_volatility_budget_exhaustion_reversal",
+  "proxy_id": "PX-C0126-R0001",
+  "proxy_summary": {
+    "active_day_count": 580,
+    "average_bars_in_trade": 2.68259,
+    "entries_per_active_day": 7.615517,
+    "entry_target_max": 10,
+    "entry_target_min": 5,
+    "evaluation_surface": "rolling_window_test_oos_only",
+    "gross_loss_points": -53085.21,
+    "gross_profit_points": 28147.55,
+    "long_trade_count": 1787,
+    "max_hold_exit_count": 79,
+    "net_pnl_points": -24937.66,
+    "short_trade_count": 2630,
+    "signal_count": 4417,
+    "stop_exit_count": 3013,
+    "target_exit_count": 1325,
+    "trade_count": 4417
+  },
+  "required_kpis": {
+    "proxy_expectancy_per_entry": null,
+    "proxy_expectancy_points_per_entry": -5.645837,
+    "proxy_max_drawdown_percent": null,
+    "proxy_max_drawdown_points": 25024.69,
+    "proxy_net_pnl": null,
+    "proxy_net_pnl_points": -24937.66,
+    "proxy_profit_factor": 0.530233,
+    "proxy_signal_count": 4417,
+    "proxy_trade_count": 4417,
+    "proxy_win_rate": 0.308354
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "schema": "axiom_rift_proxy_kpi_v1",
+  "split_policy": "rolling_window_test_oos_only_with_train_is_volatility_budget_exhaustion_reversal_fit",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0126"
+}
