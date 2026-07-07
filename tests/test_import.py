@@ -22,7 +22,7 @@ class ImportTest(unittest.TestCase):
         command_actions = [action for action in parser._actions if action.dest == "command"]
         choices = set(command_actions[0].choices)
         self.assertEqual(choices, set(COMMANDS))
-        self.assertEqual(len(COMMANDS), 1384)
+        self.assertEqual(len(COMMANDS), 1392)
         self.assertIn("status", choices)
         self.assertIn("validate-templates", choices)
         self.assertIn("validate-repo-state", choices)
@@ -68,6 +68,8 @@ class ImportTest(unittest.TestCase):
         self.assertIn("run-c0122-r0001-mt5-tick-by-fold", choices)
         self.assertIn("run-c0123-r0001-proxy", choices)
         self.assertIn("run-c0123-r0001-mt5-tick-by-fold", choices)
+        self.assertIn("run-c0124-r0001-proxy", choices)
+        self.assertIn("run-c0124-r0001-mt5-tick-by-fold", choices)
         self.assertIn("run-c0008-r0004-proxy", choices)
         self.assertIn("run-c0008-r0004-mt5-tick-by-fold", choices)
         self.assertIn("run-c0009-r0001-proxy", choices)

@@ -14430,3 +14430,127 @@ decisions:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
+- decision_id: dec_20260708_open_c0124_intraday_percentile_recoil_fade_discovery
+  created_local_date: '2026-07-08'
+  status: active
+  decision: open_c0124_intraday_percentile_recoil_fade_discovery
+  refines:
+  - dec_20260708_close_c0123_no_candidate_after_r0001
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0123_closed_no_candidate_and_no_active_campaign_exists
+  - c0124_changes_label_feature_model_and_trade_logic_surfaces
+  - session_percentile_extreme_recoil_fade_is_not_adjacent_tuning_of_c0123_or_c0122
+  - weak_proxy_may_not_skip_mt5_paired_validation
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary: &id005
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260708_open_c0124_r0001_intraday_percentile_recoil_fade_rank_run
+  created_local_date: '2026-07-08'
+  status: active
+  decision: open_c0124_r0001_intraday_percentile_recoil_fade_rank_run
+  refines:
+  - dec_20260708_open_c0124_intraday_percentile_recoil_fade_discovery
+  rationale:
+  - pre_open_decision_passed_with_novelty_score_4
+  - surface_distance_changes_label_feature_model_and_trade_logic
+  - mt5_portability_clear_via_existing_schedule_replay_boundary
+  - next_required_action_is_produce_c0124_r0001_proxy_evidence
+  claim_boundary: *id005
+- decision_id: dec_20260708_produce_c0124_r0001_proxy_evidence
+  created_local_date: '2026-07-07'
+  status: active
+  decision: produce_c0124_r0001_proxy_evidence
+  refines:
+  - dec_20260708_open_c0124_r0001_intraday_percentile_recoil_fade_rank_run
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0124_r0001_proxy_records_percentile_recoil_fade_reference_surface
+  - proxy_trade_count_4499
+  - entries_per_active_day_7.756897
+  - proxy_net_pnl_points_-17031.54
+  - proxy_profit_factor_0.622499
+  - proxy_result_cannot_skip_mt5_logic_parity_tick_execution_divergence_or_fold_isolated_closeout_evidence
+  - next_work_is_produce_c0124_r0001_mt5_logic_parity_evidence
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260708_close_c0124_r0001_no_candidate
+  created_local_date: '2026-07-08'
+  status: active
+  decision: close_c0124_r0001_no_candidate
+  refines:
+  - dec_20260708_produce_c0124_r0001_proxy_evidence
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0124_r0001_completed_proxy_mt5_logic_parity_proxy_vs_mt5_parity_mt5_tick_execution_divergence_and_fold_isolated_tick_and_divergence_evidence
+  - proxy_net_pnl_points_-17031.54_profit_factor_0.622499
+  - mt5_tick_net_pnl_-163.36_profit_factor_0.637316
+  - fold_isolated_tick_has_0_profitable_and_9_losing_folds
+  - closeout_records_negative_memory_not_selection_or_economics_pass
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260708_close_c0124_no_candidate_after_r0001
+  created_local_date: '2026-07-08'
+  status: active
+  decision: close_c0124_no_candidate_after_r0001
+  refines:
+  - dec_20260708_close_c0124_r0001_no_candidate
+  - dec_20260708_open_c0124_intraday_percentile_recoil_fade_discovery
+  rationale:
+  - c0124_percentile_recoil_fade_boundary_was_answered_by_r0001_fold_isolated_mt5_evidence
+  - remaining_c0124_work_would_be_adjacent_threshold_window_stop_target_hold_session_activity_spread_capital_or_feature_nudge_tuning
+  - synthesis_readiness_candidate_later_because_post_sc0009_usable_ingredient_count_is_below_default_minimum
+  - next_work_is_choose_c0125_new_major_hypothesis_after_c0124_closeout
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
