@@ -2006,8 +2006,19 @@ next_work:
   - review_c0111_r0001_tick_execution_kpi_and_closeout
   - close_c0111_r0001_no_candidate
   - close_c0111_no_candidate_after_r0001
+  - open_c0112_intraday_micro_consolidation_breakout_continuation_discovery
+  - open_c0112_r0001_intraday_micro_consolidation_breakout_continuation_rank_run
+  - produce_c0112_r0001_proxy_evidence
+  - record_c0112_r0001_proxy_vs_mt5_logic_parity_evidence
+  - record_c0112_r0001_execution_divergence
+  - produce_c0112_r0001_mt5_tick_execution_evidence
+  - produce_c0112_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0112_r0001_fold_isolated_execution_divergence
+  - review_c0112_r0001_tick_execution_kpi_and_closeout
+  - close_c0112_r0001_no_candidate
+  - close_c0112_no_candidate_after_r0001
   tasks:
-  - choose_c0112_new_major_hypothesis_after_c0111_closeout
+  - choose_c0113_new_major_hypothesis_after_c0112_closeout
   not_yet:
   - label_freeze
   - feature_set_freeze
@@ -2022,3 +2033,26 @@ next_work:
 active_run: null
 active_campaign: null
 active_synthesis: null
+latest_operation:
+  id: open_c0112_r0001_intraday_micro_consolidation_breakout_continuation_rank_run
+  status: completed
+  recorded_at_source: campaigns/C0112_intraday_micro_consolidation_breakout_continuation_discovery/runs/R0001/run_manifest.json
+  evidence_status: open_pending_proxy
+  active_campaign: campaigns/C0112_intraday_micro_consolidation_breakout_continuation_discovery
+  active_synthesis: null
+  active_run: campaigns/C0112_intraday_micro_consolidation_breakout_continuation_discovery/runs/R0001
+  next_required_action: produce_c0112_r0001_proxy_evidence
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
