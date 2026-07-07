@@ -1,0 +1,263 @@
+{
+  "campaign_id": "C0131",
+  "changed_surfaces": [
+    "label",
+    "feature",
+    "model",
+    "trade_logic"
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-07T20:24:48Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
+    "closed_at_utc": "2026-07-07T20:24:48Z",
+    "negative_memory": {
+      "asset_type": "negative_memory",
+      "candidate_status": "no_candidate",
+      "economics_pass": false,
+      "evidence_paths": [
+        "artifact_lineage.json",
+        "run_manifest.json",
+        "artifacts/c0131_r0001_proxy_trades.csv",
+        "artifacts/c0131_r0001_bar_sequence_alternation_pressure_release_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0131_r0001_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday bar sequence alternation pressure release rank over alternation density, alternation break bias, release run acceleration, pre-release compression, directional body followthrough, close sequence settlement, wick opposition clearance, volume release confirmation, VWAP release room, prior day sequence context, session maturity, and spread stress inverse features",
+      "next_boundary": "C0131 R0001 shows the tested bar sequence alternation pressure release surface is not a candidate as implemented; remaining C0131 variants would be adjacent tuning, so next work should choose a new major C0132 hypothesis without selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims",
+      "onnx_ready": false,
+      "reason_not_candidate": "entry activity landed inside the target band, but proxy, closed-bar MT5 logic, aggregate MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0001 produced 0 profitable and 9 losing fold-isolated MT5 tick folds, total tick net PnL -222.99, and worst fold rw_005 net PnL -36.61."
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "Schedule replay mechanical parity passed with mismatch_count 0, so the weak result is not explained by proxy-vs-MT5 logic mismatch."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution differed from closed-bar logic by 11.12 total net PnL across 7 better and 2 worse folds; closeout remains bounded to fold-isolated MT5 tick evidence."
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "gate_report.json",
+          "summary": "Native MQL signal logic, ONNX materialization, cost/slippage hardening, final sizing, and historical lineage debt remain unresolved; no stronger claim is created."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "divergence_recorded_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.665517,
+      "entry_count_delta": null,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_count_delta": null,
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "long_trade_count_proxy": 2616,
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.997984,
+      "minimum_exit_reason_match_rate": 0.878351,
+      "minimum_exit_time_direction_match_rate": 0.894845,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": -234.11,
+      "mt5_logic_profit_factor": 0.571172,
+      "mt5_logic_trade_count": 4446,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_expectancy_per_entry": -0.050178,
+      "mt5_tick_max_drawdown_percent": 44.598,
+      "mt5_tick_net_pnl": -222.99,
+      "mt5_tick_profit_factor": 0.572529,
+      "mt5_tick_trade_count": 4444,
+      "mt5_tick_win_rate": 0.318407,
+      "profitable_fold_count": 0,
+      "proxy_expectancy_points_per_entry": -4.897596,
+      "proxy_net_pnl_points": -21774.71,
+      "proxy_profit_factor": 0.578225,
+      "proxy_trade_count": 4446,
+      "proxy_win_rate": 0.330184,
+      "remaining_work_classification": "no_candidate; further C0131 work would be adjacent threshold, stop, target, hold, session, activity, spread, capital, or bar-sequence-alternation-pressure-release feature nudge tuning",
+      "short_trade_count_proxy": 1830,
+      "tick_better_fold_count": 7,
+      "tick_minus_logic_net_pnl": 11.12,
+      "tick_minus_logic_trade_count": -2,
+      "tick_worse_fold_count": 2,
+      "total_tick_minus_logic_net_pnl": 11.12,
+      "total_tick_minus_logic_trade_count": -2,
+      "total_tick_net_pnl": -222.99,
+      "total_tick_trade_count": 4444,
+      "worst_drawdown_fold_id": "rw_005",
+      "worst_fold_id": "rw_005",
+      "worst_fold_max_drawdown_percent": 7.444,
+      "worst_fold_net_pnl": -36.61,
+      "worst_tick_minus_logic_fold_id": "rw_005",
+      "worst_tick_minus_logic_net_pnl": -6.89
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "bar_sequence_alternation_pressure_release_summary": "artifacts/c0131_r0001_bar_sequence_alternation_pressure_release_summary.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0131_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0131_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json"
+  },
+  "fixed_surfaces": {
+    "broker": "FPMarkets",
+    "sizing": "fixed_lot_discovery",
+    "split_policy": "rolling_window_fold_isolated",
+    "symbol": "US100",
+    "timeframe": "M5"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday bar sequence alternation pressure release rank run",
+    "variant_boundary": "C0131 R0001 tests whether dense alternating closed-bar direction sequences that release into a directional break can rank target-first US100 M5 entries using fold-local evidence after realistic FPMarkets spread cost. It changes feature family, label conditioning, model context, and trade-logic state key from C0130 session skew normalization reversal, C0129 directional curvature continuation, C0128 close location torque reversal, C0127 body efficiency cliff reversal, and C0126 volatility budget exhaustion reversal. It is not a C0130 threshold/window/SL/TP/session/spread/capital nudge, not a C0098 range variance displacement decoupling retry, not a C0085 zigzag release retry, not a C0041 autocorrelation alternation lag tuning run, and not a materialization, ONNX, selected, runtime, promotion, or live-readiness claim."
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "closeout_status": "closed_no_candidate",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "next_required_action": "choose_c0132_new_major_hypothesis_after_c0131_closeout",
+    "proxy_result_may_skip_mt5": false,
+    "proxy_vs_mt5_logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "next_required_action": "produce_c0131_r0001_proxy_evidence",
+  "opened_at_utc": "2026-07-07T20:04:59Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "No C0130 thresholds, windows, stops, targets, sessions, spread caps, capital sizing changes, or session skew normalization reversal feature nudges are used as the run question. C0131 changes the explanatory feature surface, label conditioning, model context, and trade-logic state key, and rejects range variance displacement decoupling, zigzag release, and autocorrelation-lag retry frames.",
+    "adjacent_tuning_risk": "low",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0130_intraday_session_skew_normalization_reversal_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0129_intraday_directional_curvature_continuation_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0128_intraday_close_location_torque_reversal_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0127_intraday_body_efficiency_cliff_reversal_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0126_intraday_volatility_budget_exhaustion_reversal_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "pre_open_decision_id": "POD-C0131-R0001",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "passed_before_run_open",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "Bar sequence alternation pressure release ranks closed-bar alternation density and directional release quality, not session skew normalization, range variance displacement decoupling, zigzag release, or autocorrelation lag retuning."
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "status": "variable",
+      "summary": "alternation density; alternation break bias; release run acceleration; compression before release; directional body followthrough; close sequence settlement; wick opposition clearance; volume release confirmation; VWAP release room; prior day sequence context; session maturity; spread stress inverse"
+    },
+    "label": {
+      "status": "variable",
+      "summary": "target-first quality after bar sequence alternation pressure release"
+    },
+    "model": {
+      "status": "variable",
+      "summary": "fold-local linear intraday bar sequence alternation pressure release rank"
+    },
+    "trade_logic": {
+      "status": "variable",
+      "summary": "dual-direction top fold-local bar-sequence-alternation-pressure-release scores per active day using next-bar-open fixed-lot discovery entries"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0131"
+}

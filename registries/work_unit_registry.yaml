@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0131
+    next_id: C0132
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -149,6 +149,7 @@ streams:
     - campaigns/C0128_intraday_close_location_torque_reversal_discovery
     - campaigns/C0129_intraday_directional_curvature_continuation_discovery
     - campaigns/C0130_intraday_session_skew_normalization_reversal_discovery
+    - campaigns/C0131_intraday_bar_sequence_alternation_pressure_release_discovery
     numbering_policy:
       width: 4
       example: C0001
