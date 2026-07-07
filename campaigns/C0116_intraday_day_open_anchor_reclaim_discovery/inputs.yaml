@@ -1,0 +1,42 @@
+schema: axiom_rift_campaign_inputs_v1
+template: false
+work_unit_id: C0116
+campaign_id: C0116
+run_id: R0001
+input_scope: discovery_run_inputs
+fixed_inputs:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+  base_frame: data/processed/us100_m5_base_frame.csv
+  rolling_windows: configs/rolling_windows.yaml
+  sizing: fixed_lot_discovery
+  split_policy: rolling_window_fold_isolated
+variable_inputs:
+  label:
+    status: variable
+    summary: target-first quality after day open anchor reclaim
+  feature:
+    status: variable
+    summary: day open reclaim, anchor absorption, impulse, volume, VWAP/opening range alignment,
+      session maturity, spread stress, and prior day context features
+  model:
+    status: variable
+    summary: fold-local linear day-open-anchor reclaim rank
+  trade_logic:
+    status: variable
+    summary: dual-direction top fold-local day-open-anchor reclaim scores per active day
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false

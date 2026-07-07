@@ -2050,8 +2050,20 @@ next_work:
   - review_c0115_r0001_tick_execution_kpi_and_closeout
   - close_c0115_r0001_no_candidate
   - close_c0115_no_candidate_after_r0001
-  tasks:
   - choose_c0116_new_major_hypothesis_after_c0115_closeout
+  - open_c0116_intraday_day_open_anchor_reclaim_discovery
+  - open_c0116_r0001_intraday_day_open_anchor_reclaim_rank_run
+  - produce_c0116_r0001_proxy_evidence
+  - record_c0116_r0001_proxy_vs_mt5_logic_parity_evidence
+  - record_c0116_r0001_execution_divergence
+  - produce_c0116_r0001_mt5_tick_execution_evidence
+  - produce_c0116_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0116_r0001_fold_isolated_execution_divergence
+  - review_c0116_r0001_tick_execution_kpi_and_closeout
+  - close_c0116_r0001_no_candidate
+  - close_c0116_no_candidate_after_r0001
+  tasks:
+  - choose_c0117_new_major_hypothesis_after_c0116_closeout
   not_yet:
   - label_freeze
   - feature_set_freeze
@@ -2067,14 +2079,14 @@ active_run: null
 active_campaign: null
 active_synthesis: null
 latest_operation:
-  id: open_c0115_r0001_intraday_prior_day_range_boundary_acceptance_rank_run
+  id: open_c0116_r0001_intraday_day_open_anchor_reclaim_rank_run
   status: completed
-  recorded_at_source: campaigns/C0115_intraday_prior_day_range_boundary_acceptance_discovery/runs/R0001/run_manifest.json
+  recorded_at_source: campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001/run_manifest.json
   evidence_status: open_pending_proxy
-  active_campaign: campaigns/C0115_intraday_prior_day_range_boundary_acceptance_discovery
+  active_campaign: campaigns/C0116_intraday_day_open_anchor_reclaim_discovery
   active_synthesis: null
-  active_run: campaigns/C0115_intraday_prior_day_range_boundary_acceptance_discovery/runs/R0001
-  next_required_action: produce_c0115_r0001_proxy_evidence
+  active_run: campaigns/C0116_intraday_day_open_anchor_reclaim_discovery/runs/R0001
+  next_required_action: produce_c0116_r0001_proxy_evidence
   claim_boundary:
     claim_authority: false
     selected: false
