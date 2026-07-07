@@ -1,0 +1,207 @@
+{
+  "artifact_records": [
+    {
+      "artifact_id": "A-C0103-R0001-EXECUTION-DIVERGENCE-BY-FOLD-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0103_r0001_probe",
+      "repo_relative_path": "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/execution_divergence_by_fold.json",
+      "sha256": "dc94a7c86f17d78396f4e6b985729a1694c9f81b288b258d7d07f1dabd8e58d9",
+      "source_inputs": [
+        "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+        "registries/rolling_windows.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0103-R0001-EXECUTION-DIVERGENCE-KPI",
+      "artifact_role": "diagnostic_output",
+      "artifact_type": "execution_divergence",
+      "claim_authority": false,
+      "linked_kpi_family": "execution_divergence",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0103_r0001_probe",
+      "repo_relative_path": "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/execution_divergence.json",
+      "sha256": "2bef5aa4e1d967b428f06993f46ff9876b3abdbc843ddb39b988626f68a0eb04",
+      "source_inputs": [
+        "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+        "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/mt5_tick.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0103-R0001-GATE-REPORT",
+      "artifact_role": "gate_report",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": null,
+      "mutable": true,
+      "produced_by": "axiom_rift.proxies.c0103_r0001_intraday_range_walk_entropy_transition",
+      "repo_relative_path": "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/gate_report.json",
+      "sha256": "f450a868ca67984228f65e91b2623ee4d8df98df1c25a964cac20e11583e0986",
+      "source_inputs": [
+        "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/run_manifest.json",
+        "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0103-R0001-MT5-LOGIC-KPI",
+      "artifact_role": "mt5_logic_parity_kpi",
+      "artifact_type": "mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0103_r0001_probe",
+      "repo_relative_path": "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/mt5_logic_parity.json",
+      "sha256": "27f587b632a48b366f1810cd17c73835128e15aa54187982a232a4a37bc216a6",
+      "source_inputs": [
+        "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/artifacts/c0103_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0103-R0001-MT5-SCHEDULE",
+      "artifact_role": "mt5_schedule_csv",
+      "artifact_type": "mt5_logic_parity_input",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_logic_parity_input",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0103_r0001_probe",
+      "repo_relative_path": "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/artifacts/c0103_r0001_schedule.csv",
+      "sha256": "c7c664cdca02db532d8be6257f3f8066ecac6f3fe2d5c6d4345e98249ec24523",
+      "source_inputs": [
+        "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0103-R0001-MT5-TICK-BY-FOLD-KPI",
+      "artifact_role": "mt5_tick_by_fold_kpi",
+      "artifact_type": "mt5_tick_by_fold",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick_by_fold",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0103_r0001_probe",
+      "repo_relative_path": "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/mt5_tick_by_fold.json",
+      "sha256": "aed95b710fbb21aa121c3831b22fdb423bfacb1f01a8fcb84df14079ca0cc1e4",
+      "source_inputs": [
+        "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/artifacts/c0103_r0001_schedule.csv",
+        "registries/rolling_windows.yaml",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0103-R0001-MT5-TICK-KPI",
+      "artifact_role": "mt5_tick_kpi",
+      "artifact_type": "mt5_tick",
+      "claim_authority": false,
+      "linked_kpi_family": "mt5_tick",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0103_r0001_probe",
+      "repo_relative_path": "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/mt5_tick.json",
+      "sha256": "b275da0fe335ac79c6ab75c201001d275a8faea6ca6288b01755e760dfbefc5f",
+      "source_inputs": [
+        "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/artifacts/c0103_r0001_schedule.csv",
+        "configs/market.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0103-R0001-PROXY-KPI",
+      "artifact_role": "proxy_kpi",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0103_r0001_intraday_range_walk_entropy_transition",
+      "repo_relative_path": "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/proxy.json",
+      "sha256": "29f899e9552f8eccd057c8a0b0a748547d3ec3af12e68f54cec49308aba1239b",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/run_manifest.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0103-R0001-PROXY-TRADES",
+      "artifact_role": "proxy_trade_artifact",
+      "artifact_type": "csv",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0103_r0001_intraday_range_walk_entropy_transition",
+      "repo_relative_path": "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/artifacts/c0103_r0001_proxy_trades.csv",
+      "sha256": "eff099e8f90cb9f5109beb45b8ec6d2346600c7d3aa14a3ea6c5b4763eda1113",
+      "source_inputs": [
+        "data/processed/datasets/us100_m5_base_frame.csv",
+        "data/processed/coverage_audits/us100_m5_rolling_windows.csv",
+        "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0103-R0001-PROXY-VS-MT5-LOGIC-KPI",
+      "artifact_role": "proxy_vs_mt5_logic_parity_kpi",
+      "artifact_type": "proxy_vs_mt5_logic_parity",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy_vs_mt5_logic_parity",
+      "mutable": false,
+      "produced_by": "axiom_rift.mt5.c0103_r0001_probe",
+      "repo_relative_path": "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/proxy_vs_mt5_logic_parity.json",
+      "sha256": "5440555d2dfeffbeaa54cc7f1c9c28aa59eafcd1dc5326b888738559cde31b58",
+      "source_inputs": [
+        "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/proxy.json",
+        "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/mt5_logic_parity.json"
+      ]
+    },
+    {
+      "artifact_id": "A-C0103-R0001-RUN-MANIFEST",
+      "artifact_role": "run_manifest",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": null,
+      "mutable": true,
+      "produced_by": "axiom_rift.proxies.c0103_r0001_intraday_range_walk_entropy_transition",
+      "repo_relative_path": "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/run_manifest.json",
+      "sha256": "d550a510a704d2e20687651168b673bf54b4582747946d8faaa1bf293dba04ba",
+      "source_inputs": [
+        "registries/decision_cursor.yaml",
+        "registries/claim_state.yaml",
+        "contracts/goal_operation_policy.yaml"
+      ]
+    },
+    {
+      "artifact_id": "A-C0103-R0001-range-walk-entropy-transition-SUMMARY",
+      "artifact_role": "range_walk_entropy_transition_summary_artifact",
+      "artifact_type": "json",
+      "claim_authority": false,
+      "linked_kpi_family": "proxy",
+      "mutable": false,
+      "produced_by": "axiom_rift.proxies.c0103_r0001_intraday_range_walk_entropy_transition",
+      "repo_relative_path": "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/artifacts/c0103_r0001_range_walk_entropy_transition_summary.json",
+      "sha256": "4f8f5535b1d71dbb75f1698c5df7a9c18edb64c6122896ad2d485ba6714a9489",
+      "source_inputs": [
+        "campaigns/C0103_intraday_range_walk_entropy_transition_discovery/runs/R0001/kpi/proxy.json"
+      ]
+    }
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "deferred_with_reason": [],
+  "run_id": "R0001",
+  "schema": "axiom_rift_artifact_lineage_v1",
+  "status": "closed_no_candidate",
+  "template": false,
+  "work_unit_id": "C0103"
+}
