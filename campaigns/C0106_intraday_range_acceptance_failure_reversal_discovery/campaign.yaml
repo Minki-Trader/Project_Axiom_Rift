@@ -1,0 +1,167 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: closed_no_candidate
+campaign_id: C0106
+campaign_slug: intraday_range_acceptance_failure_reversal_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-07T05:52:42Z'
+hypothesis:
+  summary: intraday range acceptance failure reversal discovery
+  boundary: C0106 R0001 tests whether a probe beyond an intraday range or session boundary
+    that fails to gain acceptance, reclaims the boundary, shows opposing-tail rejection, and
+    loses volume participation can form a target-first reversal surface. It changes feature
+    family, label conditioning, model context, and trade-logic state key from C0105 close
+    pressure followthrough. It is not a threshold/window/SL/TP/session/spread/capital nudge,
+    materialization step, ONNX step, selected claim, runtime claim, or retry-only run.
+  not_in_scope:
+  - selected_claim
+  - economics_pass
+  - runtime_authority
+  - materialization_ready
+  - onnx_ready
+  - live_readiness
+required_surfaces:
+  model:
+    status: variable
+    summary: fold-local linear intraday range acceptance failure reversal rank
+  feature:
+    status: variable
+    summary: boundary probe depth; acceptance failure recoil; failed followthrough distance;
+      opposing tail rejection; boundary reclaim strength; volume exhaustion divergence; session
+      range extension stress; opening range reclaim context; prior-day boundary failure context;
+      time reversal alignment; session phase maturity; spread stress inverse
+  trade_logic:
+    status: variable
+    summary: dual-direction top fold-local range-acceptance-failure-reversal scores per active
+      day using next-bar-open fixed-lot discovery entries
+  label:
+    status: variable
+    summary: target-first quality after range acceptance failure reversal
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: null
+    direction: choose_c0107_new_major_hypothesis_after_c0106_closeout
+    reason: C0106 R0001 closed no-candidate after proxy, MT5 logic parity, MT5 tick, execution
+      divergence, and fold-isolated MT5 evidence. Further work inside C0106 would be adjacent
+      tuning.
+    status: campaign_closed_no_candidate
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
+closeout:
+  status: closed_no_candidate
+  close_reason: negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation
+  evidence_paths:
+  - artifact_lineage.json
+  - run_manifest.json
+  - artifacts/c0106_r0001_proxy_trades.csv
+  - artifacts/c0106_r0001_range_acceptance_failure_reversal_summary.json
+  - kpi/proxy.json
+  - kpi/mt5_logic_parity.json
+  - kpi/proxy_vs_mt5_logic_parity.json
+  - kpi/mt5_tick.json
+  - kpi/execution_divergence.json
+  - artifacts/c0106_r0001_schedule.csv
+  - kpi/mt5_tick_by_fold.json
+  - kpi/execution_divergence_by_fold.json
+  remaining_question: choose_c0107_new_major_hypothesis_after_c0106_closeout
+  closed_at_utc: '2026-07-07T06:09:24Z'
+  decision_basis:
+    entries_per_active_day: 7.601724
+    proxy_net_pnl_points: -5821.93
+    proxy_profit_factor: 0.86117
+    proxy_expectancy_points_per_entry: -1.320465
+    proxy_trade_count: 4409
+    proxy_win_rate: 0.422998
+    long_trade_count_proxy: 2015
+    short_trade_count_proxy: 2394
+    mt5_logic_net_pnl: -85.56
+    mt5_logic_profit_factor: 0.831216
+    mt5_logic_trade_count: 4409
+    mechanical_parity_status: passed
+    intent_parity_status: passed_schedule_replay_boundary
+    mismatch_count: 0
+    entry_key_match_rate: 1.0
+    exit_reason_match_rate: 1.0
+    exit_time_direction_match_rate: 1.0
+    mt5_tick_net_pnl: -42.24
+    mt5_tick_profit_factor: 0.899025
+    mt5_tick_max_drawdown_percent: 17.096
+    mt5_tick_trade_count: 4401
+    mt5_tick_win_rate: 0.413997
+    mt5_tick_expectancy_per_entry: -0.009598
+    execution_divergence_status: recorded_with_divergence
+    economics_shift_status: tick_better_than_logic
+    tick_minus_logic_net_pnl: 43.32
+    tick_minus_logic_trade_count: -8
+    entry_count_delta: null
+    exit_count_delta: null
+    mt5_tick_by_fold_status: completed
+    fold_count: 9
+    completed_fold_count: 9
+    profitable_fold_count: 5
+    losing_fold_count: 4
+    missing_required_fold_count: 0
+    total_tick_net_pnl: -42.24
+    total_tick_trade_count: 4401
+    worst_fold_id: rw_007
+    worst_fold_net_pnl: -30.09
+    worst_fold_max_drawdown_percent: 6.182
+    worst_drawdown_fold_id: rw_007
+    execution_divergence_by_fold_status: completed
+    divergence_recorded_fold_count: 9
+    minimum_entry_key_match_rate: 0.995754
+    minimum_exit_reason_match_rate: 0.841176
+    minimum_exit_time_direction_match_rate: 0.858824
+    tick_better_fold_count: 8
+    tick_worse_fold_count: 1
+    total_tick_minus_logic_net_pnl: 43.32
+    total_tick_minus_logic_trade_count: -8
+    worst_tick_minus_logic_fold_id: rw_001
+    worst_tick_minus_logic_net_pnl: -4.66
+    remaining_work_classification: no_candidate; further C0106 work would be adjacent threshold,
+      stop, target, hold, session, activity, spread, capital, or range-acceptance-failure-reversal
+      feature nudge tuning
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+closed_at_utc: '2026-07-07T06:09:24Z'
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: candidate_later
+  usable_ingredient_group_count: 30
+  readiness_notes:
+  - C0049, C0050, C0051, C0052, C0053, C0054, C0055, C0056, C0057, C0058, C0059, C0060, C0061,
+    C0062, C0063, C0064, C0065, C0066, C0070, C0071, C0072, C0073, C0084, C0085, C0086, C0087,
+    C0088, C0089, C0096, C0097, C0098, C0099, C0100, C0102, C0103, C0104, C0105, and C0106
+    provide post-SC0009 negative-memory ingredients, but default usable ingredient minimums
+    are not met.
+  - Next work can remain a new major C0107 campaign hypothesis, not C0106 threshold or stop/target
+    tuning.
