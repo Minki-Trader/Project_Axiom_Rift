@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0127
+    next_id: C0128
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -145,6 +145,7 @@ streams:
     - campaigns/C0124_intraday_percentile_recoil_fade_discovery
     - campaigns/C0125_intraday_halfback_inventory_transfer_discovery
     - campaigns/C0126_intraday_volatility_budget_exhaustion_reversal_discovery
+    - campaigns/C0127_intraday_body_efficiency_cliff_reversal_discovery
     numbering_policy:
       width: 4
       example: C0001
