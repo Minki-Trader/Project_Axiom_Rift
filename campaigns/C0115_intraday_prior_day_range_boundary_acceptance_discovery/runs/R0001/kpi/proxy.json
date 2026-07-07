@@ -1,0 +1,1251 @@
+{
+  "campaign_id": "C0115",
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "average_spread_cost_points": 1.094581,
+        "commission_per_trade": 0,
+        "round_trip_cost_model": "subtract_entry_spread_once",
+        "slippage_stress_test_allowed": true,
+        "spread_point_value": 0.01,
+        "spread_source": "entry_bar_spread_column",
+        "spread_stress_test_allowed": true,
+        "synthetic_commission_allowed": false,
+        "total_spread_cost_points": 2743.02
+      }
+    },
+    "direction_profile": {
+      "applies": true,
+      "fields": {
+        "long": {
+          "max_drawdown_points": 10104.28,
+          "net_pnl_points": -10072.89,
+          "profit_factor": 0.357817,
+          "trade_count": 1548,
+          "win_rate": 0.231266
+        },
+        "short": {
+          "max_drawdown_points": 10858.63,
+          "net_pnl_points": -10847.34,
+          "profit_factor": 0.340125,
+          "trade_count": 958,
+          "win_rate": 0.218163
+        }
+      }
+    },
+    "prior_day_range_boundary_acceptance_profile": {
+      "applies": true,
+      "fields": {
+        "candidate_direction": "dual_direction_long_and_short_per_closed_bar",
+        "candidates_by_fold": {
+          "rw_001": {
+            "eligible_candidate_count": 2702,
+            "feature_count": 12,
+            "selected_candidate_count": 272,
+            "test_candidate_count": 2702,
+            "train_candidate_count": 17157
+          },
+          "rw_002": {
+            "eligible_candidate_count": 3253,
+            "feature_count": 12,
+            "selected_candidate_count": 299,
+            "test_candidate_count": 3253,
+            "train_candidate_count": 17512
+          },
+          "rw_003": {
+            "eligible_candidate_count": 2425,
+            "feature_count": 12,
+            "selected_candidate_count": 260,
+            "test_candidate_count": 2425,
+            "train_candidate_count": 17085
+          },
+          "rw_004": {
+            "eligible_candidate_count": 2778,
+            "feature_count": 12,
+            "selected_candidate_count": 248,
+            "test_candidate_count": 2778,
+            "train_candidate_count": 17273
+          },
+          "rw_005": {
+            "eligible_candidate_count": 2801,
+            "feature_count": 12,
+            "selected_candidate_count": 262,
+            "test_candidate_count": 2801,
+            "train_candidate_count": 16950
+          },
+          "rw_006": {
+            "eligible_candidate_count": 3341,
+            "feature_count": 12,
+            "selected_candidate_count": 308,
+            "test_candidate_count": 3341,
+            "train_candidate_count": 16846
+          },
+          "rw_007": {
+            "eligible_candidate_count": 2862,
+            "feature_count": 12,
+            "selected_candidate_count": 282,
+            "test_candidate_count": 2862,
+            "train_candidate_count": 17071
+          },
+          "rw_008": {
+            "eligible_candidate_count": 3176,
+            "feature_count": 12,
+            "selected_candidate_count": 307,
+            "test_candidate_count": 3176,
+            "train_candidate_count": 17300
+          },
+          "rw_009": {
+            "eligible_candidate_count": 3335,
+            "feature_count": 12,
+            "selected_candidate_count": 317,
+            "test_candidate_count": 3335,
+            "train_candidate_count": 17460
+          }
+        },
+        "entries_per_active_day": 5.669683,
+        "entry_count_per_active_day_target": "5_to_10",
+        "feature_count": 12,
+        "feature_names": [
+          "prior_boundary_distance",
+          "boundary_acceptance_depth",
+          "same_side_hold_ratio",
+          "boundary_retest_absorption",
+          "close_acceptance_strength",
+          "breakout_impulse_efficiency",
+          "volume_acceptance_ratio",
+          "vwap_boundary_alignment",
+          "opening_range_alignment",
+          "prior_day_direction_context",
+          "session_maturity",
+          "spread_stress_inverse"
+        ],
+        "feature_set_selected": false,
+        "fold_models": [
+          {
+            "feature_mean": [
+              3.448134,
+              4.894733,
+              0.838707,
+              3.59385,
+              0.649116,
+              0.12611,
+              1.035156,
+              -1.358895,
+              4.51546,
+              0.390791,
+              0.566675,
+              0.882893
+            ],
+            "feature_names": [
+              "prior_boundary_distance",
+              "boundary_acceptance_depth",
+              "same_side_hold_ratio",
+              "boundary_retest_absorption",
+              "close_acceptance_strength",
+              "breakout_impulse_efficiency",
+              "volume_acceptance_ratio",
+              "vwap_boundary_alignment",
+              "opening_range_alignment",
+              "prior_day_direction_context",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              2.952212,
+              2.400561,
+              0.260992,
+              3.394994,
+              0.202195,
+              0.418417,
+              0.109364,
+              1.644074,
+              3.399308,
+              0.446342,
+              0.215283,
+              0.053507
+            ],
+            "feature_weight": [
+              0.027747,
+              0.022669,
+              0.033729,
+              0.035104,
+              0.025437,
+              0.000109,
+              -0.049973,
+              -0.015886,
+              0.002478,
+              -0.012359,
+              0.034443,
+              0.005772
+            ],
+            "fold_id": "rw_001",
+            "global_mean": -1.646804,
+            "positive_label_rate": 0.406598,
+            "prior_day_range_boundary_acceptance_failure_rate": 0.525092,
+            "train_candidate_count": 17157
+          },
+          {
+            "feature_mean": [
+              3.586241,
+              5.032843,
+              0.844735,
+              3.74112,
+              0.651786,
+              0.124424,
+              1.034694,
+              -1.46192,
+              4.390919,
+              0.421225,
+              0.563917,
+              0.871281
+            ],
+            "feature_names": [
+              "prior_boundary_distance",
+              "boundary_acceptance_depth",
+              "same_side_hold_ratio",
+              "boundary_retest_absorption",
+              "close_acceptance_strength",
+              "breakout_impulse_efficiency",
+              "volume_acceptance_ratio",
+              "vwap_boundary_alignment",
+              "opening_range_alignment",
+              "prior_day_direction_context",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              2.992241,
+              2.4148,
+              0.25824,
+              3.416871,
+              0.202657,
+              0.418101,
+              0.103303,
+              1.673928,
+              3.488457,
+              0.426711,
+              0.217011,
+              0.061409
+            ],
+            "feature_weight": [
+              0.026596,
+              0.020135,
+              0.035983,
+              0.035217,
+              0.021412,
+              -0.010684,
+              -0.066693,
+              -0.018171,
+              0.002909,
+              -0.018666,
+              0.033106,
+              0.01763
+            ],
+            "fold_id": "rw_002",
+            "global_mean": -1.630406,
+            "positive_label_rate": 0.413659,
+            "prior_day_range_boundary_acceptance_failure_rate": 0.520272,
+            "train_candidate_count": 17512
+          },
+          {
+            "feature_mean": [
+              3.616365,
+              5.060055,
+              0.844759,
+              3.76466,
+              0.652503,
+              0.127389,
+              1.035737,
+              -1.48692,
+              4.538597,
+              0.400855,
+              0.565913,
+              0.870002
+            ],
+            "feature_names": [
+              "prior_boundary_distance",
+              "boundary_acceptance_depth",
+              "same_side_hold_ratio",
+              "boundary_retest_absorption",
+              "close_acceptance_strength",
+              "breakout_impulse_efficiency",
+              "volume_acceptance_ratio",
+              "vwap_boundary_alignment",
+              "opening_range_alignment",
+              "prior_day_direction_context",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              3.007389,
+              2.421149,
+              0.259657,
+              3.449043,
+              0.202804,
+              0.419731,
+              0.105443,
+              1.692404,
+              3.372271,
+              0.433484,
+              0.21697,
+              0.066457
+            ],
+            "feature_weight": [
+              0.030851,
+              0.01842,
+              0.02938,
+              0.03935,
+              0.018116,
+              0.004323,
+              -0.080342,
+              -0.016187,
+              0.015284,
+              -0.005741,
+              0.037279,
+              0.038986
+            ],
+            "fold_id": "rw_003",
+            "global_mean": -1.57207,
+            "positive_label_rate": 0.413462,
+            "prior_day_range_boundary_acceptance_failure_rate": 0.520691,
+            "train_candidate_count": 17085
+          },
+          {
+            "feature_mean": [
+              3.667957,
+              5.09716,
+              0.846095,
+              3.804957,
+              0.654811,
+              0.125449,
+              1.036999,
+              -1.541462,
+              4.501687,
+              0.413855,
+              0.560072,
+              0.870088
+            ],
+            "feature_names": [
+              "prior_boundary_distance",
+              "boundary_acceptance_depth",
+              "same_side_hold_ratio",
+              "boundary_retest_absorption",
+              "close_acceptance_strength",
+              "breakout_impulse_efficiency",
+              "volume_acceptance_ratio",
+              "vwap_boundary_alignment",
+              "opening_range_alignment",
+              "prior_day_direction_context",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              3.061327,
+              2.454554,
+              0.259037,
+              3.484661,
+              0.202351,
+              0.420589,
+              0.109347,
+              1.709524,
+              3.434663,
+              0.426355,
+              0.218116,
+              0.068079
+            ],
+            "feature_weight": [
+              0.037935,
+              0.017782,
+              0.038885,
+              0.048929,
+              0.020563,
+              0.004083,
+              -0.099622,
+              -0.022228,
+              0.009629,
+              -0.019664,
+              0.034982,
+              0.046205
+            ],
+            "fold_id": "rw_004",
+            "global_mean": -1.580241,
+            "positive_label_rate": 0.410641,
+            "prior_day_range_boundary_acceptance_failure_rate": 0.525329,
+            "train_candidate_count": 17273
+          },
+          {
+            "feature_mean": [
+              3.720631,
+              5.107367,
+              0.844968,
+              3.832686,
+              0.655387,
+              0.128396,
+              1.036004,
+              -1.611316,
+              4.527645,
+              0.419982,
+              0.559847,
+              0.877517
+            ],
+            "feature_names": [
+              "prior_boundary_distance",
+              "boundary_acceptance_depth",
+              "same_side_hold_ratio",
+              "boundary_retest_absorption",
+              "close_acceptance_strength",
+              "breakout_impulse_efficiency",
+              "volume_acceptance_ratio",
+              "vwap_boundary_alignment",
+              "opening_range_alignment",
+              "prior_day_direction_context",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              3.11971,
+              2.492642,
+              0.259253,
+              3.529494,
+              0.202368,
+              0.422726,
+              0.108477,
+              1.740728,
+              3.427768,
+              0.431043,
+              0.218939,
+              0.069509
+            ],
+            "feature_weight": [
+              0.055929,
+              0.038019,
+              0.049694,
+              0.06763,
+              0.023237,
+              0.014906,
+              -0.095082,
+              -0.016351,
+              0.019276,
+              -0.018919,
+              0.022392,
+              0.043284
+            ],
+            "fold_id": "rw_005",
+            "global_mean": -1.613939,
+            "positive_label_rate": 0.409086,
+            "prior_day_range_boundary_acceptance_failure_rate": 0.525723,
+            "train_candidate_count": 16950
+          },
+          {
+            "feature_mean": [
+              3.964665,
+              5.277601,
+              0.857628,
+              4.083635,
+              0.661947,
+              0.130474,
+              1.035508,
+              -1.737072,
+              4.747104,
+              0.418744,
+              0.554723,
+              0.88685
+            ],
+            "feature_names": [
+              "prior_boundary_distance",
+              "boundary_acceptance_depth",
+              "same_side_hold_ratio",
+              "boundary_retest_absorption",
+              "close_acceptance_strength",
+              "breakout_impulse_efficiency",
+              "volume_acceptance_ratio",
+              "vwap_boundary_alignment",
+              "opening_range_alignment",
+              "prior_day_direction_context",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              3.172765,
+              2.50021,
+              0.25221,
+              3.545688,
+              0.200841,
+              0.4198,
+              0.105064,
+              1.781516,
+              3.373365,
+              0.421153,
+              0.219634,
+              0.067817
+            ],
+            "feature_weight": [
+              0.083096,
+              0.051243,
+              0.063306,
+              0.091206,
+              0.032718,
+              0.026783,
+              -0.096351,
+              -0.031219,
+              0.06162,
+              -0.007497,
+              0.019834,
+              0.050055
+            ],
+            "fold_id": "rw_006",
+            "global_mean": -1.510029,
+            "positive_label_rate": 0.419209,
+            "prior_day_range_boundary_acceptance_failure_rate": 0.513594,
+            "train_candidate_count": 16846
+          },
+          {
+            "feature_mean": [
+              4.151415,
+              5.429131,
+              0.86569,
+              4.277246,
+              0.665106,
+              0.121869,
+              1.033499,
+              -1.851442,
+              4.402116,
+              0.410211,
+              0.551501,
+              0.895093
+            ],
+            "feature_names": [
+              "prior_boundary_distance",
+              "boundary_acceptance_depth",
+              "same_side_hold_ratio",
+              "boundary_retest_absorption",
+              "close_acceptance_strength",
+              "breakout_impulse_efficiency",
+              "volume_acceptance_ratio",
+              "vwap_boundary_alignment",
+              "opening_range_alignment",
+              "prior_day_direction_context",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              3.199431,
+              2.504504,
+              0.246025,
+              3.540907,
+              0.199432,
+              0.420809,
+              0.102489,
+              1.822495,
+              3.645627,
+              0.417177,
+              0.221328,
+              0.068912
+            ],
+            "feature_weight": [
+              0.07603,
+              0.046766,
+              0.054907,
+              0.081229,
+              0.02969,
+              0.015579,
+              -0.075691,
+              -0.029756,
+              0.055527,
+              -0.00353,
+              0.005011,
+              0.036196
+            ],
+            "fold_id": "rw_007",
+            "global_mean": -1.500223,
+            "positive_label_rate": 0.419893,
+            "prior_day_range_boundary_acceptance_failure_rate": 0.512858,
+            "train_candidate_count": 17071
+          },
+          {
+            "feature_mean": [
+              4.118597,
+              5.383104,
+              0.867971,
+              4.250804,
+              0.664868,
+              0.118845,
+              1.032696,
+              -1.834777,
+              4.478888,
+              0.371932,
+              0.549002,
+              0.904972
+            ],
+            "feature_names": [
+              "prior_boundary_distance",
+              "boundary_acceptance_depth",
+              "same_side_hold_ratio",
+              "boundary_retest_absorption",
+              "close_acceptance_strength",
+              "breakout_impulse_efficiency",
+              "volume_acceptance_ratio",
+              "vwap_boundary_alignment",
+              "opening_range_alignment",
+              "prior_day_direction_context",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              3.194986,
+              2.511436,
+              0.243555,
+              3.526871,
+              0.197957,
+              0.423141,
+              0.099342,
+              1.812691,
+              3.588814,
+              0.421329,
+              0.21906,
+              0.057851
+            ],
+            "feature_weight": [
+              0.059519,
+              0.027478,
+              0.05239,
+              0.066481,
+              0.033435,
+              0.021727,
+              -0.078865,
+              -0.013558,
+              0.042749,
+              0.004644,
+              -0.011952,
+              0.022331
+            ],
+            "fold_id": "rw_008",
+            "global_mean": -1.507536,
+            "positive_label_rate": 0.417283,
+            "prior_day_range_boundary_acceptance_failure_rate": 0.513873,
+            "train_candidate_count": 17300
+          },
+          {
+            "feature_mean": [
+              4.249926,
+              5.474017,
+              0.871678,
+              4.389765,
+              0.667461,
+              0.121391,
+              1.031283,
+              -1.860069,
+              4.641936,
+              0.402933,
+              0.547888,
+              0.903658
+            ],
+            "feature_names": [
+              "prior_boundary_distance",
+              "boundary_acceptance_depth",
+              "same_side_hold_ratio",
+              "boundary_retest_absorption",
+              "close_acceptance_strength",
+              "breakout_impulse_efficiency",
+              "volume_acceptance_ratio",
+              "vwap_boundary_alignment",
+              "opening_range_alignment",
+              "prior_day_direction_context",
+              "session_maturity",
+              "spread_stress_inverse"
+            ],
+            "feature_std": [
+              3.204867,
+              2.518524,
+              0.241244,
+              3.508418,
+              0.198485,
+              0.422319,
+              0.093728,
+              1.804592,
+              3.554615,
+              0.413242,
+              0.220026,
+              0.053729
+            ],
+            "feature_weight": [
+              0.054686,
+              0.024825,
+              0.056894,
+              0.062916,
+              0.038267,
+              0.023934,
+              -0.07465,
+              0.001796,
+              0.028681,
+              0.000173,
+              -0.030953,
+              0.010338
+            ],
+            "fold_id": "rw_009",
+            "global_mean": -1.426542,
+            "positive_label_rate": 0.426174,
+            "prior_day_range_boundary_acceptance_failure_rate": 0.504181,
+            "train_candidate_count": 17460
+          }
+        ],
+        "label_horizon_bars": 10,
+        "label_selected": false,
+        "label_shape": "target_first_quality_after_prior_day_range_boundary_acceptance",
+        "max_entries_per_active_day": 8,
+        "model_family": "fold_local_intraday_prior_day_range_boundary_acceptance_rank",
+        "model_selected": false,
+        "selection_rule": "top_fold_local_prior_day_range_boundary_acceptance_scores_per_active_day",
+        "state_distributions": {
+          "rw_001": {
+            "candidate_count": 2702,
+            "eligible_candidate_count": 2702,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.185254,
+            "score_p50": 0.046309,
+            "score_p90": 0.196473,
+            "selected_count": 272,
+            "selected_score_max": 0.324868,
+            "selected_score_min": -0.376289,
+            "train_candidate_count": 17157
+          },
+          "rw_002": {
+            "candidate_count": 3253,
+            "eligible_candidate_count": 3253,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.218415,
+            "score_p50": -0.001616,
+            "score_p90": 0.209047,
+            "selected_count": 299,
+            "selected_score_max": 0.334354,
+            "selected_score_min": -0.324812,
+            "train_candidate_count": 17512
+          },
+          "rw_003": {
+            "candidate_count": 2425,
+            "eligible_candidate_count": 2425,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.184856,
+            "score_p50": 0.035624,
+            "score_p90": 0.248759,
+            "selected_count": 260,
+            "selected_score_max": 0.391281,
+            "selected_score_min": -0.37422,
+            "train_candidate_count": 17085
+          },
+          "rw_004": {
+            "candidate_count": 2778,
+            "eligible_candidate_count": 2778,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.145748,
+            "score_p50": 0.112013,
+            "score_p90": 0.315612,
+            "selected_count": 248,
+            "selected_score_max": 0.442534,
+            "selected_score_min": -0.584231,
+            "train_candidate_count": 17273
+          },
+          "rw_005": {
+            "candidate_count": 2801,
+            "eligible_candidate_count": 2801,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.26188,
+            "score_p50": 0.109064,
+            "score_p90": 0.329341,
+            "selected_count": 262,
+            "selected_score_max": 0.487544,
+            "selected_score_min": -0.648136,
+            "train_candidate_count": 16950
+          },
+          "rw_006": {
+            "candidate_count": 3341,
+            "eligible_candidate_count": 3341,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.417951,
+            "score_p50": 0.101365,
+            "score_p90": 0.433217,
+            "selected_count": 308,
+            "selected_score_max": 0.662734,
+            "selected_score_min": -0.969049,
+            "train_candidate_count": 16846
+          },
+          "rw_007": {
+            "candidate_count": 2862,
+            "eligible_candidate_count": 2862,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.367389,
+            "score_p50": 0.136802,
+            "score_p90": 0.391266,
+            "selected_count": 282,
+            "selected_score_max": 0.520497,
+            "selected_score_min": -0.761016,
+            "train_candidate_count": 17071
+          },
+          "rw_008": {
+            "candidate_count": 3176,
+            "eligible_candidate_count": 3176,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.319264,
+            "score_p50": 0.087895,
+            "score_p90": 0.314488,
+            "selected_count": 307,
+            "selected_score_max": 0.467263,
+            "selected_score_min": -0.807877,
+            "train_candidate_count": 17300
+          },
+          "rw_009": {
+            "candidate_count": 3335,
+            "eligible_candidate_count": 3335,
+            "eligible_candidate_rate": 1.0,
+            "score_p10": -0.331479,
+            "score_p50": 0.026539,
+            "score_p90": 0.259311,
+            "selected_count": 317,
+            "selected_score_max": 0.476932,
+            "selected_score_min": -0.629003,
+            "train_candidate_count": 17460
+          }
+        }
+      }
+    },
+    "stability_profile": {
+      "applies": true,
+      "fields": {
+        "fold_summary": [
+          {
+            "bucket": "rw_001",
+            "max_drawdown_points": 1768.02,
+            "net_pnl_points": -1732.03,
+            "profit_factor": 0.337096,
+            "trade_count": 270,
+            "win_rate": 0.207407
+          },
+          {
+            "bucket": "rw_002",
+            "max_drawdown_points": 1105.24,
+            "net_pnl_points": -1072.32,
+            "profit_factor": 0.543451,
+            "trade_count": 290,
+            "win_rate": 0.293103
+          },
+          {
+            "bucket": "rw_003",
+            "max_drawdown_points": 2104.96,
+            "net_pnl_points": -2104.96,
+            "profit_factor": 0.372055,
+            "trade_count": 253,
+            "win_rate": 0.237154
+          },
+          {
+            "bucket": "rw_004",
+            "max_drawdown_points": 1917.12,
+            "net_pnl_points": -1828.62,
+            "profit_factor": 0.382423,
+            "trade_count": 245,
+            "win_rate": 0.261224
+          },
+          {
+            "bucket": "rw_005",
+            "max_drawdown_points": 3085.64,
+            "net_pnl_points": -3070.29,
+            "profit_factor": 0.344657,
+            "trade_count": 258,
+            "win_rate": 0.205426
+          },
+          {
+            "bucket": "rw_006",
+            "max_drawdown_points": 2316.58,
+            "net_pnl_points": -2306.56,
+            "profit_factor": 0.309057,
+            "trade_count": 298,
+            "win_rate": 0.218121
+          },
+          {
+            "bucket": "rw_007",
+            "max_drawdown_points": 2270.97,
+            "net_pnl_points": -2258.22,
+            "profit_factor": 0.287754,
+            "trade_count": 276,
+            "win_rate": 0.202899
+          },
+          {
+            "bucket": "rw_008",
+            "max_drawdown_points": 2618.42,
+            "net_pnl_points": -2598.31,
+            "profit_factor": 0.375049,
+            "trade_count": 303,
+            "win_rate": 0.224422
+          },
+          {
+            "bucket": "rw_009",
+            "max_drawdown_points": 3948.92,
+            "net_pnl_points": -3948.92,
+            "profit_factor": 0.281721,
+            "trade_count": 313,
+            "win_rate": 0.191693
+          }
+        ],
+        "losing_month_count": 27,
+        "month_summary": [
+          {
+            "bucket": "2024-02",
+            "max_drawdown_points": 489.16,
+            "net_pnl_points": -457.77,
+            "profit_factor": 0.347748,
+            "trade_count": 83,
+            "win_rate": 0.156627
+          },
+          {
+            "bucket": "2024-03",
+            "max_drawdown_points": 691.69,
+            "net_pnl_points": -655.92,
+            "profit_factor": 0.349795,
+            "trade_count": 105,
+            "win_rate": 0.228571
+          },
+          {
+            "bucket": "2024-04",
+            "max_drawdown_points": 622.94,
+            "net_pnl_points": -618.34,
+            "profit_factor": 0.314608,
+            "trade_count": 82,
+            "win_rate": 0.231707
+          },
+          {
+            "bucket": "2024-05",
+            "max_drawdown_points": 351.41,
+            "net_pnl_points": -215.9,
+            "profit_factor": 0.677598,
+            "trade_count": 112,
+            "win_rate": 0.3125
+          },
+          {
+            "bucket": "2024-06",
+            "max_drawdown_points": 474.35,
+            "net_pnl_points": -469.59,
+            "profit_factor": 0.29984,
+            "trade_count": 81,
+            "win_rate": 0.209877
+          },
+          {
+            "bucket": "2024-07",
+            "max_drawdown_points": 386.83,
+            "net_pnl_points": -386.83,
+            "profit_factor": 0.616392,
+            "trade_count": 97,
+            "win_rate": 0.340206
+          },
+          {
+            "bucket": "2024-08",
+            "max_drawdown_points": 744.8,
+            "net_pnl_points": -716.3,
+            "profit_factor": 0.475327,
+            "trade_count": 93,
+            "win_rate": 0.236559
+          },
+          {
+            "bucket": "2024-09",
+            "max_drawdown_points": 1009.32,
+            "net_pnl_points": -969.91,
+            "profit_factor": 0.254907,
+            "trade_count": 100,
+            "win_rate": 0.2
+          },
+          {
+            "bucket": "2024-10",
+            "max_drawdown_points": 421.72,
+            "net_pnl_points": -418.75,
+            "profit_factor": 0.388847,
+            "trade_count": 60,
+            "win_rate": 0.3
+          },
+          {
+            "bucket": "2024-11",
+            "max_drawdown_points": 349.97,
+            "net_pnl_points": -261.47,
+            "profit_factor": 0.587489,
+            "trade_count": 69,
+            "win_rate": 0.333333
+          },
+          {
+            "bucket": "2024-12",
+            "max_drawdown_points": 548.56,
+            "net_pnl_points": -540.48,
+            "profit_factor": 0.361768,
+            "trade_count": 80,
+            "win_rate": 0.2625
+          },
+          {
+            "bucket": "2025-01",
+            "max_drawdown_points": 1026.67,
+            "net_pnl_points": -1026.67,
+            "profit_factor": 0.306431,
+            "trade_count": 96,
+            "win_rate": 0.208333
+          },
+          {
+            "bucket": "2025-02",
+            "max_drawdown_points": 825.67,
+            "net_pnl_points": -810.32,
+            "profit_factor": 0.335067,
+            "trade_count": 90,
+            "win_rate": 0.166667
+          },
+          {
+            "bucket": "2025-03",
+            "max_drawdown_points": 1214.81,
+            "net_pnl_points": -1206.66,
+            "profit_factor": 0.232658,
+            "trade_count": 84,
+            "win_rate": 0.178571
+          },
+          {
+            "bucket": "2025-04",
+            "max_drawdown_points": 1053.31,
+            "net_pnl_points": -1053.31,
+            "profit_factor": 0.443823,
+            "trade_count": 84,
+            "win_rate": 0.27381
+          },
+          {
+            "bucket": "2025-05",
+            "max_drawdown_points": 977.06,
+            "net_pnl_points": -977.06,
+            "profit_factor": 0.33234,
+            "trade_count": 109,
+            "win_rate": 0.229358
+          },
+          {
+            "bucket": "2025-06",
+            "max_drawdown_points": 753.88,
+            "net_pnl_points": -753.44,
+            "profit_factor": 0.325219,
+            "trade_count": 100,
+            "win_rate": 0.23
+          },
+          {
+            "bucket": "2025-07",
+            "max_drawdown_points": 605.24,
+            "net_pnl_points": -576.06,
+            "profit_factor": 0.240327,
+            "trade_count": 89,
+            "win_rate": 0.191011
+          },
+          {
+            "bucket": "2025-08",
+            "max_drawdown_points": 659.96,
+            "net_pnl_points": -609.14,
+            "profit_factor": 0.371839,
+            "trade_count": 87,
+            "win_rate": 0.218391
+          },
+          {
+            "bucket": "2025-09",
+            "max_drawdown_points": 597.05,
+            "net_pnl_points": -571.19,
+            "profit_factor": 0.344206,
+            "trade_count": 91,
+            "win_rate": 0.230769
+          },
+          {
+            "bucket": "2025-10",
+            "max_drawdown_points": 1077.89,
+            "net_pnl_points": -1077.89,
+            "profit_factor": 0.189465,
+            "trade_count": 98,
+            "win_rate": 0.163265
+          },
+          {
+            "bucket": "2025-11",
+            "max_drawdown_points": 1142.35,
+            "net_pnl_points": -1122.24,
+            "profit_factor": 0.381256,
+            "trade_count": 106,
+            "win_rate": 0.198113
+          },
+          {
+            "bucket": "2025-12",
+            "max_drawdown_points": 792.73,
+            "net_pnl_points": -792.73,
+            "profit_factor": 0.285591,
+            "trade_count": 101,
+            "win_rate": 0.188119
+          },
+          {
+            "bucket": "2026-01",
+            "max_drawdown_points": 683.34,
+            "net_pnl_points": -683.34,
+            "profit_factor": 0.446352,
+            "trade_count": 96,
+            "win_rate": 0.291667
+          },
+          {
+            "bucket": "2026-02",
+            "max_drawdown_points": 1355.58,
+            "net_pnl_points": -1355.58,
+            "profit_factor": 0.238891,
+            "trade_count": 88,
+            "win_rate": 0.181818
+          },
+          {
+            "bucket": "2026-03",
+            "max_drawdown_points": 1808.85,
+            "net_pnl_points": -1745.24,
+            "profit_factor": 0.200095,
+            "trade_count": 101,
+            "win_rate": 0.138614
+          },
+          {
+            "bucket": "2026-04",
+            "max_drawdown_points": 907.27,
+            "net_pnl_points": -848.1,
+            "profit_factor": 0.447449,
+            "trade_count": 124,
+            "win_rate": 0.241935
+          }
+        ],
+        "worst_month_pnl_points": -1745.24
+      }
+    },
+    "trade_excursion_profile": {
+      "applies": true,
+      "fields": {
+        "average_capture_ratio": 0.163038,
+        "average_mae_points": 23.047813,
+        "average_mfe_points": 12.89982,
+        "median_mae_points": 17.06,
+        "median_mfe_points": 7.0
+      }
+    }
+  },
+  "created_at_utc": "2026-07-07T11:24:12Z",
+  "dataset_identity": "data/processed/datasets/us100_m5_base_frame.csv",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "produce C0115 R0001 MT5 paired validation evidence",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "mt5_paired_validation",
+      "reason": "proxy evidence is recorded as a reference surface; MT5 logic parity, tick execution, divergence, and fold-isolated evidence remain mandatory",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "produce_c0115_r0001_mt5_logic_parity_evidence"
+    },
+    {
+      "blocking_condition": "proxy.json content must be stable before hashing",
+      "claim_boundary": {
+        "claim_authority": false
+      },
+      "field": "proxy_artifact_hashes",
+      "reason": "self-hash is recorded in artifact_lineage after proxy.json is written",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "before C0115 R0001 closeout"
+    }
+  ],
+  "fold_ids": [
+    "rw_001",
+    "rw_002",
+    "rw_003",
+    "rw_004",
+    "rw_005",
+    "rw_006",
+    "rw_007",
+    "rw_008",
+    "rw_009",
+    "tail"
+  ],
+  "proxy_artifact_hashes": [
+    "4e78674563c209a148165863ee3d4e07439f9d829721eddea35c82022975c75e",
+    "8dceb27527e3f8ede64b3854b8425ffc2c4358f48dbd5c815f235195d9985e88"
+  ],
+  "proxy_artifact_paths": [
+    "campaigns/C0115_intraday_prior_day_range_boundary_acceptance_discovery/runs/R0001/kpi/proxy.json",
+    "campaigns/C0115_intraday_prior_day_range_boundary_acceptance_discovery/runs/R0001/artifacts/c0115_r0001_proxy_trades.csv",
+    "campaigns/C0115_intraday_prior_day_range_boundary_acceptance_discovery/runs/R0001/artifacts/c0115_r0001_prior_day_range_boundary_acceptance_summary.json"
+  ],
+  "proxy_code_version_or_commit": "uncommitted_local_worktree_at_proxy_creation",
+  "proxy_config": {
+    "bar_basis": "closed_m5",
+    "candidate_direction": "dual_direction_long_and_short_per_closed_bar",
+    "entry_basis": "next_bar_open_after_scored_closed_bar",
+    "equity_percent_sizing": "deferred_until_candidate_quality",
+    "evaluation_splits": "rolling_windows_test_oos",
+    "gap_blocked_exit_policy": "skip_when_exit_bar_next_tick_gap_exceeds_5_minutes",
+    "gap_carried_entry_policy": "skip_when_next_bar_gap_exceeds_5_minutes",
+    "label_horizon_bars": 10,
+    "label_shape": "target_first_quality_after_prior_day_range_boundary_acceptance",
+    "lookback_range_bars": 48,
+    "max_entries_per_active_day": 8,
+    "max_hold_bars": 10,
+    "min_prior_boundary_excursion": 0.18,
+    "min_prior_day_range_boundary_acceptance_activity": 0.06,
+    "min_signal_spacing_bars": 6,
+    "model_family": "fold_local_intraday_prior_day_range_boundary_acceptance_rank",
+    "price_precision_digits": 2,
+    "prior_day_range_boundary_acceptance_lookback_bars": 42,
+    "prior_day_range_boundary_acceptance_prior_bars": 14,
+    "prior_day_range_boundary_acceptance_recent_bars": 10,
+    "same_bar_stop_target_policy": "stop_first_conservative",
+    "short_range_bars": 12,
+    "sizing_mode": "fixed_lot_discovery",
+    "stop_range_multiple": 0.8,
+    "target_range_multiple": 1.1,
+    "training_splits": "rolling_windows_train_is"
+  },
+  "proxy_config_path": "campaigns/C0115_intraday_prior_day_range_boundary_acceptance_discovery/runs/R0001/run_manifest.json",
+  "proxy_engine": "axiom_rift.proxies.c0115_r0001_intraday_prior_day_range_boundary_acceptance",
+  "proxy_id": "PX-C0115-R0001",
+  "proxy_summary": {
+    "active_day_count": 442,
+    "average_bars_in_trade": 2.232243,
+    "entries_per_active_day": 5.669683,
+    "entry_target_max": 10,
+    "entry_target_min": 5,
+    "evaluation_surface": "rolling_window_test_oos_only",
+    "gross_loss_points": -32123.86,
+    "gross_profit_points": 11203.63,
+    "long_trade_count": 1548,
+    "max_hold_exit_count": 29,
+    "net_pnl_points": -20920.23,
+    "short_trade_count": 958,
+    "signal_count": 2506,
+    "stop_exit_count": 1929,
+    "target_exit_count": 548,
+    "trade_count": 2506
+  },
+  "required_kpis": {
+    "proxy_expectancy_per_entry": null,
+    "proxy_expectancy_points_per_entry": -8.348057,
+    "proxy_max_drawdown_percent": null,
+    "proxy_max_drawdown_points": 20951.62,
+    "proxy_net_pnl": null,
+    "proxy_net_pnl_points": -20920.23,
+    "proxy_profit_factor": 0.348764,
+    "proxy_signal_count": 2506,
+    "proxy_trade_count": 2506,
+    "proxy_win_rate": 0.226257
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "schema": "axiom_rift_proxy_kpi_v1",
+  "split_policy": "rolling_window_test_oos_only_with_train_is_prior_day_range_boundary_acceptance_fit",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0115"
+}

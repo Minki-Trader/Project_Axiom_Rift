@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0115
+    next_id: C0116
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -133,6 +133,7 @@ streams:
     - campaigns/C0112_intraday_micro_consolidation_breakout_continuation_discovery
     - campaigns/C0113_intraday_session_percentile_transition_discovery
     - campaigns/C0114_intraday_momentum_volume_divergence_reversal_discovery
+    - campaigns/C0115_intraday_prior_day_range_boundary_acceptance_discovery
     numbering_policy:
       width: 4
       example: C0001
