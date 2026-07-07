@@ -2279,8 +2279,20 @@ next_work:
   - review_c0134_r0001_tick_execution_kpi_and_closeout
   - close_c0134_r0001_with_candidate_evidence
   - close_c0134_with_candidate_evidence_after_r0001
-  tasks:
   - choose_c0135_new_major_hypothesis_after_c0134_closeout
+  - open_c0135_intraday_vwap_acceptance_continuation_discovery
+  - open_c0135_r0001_intraday_vwap_acceptance_continuation_rank_run
+  - produce_c0135_r0001_proxy_evidence
+  - record_c0135_r0001_proxy_vs_mt5_logic_parity_evidence
+  - record_c0135_r0001_execution_divergence
+  - produce_c0135_r0001_mt5_tick_execution_evidence
+  - produce_c0135_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0135_r0001_fold_isolated_execution_divergence
+  - review_c0135_r0001_tick_execution_kpi_and_closeout
+  - close_c0135_r0001_no_candidate
+  - close_c0135_no_candidate_after_r0001
+  tasks:
+  - choose_c0136_new_major_hypothesis_after_c0135_closeout
   not_yet:
   - label_freeze
   - feature_set_freeze
@@ -2296,23 +2308,23 @@ active_run: null
 active_campaign: null
 active_synthesis: null
 latest_operation:
-  id: close_c0134_r0001_with_candidate_evidence
+  id: close_c0135_r0001_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0134_intraday_adverse_excursion_compression_continuation_discovery/runs/R0001/gate_report.json
-  evidence_status: closed_with_candidate_evidence
+  recorded_at_source: campaigns/C0135_intraday_vwap_acceptance_continuation_discovery/runs/R0001/gate_report.json
+  evidence_status: closed_no_candidate
   active_campaign: null
   active_synthesis: null
   active_run: null
-  negative_memory_recorded: false
-  candidate_evidence_retained: true
-  entries_per_active_day: 7.587931
-  proxy_net_pnl_points: 6345.74
-  proxy_profit_factor: 1.168184
-  mt5_tick_net_pnl: 77.04
-  mt5_tick_profit_factor: 1.20368
-  profitable_fold_count: 9
-  losing_fold_count: 0
-  next_required_action: choose_c0135_new_major_hypothesis_after_c0134_closeout
+  negative_memory_recorded: true
+  candidate_evidence_retained: false
+  entries_per_active_day: 7.818966
+  proxy_net_pnl_points: -35193.82
+  proxy_profit_factor: 0.366656
+  mt5_tick_net_pnl: -341.64
+  mt5_tick_profit_factor: 0.38451
+  profitable_fold_count: 0
+  losing_fold_count: 9
+  next_required_action: choose_c0136_new_major_hypothesis_after_c0135_closeout
   claim_boundary:
     claim_authority: false
     selected: false

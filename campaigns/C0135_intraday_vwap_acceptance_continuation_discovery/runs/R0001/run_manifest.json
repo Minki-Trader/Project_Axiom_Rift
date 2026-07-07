@@ -1,0 +1,264 @@
+{
+  "campaign_id": "C0135",
+  "changed_surfaces": [
+    "label",
+    "feature",
+    "model",
+    "trade_logic"
+  ],
+  "claim_boundary": {
+    "claim_authority": false,
+    "economics_pass": false,
+    "feature_set_selected": false,
+    "label_selected": false,
+    "live_ready": false,
+    "materialization_ready": false,
+    "model_selected": false,
+    "onnx_ready": false,
+    "promotion_ready": false,
+    "runtime_authority": false,
+    "runtime_probe_completed": false,
+    "selected": false,
+    "trade_logic_selected": false
+  },
+  "closed_at_utc": "2026-07-07T22:23:53Z",
+  "closeout_review": {
+    "basis": "rolling_window_fold_isolated_mt5_tick_and_execution_divergence",
+    "claim_boundary": {
+      "claim_authority": false,
+      "economics_pass": false,
+      "feature_set_selected": false,
+      "label_selected": false,
+      "live_ready": false,
+      "materialization_ready": false,
+      "model_selected": false,
+      "onnx_ready": false,
+      "promotion_ready": false,
+      "runtime_authority": false,
+      "runtime_probe_completed": false,
+      "selected": false,
+      "trade_logic_selected": false
+    },
+    "close_reason": "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
+    "closed_at_utc": "2026-07-07T22:23:53Z",
+    "negative_memory": {
+      "asset_type": "negative_memory",
+      "candidate_status": "no_candidate",
+      "economics_pass": false,
+      "evidence_paths": [
+        "artifact_lineage.json",
+        "run_manifest.json",
+        "artifacts/c0135_r0001_proxy_trades.csv",
+        "artifacts/c0135_r0001_vwap_acceptance_continuation_summary.json",
+        "kpi/proxy.json",
+        "kpi/mt5_logic_parity.json",
+        "kpi/proxy_vs_mt5_logic_parity.json",
+        "kpi/mt5_tick.json",
+        "kpi/execution_divergence.json",
+        "artifacts/c0135_r0001_schedule.csv",
+        "kpi/mt5_tick_by_fold.json",
+        "kpi/execution_divergence_by_fold.json"
+      ],
+      "hypothesis_tested": "fold-local intraday vwap acceptance continuation rank over directional impulse, adverse excursion compression, favorable excursion persistence, pullback shallowness, close reacceleration, micro range contraction, VWAP clearance, session room, volume participation balance, prior day direction context, session maturity, and spread stress inverse features",
+      "next_boundary": "C0135 R0001 shows the tested vwap acceptance continuation surface is not a candidate as implemented; remaining C0135 variants would be adjacent tuning, so next work should choose a new major C0135 hypothesis without selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims",
+      "onnx_ready": false,
+      "reason_not_candidate": "entry activity landed inside the target band, but proxy, closed-bar MT5 logic, aggregate MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate",
+      "runtime_authority": false,
+      "selection_status": "not_selected",
+      "supporting_lessons": [
+        {
+          "asset_type": "negative_memory",
+          "source": "kpi/mt5_tick_by_fold.json",
+          "summary": "R0001 produced 0 profitable and 9 losing fold-isolated MT5 tick folds, total tick net PnL -341.64, and worst fold rw_009 net PnL -46.96."
+        },
+        {
+          "asset_type": "parity_lesson",
+          "source": "kpi/proxy_vs_mt5_logic_parity.json",
+          "summary": "Schedule replay mechanical parity passed with mismatch_count 0, so the weak result is not explained by proxy-vs-MT5 logic mismatch."
+        },
+        {
+          "asset_type": "execution_divergence_lesson",
+          "source": "kpi/execution_divergence_by_fold.json",
+          "summary": "Tick execution differed from closed-bar logic by 72.77 total net PnL across 9 better and 0 worse folds; closeout remains bounded to fold-isolated MT5 tick evidence."
+        },
+        {
+          "asset_type": "evidence_gap",
+          "source": "gate_report.json",
+          "summary": "Native MQL signal logic, ONNX materialization, cost/slippage hardening, final sizing, and historical lineage debt remain unresolved; no stronger claim is created."
+        }
+      ]
+    },
+    "required_kpi_summary": {
+      "completed_fold_count": 9,
+      "divergence_recorded_fold_count": 9,
+      "economics_shift_status": "tick_better_than_logic",
+      "entries_per_active_day": 7.818966,
+      "entry_count_delta": null,
+      "entry_key_match_rate": 1.0,
+      "execution_divergence_by_fold_status": "completed",
+      "execution_divergence_status": "recorded_with_divergence",
+      "exit_count_delta": null,
+      "exit_reason_match_rate": 1.0,
+      "exit_time_direction_match_rate": 1.0,
+      "fold_count": 9,
+      "intent_parity_status": "passed_schedule_replay_boundary",
+      "long_trade_count_proxy": 2653,
+      "losing_fold_count": 9,
+      "mechanical_parity_status": "passed",
+      "minimum_entry_key_match_rate": 0.997955,
+      "minimum_exit_reason_match_rate": 0.889558,
+      "minimum_exit_time_direction_match_rate": 0.925703,
+      "mismatch_count": 0,
+      "missing_required_fold_count": 0,
+      "mt5_logic_net_pnl": -414.41,
+      "mt5_logic_profit_factor": 0.360202,
+      "mt5_logic_trade_count": 4535,
+      "mt5_tick_by_fold_status": "completed",
+      "mt5_tick_expectancy_per_entry": -0.075384,
+      "mt5_tick_max_drawdown_percent": 68.388,
+      "mt5_tick_net_pnl": -341.64,
+      "mt5_tick_profit_factor": 0.38451,
+      "mt5_tick_trade_count": 4532,
+      "mt5_tick_win_rate": 0.232568,
+      "profitable_fold_count": 0,
+      "proxy_expectancy_points_per_entry": -7.76049,
+      "proxy_net_pnl_points": -35193.82,
+      "proxy_profit_factor": 0.366656,
+      "proxy_trade_count": 4535,
+      "proxy_win_rate": 0.232635,
+      "remaining_work_classification": "no_candidate; further C0135 work would be adjacent threshold, stop, target, hold, session, activity, spread, capital, or vwap-acceptance-continuation feature nudge tuning",
+      "short_trade_count_proxy": 1882,
+      "tick_better_fold_count": 9,
+      "tick_minus_logic_net_pnl": 72.77,
+      "tick_minus_logic_trade_count": -3,
+      "tick_worse_fold_count": 0,
+      "total_tick_minus_logic_net_pnl": 72.77,
+      "total_tick_minus_logic_trade_count": -3,
+      "total_tick_net_pnl": -341.64,
+      "total_tick_trade_count": 4532,
+      "worst_drawdown_fold_id": "rw_009",
+      "worst_fold_id": "rw_009",
+      "worst_fold_max_drawdown_percent": 9.408,
+      "worst_fold_net_pnl": -46.96,
+      "worst_tick_minus_logic_fold_id": "rw_004",
+      "worst_tick_minus_logic_net_pnl": 5.54
+    },
+    "status": "closed_no_candidate"
+  },
+  "evidence_paths": {
+    "artifact_lineage": "artifact_lineage.json",
+    "execution_divergence_by_fold_kpi": "kpi/execution_divergence_by_fold.json",
+    "execution_divergence_kpi": "kpi/execution_divergence.json",
+    "gate_report": "gate_report.json",
+    "mt5_logic_parity_kpi": "kpi/mt5_logic_parity.json",
+    "mt5_schedule_artifact": "artifacts/c0135_r0001_schedule.csv",
+    "mt5_tick_by_fold_kpi": "kpi/mt5_tick_by_fold.json",
+    "mt5_tick_kpi": "kpi/mt5_tick.json",
+    "proxy_kpi": "kpi/proxy.json",
+    "proxy_trade_artifact": "artifacts/c0135_r0001_proxy_trades.csv",
+    "proxy_vs_mt5_logic_parity_kpi": "kpi/proxy_vs_mt5_logic_parity.json",
+    "vwap_acceptance_continuation_summary": "artifacts/c0135_r0001_vwap_acceptance_continuation_summary.json"
+  },
+  "fixed_surfaces": {
+    "broker": "FPMarkets",
+    "sizing": "fixed_lot_discovery",
+    "split_policy": "rolling_window_fold_isolated",
+    "symbol": "US100",
+    "timeframe": "M5"
+  },
+  "gate_status": "closed_no_candidate",
+  "hypothesis_variant": {
+    "summary": "fold-local intraday VWAP acceptance continuation rank run",
+    "variant_boundary": "C0135 R0001 tests whether persistent favorable-side session VWAP acceptance, aligned VWAP slope, efficient directional closes, contained pullbacks, reacceleration, stable micro range, and session room can rank target-first US100 M5 continuation entries using fold-local evidence after realistic FPMarkets spread cost. It changes feature family, label conditioning, model context, and trade-logic state key from C0134 adverse excursion compression continuation, C0133 failed extreme continuation absorption, C0132 inside outside bar expansion, C0129 directional curvature continuation, C0123 volatility decay trend resumption, and C0111 cost efficient drift continuation. It is not C0134 hardening, threshold, window, SL/TP, session, spread, capital, materialization, ONNX, selected, runtime, promotion, or live-readiness work."
+  },
+  "mt5_probe_plan": {
+    "closeout_judgment_surface": "rolling_window_fold_isolated_mt5_tick",
+    "closeout_status": "closed_no_candidate",
+    "execution_divergence_kpi_path": "kpi/execution_divergence.json",
+    "fold_isolated_execution_divergence_kpi_path": "kpi/execution_divergence_by_fold.json",
+    "fold_isolated_tick_kpi_path": "kpi/mt5_tick_by_fold.json",
+    "logic_parity_kpi_path": "kpi/mt5_logic_parity.json",
+    "next_required_action": "choose_c0136_new_major_hypothesis_after_c0135_closeout",
+    "proxy_result_may_skip_mt5": false,
+    "proxy_vs_mt5_logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "required": true,
+    "required_even_when_proxy_is_weak": true,
+    "tick_kpi_path": "kpi/mt5_tick.json"
+  },
+  "next_required_action": "produce_c0135_r0001_proxy_evidence",
+  "opened_at_utc": "2026-07-07T22:07:13Z",
+  "parent_type": "campaign",
+  "pre_open_decision": {
+    "adjacent_tuning_rejection_reason": "No C0134 thresholds, windows, stops, targets, sessions, spread caps, capital sizing, hardening, materialization, ONNX, or adverse-excursion-compression feature nudges are used as the run question. C0135 changes the explanatory feature surface, label conditioning, model context, and trade-logic state key to VWAP acceptance continuation, and rejects C0133, C0132, C0129, C0123, and C0111 retry frames.",
+    "adjacent_tuning_risk": "low",
+    "claim_boundary": {
+      "claim_authority": false,
+      "live_ready": false,
+      "onnx_ready": false,
+      "runtime_authority": false,
+      "selected": false
+    },
+    "decision_payoff": "high",
+    "expected_information_gain": "high",
+    "failure_memory_used": [
+      "campaigns/C0134_intraday_adverse_excursion_compression_continuation_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0133_intraday_failed_extreme_continuation_absorption_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0132_intraday_inside_outside_bar_expansion_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0129_intraday_directional_curvature_continuation_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0123_intraday_volatility_decay_trend_resumption_discovery/runs/R0001/gate_report.json",
+      "campaigns/C0111_intraday_cost_efficient_drift_continuation_discovery/runs/R0001/gate_report.json"
+    ],
+    "mt5_portability": "clear",
+    "novelty_score": 4,
+    "pre_open_decision_id": "POD-C0135-R0001",
+    "reject_if_failure_only_repeats_known_negative_memory": true,
+    "status": "passed_before_run_open",
+    "surface_distance": {
+      "feature_changed": true,
+      "label_changed": true,
+      "model_changed": true,
+      "trade_logic_changed": true
+    },
+    "true_variant_summary": "VWAP acceptance continuation ranks persistent favorable-side session VWAP acceptance with slope alignment, close efficiency, contained pullback, and reacceleration, not C0134 adverse excursion compression continuation hardening."
+  },
+  "proxy_plan": {
+    "kpi_path": "kpi/proxy.json",
+    "required": true,
+    "screening_gate_for_mt5": false,
+    "weak_result_may_skip_mt5": false
+  },
+  "proxy_vs_mt5_plan": {
+    "logic_parity_kpi_path": "kpi/proxy_vs_mt5_logic_parity.json",
+    "required": true
+  },
+  "repair": {
+    "hypothesis_repair_count": 0,
+    "hypothesis_repair_limit": 3,
+    "mechanical_parity_repairs_count_toward_limit": false,
+    "repair_records": []
+  },
+  "run_id": "R0001",
+  "schema": "axiom_rift_run_manifest_v2",
+  "source_ingredient_ids": [],
+  "status": "closed_no_candidate",
+  "surfaces": {
+    "feature": {
+      "status": "variable",
+      "summary": "directional impulse; adverse excursion compression; favorable excursion persistence; pullback shallowness; close reacceleration; micro range contraction; VWAP clearance; session room; volume participation balance; prior day direction context; session maturity; spread stress inverse"
+    },
+    "label": {
+      "status": "variable",
+      "summary": "target-first quality after vwap acceptance continuation"
+    },
+    "model": {
+      "status": "variable",
+      "summary": "fold-local linear intraday vwap acceptance continuation rank"
+    },
+    "trade_logic": {
+      "status": "variable",
+      "summary": "dual-direction top fold-local vwap-acceptance-continuation scores per active day using next-bar-open fixed-lot discovery entries"
+    }
+  },
+  "template": false,
+  "work_unit_id": "C0135"
+}
