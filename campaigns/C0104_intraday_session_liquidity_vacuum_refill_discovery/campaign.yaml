@@ -1,0 +1,165 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: closed_no_candidate
+campaign_id: C0104
+campaign_slug: intraday_session_liquidity_vacuum_refill_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-07T04:54:49Z'
+hypothesis:
+  summary: intraday session liquidity vacuum refill discovery
+  boundary: C0104 R0001 tests whether thin session participation and compressed range vacuum
+    followed by directional refill pressure, adverse void recoil, participation recovery,
+    prior-day liquidity context, session phase maturity, and spread stress inverse can form
+    a target-first surface. It changes feature family, label conditioning, model context,
+    and trade-logic state key from C0103 range walk entropy transition. It is not a threshold/window/SL/TP/session/spread/capital
+    nudge, materialization step, ONNX step, selected claim, runtime claim, or retry-only run.
+  not_in_scope:
+  - selected_claim
+  - economics_pass
+  - runtime_authority
+  - materialization_ready
+  - onnx_ready
+  - live_readiness
+required_surfaces:
+  model:
+    status: variable
+    summary: fold-local linear intraday session liquidity vacuum refill rank
+  feature:
+    status: variable
+    summary: liquidity vacuum ratio; refill pressure; adverse void recoil; session depth gap;
+      post-void settlement; vacuum range recompression; participation recovery; prior-day
+      liquidity context; time refill alignment; session phase maturity; spread stress inverse
+  trade_logic:
+    status: variable
+    summary: dual-direction top fold-local liquidity-vacuum-refill scores per active day using
+      next-bar-open fixed-lot discovery entries
+  label:
+    status: variable
+    summary: target-first quality after session liquidity vacuum refill
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: null
+    direction: choose_c0105_new_major_hypothesis_after_c0104_closeout
+    reason: C0104 R0001 closed no-candidate after proxy, MT5 logic parity, MT5 tick, execution
+      divergence, and fold-isolated MT5 evidence. Further work inside C0104 would be adjacent
+      tuning.
+    status: campaign_closed_no_candidate
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
+closeout:
+  status: closed_no_candidate
+  close_reason: negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation
+  evidence_paths:
+  - artifact_lineage.json
+  - run_manifest.json
+  - artifacts/c0104_r0001_proxy_trades.csv
+  - artifacts/c0104_r0001_session_liquidity_vacuum_refill_summary.json
+  - kpi/proxy.json
+  - kpi/mt5_logic_parity.json
+  - kpi/proxy_vs_mt5_logic_parity.json
+  - kpi/mt5_tick.json
+  - kpi/execution_divergence.json
+  - artifacts/c0104_r0001_schedule.csv
+  - kpi/mt5_tick_by_fold.json
+  - kpi/execution_divergence_by_fold.json
+  remaining_question: choose_c0105_new_major_hypothesis_after_c0104_closeout
+  closed_at_utc: '2026-07-07T05:17:06Z'
+  decision_basis:
+    entries_per_active_day: 7.318966
+    proxy_net_pnl_points: -15941.5
+    proxy_profit_factor: 0.699995
+    proxy_expectancy_points_per_entry: -3.755359
+    proxy_trade_count: 4245
+    proxy_win_rate: 0.369376
+    long_trade_count_proxy: 2467
+    short_trade_count_proxy: 1778
+    mt5_logic_net_pnl: -150.49
+    mt5_logic_profit_factor: 0.726948
+    mt5_logic_trade_count: 4245
+    mechanical_parity_status: passed
+    intent_parity_status: passed_schedule_replay_boundary
+    mismatch_count: 0
+    entry_key_match_rate: 1.0
+    exit_reason_match_rate: 1.0
+    exit_time_direction_match_rate: 1.0
+    mt5_tick_net_pnl: -159.85
+    mt5_tick_profit_factor: 0.70093
+    mt5_tick_max_drawdown_percent: 32.418
+    mt5_tick_trade_count: 4235
+    mt5_tick_win_rate: 0.361511
+    mt5_tick_expectancy_per_entry: -0.037745
+    execution_divergence_status: recorded_with_divergence
+    economics_shift_status: tick_worse_than_logic
+    tick_minus_logic_net_pnl: -9.36
+    tick_minus_logic_trade_count: -10
+    entry_count_delta: null
+    exit_count_delta: null
+    mt5_tick_by_fold_status: completed
+    fold_count: 9
+    completed_fold_count: 9
+    profitable_fold_count: 0
+    losing_fold_count: 9
+    missing_required_fold_count: 0
+    total_tick_net_pnl: -159.85
+    total_tick_trade_count: 4235
+    worst_fold_id: rw_009
+    worst_fold_net_pnl: -25.4
+    worst_fold_max_drawdown_percent: 5.66
+    worst_drawdown_fold_id: rw_009
+    execution_divergence_by_fold_status: completed
+    divergence_recorded_fold_count: 9
+    minimum_entry_key_match_rate: 0.991543
+    minimum_exit_reason_match_rate: 0.864979
+    minimum_exit_time_direction_match_rate: 0.879747
+    tick_better_fold_count: 4
+    tick_worse_fold_count: 5
+    total_tick_minus_logic_net_pnl: -9.36
+    total_tick_minus_logic_trade_count: -10
+    worst_tick_minus_logic_fold_id: rw_005
+    worst_tick_minus_logic_net_pnl: -4.13
+    remaining_work_classification: no_candidate; further C0104 work would be adjacent threshold,
+      stop, target, hold, session, activity, spread, capital, or session-liquidity-vacuum-refill
+      feature nudge tuning
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+closed_at_utc: '2026-07-07T05:17:06Z'
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: candidate_later
+  usable_ingredient_group_count: 29
+  readiness_notes:
+  - C0049, C0050, C0051, C0052, C0053, C0054, C0055, C0056, C0057, C0058, C0059, C0060, C0061,
+    C0062, C0063, C0064, C0065, C0066, C0070, C0071, C0072, C0073, C0084, C0085, C0086, C0087,
+    C0088, C0089, C0096, C0097, C0098, C0099, C0100, C0102, C0103, and C0104 provide post-SC0009
+    negative-memory ingredients, but default usable ingredient minimums are not met.
+  - Next work can remain a new major C0105 campaign hypothesis, not C0104 threshold or stop/target
+    tuning.
