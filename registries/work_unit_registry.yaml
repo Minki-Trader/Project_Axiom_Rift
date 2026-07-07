@@ -126,6 +126,7 @@ streams:
     - campaigns/C0105_intraday_close_pressure_followthrough_discovery
     - campaigns/C0106_intraday_range_acceptance_failure_reversal_discovery
     - campaigns/C0107_intraday_opening_drive_exhaustion_fade_discovery
+    - campaigns/C0108_intraday_gap_digestion_reversal_discovery
     numbering_policy:
       width: 4
       example: C0001
