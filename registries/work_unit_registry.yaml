@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0134
+    next_id: C0135
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -152,6 +152,7 @@ streams:
     - campaigns/C0131_intraday_bar_sequence_alternation_pressure_release_discovery
     - campaigns/C0132_intraday_inside_outside_bar_expansion_discovery
     - campaigns/C0133_intraday_failed_extreme_continuation_absorption_discovery
+    - campaigns/C0134_intraday_adverse_excursion_compression_continuation_discovery
     numbering_policy:
       width: 4
       example: C0001

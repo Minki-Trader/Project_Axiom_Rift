@@ -1,0 +1,106 @@
+{
+  "campaign_id": "C0134",
+  "claim_boundary": {
+    "claim_authority": false,
+    "live_ready": false,
+    "runtime_authority": false
+  },
+  "compared_period": {
+    "end": "2026-04-30",
+    "start": "2024-02-01"
+  },
+  "conditional_profiles": {
+    "cost_execution_profile": {
+      "applies": true,
+      "fields": {
+        "commission_assumption": "broker_native",
+        "economics_claim_authority": false,
+        "execution_source": "mt5_strategy_tester",
+        "logic_parity_capital_override_applies": true,
+        "logic_parity_capital_override_reason": "prevent_margin_depletion_from_blocking_schedule_mechanical_parity",
+        "logic_parity_capital_override_usd": 100000.0,
+        "lot": "0.0100",
+        "runtime_baseline_starting_balance_usd": 500.0,
+        "slippage_source": "mt5_strategy_tester",
+        "spread_source": "mt5_strategy_tester",
+        "starting_balance_usd": 100000.0
+      }
+    },
+    "intraday_adverse_excursion_compression_continuation_schedule_replay_profile": {
+      "applies": true,
+      "fields": {
+        "logic_boundary": "proxy_selected_fold_local_intraday_adverse_excursion_compression_continuation_schedule_replayed_in_mt5_closed_bar_mode",
+        "native_mql_or_onnx_state_surface_claim": false,
+        "schedule_artifact_path": "campaigns/C0134_intraday_adverse_excursion_compression_continuation_discovery/runs/R0001/artifacts/c0134_r0001_schedule.csv",
+        "schedule_hash": "a78b24083bf33a4067f5e66b396e501e5dc0b2e00d5eed7e8d5791d9d148f4c4"
+      }
+    },
+    "trade_match_detail_profile": {
+      "applies": true,
+      "fields": {
+        "entry_mismatch_samples": [],
+        "entry_sequence_direction_match_rate": 1.0,
+        "entry_sequence_time_match_rate": 1.0,
+        "exit_mismatch_samples": [],
+        "exit_sequence_reason_match_rate": 1.0,
+        "exit_sequence_time_match_rate": 1.0,
+        "mt5_entry_event_count": 4401,
+        "mt5_exit_event_count": 4401,
+        "mt5_trade_count": 4401,
+        "proxy_trade_count": 4401
+      }
+    }
+  },
+  "created_at_utc": "2026-07-07T21:38:27Z",
+  "deferred_with_reason": [
+    {
+      "blocking_condition": "C0134 R0001 does not yet have fold-isolated tick evidence",
+      "claim_boundary": {
+        "claim_authority": false,
+        "onnx_ready": false,
+        "runtime_authority": false
+      },
+      "field": "runtime_or_onnx_portability",
+      "reason": "logic parity uses schedule replay only; native intraday adverse excursion compression continuation materialization is deferred until candidate quality exists",
+      "requirement_class": "deferred_with_reason",
+      "revisit_when": "after fold-isolated MT5 tick closeout review"
+    }
+  ],
+  "mechanical_checks": {
+    "entry_count_match": "passed",
+    "entry_exit_order_match": "passed",
+    "entry_time_direction_match": "passed",
+    "exit_count_match": "passed",
+    "exit_time_reason_order_match": "passed",
+    "intraday_adverse_excursion_compression_continuation_schedule_match": "passed",
+    "position_lifecycle_match": "passed"
+  },
+  "mt5_kpi_family": "mt5_logic_parity",
+  "mt5_probe_id": "MT5-C0134-R0001",
+  "parity_id": "PVMT5-C0134-R0001",
+  "parity_mode": "logic_parity",
+  "proxy_id": "PX-C0134-R0001",
+  "required_kpis": {
+    "entry_count_delta": 0,
+    "entry_direction_match_rate": 1.0,
+    "entry_key_match_rate": 1.0,
+    "entry_time_match_rate": 1.0,
+    "exit_count_delta": 0,
+    "exit_reason_match_rate": 1.0,
+    "exit_time_direction_match_rate": 1.0,
+    "exit_time_match_rate": 1.0,
+    "intent_parity_status": "passed_schedule_replay_boundary",
+    "mechanical_parity_status": "passed",
+    "mismatch_count": 0,
+    "mismatch_summary": "No key mismatch detected",
+    "next_action": "produce_c0134_r0001_mt5_tick_execution_evidence",
+    "repair_required": false,
+    "trade_count_delta": 0
+  },
+  "requirement_policy": "required_and_conditional_required_with_deferred_reason",
+  "run_id": "R0001",
+  "schema": "axiom_rift_proxy_vs_mt5_logic_parity_kpi_v1",
+  "synthesis_id_when_applicable": null,
+  "template": false,
+  "work_unit_id": "C0134"
+}

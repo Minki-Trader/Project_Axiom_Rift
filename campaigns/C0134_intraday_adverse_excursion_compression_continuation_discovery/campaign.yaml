@@ -1,0 +1,176 @@
+schema: axiom_rift_campaign_v1
+template: false
+status: closed_with_candidate_evidence
+campaign_id: C0134
+campaign_slug: intraday_adverse_excursion_compression_continuation_discovery
+campaign_type: campaign
+opened_at_utc: '2026-07-07T21:30:26Z'
+hypothesis:
+  summary: intraday adverse excursion compression continuation discovery
+  boundary: C0134 R0001 tests whether directional impulse paths with compressed adverse excursion,
+    shallow pullback, close reacceleration, and remaining session room can rank target-first
+    US100 M5 continuation entries using fold-local evidence after realistic FPMarkets spread
+    cost. It changes feature family, label conditioning, model context, and trade-logic state
+    key from C0133 failed extreme continuation absorption, C0132 inside outside bar expansion,
+    C0131 bar sequence alternation pressure release, C0130 session skew normalization reversal,
+    and C0129 directional curvature continuation. It is not a C0133 threshold/window/SL/TP/session/spread/capital
+    nudge, not a C0129 curvature continuation retry, not a C0123 volatility decay trend resumption
+    retry, not a C0111 cost efficient drift continuation retry, and not a materialization,
+    ONNX, selected, runtime, promotion, or live-readiness claim.
+  not_in_scope:
+  - selected_claim
+  - economics_pass
+  - runtime_authority
+  - materialization_ready
+  - onnx_ready
+  - live_readiness
+required_surfaces:
+  model:
+    status: variable
+    summary: fold-local linear intraday adverse excursion compression continuation rank
+  feature:
+    status: variable
+    summary: directional impulse; adverse excursion compression; favorable excursion persistence;
+      pullback shallowness; close reacceleration; micro range contraction; VWAP clearance;
+      session room; volume participation balance; prior day direction context; session maturity;
+      spread stress inverse
+  trade_logic:
+    status: variable
+    summary: dual-direction top fold-local adverse-excursion-compression-continuation scores
+      per active day using next-bar-open fixed-lot discovery entries
+  label:
+    status: variable
+    summary: target-first quality after adverse excursion compression continuation
+run_index:
+  runs_root: runs/
+  run_id_format: R0001
+  active_run: null
+  closed_runs:
+  - runs/R0001
+  next_run_candidate:
+    run_id: null
+    direction: choose_c0135_new_major_hypothesis_after_c0134_closeout
+    reason: C0134 R0001 retained candidate evidence after proxy, MT5 logic parity, MT5 tick,
+      execution divergence, and fold-isolated MT5 evidence. Further C0134 work would be adjacent
+      hardening or materialization, not a new non-adjacent discovery run.
+    status: campaign_closed_with_candidate_evidence
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
+closeout:
+  status: closed_with_candidate_evidence
+  close_reason: candidate_evidence_retained_not_selected_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation
+  evidence_paths:
+  - artifact_lineage.json
+  - run_manifest.json
+  - artifacts/c0134_r0001_proxy_trades.csv
+  - artifacts/c0134_r0001_adverse_excursion_compression_continuation_summary.json
+  - kpi/proxy.json
+  - kpi/mt5_logic_parity.json
+  - kpi/proxy_vs_mt5_logic_parity.json
+  - kpi/mt5_tick.json
+  - kpi/execution_divergence.json
+  - artifacts/c0134_r0001_schedule.csv
+  - kpi/mt5_tick_by_fold.json
+  - kpi/execution_divergence_by_fold.json
+  remaining_question: choose_c0135_new_major_hypothesis_after_c0134_closeout
+  closed_at_utc: '2026-07-07T21:54:02Z'
+  decision_basis:
+    entries_per_active_day: 7.587931
+    proxy_net_pnl_points: 6345.74
+    proxy_profit_factor: 1.168184
+    proxy_expectancy_points_per_entry: 1.441886
+    proxy_trade_count: 4401
+    proxy_win_rate: 0.489207
+    long_trade_count_proxy: 2645
+    short_trade_count_proxy: 1756
+    mt5_logic_net_pnl: 76.8
+    mt5_logic_profit_factor: 1.187011
+    mt5_logic_trade_count: 4401
+    mechanical_parity_status: passed
+    intent_parity_status: passed_schedule_replay_boundary
+    mismatch_count: 0
+    entry_key_match_rate: 1.0
+    exit_reason_match_rate: 1.0
+    exit_time_direction_match_rate: 1.0
+    mt5_tick_net_pnl: 77.04
+    mt5_tick_profit_factor: 1.20368
+    mt5_tick_max_drawdown_percent: 1.492
+    mt5_tick_trade_count: 4398
+    mt5_tick_win_rate: 0.482492
+    mt5_tick_expectancy_per_entry: 0.017517
+    execution_divergence_status: recorded_with_divergence
+    economics_shift_status: tick_better_than_logic
+    tick_minus_logic_net_pnl: 0.24
+    tick_minus_logic_trade_count: -3
+    entry_count_delta: null
+    exit_count_delta: null
+    mt5_tick_by_fold_status: completed
+    fold_count: 9
+    completed_fold_count: 9
+    profitable_fold_count: 9
+    losing_fold_count: 0
+    missing_required_fold_count: 0
+    total_tick_net_pnl: 77.04
+    total_tick_trade_count: 4398
+    worst_fold_id: rw_001
+    worst_fold_net_pnl: 0.66
+    worst_fold_max_drawdown_percent: 1.492
+    worst_drawdown_fold_id: rw_009
+    execution_divergence_by_fold_status: completed
+    divergence_recorded_fold_count: 9
+    minimum_entry_key_match_rate: 0.997934
+    minimum_exit_reason_match_rate: 0.882716
+    minimum_exit_time_direction_match_rate: 0.897119
+    tick_better_fold_count: 5
+    tick_worse_fold_count: 4
+    total_tick_minus_logic_net_pnl: 0.24
+    total_tick_minus_logic_trade_count: -3
+    worst_tick_minus_logic_fold_id: rw_004
+    worst_tick_minus_logic_net_pnl: -4.54
+    remaining_work_classification: candidate_evidence_retained_not_selected; C0134 R0001 produced
+      target-band activity and profitable fold-isolated MT5 tick evidence, but remains outside
+      selected, economics-pass, runtime, materialization, ONNX, promotion, handoff, reproducibility,
+      or live-readiness authority
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+closed_at_utc: '2026-07-07T21:54:02Z'
+synthesis_readiness:
+  check_required_at_closeout: true
+  result: candidate_later
+  open_synthesis_now: false
+  recommended_next_action: choose_c0135_new_major_hypothesis_after_c0134_closeout
+  readiness_notes:
+  - c0134_r0001_candidate_evidence_retained_not_selected
+  - synthesis_not_opened_in_this_closeout
+  - next_work_can_choose_c0135_new_major_hypothesis_without_c0134_adjacent_tuning
+campaign_lessons:
+- C0134 R0001 adverse excursion compression continuation evidence is retained as candidate
+  evidence.
+- Fold-isolated MT5 tick evidence completed with all folds profitable, but no selected or
+  economics-pass authority is created.
+- Further C0134 work would be adjacent hardening, materialization, ONNX, sizing, or robustness
+  work.
