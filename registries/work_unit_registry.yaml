@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0119
+    next_id: C0120
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -137,6 +137,7 @@ streams:
     - campaigns/C0116_intraday_day_open_anchor_reclaim_discovery
     - campaigns/C0117_intraday_overnight_inventory_unwind_discovery
     - campaigns/C0118_intraday_liquidity_shelf_decay_break_discovery
+    - campaigns/C0119_intraday_range_ladder_failure_repair_discovery
     numbering_policy:
       width: 4
       example: C0001
