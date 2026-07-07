@@ -102,23 +102,23 @@ active_campaign: null
 active_synthesis: null
 active_run: null
 latest_operation:
-  id: close_c0095_r0001_no_candidate
+  id: close_c0096_r0001_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0095_intraday_close_cluster_escape_discovery/runs/R0001/gate_report.json
+  recorded_at_source: campaigns/C0096_intraday_wick_stack_pressure_reversal_discovery/runs/R0001/gate_report.json
   evidence_status: closed_no_candidate
   active_campaign: null
   active_synthesis: null
   active_run: null
   negative_memory_recorded: true
   candidate_evidence_retained: false
-  entries_per_active_day: 7.425862
-  proxy_net_pnl_points: -9937.53
-  proxy_profit_factor: 0.791611
-  mt5_tick_net_pnl: -91.49
-  mt5_tick_profit_factor: 0.80796
+  entries_per_active_day: 7.581034
+  proxy_net_pnl_points: -14416.16
+  proxy_profit_factor: 0.728373
+  mt5_tick_net_pnl: -140.7
+  mt5_tick_profit_factor: 0.735392
   profitable_fold_count: 0
   losing_fold_count: 9
-  next_required_action: choose_c0096_new_major_hypothesis_after_c0095_closeout
+  next_required_action: choose_c0097_new_major_hypothesis_after_c0096_closeout
   claim_boundary:
     claim_authority: false
     selected: false
