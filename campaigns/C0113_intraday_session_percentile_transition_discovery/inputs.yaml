@@ -1,0 +1,39 @@
+schema: axiom_rift_campaign_inputs_v1
+campaign_id: C0113
+work_unit_id: C0113
+campaign_slug: intraday_session_percentile_transition_discovery
+created_at_utc: '2026-07-07T09:41:27Z'
+market:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+dataset_identity: data/processed/datasets/us100_m5_base_frame.csv
+split_policy: rolling_window_fold_isolated
+source_decision: choose_c0113_new_major_hypothesis_after_c0112_closeout
+failure_memory_used:
+- campaigns/C0112_intraday_micro_consolidation_breakout_continuation_discovery/runs/R0001/gate_report.json
+- campaigns/C0111_intraday_cost_efficient_drift_continuation_discovery/runs/R0001/gate_report.json
+- campaigns/C0110_intraday_extreme_retest_failure_reversal_discovery/runs/R0001/gate_report.json
+- campaigns/C0109_intraday_failed_vwap_reversion_continuation_discovery/runs/R0001/gate_report.json
+- campaigns/C0099_intraday_failed_pullback_continuation_discovery/runs/R0001/gate_report.json
+- campaigns/C0087_intraday_range_third_transition_discovery/runs/R0001/gate_report.json
+- campaigns/C0040_intraday_return_distribution_shape_discovery/runs/R0001/gate_report.json
+open_decision:
+  operation_class: new_campaign
+  decision: open_c0113_intraday_session_percentile_transition_discovery
+  reason: no active campaign exists after C0112 closeout; C0113 changes the major hypothesis
+    surface instead of tuning C0112 thresholds or stops
+claim_boundary:
+  claim_authority: false
+  selected: false
+  label_selected: false
+  feature_set_selected: false
+  model_selected: false
+  trade_logic_selected: false
+  runtime_probe_completed: false
+  economics_pass: false
+  materialization_ready: false
+  runtime_authority: false
+  onnx_ready: false
+  promotion_ready: false
+  live_ready: false
