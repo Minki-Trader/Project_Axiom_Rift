@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0110
+    next_id: C0111
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -128,6 +128,7 @@ streams:
     - campaigns/C0107_intraday_opening_drive_exhaustion_fade_discovery
     - campaigns/C0108_intraday_gap_digestion_reversal_discovery
     - campaigns/C0109_intraday_failed_vwap_reversion_continuation_discovery
+    - campaigns/C0110_intraday_extreme_retest_failure_reversal_discovery
     numbering_policy:
       width: 4
       example: C0001

@@ -2,21 +2,21 @@ schema: axiom_rift_decision_cursor_v1
 status: active
 encoding: ascii_only
 updated_local_date: '2026-07-07'
-canonical_source: campaigns/C0109_intraday_failed_vwap_reversion_continuation_discovery/runs/R0001/gate_report.json
+canonical_source: campaigns/C0110_intraday_extreme_retest_failure_reversal_discovery/runs/R0001/gate_report.json
 canonical_status: closed_no_candidate
-current_decision: choose_c0110_new_major_hypothesis_after_c0109_closeout
+current_decision: choose_c0111_new_major_hypothesis_after_c0110_closeout
 active_campaign: null
 active_run: null
 active_synthesis: null
-next_required_action: choose_c0110_new_major_hypothesis_after_c0109_closeout
+next_required_action: choose_c0111_new_major_hypothesis_after_c0110_closeout
 terminal_evidence_priority:
   enabled: true
   resolved_from:
-    active_campaign: campaigns/C0109_intraday_failed_vwap_reversion_continuation_discovery
+    active_campaign: campaigns/C0110_intraday_extreme_retest_failure_reversal_discovery
     active_campaign_status: closed_no_candidate
-    active_run: campaigns/C0109_intraday_failed_vwap_reversion_continuation_discovery/runs/R0001
+    active_run: campaigns/C0110_intraday_extreme_retest_failure_reversal_discovery/runs/R0001
     active_run_status: closed_no_candidate
-    previous_campaign: campaigns/C0108_intraday_gap_digestion_reversal_discovery
+    previous_campaign: campaigns/C0109_intraday_failed_vwap_reversion_continuation_discovery
     previous_campaign_status: closed_no_candidate
   authority_order:
   - active_run_manifest_and_gate_report
@@ -29,25 +29,25 @@ terminal_evidence_priority:
   stale_pointer_rule: active_run_manifest_and_gate_report_outrank_previous_closed_campaign_pointer
   reentry_completed_log_role: history_only_not_decision_authority
 current_evidence_summary:
-  source_campaign: campaigns/C0109_intraday_failed_vwap_reversion_continuation_discovery
+  source_campaign: campaigns/C0110_intraday_extreme_retest_failure_reversal_discovery
   active_campaign: null
   active_synthesis: null
   active_run: null
   active_run_status: closed_no_candidate
   campaign_status: closed_no_candidate
   evidence_status: closed_no_candidate
-  current_task: choose_c0110_new_major_hypothesis_after_c0109_closeout
-  next_required_action: choose_c0110_new_major_hypothesis_after_c0109_closeout
-  note: C0109 R0001 and C0109 closed no-candidate; failed VWAP reversion continuation surface
+  current_task: choose_c0111_new_major_hypothesis_after_c0110_closeout
+  next_required_action: choose_c0111_new_major_hypothesis_after_c0110_closeout
+  note: C0110 R0001 and C0110 closed no-candidate; extreme retest failure reversal surface
     produced insufficient candidate-quality fold-isolated MT5 evidence.
-  proxy_trade_count: 4349
-  proxy_net_pnl_points: -9213.65
-  proxy_profit_factor: 0.688259
-  entries_per_active_day: 7.498276
-  mt5_tick_net_pnl: -84.46
-  mt5_tick_profit_factor: 0.714653
-  profitable_fold_count: 1
-  losing_fold_count: 8
+  proxy_trade_count: 4163
+  proxy_net_pnl_points: -15599.97
+  proxy_profit_factor: 0.528725
+  entries_per_active_day: 7.214905
+  mt5_tick_net_pnl: -143.18
+  mt5_tick_profit_factor: 0.562127
+  profitable_fold_count: 0
+  losing_fold_count: 9
 repo_debt_scope:
   global_repo_state_ok: false
   observed_error_count: 31
@@ -57,7 +57,7 @@ repo_debt_scope:
     status: observed_preexisting
     observed_error_count: 31
     affected_scope: historical_c0001_c0005_and_sc0001_sc0002_artifact_lineage
-    role: repo_state_debt_not_current_c0109_r0001_closeout
+    role: repo_state_debt_not_current_c0110_r0001_closeout
     current_decision_class: known_nonblocking_for_next_work_decision
     may_continue_current_decision: true
     blocks_selected_claim: true
@@ -77,7 +77,7 @@ repo_debt_scope:
     blocks_handoff: true
     blocks_reproducibility_claim: true
   note: repo_state_has_preexisting_nonblocking_artifact_lineage_debt_and_price_quality_warning;
-    current_c0109_r0001_closeout_makes_no_selection_promotion_handoff_or_reproducibility_claims
+    current_c0110_r0001_closeout_makes_no_selection_promotion_handoff_or_reproducibility_claims
 claim_boundary_snapshot:
   claim_authority: false
   selected: false
@@ -93,12 +93,12 @@ claim_boundary_snapshot:
   promotion_ready: false
   live_ready: false
 next_decision_basis:
-- path: campaigns/C0109_intraday_failed_vwap_reversion_continuation_discovery/runs/R0001/gate_report.json
+- path: campaigns/C0110_intraday_extreme_retest_failure_reversal_discovery/runs/R0001/gate_report.json
   role: closed_run_gate_report
-  summary: C0109 R0001 closed no-candidate with negative memory recorded.
-- path: campaigns/C0109_intraday_failed_vwap_reversion_continuation_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
+  summary: C0110 R0001 closed no-candidate with negative memory recorded.
+- path: campaigns/C0110_intraday_extreme_retest_failure_reversal_discovery/runs/R0001/kpi/mt5_tick_by_fold.json
   role: fold_isolated_mt5_tick_kpi
   summary: Fold-isolated MT5 tick evidence completed for closeout review.
-- path: campaigns/C0109_intraday_failed_vwap_reversion_continuation_discovery/campaign.yaml
+- path: campaigns/C0110_intraday_extreme_retest_failure_reversal_discovery/campaign.yaml
   role: closed_campaign_manifest
-  summary: C0109 closed no-candidate; next work is a new major C0110 hypothesis.
+  summary: C0110 closed no-candidate; next work is a new major C0111 hypothesis.
