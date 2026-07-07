@@ -85,7 +85,7 @@ closeout:
   - kpi/mt5_tick_by_fold.json
   - kpi/execution_divergence_by_fold.json
   remaining_question: choose_c0116_new_major_hypothesis_after_c0115_closeout
-  closed_at_utc: '2026-07-07T11:34:15Z'
+  closed_at_utc: '2026-07-07T11:37:35Z'
   decision_basis:
     entries_per_active_day: 5.669683
     proxy_net_pnl_points: -20920.23
@@ -156,7 +156,7 @@ closeout:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
-closed_at_utc: '2026-07-07T11:34:15Z'
+closed_at_utc: '2026-07-07T11:37:35Z'
 synthesis_readiness:
   check_required_at_closeout: true
   result: candidate_later

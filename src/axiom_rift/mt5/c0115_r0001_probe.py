@@ -1642,7 +1642,7 @@ def c0115_negative_memory_asset(summary: dict[str, Any]) -> dict[str, Any]:
         ),
         "evidence_paths": closeout_evidence_paths(),
         "reason_not_candidate": (
-            "entry activity did not satisfy the target band, and proxy, closed-bar MT5 logic, aggregate "
+            "entry activity landed inside the target band, but proxy, closed-bar MT5 logic, aggregate "
             "MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate"
         ),
         "next_boundary": (

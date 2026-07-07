@@ -49,7 +49,7 @@
       "trade_logic_selected": false
     },
     "close_reason": "negative_memory_recorded_after_proxy_mt5_logic_parity_tick_execution_divergence_and_fold_isolated_validation",
-    "closed_at_utc": "2026-07-07T11:34:15Z",
+    "closed_at_utc": "2026-07-07T11:37:35Z",
     "negative_memory": {
       "asset_type": "negative_memory",
       "candidate_status": "no_candidate",
@@ -71,7 +71,7 @@
       "hypothesis_tested": "fold-local intraday prior day range boundary acceptance rank over prior boundary distance, boundary acceptance depth, same-side hold ratio, boundary retest absorption, close acceptance strength, breakout impulse efficiency, volume acceptance ratio, VWAP boundary alignment, opening range alignment, prior day direction context, session maturity, and spread stress inverse features",
       "next_boundary": "C0115 R0001 shows the tested prior day range boundary acceptance surface is not a candidate as implemented; remaining C0115 variants would be adjacent tuning, so next work should choose a new major C0116 hypothesis without selected, economics-pass, runtime, materialization, ONNX, promotion, or live claims",
       "onnx_ready": false,
-      "reason_not_candidate": "entry activity did not satisfy the target band, and proxy, closed-bar MT5 logic, aggregate MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate",
+      "reason_not_candidate": "entry activity landed inside the target band, but proxy, closed-bar MT5 logic, aggregate MT5 tick, and fold-isolated MT5 tick evidence did not establish a candidate",
       "runtime_authority": false,
       "selection_status": "not_selected",
       "supporting_lessons": [

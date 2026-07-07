@@ -39,7 +39,7 @@
       "mutable": true,
       "produced_by": "axiom_rift.proxies.c0115_r0001_intraday_prior_day_range_boundary_acceptance",
       "repo_relative_path": "campaigns/C0115_intraday_prior_day_range_boundary_acceptance_discovery/runs/R0001/gate_report.json",
-      "sha256": "ad2d610a5b5368183b1d01d6542cf17ab72ba86d651ecc10a4d6ae5ac9d65c1c",
+      "sha256": "7fe5192d58d2b39584c569d219252c270b017c523d7efa4124c3f620d54078d3",
       "source_inputs": [
         "campaigns/C0115_intraday_prior_day_range_boundary_acceptance_discovery/runs/R0001/run_manifest.json",
         "campaigns/C0115_intraday_prior_day_range_boundary_acceptance_discovery/runs/R0001/kpi/proxy.json"
@@ -175,7 +175,7 @@
       "mutable": true,
       "produced_by": "axiom_rift.proxies.c0115_r0001_intraday_prior_day_range_boundary_acceptance",
       "repo_relative_path": "campaigns/C0115_intraday_prior_day_range_boundary_acceptance_discovery/runs/R0001/run_manifest.json",
-      "sha256": "e84934ede64bd0bbd4e63cc16205a5ce6c5ff61f9a67ccca2e4564995a2a7b23",
+      "sha256": "4966b2fe2346caa5ccfca29b9e16083e779a6a802a5b0c427a6c8b5d722baa76",
       "source_inputs": [
         "registries/decision_cursor.yaml",
         "registries/claim_state.yaml",
