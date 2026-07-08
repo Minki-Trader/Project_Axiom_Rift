@@ -15,7 +15,7 @@ streams:
   campaign_stream:
     id_prefix: C
     role: major_hypothesis_discovery
-    next_id: C0143
+    next_id: C0144
     active_work_unit: null
     open_work_units: []
     closed_work_units:
@@ -161,6 +161,7 @@ streams:
     - campaigns/C0140_intraday_anchor_braid_squeeze_escape_continuation_discovery
     - campaigns/C0141_intraday_range_overextension_snapback_reversal_discovery
     - campaigns/C0142_intraday_two_sided_auction_release_continuation_discovery
+    - campaigns/C0143_intraday_value_migration_pullback_continuation_discovery
     numbering_policy:
       width: 4
       example: C0001

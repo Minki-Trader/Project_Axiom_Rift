@@ -2374,8 +2374,20 @@ next_work:
   - review_c0142_r0001_tick_execution_kpi_and_closeout
   - close_c0142_r0001_no_candidate
   - close_c0142_no_candidate_after_r0001
-  tasks:
   - choose_c0143_new_major_hypothesis_after_c0142_closeout
+  - open_c0143_intraday_value_migration_pullback_continuation_discovery
+  - open_c0143_r0001_intraday_value_migration_pullback_continuation_rank_run
+  - produce_c0143_r0001_proxy_evidence
+  - record_c0143_r0001_proxy_vs_mt5_logic_parity_evidence
+  - record_c0143_r0001_execution_divergence
+  - produce_c0143_r0001_mt5_tick_execution_evidence
+  - produce_c0143_r0001_fold_isolated_mt5_tick_kpi
+  - produce_c0143_r0001_fold_isolated_execution_divergence
+  - review_c0143_r0001_tick_execution_kpi_and_closeout
+  - close_c0143_r0001_no_candidate
+  - close_c0143_no_candidate_after_r0001
+  tasks:
+  - choose_c0144_new_major_hypothesis_after_c0143_closeout
   not_yet:
   - label_freeze
   - feature_set_freeze
@@ -2391,23 +2403,23 @@ active_run: null
 active_campaign: null
 active_synthesis: null
 latest_operation:
-  id: close_c0142_r0001_no_candidate
+  id: close_c0143_r0001_no_candidate
   status: completed
-  recorded_at_source: campaigns/C0142_intraday_two_sided_auction_release_continuation_discovery/runs/R0001/gate_report.json
+  recorded_at_source: campaigns/C0143_intraday_value_migration_pullback_continuation_discovery/runs/R0001/gate_report.json
   evidence_status: closed_no_candidate
   active_campaign: null
   active_synthesis: null
   active_run: null
   negative_memory_recorded: true
   candidate_evidence_retained: false
-  entries_per_active_day: 7.681034
-  proxy_net_pnl_points: -10453.64
-  proxy_profit_factor: 0.774155
-  mt5_tick_net_pnl: -101.86
-  mt5_tick_profit_factor: 0.78249
+  entries_per_active_day: 7.706897
+  proxy_net_pnl_points: -29338.27
+  proxy_profit_factor: 0.489506
+  mt5_tick_net_pnl: -277.8
+  mt5_tick_profit_factor: 0.514174
   profitable_fold_count: 0
   losing_fold_count: 9
-  next_required_action: choose_c0143_new_major_hypothesis_after_c0142_closeout
+  next_required_action: choose_c0144_new_major_hypothesis_after_c0143_closeout
   claim_boundary:
     claim_authority: false
     selected: false
