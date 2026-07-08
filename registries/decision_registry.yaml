@@ -16863,3 +16863,143 @@ decisions:
     onnx_ready: false
     promotion_ready: false
     live_ready: false
+- decision_id: dec_20260708_open_c0142_intraday_two_sided_auction_release_continuation_discovery
+  created_local_date: '2026-07-08'
+  status: active
+  decision: open_c0142_intraday_two_sided_auction_release_continuation_discovery
+  refines:
+  - dec_20260708_close_c0141_no_candidate_after_r0001
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - no_active_campaign_after_c0141_closeout
+  - c0142_changes_major_hypothesis_to_intraday_two_sided_auction_release_continuation
+  - c0142_is_not_c0141_range_overextension_snapback_reversal_threshold_window_stop_target_session_spread_capital_or_feature_nudge_tuning
+  - early_discovery_remains_fixed_lot_and_equity_percent_sizing_is_deferred
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260708_open_c0142_r0001_intraday_two_sided_auction_release_continuation_rank_run
+  created_local_date: '2026-07-08'
+  status: active
+  decision: open_c0142_r0001_intraday_two_sided_auction_release_continuation_rank_run
+  refines:
+  - dec_20260708_open_c0142_intraday_two_sided_auction_release_continuation_discovery
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - r0001_is_first_true_variant_inside_c0142_two_sided_auction_release_continuation_boundary
+  - r0001_changes_feature_label_model_and_trade_logic_surfaces_from_c0141_range_overextension_snapback_reversal
+  - pre_open_decision_passed_with_novelty_score_4_adjacent_tuning_risk_low_expected_information_gain_high_mt5_portability_clear_decision_payoff_high
+  - opened_run_commits_to_proxy_mt5_logic_parity_proxy_vs_mt5_logic_parity_mt5_tick_execution_divergence_and_fold_isolated_closeout_evidence
+  - weak_proxy_result_must_not_skip_mt5_paired_validation
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260708_produce_c0142_r0001_proxy_evidence
+  created_local_date: '2026-07-08'
+  status: active
+  decision: produce_c0142_r0001_proxy_evidence
+  refines:
+  - dec_20260708_open_c0142_r0001_intraday_two_sided_auction_release_continuation_rank_run
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0142_r0001_proxy_records_two_sided_auction_release_continuation_reference_surface
+  - proxy_trade_count_4455
+  - entries_per_active_day_7.681034
+  - proxy_net_pnl_points_-10453.64
+  - proxy_profit_factor_0.774155
+  - proxy_result_cannot_skip_mt5_logic_parity_tick_execution_divergence_or_fold_isolated_closeout_evidence
+  - next_work_is_produce_c0142_r0001_mt5_logic_parity_evidence
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260708_close_c0142_r0001_no_candidate
+  created_local_date: '2026-07-08'
+  status: active
+  decision: close_c0142_r0001_no_candidate
+  refines:
+  - dec_20260708_produce_c0142_r0001_proxy_evidence
+  - dec_20260701_mandatory_mt5_paired_run_validation
+  rationale:
+  - c0142_r0001_completed_proxy_mt5_logic_parity_proxy_vs_mt5_parity_mt5_tick_execution_divergence_and_fold_isolated_tick_and_divergence_evidence
+  - proxy_net_pnl_points_-10453.64_profit_factor_0.774155
+  - mt5_tick_net_pnl_-101.86_profit_factor_0.78249
+  - fold_isolated_tick_has_0_profitable_and_9_losing_folds
+  - closeout_records_negative_memory_not_selection_or_economics_pass
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
+- decision_id: dec_20260708_close_c0142_no_candidate_after_r0001
+  created_local_date: '2026-07-08'
+  status: active
+  decision: close_c0142_no_candidate_after_r0001
+  refines:
+  - dec_20260708_close_c0142_r0001_no_candidate
+  - dec_20260708_open_c0142_intraday_two_sided_auction_release_continuation_discovery
+  rationale:
+  - C0142_two_sided_auction_release_continuation_boundary_was_answered_by_r0001_fold_isolated_mt5_evidence
+  - remaining_C0142_work_would_be_adjacent_threshold_window_stop_target_hold_session_activity_spread_capital_or_feature_nudge_tuning
+  - synthesis_readiness_candidate_later_because_post_sc0009_usable_ingredient_count_is_below_default_minimum
+  - next_work_is_choose_c0143_new_major_hypothesis_after_c0142_closeout
+  - no_selected_economics_runtime_materialization_onnx_promotion_or_live_claim_is_created
+  claim_boundary:
+    claim_authority: false
+    selected: false
+    label_selected: false
+    feature_set_selected: false
+    model_selected: false
+    trade_logic_selected: false
+    runtime_probe_completed: false
+    economics_pass: false
+    materialization_ready: false
+    runtime_authority: false
+    onnx_ready: false
+    promotion_ready: false
+    live_ready: false
