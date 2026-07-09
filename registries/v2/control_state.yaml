@@ -1,5 +1,5 @@
 schema: axiom_rift_v2_control_state_v1
-revision: 17
+revision: 18
 status: active
 encoding: ascii_only
 active_truth: v2
@@ -48,7 +48,7 @@ cursor:
   exact_next_action: open_V2G0002_and_preregister_distinct_density_first_V2H0002
   stage_outcome: scout_rejected
 reentry:
-  active_slice_id: V2SL0006_activation_closeout
+  active_slice_id: V2SL0007_git_closeout
   completed_receipt_ids:
   - V2VR000001
   - V2VR000002
@@ -89,13 +89,17 @@ reentry:
   repair_batches_remaining: 1
   blocker: null
   git_base: 5fce960b351a102f587a0a3434766cce37744d2c
-  git_head: 5fce960b351a102f587a0a3434766cce37744d2c
+  git_head: 890c48b005e26c45b4f5bff53c8920c0a214dc6f
   completed_evidence_ids:
   - V2E000004
   - V2E000005
   - V2E000006
   - V2E000007
   - V2E000008
+  git_closeout:
+    validated_commit: 890c48b005e26c45b4f5bff53c8920c0a214dc6f
+    branch: main
+    push_target: origin/main
 claim:
   subject_kind: hypothesis
   subject_id: V2H0001
@@ -135,6 +139,7 @@ applied_idempotency_keys:
 - record_V2VR000005_activation_candidate
 - activate_V2_after_V2VR000005
 - record_V2VR000006_active_activation
+- record_V2_activation_validated_commit
 bootstrap_goal_outcome: activated
 activation:
   activation_evidence_id: V2E000008
