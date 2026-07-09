@@ -1,0 +1,45 @@
+schema: axiom_rift_v2_bootstrap_work_unit_v1
+status: in_progress
+encoding: ascii_only
+work_unit_id: V2B0001
+goal_id: V2G0001
+work_unit_class: v2_operating_system_activation
+objective: implement_and_prove_v2_without_alpha_or_readiness_claims
+execution_authority: registries/v2/control_state.yaml
+claim_ceiling: none
+scope:
+  - v2_governance
+  - v2_content_identity_and_state
+  - v2_causal_research_runner
+  - v2_fast_validation
+  - v2_materialization_reference_path
+  - v2_activation_gate
+research_reset:
+  active_hypothesis_id: null
+  v1_alpha_inherited: false
+  first_scout_anchor_ids:
+    - V2D002
+    - V2D005
+    - V2D008
+validation_budget:
+  routine_target_seconds_min: 3
+  routine_target_seconds_max: 15
+  routine_hard_ceiling_seconds: 30
+  validation_batches: 1
+  consolidated_repair_batches_max: 1
+  recheck_batches_max: 1
+  routine_may_launch_data_training_mt5_or_onnx: false
+done_requires:
+  - activation_contract_preconditions_pass
+  - activation_receipt_exists
+  - active_truth_is_v2
+  - validated_commit_on_main
+  - origin_main_push
+next_action_source: registries/v2/control_state.yaml
+claim_boundary:
+  work_unit_creation_is_evidence: false
+  selected: false
+  onnx_ready: false
+  materialization_ready: false
+  pre_live_ready: false
+  live_ready: false

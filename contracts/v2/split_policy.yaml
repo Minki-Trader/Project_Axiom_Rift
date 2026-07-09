@@ -1,0 +1,79 @@
+schema: axiom_rift_v2_split_policy_v1
+status: active
+encoding: ascii_only
+legacy_boundary_source: registries/rolling_windows.yaml
+legacy_boundary_decision: adapt_roles_without_inheriting_claims
+roles:
+  train_is: fit_preprocessing_and_model
+  validation_oos: calibration_and_early_selection
+  development_cv: repeated_adaptive_comparison
+  limited_test_oos: restricted_family_confirmation
+  forward_holdout: locked_one_time_confirmation
+development_mapping:
+  source_folds: rw_001_to_rw_009
+  legacy_test_oos_role: development_cv
+  ordered_id_mapping:
+    V2D001: rw_001
+    V2D002: rw_002
+    V2D003: rw_003
+    V2D004: rw_004
+    V2D005: rw_005
+    V2D006: rw_006
+    V2D007: rw_007
+    V2D008: rw_008
+    V2D009: rw_009
+  scout_anchor_ids:
+    - V2D002
+    - V2D005
+    - V2D008
+  scout_anchor_source_folds:
+    - rw_002
+    - rw_005
+    - rw_008
+  scout_anchor_selection:
+    method: preregistered_time_and_calendar_phase_diversity
+    rationale: avoid_same_calendar_quarter_aliasing_while_covering_early_middle_and_late_development
+    performance_inputs_used: false
+    required_hash_inputs:
+      - source_split_sha256
+      - dataset_sha256
+role_boundary:
+  feature_context_may_predate_role_start: true
+  decision_bar_must_be_inside_role: true
+  label_end_bar_must_be_lte_role_end: true
+  trade_end_bar_must_be_lte_role_end: true
+  purge_width_source: hypothesis_max_label_and_trade_lifecycle
+  fixed_global_purge_bars: false
+  purge_applies_to:
+    - train_is
+    - validation_oos
+    - development_cv
+  cross_boundary_positions: exclude_not_force_close
+  prior_role_feature_context_is_input_only: true
+  prior_or_future_role_labels_allowed: false
+gap_boundary:
+  non_allow_boundary_count: 57
+  actions:
+    flag_for_review: 51
+    blackout: 6
+  crossing_sample_action: exclude
+cost_boundary:
+  zero_spread_semantics: unknown_cost
+  default_action: reject_entry_and_economics
+  preregistered_causal_fallback_allowed: true
+access:
+  H: metadata_only
+  S: assigned_anchor_development_only
+  R: all_development_folds
+  P: isolated_development_mt5_and_permitted_holdout
+  M: read_sealed_holdout_receipt_only
+tail_2026_05_01_to_2026_06_26:
+  status: quarantine_pending_access_audit
+  claim_use_allowed: false
+forward_holdout:
+  start_after: '2026-06-26 23:50:00'
+  status: awaiting_future_data
+  reveal_count: 0
+  max_reveals: 1
+  frozen_identity_bundle_required: true
+  retuning_after_reveal: false

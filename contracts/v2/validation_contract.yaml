@@ -1,0 +1,64 @@
+schema: axiom_rift_v2_validation_contract_v1
+status: active
+encoding: ascii_only
+authority:
+  budget_config: configs/v2/validation.yaml
+routine_validator:
+  role: fast_read_only_receipt_checker
+  target_seconds_min: 3
+  target_seconds_max: 15
+  hard_ceiling_seconds: 30
+  scope: changed_surfaces_only
+  fail_fast_on_missing_prerequisite: true
+  cache_identical_success_by_input_hash: true
+  rerun_unchanged_success: false
+  forbidden_actions:
+    - data_build
+    - feature_matrix_build
+    - model_training
+    - mt5_compile_or_test
+    - onnx_export_or_inference_job
+    - download
+    - external_evidence_job
+slice_loop:
+  slice_specifications: 1
+  batched_implementations: 1
+  focused_validation_batches: 1
+  consolidated_repair_batches_max: 1
+  focused_rechecks_max: 1
+  validate_after_each_file_edit: false
+  retry_identical_failure: false
+  automatic_timeout_extension: false
+  repeated_failure_action: root_cause_redesign_component_replacement_or_blocker
+long_evidence_job:
+  threshold_seconds: 30
+  explicit_declaration_required: true
+  bounded_timeout_required: true
+  content_hash_key_required: true
+  log_and_expected_artifacts_required: true
+  resumable_or_restartable_required: true
+  routine_validator_may_launch: false
+full_repository_validation_allowed_at:
+  - v2_activation
+  - shared_core_change
+  - P_promotion
+  - M_materialization_freeze
+  - pre_live_handoff
+  - explicit_integrity_audit
+receipt:
+  validator_id_required: true
+  validator_code_sha256_required: true
+  input_bundle_sha256_required: true
+  config_sha256_required: true
+  duration_seconds_required: true
+  outcome_required: true
+  receipt_is_hypothesis_evidence: false
+broken_code:
+  missing_kpi_may_count_as_evidence: false
+  blocker_requires:
+    - root_cause
+    - reproduction_command
+    - failing_artifact
+    - affected_claims
+    - exact_resume_action
+    - required_external_state

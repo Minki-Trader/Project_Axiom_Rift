@@ -1,0 +1,68 @@
+schema: axiom_rift_v2_architecture_v1
+status: active
+encoding: ascii_only
+strategy: same_repository_strangler
+active_truth_during_bootstrap: v1
+activation_requires_receipt: true
+canonical_paths:
+  source: src/axiom_rift/v2
+  contracts: contracts/v2
+  configs: configs/v2
+  registries: registries/v2
+  immutable_objects: registries/v2/objects
+  work_units: campaigns/v2
+  cli: axiom-rift-v2
+legacy_frozen_paths:
+  - campaigns/C*
+  - campaigns/SC*
+  - src/axiom_rift/proxies
+  - src/axiom_rift/mt5/*_probe.py
+  - registries/claim_state.yaml
+  - registries/reentry.yaml
+  - registries/decision_cursor.yaml
+v2_layers:
+  - identity_and_object_store
+  - scalar_control_state
+  - validation_receipts
+  - causal_data_and_splits
+  - declarative_research_components
+  - generic_stage_runner
+  - mt5_evidence_adapter
+  - feature_contract_and_materialization
+dependency_rules:
+  hypothesis_to_core_only: true
+  core_to_legacy_campaign_import: false
+  research_code_may_mutate_state: false
+  evidence_writer_is_single_state_owner: true
+  arbitrary_python_import_from_yaml: false
+reuse_decisions:
+  project_root:
+    source: src/axiom_rift/paths.py
+    decision: reuse
+    deficiency: null
+    parity_boundary: resolved_project_root_only
+    rollback_boundary: v2_paths_module
+  legacy_state_transaction:
+    source: src/axiom_rift/state/transactions.py
+    decision: replace
+    deficiency: sequential_multi_file_replace_without_cas_or_lock
+    parity_boundary: ascii_and_root_escape_ideas_only
+    rollback_boundary: registries/v2/control_state.yaml
+  legacy_runtime_config:
+    source: src/axiom_rift/mt5/runtime_config.py
+    decision: wrap
+    deficiency: host_paths_and_v1_claim_fields
+    parity_boundary: immutable_runtime_snapshot_only
+    rollback_boundary: configs/runtime.yaml
+  legacy_proxy_engine:
+    source: src/axiom_rift/proxies/common/base.py
+    decision: replace
+    deficiency: noncausal_daily_ranking_forced_activity_and_state_io_coupling
+    parity_boundary: none
+    rollback_boundary: frozen_legacy_only
+  legacy_schedule_replay:
+    source: src/axiom_rift/mt5/experts/AxiomC0002ScheduleReplay.mq5
+    decision: adapt
+    deficiency: cannot_prove_native_signal_or_onnx_path
+    parity_boundary: execution_conformance_only
+    rollback_boundary: frozen_legacy_source

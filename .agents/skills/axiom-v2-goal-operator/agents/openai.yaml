@@ -1,0 +1,4 @@
+interface:
+  display_name: "Axiom V2 Goal Operator"
+  short_description: "Operate one Axiom V2 research goal through H/S/R/P/M"
+  default_prompt: "Use $axiom-v2-goal-operator to continue the active Axiom Rift V2 goal from control state."

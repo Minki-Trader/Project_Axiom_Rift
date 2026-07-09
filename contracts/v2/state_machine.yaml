@@ -1,0 +1,44 @@
+schema: axiom_rift_v2_state_machine_v1
+status: active
+encoding: ascii_only
+id_patterns:
+  goal: '^V2G[0-9]{4}$'
+  hypothesis: '^V2H[0-9]{4}$'
+  scout: '^V2S[0-9]{4}$'
+  confirmation: '^V2R[0-9]{4}$'
+  promotion: '^V2P[0-9]{4}$'
+  materialization: '^V2M[0-9]{4}$'
+stage_order:
+  - H
+  - S
+  - R
+  - P
+  - M
+stage_claim_ceilings:
+  H: none
+  S: diagnostic_observation
+  R: research_candidate
+  P: selected
+  M: pre_live_ready
+allowed_transitions:
+  bootstrap:
+    - H
+  H:
+    - S
+  S:
+    - H
+    - R
+  R:
+    - H
+    - P
+  P:
+    - H
+    - M
+  M: []
+terminal_outcomes:
+  - completed_pre_live_handoff
+  - closed_no_candidate
+  - blocked_external
+  - stopped_by_user
+repair_is_stage_outcome: false
+broken_code_is_hypothesis_evidence: false

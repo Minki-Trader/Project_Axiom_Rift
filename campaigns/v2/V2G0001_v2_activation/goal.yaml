@@ -1,0 +1,43 @@
+schema: axiom_rift_v2_goal_work_unit_v1
+status: activated
+encoding: ascii_only
+goal_id: V2G0001
+goal_slug: v2_activation
+goal_type: v2_construction
+objective: build_prove_and_activate_axiom_rift_v2
+authority:
+  goal_spec: contracts/v2/goal_spec.md
+  goal_packet: contracts/v2/goal_packet.yaml
+  control_state: registries/v2/control_state.yaml
+  active_truth: v2
+  activation_evidence_id: V2E000008
+claim_ceiling: none
+v1_boundary:
+  role: legacy_reference_only
+  inherit_alpha_evidence: false
+  continue_c0144: false
+stage_model:
+  order:
+    - H
+    - S
+    - R
+    - P
+    - M
+  governing_contract: contracts/v2/research_contract.yaml
+planned_first_scout:
+  hypothesis_id: unallocated
+  anchor_ids:
+    - V2D002
+    - V2D005
+    - V2D008
+  claim_ceiling: diagnostic_observation
+  mt5_required: false
+work_units:
+  - work_unit_id: V2B0001
+    path: campaigns/v2/V2G0001_v2_activation/work_units/V2B0001.yaml
+    status: in_progress
+terminal_conditions_ref: contracts/v2/activation_contract.yaml
+claim_boundary:
+  contract_or_skeleton_is_evidence: false
+  current_level: none
+  live_ready_allowed: false

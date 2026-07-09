@@ -1,0 +1,30 @@
+schema: axiom_rift_v2_validation_budget_v1
+status: active
+encoding: ascii_only
+routine_validator:
+  role: receipt_checker_only
+  target_seconds_min: 3
+  target_seconds_max: 15
+  hard_ceiling_seconds: 30
+  changed_surfaces_only: true
+  may_launch_evidence_jobs: false
+  cache_identical_success: true
+slice_loop:
+  implementation_batches: 1
+  validation_batches: 1
+  consolidated_repair_batches: 1
+  recheck_batches: 1
+  repeated_failure_action: root_cause_redesign_or_blocker
+long_job:
+  threshold_seconds: 30
+  explicit: true
+  bounded: true
+  hash_keyed: true
+  logged: true
+  resumable: true
+forbidden_validator_actions:
+  - data_build
+  - model_training
+  - mt5_test
+  - onnx_export
+  - download

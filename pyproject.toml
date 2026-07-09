@@ -10,7 +10,9 @@ requires-python = ">=3.11"
 dependencies = ["PyYAML>=6.0", "numpy>=2.0", "scikit-learn>=1.4"]
 
 [project.scripts]
-axiom-rift = "axiom_rift.cli:main"
+axiom-rift = "axiom_rift.v2.cli:main"
+axiom-rift-v2 = "axiom_rift.v2.cli:main"
+axiom-rift-v1-legacy = "axiom_rift.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

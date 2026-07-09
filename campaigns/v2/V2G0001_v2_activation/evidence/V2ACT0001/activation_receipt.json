@@ -1,0 +1,26 @@
+{
+  "activation_is_alpha_evidence": false,
+  "active_truth_after": "v2",
+  "candidate_validation_object_id": "296f6bbdd2f5ec3184a6592b6e3c43f3fe660ac0ae9fb11bd140bbf4f2834e3a",
+  "candidate_validation_receipt_id": "V2VR000005",
+  "claim_ceiling": "none",
+  "expected_before": "v1_until_v2_activation",
+  "expected_revision": 15,
+  "first_scout_outcome": "scout_rejected",
+  "goal_id": "V2G0001",
+  "occurred_at_utc": "2026-07-09T22:59:43Z",
+  "outcome": "v2_activated",
+  "post_activation_action": "open_V2G0002_and_preregister_distinct_density_first_V2H0002",
+  "required_evidence_ids": [
+    "V2E000004",
+    "V2E000005",
+    "V2E000006",
+    "V2E000007"
+  ],
+  "resulting_revision": 16,
+  "schema": "axiom_rift_v2_activation_receipt_v1",
+  "selected_or_runtime_claim_created": false,
+  "stage": "bootstrap",
+  "stage_id": "V2A0001",
+  "status": "passed"
+}

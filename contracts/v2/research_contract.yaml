@@ -1,0 +1,95 @@
+schema: axiom_rift_v2_research_contract_v1
+status: active
+encoding: ascii_only
+authority:
+  state_machine: contracts/v2/state_machine.yaml
+  claims: contracts/v2/claim_ladder.yaml
+  splits: contracts/v2/split_policy.yaml
+  identity: contracts/v2/identity_policy.yaml
+stages:
+  H:
+    role: preregister_hypothesis_batch_and_executable_identity
+    claim_ceiling: none
+    data_execution_allowed: false
+  S:
+    role: fast_causal_scout
+    claim_ceiling: diagnostic_observation
+    mt5_required: false
+    candidate_or_economics_claim_allowed: false
+    scout_anchor_ids:
+      - V2D002
+      - V2D005
+      - V2D008
+    anchor_policy: fixed_season_diverse_early_middle_recent_before_results
+  R:
+    role: full_development_confirmation
+    claim_ceiling: research_candidate
+    folds: all_development_cv
+    mt5_default: one_certified_aggregate_logic_and_one_certified_aggregate_tick
+    fold_partition_requires_conformance_receipt: true
+  P:
+    role: promotion_grade_robustness_and_economics
+    claim_ceiling: selected
+    isolated_nine_fold_mt5_required: true
+    holdout_access_requires_frozen_identity_and_permit: true
+  M:
+    role: frozen_onnx_ea_materialization_and_handoff
+    claim_ceiling: pre_live_ready
+    retuning_allowed: false
+isolated_nine_fold_policy:
+  allowed_reasons:
+    - P_promotion
+    - engine_recertification
+    - partition_equivalence_failure
+    - material_cross_fold_state_change
+  forbidden_for:
+    - H
+    - S
+    - routine_R_when_valid_conformance_receipt_exists
+fold_boundary_purge:
+  purge_bars: max_of_label_horizon_and_max_trade_horizon
+  train_label_end_must_be_lte_train_end: true
+  validation_label_end_must_be_lte_validation_end: true
+  development_label_end_must_be_lte_development_end: true
+  trade_entry_and_exit_must_be_inside_same_evaluated_segment: true
+  cross_boundary_positions: exclude_not_force_close
+  prior_segment_feature_warmup:
+    allowed: true
+    role: causal_input_state_only
+    labels_or_fit_from_future_role_allowed: false
+  non_allow_gap_crossing:
+    feature_to_label_interval_allowed: false
+    trade_lifecycle_allowed: false
+causality:
+  decision_uses_completed_bar_only: true
+  entry_timing: next_bar_open
+  feature_available_at_must_be_lte_decision_time: true
+  external_available_at_must_be_lte_decision_time: true
+  prefix_invariance_required: true
+  completed_decision_append_invariance_required: true
+  sequential_oos_selection_required: true
+  forbidden:
+    - same_day_future_ranking
+    - full_day_top_k
+    - future_candidate_count_dependence
+    - test_or_holdout_calibration
+    - silent_external_forward_fill
+novelty:
+  semantic_name_is_evidence: false
+  executable_hashes_required:
+    - feature_dag
+    - label_program
+    - model_and_objective
+    - selector
+    - trade_program
+  v1_alpha_evidence_inherited: false
+  v1_duplicate_check_timing: after_v2_preregistration
+terminal_outcomes:
+  - completed_pre_live_handoff
+  - closed_no_candidate
+  - blocked_external
+  - stopped_by_user
+broken_code:
+  counts_as_hypothesis_evidence: false
+  may_close_stage: false
+  required_action: repair_same_scope_or_record_complete_external_blocker

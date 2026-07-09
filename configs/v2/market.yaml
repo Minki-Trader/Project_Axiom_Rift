@@ -1,0 +1,37 @@
+schema: axiom_rift_v2_market_config_v1
+status: active_diagnostic
+encoding: ascii_only
+broker: FPMarkets
+symbol: US100
+timeframe: M5
+bar_minutes: 5
+commission_per_trade: 0
+synthetic_commission_allowed: false
+point_size:
+  value: 0.01
+  status: verified_by_mt5_snapshot_V2MAT000008
+symbol_snapshot:
+  material_id: V2MAT000008
+  terminal_build: 5833
+  digits: 2
+  point: 0.01
+  trade_tick_size: 0.01
+  trade_tick_value: 0.01
+  trade_contract_size: 1.0
+spread_field:
+  unit: broker_points
+  price_conversion: spread_times_point_size
+server_clock:
+  rule_id: fpmarkets_ny_close_plus_7_v1
+  documented_offsets:
+    standard_time: GMT+2
+    daylight_time: GMT+3
+  transition_basis: America/New_York_DST
+  server_minus_new_york_hours: 7
+  source: https://www.fpmarkets.com/en-au/education/faq/
+  status: broker_documented_and_current_GMT3_observed_pending_historical_transition_receipt
+  ambiguous_time_action: exclude
+  nonexistent_time_action: exclude
+market_timezone: America/New_York
+signal_timing: completed_bar_then_next_bar_open
+daily_entry_limit_role: safety_cap_not_quota

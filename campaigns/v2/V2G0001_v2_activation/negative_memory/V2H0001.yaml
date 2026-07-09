@@ -1,0 +1,44 @@
+schema: axiom_rift_v2_negative_memory_v1
+status: closed
+encoding: ascii_only
+goal_id: V2G0001
+hypothesis_id: V2H0001
+stage_id: V2S0001
+evidence_id: V2E000006
+outcome: scout_rejected
+reason_codes:
+  - insufficient_event_density
+  - positive_fold_count_below_gate
+  - single_fold_pnl_dependence
+observed:
+  anchor_fold_count: 3
+  eligible_day_count: 233
+  entry_count: 4
+  evaluable_trade_count: 4
+  entries_per_eligible_day: 0.017167381974248927
+  zero_entry_day_rate_weighted: 0.9914163090128756
+  positive_net_fold_count: 1
+  active_trade_fold_count: 1
+  causal_checks_all_pass: true
+  unknown_cost_trade_count: 0
+interpretation:
+  primary: validation_residual_band_dominated_the_linear_score_on_two_of_three_season_diverse_folds
+  pnl_sign_is_not_actionable: true
+  four_trade_profit_is_not_profitability_evidence: true
+  not_a_candidate: true
+next_research_guidance:
+  adjacent_residual_quantile_nudge_allowed: false
+  threshold_retry_as_new_hypothesis_allowed: false
+  preferred_distinct_change:
+    - change_uncertainty_or_objective_structure
+    - test_event_density_before_model_complexity
+    - consider_direction_specific_or_path_label_design
+    - preserve_sequential_abstention_and_cost_awareness
+claim_boundary:
+  level: diagnostic_observation
+  research_candidate: false
+  economics_pass: false
+  selected: false
+  onnx_ready: false
+  materialization_ready: false
+  pre_live_ready: false

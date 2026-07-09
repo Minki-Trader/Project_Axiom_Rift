@@ -1,0 +1,143 @@
+schema: axiom_rift_v2_control_state_v1
+revision: 17
+status: active
+encoding: ascii_only
+active_truth: v2
+goal_id: V2G0001
+namespace:
+  next_goal: 2
+  next_hypothesis: 2
+  next_scout: 2
+  next_confirmation: 1
+  next_promotion: 1
+  next_materialization: 1
+cursor:
+  active_goal_id: V2G0001
+  active_hypothesis_id: V2H0001
+  stage: S
+  stage_id: V2S0001
+  stage_status: completed
+  terminal_outcome: null
+  authoritative_object_ids:
+  - 879e63cfa16a02349d549fe62b234b360cd64a4b7e3b38bf6e42e4c8885ad2e2
+  - 032d07f1600bfcfa20763ac2817a45e02ec5282f2adb20a26902091ffdcf5dbf
+  - e24ae8d18216a1ead14c96e3aaad90ac236d3c6ea7fa8c2a964e3a88969bd2cc
+  - b6c76c449e22148d76bf9cc0cbc26c4217361e2221d494039f1386b891542d82
+  - f36409525be5aff9e3010ac879ad93b4401c5ec32af1f47c9bcf186c98697c51
+  - d24dbe32b2905c3fff5349d079dd7dfda00f7ba4514b1eaad4725bd164d14f78
+  - 712539ece2055821af9d192171bf4594d12e06c6031c601bdeb8bdd28f76766c
+  - 63d97253d7da8d229bb497f239b7d221f173ebc9e1d93d0e7fb1cd01a0f22638
+  - a986e7e2a4e2a5e467768c63e52de428ca5bfb26ffe09601270149e7f4670dd7
+  - b78c53fcc9e543d634a5be16ab915d56c15dd10ad09b7128ad4569030408b0a2
+  - d805dd657a5216b7d254dec079a5132f0c29a4cbb3b95a85305aada5a54bd1be
+  - 2685a629e2beb04c6111cc926e19540dd32c5da2c732c6043c09561d097ed9f6
+  - 48e9280321950d79555baf5d95c058227013faa86ecc0dbbd055c4a94e4ba6a0
+  - 109107c2db2ebb6330bdc14560882f1c1904c1ca819ed2b3b1fd99391a3f04f3
+  - c281c24b243d13aa4663e4212827a98518867e56c5b43c92cff55e0415845c77
+  - 034bf7928fe3901e85b54906bddde2e0643a2541074a4e398ba4b94f29c00b41
+  - 7379eb223e7b8dd69155f05632337653215501eac4a78e0b29cc03939e0ba1f5
+  - 06cd6783b5756560a04d6fbb4fcdf25eb89a424e33526f142f5704b5a43b9d52
+  - 2497b8dca426eadb8c7e225b22a2d6180e38fcdc01d5417abfce92631f857aa9
+  - 4cbf4fd51e1cd6a8b961d60d3bbafd57fd73d9475cc37fd90a8b314821483e8a
+  - c4c7bfb70013485971710796ab1cde062300b9408a8ade4382d656b9fc8ad07d
+  - ccabf94b2b992ba24da3d8d715387de776449dcf948ba945ddae91656f1eca35
+  - 460227a03fc49995ec7d6c3be94d03630190c9ed262cf7cbaf3f3b8319fbb108
+  - 296f6bbdd2f5ec3184a6592b6e3c43f3fe660ac0ae9fb11bd140bbf4f2834e3a
+  - 35ad775cb7e85bfa4fb24d15e6e53e2c98e3fc53ad21f8f569ca16546b58809c
+  - 4015107ef49012618922fdf9b6c4ed99d2be2bbc777634eb66fe7868aebd189b
+  exact_next_action: open_V2G0002_and_preregister_distinct_density_first_V2H0002
+  stage_outcome: scout_rejected
+reentry:
+  active_slice_id: V2SL0006_activation_closeout
+  completed_receipt_ids:
+  - V2VR000001
+  - V2VR000002
+  - V2VR000003
+  - V2VR000004
+  - V2VR000005
+  - V2VR000006
+  artifact_hashes:
+    goal_spec: b585f1806e5d77f42f8e505ed3f46281b8d1b177f7c0c130e4d00a508d2f8cff
+    V2VR000001: 879e63cfa16a02349d549fe62b234b360cd64a4b7e3b38bf6e42e4c8885ad2e2
+    V2E000001: 032d07f1600bfcfa20763ac2817a45e02ec5282f2adb20a26902091ffdcf5dbf
+    V2VR000002: e24ae8d18216a1ead14c96e3aaad90ac236d3c6ea7fa8c2a964e3a88969bd2cc
+    V2E000002: b6c76c449e22148d76bf9cc0cbc26c4217361e2221d494039f1386b891542d82
+    V2VR000003: f36409525be5aff9e3010ac879ad93b4401c5ec32af1f47c9bcf186c98697c51
+    V2E000003: d24dbe32b2905c3fff5349d079dd7dfda00f7ba4514b1eaad4725bd164d14f78
+    V2VR000004: 712539ece2055821af9d192171bf4594d12e06c6031c601bdeb8bdd28f76766c
+    V2MAT000011: 63d97253d7da8d229bb497f239b7d221f173ebc9e1d93d0e7fb1cd01a0f22638
+    V2MAT000012: a986e7e2a4e2a5e467768c63e52de428ca5bfb26ffe09601270149e7f4670dd7
+    V2E000004: b78c53fcc9e543d634a5be16ab915d56c15dd10ad09b7128ad4569030408b0a2
+    V2MAT000013: d805dd657a5216b7d254dec079a5132f0c29a4cbb3b95a85305aada5a54bd1be
+    V2MAT000014: 2685a629e2beb04c6111cc926e19540dd32c5da2c732c6043c09561d097ed9f6
+    V2MAT000015: 48e9280321950d79555baf5d95c058227013faa86ecc0dbbd055c4a94e4ba6a0
+    V2MAT000016: 109107c2db2ebb6330bdc14560882f1c1904c1ca819ed2b3b1fd99391a3f04f3
+    V2MAT000017: c281c24b243d13aa4663e4212827a98518867e56c5b43c92cff55e0415845c77
+    V2MAT000018: 034bf7928fe3901e85b54906bddde2e0643a2541074a4e398ba4b94f29c00b41
+    V2MAT000019: 7379eb223e7b8dd69155f05632337653215501eac4a78e0b29cc03939e0ba1f5
+    V2MAT000020: 06cd6783b5756560a04d6fbb4fcdf25eb89a424e33526f142f5704b5a43b9d52
+    V2E000005: 2497b8dca426eadb8c7e225b22a2d6180e38fcdc01d5417abfce92631f857aa9
+    V2H0001: 4cbf4fd51e1cd6a8b961d60d3bbafd57fd73d9475cc37fd90a8b314821483e8a
+    V2E000006: c4c7bfb70013485971710796ab1cde062300b9408a8ade4382d656b9fc8ad07d
+    V2H0001_negative_memory: ccabf94b2b992ba24da3d8d715387de776449dcf948ba945ddae91656f1eca35
+    V2E000007: 460227a03fc49995ec7d6c3be94d03630190c9ed262cf7cbaf3f3b8319fbb108
+    V2VR000005: 296f6bbdd2f5ec3184a6592b6e3c43f3fe660ac0ae9fb11bd140bbf4f2834e3a
+    V2E000008: 35ad775cb7e85bfa4fb24d15e6e53e2c98e3fc53ad21f8f569ca16546b58809c
+    V2VR000006: 4015107ef49012618922fdf9b6c4ed99d2be2bbc777634eb66fe7868aebd189b
+  active_job: null
+  validation_batches_remaining: 1
+  repair_batches_remaining: 1
+  blocker: null
+  git_base: 5fce960b351a102f587a0a3434766cce37744d2c
+  git_head: 5fce960b351a102f587a0a3434766cce37744d2c
+  completed_evidence_ids:
+  - V2E000004
+  - V2E000005
+  - V2E000006
+  - V2E000007
+  - V2E000008
+claim:
+  subject_kind: hypothesis
+  subject_id: V2H0001
+  current_level: diagnostic_observation
+  claim_ceiling: diagnostic_observation
+  identity_bundle_object_id: 4cbf4fd51e1cd6a8b961d60d3bbafd57fd73d9475cc37fd90a8b314821483e8a
+  basis_receipt_ids:
+  - V2E000006
+  blocked_by: []
+ledger_heads:
+  hypothesis:
+    ledger_seq: 2
+    row_sha256: 120c5b3d2d5a2bb2c245d549c043486393da6a5005746b1f198086fc7329017b
+  evidence:
+    ledger_seq: 8
+    row_sha256: 18d027a4177261b785577a468cc3cd65aa03093a04564629d78227d13cbcf378
+  material:
+    ledger_seq: 20
+    row_sha256: 1b0498be4d3be0ea22148aaec4141a60c46996805c705087717015b632c9afb4
+  validation_receipt:
+    ledger_seq: 6
+    row_sha256: 8f56905a9de578ff4af8c978b1b5ad28cc9cce3e6caabb2973400a30fd15fda9
+applied_idempotency_keys:
+- record_V2VR000001
+- record_V2_data_identity_slice
+- record_V2_clock_correction
+- record_V2_corrected_data_identity
+- record_V2_corrected_cost_split_identity
+- record_V2E000004_corrected_data_identity
+- record_V2_research_fixture_material_batch
+- record_V2E000005_reference_fixture
+- preregister_V2H0001
+- open_V2S0001
+- record_V2E000006_V2S0001
+- dispose_V2H0001_after_V2S0001
+- record_V2E000007_native_tick_smoke
+- record_V2VR000005_activation_candidate
+- activate_V2_after_V2VR000005
+- record_V2VR000006_active_activation
+bootstrap_goal_outcome: activated
+activation:
+  activation_evidence_id: V2E000008
+  activation_object_id: 35ad775cb7e85bfa4fb24d15e6e53e2c98e3fc53ad21f8f569ca16546b58809c
+  candidate_validation_receipt_id: V2VR000005
+  rollback_authority: pre_closeout_only

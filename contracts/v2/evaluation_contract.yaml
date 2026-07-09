@@ -1,0 +1,82 @@
+schema: axiom_rift_v2_evaluation_contract_v1
+status: active
+encoding: ascii_only
+authority:
+  project: contracts/v2/project_contract.yaml
+  claims: contracts/v2/claim_ladder.yaml
+  splits: contracts/v2/split_policy.yaml
+cost_policy:
+  commission_per_trade: 0
+  synthetic_commission_allowed: false
+  spread_source: broker_native_or_verified_snapshot
+  spread_stress_allowed: true
+  slippage_stress_allowed: true
+  zero_spread_observation:
+    verified_cost_free_interpretation_allowed: false
+    default_status: unknown_cost
+    diagnostic_gross_metrics_allowed: true
+    after_cost_metrics_allowed: false
+    blocks_claims:
+      - research_candidate
+      - robustness_candidate
+      - economics_pass
+      - selected
+    resolution_requires:
+      - verified_tradable_zero_spread_receipt
+      - or_predeclared_conservative_nonzero_cost_profile
+data_field_eligibility:
+  real_volume:
+    eligible_for_feature_label_filter_or_regime: false
+    reason: fpmarkets_us100_real_volume_is_zero_or_non_authoritative
+  tick_volume:
+    eligible: true
+    requires_dataset_identity: true
+  spread:
+    eligible: true
+    unit: broker_points
+    conversion_requires_symbol_point_size: true
+sizing:
+  H_S_R: fixed_lot
+  P: fixed_lot_primary_with_separate_growth_analysis_allowed
+  M: frozen_runtime_rule_required
+  equity_sizing_may_rescue_weak_signal: false
+activity_kpi:
+  denominator: all_eligible_market_days
+  required:
+    - eligible_day_count
+    - entry_count
+    - entries_per_eligible_day
+    - zero_entry_day_rate
+    - daily_entry_count_p10
+    - daily_entry_count_median
+    - daily_entry_count_p90
+    - maximum_daily_entries
+    - direction_concentration
+    - session_concentration
+    - regime_concentration
+  daily_cap_role: safety_cap_not_quota
+  five_to_ten_target_level: combined_system_after_exposure_netting
+economics_kpi:
+  required_by_P:
+    - net_points_after_cost
+    - profit_factor_after_cost
+    - expectancy_after_cost
+    - monthly_drawdown
+    - time_under_water
+    - turnover
+    - exposure_concentration
+    - cost_stress
+    - fold_and_regime_stability
+gate_policy:
+  acceptance_profile_frozen_before_results: true
+  exact_thresholds_live_in_acceptance_profile: true
+  aggregate_result_is_not_robustness_evidence: true
+  development_cv_is_not_final_oos: true
+  trial_counts_required:
+    - total_trials
+    - family_trials
+    - candidate_selections
+    - holdout_reveals
+claim_boundary:
+  contract_is_evidence: false
+  economics_pass_created: false

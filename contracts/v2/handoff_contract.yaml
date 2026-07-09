@@ -1,0 +1,49 @@
+schema: axiom_rift_v2_handoff_contract_v1
+status: active
+encoding: ascii_only
+authority:
+  project: contracts/v2/project_contract.yaml
+  materialization: contracts/v2/materialization_contract.yaml
+  claims: contracts/v2/claim_ladder.yaml
+entry_gate:
+  minimum_claim: materialization_ready
+  no_missing_required_receipts: true
+package:
+  required:
+    - manifest_with_content_hashes
+    - dataset_and_split_identity
+    - feature_contract_and_order_hash
+    - preprocessing_and_model_identity
+    - onnx_artifact_and_parity_receipts
+    - ea_mq5_mqh_sources_and_compile_receipt
+    - native_closed_bar_and_real_tick_receipts
+    - execution_cost_and_symbol_snapshot
+    - restart_recovery_and_failure_behavior_receipts
+    - acceptance_profile_and_claim_history
+    - known_limitations_and_blockers
+    - deterministic_reproduction_commands
+  all_paths: repo_relative
+  all_text_metadata: ascii_only
+closeout_checks:
+  object_hashes_verify: true
+  ledger_chain_verifies: true
+  feature_order_hash_matches_all_consumers: true
+  no_unresolved_required_kpi: true
+  no_holdout_retuning: true
+  pre_live_claim_basis_complete: true
+out_of_scope:
+  - live_credentials
+  - capital_allocation_authority
+  - vps_deployment
+  - live_monitoring
+  - live_ready_claim
+terminal_outcome:
+  success: completed_pre_live_handoff
+  claim_level: pre_live_ready
+  live_ready: false
+git_closeout:
+  branch: main
+  remote: origin
+  validated_commit_required: true
+  push_required: true
+  force_push_allowed: false

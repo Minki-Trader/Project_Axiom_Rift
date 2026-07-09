@@ -1,0 +1,41 @@
+schema: axiom_rift_v2_work_unit_v1
+status: closed_scout_rejected
+encoding: ascii_only
+goal_id: V2G0001
+hypothesis_id: V2H0001
+stage: S
+stage_id: V2S0001
+spec_path: campaigns/v2/V2G0001_v2_activation/hypotheses/V2H0001.yaml
+acceptance_profile_id: V2SAP0001
+claim_ceiling: diagnostic_observation
+inputs:
+  dataset_id: V2DATA0001
+  split_set_id: V2SP0001
+  development_ids:
+    - V2D002
+    - V2D005
+    - V2D008
+expected_artifacts:
+  - metrics.json
+  - trades.csv
+  - model_bundles.json
+  - receipt.json
+  - causal_checks.json
+validation_budget:
+  focused_batches: 1
+  repair_batches_max: 1
+  rechecks_max: 1
+evidence_job:
+  bounded: true
+  mt5: false
+  onnx_export: false
+  full_nine_fold: false
+terminal_outcomes:
+  - route_to_R
+  - scout_rejected
+completed_evidence:
+  receipt_path: campaigns/v2/V2G0001_v2_activation/evidence/V2S0001/receipt.json
+  outcome: scout_rejected
+  claim_created: diagnostic_observation
+  research_candidate_created: false
+  economics_claim_created: false

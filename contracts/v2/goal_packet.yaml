@@ -1,0 +1,73 @@
+schema: axiom_rift_v2_goal_packet_v1
+status: active
+encoding: ascii_only
+goal_id: V2G0001
+goal_name: build_activate_operating_system
+goal_type: v2_construction
+objective: build_prove_and_activate_axiom_rift_v2
+authoritative_spec:
+  path: contracts/v2/goal_spec.md
+  sha256: b585f1806e5d77f42f8e505ed3f46281b8d1b177f7c0c130e4d00a508d2f8cff
+claim_ceiling: none
+acceptance_profile:
+  id: v2_bootstrap_acceptance_v1
+  frozen_before_execution: true
+v1_boundary:
+  role: legacy_reference_only
+  research_truth: false
+  continue_c0144: false
+  inherit_candidate_or_negative_alpha: false
+transition:
+  strategy: same_repository_strangler
+  active_truth: v2
+  activation_evidence_id: V2E000008
+  mixed_active_truth_allowed: false
+allowed_paths:
+  - AGENTS.md
+  - .agents/skills/axiom-v2-goal-operator
+  - contracts/v2
+  - configs/v2
+  - registries/v2
+  - src/axiom_rift/v2
+  - campaigns/v2
+  - tests
+  - pyproject.toml
+governing_contracts:
+  - contracts/v2/project_contract.yaml
+  - contracts/v2/evaluation_contract.yaml
+  - contracts/v2/research_contract.yaml
+  - contracts/v2/validation_contract.yaml
+  - contracts/v2/materialization_contract.yaml
+  - contracts/v2/handoff_contract.yaml
+  - contracts/v2/activation_contract.yaml
+  - contracts/v2/architecture.yaml
+  - contracts/v2/state_machine.yaml
+  - contracts/v2/claim_ladder.yaml
+  - contracts/v2/split_policy.yaml
+  - contracts/v2/identity_policy.yaml
+validation_budget:
+  routine_target_seconds_min: 3
+  routine_target_seconds_max: 15
+  routine_hard_ceiling_seconds: 30
+  validation_batches_per_slice: 1
+  recheck_batches_per_slice: 1
+repair_budget:
+  consolidated_repair_batches_per_slice: 1
+  repeated_failure_action: root_cause_redesign_or_blocker
+git_baseline:
+  branch: main
+  head: 5fce960b351a102f587a0a3434766cce37744d2c
+terminal_conditions:
+  - v1_formally_legacy
+  - v2_single_active_truth
+  - v2_governance_and_modular_code_executable
+  - h_s_r_p_m_transitions_executable
+  - deterministic_non_economic_fixture_passed
+  - new_v2_real_data_scout_completed
+  - parity_paths_executable
+  - validation_budget_measured
+  - exact_next_research_action_recorded
+  - main_committed_and_origin_main_pushed
+claim_boundary:
+  current_level: none
+  live_ready_allowed: false
