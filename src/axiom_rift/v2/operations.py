@@ -1264,7 +1264,13 @@ class V2OperationWriter:
                 kpi.get("schema") != "axiom_rift_v2_kpi_evaluation_v1"
                 or kpi.get("stage") != "S"
                 or kpi_route
-                not in {"route_to_R", "scientific_reject", "evidence_gap", "repair_required"}
+                not in {
+                    "route_to_R",
+                    "scout_rejected",
+                    "scientific_reject",
+                    "evidence_gap",
+                    "repair_required",
+                }
                 or causal.get("kpi_route") != kpi_route
                 or causal.get("hard_profile_passed")
                 is not (kpi_route == "route_to_R")

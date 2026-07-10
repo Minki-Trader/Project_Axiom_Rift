@@ -757,6 +757,44 @@ class V21GenericLifecycleTests(unittest.TestCase):
                     evaluation_profile=profile,
                 ),
             )
+            rejecting_metrics = {
+                **passing_metrics,
+                "net_broker_points": -1.0,
+                "positive_net_fold_count": 0,
+                "shadow_net_broker_points": -1.0,
+                "shadow_positive_net_fold_count": 0,
+            }
+            rejecting_metrics["kpi_evaluation"] = interpret_kpis(
+                "S",
+                scientific_kpi_observations(
+                    rejecting_metrics,
+                    causal_checks_passed=True,
+                    trade_implementation_key=(
+                        "fixed_6bar_causal_spread_floor_v1"
+                    ),
+                ),
+                profile,
+            ).to_payload()
+            self.assertEqual(
+                "scout_rejected",
+                rejecting_metrics["kpi_evaluation"]["route"],
+            )
+            rejecting_causal = {
+                "all_role_checks_passed": True,
+                "kpi_route": "scout_rejected",
+                "hard_profile_passed": False,
+            }
+            self.assertEqual(
+                "scout_rejected",
+                writer._replay_scientific_kpi_evaluation(
+                    metrics=rejecting_metrics,
+                    causal=rejecting_causal,
+                    trade_implementation_key=(
+                        "fixed_6bar_causal_spread_floor_v1"
+                    ),
+                    evaluation_profile=profile,
+                ),
+            )
 
     def test_ready_mission_contract_can_be_repinned_but_active_mission_cannot(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
