@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import hashlib
 import tempfile
 import unittest
@@ -186,6 +187,7 @@ def scientific_persistence_receipt(
         for fold_id in selected_roles
     }
     configurations = sorted(bundle_hashes.values())
+    unknown_cost = 3 if outcome == "evidence_gap" else 0
     return {
         "schema": "axiom_rift_v2_scientific_scout_receipt_v1",
         "job_id": "V2J0001",
@@ -195,6 +197,7 @@ def scientific_persistence_receipt(
         "stage_id": state["cursor"]["stage_id"],
         "input_hash": "c" * 64,
         "outcome": outcome,
+        "gate_passed": outcome == "route_to_R",
         "claim_ceiling": "diagnostic_observation",
         "result_sha256": "d" * 64,
         "artifacts": {
@@ -215,6 +218,20 @@ def scientific_persistence_receipt(
         "selected_configuration_hashes": selected_hashes,
         "selected_model_bundle_sha256s": selected_hashes,
         "selected_path_hashes": selected_paths,
+        "metrics_summary": {
+            "unknown_cost_observation_count": unknown_cost,
+            "validation_unknown_cost_observation_count": unknown_cost,
+            "development_unknown_cost_observation_count": 0,
+            "kpi_evaluation": {
+                "route": outcome,
+                "reason_codes": (
+                    ["required_evidence_is_not_identified"]
+                    if outcome == "evidence_gap"
+                    else []
+                ),
+            },
+        },
+        "causal_summary": {"all_role_checks_passed": True},
         "trial_accounting": {
             "family_id": "v2fam_test",
             "configuration_hashes": configurations,
@@ -926,6 +943,136 @@ class ReadyBoundaryWriterTests(unittest.TestCase):
                 idempotency_key="disposition",
             )
             self.assertEqual(disposition_state["revision"], replay["revision"])
+
+    def test_scientific_evidence_gap_disposes_without_negative_memory_or_map_depth(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            writer, running = prepare_scientific_s(Path(temporary))
+            receipt = scientific_persistence_receipt(running, "evidence_gap")
+            action = make_next_action(
+                "repair",
+                goal_id="V2G0001",
+                stage="S",
+                subject_id="V2S0001",
+                prerequisite_receipt_ids=["V2E000001"],
+                summary="repair unidentified cost evidence",
+            )
+            with mock.patch.object(
+                writer, "_validate_scientific_scout_receipt", return_value=None
+            ):
+                evidence_state = writer.record_evidence(
+                    evidence_id="V2E000001",
+                    record_type="scientific_scout_completed",
+                    receipt=receipt,
+                    idempotency_key="evidence",
+                    exact_next_action=action,
+                )
+            scientific_before = deepcopy(evidence_state["scientific"])
+            claim_before = deepcopy(evidence_state["claim"])
+            mission_budget_before = deepcopy(evidence_state["mission_budget"])
+            map_id = scientific_before["current_research_map_object_id"]
+            map_payload = writer.objects.get(map_id)["payload"]
+            self.assertEqual([], map_payload["recent_dominant_axes"])
+            self.assertTrue(
+                all(
+                    row["state"] == "unseen" and row["evidence_ids"] == []
+                    for row in map_payload["axes"]
+                )
+            )
+
+            with mock.patch.object(
+                writer,
+                "validate_recorded_scientific_scout_receipt",
+                return_value=receipt,
+            ):
+                disposed = writer.record_hypothesis_evidence_gap_disposition(
+                    hypothesis_id="V2H0001",
+                    evidence_id="V2E000001",
+                    idempotency_key="gap-disposition",
+                )
+            self.assertIsNone(disposed["cursor"]["active_hypothesis_id"])
+            self.assertEqual("S", disposed["cursor"]["stage"])
+            self.assertEqual("disposed", disposed["cursor"]["stage_status"])
+            self.assertEqual("evidence_gap", disposed["cursor"]["stage_outcome"])
+            self.assertEqual(
+                "preregister_hypothesis",
+                disposed["cursor"]["next_action"]["kind"],
+            )
+            self.assertEqual(
+                "V2H0002", disposed["cursor"]["next_action"]["subject_id"]
+            )
+            self.assertEqual(
+                ["V2E000001"],
+                disposed["cursor"]["next_action"]["prerequisite_receipt_ids"],
+            )
+            self.assertEqual(scientific_before, disposed["scientific"])
+            self.assertEqual(claim_before, disposed["claim"])
+            self.assertEqual(mission_budget_before, disposed["mission_budget"])
+            self.assertEqual([], disposed["scientific"]["negative_memory_object_ids"])
+            self.assertEqual([], disposed["scientific"]["ingredient_object_ids"])
+            self.assertEqual([], disposed["scientific"]["candidate_object_ids"])
+            gap_object_id = disposed["reentry"]["current_artifact_hashes"][
+                "V2H0001_EVIDENCE_GAP"
+            ]
+            gap_object = writer.objects.get(gap_object_id)
+            self.assertEqual("scientific_evidence_gap", gap_object["kind"])
+            self.assertFalse(gap_object["payload"]["scientific_failure"])
+            self.assertEqual("unidentified", gap_object["payload"]["disposition"])
+            self.assertIsNone(
+                gap_object["payload"]["negative_memory_object_id"]
+            )
+            disposition_row = writer.hypotheses.rows()[-1]
+            self.assertEqual("V2H0001_DISPOSITION", disposition_row["record_id"])
+            self.assertEqual("evidence_gap", disposition_row["payload"]["outcome"])
+            self.assertFalse(
+                disposition_row["payload"]["scientific_failure"]
+            )
+            self.assertTrue(writer.reconciliation_report()["ok"])
+            replay = writer.record_hypothesis_evidence_gap_disposition(
+                hypothesis_id="V2H0001",
+                evidence_id="V2E000001",
+                idempotency_key="gap-disposition",
+            )
+            self.assertEqual(disposed["revision"], replay["revision"])
+
+    def test_scientific_evidence_gap_disposition_rejects_promoted_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            writer, running = prepare_scientific_s(Path(temporary))
+            receipt = scientific_persistence_receipt(running, "evidence_gap")
+            action = make_next_action(
+                "repair",
+                goal_id="V2G0001",
+                stage="S",
+                subject_id="V2S0001",
+                prerequisite_receipt_ids=["V2E000001"],
+                summary="repair unidentified cost evidence",
+            )
+            with mock.patch.object(
+                writer, "_validate_scientific_scout_receipt", return_value=None
+            ):
+                state = writer.record_evidence(
+                    evidence_id="V2E000001",
+                    record_type="scientific_scout_completed",
+                    receipt=receipt,
+                    idempotency_key="evidence",
+                    exact_next_action=action,
+                )
+            writer.control.commit(
+                state["revision"],
+                "promote-invalid-gap",
+                lambda draft: draft["claim"].update(
+                    {
+                        "current_level": "diagnostic_observation",
+                        "claim_ceiling": "diagnostic_observation",
+                        "basis_receipt_ids": ["V2E000001"],
+                    }
+                ),
+            )
+            with self.assertRaisesRegex(OperationStateError, "promoted"):
+                writer.record_hypothesis_evidence_gap_disposition(
+                    hypothesis_id="V2H0001",
+                    evidence_id="V2E000001",
+                    idempotency_key="gap-disposition",
+                )
 
     def test_scientific_route_creates_one_aggregate_ingredient(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

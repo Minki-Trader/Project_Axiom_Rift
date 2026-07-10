@@ -3914,6 +3914,259 @@ class V2OperationWriter:
             ],
         )
 
+    def record_hypothesis_evidence_gap_disposition(
+        self,
+        *,
+        hypothesis_id: str,
+        evidence_id: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Close an unidentified Scout result without creating negative memory."""
+
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError(
+                "scientific evidence-gap disposition requires control-state schema v2"
+            )
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        validate_identity("hypothesis", hypothesis_id)
+        cursor = state.get("cursor", {})
+        goal_id = cursor.get("active_goal_id")
+        stage_id = cursor.get("stage_id")
+        if (
+            not isinstance(goal_id, str)
+            or cursor.get("goal_status") != "open"
+            or cursor.get("active_hypothesis_id") != hypothesis_id
+            or cursor.get("stage") != "S"
+            or not isinstance(stage_id, str)
+            or cursor.get("stage_status") != "completed"
+            or cursor.get("stage_outcome") != "evidence_gap"
+        ):
+            raise OperationStateError(
+                "evidence-gap disposition requires the completed active Scout gap"
+            )
+        if state.get("reentry", {}).get("active_job") is not None:
+            raise OperationStateError(
+                "evidence-gap disposition requires no active evidence job"
+            )
+        claim = state.get("claim", {})
+        if (
+            claim.get("subject_id") != hypothesis_id
+            or claim.get("current_level") != "none"
+            or claim.get("claim_ceiling") != "none"
+            or claim.get("basis_receipt_ids") != []
+        ):
+            raise OperationStateError(
+                "evidence-gap disposition cannot close a promoted hypothesis claim"
+            )
+        action = cursor.get("next_action")
+        if (
+            not isinstance(action, Mapping)
+            or action.get("kind") != "repair"
+            or action.get("goal_id") != goal_id
+            or action.get("stage") != "S"
+            or action.get("subject_id") != stage_id
+            or action.get("prerequisite_receipt_ids") != [evidence_id]
+        ):
+            raise OperationStateError(
+                "evidence-gap disposition requires its exact pending repair action"
+            )
+        scientific = state.get("scientific")
+        if (
+            not isinstance(scientific, dict)
+            or scientific.get("status") != "active"
+            or scientific.get("binding_schema")
+            != "axiom_rift_v2_scientific_index_binding_v1"
+        ):
+            raise OperationStateError(
+                "evidence-gap disposition requires the bound active scientific index"
+            )
+        if (
+            evidence_id not in scientific.get("trial_receipt_ids", [])
+            or evidence_id
+            not in state.get("reentry", {}).get("completed_evidence_ids", [])
+        ):
+            raise OperationStateError(
+                "evidence-gap disposition basis is not a durable scientific trial"
+            )
+        evidence_row = next(
+            (
+                row
+                for row in self.evidence.rows()
+                if row.get("record_id") == evidence_id
+            ),
+            None,
+        )
+        evidence_payload = (
+            evidence_row.get("payload", {})
+            if isinstance(evidence_row, Mapping)
+            else {}
+        )
+        receipt_object_id = evidence_payload.get("receipt_object_id")
+        if (
+            evidence_row is None
+            or evidence_row.get("record_type") != "scientific_scout_completed"
+            or evidence_payload.get("goal_id") != goal_id
+            or evidence_payload.get("hypothesis_id") != hypothesis_id
+            or evidence_payload.get("stage") != "S"
+            or evidence_payload.get("stage_id") != stage_id
+            or evidence_payload.get("outcome") != "evidence_gap"
+            or not isinstance(receipt_object_id, str)
+            or state.get("reentry", {})
+            .get("current_artifact_hashes", {})
+            .get(evidence_id)
+            != receipt_object_id
+        ):
+            raise OperationStateError(
+                "evidence-gap disposition basis does not match the active Scout"
+            )
+        receipt = self.validate_recorded_scientific_scout_receipt(
+            receipt_object_id
+        )
+        metrics = receipt.get("metrics_summary")
+        causal = receipt.get("causal_summary")
+        unknown_cost = (
+            metrics.get("unknown_cost_observation_count")
+            if isinstance(metrics, Mapping)
+            else None
+        )
+        kpi = metrics.get("kpi_evaluation") if isinstance(metrics, Mapping) else None
+        if (
+            receipt.get("goal_id") != goal_id
+            or receipt.get("hypothesis_id") != hypothesis_id
+            or receipt.get("stage") != "S"
+            or receipt.get("stage_id") != stage_id
+            or receipt.get("outcome") != "evidence_gap"
+            or receipt.get("gate_passed") is not False
+            or not isinstance(causal, Mapping)
+            or causal.get("all_role_checks_passed") is not True
+            or isinstance(unknown_cost, bool)
+            or not isinstance(unknown_cost, int)
+            or unknown_cost <= 0
+            or not isinstance(kpi, Mapping)
+            or kpi.get("route") != "evidence_gap"
+            or evidence_payload.get("result_sha256")
+            != receipt.get("result_sha256")
+        ):
+            raise OperationStateError(
+                "evidence-gap disposition requires a causal unidentified receipt"
+            )
+        (
+            research_map,
+            map_snapshot,
+            scientific_hypothesis,
+            _scientific_spec,
+        ) = self._active_scientific_hypothesis_context(state)
+        if any(
+            evidence_id in axis.evidence_ids
+            for axis in research_map.axes.values()
+        ):
+            raise OperationStateError(
+                "evidence-gap trial may not already be a research-axis observation"
+            )
+        current_map_object_id = scientific.get("current_research_map_object_id")
+        current_map_seq = scientific.get("research_map_snapshot_seq")
+        gap_payload = {
+            "schema": "axiom_rift_v2_scientific_evidence_gap_v1",
+            "scientific_origin": "v2_current",
+            "root_mission_id": scientific["root_mission_id"],
+            "goal_id": goal_id,
+            "scientific_epoch_id": scientific["epoch_id"],
+            "hypothesis_id": hypothesis_id,
+            "family_id": scientific_hypothesis["family_id"],
+            "dominant_axis": scientific_hypothesis["dominant_axis"],
+            "stage": "S",
+            "stage_id": stage_id,
+            "evidence_id": evidence_id,
+            "receipt_object_id": receipt_object_id,
+            "result_sha256": receipt["result_sha256"],
+            "outcome": "evidence_gap",
+            "disposition": "unidentified",
+            "scientific_failure": False,
+            "unknown_cost_observation_count": unknown_cost,
+            "validation_unknown_cost_observation_count": metrics.get(
+                "validation_unknown_cost_observation_count"
+            ),
+            "development_unknown_cost_observation_count": metrics.get(
+                "development_unknown_cost_observation_count"
+            ),
+            "reason_codes": list(kpi.get("reason_codes", [])),
+            "gate_passed": False,
+            "causal_checks_passed": True,
+            "research_map_object_id": current_map_object_id,
+            "research_map_snapshot_seq": current_map_seq,
+            "negative_memory_object_id": None,
+            "claim_ceiling": "none",
+            "next_route": "preregister_distinct_hypothesis",
+        }
+        gap_object_id = self.objects.put("scientific_evidence_gap", gap_payload)
+        disposition_payload = {
+            "goal_id": goal_id,
+            "hypothesis_id": hypothesis_id,
+            "event_type": "disposition_recorded",
+            "outcome": "evidence_gap",
+            "disposition": "unidentified",
+            "scientific_failure": False,
+            "evidence_ids": [evidence_id],
+            "evidence_gap_object_id": gap_object_id,
+            "negative_memory_object_id": None,
+            "claim_ceiling": "none",
+            "scientific_origin": "v2_current",
+            "scientific_epoch_id": scientific["epoch_id"],
+            "family_id": scientific_hypothesis["family_id"],
+            "dominant_axis": scientific_hypothesis["dominant_axis"],
+            "research_map_object_id": current_map_object_id,
+            "research_map_snapshot_seq": current_map_seq,
+        }
+        row = self._append_or_existing(
+            self.hypotheses,
+            f"{hypothesis_id}_DISPOSITION",
+            "hypothesis_disposition_recorded",
+            disposition_payload,
+            utc_now(),
+        )
+        next_hypothesis_id = format_identity(
+            "hypothesis", state["namespace"]["next_hypothesis"]
+        )
+        next_action = make_next_action(
+            "preregister_hypothesis",
+            goal_id=goal_id,
+            stage="H",
+            subject_id=next_hypothesis_id,
+            prerequisite_receipt_ids=[evidence_id],
+            summary=(
+                "select and preregister a distinct hypothesis after an "
+                "unidentified evidence gap"
+            ),
+        )
+
+        def mutate(draft: dict[str, Any]) -> None:
+            draft["ledger_heads"]["hypothesis"] = {
+                "ledger_seq": row["ledger_seq"],
+                "row_sha256": row["row_sha256"],
+            }
+            self._add_authoritative_objects(draft, [gap_object_id])
+            draft["reentry"]["current_artifact_hashes"][
+                f"{hypothesis_id}_EVIDENCE_GAP"
+            ] = gap_object_id
+            draft["cursor"].update(
+                {
+                    "active_hypothesis_id": None,
+                    "stage_status": "disposed",
+                    "stage_outcome": "evidence_gap",
+                }
+            )
+            self._set_next_action(draft, next_action)
+
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=[receipt_object_id, gap_object_id],
+        )
+
     def record_hypothesis_disposition(
         self,
         *,
