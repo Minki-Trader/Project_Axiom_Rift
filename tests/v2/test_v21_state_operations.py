@@ -900,10 +900,13 @@ class V21GenericLifecycleTests(unittest.TestCase):
                 spec_object_id=job_spec_id,
                 input_hash=input_hash,
                 timeout_seconds=60,
-                output_path="campaigns/v2/G1/S1",
+                output_path="campaigns/v2/G1/S1/receipt.json",
                 command="axiom-rift goal-run",
-                expected_artifacts=["campaigns/v2/G1/S1/receipt.json"],
-                log_path="artifacts/v2/G1/S1.log",
+                expected_artifacts=[
+                    "campaigns/v2/G1/S1/receipt.json",
+                    "campaigns/v2/G1/S1/job.log",
+                ],
+                log_path="campaigns/v2/G1/S1/job.log",
                 resume_action="resume V2J0001",
                 idempotency_key="declare",
             )
@@ -918,9 +921,7 @@ class V21GenericLifecycleTests(unittest.TestCase):
                 "input_hash": "3" * 64,
                 "outcome": "scout_rejected",
                 "claim_ceiling": "diagnostic_observation",
-                "artifacts": {
-                    "receipt": {"path": "campaigns/v2/G1/S1/receipt.json"}
-                },
+                "artifacts": {},
             }
             with self.assertRaises(OperationStateError):
                 writer.record_evidence(
@@ -932,6 +933,43 @@ class V21GenericLifecycleTests(unittest.TestCase):
                 )
             self.assertIsNotNone(writer.control.load()["reentry"]["active_job"])
             receipt["input_hash"] = input_hash
+            artifact_dir = Path(temp_dir) / "campaigns/v2/G1/S1"
+            artifact_dir.mkdir(parents=True)
+            output_path = artifact_dir / "receipt.json"
+            log_path = artifact_dir / "job.log"
+            output_path.write_text(
+                json.dumps({**receipt, "outcome": "tampered"}, sort_keys=True),
+                encoding="ascii",
+            )
+            log_path.write_text("job completed\n", encoding="ascii")
+            with self.assertRaisesRegex(
+                OperationStateError,
+                "output receipt differs",
+            ):
+                writer.record_evidence(
+                    evidence_id="V2E000001",
+                    record_type="scout_completed",
+                    receipt=receipt,
+                    idempotency_key="tampered-evidence",
+                    exact_next_action=action,
+                )
+            output_path.write_text(
+                json.dumps(receipt, sort_keys=True),
+                encoding="ascii",
+            )
+            log_path.unlink()
+            with self.assertRaisesRegex(
+                OperationStateError,
+                "auxiliary artifact is missing: log_path",
+            ):
+                writer.record_evidence(
+                    evidence_id="V2E000001",
+                    record_type="scout_completed",
+                    receipt=receipt,
+                    idempotency_key="missing-log-evidence",
+                    exact_next_action=action,
+                )
+            log_path.write_text("job completed\n", encoding="ascii")
             state = writer.record_evidence(
                 evidence_id="V2E000001",
                 record_type="scout_completed",

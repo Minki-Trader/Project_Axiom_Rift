@@ -1233,6 +1233,53 @@ class V2OperationWriter:
                 ) from exc
         return payloads
 
+    def _verified_active_job_auxiliary_artifact_paths(
+        self,
+        active_job: Mapping[str, Any],
+        receipt: Mapping[str, Any],
+    ) -> set[str]:
+        """Verify the declared receipt and log paths outside the receipt manifest."""
+
+        import json
+
+        project_root = self._scientific_project_root().resolve()
+        expected = set(active_job.get("expected_artifacts", []))
+        verified: set[str] = set()
+        for field in ("output_path", "log_path"):
+            value = active_job.get(field)
+            if not isinstance(value, str) or not value or value not in expected:
+                continue
+            relative = Path(value)
+            if relative.is_absolute() or ".." in relative.parts or "\\" in value:
+                raise OperationStateError(
+                    f"active-job auxiliary artifact path is invalid: {field}"
+                )
+            resolved = (project_root / relative).resolve()
+            if project_root not in resolved.parents or not resolved.is_file():
+                raise OperationStateError(
+                    f"active-job auxiliary artifact is missing: {field}"
+                )
+            raw = resolved.read_bytes()
+            try:
+                text = raw.decode("ascii")
+            except UnicodeError as exc:
+                raise OperationStateError(
+                    f"active-job auxiliary artifact is not ASCII: {field}"
+                ) from exc
+            if field == "output_path":
+                try:
+                    stored_receipt = json.loads(text)
+                except ValueError as exc:
+                    raise OperationStateError(
+                        "active-job output receipt is not valid JSON"
+                    ) from exc
+                if stored_receipt != dict(receipt):
+                    raise OperationStateError(
+                        "active-job output receipt differs from recorded evidence"
+                    )
+            verified.add(value)
+        return verified
+
     def _scientific_receipt_evaluation_profile(
         self,
         receipt: Mapping[str, Any],
@@ -4108,6 +4155,12 @@ class V2OperationWriter:
                 for item in receipt_artifacts.values()
                 if isinstance(receipt_artifacts, dict) and isinstance(item, dict)
             } if isinstance(receipt_artifacts, dict) else set()
+            artifact_paths.update(
+                self._verified_active_job_auxiliary_artifact_paths(
+                    active_job,
+                    receipt,
+                )
+            )
             missing_artifacts = set(active_job.get("expected_artifacts", [])) - artifact_paths
             if missing_artifacts:
                 raise OperationStateError(

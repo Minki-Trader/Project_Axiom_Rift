@@ -1,0 +1,5 @@
+job_id: V2S0005
+status: completed_before_record_repair
+outcome: evidence_gap
+result_sha256: ab6762a84e8c846684e1e1b3dee1d4d11a865287e2c4765c67c23ddaf2dd8cf8
+note: The original launcher did not persist stdout. This repair log records receipt-backed completion and adds no scientific evidence.

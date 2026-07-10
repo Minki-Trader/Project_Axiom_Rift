@@ -1,12 +1,12 @@
 schema: axiom_rift_v2_control_state_v2
-revision: 222
+revision: 236
 status: active
 encoding: ascii_only
 active_truth: v2
 namespace:
   next_goal: 3
   next_hypothesis: 6
-  next_scout: 5
+  next_scout: 6
   next_confirmation: 1
   next_promotion: 1
   next_materialization: 1
@@ -16,32 +16,27 @@ cursor:
   goal_status: open
   last_closed_goal_id: V2G0001
   last_goal_outcome: completed_v2_activation
-  active_hypothesis_id: V2H0005
-  stage: H
-  stage_id: V2H0005
-  stage_status: preregistered
+  active_hypothesis_id: null
+  stage: S
+  stage_id: V2S0005
+  stage_status: disposed
   terminal_outcome: null
   next_action:
-    kind: open_stage
+    kind: preregister_hypothesis
     goal_id: V2G0002
-    stage: S
-    subject_id: V2S0005
+    stage: H
+    subject_id: V2H0006
     job_kind: null
-    prerequisite_receipt_ids: []
-    summary: open causal scout for V2H0005
+    prerequisite_receipt_ids:
+    - V2E000012
+    summary: preregister a distinct regime-axis hypothesis after H5 unidentified evidence
     mission_id: null
     terminal_outcome: null
     basis_evidence_id: null
-  stage_outcome: scientific_reject
+  stage_outcome: evidence_gap
 reentry:
   active_job: null
   current_object_ids:
-  - 9da6baff59ef72e2ff0f0031c2414d289941ecc123960d8c0cdb3acf3c5c2a84
-  - 2dddb7cae43c6eeb82c60261ef4189bfac1a87ab2592b2e528de4dd7b352e80d
-  - f2367b44b8cc395d2699cf93a4ea6190a4ae37b85fa55fc106e31fe20acaab14
-  - 0d43490b3e4fe492b0e7c4f3d2438d765105f860a132ebe3e3fa6b5d75a3f229
-  - 9b34abfb5146bad972bc622fa5af66d7fc0a88343040612399d032bc84b047ba
-  - c6e387e9bbb86f8ef19fb3a510959027e66f140fa7efc1243ffff8503e0af478
   - f8cb7e0a55669214aa936a1d966c8fe8dbc75642b99afd066910831f9a6a9e3f
   - 2df3031d9990ff3150cde6c00ee878614ef5b2f0a029cb0fbeb370112380caa5
   - 44c6957ae7c5b46b26d9685d69ea372654dea115af574b1e5af96f56144c0943
@@ -68,6 +63,12 @@ reentry:
   - c81a02009b6f037cdf134d79b732387975defb6e20371e787a35d2dec85eaefc
   - b22025747c778eb50f50677aefb6db04ad3eb1aa130478dd9d5da47d0858f157
   - 01aaf34f3b52fea8532fb27e30db33b55af756541c1665ea0991c5a5d27cee27
+  - bfec623a462fc495b3f392626c57ab712218d851eb428a450cf7a1ebcb1db4a5
+  - be194ece4e894df91efae668e92fa135e542060287d3eb65039bf54768e785a3
+  - c7b5e6114a57d5bc3958c724c1e7444c401256f301227921ecd129820f995350
+  - f7b03836e76f589a7ad6beb0873c73ebb487d50863410689ba567f9a517cceb1
+  - 977d0e0122adb21a7fe9e9c8f54eee1475009b093e654b7233c0237d6e78d1e9
+  - a0b102c0207ba258ab66539ca0df2bbad57e042c971689fc91f0177b2ea4a020
   current_artifact_hashes:
     V2G0002: f4047b46fd1af5e9c0df7814e690dd1b2cf09feee3c9ff9c632da365aa3469d2
     V2VR000016: b843f916f96fc510d62455c11943fdd253e16e20c3d3ab4340e6b117f0a22fa1
@@ -75,7 +76,7 @@ reentry:
     V2VR000018: 4e72acb6e4591cfa4b0c148a74236d495965e3e8d977585e44f94267c5fafe3c
     V2VR000019: 14235a5f9cb330d30e0faf98b328a64168a4cf189b26f113cbcecdbe7cad1d7c
     V2VR000020: b0ddcd08f906155e8e983b4a9de005f9bce862e9639a5bf7e23eb541bdcda92f
-    V2_SCIENTIFIC_RESEARCH_MAP: 6a0faaa34e0370c6388e20da15ed534f4809fc470c7a24b3a0a5963212e034be
+    V2_SCIENTIFIC_RESEARCH_MAP: c7b5e6114a57d5bc3958c724c1e7444c401256f301227921ecd129820f995350
     V2VR000021: 00e521a1b06f789e36123a554eb63132a76a28da85078a478e8d90f3bc55ec12
     V2VR000022: b077815d1a3f1c1a86c59d87188879b2c68a5bb9cdf4b100caf48ab12be8c453
     V2H0002: ffcc911c547f1ebb3999eea141c974b38587cf8de0a3eec32228355eb44bf04a
@@ -110,6 +111,11 @@ reentry:
     V2VR000039: 5dea8856c83d88743544c5a48b1bfb14f12374fe91353ff198c6c5977687d70e
     V2H0005: c81a02009b6f037cdf134d79b732387975defb6e20371e787a35d2dec85eaefc
     V2VR000040: b22025747c778eb50f50677aefb6db04ad3eb1aa130478dd9d5da47d0858f157
+    V2S0005_FAILURE_1: bfec623a462fc495b3f392626c57ab712218d851eb428a450cf7a1ebcb1db4a5
+    V2E000012: be194ece4e894df91efae668e92fa135e542060287d3eb65039bf54768e785a3
+    V2H0005_EVIDENCE_GAP: f7b03836e76f589a7ad6beb0873c73ebb487d50863410689ba567f9a517cceb1
+    V2VR000041: 977d0e0122adb21a7fe9e9c8f54eee1475009b093e654b7233c0237d6e78d1e9
+    V2VR000042: a0b102c0207ba258ab66539ca0df2bbad57e042c971689fc91f0177b2ea4a020
   completed_receipt_ids:
   - V2VR000016
   - V2VR000017
@@ -136,33 +142,45 @@ reentry:
   - V2VR000038
   - V2VR000039
   - V2VR000040
+  - V2VR000041
+  - V2VR000042
   completed_evidence_ids:
   - V2E000009
   - V2E000010
   - V2E000011
+  - V2E000012
   blocker: null
   git_sync:
-    status: metadata_pending_push
-    validated_content_commit: 730214087ea4f4dd127f0503a864d18568234b2f
-    local_head: 730214087ea4f4dd127f0503a864d18568234b2f
-    origin_main_head: 730214087ea4f4dd127f0503a864d18568234b2f
-    validation_receipt_id: V2VR000040
-    closeout_object_id: 01aaf34f3b52fea8532fb27e30db33b55af756541c1665ea0991c5a5d27cee27
-    content_state_fingerprint: 0d4ac2750a09de3dc3c08a282198196574216a70b706bcfc81b5c336d962a5dd
-    dirty_revision: 221
+    status: unsynced
+    validation_receipt_id: V2VR000042
+    validation_key: a0d21cf4b312d48cf9b52d3d4a4f294019aa3415cff59e21906ddf659920f6ee
+    validated_slice_id: V2S0005
     declared_content_paths:
-    - campaigns/v2/V2G0002_scientific_root/hypotheses/V2H0005.yaml
-    - registries/v2/control_state.yaml
-    - registries/v2/scientific/hypothesis_ledger.jsonl
-    - registries/v2/validation_receipts.jsonl
-    - registries/v2/objects/c81a02009b6f037cdf134d79b732387975defb6e20371e787a35d2dec85eaefc.json
-    - registries/v2/objects/b22025747c778eb50f50677aefb6db04ad3eb1aa130478dd9d5da47d0858f157.json
-    - src/axiom_rift/v2/research/scout.py
-    - tests/v2/test_v28_session_hypothesis.py
-    metadata_allowed_paths:
+    - campaigns/v2/V2G0002_scientific_root/work_units/V2S0005.yaml
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/causal_checks.json
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/job.log
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/metrics.json
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/model_bundles.json
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/nested_selection.json
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/receipt.json
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/trades.csv
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/trial_accounting.json
     - registries/v2/control_state.yaml
     - registries/v2/evidence_ledger.jsonl
-    - registries/v2/objects/01aaf34f3b52fea8532fb27e30db33b55af756541c1665ea0991c5a5d27cee27.json
+    - registries/v2/scientific/hypothesis_ledger.jsonl
+    - registries/v2/validation_receipts.jsonl
+    - registries/v2/objects/977d0e0122adb21a7fe9e9c8f54eee1475009b093e654b7233c0237d6e78d1e9.json
+    - registries/v2/objects/a0b102c0207ba258ab66539ca0df2bbad57e042c971689fc91f0177b2ea4a020.json
+    - registries/v2/objects/be194ece4e894df91efae668e92fa135e542060287d3eb65039bf54768e785a3.json
+    - registries/v2/objects/bfec623a462fc495b3f392626c57ab712218d851eb428a450cf7a1ebcb1db4a5.json
+    - registries/v2/objects/c7b5e6114a57d5bc3958c724c1e7444c401256f301227921ecd129820f995350.json
+    - registries/v2/objects/f7b03836e76f589a7ad6beb0873c73ebb487d50863410689ba567f9a517cceb1.json
+    - src/axiom_rift/v2/operations.py
+    - tests/v2/test_v21_state_operations.py
+    dirty_revision: 236
+    dirty_state_fingerprint: 65a7bde52bd50b74f3615a254d2165d6484d94cd1192e19e06d5a36e068350f4
+    invalidated_by_operation: V2S0005_CLOSE_SLICE_1
+    previous_validated_content_commit: null
 claim:
   subject_kind: hypothesis
   subject_id: V2H0005
@@ -173,32 +191,18 @@ claim:
   blocked_by: []
 ledger_heads:
   hypothesis:
-    ledger_seq: 8
-    row_sha256: e7b77bed3b320d46896ec91912a2a473a5513781230dd0ca092fd67c24af715a
+    ledger_seq: 9
+    row_sha256: 51eb05bfa3579483327ca0c81efa19c652c021ab3af7b02f848f60b58c03cdcc
   evidence:
-    ledger_seq: 34
-    row_sha256: 4e778607cc0da0665ba8c8645d952b9ec618c458e0a9d6665cac9a70357bec74
+    ledger_seq: 36
+    row_sha256: 327ced3eb0d760b90886c0a951bd0de7e0b8fbb8769e5c9a3da025a3ca9be643
   material:
     ledger_seq: 20
     row_sha256: 1b0498be4d3be0ea22148aaec4141a60c46996805c705087717015b632c9afb4
   validation_receipt:
-    ledger_seq: 40
-    row_sha256: c21fd34e64489297a12e2cef682888d6e3987ea365279e7202e26e75be44ac4d
+    ledger_seq: 42
+    row_sha256: 2a39a0b088c910cd2d7c452be97f365a2c7e4fbdba7c9eb10f8a2a1400bf48be
 applied_idempotency_keys:
-- V2S0002_DECLARE_JOB_1
-- V2S0002_START_JOB_1
-- V2S0002_REPAIR_CONSUME_1
-- V2S0002_RECORD_FAILURE_1
-- V2S0002_RESUME_AFTER_REPAIR_1
-- V2S0002_RECORD_EVIDENCE_1
-- V2S0002_VALIDATION_CONSUME_1
-- V2S0002_RECORD_VALIDATION_FAIL_1
-- V2S0002_RECHECK_CONSUME_1
-- V2S0002_RECORD_RECHECK_FAIL_1
-- V2S0002_REDESIGN_TO_V2SL0020_1
-- V2SL0020_REPAIR_CONSUME_1
-- V2SL0020_VALIDATION_CONSUME_1
-- V2SL0020_RECORD_VALIDATION_PASS_1
 - V2SL0020_CLOSE_1
 - V2SL0020_GIT_CLOSEOUT_1
 - V2SL0021_OPEN_1
@@ -285,6 +289,20 @@ applied_idempotency_keys:
 - V2SL0029_RECORD_VALIDATION_PASS_1
 - V2SL0029_CLOSE_1
 - V2SL0029_GIT_CLOSEOUT_1
+- V2S0005_OPEN_1
+- V2S0005_IMPLEMENTATION_CONSUME_1
+- V2S0005_DECLARE_JOB_1
+- V2S0005_START_JOB_1
+- V2S0005_RECORD_FAILURE_1
+- V2S0005_REPAIR_CONSUME_1
+- V2S0005_RESUME_AFTER_REPAIR_1
+- V2S0005_RECORD_EVIDENCE_1
+- V2H0005_EVIDENCE_GAP_DISPOSITION_1
+- V2S0005_VALIDATION_CONSUME_1
+- V2S0005_RECORD_FAILED_VALIDATION_1
+- V2S0005_RECHECK_CONSUME_1
+- V2S0005_RECORD_PASSING_RECHECK_1
+- V2S0005_CLOSE_SLICE_1
 bootstrap_goal_outcome: activated
 activation:
   activation_evidence_id: V2E000008
@@ -309,7 +327,7 @@ mission_budget:
     holdout_reveals: 1
   remaining:
     hypothesis_batches: 20
-    scout_jobs: 21
+    scout_jobs: 20
     confirmation_jobs: 4
     promotion_candidates: 2
     full_nine_fold_mt5_batches: 2
@@ -347,8 +365,8 @@ scientific:
   seed_manifest_sha256: abe5ac0d3fb5f2d4e2c953a8fd9f6e571b04f490e22d572a95b5de14798dc069
   research_map_seed_path: registries/v2/scientific/research_map.yaml
   research_map_seed_sha256: 7ce09787f924e8091e12e4badae820398abc0184f1ba2566951e31d0b2223912
-  current_research_map_object_id: 6a0faaa34e0370c6388e20da15ed534f4809fc470c7a24b3a0a5963212e034be
-  research_map_snapshot_seq: 5
+  current_research_map_object_id: c7b5e6114a57d5bc3958c724c1e7444c401256f301227921ecd129820f995350
+  research_map_snapshot_seq: 6
   hypothesis_ledger_path: registries/v2/scientific/hypothesis_ledger.jsonl
   hypothesis_object_ids:
   - ffcc911c547f1ebb3999eea141c974b38587cf8de0a3eec32228355eb44bf04a
@@ -359,6 +377,7 @@ scientific:
   - V2E000009
   - V2E000010
   - V2E000011
+  - V2E000012
   negative_memory_object_ids:
   - f8cb7e0a55669214aa936a1d966c8fe8dbc75642b99afd066910831f9a6a9e3f
   - b1ae8698f920e0aa8f12368aedf6fddd6310d0f6644093b7ca07fc22359c314a

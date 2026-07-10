@@ -1,0 +1,402 @@
+{
+  "bundle_role_hashes": {
+    "cash_open_failure_continuation_control": "67043277ed3b95a3fad74f6ba186c78736d6cba42ef93549b6088c1f9105642d",
+    "cash_open_failure_plus_60m_control": "e45d31d0cb307982f8c40f0b383a1d302082aa6d1a96ff1f5b19911492015d47",
+    "cash_open_failure_reversal_primary": "a20b25689707cb148bfadcfd96e4d7f78dbddf7966f6877d90280d03274283d1"
+  },
+  "claim_ceiling": "diagnostic_observation",
+  "program_identities": {
+    "cash_open_failure_continuation_control": {
+      "calibration": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2CP1001",
+        "implementation_key": "identity_event_calibration_v1",
+        "kind": "calibration",
+        "program_sha256": "584a10f9c69500f046d3abbd5169f38c9f7d31e7e0ea4a113b494be01b568f5e",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "feature": {
+        "contract_path": "configs/v2/scientific/programs/cash_open_gap_failure_v1.yaml",
+        "contract_sha256": "3447b08433c05f91bbf73c41cd34d681d35520e94da7902f73ff05fc34198c96",
+        "fixture_only": false,
+        "id": "V2FP2001",
+        "implementation_key": "cash_open_gap_failure_features_v1",
+        "kind": "feature",
+        "program_sha256": "d5add4381519d59b4cd55e87add93e7c56ae25ff434fac065c23b32b44e39934",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "label": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2LP1001",
+        "implementation_key": "forward_open_return_6bar_v1",
+        "kind": "label",
+        "program_sha256": "547ea62a2350da4b3637ddb21cc5f952133b7029ba2d4cfdab2db695a1834405",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "model": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2MP1001",
+        "implementation_key": "deterministic_event_score_v1",
+        "kind": "model",
+        "program_sha256": "348744e7079d28506d152003bef095bb91580169e0be5fd251bd2b54e7c30a1a",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "portfolio_risk": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2PR1001",
+        "implementation_key": "one_position_safety_v1",
+        "kind": "portfolio_risk",
+        "program_sha256": "1275a00928ca5a4d411ca28999b370d747ad2dbf7523c34c301a05ea018495ed",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "selector": {
+        "contract_path": "configs/v2/scientific/programs/cash_open_gap_failure_v1.yaml",
+        "contract_sha256": "3447b08433c05f91bbf73c41cd34d681d35520e94da7902f73ff05fc34198c96",
+        "fixture_only": false,
+        "id": "V2SEL4002",
+        "implementation_key": "chronological_cash_open_gap_failure_cost_gated_selector_v1",
+        "kind": "selector",
+        "program_sha256": "cf131453b9e8fbbefba0b6c48b4c03c558be3e03d35a44ea381482fd674a9e2c",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "sizing": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2SZ1001",
+        "implementation_key": "fixed_lot_v1",
+        "kind": "sizing",
+        "program_sha256": "472c82eb0d21ecfeb9644e6688b08b3eb92461755d7fb1942490b9d57710714e",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "trade": {
+        "contract_path": "configs/v2/scientific/programs/causal_spread_floor_v1.yaml",
+        "contract_sha256": "d1d729b52b8c461709afc6a1cd516993bf9f4967e89e341b0a49b604bd143161",
+        "fixture_only": false,
+        "id": "V2TP1002",
+        "implementation_key": "fixed_6bar_causal_spread_floor_v1",
+        "kind": "trade",
+        "program_sha256": "caac9a4c5c79b94d9c04f01584c424171313e1c975e0aa361285c06b8e423899",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      }
+    },
+    "cash_open_failure_plus_60m_control": {
+      "calibration": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2CP1001",
+        "implementation_key": "identity_event_calibration_v1",
+        "kind": "calibration",
+        "program_sha256": "584a10f9c69500f046d3abbd5169f38c9f7d31e7e0ea4a113b494be01b568f5e",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "feature": {
+        "contract_path": "configs/v2/scientific/programs/cash_open_gap_failure_v1.yaml",
+        "contract_sha256": "3447b08433c05f91bbf73c41cd34d681d35520e94da7902f73ff05fc34198c96",
+        "fixture_only": false,
+        "id": "V2FP2001",
+        "implementation_key": "cash_open_gap_failure_features_v1",
+        "kind": "feature",
+        "program_sha256": "d5add4381519d59b4cd55e87add93e7c56ae25ff434fac065c23b32b44e39934",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "label": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2LP1001",
+        "implementation_key": "forward_open_return_6bar_v1",
+        "kind": "label",
+        "program_sha256": "547ea62a2350da4b3637ddb21cc5f952133b7029ba2d4cfdab2db695a1834405",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "model": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2MP1001",
+        "implementation_key": "deterministic_event_score_v1",
+        "kind": "model",
+        "program_sha256": "348744e7079d28506d152003bef095bb91580169e0be5fd251bd2b54e7c30a1a",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "portfolio_risk": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2PR1001",
+        "implementation_key": "one_position_safety_v1",
+        "kind": "portfolio_risk",
+        "program_sha256": "1275a00928ca5a4d411ca28999b370d747ad2dbf7523c34c301a05ea018495ed",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "selector": {
+        "contract_path": "configs/v2/scientific/programs/cash_open_gap_failure_v1.yaml",
+        "contract_sha256": "3447b08433c05f91bbf73c41cd34d681d35520e94da7902f73ff05fc34198c96",
+        "fixture_only": false,
+        "id": "V2SEL4003",
+        "implementation_key": "chronological_cash_open_gap_failure_cost_gated_selector_v1",
+        "kind": "selector",
+        "program_sha256": "b3124ddaa60a3c2c27a40c4c8f4f9ac3d10dca5c22591f81886a859dfdfebf98",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "sizing": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2SZ1001",
+        "implementation_key": "fixed_lot_v1",
+        "kind": "sizing",
+        "program_sha256": "472c82eb0d21ecfeb9644e6688b08b3eb92461755d7fb1942490b9d57710714e",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "trade": {
+        "contract_path": "configs/v2/scientific/programs/causal_spread_floor_v1.yaml",
+        "contract_sha256": "d1d729b52b8c461709afc6a1cd516993bf9f4967e89e341b0a49b604bd143161",
+        "fixture_only": false,
+        "id": "V2TP1002",
+        "implementation_key": "fixed_6bar_causal_spread_floor_v1",
+        "kind": "trade",
+        "program_sha256": "caac9a4c5c79b94d9c04f01584c424171313e1c975e0aa361285c06b8e423899",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      }
+    },
+    "cash_open_failure_reversal_primary": {
+      "calibration": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2CP1001",
+        "implementation_key": "identity_event_calibration_v1",
+        "kind": "calibration",
+        "program_sha256": "584a10f9c69500f046d3abbd5169f38c9f7d31e7e0ea4a113b494be01b568f5e",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "feature": {
+        "contract_path": "configs/v2/scientific/programs/cash_open_gap_failure_v1.yaml",
+        "contract_sha256": "3447b08433c05f91bbf73c41cd34d681d35520e94da7902f73ff05fc34198c96",
+        "fixture_only": false,
+        "id": "V2FP2001",
+        "implementation_key": "cash_open_gap_failure_features_v1",
+        "kind": "feature",
+        "program_sha256": "d5add4381519d59b4cd55e87add93e7c56ae25ff434fac065c23b32b44e39934",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "label": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2LP1001",
+        "implementation_key": "forward_open_return_6bar_v1",
+        "kind": "label",
+        "program_sha256": "547ea62a2350da4b3637ddb21cc5f952133b7029ba2d4cfdab2db695a1834405",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "model": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2MP1001",
+        "implementation_key": "deterministic_event_score_v1",
+        "kind": "model",
+        "program_sha256": "348744e7079d28506d152003bef095bb91580169e0be5fd251bd2b54e7c30a1a",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "portfolio_risk": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2PR1001",
+        "implementation_key": "one_position_safety_v1",
+        "kind": "portfolio_risk",
+        "program_sha256": "1275a00928ca5a4d411ca28999b370d747ad2dbf7523c34c301a05ea018495ed",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "selector": {
+        "contract_path": "configs/v2/scientific/programs/cash_open_gap_failure_v1.yaml",
+        "contract_sha256": "3447b08433c05f91bbf73c41cd34d681d35520e94da7902f73ff05fc34198c96",
+        "fixture_only": false,
+        "id": "V2SEL4001",
+        "implementation_key": "chronological_cash_open_gap_failure_cost_gated_selector_v1",
+        "kind": "selector",
+        "program_sha256": "01af89804dbdf3b5f644326ef1145f73c5830a65251e88299989c0acaaea90a5",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "sizing": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2SZ1001",
+        "implementation_key": "fixed_lot_v1",
+        "kind": "sizing",
+        "program_sha256": "472c82eb0d21ecfeb9644e6688b08b3eb92461755d7fb1942490b9d57710714e",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      },
+      "trade": {
+        "contract_path": "configs/v2/scientific/programs/causal_spread_floor_v1.yaml",
+        "contract_sha256": "d1d729b52b8c461709afc6a1cd516993bf9f4967e89e341b0a49b604bd143161",
+        "fixture_only": false,
+        "id": "V2TP1002",
+        "implementation_key": "fixed_6bar_causal_spread_floor_v1",
+        "kind": "trade",
+        "program_sha256": "caac9a4c5c79b94d9c04f01584c424171313e1c975e0aa361285c06b8e423899",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+        "version": 1
+      }
+    }
+  },
+  "release_configuration_hashes": {
+    "cash_open_failure_continuation_control": "302c302bc4495d1ec5319a1ee4dd5366e7b43f68a64d29334c3ccfe58f74171c",
+    "cash_open_failure_plus_60m_control": "a087f134c212e6aa2fd4e7125c41547b7c95d05a4b8c18f71ff1ae48a3d737cd",
+    "cash_open_failure_reversal_primary": "a7dfcbe8fdccb5ee08d05d24e390f5cc14860007efa9bbe8a98aa8428f95f7ba"
+  },
+  "runtime_executable_sha256": "b6294e672f54ca324ac4b10d400f5b7f701b76d6abec3998ab40ab5d19199aae",
+  "runtime_sha256": "f5f9eea2f32b4915e141d8d52d171c558477164539609609881104b5d7224ffe",
+  "schema": "axiom_rift_v2_scientific_program_bundle_selections_v1",
+  "selections": [
+    {
+      "falsifier_triggered": false,
+      "fold_id": "V2D002",
+      "plateau_roles": [],
+      "selected_configuration_sha256": null,
+      "selected_role": null,
+      "selection_basis": "required_session_role_not_evaluable",
+      "selection_sha256": "19376ec9b7fb3118f891f8d2478491b8ffd74b2c99e5b104ca4b6e710850fddc",
+      "validation_contrasts": {
+        "all_roles_evaluable": false,
+        "cash_open_reversal_primary_shadow_net_broker_points": null,
+        "continuation_control_falsifies": false,
+        "continuation_minus_primary": null,
+        "control_noninferiority_tolerance_broker_points": 0.0,
+        "controls_selection_eligible": false,
+        "plus_60m_control_falsifies": false,
+        "plus_60m_minus_primary": null,
+        "plus_60m_reversal_control_shadow_net_broker_points": null,
+        "required_roles_evaluable": false,
+        "same_time_continuation_control_shadow_net_broker_points": null,
+        "selection_source_role": "validation_oos",
+        "selection_utility": "strict_observed_shadow_net_broker_points",
+        "unevaluable_roles": [
+          "cash_open_failure_continuation_control",
+          "cash_open_failure_plus_60m_control",
+          "cash_open_failure_reversal_primary"
+        ]
+      }
+    },
+    {
+      "falsifier_triggered": false,
+      "fold_id": "V2D005",
+      "plateau_roles": [],
+      "selected_configuration_sha256": null,
+      "selected_role": null,
+      "selection_basis": "required_session_role_not_evaluable",
+      "selection_sha256": "cbe04622dde69b871003ee03e2b024fa5a223e77655fbc2b7a74650ee2bb0a8c",
+      "validation_contrasts": {
+        "all_roles_evaluable": false,
+        "cash_open_reversal_primary_shadow_net_broker_points": null,
+        "continuation_control_falsifies": false,
+        "continuation_minus_primary": null,
+        "control_noninferiority_tolerance_broker_points": 0.0,
+        "controls_selection_eligible": false,
+        "plus_60m_control_falsifies": false,
+        "plus_60m_minus_primary": null,
+        "plus_60m_reversal_control_shadow_net_broker_points": null,
+        "required_roles_evaluable": false,
+        "same_time_continuation_control_shadow_net_broker_points": null,
+        "selection_source_role": "validation_oos",
+        "selection_utility": "strict_observed_shadow_net_broker_points",
+        "unevaluable_roles": [
+          "cash_open_failure_continuation_control",
+          "cash_open_failure_plus_60m_control",
+          "cash_open_failure_reversal_primary"
+        ]
+      }
+    },
+    {
+      "falsifier_triggered": false,
+      "fold_id": "V2D008",
+      "plateau_roles": [],
+      "selected_configuration_sha256": null,
+      "selected_role": null,
+      "selection_basis": "required_session_role_not_evaluable",
+      "selection_sha256": "d34d9d35c353fb58a046069746072c9350d25f2299e557aeab0d6513dd0d220f",
+      "validation_contrasts": {
+        "all_roles_evaluable": false,
+        "cash_open_reversal_primary_shadow_net_broker_points": null,
+        "continuation_control_falsifies": false,
+        "continuation_minus_primary": null,
+        "control_noninferiority_tolerance_broker_points": 0.0,
+        "controls_selection_eligible": false,
+        "plus_60m_control_falsifies": false,
+        "plus_60m_minus_primary": null,
+        "plus_60m_reversal_control_shadow_net_broker_points": null,
+        "required_roles_evaluable": false,
+        "same_time_continuation_control_shadow_net_broker_points": null,
+        "selection_source_role": "validation_oos",
+        "selection_utility": "strict_observed_shadow_net_broker_points",
+        "unevaluable_roles": [
+          "cash_open_failure_continuation_control",
+          "cash_open_failure_plus_60m_control",
+          "cash_open_failure_reversal_primary"
+        ]
+      }
+    }
+  ],
+  "trade_implementation_key": "fixed_6bar_causal_spread_floor_v1"
+}

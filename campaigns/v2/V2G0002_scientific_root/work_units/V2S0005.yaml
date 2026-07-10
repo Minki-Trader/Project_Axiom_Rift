@@ -1,0 +1,65 @@
+schema: axiom_rift_v2_work_unit_v1
+status: completed_evidence_gap
+encoding: ascii_only
+goal_id: V2G0002
+hypothesis_id: V2H0005
+stage: S
+stage_id: V2S0005
+spec_path: campaigns/v2/V2G0002_scientific_root/hypotheses/V2H0005.yaml
+acceptance_profile_id: V2SAP0005
+claim_ceiling: diagnostic_observation
+inputs:
+  dataset_id: V2DATA0001
+  split_set_id: V2SP0001
+  development_ids:
+    - V2D002
+    - V2D005
+    - V2D008
+  clock_contract_material_id: V2MAT000006
+  program_registry_sha256: 8142f6bf41b5b346a4c9f4e43c83a70d46395a809c65f041842055f2ea8b1f72
+  spec_file_sha256: 22841fdef2d1936949b027627877305ad041ea150d88d0b64c34d0d25c01fc5f
+  spec_payload_sha256: f10969e7e9e20b8fbd91dd3d26046624b053af862654df4b11b2470066218c5a
+expected_artifacts:
+  - metrics.json
+  - trades.csv
+  - model_bundles.json
+  - causal_checks.json
+  - nested_selection.json
+  - trial_accounting.json
+  - receipt.json
+  - job.log
+validation_budget:
+  focused_batches: 1
+  repair_batches_max: 1
+  rechecks_max: 1
+evidence_job:
+  job_id: V2S0005
+  kind: scientific_scout
+  bounded: true
+  timeout_seconds: 900
+  input_hash: 85135323ec03769c1e25074e5140b36e925f4fb18b340cc60bfe83280b3cf7be
+  command_environment:
+    PYTHONPATH: src
+  command: >-
+    python -c "from pathlib import Path; from axiom_rift.v2.jobs.scout import run_scout_job; receipt=run_scout_job('V2G0002','V2H0005','V2S0005',Path('campaigns/v2/V2G0002_scientific_root/hypotheses/V2H0005.yaml'),Path('campaigns/v2/V2G0002_scientific_root/evidence/V2S0005'),job_id='V2S0005',input_hash='85135323ec03769c1e25074e5140b36e925f4fb18b340cc60bfe83280b3cf7be'); print(receipt['outcome'], receipt['result_sha256'])"
+  expected_artifact_paths:
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/metrics.json
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/trades.csv
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/model_bundles.json
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/causal_checks.json
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/nested_selection.json
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/trial_accounting.json
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/receipt.json
+    - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/job.log
+  log_path: campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/job.log
+  resume_action: rerun evidence_job.command with the same input_hash after process interruption or one authorized repair
+  mt5: false
+  onnx_export: false
+  full_nine_fold: false
+  final_receipt_path: campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/receipt.json
+  final_result_sha256: ab6762a84e8c846684e1e1b3dee1d4d11a865287e2c4765c67c23ddaf2dd8cf8
+  final_outcome: evidence_gap
+terminal_outcomes:
+  - route_to_R
+  - scientific_reject
+  - evidence_gap
