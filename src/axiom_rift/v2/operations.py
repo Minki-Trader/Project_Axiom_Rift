@@ -1065,6 +1065,7 @@ class V2OperationWriter:
         declared = tuple(dict.fromkeys(path.replace("\\", "/") for path in declared_content_paths))
         if not declared or any(
             not path
+            or path.endswith("/")
             or path.startswith("/")
             or ":" in path.split("/", 1)[0]
             or ".." in path.split("/")

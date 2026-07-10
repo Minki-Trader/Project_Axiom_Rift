@@ -711,6 +711,38 @@ class V21GenericLifecycleTests(unittest.TestCase):
             self.assertEqual("verify_git_closeout", validated["cursor"]["next_action"]["kind"])
             self.assertEqual("V2VRROOT", validated["reentry"]["git_sync"]["validation_receipt_id"])
 
+    def test_slice_close_rejects_directory_scope_before_git_checkpoint(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            writer = build_writer(Path(temp_dir), v21_state())
+            slice_id = "V2SL_SCOPE"
+            writer.open_slice(slice_id=slice_id, idempotency_key="open-scope-slice")
+            writer.consume_slice_budget(
+                phase="validation",
+                validation_key="scope-validation-key",
+                expected_slice_id=slice_id,
+                idempotency_key="authorize-scope-validation",
+            )
+            writer.record_validation_receipt(
+                receipt_id="V2VRSCOPE",
+                receipt={
+                    "validation_key": "scope-validation-key",
+                    "outcome": "pass",
+                    "validator_id": "scope-validator",
+                    "duration_seconds": 0.01,
+                    "slice_id": slice_id,
+                },
+                idempotency_key="record-scope-validation",
+                exact_next_action=writer.control.load()["cursor"]["next_action"],
+            )
+
+            with self.assertRaisesRegex(OperationStateError, "declared content paths"):
+                writer.close_slice(
+                    slice_id=slice_id,
+                    validation_receipt_id="V2VRSCOPE",
+                    declared_content_paths=("registries/v2/scientific/",),
+                    idempotency_key="close-directory-scope",
+                )
+
     def test_internal_close_rejects_root_outcome_and_store_rejects_direct_terminal(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             writer = build_writer(Path(temp_dir), v21_state())
