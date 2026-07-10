@@ -18,6 +18,41 @@ Read in order:
 
 Do not boot from V1 registries, campaigns, results, or archives.
 
+## Foundation Build Override
+
+This override activates only when the user goal explicitly names both:
+
+- OPERATING_DIRECTION.md
+- FOUNDATION_BUILD_CHECKLIST.md
+
+For that goal, replace normal boot steps 2 through 4 with:
+
+1. Read OPERATING_DIRECTION.md completely.
+2. Read FOUNDATION_BUILD_CHECKLIST.md completely.
+3. Read the current control state and active work only as preservation and
+   cutover intake.
+4. Read protected market, runtime, data, split, and exposure inputs named by the
+   Foundation checklist.
+
+That goal is a pre-Mission engineering Foundation Initiative. Do not continue
+the current scientific root, preregister a hypothesis, open a scientific trial,
+reveal holdout data, or use the current scientific goal operator as execution
+authority.
+
+While this override is active, every later operational section from Root
+Mission through Closeout, including its goal-skill route, is preservation-only
+intake and is not Foundation execution authority. Apply only the universal
+safety boundaries restated in OPERATING_DIRECTION.md and
+FOUNDATION_BUILD_CHECKLIST.md.
+
+The explicit Foundation goal grants destructive replacement authority only
+inside the preservation and deletion boundaries in the checklist. Continue
+autonomously to completed_ready_boundary unless a genuine external blocker
+remains.
+
+This override is temporary intake routing. The Foundation Initiative must
+replace it with the final thin durable router before close.
+
 ## Root Mission
 
 For a short `/goal`, continuation, next-work decision, H/S/R/P/M operation,
