@@ -1,5 +1,5 @@
 schema: axiom_rift_v2_control_state_v2
-revision: 236
+revision: 237
 status: active
 encoding: ascii_only
 active_truth: v2
@@ -37,7 +37,6 @@ cursor:
 reentry:
   active_job: null
   current_object_ids:
-  - f8cb7e0a55669214aa936a1d966c8fe8dbc75642b99afd066910831f9a6a9e3f
   - 2df3031d9990ff3150cde6c00ee878614ef5b2f0a029cb0fbeb370112380caa5
   - 44c6957ae7c5b46b26d9685d69ea372654dea115af574b1e5af96f56144c0943
   - b572136f5f65954fa9bad3dfb986d9cd34059cff73a4cf8cd2e7993d499ec798
@@ -69,6 +68,7 @@ reentry:
   - f7b03836e76f589a7ad6beb0873c73ebb487d50863410689ba567f9a517cceb1
   - 977d0e0122adb21a7fe9e9c8f54eee1475009b093e654b7233c0237d6e78d1e9
   - a0b102c0207ba258ab66539ca0df2bbad57e042c971689fc91f0177b2ea4a020
+  - 999fe7ef8dc45333e2a7f465870e2e9c4ccc8a9b8c7e2a6ca5620f343aace14f
   current_artifact_hashes:
     V2G0002: f4047b46fd1af5e9c0df7814e690dd1b2cf09feee3c9ff9c632da365aa3469d2
     V2VR000016: b843f916f96fc510d62455c11943fdd253e16e20c3d3ab4340e6b117f0a22fa1
@@ -151,10 +151,14 @@ reentry:
   - V2E000012
   blocker: null
   git_sync:
-    status: unsynced
+    status: metadata_pending_push
+    validated_content_commit: 84208f66b827255a2467d1a14db6e3cd510ae707
+    local_head: 84208f66b827255a2467d1a14db6e3cd510ae707
+    origin_main_head: 84208f66b827255a2467d1a14db6e3cd510ae707
     validation_receipt_id: V2VR000042
-    validation_key: a0d21cf4b312d48cf9b52d3d4a4f294019aa3415cff59e21906ddf659920f6ee
-    validated_slice_id: V2S0005
+    closeout_object_id: 999fe7ef8dc45333e2a7f465870e2e9c4ccc8a9b8c7e2a6ca5620f343aace14f
+    content_state_fingerprint: 65a7bde52bd50b74f3615a254d2165d6484d94cd1192e19e06d5a36e068350f4
+    dirty_revision: 236
     declared_content_paths:
     - campaigns/v2/V2G0002_scientific_root/work_units/V2S0005.yaml
     - campaigns/v2/V2G0002_scientific_root/evidence/V2S0005/causal_checks.json
@@ -177,10 +181,10 @@ reentry:
     - registries/v2/objects/f7b03836e76f589a7ad6beb0873c73ebb487d50863410689ba567f9a517cceb1.json
     - src/axiom_rift/v2/operations.py
     - tests/v2/test_v21_state_operations.py
-    dirty_revision: 236
-    dirty_state_fingerprint: 65a7bde52bd50b74f3615a254d2165d6484d94cd1192e19e06d5a36e068350f4
-    invalidated_by_operation: V2S0005_CLOSE_SLICE_1
-    previous_validated_content_commit: null
+    metadata_allowed_paths:
+    - registries/v2/control_state.yaml
+    - registries/v2/evidence_ledger.jsonl
+    - registries/v2/objects/999fe7ef8dc45333e2a7f465870e2e9c4ccc8a9b8c7e2a6ca5620f343aace14f.json
 claim:
   subject_kind: hypothesis
   subject_id: V2H0005
@@ -194,8 +198,8 @@ ledger_heads:
     ledger_seq: 9
     row_sha256: 51eb05bfa3579483327ca0c81efa19c652c021ab3af7b02f848f60b58c03cdcc
   evidence:
-    ledger_seq: 36
-    row_sha256: 327ced3eb0d760b90886c0a951bd0de7e0b8fbb8769e5c9a3da025a3ca9be643
+    ledger_seq: 37
+    row_sha256: 29fdd5f8702bdf3d5eb10f42153249bc2c6765bdaf3469dfe26bbafa4dd65d2a
   material:
     ledger_seq: 20
     row_sha256: 1b0498be4d3be0ea22148aaec4141a60c46996805c705087717015b632c9afb4
@@ -203,7 +207,6 @@ ledger_heads:
     ledger_seq: 42
     row_sha256: 2a39a0b088c910cd2d7c452be97f365a2c7e4fbdba7c9eb10f8a2a1400bf48be
 applied_idempotency_keys:
-- V2SL0020_CLOSE_1
 - V2SL0020_GIT_CLOSEOUT_1
 - V2SL0021_OPEN_1
 - V2SL0021_IMPLEMENTATION_CONSUME_1
@@ -303,6 +306,7 @@ applied_idempotency_keys:
 - V2S0005_RECHECK_CONSUME_1
 - V2S0005_RECORD_PASSING_RECHECK_1
 - V2S0005_CLOSE_SLICE_1
+- V2S0005_RECORD_GIT_CLOSEOUT_1
 bootstrap_goal_outcome: activated
 activation:
   activation_evidence_id: V2E000008
