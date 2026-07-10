@@ -10,6 +10,7 @@ template:
   human_intermediate_approval: false
   active_mutation_jobs_max: 1
 budget_defaults:
+  role: bootstrap_fixture_not_future_scientific_ceiling
   hypothesis_batches_max: 12
   scout_jobs_max: 12
   confirmation_jobs_max: 4
@@ -23,6 +24,13 @@ budget_defaults:
   identical_validation_retries_max: 0
   freeze_on_mission_open: true
   results_may_increase_budget: false
+future_scientific_mission_open:
+  compute_capacity_role: nonbinding
+  rolling_research_windows: true
+  emergency_hypothesis_ceiling_required: true
+  emergency_hypothesis_ceiling_default: null
+  result_independent_before_first_H: true
+  high_information_unseen_axes_continue: true
 bounded_parameter_discovery:
   unregistered_adjacent_retries_max: 0
   sensitivity_batches_per_hypothesis_max: 1

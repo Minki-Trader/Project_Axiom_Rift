@@ -304,6 +304,8 @@ def compact_status(root: Path) -> dict[str, Any]:
         "effective_root_status": effective_root_status,
         "effective_terminal_outcome": effective_terminal_outcome,
         "mission_budget": state.get("mission_budget"),
+        "harness": state.get("harness"),
+        "scientific": state.get("scientific"),
         "slice_budget": state.get("slice_budget"),
         "cursor": {
             key: cursor.get(key)
@@ -339,12 +341,24 @@ def reconcile_state(root: Path, *, apply: bool = False) -> dict[str, Any]:
     """Report ledger drift and optionally finish one verified pending control replace."""
 
     from axiom_rift.v2.operations import V2OperationWriter
+    import yaml
 
     registry = root / "registries/v2"
+    raw_state = yaml.safe_load((registry / "control_state.yaml").read_text(encoding="ascii"))
+    configured_hypothesis = (
+        raw_state.get("scientific", {}).get("hypothesis_ledger_path")
+        if isinstance(raw_state, dict)
+        else None
+    )
+    hypothesis_ledger = (
+        root / configured_hypothesis
+        if isinstance(configured_hypothesis, str) and configured_hypothesis
+        else registry / "hypothesis_ledger.jsonl"
+    )
     writer = V2OperationWriter(
         object_dir=registry / "objects",
         control_state=registry / "control_state.yaml",
-        hypothesis_ledger=registry / "hypothesis_ledger.jsonl",
+        hypothesis_ledger=hypothesis_ledger,
         evidence_ledger=registry / "evidence_ledger.jsonl",
         material_ledger=registry / "material_ledger.jsonl",
         validation_receipt_ledger=registry / "validation_receipts.jsonl",
@@ -452,6 +466,10 @@ def _validate_surface(args: argparse.Namespace, root: Path) -> int:
         governance_validation_identity,
         validate_v22_quant_governance,
     )
+    from axiom_rift.v2.validation.autonomy import (
+        autonomy_validation_identity,
+        validate_v24_autonomy_harness,
+    )
 
     if args.hard_ceiling_seconds <= 0 or args.hard_ceiling_seconds > 30:
         _json({"status": "blocked", "code": "invalid_hard_ceiling", "maximum_seconds": 30})
@@ -462,6 +480,7 @@ def _validate_surface(args: argparse.Namespace, root: Path) -> int:
         "activation-active",
         "v2_1_harness",
         "v2_2_quant_governance",
+        "v2_4_autonomy_harness",
     }
     if args.surface not in executable_surfaces:
         _json(
@@ -475,7 +494,10 @@ def _validate_surface(args: argparse.Namespace, root: Path) -> int:
             }
         )
         return 0
-    if args.surface == "v2_2_quant_governance":
+    if args.surface == "v2_4_autonomy_harness":
+        phase = None
+        identity = autonomy_validation_identity(root)
+    elif args.surface == "v2_2_quant_governance":
         phase = None
         identity = governance_validation_identity(root)
     elif args.surface == "v2_1_harness":
@@ -531,7 +553,9 @@ def _validate_surface(args: argparse.Namespace, root: Path) -> int:
                     f"{identity['validation_key']}"
                 ),
             )
-    if args.surface == "v2_2_quant_governance":
+    if args.surface == "v2_4_autonomy_harness":
+        result, receipt = validate_v24_autonomy_harness(root)
+    elif args.surface == "v2_2_quant_governance":
         result, receipt = validate_v22_quant_governance(root)
     elif args.surface == "v2_1_harness":
         result, receipt = validate_v21_harness(root)

@@ -14,6 +14,14 @@ required_sections:
   - trial_plan
   - routing
   - evidence_budget
+hypothesis_types:
+  - structural_batch
+  - coupled_mechanism
+  - synthesis_ablation
+scientific_origin:
+  required: v2_current
+  inherited_parent_allowed: false
+  external_dependencies_require_runtime_eligibility: true
 acceptance_profile:
   frozen_before_results: true
   resolved_metric_rules_required: true
@@ -52,6 +60,13 @@ routing:
   boundary_trend_is_not_family_refutation: true
   development_failure_allows_same_H_retuning: false
   holdout_influenced_redesign_allowed: false
+  scout_modes:
+    - breadth
+    - depth
+    - synthesis
+  renamed_duplicate_allowed: false
+  identical_executable_retry_allowed: false
+  one_context_failure_may_refute_family: false
 claim_boundary:
   preregistration_is_evidence: false
   sensitivity_surface_is_candidate_claim: false

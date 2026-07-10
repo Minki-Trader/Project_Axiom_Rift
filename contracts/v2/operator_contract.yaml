@@ -7,6 +7,7 @@ authority:
   validation: contracts/v2/validation_contract.yaml
   mission_defaults: configs/v2/mission.yaml
   git: configs/v2/git.yaml
+  autonomy: contracts/v2/autonomy_contract.yaml
 root_loop:
   user_goal_count: one_until_terminal
   internal_transition_requires_user_prompt: false
@@ -15,6 +16,8 @@ root_loop:
   background_daemon_required: false
   codex_selects_high_dimensional_research_actions: true
   harness_enforces_deterministic_guards: true
+  reinforcement_goal_may_stop_before_scientific_root: true
+  await_new_root_goal_is_valid_ready_boundary: true
 state:
   single_writer: src/axiom_rift/v2/operations.py
   active_mutation_jobs_max: 1
@@ -36,6 +39,9 @@ research_jobs:
   validator_may_execute_research_job: false
   nested_receipt_requires_trial_history_reconciliation: true
   nested_receipt_requires_full_validation_metric_surface: true
+  bootstrap_programs_may_seed_future_H: false
+  future_scheduler_uses_empty_v2_scientific_state: true
+  runtime_data_eligibility_required_before_external_feature_use: true
 validation:
   focused_batches_per_slice: 1
   repair_batches_per_slice: 1

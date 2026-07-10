@@ -1,4 +1,8 @@
-"""Declarative, whitelisted specifications for the V2 research core."""
+"""Bootstrap-only fixture specifications for the original V2 core.
+
+These concrete whitelists are retained for deterministic compatibility tests.
+They are not an autonomous-research catalog or a future hypothesis seed.
+"""
 
 from __future__ import annotations
 
@@ -20,6 +24,7 @@ ALLOWED_LABELS = frozenset({"next_open_to_close_return"})
 ALLOWED_MODELS = frozenset({"ridge"})
 ALLOWED_SELECTORS = frozenset({"sequential_residual_band"})
 ALLOWED_TRADE_SHAPES = frozenset({"fixed_horizon"})
+FIXTURE_ONLY = True
 
 
 class ResearchSpecError(ValueError):

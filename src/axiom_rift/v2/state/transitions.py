@@ -74,6 +74,7 @@ STAGE_IDENTITY_KINDS = {
 
 NEXT_ACTION_KINDS = {
     "none",
+    "await_new_root_goal",
     "open_goal",
     "preregister_hypothesis",
     "open_stage",
@@ -211,8 +212,10 @@ def validate_next_action(action: Any) -> None:
     subject_id = action.get("subject_id")
     if stage is not None and subject_id is not None:
         validate_identity(identity_kind_for_stage(stage), subject_id)
-    if kind == "none" and any(action.get(field) is not None for field in ("goal_id", "stage", "subject_id", "job_kind")):
-        raise TransitionError("next_action none may not name a goal, stage, subject, or job")
+    if kind in {"none", "await_new_root_goal"} and any(
+        action.get(field) is not None for field in ("goal_id", "stage", "subject_id", "job_kind")
+    ):
+        raise TransitionError(f"next_action {kind} may not name a goal, stage, subject, or job")
     if kind in {"preregister_hypothesis", "open_stage", "declare_job", "run_job", "resume_job", "record_evidence", "close_goal"}:
         if goal_id is None:
             raise TransitionError(f"next_action {kind} requires goal_id")

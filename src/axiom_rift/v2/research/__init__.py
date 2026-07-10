@@ -1,4 +1,4 @@
-"""Canonical V2 research surface.
+"""Canonical V2 research and empty-epoch autonomy surfaces.
 
 Operational execution is the hash-registered causal scout backed by
 ``axiom_rift.v2.features``. The older pure-Python core is fixture-only and is
@@ -41,6 +41,22 @@ from axiom_rift.v2.research.programs import (
     ProgramRegistry,
     ProgramRegistryError,
     load_program_registry,
+)
+from axiom_rift.v2.research.autonomy import (
+    HypothesisBatch,
+    ResearchMap,
+    ScopedNegativeMemory,
+    choose_next_hypothesis,
+)
+from axiom_rift.v2.research.dispatch import (
+    CallableProgramRegistry,
+    GenericProgramRunner,
+    ProgramBundle,
+    ProgramDefinition as AutonomousProgramDefinition,
+)
+from axiom_rift.v2.research.runtime_data import (
+    RuntimeDataEligibilityRegistry,
+    validate_sizing_gate,
 )
 from axiom_rift.v2.research.samples import (
     SupervisedSample as _FixtureSupervisedSample,
@@ -119,20 +135,30 @@ def __getattr__(name: str) -> Any:
 
 __all__ = [
     "CANONICAL_ENGINE",
+    "AutonomousProgramDefinition",
+    "CallableProgramRegistry",
     "DEFAULT_PROGRAM_REGISTRY_PATH",
     "FixtureResearchResult",
     "FoldWindow",
+    "GenericProgramRunner",
+    "HypothesisBatch",
     "ModelBundle",
     "ProgramDefinition",
+    "ProgramBundle",
     "ProgramRegistry",
     "ProgramRegistryError",
     "ScoutResult",
     "ScoutSpec",
     "ScoutSpecError",
     "ScoutTrade",
+    "ResearchMap",
+    "RuntimeDataEligibilityRegistry",
+    "ScopedNegativeMemory",
+    "choose_next_hypothesis",
     "load_fold_windows",
     "load_program_registry",
     "load_scout_spec",
     "run_causal_scout",
     "run_fixture_research",
+    "validate_sizing_gate",
 ]

@@ -1,0 +1,32 @@
+schema: axiom_rift_v2_autonomy_config_v1
+status: active
+encoding: ascii_only
+scientific_origin: v2_current
+initial_state:
+  root_mission_id: null
+  epoch_id: null
+  status: not_started
+  selected_bundle_id: null
+  next_action: await_new_root_goal
+rolling_window:
+  enabled: true
+  dominant_axis_recent_window: 5
+  dominant_axis_max_uses: 2
+  emergency_ceiling_required_on_open: true
+  emergency_ceiling_default: null
+  emergency_ceiling_min: 24
+numeric_governance:
+  numeric_knobs_max: 2
+  local_calibration_rounds_max: 1
+  repair_batches_max: 1
+  recheck_batches_max: 1
+  identical_failed_retries_max: 0
+program_registration:
+  callable_registry_required: true
+  arbitrary_yaml_import_allowed: false
+  bounded_jit_registration_allowed: true
+  concrete_seed_programs_allowed: false
+runtime_data:
+  registry_path: registries/v2/runtime_data_eligibility.yaml
+  historical_only_allowed: false
+  pending_blocks_unrelated_research: false

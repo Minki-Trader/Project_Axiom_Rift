@@ -2,6 +2,8 @@ schema: axiom_rift_v2_program_registry_v1
 status: active
 encoding: ascii_only
 hash_semantics: compact_sorted_ascii_json_sha256
+program_role: fixture_only
+scientific_seed_eligible: false
 canonical_engine:
   engine_key: nested_causal_scout_v2
   feature_path: src/axiom_rift/v2/features.py
@@ -24,39 +26,39 @@ programs:
     kind: label
     version: 1
     contract_path: contracts/v2/research_contract.yaml
-    contract_sha256: c7480ff7d9014363a6b49f778aff9b8dfe8e7f060cedb0fcaf9af8b5aeef5eab
+    contract_sha256: 5e0a33ab6d4aafb7ceeb61cf64cb9e530392a6ad831b29e556ac13463e691968
     implementation_key: normalized_forward_open_return_v1
     parameters:
       definition: open_t_plus_7_minus_open_t_plus_1_divided_by_mean_true_range_24_at_t
       horizon_bars_after_entry: 6
-    program_sha256: 1068575af43ef6204ef01d2d88b2ed3ce91fa116eb8c524eab616699df387c5c
+    program_sha256: a3bac4bb8259c753e2e47e6ce769a1d77496126eb27418fe982d0f42ab12ff3f
   V2MP0001:
     kind: model
     version: 1
     contract_path: contracts/v2/research_contract.yaml
-    contract_sha256: c7480ff7d9014363a6b49f778aff9b8dfe8e7f060cedb0fcaf9af8b5aeef5eab
+    contract_sha256: 5e0a33ab6d4aafb7ceeb61cf64cb9e530392a6ad831b29e556ac13463e691968
     implementation_key: train_scaled_ridge_v1
     parameters:
       family: ridge
       alpha: 1.0
       fit_intercept: true
       scaler_fit_role: train_is_only
-    program_sha256: d2ae54425167cef82314ca089ff6146497fe64541aad52b156a22918045a387a
+    program_sha256: aae8d72f9514fdb999977b08a0ea6e83426a279aafd3f8bfb3c3b9d25b9a98a9
   V2CP0001:
     kind: calibration
     version: 1
     contract_path: contracts/v2/research_contract.yaml
-    contract_sha256: c7480ff7d9014363a6b49f778aff9b8dfe8e7f060cedb0fcaf9af8b5aeef5eab
+    contract_sha256: 5e0a33ab6d4aafb7ceeb61cf64cb9e530392a6ad831b29e556ac13463e691968
     implementation_key: validation_absolute_residual_quantile_v1
     parameters:
       definition: validation_absolute_residual_quantile
       quantile: 0.35
-    program_sha256: 0e2040368052d1bbe441e91e1fb0a392b11589e52e57bdc25dd68937c8c4d2cd
+    program_sha256: 94b6673f34c23f832c4714c90fe926b98ce06e2c5451ec20b7bba3c492984073
   V2SEL0001:
     kind: selector
     version: 1
     contract_path: contracts/v2/research_contract.yaml
-    contract_sha256: c7480ff7d9014363a6b49f778aff9b8dfe8e7f060cedb0fcaf9af8b5aeef5eab
+    contract_sha256: 5e0a33ab6d4aafb7ceeb61cf64cb9e530392a6ad831b29e556ac13463e691968
     implementation_key: sequential_cost_abstention_v1
     parameters:
       mode: chronological_sequential_abstention
@@ -68,12 +70,12 @@ programs:
       full_day_top_k: false
       daily_entry_safety_cap: 10
       quota: false
-    program_sha256: cc5610bf06022264b5df45be655ffaf544e8668dc18cf3a99aa582b1f60a2088
+    program_sha256: 49f08c0f5c75e04fd2f5f11e1c8e47ca7526a0421f4732c7b109d1b8a4ac21fb
   V2TP0001:
     kind: trade
     version: 1
     contract_path: contracts/v2/research_contract.yaml
-    contract_sha256: c7480ff7d9014363a6b49f778aff9b8dfe8e7f060cedb0fcaf9af8b5aeef5eab
+    contract_sha256: 5e0a33ab6d4aafb7ceeb61cf64cb9e530392a6ad831b29e556ac13463e691968
     implementation_key: fixed_horizon_observed_spread_v1
     parameters:
       entry: bid_open_t_plus_1_with_long_entry_ask_spread
@@ -84,4 +86,4 @@ programs:
       spread: observed_broker_points
       zero_spread: unknown_cost_reject_after_cost_sample
       sizing: fixed_lot
-    program_sha256: 5631addb55e115a9e0877cb1b2f884cdf183f4d0d5f421fdf47eac79ede0335c
+    program_sha256: fece27a914dd71403d89287b145aac19dbc7760f6dfa16d2d522827d043eb8e8

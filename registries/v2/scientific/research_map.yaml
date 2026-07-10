@@ -1,0 +1,14 @@
+schema: axiom_rift_v2_research_map_v1
+status: not_started
+encoding: ascii_only
+scientific_origin: v2_current
+allowed_states:
+  - unseen
+  - shallow
+  - contextual
+  - deepened
+  - refuted
+  - synthesis_ready
+axes: {}
+recent_dominant_axes: []
+coverage_audits: []

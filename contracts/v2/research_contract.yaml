@@ -11,6 +11,7 @@ authority:
   hypothesis: contracts/v2/hypothesis_contract.yaml
   kpi: contracts/v2/kpi_policy.yaml
   sensitivity: contracts/v2/sensitivity_policy.yaml
+  autonomy: contracts/v2/autonomy_contract.yaml
 root_mission:
   failed_hypothesis_ends_mission: false
   multiple_hypothesis_cycles_allowed: true
@@ -19,6 +20,9 @@ root_mission:
   another_user_goal_required_for_internal_transition: false
   budget_frozen_on_open: true
   material_exhaustion_receipt_required: true
+  mission_open_requires_emergency_ceiling: true
+  rolling_research_windows: true
+  concrete_seed_priorities_allowed: false
 stages:
   H:
     role: preregister_hypothesis_batch_and_executable_identity
@@ -27,7 +31,7 @@ stages:
     resolved_kpi_profile_required: true
     sensitivity_or_disable_reason_required: true
   S:
-    role: nested_fast_causal_scout
+    role: causal_breadth_depth_or_synthesis_scout
     claim_ceiling: diagnostic_observation
     mt5_required: false
     candidate_or_economics_claim_allowed: false
@@ -39,6 +43,10 @@ stages:
     parameter_discovery_role: validation_oos_only
     development_variant_paths_per_fold_max: 1
     development_driven_retuning_allowed: false
+    modes:
+      - breadth
+      - depth
+      - synthesis
   R:
     role: full_development_confirmation
     claim_ceiling: research_candidate
@@ -109,6 +117,28 @@ program_semantics:
   canonical_runner_count: 1
   stage_differences_are_data_scope_fold_count_evidence_strength_and_claim_ceiling: true
   synthetic_fixture_is_operational_evidence: false
+  bootstrap_programs_are_fixture_only: true
+  callable_program_kinds:
+    - feature
+    - label
+    - model
+    - calibration
+    - selector
+    - trade
+    - sizing
+    - portfolio_risk
+  bounded_jit_registration_allowed: true
+  arbitrary_yaml_import_allowed: false
+scientific_origin:
+  active_index: registries/v2/scientific/index.yaml
+  active_research_map: registries/v2/scientific/research_map.yaml
+  inherited_scientific_content_allowed: false
+  engineering_provenance_may_choose_hypothesis: false
+external_runtime_data:
+  registry: registries/v2/runtime_data_eligibility.yaml
+  historical_only_allowed: false
+  runtime_conformance_receipt_required: true
+  pending_source_blocks_unrelated_research: false
 nested_parameter_discovery:
   policy: contracts/v2/sensitivity_policy.yaml
   config: configs/v2/sensitivity.yaml

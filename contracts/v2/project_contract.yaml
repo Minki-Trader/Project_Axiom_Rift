@@ -5,6 +5,7 @@ authority:
   goal_spec: contracts/v2/goal_spec.md
   architecture: contracts/v2/architecture.yaml
   operator: contracts/v2/operator_contract.yaml
+  autonomy: contracts/v2/autonomy_contract.yaml
   goal_spec_role: immutable_v2_build_and_philosophy_source
   operator_role: active_post_activation_root_mission_operation
 mission:
@@ -53,6 +54,10 @@ v1_boundary:
 research_reset:
   namespace: V2
   initial_hypothesis_state: empty
+  active_scientific_index: registries/v2/scientific/index.yaml
+  active_research_map: registries/v2/scientific/research_map.yaml
+  inherited_scientific_content_allowed: false
+  bootstrap_programs_may_seed_research: false
   v1_performance_may_choose_initial_hypothesis: false
   exact_legacy_duplicate_check_allowed_after_preregistration: true
 project_scope:

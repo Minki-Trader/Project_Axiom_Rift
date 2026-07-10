@@ -42,6 +42,7 @@ validation_triggers:
   - candidate_freeze
   - root_mission_close
   - quant_governance_slice_close
+  - autonomy_harness_slice_close
 forbidden_triggers:
   - each_file_edit
   - each_artifact
@@ -65,6 +66,11 @@ full_repository_validation_allowed_at:
   - M_materialization_freeze
   - pre_live_handoff
   - explicit_integrity_audit
+autonomy_harness_validation:
+  real_research_allowed: false
+  synthetic_adapters_only: true
+  no_new_scientific_ledger_delta_required: true
+  empty_waiting_state_required: true
 receipt:
   validator_id_required: true
   validator_code_sha256_required: true

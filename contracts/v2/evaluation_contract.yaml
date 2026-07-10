@@ -37,10 +37,12 @@ data_field_eligibility:
     unit: broker_points
     conversion_requires_symbol_point_size: true
 sizing:
-  H_S_R: fixed_lot
-  P: fixed_lot_primary_with_separate_growth_analysis_allowed
+  H_S_initial_R: fixed_lot
+  late_R_dynamic_sizing_requires_candidate_quality: true
+  P: frozen_candidate_sizing_rule
   M: frozen_runtime_rule_required
   equity_sizing_may_rescue_weak_signal: false
+  exact_dynamic_rule_frozen_at_harness_ready: false
 activity_kpi:
   denominator: all_eligible_market_days
   required:

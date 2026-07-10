@@ -13,6 +13,11 @@ canonical_paths:
   work_units: campaigns/v2
   cli: axiom-rift
   program_registry: configs/v2/program_registry.yaml
+  autonomy_contract: contracts/v2/autonomy_contract.yaml
+  autonomy_config: configs/v2/autonomy.yaml
+  scientific_index: registries/v2/scientific/index.yaml
+  research_map: registries/v2/scientific/research_map.yaml
+  runtime_data_eligibility: registries/v2/runtime_data_eligibility.yaml
 legacy_frozen_paths:
   - campaigns/C*
   - campaigns/SC*
@@ -21,6 +26,11 @@ legacy_frozen_paths:
   - registries/claim_state.yaml
   - registries/reentry.yaml
   - registries/decision_cursor.yaml
+bootstrap_provenance_paths:
+  - registries/v2/hypothesis_ledger.jsonl
+  - campaigns/v2/V2G0001_v2_activation
+  - registries/v2/objects
+bootstrap_provenance_may_seed_science: false
 v2_layers:
   - persistent_root_mission
   - identity_and_object_store
@@ -33,6 +43,10 @@ v2_layers:
   - nested_sensitivity_and_calibration
   - trial_accounting
   - generic_stage_runner
+  - callable_program_dispatch
+  - empty_scientific_namespace
+  - autonomous_research_scheduler
+  - runtime_data_eligibility
   - mt5_evidence_adapter
   - feature_contract_and_materialization
 dependency_rules:
@@ -49,8 +63,11 @@ dependency_rules:
   one_outer_development_path_per_fold: true
   primary_sensitivity_metric_may_bypass_feasibility: false
   family_trial_history_source_count: 1
+  concrete_bootstrap_programs_are_fixture_only: true
+  scientific_inheritance_allowed: false
+  bounded_jit_program_registration_allowed: true
 deferred_until_evidence_requires:
-  - dynamic_plugin_system
+  - arbitrary_dynamic_plugin_system
   - workflow_dag_or_daemon
   - database_or_job_queue
   - human_dashboard

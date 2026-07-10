@@ -1,5 +1,5 @@
 schema: axiom_rift_v2_control_state_v2
-revision: 58
+revision: 65
 status: active
 encoding: ascii_only
 active_truth: v2
@@ -22,13 +22,16 @@ cursor:
   stage_status: idle
   terminal_outcome: null
   next_action:
-    kind: open_goal
-    goal_id: V2G0002
+    kind: await_new_root_goal
+    goal_id: null
     stage: null
     subject_id: null
     job_kind: null
     prerequisite_receipt_ids: []
-    summary: open reserved internal goal V2G0002
+    summary: await a separate autonomous research root goal
+    mission_id: null
+    terminal_outcome: null
+    basis_evidence_id: null
 reentry:
   active_job: null
   current_object_ids:
@@ -42,6 +45,8 @@ reentry:
   - 6d117d4fbd4306454ba46d3171934fc528960f47e406b425b0c7c5b866156ab8
   - d1eb29124631af099ea4cc44df558c9244801a06466f4b56f47a570a0b1f8dfb
   - 0e871734bbf098ed77645ec09004ba23e4ff5ceb531bb411fd67ae9fb2dda5f6
+  - 53b67e51b23bf3522ee22da3d1ca82a409d13b92ce2b8bb98e44655831b931a5
+  - cb34374d70d3d2c479b9af2dacffcf0d871aaf687304e64d2525e99366cf7067
   current_artifact_hashes:
     V2VR000007: ce6ee55e7f90c7dbbe8df62f591d8e32b2cdda8fe5854f334e180c388f9b3860
     V2VR000008: d66247a437c4b6579c52a1b0a7b0dff57ffcd28121a959a24c14dc16a7ffe753
@@ -50,6 +55,8 @@ reentry:
     V2VR000011: 0fe4939e0e6a3f1deb25e6a41309b088c49e84668e0be4130d4bb6d4d090c0fc
     V2VR000012: 6d117d4fbd4306454ba46d3171934fc528960f47e406b425b0c7c5b866156ab8
     V2VR000013: d1eb29124631af099ea4cc44df558c9244801a06466f4b56f47a570a0b1f8dfb
+    V2_HARNESS_READY: 53b67e51b23bf3522ee22da3d1ca82a409d13b92ce2b8bb98e44655831b931a5
+    V2VR000014: cb34374d70d3d2c479b9af2dacffcf0d871aaf687304e64d2525e99366cf7067
   completed_receipt_ids:
   - V2VR000007
   - V2VR000008
@@ -58,47 +65,56 @@ reentry:
   - V2VR000011
   - V2VR000012
   - V2VR000013
+  - V2VR000014
   completed_evidence_ids: []
   blocker: null
   git_sync:
-    status: metadata_pending_push
-    validated_content_commit: 040231816d370e9a370f77d20d2c7acb3e584ef4
-    local_head: 040231816d370e9a370f77d20d2c7acb3e584ef4
-    origin_main_head: 040231816d370e9a370f77d20d2c7acb3e584ef4
-    validation_receipt_id: V2VR000013
-    closeout_object_id: 0e871734bbf098ed77645ec09004ba23e4ff5ceb531bb411fd67ae9fb2dda5f6
-    content_state_fingerprint: f79bad94815d4e9558865012a55bd7808b15c68235e6f32cb1e4410da89d7c06
-    dirty_revision: 57
+    status: unsynced
+    validation_receipt_id: V2VR000014
+    validation_key: 5c064cfb21109b18c34dc127a3c8cd26cf051935ed23000ed2208f713eb14d5b
+    validated_slice_id: V2SL0013_autonomy_harness
     declared_content_paths:
     - .agents/skills/axiom-v2-goal-operator/SKILL.md
     - AGENTS.md
-    - configs/v2/git.yaml
+    - configs/v2/mission.yaml
+    - configs/v2/program_registry.yaml
     - configs/v2/validation_surfaces.yaml
     - contracts/v2/agents_router_candidate.md
-    - contracts/v2/handoff_contract.yaml
+    - contracts/v2/architecture.yaml
+    - contracts/v2/evaluation_contract.yaml
+    - contracts/v2/hypothesis_contract.yaml
     - contracts/v2/operator_contract.yaml
     - contracts/v2/project_contract.yaml
+    - contracts/v2/research_contract.yaml
     - contracts/v2/state_machine.yaml
-    - registries/v2/control_state.yaml
-    - registries/v2/validation_receipts.jsonl
-    - src/axiom_rift/v2/cli.py
-    - src/axiom_rift/v2/git_closeout.py
-    - src/axiom_rift/v2/operations.py
-    - src/axiom_rift/v2/state/store.py
-    - src/axiom_rift/v2/state/transitions.py
-    - src/axiom_rift/v2/validation/bootstrap.py
-    - src/axiom_rift/v2/validation/harness.py
-    - tests/v2/test_identity_state.py
-    - tests/v2/test_v21_state_operations.py
-    - tests/v2/test_v21_validation_git_cli.py
-    - registries/v2/objects/0fe4939e0e6a3f1deb25e6a41309b088c49e84668e0be4130d4bb6d4d090c0fc.json
-    - registries/v2/objects/6d117d4fbd4306454ba46d3171934fc528960f47e406b425b0c7c5b866156ab8.json
-    - registries/v2/objects/c7573f1b65582c1f1cefad728de98607d64e4f64a124060f1abd3735859b0447.json
-    - registries/v2/objects/d1eb29124631af099ea4cc44df558c9244801a06466f4b56f47a570a0b1f8dfb.json
-    metadata_allowed_paths:
+    - contracts/v2/validation_contract.yaml
     - registries/v2/control_state.yaml
     - registries/v2/evidence_ledger.jsonl
-    - registries/v2/objects/0e871734bbf098ed77645ec09004ba23e4ff5ceb531bb411fd67ae9fb2dda5f6.json
+    - registries/v2/validation_receipts.jsonl
+    - src/axiom_rift/v2/cli.py
+    - src/axiom_rift/v2/operations.py
+    - src/axiom_rift/v2/paths.py
+    - src/axiom_rift/v2/research/__init__.py
+    - src/axiom_rift/v2/research/programs.py
+    - src/axiom_rift/v2/research/specs.py
+    - src/axiom_rift/v2/state/store.py
+    - src/axiom_rift/v2/state/transitions.py
+    - src/axiom_rift/v2/validation/__init__.py
+    - configs/v2/autonomy.yaml
+    - contracts/v2/autonomy_contract.yaml
+    - registries/v2/objects/53b67e51b23bf3522ee22da3d1ca82a409d13b92ce2b8bb98e44655831b931a5.json
+    - registries/v2/objects/cb34374d70d3d2c479b9af2dacffcf0d871aaf687304e64d2525e99366cf7067.json
+    - registries/v2/runtime_data_eligibility.yaml
+    - registries/v2/scientific/
+    - src/axiom_rift/v2/research/autonomy.py
+    - src/axiom_rift/v2/research/dispatch.py
+    - src/axiom_rift/v2/research/runtime_data.py
+    - src/axiom_rift/v2/validation/autonomy.py
+    - tests/v2/test_v24_autonomy_harness.py
+    dirty_revision: 65
+    dirty_state_fingerprint: 4a35db85d8ac7ba6f16b473a18dfbfec7ce4202cc5823782783c7cc6644b4266
+    invalidated_by_operation: close_V2SL0013_after_V2VR000014
+    previous_validated_content_commit: null
 claim:
   subject_kind: none
   subject_id: null
@@ -109,17 +125,17 @@ claim:
   blocked_by: []
 ledger_heads:
   hypothesis:
-    ledger_seq: 2
-    row_sha256: 120c5b3d2d5a2bb2c245d549c043486393da6a5005746b1f198086fc7329017b
+    ledger_seq: 0
+    row_sha256: null
   evidence:
-    ledger_seq: 11
-    row_sha256: 05f3b134af6a7c5238e2c867eaaca37c2ae726a19bc65bcc5f7c0de939e5cddd
+    ledger_seq: 12
+    row_sha256: 6c5cff3afe82d2710c1a16e3e5c29874ccca7360c12d98336260cac0e3f62d6f
   material:
     ledger_seq: 20
     row_sha256: 1b0498be4d3be0ea22148aaec4141a60c46996805c705087717015b632c9afb4
   validation_receipt:
-    ledger_seq: 13
-    row_sha256: 50d0fcb7c47721b7fbe6e6f530cd964549ff18a5ad2578997d71bb79c82b24ee
+    ledger_seq: 14
+    row_sha256: 9c9fdd0432b99c017212d38f249a899b23b738ff68efeca346b579d404c0eb80
 applied_idempotency_keys:
 - record_V2VR000001
 - record_V2_data_identity_slice
@@ -178,6 +194,13 @@ applied_idempotency_keys:
 - record_V2VR000013
 - close_V2SL0012_after_V2VR000013
 - record_V2GC000003_exact_git_checkpoint_binding
+- open_V2SL0013_autonomy_harness
+- consume_V2SL0013_implementation
+- consume_V2SL0013_repair_1
+- complete_V2SL0013_reinforcement_ready
+- authorize_V2SL0013_autonomy_harness_validation_5c064cfb21109b18c34dc127a3c8cd26cf051935ed23000ed2208f713eb14d5b
+- record_V2VR000014
+- close_V2SL0013_after_V2VR000014
 bootstrap_goal_outcome: activated
 activation:
   activation_evidence_id: V2E000008
@@ -187,7 +210,7 @@ activation:
 root_mission:
   mission_id: AXIOM_ROOT_0001
   contract_path: configs/v2/mission.yaml
-  contract_sha256: a7e431e36dfbf46329311b37e90179798ca12901c852abdbfe381669f636952b
+  contract_sha256: 6b2ace45a4980c509a77521490a24fdc84eb17f78c7c2f67202136e6eed2bd36
   status: ready
   terminal_outcome: null
   user_goal_received: false
@@ -225,3 +248,22 @@ migration:
   closed_goal_id: V2G0001
   closed_work_unit_id: V2B0001
   reserved_next_goal_id: V2G0002
+harness:
+  status: ready
+  real_research_started: false
+  ready_receipt_object_id: 53b67e51b23bf3522ee22da3d1ca82a409d13b92ce2b8bb98e44655831b931a5
+  baseline_commit: 4c31e7227eef170b9fd6c4cabedad0751e0e830c
+scientific:
+  status: not_started
+  root_mission_id: null
+  epoch_id: null
+  index_path: registries/v2/scientific/index.yaml
+  research_map_path: registries/v2/scientific/research_map.yaml
+  hypothesis_ledger_path: registries/v2/scientific/hypothesis_ledger.jsonl
+  hypothesis_object_ids: []
+  trial_receipt_ids: []
+  negative_memory_object_ids: []
+  ingredient_object_ids: []
+  candidate_object_ids: []
+  selected_bundle_id: null
+  holdout_reveals: 0

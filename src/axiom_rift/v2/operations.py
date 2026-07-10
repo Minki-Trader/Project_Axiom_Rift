@@ -81,7 +81,7 @@ class V2OperationWriter:
         *,
         object_dir: Path = V2_OBJECT_DIR,
         control_state: Path = V2_CONTROL_STATE,
-        hypothesis_ledger: Path = V2_HYPOTHESIS_LEDGER,
+        hypothesis_ledger: Path | None = None,
         evidence_ledger: Path = V2_EVIDENCE_LEDGER,
         material_ledger: Path = V2_MATERIAL_LEDGER,
         validation_receipt_ledger: Path = V2_VALIDATION_RECEIPT_LEDGER,
@@ -91,6 +91,20 @@ class V2OperationWriter:
     ) -> None:
         self.objects = ObjectStore(object_dir)
         self.control = ControlStore(control_state, object_store=self.objects)
+        if hypothesis_ledger is None:
+            configured = None
+            try:
+                configured = self.control.load().get("scientific", {}).get(
+                    "hypothesis_ledger_path"
+                )
+            except Exception:
+                configured = None
+            if isinstance(configured, str) and configured:
+                resolved_control = control_state.resolve()
+                if resolved_control.parent.name == "v2" and resolved_control.parent.parent.name == "registries":
+                    hypothesis_ledger = resolved_control.parents[2] / configured
+            if hypothesis_ledger is None:
+                hypothesis_ledger = V2_HYPOTHESIS_LEDGER
         self.hypotheses = HashChainLedger(hypothesis_ledger, "hypothesis")
         self.evidence = HashChainLedger(evidence_ledger, "evidence")
         self.materials = HashChainLedger(material_ledger, "material")
@@ -447,6 +461,28 @@ class V2OperationWriter:
             raise OperationStateError("root mission is terminal and cannot open another internal goal")
         if state["cursor"].get("active_goal_id") is not None:
             raise OperationStateError("another internal goal is already active")
+        scientific = state.get("scientific")
+        scientific_open: dict[str, Any] | None = None
+        if isinstance(scientific, dict) and scientific.get("status") == "not_started":
+            if state.get("cursor", {}).get("next_action", {}).get("kind") != "await_new_root_goal":
+                raise OperationStateError("empty scientific state is not at its root-goal boundary")
+            candidate = goal_payload.get("scientific_mission")
+            if not isinstance(candidate, dict):
+                raise OperationStateError("future scientific goal requires mission-open policy")
+            ceiling = candidate.get("emergency_hypothesis_ceiling")
+            if not isinstance(ceiling, int) or isinstance(ceiling, bool) or ceiling < 24:
+                raise OperationStateError("scientific emergency ceiling must be at least 24")
+            if candidate.get("result_independent") is not True:
+                raise OperationStateError("scientific emergency ceiling must be result-independent")
+            if candidate.get("scientific_origin") != "v2_current":
+                raise OperationStateError("scientific mission origin must be v2_current")
+            epoch_id = candidate.get("epoch_id")
+            if not isinstance(epoch_id, str) or re.fullmatch(r"V2EPOCH[0-9]{4}", epoch_id) is None:
+                raise OperationStateError("scientific mission requires a V2 epoch identity")
+            scientific_open = {
+                "emergency_hypothesis_ceiling": ceiling,
+                "epoch_id": epoch_id,
+            }
         allocated, namespace_field, counter = self._allocated_identity(state, "goal", goal_id)
         action = next_action or make_next_action(
             "preregister_hypothesis",
@@ -473,6 +509,22 @@ class V2OperationWriter:
                 draft["root_mission"]["status"] = "active"
                 draft["root_mission"]["user_goal_received"] = True
                 draft["mission_budget"]["frozen"] = True
+            if scientific_open is not None:
+                ceiling = scientific_open["emergency_hypothesis_ceiling"]
+                draft["mission_budget"]["limits"]["hypothesis_batches"] = ceiling
+                draft["mission_budget"]["remaining"]["hypothesis_batches"] = ceiling
+                draft["mission_budget"]["limits"]["scout_jobs"] = ceiling
+                draft["mission_budget"]["remaining"]["scout_jobs"] = ceiling
+                draft["scientific"].update(
+                    {
+                        "status": "active",
+                        "root_mission_id": draft["root_mission"]["mission_id"],
+                        "epoch_id": scientific_open["epoch_id"],
+                    }
+                )
+                draft["harness"].update(
+                    {"status": "operational", "real_research_started": True}
+                )
             draft["namespace"][namespace_field] = counter + 1
             cursor = draft["cursor"]
             cursor.update(
@@ -806,6 +858,140 @@ class V2OperationWriter:
             draft["slice_budget"] = self._new_slice_budget(slice_id)
 
         return self.control.commit(state["revision"], idempotency_key, mutate)
+
+    def complete_reinforcement_ready(
+        self,
+        *,
+        baseline_commit: str,
+        mission_contract_sha256: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Close an engineering reinforcement at an empty scientific boundary."""
+
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("reinforcement close requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        if re.fullmatch(r"[0-9a-f]{40}", baseline_commit) is None:
+            raise OperationStateError("reinforcement baseline commit is invalid")
+        if re.fullmatch(r"[0-9a-f]{64}", mission_contract_sha256) is None:
+            raise OperationStateError("mission contract hash is invalid")
+        if state.get("root_mission", {}).get("status") != "ready":
+            raise OperationStateError("reinforcement close requires an unopened ready root")
+        if state.get("cursor", {}).get("active_goal_id") is not None:
+            raise OperationStateError("reinforcement close requires no active scientific goal")
+        if state.get("reentry", {}).get("active_job") is not None:
+            raise OperationStateError("reinforcement close requires no active job")
+        if state.get("holdout", {}).get("reveal_count") != 0:
+            raise OperationStateError("reinforcement close requires zero holdout reveals")
+        payload = {
+            "schema": "axiom_rift_v2_reinforcement_ready_receipt_v1",
+            "baseline_commit": baseline_commit,
+            "harness_status": "ready",
+            "scientific_root": None,
+            "scientific_epoch": "not_started",
+            "scientific_ledger_deltas": {
+                "hypothesis": 0,
+                "trial": 0,
+                "negative_memory": 0,
+                "ingredient": 0,
+                "candidate": 0,
+            },
+            "holdout_reveals_before": 0,
+            "holdout_reveals_after": 0,
+            "real_research_started": False,
+            "next_action": "await_new_root_goal",
+            "claim_ceiling": "none",
+        }
+        object_id = self.objects.put("reinforcement_ready_receipt", payload)
+        row = self._append_or_existing(
+            self.evidence,
+            "V2_REINFORCEMENT_READY",
+            "reinforcement_ready",
+            {"receipt_object_id": object_id, **payload},
+            utc_now(),
+        )
+
+        def mutate(draft: dict[str, Any]) -> None:
+            draft["harness"] = {
+                "status": "ready",
+                "real_research_started": False,
+                "ready_receipt_object_id": object_id,
+                "baseline_commit": baseline_commit,
+            }
+            draft["scientific"] = {
+                "status": "not_started",
+                "root_mission_id": None,
+                "epoch_id": None,
+                "index_path": "registries/v2/scientific/index.yaml",
+                "research_map_path": "registries/v2/scientific/research_map.yaml",
+                "hypothesis_ledger_path": "registries/v2/scientific/hypothesis_ledger.jsonl",
+                "hypothesis_object_ids": [],
+                "trial_receipt_ids": [],
+                "negative_memory_object_ids": [],
+                "ingredient_object_ids": [],
+                "candidate_object_ids": [],
+                "selected_bundle_id": None,
+                "holdout_reveals": 0,
+            }
+            draft["root_mission"].update(
+                {
+                    "contract_sha256": mission_contract_sha256,
+                    "status": "ready",
+                    "terminal_outcome": None,
+                    "user_goal_received": False,
+                }
+            )
+            draft["cursor"].update(
+                {
+                    "active_goal_id": None,
+                    "active_goal_object_id": None,
+                    "goal_status": "closed",
+                    "active_hypothesis_id": None,
+                    "stage": "idle",
+                    "stage_id": None,
+                    "stage_status": "idle",
+                    "terminal_outcome": None,
+                }
+            )
+            self._set_next_action(
+                draft,
+                make_next_action(
+                    "await_new_root_goal",
+                    summary="await a separate autonomous research root goal",
+                ),
+            )
+            draft["mission_budget"]["frozen"] = False
+            draft["slice_budget"] = draft.get("slice_budget")
+            draft["ledger_heads"]["hypothesis"] = {
+                "ledger_seq": 0,
+                "row_sha256": None,
+            }
+            draft["ledger_heads"]["evidence"] = {
+                "ledger_seq": row["ledger_seq"],
+                "row_sha256": row["row_sha256"],
+            }
+            draft["claim"] = {
+                "subject_kind": "none",
+                "subject_id": None,
+                "current_level": "none",
+                "claim_ceiling": "none",
+                "identity_bundle_object_id": None,
+                "basis_receipt_ids": [],
+                "blocked_by": [],
+            }
+            self._add_authoritative_objects(draft, [object_id])
+            draft["reentry"]["active_job"] = None
+            draft["reentry"]["current_artifact_hashes"]["V2_HARNESS_READY"] = object_id
+
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=[object_id],
+        )
 
     def refresh_ready_mission_contract(
         self,
@@ -1734,6 +1920,101 @@ class V2OperationWriter:
                 {},
             )
             hashes[hypothesis_id] = object_id
+
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=[object_id],
+        )
+
+    def preregister_autonomous_hypothesis(
+        self,
+        *,
+        batch_payload: dict[str, Any],
+        idempotency_key: str,
+        next_action: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Register one future-epoch batch without using bootstrap scout semantics."""
+
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("autonomous preregistration requires schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        scientific = state.get("scientific")
+        if not isinstance(scientific, dict) or scientific.get("status") != "active":
+            raise OperationStateError("an active scientific epoch is required")
+        goal_id = state.get("cursor", {}).get("active_goal_id")
+        if state.get("cursor", {}).get("goal_status") != "open" or not isinstance(goal_id, str):
+            raise OperationStateError("an open internal goal is required")
+        try:
+            from axiom_rift.v2.research.autonomy import HypothesisBatch
+
+            batch = HypothesisBatch.from_payload(batch_payload)
+        except (ImportError, ValueError) as exc:
+            raise OperationStateError(f"autonomous hypothesis batch is invalid: {exc}") from exc
+        if batch.scientific_epoch_id != scientific.get("epoch_id"):
+            raise OperationStateError("hypothesis epoch differs from active science")
+        allocated, namespace_field, counter = self._allocated_identity(
+            state,
+            "hypothesis",
+            batch.hypothesis_id,
+        )
+        self._require_mission_budget_available(state, "hypothesis_batches")
+        action = next_action or make_next_action(
+            "open_stage",
+            goal_id=goal_id,
+            stage="S",
+            subject_id=format_identity("scout", state["namespace"]["next_scout"]),
+            summary=f"open registered Scout mode for {allocated}",
+        )
+        validate_next_action(action)
+        object_id = self.objects.put("autonomous_hypothesis_batch", batch.to_payload())
+        row = self._append_or_existing(
+            self.hypotheses,
+            allocated,
+            "autonomous_hypothesis_preregistered",
+            {
+                "goal_id": goal_id,
+                "hypothesis_id": allocated,
+                "hypothesis_object_id": object_id,
+                "scientific_epoch_id": batch.scientific_epoch_id,
+                "hypothesis_type": batch.hypothesis_type,
+                "scout_mode": batch.scout_mode,
+                "claim_ceiling": "diagnostic_observation",
+            },
+            utc_now(),
+        )
+
+        def mutate(draft: dict[str, Any]) -> None:
+            if draft["namespace"][namespace_field] != counter:
+                raise OperationStateError("hypothesis namespace changed before commit")
+            draft["namespace"][namespace_field] = counter + 1
+            self._consume_mission_budget(draft, "hypothesis_batches")
+            draft["cursor"] = transition_stage(draft["cursor"], "H", allocated)
+            draft["cursor"]["active_hypothesis_id"] = allocated
+            draft["cursor"]["stage_status"] = "preregistered"
+            self._set_next_action(draft, action)
+            self._add_authoritative_objects(draft, [object_id])
+            draft["ledger_heads"]["hypothesis"] = {
+                "ledger_seq": row["ledger_seq"],
+                "row_sha256": row["row_sha256"],
+            }
+            refs = draft["scientific"]["hypothesis_object_ids"]
+            if object_id not in refs:
+                refs.append(object_id)
+            draft["claim"] = {
+                "subject_kind": "hypothesis",
+                "subject_id": allocated,
+                "current_level": "none",
+                "claim_ceiling": "none",
+                "identity_bundle_object_id": object_id,
+                "basis_receipt_ids": [],
+                "blocked_by": [],
+            }
+            draft["reentry"]["current_artifact_hashes"][allocated] = object_id
 
         return self.control.commit(
             state["revision"],

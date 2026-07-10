@@ -76,6 +76,7 @@ root_mission_rules:
   third_self_reference_commit_required: false
 structured_action_kinds:
   - none
+  - await_new_root_goal
   - open_goal
   - preregister_hypothesis
   - open_stage
@@ -106,5 +107,11 @@ structured_action_guards:
   control_revision_cas_required_for_execution: true
   operation_idempotency_key_required_for_execution: true
   workflow_dsl_allowed: false
+ready_boundary:
+  harness_status: ready
+  scientific_root_id: null
+  scientific_epoch_id: null
+  next_action: await_new_root_goal
+  first_hypothesis_generated: false
 repair_is_stage_outcome: false
 broken_code_is_hypothesis_evidence: false

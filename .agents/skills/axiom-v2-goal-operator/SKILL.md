@@ -27,6 +27,15 @@ authority, a new credential or external-data permission, or a genuine external
 blocker. Make routine research, implementation, and transition decisions
 autonomously.
 
+An explicitly engineering-only reinforcement goal is different from a
+scientific root mission. Prove it with synthetic fixtures, close it at
+`await_new_root_goal`, and stop. Do not generate the first H, run real evidence,
+or convert the engineering closeout into a scientific terminal claim.
+
+Future scientific roots start from the empty active scientific index. Bootstrap
+programs, engineering receipts, and excluded provenance never seed the research
+map, scheduler, ingredients, candidates, or negative memory.
+
 Allowed root outcomes are `completed_pre_live_handoff`,
 `closed_no_candidate`, `blocked_external`, and `stopped_by_user`.
 `completed_pre_live_handoff` means a verified local-machine pre-live bundle.
@@ -96,6 +105,9 @@ and one local-calibration round. Validate schema and identity only, then commit
 and push before S.
 
 ### S - Scout
+
+Route S internally through breadth, depth, or synthesis according to the
+registered hypothesis type. These submodes do not change S claim authority.
 
 For every outer fold, fit on `train_is`, evaluate the preregistered OAT
 low/base/high surface on `validation_oos`, optionally execute one deterministic

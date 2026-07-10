@@ -1,4 +1,9 @@
-"""Static, hash-verified program identities for the canonical V2 scout engine."""
+"""Hash-verified bootstrap fixtures for the canonical V2 scout engine.
+
+Future scientific programs use the callable registry in ``dispatch.py``.  The
+concrete identities loaded here remain non-scientific fixtures and may never
+seed an autonomous research mission.
+"""
 
 from __future__ import annotations
 
@@ -30,7 +35,7 @@ PROGRAM_ID_PATTERNS = {
     "selector": re.compile(r"^V2SEL[0-9]{4}$"),
     "trade": re.compile(r"^V2TP[0-9]{4}$"),
 }
-IMPLEMENTATION_KEYS = {
+FIXTURE_IMPLEMENTATION_KEYS = {
     "feature": frozenset({"canonical_completed_bar_features_v1"}),
     "label": frozenset({"normalized_forward_open_return_v1"}),
     "model": frozenset({"train_scaled_ridge_v1"}),
@@ -111,6 +116,7 @@ class ProgramRegistry:
     relative_path: str
     registry_sha256: str
     programs: dict[str, ProgramDefinition]
+    scientific_seed_eligible: bool = False
 
     def resolve(self, program_id: str, *, kind: str) -> ProgramDefinition:
         if kind not in PROGRAM_KINDS:
@@ -163,7 +169,7 @@ def _load_definition(
     if isinstance(version, bool) or not isinstance(version, int) or version < 1:
         raise ProgramRegistryError(f"invalid program version: {program_id}")
     implementation_key = payload.get("implementation_key")
-    if implementation_key not in IMPLEMENTATION_KEYS[kind]:
+    if implementation_key not in FIXTURE_IMPLEMENTATION_KEYS[kind]:
         raise ProgramRegistryError(
             f"implementation key is not statically supported: {kind}={implementation_key}"
         )
@@ -220,6 +226,8 @@ def load_program_registry(
         "status",
         "encoding",
         "hash_semantics",
+        "program_role",
+        "scientific_seed_eligible",
         "canonical_engine",
         "fixture_only",
         "programs",
@@ -232,6 +240,10 @@ def load_program_registry(
         raise ProgramRegistryError("program registry is not active ASCII truth")
     if payload.get("hash_semantics") != "compact_sorted_ascii_json_sha256":
         raise ProgramRegistryError("program registry hash semantics mismatch")
+    if payload.get("program_role") != "fixture_only":
+        raise ProgramRegistryError("concrete bootstrap programs must remain fixture-only")
+    if payload.get("scientific_seed_eligible") is not False:
+        raise ProgramRegistryError("bootstrap programs may not seed scientific research")
     if payload.get("canonical_engine") != CANONICAL_ENGINE:
         raise ProgramRegistryError("canonical research engine declaration mismatch")
     if payload.get("fixture_only") != FIXTURE_ONLY:
@@ -255,4 +267,5 @@ def load_program_registry(
         relative_path=path.relative_to(root).as_posix(),
         registry_sha256=sha256_payload(payload),
         programs=programs,
+        scientific_seed_eligible=False,
     )

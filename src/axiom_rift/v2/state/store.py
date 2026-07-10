@@ -327,6 +327,66 @@ def _validate_holdout_state(holdout: Any) -> None:
             raise ControlStateError("holdout permit hashes are invalid")
 
 
+def _validate_scientific_state(scientific: Any) -> None:
+    if scientific is None:
+        return
+    if not isinstance(scientific, dict):
+        raise ControlStateError("scientific state must be a mapping")
+    if scientific.get("status") not in {"not_started", "active", "terminal"}:
+        raise ControlStateError("scientific.status is invalid")
+    for field in ("root_mission_id", "epoch_id", "selected_bundle_id"):
+        value = scientific.get(field)
+        if value is not None and (not isinstance(value, str) or not value):
+            raise ControlStateError(f"scientific.{field} must be null or a string")
+    for field in ("index_path", "research_map_path", "hypothesis_ledger_path"):
+        value = scientific.get(field)
+        if not isinstance(value, str) or not value or "\\" in value or ".." in value.split("/"):
+            raise ControlStateError(f"scientific.{field} must be a repository-relative path")
+    for field in (
+        "hypothesis_object_ids",
+        "trial_receipt_ids",
+        "negative_memory_object_ids",
+        "ingredient_object_ids",
+        "candidate_object_ids",
+    ):
+        value = scientific.get(field)
+        if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
+            raise ControlStateError(f"scientific.{field} must be a string list")
+    if scientific.get("status") == "not_started":
+        if any(
+            scientific.get(field) is not None
+            for field in ("root_mission_id", "epoch_id", "selected_bundle_id")
+        ):
+            raise ControlStateError("not-started scientific state may not retain active identities")
+        if any(
+            scientific.get(field)
+            for field in (
+                "hypothesis_object_ids",
+                "trial_receipt_ids",
+                "negative_memory_object_ids",
+                "ingredient_object_ids",
+                "candidate_object_ids",
+            )
+        ):
+            raise ControlStateError("not-started scientific state must remain empty")
+    if scientific.get("holdout_reveals") != 0 and scientific.get("status") == "not_started":
+        raise ControlStateError("not-started scientific state may not reveal holdout")
+
+
+def _validate_harness_state(harness: Any) -> None:
+    if harness is None:
+        return
+    if not isinstance(harness, dict) or harness.get("status") not in {
+        "reinforcing",
+        "ready",
+        "operational",
+        "blocked",
+    }:
+        raise ControlStateError("harness state is invalid")
+    if harness.get("status") == "ready" and harness.get("real_research_started") is not False:
+        raise ControlStateError("ready reinforcement harness must prove no real research started")
+
+
 def validate_control_state(state: dict[str, Any]) -> None:
     schema = state.get("schema")
     if schema not in {CONTROL_STATE_SCHEMA_V1, CONTROL_STATE_SCHEMA_V2}:
@@ -366,6 +426,8 @@ def validate_control_state(state: dict[str, Any]) -> None:
         _validate_git_sync(reentry.get("git_sync"))
         _validate_v2_history(state.get("history"))
         _validate_holdout_state(state.get("holdout"))
+        _validate_scientific_state(state.get("scientific"))
+        _validate_harness_state(state.get("harness"))
         root_terminal = state["root_mission"].get("terminal_outcome")
         root_status = state["root_mission"].get("status")
         terminal_request = state["root_mission"].get("terminal_request")

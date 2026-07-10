@@ -34,6 +34,21 @@ Ask the user only for a scope change, destructive authority, live-capital
 authority, a new credential or external-data permission, or a genuine external
 blocker. Routine research, implementation, and stage decisions are autonomous.
 
+An engineering-only reinforcement goal may end at `await_new_root_goal` without
+opening a scientific root mission. At that boundary the active scientific
+index, research map, trial references, negative memory, ingredients, and
+candidates are empty, no holdout has been revealed, and no first H exists.
+
+## Scientific Origin
+
+- Future scientific work starts only from `registries/v2/scientific/index.yaml`.
+- Bootstrap programs and engineering receipts are fixtures or provenance, not
+  hypothesis seeds, positive evidence, negative evidence, or scheduler input.
+- Active scientific surfaces must pass the V2 inheritance guard.
+- External sources require runtime-data eligibility before feature use.
+- H, S, and initial R are fixed-lot. Dynamic sizing is late-R evidence only and
+  may not rescue failed fixed-lot economics.
+
 ## Active Boundaries
 
 - Operate only on this PC, this repository, the current Python environment, and
@@ -72,6 +87,7 @@ blocker. Routine research, implementation, and stage decisions are autonomous.
 - Consume validation, repair, and recheck budgets in code. Reuse an identical
   successful receipt and reject an identical failed retry.
 - S has no MT5 requirement.
+- S may route internally through breadth, depth, or synthesis evidence modes.
 - A preregistered OAT sensitivity batch is part of one H, not a collection of
   adjacent H identities. Use at most two registered numeric knobs, baseline plus
   low/high, and one bounded local-calibration round.

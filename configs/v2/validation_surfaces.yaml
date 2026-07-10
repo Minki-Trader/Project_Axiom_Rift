@@ -2,6 +2,25 @@ schema: axiom_rift_v2_validation_surfaces_v1
 status: active
 encoding: ascii_only
 surfaces:
+  v2_4_autonomy_harness:
+    checks:
+      - empty_scientific_state
+      - scientific_inheritance_guard
+      - callable_program_dispatch
+      - hypothesis_and_scout_routes
+      - scheduler_and_anti_loop_guards
+      - sizing_and_runtime_data_gates
+      - active_job_and_writer_recovery
+      - R_P_M_and_holdout_guards
+      - await_new_root_goal_boundary
+      - no_real_research_delta
+    forbidden:
+      - data_build
+      - model_training
+      - mt5_test
+      - mql_compile
+      - onnx_export
+      - download
   v2_2_quant_governance:
     checks:
       - control_state_and_ledger_reconciliation

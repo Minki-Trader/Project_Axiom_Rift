@@ -1,0 +1,24 @@
+schema: axiom_rift_v2_scientific_index_v1
+status: not_started
+encoding: ascii_only
+role: empty_seed_manifest
+scientific_origin: v2_current
+root_mission_id: null
+epoch_id: null
+research_map: registries/v2/scientific/research_map.yaml
+ledgers:
+  hypothesis: registries/v2/scientific/hypothesis_ledger.jsonl
+  trial: registries/v2/scientific/trial_ledger.jsonl
+  negative_memory: registries/v2/scientific/negative_memory_ledger.jsonl
+  ingredient: registries/v2/scientific/ingredient_ledger.jsonl
+  candidate: registries/v2/scientific/candidate_ledger.jsonl
+counts:
+  hypotheses: 0
+  trials: 0
+  negative_memories: 0
+  ingredients: 0
+  candidates: 0
+selected_bundle_id: null
+holdout_reveals: 0
+active_job: null
+next_action: await_new_root_goal
