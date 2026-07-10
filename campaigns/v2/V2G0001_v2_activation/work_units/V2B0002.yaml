@@ -45,8 +45,10 @@ completion:
   receipt_checker_runtime_seconds: 0.05743709999660496
   repair_batches_used: 1
   recheck_batches_used: 1
-  content_commit: pending
-  origin_main_verified: false
+  content_commit: f3ce884b49895612ac13b504751f01ff8dbbffa1
+  git_closeout_id: V2GC000001
+  git_closeout_object_id: a64080e62f6f9a4bee0e808ec6e83cf8b4a09896c3eaf6dcb24390f1ea3c1873
+  origin_main_verified: true
 claim_boundary:
   harness_work_is_alpha_evidence: false
   selected: false

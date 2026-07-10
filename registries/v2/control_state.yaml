@@ -1,5 +1,5 @@
 schema: axiom_rift_v2_control_state_v2
-revision: 27
+revision: 28
 status: active
 encoding: ascii_only
 active_truth: v2
@@ -34,6 +34,7 @@ reentry:
   current_object_ids:
   - ce6ee55e7f90c7dbbe8df62f591d8e32b2cdda8fe5854f334e180c388f9b3860
   - d66247a437c4b6579c52a1b0a7b0dff57ffcd28121a959a24c14dc16a7ffe753
+  - a64080e62f6f9a4bee0e808ec6e83cf8b4a09896c3eaf6dcb24390f1ea3c1873
   current_artifact_hashes:
     V2VR000007: ce6ee55e7f90c7dbbe8df62f591d8e32b2cdda8fe5854f334e180c388f9b3860
     V2VR000008: d66247a437c4b6579c52a1b0a7b0dff57ffcd28121a959a24c14dc16a7ffe753
@@ -43,12 +44,12 @@ reentry:
   completed_evidence_ids: []
   blocker: null
   git_sync:
-    status: pending_v2_1_content_closeout
-    validated_content_commit: null
-    local_head: null
-    origin_main_head: null
-    validation_receipt_id: null
-    closeout_object_id: null
+    status: synced
+    validated_content_commit: f3ce884b49895612ac13b504751f01ff8dbbffa1
+    local_head: f3ce884b49895612ac13b504751f01ff8dbbffa1
+    origin_main_head: f3ce884b49895612ac13b504751f01ff8dbbffa1
+    validation_receipt_id: V2VR000008
+    closeout_object_id: a64080e62f6f9a4bee0e808ec6e83cf8b4a09896c3eaf6dcb24390f1ea3c1873
 claim:
   subject_kind: none
   subject_id: null
@@ -62,8 +63,8 @@ ledger_heads:
     ledger_seq: 2
     row_sha256: 120c5b3d2d5a2bb2c245d549c043486393da6a5005746b1f198086fc7329017b
   evidence:
-    ledger_seq: 8
-    row_sha256: 18d027a4177261b785577a468cc3cd65aa03093a04564629d78227d13cbcf378
+    ledger_seq: 9
+    row_sha256: cce3e246fd1622ff8aeded179699b43b7b776ddcf8283c35576e411dbf2fc198
   material:
     ledger_seq: 20
     row_sha256: 1b0498be4d3be0ea22148aaec4141a60c46996805c705087717015b632c9afb4
@@ -97,6 +98,7 @@ applied_idempotency_keys:
 - authorize_V2SL0008_v21_harness_recheck_7d1afe9e0d7349767dc96f2ff1178d44e95aa593f243ec324cb0b4cd7ef7c9bc
 - record_V2VR000008
 - close_V2SL0008_after_V2VR000008
+- record_V2GC000001_v21_harness
 bootstrap_goal_outcome: activated
 activation:
   activation_evidence_id: V2E000008

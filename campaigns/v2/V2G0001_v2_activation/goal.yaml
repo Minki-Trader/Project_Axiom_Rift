@@ -45,6 +45,8 @@ maintenance:
   claim_ceiling: none
   next_research_goal_reserved: V2G0002
   validation_receipt_id: V2VR000008
+  validated_content_commit: f3ce884b49895612ac13b504751f01ff8dbbffa1
+  git_closeout_id: V2GC000001
 terminal_conditions_ref: contracts/v2/activation_contract.yaml
 claim_boundary:
   contract_or_skeleton_is_evidence: false

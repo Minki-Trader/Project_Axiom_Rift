@@ -12,6 +12,12 @@
     "outcome": "pass",
     "runtime_seconds": 16.66
   },
+  "git_closeout": {
+    "closeout_id": "V2GC000001",
+    "object_id": "a64080e62f6f9a4bee0e808ec6e83cf8b4a09896c3eaf6dcb24390f1ea3c1873",
+    "origin_main_verified": true,
+    "validated_content_commit": "f3ce884b49895612ac13b504751f01ff8dbbffa1"
+  },
   "next_action": {
     "goal_id": "V2G0002",
     "kind": "open_goal"
