@@ -1,0 +1,86 @@
+schema: axiom_rift_v2_cash_open_gap_failure_contract_v1
+status: preregistration_ready
+encoding: ascii_only
+scientific_origin: v2_current
+market:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+  cash_open_semantics: dataset_timestamp_proxy
+  clock_contract_material_id: V2MAT000006
+  clock_rule_id: fpmarkets_ny_close_plus_7_v1
+  clock_authority_claim: false
+  market_calendar_authority: false
+  historical_mt5_clock_receipt_pending: true
+inputs:
+  fields:
+    - time
+    - open
+    - high
+    - low
+    - close
+    - spread
+  external_sources: []
+  real_volume_used: false
+decision:
+  availability: completed_bar_only
+  entry: next_bar_open
+  server_cash_open_bar: '16:30'
+  prior_cash_close_bar: '22:55'
+  delayed_control_decision_bars: 12
+  daily_entry_safety_cap: 10
+feature:
+  program_id: V2FP2001
+  preopen_atr_bars: 24
+  gap_atr_min: 0.5
+  failure_body_atr_min: 0.2
+  gap_retrace_min: 0.25
+  up_gap_failure_clv_max: 0.35
+  down_gap_failure_clv_min: 0.65
+  exact_dependency_start_required: true
+roles:
+  cash_open_failure_reversal_primary:
+    event_kind: cash_open_gap_failure
+    direction_mode: reversal
+    decision_delay_bars: 0
+    selection_eligible: true
+  cash_open_failure_continuation_control:
+    event_kind: cash_open_gap_failure
+    direction_mode: continuation
+    decision_delay_bars: 0
+    selection_eligible: false
+  cash_open_failure_plus_60m_control:
+    event_kind: cash_open_gap_failure
+    direction_mode: reversal
+    decision_delay_bars: 12
+    selection_eligible: false
+    intervening_price_conditioning_allowed: false
+selection:
+  source_data_role: validation_oos
+  utility_metric: strict_observed_shadow_total_fixed_lot_net_broker_points
+  all_roles_must_be_feasible: true
+  evaluable_trade_count_min_per_role_per_fold: 20
+  controls_selection_eligible: false
+  control_noninferiority_tolerance_broker_points: 0.0
+  development_variant_selection: false
+trade:
+  program_id: V2TP1002
+  hold_bars: 6
+  cost_policy_id: V2CF0001
+  observed_execution_shadow_required_before_R: true
+sizing:
+  mode: fixed_lot
+  lots: 1.0
+portfolio_risk:
+  one_position_per_role: true
+  overlap: forbidden
+causality:
+  prefix_invariance_required: true
+  exact_dependency_interval_boundary_exclusion_required: true
+  delayed_control_uses_cached_cash_open_event_only: true
+  train_validation_development_order_required: true
+runtime_binding:
+  source_manifest_required: true
+  registered_parameters_must_equal_session_configurations: true
+  runtime_configuration_identity_required_on_every_evaluation: true
+claim_ceiling: none

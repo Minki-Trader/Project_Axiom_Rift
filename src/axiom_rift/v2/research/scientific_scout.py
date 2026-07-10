@@ -52,6 +52,11 @@ DIRECTIONAL_BUNDLE_ROLES = (
     "long_reversal_control",
     "short_continuation_control",
 )
+SESSION_GAP_BUNDLE_ROLES = (
+    "cash_open_failure_reversal_primary",
+    "cash_open_failure_continuation_control",
+    "cash_open_failure_plus_60m_control",
+)
 CONTINUATION_ROLES = BUNDLE_ROLES[:3]
 FALSIFIER_ROLES = BUNDLE_ROLES[3:]
 PREFERRED_CONTINUATION_ORDER = (
@@ -99,6 +104,22 @@ DIRECTIONAL_SELECTION_RULE_PAYLOAD = {
 DIRECTIONAL_SELECTION_RULE_SHA256 = sha256_payload(
     DIRECTIONAL_SELECTION_RULE_PAYLOAD
 )
+SESSION_GAP_SELECTION_RULE_PAYLOAD = {
+    "schema": "axiom_rift_v2_cash_open_gap_failure_selection_rule_v1",
+    "selection_source_data_role": "validation_oos",
+    "development_variant_selection": False,
+    "utility_metric": "strict_observed_shadow_total_fixed_lot_net_broker_points",
+    "primary_roles": [SESSION_GAP_BUNDLE_ROLES[0]],
+    "control_roles": list(SESSION_GAP_BUNDLE_ROLES[1:]),
+    "required_feasible_roles": list(SESSION_GAP_BUNDLE_ROLES),
+    "controls_selection_eligible": False,
+    "control_noninferiority_tolerance_broker_points": 0.0,
+    "continuation_noninferiority_rejects_reversal": True,
+    "plus_60m_noninferiority_rejects_cash_open_immediacy": True,
+}
+SESSION_GAP_SELECTION_RULE_SHA256 = sha256_payload(
+    SESSION_GAP_SELECTION_RULE_PAYLOAD
+)
 
 
 def selection_layout_for_hash(selection_rule_sha256: str) -> Mapping[str, Any]:
@@ -136,6 +157,24 @@ def selection_layout_for_hash(selection_rule_sha256: str) -> Mapping[str, Any]:
                 "utility_metric": "shadow_net_broker_points",
                 "reversal_roles": DIRECTIONAL_BUNDLE_ROLES[:4],
                 "layout": "directional_reversal",
+            }
+        )
+    if selection_rule_sha256 == SESSION_GAP_SELECTION_RULE_SHA256:
+        return MappingProxyType(
+            {
+                "roles": SESSION_GAP_BUNDLE_ROLES,
+                "primary_roles": SESSION_GAP_BUNDLE_ROLES[:1],
+                "control_roles": SESSION_GAP_BUNDLE_ROLES[1:],
+                "required_feasible_roles": SESSION_GAP_BUNDLE_ROLES,
+                "preferred_order": SESSION_GAP_BUNDLE_ROLES[:1],
+                "utility_metric": "shadow_net_broker_points",
+                "reversal_roles": (
+                    "cash_open_failure_reversal_primary",
+                    "cash_open_failure_plus_60m_control",
+                ),
+                "layout": "session_gap_failure",
+                "dependency_metadata_required": True,
+                "clock_rule_id": "fpmarkets_ny_close_plus_7_v1",
             }
         )
     raise ScientificScoutError("scientific Scout selection rule is not registered")
@@ -226,21 +265,27 @@ class ScientificScoutSpec:
             raise ScientificScoutError("family_id must be nonempty ASCII")
         if tuple(self.anchors) != ANCHORS:
             raise ScientificScoutError("Scout anchors must be V2D002, V2D005, and V2D008")
+        layout = selection_layout_for_hash(self.selection_rule_sha256)
+        expected_plateau_tolerance = (
+            0.0 if layout["layout"] == "session_gap_failure" else 100.0
+        )
         fixed = (
             self.hold_bars == 6
             and self.point_size == 0.01
             and self.maximum_daily_entries == 10
             and self.minimum_validation_trades_per_fold == 20
-            and self.plateau_tolerance_broker_points == 100.0
+            and self.plateau_tolerance_broker_points
+            == expected_plateau_tolerance
             and self.sizing_mode == "fixed_lot"
         )
         if not fixed:
             raise ScientificScoutError("compression Scout fixed parameters differ from preregistration")
-        layout = selection_layout_for_hash(self.selection_rule_sha256)
         role_names = tuple(layout["roles"])
         roles = dict(self.bundle_role_hashes)
         if set(roles) != set(role_names) or not all(_is_sha256(value) for value in roles.values()):
-            raise ScientificScoutError("bundle_role_hashes must cover one registered five-role layout")
+            raise ScientificScoutError(
+                "bundle_role_hashes must cover one registered role layout"
+            )
         if len(set(roles.values())) != len(role_names):
             raise ScientificScoutError("each Scout role requires a distinct executable bundle hash")
         release_hashes = dict(self.release_configuration_hashes)
@@ -260,6 +305,7 @@ class ScientificScoutSpec:
             or self.selection_rule_sha256 not in {
                 SCIENTIFIC_SELECTION_RULE_SHA256,
                 DIRECTIONAL_SELECTION_RULE_SHA256,
+                SESSION_GAP_SELECTION_RULE_SHA256,
             }
         ):
             raise ScientificScoutError("scientific Scout runtime binding is invalid")
@@ -565,10 +611,37 @@ def evaluate_signal_role(
     lifecycle_inside = True
     boundary_crossings_excluded = True
     observed_features = getattr(evaluation, "features", None)
+    dependency_metadata_bound = True
     for decision_index in range(boundary.start, max(boundary.start, last_decision)):
         direction = int(directions[decision_index])
         if direction == 0:
             continue
+        observed_feature = (
+            observed_features[decision_index]
+            if observed_features is not None
+            and decision_index < len(observed_features)
+            else None
+        )
+        dependency_start = getattr(
+            observed_feature, "dependency_start_index", None
+        )
+        if layout.get("dependency_metadata_required"):
+            if (
+                isinstance(dependency_start, bool)
+                or not isinstance(dependency_start, int)
+                or dependency_start < 0
+                or dependency_start > decision_index
+            ):
+                dependency_metadata_bound = False
+                raise ScientificScoutError(
+                    "session signal lacks an exact causal dependency start"
+                )
+            lookback_index = dependency_start
+        else:
+            dependency_bars = (
+                26 if configuration_role in layout["reversal_roles"] else 25
+            )
+            lookback_index = max(0, decision_index - dependency_bars)
         market_day, market_hour = _market_parts(bars.time[decision_index])
         decision_spread = float(bars.spread[decision_index])
         if causal_floor and decision_spread == 0.0:
@@ -587,17 +660,11 @@ def evaluate_signal_role(
         if exit_index >= boundary.end:
             lifecycle_inside = False
             continue
-        dependency_bars = (
-            26 if configuration_role in layout["reversal_roles"] else 25
-        )
-        lookback_index = max(0, decision_index - dependency_bars)
         if non_allow_gaps and interval_crosses_non_allow_boundary(
             bars.time[lookback_index], bars.time[exit_index], non_allow_gaps
         ):
             continue
-        atr = None
-        if observed_features is not None and decision_index < len(observed_features):
-            atr = getattr(observed_features[decision_index], "atr_24", None)
+        atr = getattr(observed_feature, "atr_24", None)
         causal_cost = (
             float(decision_spread * spec.point_size / float(atr))
             if decision_spread > 0.0 and atr is not None and float(atr) > 0.0
@@ -725,6 +792,18 @@ def evaluate_signal_role(
         "prefix_invariance": bool(prefix_invariant),
         "development_variant_selection": False,
     }
+    if layout.get("dependency_metadata_required"):
+        causal_checks.update(
+            {
+                "exact_dependency_start_bound": dependency_metadata_bound,
+                "clock_rule_bound": getattr(evaluation, "clock_rule_id", None)
+                == layout["clock_rule_id"],
+                "clock_authority_not_claimed": getattr(
+                    evaluation, "clock_authority_claim", None
+                )
+                is False,
+            }
+        )
     if (
         spec.trade_implementation_key
         == CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY
@@ -966,11 +1045,118 @@ def _select_directional_reversal_path(
     )
 
 
+def _select_session_gap_path(
+    fold_id: str,
+    evaluations: Mapping[str, RoleEvaluation],
+    spec: ScientificScoutSpec,
+) -> FoldSelection:
+    """Freeze the sole primary unless either matched control falsifies it."""
+
+    roles = SESSION_GAP_BUNDLE_ROLES
+    primary_role = roles[0]
+    continuation_role = roles[1]
+    delayed_role = roles[2]
+    if set(evaluations) != set(roles):
+        raise ScientificScoutError(
+            "session-gap selection requires all three registered roles"
+        )
+    if any(
+        row.data_role != "validation_oos" or row.fold_id != fold_id
+        for row in evaluations.values()
+    ):
+        raise ScientificScoutError(
+            "selection may inspect validation_oos from one fold only"
+        )
+    feasible = {
+        role: float(row.metrics["shadow_net_broker_points"])
+        for role, row in evaluations.items()
+        if row.feasible
+        and isinstance(row.metrics.get("shadow_net_broker_points"), (int, float))
+        and not isinstance(row.metrics.get("shadow_net_broker_points"), bool)
+        and math.isfinite(float(row.metrics["shadow_net_broker_points"]))
+    }
+    all_roles_evaluable = set(feasible) == set(roles)
+    selected_role = primary_role if all_roles_evaluable else None
+    primary_utility = feasible.get(primary_role)
+    continuation_utility = feasible.get(continuation_role)
+    delayed_utility = feasible.get(delayed_role)
+    continuation_falsifies = bool(
+        all_roles_evaluable
+        and continuation_utility is not None
+        and primary_utility is not None
+        and continuation_utility >= primary_utility
+    )
+    delayed_falsifies = bool(
+        all_roles_evaluable
+        and delayed_utility is not None
+        and primary_utility is not None
+        and delayed_utility >= primary_utility
+    )
+    basis = (
+        "fixed_cash_open_reversal_primary"
+        if all_roles_evaluable
+        else "required_session_role_not_evaluable"
+    )
+    contrasts = {
+        "cash_open_reversal_primary_shadow_net_broker_points": primary_utility,
+        "same_time_continuation_control_shadow_net_broker_points": (
+            continuation_utility
+        ),
+        "plus_60m_reversal_control_shadow_net_broker_points": delayed_utility,
+        "continuation_minus_primary": (
+            None
+            if primary_utility is None or continuation_utility is None
+            else continuation_utility - primary_utility
+        ),
+        "plus_60m_minus_primary": (
+            None
+            if primary_utility is None or delayed_utility is None
+            else delayed_utility - primary_utility
+        ),
+        "continuation_control_falsifies": continuation_falsifies,
+        "plus_60m_control_falsifies": delayed_falsifies,
+        "controls_selection_eligible": False,
+        "required_roles_evaluable": all_roles_evaluable,
+        "all_roles_evaluable": all_roles_evaluable,
+        "unevaluable_roles": sorted(set(roles) - set(feasible)),
+        "selection_source_role": "validation_oos",
+        "selection_utility": "strict_observed_shadow_net_broker_points",
+        "control_noninferiority_tolerance_broker_points": 0.0,
+    }
+    body = {
+        "fold_id": fold_id,
+        "selected_role": selected_role,
+        "selected_configuration_sha256": (
+            evaluations[selected_role].configuration_sha256
+            if selected_role
+            else None
+        ),
+        "selection_basis": basis,
+        "plateau_roles": [primary_role] if selected_role else [],
+        "falsifier_triggered": continuation_falsifies or delayed_falsifies,
+        "validation_contrasts": contrasts,
+    }
+    return FoldSelection(
+        fold_id=fold_id,
+        selected_role=selected_role,
+        selected_configuration_sha256=body[
+            "selected_configuration_sha256"
+        ],
+        selection_basis=basis,
+        plateau_roles=(primary_role,) if selected_role else (),
+        falsifier_triggered=continuation_falsifies or delayed_falsifies,
+        validation_contrasts=MappingProxyType(contrasts),
+        selection_sha256=sha256_payload(body),
+    )
+
+
 def select_continuation_path(
     fold_id: str, evaluations: Mapping[str, RoleEvaluation], spec: ScientificScoutSpec,
 ) -> FoldSelection:
     if spec.selection_rule_sha256 == DIRECTIONAL_SELECTION_RULE_SHA256:
         return _select_directional_reversal_path(fold_id, evaluations, spec)
+    if spec.selection_rule_sha256 == SESSION_GAP_SELECTION_RULE_SHA256:
+        return _select_session_gap_path(fold_id, evaluations, spec)
     if set(evaluations) != set(BUNDLE_ROLES):
         raise ScientificScoutError("selection requires all five validation roles")
     if any(row.data_role != "validation_oos" or row.fold_id != fold_id for row in evaluations.values()):
@@ -1041,6 +1227,13 @@ def _default_release_surface(
         )
 
         return DIRECTIONAL_EVENT_CONFIGURATIONS, evaluate_directional_configuration
+    if selection_rule_sha256 == SESSION_GAP_SELECTION_RULE_SHA256:
+        from axiom_rift.v2.research.session_gap_failure import (
+            SESSION_GAP_CONFIGURATIONS,
+            evaluate_session_gap_configuration,
+        )
+
+        return SESSION_GAP_CONFIGURATIONS, evaluate_session_gap_configuration
     from axiom_rift.v2.research.compression_release import EVENT_CONFIGURATIONS, evaluate_configuration
     return EVENT_CONFIGURATIONS, evaluate_configuration
 
@@ -1072,7 +1265,9 @@ def run_scientific_scout(
     role_names = tuple(layout["roles"])
     by_role = {configuration.role: configuration for configuration in configurations}
     if set(by_role) != set(role_names) or len(configurations) != len(role_names):
-        raise ScientificScoutError("release surface must expose exactly five immutable roles")
+        raise ScientificScoutError(
+            "release surface must expose exactly the registered immutable roles"
+        )
     ordered_folds = tuple(sorted(folds, key=lambda row: row.window.development_id))
     if tuple(row.window.development_id for row in ordered_folds) != spec.anchors:
         raise ScientificScoutError("Scout inputs must contain the three anchors exactly once")
@@ -1366,6 +1561,8 @@ __all__ = [
     "CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY",
     "DIRECTIONAL_BUNDLE_ROLES", "DIRECTIONAL_SELECTION_RULE_PAYLOAD",
     "DIRECTIONAL_SELECTION_RULE_SHA256",
+    "SESSION_GAP_BUNDLE_ROLES", "SESSION_GAP_SELECTION_RULE_PAYLOAD",
+    "SESSION_GAP_SELECTION_RULE_SHA256",
     "LEGACY_TRADE_IMPLEMENTATION_KEY",
     "SCIENTIFIC_SELECTION_RULE_PAYLOAD", "SCIENTIFIC_SELECTION_RULE_SHA256",
     "FoldSelection", "RoleEvaluation", "ScientificFold", "ScientificScoutError",

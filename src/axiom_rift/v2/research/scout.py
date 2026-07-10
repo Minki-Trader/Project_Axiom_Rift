@@ -430,14 +430,18 @@ def load_evaluation_profile(acceptance: Mapping[str, Any]) -> EvaluationProfile:
     return _load_evaluation_profile(acceptance)
 
 
-def _require_mandatory_s_rules(profile: EvaluationProfile) -> None:
+def _require_mandatory_s_rules(
+    profile: EvaluationProfile,
+    *,
+    density_failure_effect: FailureEffect = FailureEffect.REJECT,
+) -> None:
     rules = {rule.name: rule for rule in profile.rules}
     required = {
         "causal_checks_all_pass": ("integrity", Comparison.EQUAL, FailureEffect.REPAIR),
         "evaluable_trade_count": (
             "inferential_density",
             Comparison.MINIMUM,
-            FailureEffect.REJECT,
+            density_failure_effect,
         ),
         "unknown_cost_observation_count": (
             {"economics", "integrity"},
@@ -541,6 +545,7 @@ def _validate_scientific_bundle_hypothesis(
         from axiom_rift.v2.research.scientific_programs import (
             DIRECTIONAL_BUNDLE_ROLES,
             SCIENTIFIC_BUNDLE_ROLES,
+            SESSION_GAP_BUNDLE_ROLES,
             bind_scientific_runtime,
             build_scientific_bundle_batch,
             load_scientific_program_registry,
@@ -551,9 +556,13 @@ def _validate_scientific_bundle_hypothesis(
         from axiom_rift.v2.research.directional_reversal import (
             DIRECTIONAL_REVERSAL_EXECUTABLE_SHA256,
         )
+        from axiom_rift.v2.research.session_gap_failure import (
+            SESSION_GAP_EXECUTABLE_SHA256,
+        )
         from axiom_rift.v2.research.scientific_scout import (
             DIRECTIONAL_SELECTION_RULE_SHA256,
             SCIENTIFIC_SELECTION_RULE_SHA256,
+            SESSION_GAP_SELECTION_RULE_SHA256,
         )
 
         registry = load_scientific_program_registry(project_root, Path(registry_path))
@@ -566,15 +575,20 @@ def _validate_scientific_bundle_hypothesis(
     role_names = tuple(bundle_batch.bundles)
     legacy_layout = set(role_names) == set(SCIENTIFIC_BUNDLE_ROLES)
     directional_layout = set(role_names) == set(DIRECTIONAL_BUNDLE_ROLES)
-    if not (legacy_layout or directional_layout):
-        raise ScoutSpecError("scientific H requires one registered five-role layout")
+    session_layout = set(role_names) == set(SESSION_GAP_BUNDLE_ROLES)
+    if not (legacy_layout or directional_layout or session_layout):
+        raise ScoutSpecError("scientific H requires one registered role layout")
     expected_runtime_executable_sha256 = (
-        DIRECTIONAL_REVERSAL_EXECUTABLE_SHA256
+        SESSION_GAP_EXECUTABLE_SHA256
+        if session_layout
+        else DIRECTIONAL_REVERSAL_EXECUTABLE_SHA256
         if directional_layout
         else COMPRESSION_RELEASE_EXECUTABLE_SHA256
     )
     expected_selection_rule_sha256 = (
-        DIRECTIONAL_SELECTION_RULE_SHA256
+        SESSION_GAP_SELECTION_RULE_SHA256
+        if session_layout
+        else DIRECTIONAL_SELECTION_RULE_SHA256
         if directional_layout
         else SCIENTIFIC_SELECTION_RULE_SHA256
     )
@@ -612,7 +626,19 @@ def _validate_scientific_bundle_hypothesis(
         )
     if hypothesis_batch.scout_mode != "s_breadth":
         raise ScoutSpecError("compression-release H autonomy route is invalid")
-    if directional_layout:
+    if session_layout:
+        if (
+            not causal_spread_floor
+            or hypothesis_batch.hypothesis_type != "structural_batch"
+            or hypothesis_batch.dominant_axis != "axis_session"
+            or hypothesis_batch.coupled_program_kinds
+            or selector_implementation_key
+            != "chronological_cash_open_gap_failure_cost_gated_selector_v1"
+        ):
+            raise ScoutSpecError(
+                "session-gap H autonomy route is invalid"
+            )
+    elif directional_layout:
         if (
             not causal_spread_floor
             or hypothesis_batch.hypothesis_type != "structural_batch"
@@ -646,34 +672,49 @@ def _validate_scientific_bundle_hypothesis(
     ):
         raise ScoutSpecError("compression-release H autonomy route is invalid")
     knobs = tuple(hypothesis_batch.numeric_knobs)
-    expected_knob = (
-        "selector.compression_ratio_max",
-        2.0,
-        2.5,
-        3.0,
-    )
-    if len(knobs) != 1 or (
-        knobs[0].path,
-        float(knobs[0].low),
-        float(knobs[0].baseline),
-        float(knobs[0].high),
-    ) != expected_knob:
-        raise ScoutSpecError("compression-release H numeric surface is invalid")
-    if hypothesis_batch.local_calibration_rounds != 0:
-        raise ScoutSpecError("compression-release H does not preregister local calibration")
-    expected_policy = {
-        "selector": {
-            "compression_ratio_max": {
-                "type": "float",
-                "low": 2.0,
-                "baseline": 2.5,
-                "high": 3.0,
+    if session_layout:
+        if knobs:
+            raise ScoutSpecError(
+                "session-gap H may not register a numeric sensitivity surface"
+            )
+        expected_policy: dict[str, Any] = {}
+    else:
+        expected_knob = (
+            "selector.compression_ratio_max",
+            2.0,
+            2.5,
+            3.0,
+        )
+        if len(knobs) != 1 or (
+            knobs[0].path,
+            float(knobs[0].low),
+            float(knobs[0].baseline),
+            float(knobs[0].high),
+        ) != expected_knob:
+            raise ScoutSpecError(
+                "compression-release H numeric surface is invalid"
+            )
+        expected_policy = {
+            "selector": {
+                "compression_ratio_max": {
+                    "type": "float",
+                    "low": 2.0,
+                    "baseline": 2.5,
+                    "high": 3.0,
+                }
             }
         }
-    }
+    if hypothesis_batch.local_calibration_rounds != 0:
+        raise ScoutSpecError("scientific H does not preregister local calibration")
+    expected_sensitivity_enabled = not session_layout
+    expected_disabled_reason = (
+        "fixed_matched_mechanism_and_controls_no_registered_numeric_surface"
+        if session_layout
+        else None
+    )
     if (
-        sensitivity.get("enabled") is not True
-        or sensitivity.get("disabled_reason") not in {None, ""}
+        sensitivity.get("enabled") is not expected_sensitivity_enabled
+        or sensitivity.get("disabled_reason") != expected_disabled_reason
         or sensitivity.get("data_role") != "validation_oos"
         or sensitivity.get("development_variant_selection_allowed") is not False
         or sensitivity.get("holdout_revealed") is not False
@@ -710,15 +751,16 @@ def _validate_scientific_bundle_hypothesis(
         raise ScoutSpecError(f"compression-release H surface rule is invalid: {exc}") from exc
     expected_surface_metric = (
         "shadow_net_broker_points"
-        if directional_layout
+        if directional_layout or session_layout
         else "net_broker_points"
     )
+    expected_plateau_tolerance = 0.0 if session_layout else 100.0
     if not (
         surface_rule.metric_name == expected_surface_metric
         and surface_rule.higher_is_better is True
         and surface_rule.pass_threshold == 0.01
         and surface_rule.effective_viability_threshold == 0.0
-        and surface_rule.plateau_tolerance == 100.0
+        and surface_rule.plateau_tolerance == expected_plateau_tolerance
         and surface_rule.fold_consistency_min == 0.67
     ):
         raise ScoutSpecError("compression-release H surface thresholds differ from preregistration")
@@ -738,6 +780,20 @@ def _validate_scientific_bundle_hypothesis(
     ):
         raise ScoutSpecError(
             "compression-release acceptance thresholds differ from the hard S profile"
+        )
+    if session_layout and (
+        profile_rules["evaluable_trade_count"].failure_effect
+        is not FailureEffect.EVIDENCE_GAP
+        or profile_rules["unknown_cost_observation_count"].failure_effect
+        is not FailureEffect.EVIDENCE_GAP
+        or profile_rules["net_broker_points"].failure_effect
+        is not FailureEffect.REJECT
+        or profile_rules["net_broker_points"].tuning_role is not TuningRole.NONE
+        or profile_rules["positive_net_fold_count"].failure_effect
+        is not FailureEffect.REJECT
+    ):
+        raise ScoutSpecError(
+            "session-gap H density, integrity, and economics effects differ"
         )
     if causal_spread_floor:
         shadow_count = profile_rules.get("shadow_evaluable_trade_count")
@@ -759,6 +815,10 @@ def _validate_scientific_bundle_hypothesis(
             or shadow_folds.comparison is not Comparison.MINIMUM
             or shadow_folds.pass_min != 2.0
             or shadow_folds.failure_effect is not FailureEffect.REJECT
+            or (
+                session_layout
+                and shadow_net.tuning_role is not TuningRole.NONE
+            )
         ):
             raise ScoutSpecError(
                 "causal-spread-floor H requires the strict observed-cost shadow"
@@ -780,9 +840,16 @@ def _validate_scientific_bundle_hypothesis(
         split_config = yaml.safe_load(
             (project_root / "configs/v2/splits.yaml").read_text(encoding="ascii")
         )
+        market_config = yaml.safe_load(
+            (project_root / "configs/v2/market.yaml").read_text(encoding="ascii")
+        )
     except (OSError, UnicodeError, yaml.YAMLError) as exc:
         raise ScoutSpecError(f"scientific data binding is unreadable: {exc}") from exc
-    if not isinstance(data_config, Mapping) or not isinstance(split_config, Mapping):
+    if (
+        not isinstance(data_config, Mapping)
+        or not isinstance(split_config, Mapping)
+        or not isinstance(market_config, Mapping)
+    ):
         raise ScoutSpecError("scientific data configs must be mappings")
     processed = data_config.get("processed")
     boundary = data_config.get("boundary_source")
@@ -829,6 +896,24 @@ def _validate_scientific_bundle_hypothesis(
         "real_volume_used": False,
         "external_source_ids": [],
     }
+    if session_layout:
+        server_clock = market_config.get("server_clock")
+        if not isinstance(server_clock, Mapping):
+            raise ScoutSpecError("session-gap market clock config is incomplete")
+        expected_data["session_clock_binding"] = {
+            "clock_contract_material_id": lineage.get(
+                "clock_contract_material_id"
+            ),
+            "clock_rule_id": server_clock.get("rule_id"),
+            "server_minus_new_york_hours": server_clock.get(
+                "server_minus_new_york_hours"
+            ),
+            "server_cash_open_bar": "16:30",
+            "cash_open_semantics": "dataset_timestamp_proxy",
+            "clock_authority_claim": False,
+            "market_calendar_authority": False,
+            "historical_mt5_clock_receipt_pending": True,
+        }
     if causal_spread_floor:
         cost_quality = data_config.get("cost_quality")
         active_fallback = (
@@ -850,6 +935,9 @@ def _validate_scientific_bundle_hypothesis(
                 "V2SEL3003",
                 "V2SEL3004",
                 "V2SEL3005",
+                "V2SEL4001",
+                "V2SEL4002",
+                "V2SEL4003",
             ],
             "implementation_key": "fixed_6bar_causal_spread_floor_v1",
             "decision_zero_action": "reject_signal_admission",
@@ -894,9 +982,11 @@ def _validate_scientific_bundle_hypothesis(
     family_id = trials.get("family_id")
     if not isinstance(family_id, str) or family_id != hypothesis_batch.family_id:
         raise ScoutSpecError("compression-release trial family differs from autonomy")
+    role_count = len(role_names)
+    validation_cell_count = role_count * 3
     exact_caps = {
-        "unique_variant_cap": 5,
-        "validation_evaluation_cell_cap": 15,
+        "unique_variant_cap": role_count,
+        "validation_evaluation_cell_cap": validation_cell_count,
         "local_calibration_new_evaluations_per_outer_fold_max": 0,
         "development_paths_per_fold_max": 1,
     }
@@ -917,8 +1007,8 @@ def _validate_scientific_bundle_hypothesis(
     timeout_seconds = evidence_budget.get("job_timeout_seconds")
     expected_evidence_budget = {
         "scout_jobs_max": 1,
-        "configuration_trials_max": 5,
-        "validation_evaluation_cells_max": 15,
+        "configuration_trials_max": role_count,
+        "validation_evaluation_cells_max": validation_cell_count,
         "development_paths_per_fold_max": 1,
         "mt5_runs_max": 0,
         "holdout_reveals_max": 0,
@@ -1019,7 +1109,16 @@ def validate_hypothesis_v2_payload(
     if dict(routing) != expected_routing:
         raise ScoutSpecError("hypothesis v2 routing policy is incomplete")
     evaluation_profile = _load_evaluation_profile(acceptance)
-    _require_mandatory_s_rules(evaluation_profile)
+    _require_mandatory_s_rules(
+        evaluation_profile,
+        density_failure_effect=(
+            FailureEffect.EVIDENCE_GAP
+            if programs.get("schema")
+            == "axiom_rift_v2_scientific_bundle_batch_spec_v1"
+            and hypothesis_batch.dominant_axis == "axis_session"
+            else FailureEffect.REJECT
+        ),
+    )
     if programs.get("schema") == "axiom_rift_v2_scientific_bundle_batch_spec_v1":
         return _validate_scientific_bundle_hypothesis(
             payload=payload,
@@ -1360,6 +1459,9 @@ def load_scout_spec(
             selection_rule_sha256=str(validated_v2["selection_rule_sha256"]),
             trade_implementation_key=str(
                 validated_v2["trade_implementation_key"]
+            ),
+            plateau_tolerance_broker_points=float(
+                validated_v2["surface_rule"].plateau_tolerance
             ),
             family_configuration_hashes_before=tuple(
                 trials.get("family_configuration_hashes_before", [])

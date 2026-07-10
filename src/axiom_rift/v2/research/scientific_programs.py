@@ -46,23 +46,36 @@ DIRECTIONAL_BUNDLE_ROLES = (
     "long_reversal_control",
     "short_continuation_control",
 )
+SESSION_GAP_BUNDLE_ROLES = (
+    "cash_open_failure_reversal_primary",
+    "cash_open_failure_continuation_control",
+    "cash_open_failure_plus_60m_control",
+)
 SCIENTIFIC_BUNDLE_ROLE_LAYOUTS = (
     SCIENTIFIC_BUNDLE_ROLES,
     DIRECTIONAL_BUNDLE_ROLES,
+    SESSION_GAP_BUNDLE_ROLES,
 )
 ALL_SCIENTIFIC_BUNDLE_ROLES = frozenset(
     role for layout in SCIENTIFIC_BUNDLE_ROLE_LAYOUTS for role in layout
 )
 SCIENTIFIC_RUNTIME_PATHS = (
+    "src/axiom_rift/v2/data/clock.py",
     "src/axiom_rift/v2/research/compression_release.py",
     "src/axiom_rift/v2/research/directional_reversal.py",
     "src/axiom_rift/v2/research/evaluation.py",
+    "src/axiom_rift/v2/research/session_gap_failure.py",
     "src/axiom_rift/v2/research/scientific_scout.py",
 )
 SCIENTIFIC_RUNTIME_SCHEMA = "axiom_rift_v2_scientific_runtime_manifest_v1"
 
 _IMPLEMENTATION_KEYS = {
-    "feature": frozenset({"compression_release_features_v1"}),
+    "feature": frozenset(
+        {
+            "compression_release_features_v1",
+            "cash_open_gap_failure_features_v1",
+        }
+    ),
     "label": frozenset({"forward_open_return_6bar_v1"}),
     "model": frozenset({"deterministic_event_score_v1"}),
     "calibration": frozenset({"identity_event_calibration_v1"}),
@@ -71,6 +84,7 @@ _IMPLEMENTATION_KEYS = {
             "chronological_compression_selector_v1",
             "chronological_compression_cost_gated_selector_v1",
             "chronological_directional_reversal_cost_gated_selector_v1",
+            "chronological_cash_open_gap_failure_cost_gated_selector_v1",
         }
     ),
     "trade": frozenset(
@@ -303,7 +317,7 @@ class ScientificBundleBatch:
         )
         if layout is None:
             raise ScientificProgramRegistryError(
-                "scientific bundle batch must match one registered five-role layout"
+                "scientific bundle batch must match one registered role layout"
             )
         normalized: dict[str, ScientificProgramBundle] = {}
         for role in layout:
@@ -889,6 +903,112 @@ def bind_directional_reversal_runtime(
     return MappingProxyType(release_hashes)
 
 
+def bind_session_gap_failure_runtime(
+    registry: ScientificProgramRegistry,
+    batch: ScientificBundleBatch,
+) -> Mapping[str, str]:
+    """Bind the fixed cash-open gap-failure contrast to exact programs."""
+
+    from axiom_rift.v2.research.session_gap_failure import (
+        SESSION_GAP_CONFIGURATIONS,
+    )
+
+    if set(batch.bundles) != set(SESSION_GAP_BUNDLE_ROLES):
+        raise ScientificProgramRegistryError(
+            "session-gap runtime requires its exact three-role layout"
+        )
+    expected_shared: dict[str, dict[str, Any]] = {
+        "feature": {
+            "clock_contract_material_id": "V2MAT000006",
+            "clock_rule_id": "fpmarkets_ny_close_plus_7_v1",
+            "server_cash_open_bar": "16:30",
+            "prior_cash_close_bar": "22:55",
+            "preopen_atr_bars": 24,
+            "gap_atr_min": 0.5,
+            "failure_body_atr_min": 0.2,
+            "gap_retrace_min": 0.25,
+            "up_gap_failure_clv_max": 0.35,
+            "down_gap_failure_clv_min": 0.65,
+            "clock_authority_claim": False,
+        },
+        "label": {"horizon_bars_after_entry": 6},
+        "model": {
+            "family": "deterministic_event_score",
+            "train_fit": "hashed_no_op",
+        },
+        "calibration": {"family": "identity_event_calibration"},
+        "sizing": {"mode": "fixed_lot", "lots": 1.0},
+        "portfolio_risk": {
+            "one_position_per_role": True,
+            "overlap": "forbidden",
+        },
+    }
+    expected_trade = {
+        "hold_bars": 6,
+        "policy_id": "V2CF0001",
+        "decision_zero_action": "reject_signal_admission",
+        "positive_execution_rule": "max_decision_and_execution_spread",
+        "execution_zero_action": "positive_decision_spread_floor",
+        "policy_parameter_count": 0,
+    }
+    trade_program_ids = {
+        bundle.programs["trade"].program_id
+        for bundle in batch.bundles.values()
+    }
+    feature_program_ids = {
+        bundle.programs["feature"].program_id
+        for bundle in batch.bundles.values()
+    }
+    if len(trade_program_ids) != 1 or len(feature_program_ids) != 1:
+        raise ScientificProgramRegistryError(
+            "session-gap batch may not mix feature or trade programs"
+        )
+    configurations = {row.role: row for row in SESSION_GAP_CONFIGURATIONS}
+    release_hashes: dict[str, str] = {}
+    for role in SESSION_GAP_BUNDLE_ROLES:
+        bundle = batch.bundles[role]
+        for kind, expected in expected_shared.items():
+            if (
+                dict(bundle.programs[kind].parameters) != expected
+                or bundle.programs[kind].runtime_sha256 != registry.runtime_sha256
+            ):
+                raise ScientificProgramRegistryError(
+                    f"session-gap runtime parameters differ: {role}.{kind}"
+                )
+        trade = bundle.programs["trade"]
+        if (
+            trade.implementation_key != "fixed_6bar_causal_spread_floor_v1"
+            or dict(trade.parameters) != expected_trade
+            or trade.runtime_sha256 != registry.runtime_sha256
+        ):
+            raise ScientificProgramRegistryError(
+                f"session-gap trade policy differs from runtime: {role}"
+            )
+        configuration = configurations[role]
+        expected_selector = {
+            "role": role,
+            "event_kind": configuration.event_kind,
+            "direction_mode": configuration.direction_mode,
+            "decision_delay_bars": configuration.decision_delay_bars,
+            "daily_entry_safety_cap": 10,
+            "admission_cost_policy_id": "V2CF0001",
+            "clock_rule_id": "fpmarkets_ny_close_plus_7_v1",
+            "clock_authority_claim": False,
+        }
+        selector = bundle.programs["selector"]
+        if (
+            selector.implementation_key
+            != "chronological_cash_open_gap_failure_cost_gated_selector_v1"
+            or dict(selector.parameters) != expected_selector
+            or selector.runtime_sha256 != registry.runtime_sha256
+        ):
+            raise ScientificProgramRegistryError(
+                f"session-gap selector differs from runtime: {role}"
+            )
+        release_hashes[role] = configuration.identity_sha256
+    return MappingProxyType(release_hashes)
+
+
 def bind_scientific_runtime(
     registry: ScientificProgramRegistry,
     batch: ScientificBundleBatch,
@@ -899,6 +1019,8 @@ def bind_scientific_runtime(
         return bind_compression_release_runtime(registry, batch)
     if set(batch.bundles) == set(DIRECTIONAL_BUNDLE_ROLES):
         return bind_directional_reversal_runtime(registry, batch)
+    if set(batch.bundles) == set(SESSION_GAP_BUNDLE_ROLES):
+        return bind_session_gap_failure_runtime(registry, batch)
     raise ScientificProgramRegistryError("scientific runtime layout is unregistered")
 
 
@@ -965,7 +1087,7 @@ def build_scientific_bundle_batch(
     )
     if layout is None:
         raise ScientificProgramRegistryError(
-            "scientific bundle batch must match one registered five-role layout"
+            "scientific bundle batch must match one registered role layout"
         )
     bundles: dict[str, ScientificProgramBundle] = {}
     for role in layout:
@@ -994,6 +1116,7 @@ __all__ = [
     "SCIENTIFIC_REGISTRY_SCHEMA",
     "SCIENTIFIC_RUNTIME_PATHS",
     "SCIENTIFIC_RUNTIME_SCHEMA",
+    "SESSION_GAP_BUNDLE_ROLES",
     "ScientificBundleBatch",
     "ScientificProgramBundle",
     "ScientificProgramDefinition",
@@ -1003,6 +1126,7 @@ __all__ = [
     "build_scientific_bundle_batch",
     "build_scientific_program_bundle",
     "bind_directional_reversal_runtime",
+    "bind_session_gap_failure_runtime",
     "bind_compression_release_runtime",
     "bind_scientific_runtime",
     "load_scientific_program_registry",

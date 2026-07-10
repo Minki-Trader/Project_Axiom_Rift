@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
-from types import MappingProxyType
+from types import MappingProxyType, SimpleNamespace
 import tempfile
 import unittest
 
@@ -30,6 +30,8 @@ from axiom_rift.v2.research.scientific_scout import (
     ScientificScoutError,
     ScientificScoutSpec,
     SCIENTIFIC_SELECTION_RULE_SHA256,
+    SESSION_GAP_BUNDLE_ROLES,
+    SESSION_GAP_SELECTION_RULE_SHA256,
     evaluate_signal_role,
     resolve_scientific_scout_outcome,
     run_scientific_scout,
@@ -159,6 +161,26 @@ def _directional_spec() -> ScientificScoutSpec:
     )
 
 
+def _session_spec() -> ScientificScoutSpec:
+    base = _spec()
+    return replace(
+        base,
+        hypothesis_id="V2H0005",
+        family_id="cash_open_gap_failure_v1",
+        bundle_role_hashes={
+            role: sha256_payload({"session_bundle_role": role})
+            for role in SESSION_GAP_BUNDLE_ROLES
+        },
+        release_configuration_hashes={
+            role: sha256_payload({"session_configuration": role})
+            for role in SESSION_GAP_BUNDLE_ROLES
+        },
+        selection_rule_sha256=SESSION_GAP_SELECTION_RULE_SHA256,
+        trade_implementation_key=CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY,
+        plateau_tolerance_broker_points=0.0,
+    )
+
+
 class ScientificScoutTests(unittest.TestCase):
     def test_identified_falsifier_precedes_induced_evidence_gap(self) -> None:
         self.assertEqual(
@@ -244,6 +266,104 @@ class ScientificScoutTests(unittest.TestCase):
                 "long_reversal_control_falsifies"
             ]
         )
+
+    def test_session_selection_freezes_primary_and_controls_falsify_at_zero_tolerance(
+        self,
+    ) -> None:
+        spec = _session_spec()
+
+        def row(role: str, value: float, *, feasible: bool = True) -> RoleEvaluation:
+            return RoleEvaluation(
+                fold_id="V2D002",
+                data_role="validation_oos",
+                configuration_role=role,
+                configuration_sha256=spec.bundle_role_hashes[role],
+                metrics=MappingProxyType(
+                    {
+                        "selection_feasible": feasible,
+                        "net_broker_points": value,
+                        "shadow_net_broker_points": value,
+                    }
+                ),
+                causal_checks=MappingProxyType({"prefix_invariance": True}),
+                trades=(),
+                evaluation_sha256=sha256_payload(
+                    {"role": role, "shadow": value, "feasible": feasible}
+                ),
+            )
+
+        evaluations = {
+            SESSION_GAP_BUNDLE_ROLES[0]: row(
+                SESSION_GAP_BUNDLE_ROLES[0], 100.0
+            ),
+            SESSION_GAP_BUNDLE_ROLES[1]: row(
+                SESSION_GAP_BUNDLE_ROLES[1], 99.0
+            ),
+            SESSION_GAP_BUNDLE_ROLES[2]: row(
+                SESSION_GAP_BUNDLE_ROLES[2], 98.0
+            ),
+        }
+        selected = select_continuation_path("V2D002", evaluations, spec)
+        self.assertEqual(SESSION_GAP_BUNDLE_ROLES[0], selected.selected_role)
+        self.assertFalse(selected.falsifier_triggered)
+
+        evaluations[SESSION_GAP_BUNDLE_ROLES[2]] = row(
+            SESSION_GAP_BUNDLE_ROLES[2], 100.0
+        )
+        falsified = select_continuation_path("V2D002", evaluations, spec)
+        self.assertTrue(falsified.falsifier_triggered)
+        self.assertTrue(
+            falsified.validation_contrasts["plus_60m_control_falsifies"]
+        )
+
+        evaluations[SESSION_GAP_BUNDLE_ROLES[1]] = row(
+            SESSION_GAP_BUNDLE_ROLES[1], 0.0, feasible=False
+        )
+        insufficient = select_continuation_path("V2D002", evaluations, spec)
+        self.assertIsNone(insufficient.selected_role)
+        self.assertFalse(insufficient.falsifier_triggered)
+
+    def test_session_dependency_is_checked_before_zero_spread_rejection(self) -> None:
+        bars = _bars(datetime(2025, 1, 1), size=90)
+        spread = bars.spread.copy()
+        spread[10] = 0.0
+        bars = BarArrays(
+            time=bars.time,
+            open=bars.open,
+            high=bars.high,
+            low=bars.low,
+            close=bars.close,
+            tick_volume=bars.tick_volume,
+            spread=spread,
+        )
+        directions = [0] * len(bars)
+        directions[10] = 1
+        evaluation = SimpleNamespace(
+            directions=tuple(directions),
+            scores=(1.0,) * len(bars),
+            valid_mask=(True,) * len(bars),
+            features=tuple(
+                SimpleNamespace(atr_24=1.0, dependency_start_index=None)
+                for _ in range(len(bars))
+            ),
+            clock_rule_id="fpmarkets_ny_close_plus_7_v1",
+            clock_authority_claim=False,
+        )
+        with self.assertRaisesRegex(
+            ScientificScoutError,
+            "exact causal dependency start",
+        ):
+            evaluate_signal_role(
+                fold_id="V2D002",
+                bars=bars,
+                boundary=IndexBoundary("validation_oos", 5, 70),
+                configuration_role=SESSION_GAP_BUNDLE_ROLES[0],
+                configuration_sha256=_session_spec().bundle_role_hashes[
+                    SESSION_GAP_BUNDLE_ROLES[0]
+                ],
+                evaluation=evaluation,
+                spec=_session_spec(),
+            )
 
     def test_artifact_writer_serializes_nested_immutable_mappings(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -44,6 +44,9 @@ cost_quality:
       - V2SEL3003
       - V2SEL3004
       - V2SEL3005
+      - V2SEL4001
+      - V2SEL4002
+      - V2SEL4003
     implementation_key: fixed_6bar_causal_spread_floor_v1
     decision_zero_action: reject_signal_admission
     positive_execution_rule: max_decision_and_execution_spread
