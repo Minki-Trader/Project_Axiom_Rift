@@ -731,6 +731,192 @@ class V2OperationWriter:
             "lifecycle_context": "trade_program_bound",
         }
 
+    def _validate_scientific_scheduler_audit(
+        self,
+        *,
+        state: Mapping[str, Any],
+        spec_payload: Mapping[str, Any],
+        research_map: Any,
+        map_snapshot: Mapping[str, Any],
+        scientific_batch: Any,
+        initial_configuration_hashes: Iterable[str],
+    ) -> dict[str, str]:
+        audit = spec_payload.get("scheduler_audit")
+        expected_fields = {
+            "schema",
+            "scientific_epoch_id",
+            "research_map_object_id",
+            "research_map_snapshot_seq",
+            "evaluated_executable_hashes",
+            "seen_semantic_signatures",
+            "scientific_references",
+            "recent_dominant_axes",
+            "semantic_definition",
+            "proposals",
+            "decision",
+        }
+        if not isinstance(audit, Mapping) or set(audit) != expected_fields:
+            raise OperationStateError("scientific scheduler audit fields are incomplete")
+        scientific = state["scientific"]
+        references = map_snapshot.get("references")
+        if not isinstance(references, Mapping):
+            raise OperationStateError(
+                "scientific scheduler research-map references are invalid"
+            )
+        references = {key: list(value) for key, value in references.items()}
+        durable_global = self._durable_global_configuration_hashes()
+        visible_hypothesis_objects = set(references["hypothesis_object_ids"])
+        seen_signatures = sorted(
+            {
+                row.get("payload", {}).get("semantic_signature_sha256")
+                for row in self.hypotheses.rows()
+                if isinstance(
+                    row.get("payload", {}).get("semantic_signature_sha256"), str
+                )
+                and row.get("payload", {}).get("hypothesis_object_id")
+                in visible_hypothesis_objects
+            }
+        )
+        recent_axes = list(map_snapshot.get("recent_dominant_axes", []))
+        semantic_definition = audit.get("semantic_definition")
+        if (
+            audit.get("schema") != "axiom_rift_v2_scheduler_audit_v1"
+            or audit.get("scientific_epoch_id") != scientific.get("epoch_id")
+            or audit.get("research_map_object_id")
+            != scientific.get("current_research_map_object_id")
+            or audit.get("research_map_snapshot_seq")
+            != scientific.get("research_map_snapshot_seq")
+            or audit.get("evaluated_executable_hashes") != durable_global
+            or audit.get("seen_semantic_signatures") != seen_signatures
+            or audit.get("scientific_references") != references
+            or audit.get("recent_dominant_axes") != recent_axes
+            or not isinstance(semantic_definition, Mapping)
+            or sha256_payload(semantic_definition)
+            != scientific_batch.semantic_signature_sha256
+        ):
+            raise OperationStateError(
+                "scientific scheduler audit differs from durable scheduler inputs"
+            )
+        proposal_rows = audit.get("proposals")
+        if not isinstance(proposal_rows, list) or not proposal_rows:
+            raise OperationStateError("scientific scheduler proposals are missing")
+        expected_proposal_fields = {
+            "hypothesis_id",
+            "family_id",
+            "dominant_axis",
+            "executable_hashes",
+            "semantic_signature_sha256",
+            "expected_information_value",
+            "structural_novelty",
+            "complementary_potential",
+            "scientific_trial_cost",
+            "adjacency_penalty",
+            "causal_executable",
+            "data_identifiable",
+        }
+        try:
+            from axiom_rift.v2.research.autonomy import (
+                SchedulerProposal,
+                ScopedNegativeMemory,
+                choose_next_hypothesis,
+            )
+
+            proposals = []
+            for row in proposal_rows:
+                if not isinstance(row, Mapping) or set(row) != expected_proposal_fields:
+                    raise OperationStateError(
+                        "scientific scheduler proposal fields are invalid"
+                    )
+                proposals.append(
+                    SchedulerProposal(
+                        hypothesis_id=row["hypothesis_id"],
+                        family_id=row["family_id"],
+                        dominant_axis=row["dominant_axis"],
+                        executable_hashes=tuple(row["executable_hashes"]),
+                        semantic_signature_sha256=row[
+                            "semantic_signature_sha256"
+                        ],
+                        expected_information_value=row[
+                            "expected_information_value"
+                        ],
+                        structural_novelty=row["structural_novelty"],
+                        complementary_potential=row[
+                            "complementary_potential"
+                        ],
+                        scientific_trial_cost=row["scientific_trial_cost"],
+                        adjacency_penalty=row["adjacency_penalty"],
+                        causal_executable=row["causal_executable"],
+                        data_identifiable=row["data_identifiable"],
+                    )
+                )
+            negative_memories = []
+            for object_id in references["negative_memory_object_ids"]:
+                wrapped = self.objects.get(object_id)
+                if wrapped.get("kind") != "negative_memory":
+                    raise OperationStateError(
+                        "scientific scheduler negative-memory kind is invalid"
+                    )
+                negative_memories.append(
+                    ScopedNegativeMemory.from_payload(wrapped.get("payload"))
+                )
+            decision = choose_next_hypothesis(
+                proposals,
+                research_map,
+                recent_dominant_axes=tuple(recent_axes),
+                evaluated_executable_hashes=frozenset(durable_global),
+                seen_semantic_signatures=frozenset(seen_signatures),
+                negative_memory=tuple(negative_memories),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise OperationStateError(
+                f"scientific scheduler audit is invalid: {exc}"
+            ) from exc
+        selected = next(
+            (
+                proposal
+                for proposal in proposals
+                if proposal.hypothesis_id == decision.selected_hypothesis_id
+            ),
+            None,
+        )
+        expected_initial = sorted(set(initial_configuration_hashes))
+        if (
+            selected is None
+            or selected.hypothesis_id != scientific_batch.hypothesis_id
+            or selected.family_id != scientific_batch.family_id
+            or selected.dominant_axis != scientific_batch.dominant_axis
+            or list(selected.executable_hashes) != expected_initial
+            or selected.semantic_signature_sha256
+            != scientific_batch.semantic_signature_sha256
+        ):
+            raise OperationStateError(
+                "scientific scheduler selection differs from the hypothesis batch"
+            )
+        candidate_records = [
+            {
+                "hypothesis_id": row.hypothesis_id,
+                "accepted": row.accepted,
+                "rejection_codes": list(row.rejection_codes),
+                "priority_score": row.priority_score,
+                "factors": dict(row.factors),
+            }
+            for row in decision.candidate_records
+        ]
+        expected_decision = {
+            "schema": "axiom_rift_v2_scheduler_decision_v1",
+            "selected_hypothesis_id": decision.selected_hypothesis_id,
+            "candidate_records": candidate_records,
+            "decision_sha256": decision.decision_sha256,
+        }
+        if audit.get("decision") != expected_decision:
+            raise OperationStateError(
+                "scientific scheduler decision does not reproduce exactly"
+            )
+        return {
+            "scheduler_audit_sha256": sha256_payload(audit),
+            "scheduler_decision_sha256": decision.decision_sha256,
+        }
+
     @staticmethod
     def _nonregressive_research_state(
         research_map: Any, axis_id: str, proposed: str
@@ -2848,6 +3034,7 @@ class V2OperationWriter:
             scientific = state.get("scientific")
             scientific_batch = None
             scientific_research_map = None
+            scientific_scheduler_binding = None
             if isinstance(scientific, dict) and scientific.get("status") == "active":
                 if state["cursor"].get("active_hypothesis_id") is not None:
                     raise OperationStateError(
@@ -2997,6 +3184,17 @@ class V2OperationWriter:
                     raise OperationStateError(
                         "scientific hypothesis repeats a globally evaluated configuration"
                     )
+                if validated_hypothesis.get("scientific_bundle_batch") is not None:
+                    scientific_scheduler_binding = (
+                        self._validate_scientific_scheduler_audit(
+                            state=state,
+                            spec_payload=spec_payload,
+                            research_map=scientific_research_map,
+                            map_snapshot=_map_snapshot,
+                            scientific_batch=scientific_batch,
+                            initial_configuration_hashes=initial_hashes,
+                        )
+                    )
                 try:
                     from axiom_rift.v2.research.autonomy import ScopedNegativeMemory
 
@@ -3095,6 +3293,8 @@ class V2OperationWriter:
                     "autonomy_batch_sha256": sha256_payload(scientific_batch.to_payload()),
                 }
             )
+            if scientific_scheduler_binding is not None:
+                ledger_payload.update(scientific_scheduler_binding)
         row = self._append_or_existing(
             self.hypotheses,
             hypothesis_id,

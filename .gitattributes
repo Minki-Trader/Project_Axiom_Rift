@@ -1,2 +1,3 @@
 registries/v2/scientific/index.yaml text eol=lf
 registries/v2/scientific/research_map.yaml text eol=lf
+campaigns/v2/*_scientific_root/** text eol=lf
