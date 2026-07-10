@@ -1,0 +1,142 @@
+schema: foundation_source_decisions_v1
+status: bounded_design_intelligence_complete
+initiative_id: INI-0001
+accessed_on: 2026-07-11
+external_code_copied: false
+external_repository_cloned: false
+transient_external_root_created: false
+
+questions:
+  - How can one local writer commit a durable event before replaceable state and index projections?
+  - Which local keyed index stays bounded as scientific history grows?
+  - How should stable identities reject ambiguous numeric and object encodings?
+  - Which Windows locking primitive avoids stale sentinel files and replacement races?
+  - Which Codex surfaces should carry compact routing versus reusable task workflow?
+  - What runtime facts belong to future ONNX and MT5 proof without building an adapter now?
+
+decisions:
+  - id: SRC-DEC-001
+    topic: local_index
+    decision: adopt
+    pattern: sqlite_reconstructible_projection_delete_journal_synchronous_extra
+    rationale: SQLite provides keyed UNIQUE lookup and query-plan inspection without becoming evidence authority. Local SQLite 3.50.4 is below the documented WAL-reset fix line, so WAL is rejected for this Foundation.
+    local_change: Use one write-capable connection, predefined bound SQL, BEGIN IMMEDIATE, STRICT tables, keyed indexes, busy_timeout 5000, foreign_keys ON, trusted_schema OFF, and deterministic rebuild from the journal.
+    rejected:
+      - sqlite_as_only_durable_authority
+      - wal_on_current_runtime
+      - insert_or_replace_for_immutable_records
+      - routine_full_history_scan
+      - arbitrary_generated_sql
+    sources:
+      - https://sqlite.org/wal.html
+      - https://sqlite.org/pragma.html#pragma_synchronous
+      - https://sqlite.org/lang_transaction.html
+      - https://sqlite.org/stricttables.html
+      - https://sqlite.org/lang_upsert.html
+      - https://sqlite.org/eqp.html
+      - https://sqlite.org/security.html
+    pinned_runtime: Python_3.13.9_sqlite_3.50.4
+    license: sqlite_public_domain_no_vendoring
+    security: trusted_schema_off_no_extensions_no_attach_no_free_form_sql
+
+  - id: SRC-DEC-002
+    topic: durable_transaction
+    decision: adapt
+    pattern: hash_chain_jsonl_commit_then_replaceable_control_then_index
+    rationale: JSON is not framed and filesystem replacement is not a multi-file transaction. One canonical JSON line plus newline is append-framed, flushed, and fsynced as the authority before projections advance.
+    local_change: Finalize content-addressed evidence, append and fsync one hash-chained idempotent event, CAS an atomically replaced control projection, then advance SQLite. Recovery accepts a trailing projection and rejects a future head.
+    rejected:
+      - repeated_json_dump_without_framing
+      - direct_target_truncate_write
+      - rename_claimed_as_multifile_transaction
+      - automatic_torn_tail_discard
+    sources:
+      - https://docs.python.org/3/library/json.html
+      - https://docs.python.org/3/library/os.html#os.fsync
+      - https://docs.python.org/3/library/os.html#os.replace
+      - https://docs.python.org/3/library/tempfile.html#tempfile.mkstemp
+      - https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-flushfilebuffers
+    pinned_runtime: Python_3.13.9_Windows_local_filesystem
+    license: reference_only
+    security: same_directory_temp_short_lived_handles_post_replace_digest_check
+
+  - id: SRC-DEC-003
+    topic: durable_identity
+    decision: adapt
+    pattern: restricted_axiom_canonical_json_profile_plus_sha256
+    rationale: Python JSON sorting is sufficient only after a project-specific value whitelist removes float, duplicate-key, non-ASCII-key, and arbitrary-object ambiguity. Full RFC 8785 compatibility is unnecessary for this one-PC boundary.
+    local_change: Permit ASCII string keys, strings, integers, booleans, null, lists, and objects only. Express decimal scientific values as explicit decimal strings or scaled integers. Domain-separate each SHA-256 identity.
+    rejected:
+      - python_hash
+      - raw_float_identity
+      - yaml_text_identity
+      - repr_identity
+      - unverified_rfc8785_claim
+    sources:
+      - https://docs.python.org/3/library/json.html
+      - https://docs.python.org/3/library/hashlib.html
+      - https://docs.python.org/3/reference/datamodel.html#object.__hash__
+      - https://www.rfc-editor.org/rfc/rfc8785
+    pinned_runtime: axiom_cjson_v1
+    license: reference_only
+    security: duplicate_keys_nan_infinity_float_and_non_ascii_source_rejected
+
+  - id: SRC-DEC-004
+    topic: writer_lock
+    decision: adopt
+    pattern: dedicated_windows_byte_range_lock_plus_process_thread_lock
+    rationale: A dedicated file lock is not replaced with control state and the operating system releases the lock on process exit. Sentinel files can remain stale after a crash.
+    local_change: Lock byte zero with msvcrt.LK_NBLCK inside a bounded retry and pair it with a process-local threading lock. Keep the lock across CAS read, journal commit, control replace, and projection update.
+    rejected:
+      - pid_file_as_lock
+      - exclusive_create_sentinel_only
+      - lock_the_replaced_control_file
+      - hidden_ten_second_LK_LOCK_retry
+      - third_party_lock_dependency
+    sources:
+      - https://docs.python.org/3/library/msvcrt.html#msvcrt.locking
+      - https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-lockfileex
+    pinned_runtime: Windows_local_processes
+    license: reference_only
+    security: all_state_writers_must_share_the_dedicated_lock_protocol
+
+  - id: SRC-DEC-005
+    topic: codex_routing
+    decision: adopt
+    pattern: thin_agents_router_plus_three_repo_skills
+    rationale: Official Codex guidance assigns concise repository conventions to AGENTS and repeatable workflows to progressively disclosed repo-local skills.
+    local_change: Keep boot order and trigger resolution in AGENTS. Put root Mission, research Portfolio, and runtime proof workflows in three concise SKILL.md folders under .agents/skills.
+    rejected:
+      - duplicate_policy_manual_in_agents
+      - one_skill_per_micro_action
+      - construction_skill_in_final_tree
+      - chat_context_dependency
+    sources:
+      - https://learn.chatgpt.com/docs/customization/overview#skills
+      - https://learn.chatgpt.com/docs/agent-configuration/agents-md#verify-your-setup
+    pinned_runtime: official_docs_retrieved_2026-07-11
+    license: reference_only
+    security: no_external_tool_or_plugin_dependency
+
+  - id: SRC-DEC-006
+    topic: late_bound_runtime_proof
+    decision: defer_implementation_bind_interface
+    pattern: exact_model_io_and_native_tester_semantics_are_future_candidate_bound_evidence
+    rationale: Official MQL5 and ONNX Runtime references confirm that model session inputs and outputs, tester tick mode, symbol history, and runtime behavior are explicit proof surfaces. Foundation has no candidate and must not create an adapter merely for completeness.
+    local_change: Define claim guards and skill routing only. Require a later frozen candidate, exact model I/O contract, ONNX Runtime parity, MQL5 session behavior, and native real-tick evidence before Release.
+    rejected:
+      - foundation_onnx_export
+      - foundation_ea_compile
+      - foundation_mt5_tester_run
+      - compile_success_as_runtime_evidence
+      - schedule_replay_as_native_inference_proof
+    sources:
+      - https://www.mql5.com/en/docs/onnx/onnxcreate
+      - https://www.mql5.com/en/docs/onnx/onnxrun
+      - https://www.mql5.com/en/docs/runtime/testing
+      - https://onnxruntime.ai/docs/api/python/api_summary.html
+    pinned_runtime: interface_only_retrieved_2026-07-11
+    license: reference_only
+    security: no_model_no_binary_no_terminal_execution_no_external_download
+
+stop_reason: Concrete Foundation decisions are sufficiently informed. More browsing would add bibliography cost without changing the selected local primitives.

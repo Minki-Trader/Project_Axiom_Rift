@@ -1,0 +1,102 @@
+schema: foundation_replacement_allowlist_v1
+status: frozen_before_removal
+initiative_id: INI-0001
+repository_root: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift
+clean_anchor: 152f8b7945f4d878ea6a3e876440f9cee77fc0f0
+forensic_commit: 972e0423fa12daf1ae0dbadc1341ac1c97d90fff
+
+recursive_replacement_targets:
+  - .agents
+  - archive
+  - artifacts
+  - campaigns
+  - configs
+  - contracts
+  - registries
+  - src
+  - tests
+  - .pytest_cache
+
+resolved_absolute_targets:
+  - C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift/.agents
+  - C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift/archive
+  - C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift/artifacts
+  - C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift/campaigns
+  - C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift/configs
+  - C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift/contracts
+  - C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift/registries
+  - C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift/src
+  - C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift/tests
+  - C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075/MQL5/Experts/Project_Axiom_Rift/.pytest_cache
+
+tracked_data_text_replacement:
+  recursive_data_deletion_allowed: false
+  exact_old_tracked_paths:
+    - data/README.md
+    - data/processed/README.md
+    - data/processed/coverage_audits/README.md
+    - data/processed/coverage_audits/us100_m5_price_quality.json
+    - data/processed/datasets/README.md
+    - data/processed/runtime_snapshots/README.md
+    - data/raw/README.md
+    - data/raw/mt5_bars/README.md
+    - data/raw/mt5_bars/m5/README.md
+    - data/raw/real_ticks/README.md
+    - data/raw/real_ticks/us100/README.md
+  final_recreated_path: data/README.md
+
+root_replacements:
+  - .gitattributes
+  - .gitignore
+  - AGENTS.md
+  - README.md
+  - pyproject.toml
+
+root_removals_after_history_preservation:
+  - V2_OPERATING_DIRECTION_DRAFT.md
+
+retained_through_cutover:
+  - OPERATING_DIRECTION.md
+  - FOUNDATION_BUILD_CHECKLIST.md
+  - records/initiatives/INI-0001_foundation
+
+absolute_prohibitions:
+  - .git
+  - data
+  - OPERATING_DIRECTION.md
+  - repository_root
+  - repository_parent
+  - terminal_data_directory
+
+protected_ignored_paths:
+  - data/raw/mt5_bars/m5/US100_M5_max.csv
+  - data/processed/datasets/us100_m5_base_frame.csv
+  - data/processed/coverage_audits/us100_m5_clean_periods.json
+  - data/processed/coverage_audits/us100_m5_rolling_windows.json
+
+guard:
+  require_resolved_target_below_repository_root: true
+  reject_git_metadata_ancestor_or_descendant: true
+  reject_data_ancestor_or_descendant_for_recursive_removal: true
+  native_powershell_literal_paths_only: true
+  broad_ignored_cleanup_allowed: false
+  git_clean_allowed: false
+  hard_reset_allowed: false
+  force_push_allowed: false
+  history_rewrite_allowed: false
+
+intake_counts:
+  tracked_files_in_recursive_targets: 3480
+  ignored_non_data_residue_groups:
+    .pytest_cache: 5
+    archive: 1
+    artifacts: 4188
+    campaigns: 415
+    src: 498
+    tests: 64
+
+claim_boundary:
+  removal_is_scientific_disposition: false
+  scientific_trial_delta: 0
+  scientific_failure_delta: 0
+  holdout_reveal_delta: 0

@@ -1,0 +1,48 @@
+schema: data_foundation
+status: preserved_intake_observation
+target: FPMarkets_US100_M5
+raw:
+  path: data/raw/mt5_bars/m5/US100_M5_max.csv
+  sha256: 80938f8f37fa0ef4fff7c2b5adfe45186153bc0bbc54d7544fec3d44e2c34ee3
+processed:
+  path: data/processed/datasets/us100_m5_base_frame.csv
+  sha256: fb02fe8754b8b9643a346982367813238d11475ca39de46f1cd8d4d0e33a2aa5
+  row_count: 571771
+  first_time: "2018-05-07 01:00:00"
+  last_time: "2026-06-26 23:50:00"
+  fields:
+    - time
+    - open
+    - high
+    - low
+    - close
+    - tick_volume
+    - spread
+    - real_volume
+coverage:
+  path: data/processed/coverage_audits/us100_m5_clean_periods.json
+  sha256: 9c1b260f9970d6a43734d1849b7c16c16007db8acd9c70a24b1f2247ffc8fb50
+  blackout_boundaries: 6
+  review_boundaries: 51
+  timestamp_gaps: 2935
+split_artifact:
+  path: data/processed/coverage_audits/us100_m5_rolling_windows.json
+  sha256: 21830ac109c810cf2b463106127090d586d90de96472c3d043990246d75aa606
+quality_observations:
+  duplicate_rows: 0
+  non_monotonic_rows: 0
+  off_grid_rows: 0
+  nonfinite_rows: 0
+  negative_spread_rows: 0
+  invalid_ohlc_rows: 0
+  raw_to_processed_row_mismatches: 0
+  zero_spread_rows: 3497
+volume_semantics:
+  tick_volume: broker_tick_count_not_traded_volume
+  real_volume:
+    eligible: false
+    nonzero_rows: 1
+protection:
+  ignored_by_git: true
+  recoverable_from_git: false
+  recursive_cleanup_allowed: false

@@ -1,0 +1,31 @@
+schema: local_environment_foundation
+status: observed_local_configuration
+scope: this_pc_only
+observed_at_utc: 2026-07-09T22:17:33Z
+python:
+  version: 3.13.9
+  executable: C:/Users/awdse/AppData/Local/Programs/Python/Python313/python.exe
+mt5:
+  terminal: C:/Program Files/MetaTrader 5/terminal64.exe
+  metaeditor: C:/Program Files/MetaTrader 5/MetaEditor64.exe
+  terminal_data_directory: C:/Users/awdse/AppData/Roaming/MetaQuotes/Terminal/D0E8209F77C8CF37AD8BF550E51FF075
+  broker_server: FPMarketsSC-Live
+  terminal_build: 5833
+symbol_observation:
+  broker_symbol: US100
+  digits: 2
+  point: "0.01"
+  tick_size: "0.01"
+  tick_value: "0.01"
+  contract_size: "1.0"
+clock:
+  documented_standard_offset: GMT+2
+  documented_daylight_offset: GMT+3
+  current_observation: GMT+3
+  historical_transition_authority: pending
+  ambiguous_time_action: exclude
+  nonexistent_time_action: exclude
+claim_boundary:
+  scientific_authority: false
+  runtime_certification: false
+  live_ready: false

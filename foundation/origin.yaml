@@ -1,0 +1,31 @@
+schema: scientific_origin_foundation
+status: clean_ready_boundary
+market_target: FPMarkets_US100_M5
+active_mission: null
+preselected_study: null
+preselected_executable: null
+preselected_feature: null
+preselected_label: null
+preselected_model: null
+preselected_trade_family: null
+preselected_external_source: null
+portfolio_dimensions:
+  - market_state
+  - microstructure
+  - feature_representation
+  - label_and_horizon
+  - model_and_objective
+  - calibration_and_abstention
+  - entry_and_order
+  - exit_and_lifecycle
+  - direction
+  - regime_and_session
+  - volatility_and_liquidity
+  - macro_and_cross_asset
+  - cost_and_execution
+  - sleeve_synthesis
+  - portfolio_risk
+principle: broad_hypothesis_space_narrow_evidence_path_light_operating_surface
+prior_exposure_path: foundation/data_exposure.yaml
+prior_memory_path: foundation/prior_scientific_memory.yaml
+claim: none

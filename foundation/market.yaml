@@ -1,0 +1,20 @@
+schema: market_foundation
+status: sponsor_bound
+broker: FPMarkets
+symbol: US100
+timeframe: M5
+bar_minutes: 5
+decision_surface: completed_bar_then_next_bar_open
+product: composite_trading_system
+combined_activity_target:
+  entry_events_per_eligible_day: approximately_5_to_10
+  role: target_not_quota
+  evaluated_after: sleeve_combination_and_exposure_netting
+discovery_economics:
+  sizing: fixed_lot
+  broker_commission: "0"
+  synthetic_commission_allowed: false
+  zero_spread_semantics: unknown_cost
+positive_terminal: completed_pre_live_handoff
+negative_terminal: closed_no_candidate
+live_trading_authority: false

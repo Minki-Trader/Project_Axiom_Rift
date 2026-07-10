@@ -1,0 +1,36 @@
+schema: data_exposure_foundation
+status: binding_prior_exposure
+identity_profile: axiom_cjson_v1
+observed_development_material:
+  identity: 55bcb9d6dc466c22cb9c0bc4a6588a5818674539b69d848ca0b75410a75f9115
+  identity_domain: axiom:development-material:v1
+  identity_inputs:
+    dataset_sha256: fb02fe8754b8b9643a346982367813238d11475ca39de46f1cd8d4d0e33a2aa5
+    split_artifact_sha256: 21830ac109c810cf2b463106127090d586d90de96472c3d043990246d75aa606
+    observed_window_count: 9
+    last_observed_development_time: "2026-04-30 23:55:00"
+  display_name_is_identity: false
+  roles:
+    train: observed_development
+    calibration: observed_development
+    adaptive_development: observed_development
+  may_be_relabelled_fresh: false
+  prior_global_multiplicity_floor: 18
+quarantined_tail:
+  start: "2026-05-01 01:00:00"
+  end: "2026-06-26 23:50:00"
+  status: quarantine_pending_access_audit
+  scientific_raw_access_allowed: false
+  claim_use_allowed: false
+forward_holdout:
+  starts_after: "2026-06-26 23:50:00"
+  status: awaiting_future_data
+  reveal_count: 0
+  permitted_reveals_max: 1
+restricted_confirmation:
+  redesign_after_observation_reclassifies_surface_as_development: true
+  reuse_as_untouched_confirmation_after_redesign: false
+sealed_ingestion:
+  engineering_hash_and_seal_allowed: true
+  scientific_value_read_requires_one_time_permit: true
+  ingestion_changes_reveal_count: false

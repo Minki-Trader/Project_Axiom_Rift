@@ -1,0 +1,45 @@
+schema: prior_scientific_memory_foundation
+status: provenance_only_semantic_warnings
+scheduler_weight: none
+scientific_evidence_inherited: false
+candidate_inherited: false
+selected_bundle_inherited: false
+ingredient_inherited: false
+mt5_scout_evidence_inherited: false
+holdout_reveal_inherited: false
+prior_unique_configuration_exposure: 18
+reuse_rule: explicit_executable_identity_equivalence_required
+rename_resets_history: false
+warnings:
+  - warning_id: PRIOR-WARNING-001
+    disposition: evidence_gap
+    scope: completed_bar_compression_conditioned_directional_release
+    question: Does completed-bar compression improve fixed-lot continuation selection over reversal and unconditioned breakout controls?
+    reason: Required evidence was unidentified because evaluable density and unknown-cost gates did not support a scientific disposition.
+    reopen_condition: A materially distinct executable or changed information state that resolves density and cost identifiability.
+  - warning_id: PRIOR-WARNING-002
+    disposition: shallow_negative
+    scope: completed_bar_compression_release_with_causal_spread_floor
+    question: Does a preregistered causal spread floor identify compression-release economics while strict observed execution remains positive?
+    evaluated_configurations: 5
+    tested_context: data_split_cost_direction_lifecycle_program_bundle_bound
+    untested_context: orthogonal_cost_source_or_executable_family
+    reopen_condition: Explicit executable identity non-equivalence in an orthogonal cost source or family.
+  - warning_id: PRIOR-WARNING-003
+    disposition: shallow_negative
+    scope: direction_isolated_failed_break_reversal_under_causal_spread_floor
+    question: Does short failed-break reversal survive long-reversal and short-continuation controls under causal cost?
+    evaluated_configurations: 5
+    tested_context: data_split_cost_direction_lifecycle_program_bundle_bound
+    untested_context: orthogonal_session_regime_or_lifecycle_mechanism
+    reopen_condition: Explicit executable identity non-equivalence in session, regime, or lifecycle mechanism.
+  - warning_id: PRIOR-WARNING-004
+    disposition: evidence_gap
+    scope: completed_cash_open_gap_failure_retrace_under_causal_spread_floor
+    question: Does completed cash-open gap failure support immediate reversal over matched continuation and delayed controls?
+    reason: Required evidence was unidentified because evaluable and shadow-evaluable trade density was absent.
+    reopen_condition: A materially distinct executable or changed data or clock authority that resolves identifiability.
+claim_boundary:
+  warning_can_reject_without_equivalence: false
+  warning_can_downweight_without_equivalence: false
+  warning_can_create_negative_memory_without_equivalence: false
