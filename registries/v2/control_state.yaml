@@ -1,5 +1,5 @@
 schema: axiom_rift_v2_control_state_v2
-revision: 57
+revision: 58
 status: active
 encoding: ascii_only
 active_truth: v2
@@ -41,6 +41,7 @@ reentry:
   - 0fe4939e0e6a3f1deb25e6a41309b088c49e84668e0be4130d4bb6d4d090c0fc
   - 6d117d4fbd4306454ba46d3171934fc528960f47e406b425b0c7c5b866156ab8
   - d1eb29124631af099ea4cc44df558c9244801a06466f4b56f47a570a0b1f8dfb
+  - 0e871734bbf098ed77645ec09004ba23e4ff5ceb531bb411fd67ae9fb2dda5f6
   current_artifact_hashes:
     V2VR000007: ce6ee55e7f90c7dbbe8df62f591d8e32b2cdda8fe5854f334e180c388f9b3860
     V2VR000008: d66247a437c4b6579c52a1b0a7b0dff57ffcd28121a959a24c14dc16a7ffe753
@@ -60,10 +61,14 @@ reentry:
   completed_evidence_ids: []
   blocker: null
   git_sync:
-    status: unsynced
+    status: metadata_pending_push
+    validated_content_commit: 040231816d370e9a370f77d20d2c7acb3e584ef4
+    local_head: 040231816d370e9a370f77d20d2c7acb3e584ef4
+    origin_main_head: 040231816d370e9a370f77d20d2c7acb3e584ef4
     validation_receipt_id: V2VR000013
-    validation_key: 880c049583c44b661b08600abeea5f7f60b2d7cfdb693f07e80e99b972e0224e
-    validated_slice_id: V2SL0012_exact_git_checkpoint_binding
+    closeout_object_id: 0e871734bbf098ed77645ec09004ba23e4ff5ceb531bb411fd67ae9fb2dda5f6
+    content_state_fingerprint: f79bad94815d4e9558865012a55bd7808b15c68235e6f32cb1e4410da89d7c06
+    dirty_revision: 57
     declared_content_paths:
     - .agents/skills/axiom-v2-goal-operator/SKILL.md
     - AGENTS.md
@@ -90,10 +95,10 @@ reentry:
     - registries/v2/objects/6d117d4fbd4306454ba46d3171934fc528960f47e406b425b0c7c5b866156ab8.json
     - registries/v2/objects/c7573f1b65582c1f1cefad728de98607d64e4f64a124060f1abd3735859b0447.json
     - registries/v2/objects/d1eb29124631af099ea4cc44df558c9244801a06466f4b56f47a570a0b1f8dfb.json
-    dirty_revision: 57
-    dirty_state_fingerprint: f79bad94815d4e9558865012a55bd7808b15c68235e6f32cb1e4410da89d7c06
-    invalidated_by_operation: close_V2SL0012_after_V2VR000013
-    previous_validated_content_commit: null
+    metadata_allowed_paths:
+    - registries/v2/control_state.yaml
+    - registries/v2/evidence_ledger.jsonl
+    - registries/v2/objects/0e871734bbf098ed77645ec09004ba23e4ff5ceb531bb411fd67ae9fb2dda5f6.json
 claim:
   subject_kind: none
   subject_id: null
@@ -107,8 +112,8 @@ ledger_heads:
     ledger_seq: 2
     row_sha256: 120c5b3d2d5a2bb2c245d549c043486393da6a5005746b1f198086fc7329017b
   evidence:
-    ledger_seq: 10
-    row_sha256: 799badac39e91d46641ba2ed1836f0298ce8e625deffb2d24efbf2e821c3feb8
+    ledger_seq: 11
+    row_sha256: 05f3b134af6a7c5238e2c867eaaca37c2ae726a19bc65bcc5f7c0de939e5cddd
   material:
     ledger_seq: 20
     row_sha256: 1b0498be4d3be0ea22148aaec4141a60c46996805c705087717015b632c9afb4
@@ -172,6 +177,7 @@ applied_idempotency_keys:
 - authorize_V2SL0012_exact_git_checkpoint_binding_validation_880c049583c44b661b08600abeea5f7f60b2d7cfdb693f07e80e99b972e0224e
 - record_V2VR000013
 - close_V2SL0012_after_V2VR000013
+- record_V2GC000003_exact_git_checkpoint_binding
 bootstrap_goal_outcome: activated
 activation:
   activation_evidence_id: V2E000008
