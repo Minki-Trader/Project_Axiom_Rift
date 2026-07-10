@@ -4,13 +4,14 @@ import hashlib
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import yaml
 
-from axiom_rift.v2.operations import OperationStateError
+from axiom_rift.v2.git_closeout import GitCheckpointVerification
+from axiom_rift.v2.operations import OperationStateError, V2OperationWriter
 from axiom_rift.v2.state.transitions import make_next_action
 from tests.v2.test_v21_state_operations import (
-    build_writer,
     v21_state,
     v22_hypothesis_payload,
 )
@@ -59,6 +60,166 @@ PROGRAM_IDS = {
     "sizing": "V2SZ9001",
     "portfolio_risk": "V2PR9001",
 }
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+def build_scientific_writer(root: Path, state: dict) -> V2OperationWriter:
+    registry = root / "registries/v2"
+    scientific = registry / "scientific"
+    scientific.mkdir(parents=True)
+    for name in ("index.yaml", "research_map.yaml"):
+        (scientific / name).write_bytes(
+            (PROJECT_ROOT / "registries/v2/scientific" / name).read_bytes()
+        )
+    control = registry / "control_state.yaml"
+    control.write_text(yaml.safe_dump(state, sort_keys=False), encoding="ascii")
+    return V2OperationWriter(
+        object_dir=registry / "objects",
+        control_state=control,
+        hypothesis_ledger=scientific / "hypothesis_ledger.jsonl",
+        evidence_ledger=registry / "evidence_ledger.jsonl",
+        material_ledger=registry / "material_ledger.jsonl",
+        validation_receipt_ledger=registry / "validation_receipt_ledger.jsonl",
+        content_checkpoint_probe=lambda commit, _paths: GitCheckpointVerification(
+            True, "test_content_verified", commit, commit, commit
+        ),
+        metadata_checkpoint_probe=lambda sync: GitCheckpointVerification(
+            True,
+            "test_metadata_verified",
+            "b" * 40,
+            "b" * 40,
+            sync.get("validated_content_commit")
+            if isinstance(sync, dict)
+            else None,
+        ),
+    )
+
+
+def prepare_scientific_s(root: Path) -> tuple[V2OperationWriter, dict]:
+    state = v21_state()
+    state["cursor"]["next_action"] = make_next_action(
+        "await_new_root_goal", summary="await future root"
+    )
+    writer = build_scientific_writer(root, state)
+    writer.complete_reinforcement_ready(
+        baseline_commit="a" * 40,
+        mission_contract_sha256="b" * 64,
+        idempotency_key="ready",
+    )
+    writer.create_goal(
+        goal_payload={
+            "scientific_mission": {
+                "scientific_origin": "v2_current",
+                "epoch_id": "V2EPOCH0001",
+                "emergency_hypothesis_ceiling": 24,
+                "result_independent": True,
+            }
+        },
+        idempotency_key="goal",
+    )
+    writer.open_goal(goal_id="V2G0001", idempotency_key="open")
+    payload = v22_hypothesis_payload("V2G0001", "V2H0001")
+    relative = Path("campaigns/v2/V2G0001/hypotheses/V2H0001.yaml")
+    path = root / relative
+    path.parent.mkdir(parents=True)
+    raw = yaml.safe_dump(payload, sort_keys=False).encode("ascii")
+    path.write_bytes(raw)
+    state = writer.preregister_hypothesis(
+        hypothesis_id="V2H0001",
+        spec_path=relative.as_posix(),
+        spec_sha256=hashlib.sha256(raw).hexdigest(),
+        spec_payload=payload,
+        split_set_id="V2SP0001",
+        material_ids=[],
+        idempotency_key="hypothesis",
+    )
+    writer.open_scout(idempotency_key="scout")
+    writer.declare_active_job(
+        job_id="V2J0001",
+        kind="scientific_scout",
+        spec_object_id=state["claim"]["identity_bundle_object_id"],
+        input_hash="c" * 64,
+        timeout_seconds=30,
+        output_path="campaigns/v2/V2G0001/evidence/V2S0001",
+        command="test-scientific-scout",
+        expected_artifacts=[
+            "campaigns/v2/V2G0001/evidence/V2S0001/receipt.json"
+        ],
+        log_path="campaigns/v2/V2G0001/evidence/V2S0001/job.log",
+        resume_action="resume V2J0001",
+        idempotency_key="declare",
+    )
+    return writer, writer.start_active_job(
+        job_id="V2J0001", idempotency_key="start"
+    )
+
+
+def scientific_persistence_receipt(
+    state: dict, outcome: str
+) -> dict:
+    roles = (
+        "continuation_low",
+        "continuation_base",
+        "continuation_high",
+        "failed_break_reversal",
+        "compression_ablation",
+    )
+    bundle_hashes = {
+        role: hashlib.sha256(f"bundle:{role}".encode("ascii")).hexdigest()
+        for role in roles
+    }
+    selected_roles = (
+        {
+            "V2D002": "continuation_low",
+            "V2D005": "continuation_base",
+            "V2D008": "continuation_high",
+        }
+        if outcome == "route_to_R"
+        else {}
+    )
+    selected_hashes = {
+        fold_id: bundle_hashes[role] for fold_id, role in selected_roles.items()
+    }
+    selected_paths = {
+        fold_id: hashlib.sha256(f"path:{fold_id}".encode("ascii")).hexdigest()
+        for fold_id in selected_roles
+    }
+    configurations = sorted(bundle_hashes.values())
+    return {
+        "schema": "axiom_rift_v2_scientific_scout_receipt_v1",
+        "job_id": "V2J0001",
+        "goal_id": "V2G0001",
+        "hypothesis_id": "V2H0001",
+        "stage": "S",
+        "stage_id": state["cursor"]["stage_id"],
+        "input_hash": "c" * 64,
+        "outcome": outcome,
+        "claim_ceiling": "diagnostic_observation",
+        "result_sha256": "d" * 64,
+        "artifacts": {
+            "receipt": {
+                "path": "campaigns/v2/V2G0001/evidence/V2S0001/receipt.json"
+            }
+        },
+        "bundle_role_hashes": bundle_hashes,
+        "programs": {
+            role: {"trade": {"id": f"{role}_trade"}} for role in roles
+        },
+        "dataset_sha256": "e" * 64,
+        "split_source_sha256": "f" * 64,
+        "boundary_source_sha256": "1" * 64,
+        "scout_anchor_ids": ["V2D002", "V2D005", "V2D008"],
+        "selection_rule_sha256": "2" * 64,
+        "selected_roles": selected_roles,
+        "selected_configuration_hashes": selected_hashes,
+        "selected_model_bundle_sha256s": selected_hashes,
+        "selected_path_hashes": selected_paths,
+        "trial_accounting": {
+            "family_id": "v2fam_test",
+            "configuration_hashes": configurations,
+        },
+    }
 
 
 def synthetic_adapter(payload, parameters, context):
@@ -516,7 +677,7 @@ class ReadyBoundaryWriterTests(unittest.TestCase):
             "await_new_root_goal",
             summary="await future root",
         )
-        writer = build_writer(root, state)
+        writer = build_scientific_writer(root, state)
         return writer, writer.complete_reinforcement_ready(
             baseline_commit="a" * 40,
             mission_contract_sha256="b" * 64,
@@ -529,6 +690,18 @@ class ReadyBoundaryWriterTests(unittest.TestCase):
             self.assertEqual(state["harness"]["status"], "ready")
             self.assertFalse(state["harness"]["real_research_started"])
             self.assertEqual(state["scientific"]["status"], "not_started")
+            self.assertEqual(
+                state["scientific"]["binding_schema"],
+                "axiom_rift_v2_scientific_index_binding_v1",
+            )
+            self.assertEqual(
+                state["scientific"]["active_index_path"],
+                "registries/v2/control_state.yaml",
+            )
+            self.assertIsNone(
+                state["scientific"]["current_research_map_object_id"]
+            )
+            self.assertIsNone(state["scientific"]["research_map_snapshot_seq"])
             self.assertEqual(state["scientific"]["hypothesis_object_ids"], [])
             self.assertEqual(state["cursor"]["next_action"]["kind"], "await_new_root_goal")
             self.assertEqual(writer.hypotheses.rows(), [])
@@ -553,6 +726,24 @@ class ReadyBoundaryWriterTests(unittest.TestCase):
             self.assertEqual(state["mission_budget"]["limits"]["hypothesis_batches"], 24)
             self.assertEqual(state["cursor"]["goal_status"], "created")
             self.assertEqual(state["cursor"]["next_action"]["kind"], "open_goal")
+            map_object_id = state["scientific"]["current_research_map_object_id"]
+            self.assertEqual(0, state["scientific"]["research_map_snapshot_seq"])
+            self.assertIn(map_object_id, state["reentry"]["current_object_ids"])
+            self.assertEqual(
+                map_object_id,
+                state["reentry"]["current_artifact_hashes"][
+                    "V2_SCIENTIFIC_RESEARCH_MAP"
+                ],
+            )
+            wrapped = writer.objects.get(map_object_id)
+            self.assertEqual("research_map_snapshot", wrapped["kind"])
+            snapshot = wrapped["payload"]
+            self.assertEqual("AXIOM_ROOT_0001", snapshot["root_mission_id"])
+            self.assertEqual("V2G0001", snapshot["goal_id"])
+            self.assertEqual("V2EPOCH0001", snapshot["scientific_epoch_id"])
+            self.assertIsNone(snapshot["parent_research_map_object_id"])
+            self.assertTrue(all(row["state"] == "unseen" for row in snapshot["axes"]))
+            writer._load_bound_research_map(state)
 
     def test_future_writer_preregisters_one_full_bound_scientific_spec(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -570,6 +761,9 @@ class ReadyBoundaryWriterTests(unittest.TestCase):
                 idempotency_key="goal",
             )
             writer.open_goal(goal_id="V2G0001", idempotency_key="open")
+            before = writer.control.load()
+            map_object_id = before["scientific"]["current_research_map_object_id"]
+            map_seq = before["scientific"]["research_map_snapshot_seq"]
             payload = v22_hypothesis_payload("V2G0001", "V2H0001")
             relative = Path("campaigns/v2/V2G0001/hypotheses/V2H0001.yaml")
             path = root / relative
@@ -590,6 +784,12 @@ class ReadyBoundaryWriterTests(unittest.TestCase):
             self.assertEqual([object_id], state["scientific"]["hypothesis_object_ids"])
             self.assertEqual("hypothesis_spec", writer.objects.get(object_id)["kind"])
             self.assertEqual(1, len(writer.hypotheses.rows()))
+            self.assertEqual(
+                map_object_id,
+                state["scientific"]["current_research_map_object_id"],
+            )
+            self.assertEqual(map_seq, state["scientific"]["research_map_snapshot_seq"])
+            writer._load_bound_research_map(state)
             replay = writer.preregister_hypothesis(
                 hypothesis_id="V2H0001",
                 spec_path=relative.as_posix(),
@@ -641,6 +841,164 @@ class ReadyBoundaryWriterTests(unittest.TestCase):
             self.assertEqual(before["revision"], after["revision"])
             self.assertEqual([], writer.hypotheses.rows())
             self.assertEqual([], after["scientific"]["hypothesis_object_ids"])
+
+    def test_scientific_reject_persists_trial_map_and_scoped_disposition(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            writer, running = prepare_scientific_s(root)
+            receipt = scientific_persistence_receipt(running, "scientific_reject")
+            evidence_action = make_next_action(
+                "record_hypothesis_disposition",
+                goal_id="V2G0001",
+                stage="H",
+                subject_id="V2H0001",
+                prerequisite_receipt_ids=["V2E000001"],
+                summary="persist rejected hypothesis",
+            )
+            before_map = running["scientific"]["current_research_map_object_id"]
+            with mock.patch.object(
+                writer, "_validate_scientific_scout_receipt", return_value=None
+            ):
+                evidence_state = writer.record_evidence(
+                    evidence_id="V2E000001",
+                    record_type="scientific_scout_completed",
+                    receipt=receipt,
+                    idempotency_key="evidence",
+                    exact_next_action=evidence_action,
+                )
+            self.assertEqual(["V2E000001"], evidence_state["scientific"]["trial_receipt_ids"])
+            self.assertEqual([], evidence_state["scientific"]["ingredient_object_ids"])
+            self.assertEqual(1, evidence_state["scientific"]["research_map_snapshot_seq"])
+            evidence_map_id = evidence_state["scientific"]["current_research_map_object_id"]
+            evidence_map = writer.objects.get(evidence_map_id)["payload"]
+            self.assertEqual(before_map, evidence_map["parent_research_map_object_id"])
+            self.assertEqual(["axis_model"], evidence_map["recent_dominant_axes"])
+            axis = next(row for row in evidence_map["axes"] if row["axis_id"] == "axis_model")
+            self.assertEqual("shallow", axis["state"])
+            memory = ScopedNegativeMemory(
+                hypothesis_id="V2H0001",
+                family_id="v2fam_test",
+                strength="shallow_negative",
+                evidence_ids=("V2E000001",),
+                tested_context=writer._scientific_tested_context(receipt),
+                untested_contexts=("orthogonal_program_family",),
+                do_not_retry_hashes=tuple(
+                    receipt["trial_accounting"]["configuration_hashes"]
+                ),
+            ).to_payload()
+            relative = Path("campaigns/v2/V2G0001/negative_memory/V2H0001.yaml")
+            path = root / relative
+            path.parent.mkdir(parents=True)
+            raw = yaml.safe_dump(memory, sort_keys=False).encode("ascii")
+            path.write_bytes(raw)
+            disposition_state = writer.record_hypothesis_disposition(
+                hypothesis_id="V2H0001",
+                evidence_id="V2E000001",
+                outcome="scientific_reject",
+                memory_path=relative.as_posix(),
+                memory_sha256=hashlib.sha256(raw).hexdigest(),
+                memory_payload=memory,
+                idempotency_key="disposition",
+            )
+            self.assertEqual("V2G0001", disposition_state["cursor"]["active_goal_id"])
+            self.assertIsNone(disposition_state["cursor"]["active_hypothesis_id"])
+            self.assertEqual("S", disposition_state["cursor"]["stage"])
+            self.assertEqual("disposed", disposition_state["cursor"]["stage_status"])
+            self.assertEqual(
+                "preregister_hypothesis",
+                disposition_state["cursor"]["next_action"]["kind"],
+            )
+            self.assertEqual(["V2E000001"], disposition_state["scientific"]["trial_receipt_ids"])
+            self.assertEqual(1, len(disposition_state["scientific"]["negative_memory_object_ids"]))
+            self.assertEqual(2, disposition_state["scientific"]["research_map_snapshot_seq"])
+            disposition_map = writer.objects.get(
+                disposition_state["scientific"]["current_research_map_object_id"]
+            )["payload"]
+            self.assertEqual(evidence_map_id, disposition_map["parent_research_map_object_id"])
+            self.assertEqual(["axis_model"], disposition_map["recent_dominant_axes"])
+            replay = writer.record_hypothesis_disposition(
+                hypothesis_id="V2H0001",
+                evidence_id="V2E000001",
+                outcome="scientific_reject",
+                memory_path=relative.as_posix(),
+                memory_sha256=hashlib.sha256(raw).hexdigest(),
+                memory_payload=memory,
+                idempotency_key="disposition",
+            )
+            self.assertEqual(disposition_state["revision"], replay["revision"])
+
+    def test_scientific_route_creates_one_aggregate_ingredient(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            writer, running = prepare_scientific_s(root)
+            receipt = scientific_persistence_receipt(running, "route_to_R")
+            action = make_next_action(
+                "open_stage",
+                goal_id="V2G0001",
+                stage="R",
+                subject_id="V2R0001",
+                prerequisite_receipt_ids=["V2E000001"],
+                summary="confirm scientific survivor",
+            )
+            with mock.patch.object(
+                writer, "_validate_scientific_scout_receipt", return_value=None
+            ):
+                state = writer.record_evidence(
+                    evidence_id="V2E000001",
+                    record_type="scientific_scout_completed",
+                    receipt=receipt,
+                    idempotency_key="evidence",
+                    exact_next_action=action,
+                )
+            self.assertEqual(["V2E000001"], state["scientific"]["trial_receipt_ids"])
+            self.assertEqual(1, len(state["scientific"]["ingredient_object_ids"]))
+            ingredient = writer.objects.get(
+                state["scientific"]["ingredient_object_ids"][0]
+            )
+            self.assertEqual("scientific_ingredient", ingredient["kind"])
+            selected = ingredient["payload"]["selected_paths"]
+            self.assertEqual(["V2D002", "V2D005", "V2D008"], [row["fold_id"] for row in selected])
+            self.assertTrue(
+                all(
+                    row["bundle_sha256"]
+                    == receipt["selected_model_bundle_sha256s"][row["fold_id"]]
+                    for row in selected
+                )
+            )
+            self.assertEqual(1, len(writer.materials.rows()))
+
+    def test_scientific_evidence_gap_counts_trials_without_axis_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            writer, running = prepare_scientific_s(root)
+            receipt = scientific_persistence_receipt(running, "evidence_gap")
+            before_map = writer.objects.get(
+                running["scientific"]["current_research_map_object_id"]
+            )["payload"]
+            action = make_next_action(
+                "repair",
+                goal_id="V2G0001",
+                prerequisite_receipt_ids=["V2E000001"],
+                summary="repair unknown cost evidence",
+            )
+            with mock.patch.object(
+                writer, "_validate_scientific_scout_receipt", return_value=None
+            ):
+                state = writer.record_evidence(
+                    evidence_id="V2E000001",
+                    record_type="scientific_scout_completed",
+                    receipt=receipt,
+                    idempotency_key="evidence",
+                    exact_next_action=action,
+                )
+            self.assertEqual(["V2E000001"], state["scientific"]["trial_receipt_ids"])
+            self.assertEqual([], state["scientific"]["ingredient_object_ids"])
+            after_map = writer.objects.get(
+                state["scientific"]["current_research_map_object_id"]
+            )["payload"]
+            self.assertEqual(before_map["axes"], after_map["axes"])
+            self.assertEqual([], after_map["recent_dominant_axes"])
+            self.assertEqual("none", state["claim"]["current_level"])
 
 
 if __name__ == "__main__":

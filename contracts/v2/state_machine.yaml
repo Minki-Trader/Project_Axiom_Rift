@@ -84,6 +84,7 @@ structured_action_kinds:
   - run_job
   - resume_job
   - record_evidence
+  - record_hypothesis_disposition
   - close_goal
   - close_root_mission
   - validate_root_closeout

@@ -1,24 +1,22 @@
-schema: axiom_rift_v2_scientific_index_v1
-status: not_started
+schema: axiom_rift_v2_scientific_index_seed_v1
+status: immutable_seed
 encoding: ascii_only
-role: empty_seed_manifest
+role: active_index_bootstrap_manifest
 scientific_origin: v2_current
-root_mission_id: null
-epoch_id: null
-research_map: registries/v2/scientific/research_map.yaml
-ledgers:
+active_index_path: registries/v2/control_state.yaml
+research_map_seed_path: registries/v2/scientific/research_map.yaml
+research_map_seed_sha256: 7ce09787f924e8091e12e4badae820398abc0184f1ba2566951e31d0b2223912
+durable_sources:
   hypothesis: registries/v2/scientific/hypothesis_ledger.jsonl
-  trial: registries/v2/scientific/trial_ledger.jsonl
-  negative_memory: registries/v2/scientific/negative_memory_ledger.jsonl
-  ingredient: registries/v2/scientific/ingredient_ledger.jsonl
-  candidate: registries/v2/scientific/candidate_ledger.jsonl
-counts:
-  hypotheses: 0
-  trials: 0
-  negative_memories: 0
-  ingredients: 0
-  candidates: 0
-selected_bundle_id: null
-holdout_reveals: 0
-active_job: null
-next_action: await_new_root_goal
+  trial: registries/v2/evidence_ledger.jsonl
+  negative_memory: registries/v2/scientific/hypothesis_ledger.jsonl
+  ingredient: registries/v2/material_ledger.jsonl
+  candidate: registries/v2/evidence_ledger.jsonl
+  objects: registries/v2/objects
+reference_fields:
+  hypotheses: hypothesis_object_ids
+  trials: trial_receipt_ids
+  negative_memories: negative_memory_object_ids
+  ingredients: ingredient_object_ids
+  candidates: candidate_object_ids
+mutable_scientific_content_allowed: false

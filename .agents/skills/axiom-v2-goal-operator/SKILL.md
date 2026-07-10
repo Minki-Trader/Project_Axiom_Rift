@@ -32,9 +32,11 @@ scientific root mission. Prove it with synthetic fixtures, close it at
 `await_new_root_goal`, and stop. Do not generate the first H, run real evidence,
 or convert the engineering closeout into a scientific terminal claim.
 
-Future scientific roots start from the empty active scientific index. Bootstrap
-programs, engineering receipts, and excluded provenance never seed the research
-map, scheduler, ingredients, candidates, or negative memory.
+Future scientific roots start from the immutable scientific seed manifest,
+then bind the active index to control state and the research map to object-store
+snapshots. Bootstrap programs, engineering receipts, and excluded provenance
+never seed the research map, scheduler, ingredients, candidates, or negative
+memory.
 
 Allowed root outcomes are `completed_pre_live_handoff`,
 `closed_no_candidate`, `blocked_external`, and `stopped_by_user`.

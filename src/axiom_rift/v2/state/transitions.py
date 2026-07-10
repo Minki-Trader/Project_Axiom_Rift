@@ -82,6 +82,7 @@ NEXT_ACTION_KINDS = {
     "run_job",
     "resume_job",
     "record_evidence",
+    "record_hypothesis_disposition",
     "close_goal",
     "close_root_mission",
     "validate_root_closeout",
@@ -216,7 +217,7 @@ def validate_next_action(action: Any) -> None:
         action.get(field) is not None for field in ("goal_id", "stage", "subject_id", "job_kind")
     ):
         raise TransitionError(f"next_action {kind} may not name a goal, stage, subject, or job")
-    if kind in {"preregister_hypothesis", "open_stage", "declare_job", "run_job", "resume_job", "record_evidence", "close_goal"}:
+    if kind in {"preregister_hypothesis", "open_stage", "declare_job", "run_job", "resume_job", "record_evidence", "record_hypothesis_disposition", "close_goal"}:
         if goal_id is None:
             raise TransitionError(f"next_action {kind} requires goal_id")
     if kind == "open_stage" and (stage is None or subject_id is None):

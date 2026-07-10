@@ -14,14 +14,17 @@ scientific_origin:
   engineering_provenance_may_seed_research: false
   active_surface_guard_required: true
 active_scientific_paths:
-  index: registries/v2/scientific/index.yaml
-  research_map: registries/v2/scientific/research_map.yaml
+  active_index: registries/v2/control_state.yaml
+  index_seed: registries/v2/scientific/index.yaml
+  research_map_seed: registries/v2/scientific/research_map.yaml
+  research_map_snapshots: registries/v2/objects
   hypothesis_ledger: registries/v2/scientific/hypothesis_ledger.jsonl
-  trial_ledger: registries/v2/scientific/trial_ledger.jsonl
-  negative_memory_ledger: registries/v2/scientific/negative_memory_ledger.jsonl
-  ingredient_ledger: registries/v2/scientific/ingredient_ledger.jsonl
-  candidate_ledger: registries/v2/scientific/candidate_ledger.jsonl
-scientific_index_role: empty_seed_manifest_copied_into_writer_state_on_future_open
+  trial_ledger: registries/v2/evidence_ledger.jsonl
+  negative_memory_ledger: registries/v2/scientific/hypothesis_ledger.jsonl
+  ingredient_ledger: registries/v2/material_ledger.jsonl
+  candidate_ledger: registries/v2/evidence_ledger.jsonl
+  object_store: registries/v2/objects
+scientific_index_role: immutable_seed_bound_to_control_state_and_object_snapshots
 runtime_data_registry: registries/v2/runtime_data_eligibility.yaml
 research_map_states:
   - unseen

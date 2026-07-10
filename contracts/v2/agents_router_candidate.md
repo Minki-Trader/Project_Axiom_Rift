@@ -41,7 +41,9 @@ candidates are empty, no holdout has been revealed, and no first H exists.
 
 ## Scientific Origin
 
-- Future scientific work starts only from `registries/v2/scientific/index.yaml`.
+- Future scientific work starts from the immutable seed manifest at
+  `registries/v2/scientific/index.yaml`, then operates only through the bound
+  index in `registries/v2/control_state.yaml` and object-store map snapshots.
 - Bootstrap programs and engineering receipts are fixtures or provenance, not
   hypothesis seeds, positive evidence, negative evidence, or scheduler input.
 - Active scientific surfaces must pass the V2 inheritance guard.

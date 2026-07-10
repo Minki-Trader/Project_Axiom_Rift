@@ -54,8 +54,10 @@ v1_boundary:
 research_reset:
   namespace: V2
   initial_hypothesis_state: empty
-  active_scientific_index: registries/v2/scientific/index.yaml
-  active_research_map: registries/v2/scientific/research_map.yaml
+  active_scientific_index: registries/v2/control_state.yaml
+  scientific_index_seed: registries/v2/scientific/index.yaml
+  research_map_seed: registries/v2/scientific/research_map.yaml
+  active_research_map_objects: registries/v2/objects
   inherited_scientific_content_allowed: false
   bootstrap_programs_may_seed_research: false
   v1_performance_may_choose_initial_hypothesis: false

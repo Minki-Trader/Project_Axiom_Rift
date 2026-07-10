@@ -327,31 +327,123 @@ def _validate_holdout_state(holdout: Any) -> None:
             raise ControlStateError("holdout permit hashes are invalid")
 
 
-def _validate_scientific_state(scientific: Any) -> None:
+def _validate_scientific_state(
+    scientific: Any,
+    *,
+    allow_legacy_active_bind: bool = False,
+) -> None:
     if scientific is None:
         return
     if not isinstance(scientific, dict):
         raise ControlStateError("scientific state must be a mapping")
     if scientific.get("status") not in {"not_started", "active", "terminal"}:
         raise ControlStateError("scientific.status is invalid")
-    for field in ("root_mission_id", "epoch_id", "selected_bundle_id"):
-        value = scientific.get(field)
-        if value is not None and (not isinstance(value, str) or not value):
-            raise ControlStateError(f"scientific.{field} must be null or a string")
-    for field in ("index_path", "research_map_path", "hypothesis_ledger_path"):
-        value = scientific.get(field)
-        if not isinstance(value, str) or not value or "\\" in value or ".." in value.split("/"):
-            raise ControlStateError(f"scientific.{field} must be a repository-relative path")
-    for field in (
+    reference_fields = (
         "hypothesis_object_ids",
         "trial_receipt_ids",
         "negative_memory_object_ids",
         "ingredient_object_ids",
         "candidate_object_ids",
-    ):
+    )
+    for field in ("root_mission_id", "epoch_id", "selected_bundle_id"):
         value = scientific.get(field)
-        if not isinstance(value, list) or not all(isinstance(item, str) and item for item in value):
+        if value is not None and (not isinstance(value, str) or not value):
+            raise ControlStateError(f"scientific.{field} must be null or a string")
+    for field in reference_fields:
+        value = scientific.get(field)
+        if (
+            not isinstance(value, list)
+            or value != list(dict.fromkeys(value))
+            or not all(isinstance(item, str) and item for item in value)
+        ):
             raise ControlStateError(f"scientific.{field} must be a string list")
+    holdout_reveals = scientific.get("holdout_reveals")
+    if (
+        isinstance(holdout_reveals, bool)
+        or not isinstance(holdout_reveals, int)
+        or holdout_reveals < 0
+        or holdout_reveals > 1
+    ):
+        raise ControlStateError("scientific.holdout_reveals is invalid")
+    binding_schema = scientific.get("binding_schema")
+    if binding_schema is None:
+        for field in ("index_path", "research_map_path", "hypothesis_ledger_path"):
+            value = scientific.get(field)
+            if (
+                not isinstance(value, str)
+                or not value
+                or "\\" in value
+                or ".." in value.split("/")
+            ):
+                raise ControlStateError(
+                    f"scientific.{field} must be a repository-relative path"
+                )
+        if scientific.get("status") == "active" and (
+            any(scientific.get(field) for field in reference_fields)
+            or scientific.get("selected_bundle_id") is not None
+            or scientific.get("holdout_reveals") != 0
+        ):
+            raise ControlStateError(
+                "legacy active scientific state may only exist at the empty bind boundary"
+            )
+        if scientific.get("status") == "active" and not allow_legacy_active_bind:
+            raise ControlStateError(
+                "active scientific state requires a bound control-state index"
+            )
+    else:
+        if binding_schema != "axiom_rift_v2_scientific_index_binding_v1":
+            raise ControlStateError("scientific.binding_schema is invalid")
+        path_fields = (
+            "active_index_path",
+            "seed_manifest_path",
+            "research_map_seed_path",
+            "hypothesis_ledger_path",
+        )
+        for field in path_fields:
+            value = scientific.get(field)
+            if (
+                not isinstance(value, str)
+                or not value
+                or "\\" in value
+                or ".." in value.split("/")
+            ):
+                raise ControlStateError(
+                    f"scientific.{field} must be a repository-relative path"
+                )
+        if scientific.get("active_index_path") != "registries/v2/control_state.yaml":
+            raise ControlStateError("scientific active index must be control state")
+        for field in ("seed_manifest_sha256", "research_map_seed_sha256"):
+            if not _is_sha256(scientific.get(field)):
+                raise ControlStateError(f"scientific.{field} must be sha256")
+        map_object_id = scientific.get("current_research_map_object_id")
+        snapshot_seq = scientific.get("research_map_snapshot_seq")
+        if scientific.get("status") == "not_started":
+            if map_object_id is not None or snapshot_seq is not None:
+                raise ControlStateError(
+                    "not-started science may not retain a research map snapshot"
+                )
+        else:
+            if not _is_sha256(map_object_id):
+                raise ControlStateError(
+                    "active science requires a research map snapshot object"
+                )
+            if (
+                isinstance(snapshot_seq, bool)
+                or not isinstance(snapshot_seq, int)
+                or snapshot_seq < 0
+            ):
+                raise ControlStateError(
+                    "active science requires a research map snapshot sequence"
+                )
+            if re.fullmatch(
+                r"AXIOM_ROOT_[0-9]{4}",
+                str(scientific.get("root_mission_id", "")),
+            ) is None or re.fullmatch(
+                r"V2EPOCH[0-9]{4}", str(scientific.get("epoch_id", ""))
+            ) is None:
+                raise ControlStateError(
+                    "active scientific root or epoch identity is invalid"
+                )
     if scientific.get("status") == "not_started":
         if any(
             scientific.get(field) is not None
@@ -361,11 +453,7 @@ def _validate_scientific_state(scientific: Any) -> None:
         if any(
             scientific.get(field)
             for field in (
-                "hypothesis_object_ids",
-                "trial_receipt_ids",
-                "negative_memory_object_ids",
-                "ingredient_object_ids",
-                "candidate_object_ids",
+                *reference_fields,
             )
         ):
             raise ControlStateError("not-started scientific state must remain empty")
@@ -387,7 +475,11 @@ def _validate_harness_state(harness: Any) -> None:
         raise ControlStateError("ready reinforcement harness must prove no real research started")
 
 
-def validate_control_state(state: dict[str, Any]) -> None:
+def validate_control_state(
+    state: dict[str, Any],
+    *,
+    allow_legacy_scientific_bind: bool = False,
+) -> None:
     schema = state.get("schema")
     if schema not in {CONTROL_STATE_SCHEMA_V1, CONTROL_STATE_SCHEMA_V2}:
         raise ControlStateError("control state schema mismatch")
@@ -426,7 +518,63 @@ def validate_control_state(state: dict[str, Any]) -> None:
         _validate_git_sync(reentry.get("git_sync"))
         _validate_v2_history(state.get("history"))
         _validate_holdout_state(state.get("holdout"))
-        _validate_scientific_state(state.get("scientific"))
+        _validate_scientific_state(
+            state.get("scientific"),
+            allow_legacy_active_bind=allow_legacy_scientific_bind,
+        )
+        scientific = state.get("scientific")
+        if isinstance(scientific, dict) and scientific.get("binding_schema") is not None:
+            if scientific.get("root_mission_id") not in {
+                None,
+                state["root_mission"].get("mission_id"),
+            }:
+                raise ControlStateError(
+                    "scientific and root mission identities differ"
+                )
+            if scientific.get("holdout_reveals") != state["holdout"].get(
+                "reveal_count"
+            ):
+                raise ControlStateError(
+                    "scientific and holdout reveal counts differ"
+                )
+            map_object_id = scientific.get("current_research_map_object_id")
+            if map_object_id is not None:
+                if map_object_id not in state["reentry"].get(
+                    "current_object_ids", []
+                ):
+                    raise ControlStateError(
+                        "current research map is not an authoritative object"
+                    )
+                if state["reentry"].get("current_artifact_hashes", {}).get(
+                    "V2_SCIENTIFIC_RESEARCH_MAP"
+                ) != map_object_id:
+                    raise ControlStateError(
+                        "current research map artifact binding differs"
+                    )
+        if allow_legacy_scientific_bind:
+            scientific = state.get("scientific")
+            cursor = state.get("cursor", {})
+            if (
+                not isinstance(scientific, dict)
+                or scientific.get("status") != "active"
+                or scientific.get("binding_schema") is not None
+                or state["root_mission"].get("status") != "active"
+                or cursor.get("goal_status") != "open"
+                or not isinstance(cursor.get("active_goal_id"), str)
+                or cursor.get("active_hypothesis_id") is not None
+                or cursor.get("stage") != "idle"
+                or cursor.get("stage_id") is not None
+                or cursor.get("next_action", {}).get("kind")
+                != "preregister_hypothesis"
+                or state["reentry"].get("active_job") is not None
+                or state["claim"].get("current_level") != "none"
+                or state["holdout"].get("reveal_count") != 0
+                or state.get("slice_budget", {}).get("slice_id")
+                != "V2SL0017_scientific_index_persistence"
+            ):
+                raise ControlStateError(
+                    "legacy scientific bind candidate is outside the exact empty boundary"
+                )
         _validate_harness_state(state.get("harness"))
         root_terminal = state["root_mission"].get("terminal_outcome")
         root_status = state["root_mission"].get("status")
@@ -496,7 +644,7 @@ class ControlStore:
         self.object_store = object_store
         self.replace_func = replace_func or (lambda source, target: os.replace(source, target))
 
-    def load(self) -> dict[str, Any]:
+    def load(self, *, allow_legacy_scientific_bind: bool = False) -> dict[str, Any]:
         try:
             text = self.path.read_text(encoding="ascii")
             state = yaml.safe_load(text)
@@ -504,7 +652,10 @@ class ControlStore:
             raise ControlStateError(f"cannot load control state: {exc}") from exc
         if not isinstance(state, dict):
             raise ControlStateError("control state must be a YAML mapping")
-        validate_control_state(state)
+        validate_control_state(
+            state,
+            allow_legacy_scientific_bind=allow_legacy_scientific_bind,
+        )
         return state
 
     @property
@@ -544,6 +695,7 @@ class ControlStore:
         git_sync_policy: str = "invalidate",
         root_transition_policy: str | None = None,
         terminal_validation_policy: str | None = None,
+        scientific_bind_policy: bool = False,
     ) -> dict[str, Any]:
         if git_sync_policy not in {"invalidate", "validated_content", "record_metadata"}:
             raise ControlStateError(f"invalid Git sync policy: {git_sync_policy}")
@@ -563,7 +715,9 @@ class ControlStore:
         os.close(descriptor)
         temp = self.path.with_name(f".{self.path.name}.{uuid.uuid4().hex}.tmp")
         try:
-            current = self.load()
+            current = self.load(
+                allow_legacy_scientific_bind=scientific_bind_policy
+            )
             applied = current.get("applied_idempotency_keys", [])
             if idempotency_key in applied:
                 return current
@@ -571,6 +725,16 @@ class ControlStore:
                 raise ControlStateError(
                     f"revision conflict: expected {expected_revision}, actual {current['revision']}"
                 )
+            if scientific_bind_policy:
+                scientific = current.get("scientific")
+                if (
+                    not isinstance(scientific, dict)
+                    or scientific.get("status") != "active"
+                    or scientific.get("binding_schema") is not None
+                ):
+                    raise ControlStateError(
+                        "scientific bind policy requires the legacy empty active boundary"
+                    )
             if self.object_store is not None:
                 for object_id in referenced_object_ids:
                     self.object_store.get(object_id)

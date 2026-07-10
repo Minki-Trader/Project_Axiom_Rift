@@ -1,7 +1,21 @@
-schema: axiom_rift_v2_research_map_v1
-status: not_started
+schema: axiom_rift_v2_research_map_seed_v1
+status: immutable_seed
 encoding: ascii_only
 scientific_origin: v2_current
+dimensions:
+  - feature
+  - label
+  - model
+  - calibration
+  - selector
+  - trade
+  - sizing
+  - portfolio_risk
+  - direction
+  - regime
+  - session
+  - lifecycle
+  - synthesis
 allowed_states:
   - unseen
   - shallow
@@ -9,6 +23,6 @@ allowed_states:
   - deepened
   - refuted
   - synthesis_ready
-axes: {}
-recent_dominant_axes: []
-coverage_audits: []
+axis_id_template: axis_{dimension}
+initial_state: unseen
+mutable_scientific_content_allowed: false

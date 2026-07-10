@@ -206,6 +206,94 @@ class ResearchMap:
             }
         )
 
+    @classmethod
+    def for_epoch(cls, scientific_epoch_id: str) -> "ResearchMap":
+        return cls(
+            {
+                f"axis_{dimension}": ResearchAxis(
+                    axis_id=f"axis_{dimension}",
+                    dimension=dimension,
+                )
+                for dimension in GENERIC_DIMENSIONS
+            },
+            scientific_epoch_id=scientific_epoch_id,
+        )
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "ResearchMap":
+        if not isinstance(payload, Mapping) or payload.get("schema") not in {
+            "axiom_rift_v2_empty_research_map_v1",
+            "axiom_rift_v2_research_map_v1",
+        }:
+            raise AutonomyGuardError("research map payload schema is invalid")
+        expected_fields = {"schema", "scientific_epoch_id", "axes"}
+        if payload.get("schema") == "axiom_rift_v2_empty_research_map_v1":
+            expected_fields = {"schema", "axes"}
+        if set(payload) != expected_fields:
+            raise AutonomyGuardError("research map payload fields are invalid")
+        rows = payload.get("axes")
+        if not isinstance(rows, list):
+            raise AutonomyGuardError("research map payload axes must be a list")
+        axes: dict[str, ResearchAxis] = {}
+        try:
+            for row in rows:
+                if not isinstance(row, Mapping):
+                    raise TypeError("axis row is not a mapping")
+                if set(row) != {
+                    "axis_id",
+                    "dimension",
+                    "state",
+                    "evidence_ids",
+                    "concrete_observations",
+                }:
+                    raise TypeError("axis row fields are invalid")
+                axis = ResearchAxis(
+                    axis_id=str(row["axis_id"]),
+                    dimension=str(row["dimension"]),
+                    state=str(row["state"]),
+                    evidence_ids=tuple(row.get("evidence_ids", [])),
+                    concrete_observations=tuple(
+                        row.get("concrete_observations", [])
+                    ),
+                )
+                axes[axis.axis_id] = axis
+            epoch = payload.get("scientific_epoch_id")
+            return cls(
+                axes,
+                scientific_epoch_id=None if epoch is None else str(epoch),
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise AutonomyGuardError(
+                f"research map payload is invalid: {exc}"
+            ) from exc
+
+    def with_axis_observation(
+        self,
+        *,
+        axis_id: str,
+        state: str,
+        evidence_id: str,
+        observation: str,
+    ) -> "ResearchMap":
+        current = self.axes.get(axis_id)
+        if current is None:
+            raise AutonomyGuardError(
+                f"research map observation axis is absent: {axis_id}"
+            )
+        updated = ResearchAxis(
+            axis_id=current.axis_id,
+            dimension=current.dimension,
+            state=state,
+            evidence_ids=(*current.evidence_ids, evidence_id),
+            concrete_observations=(
+                *current.concrete_observations,
+                observation,
+            ),
+        )
+        axes = dict(self.axes)
+        axes[axis_id] = updated
+        return ResearchMap(axes, scientific_epoch_id=self.scientific_epoch_id)
+
     @property
     def is_empty(self) -> bool:
         return self.scientific_epoch_id is None and all(
@@ -230,7 +318,7 @@ class ResearchMap:
 
     def to_payload(self) -> dict[str, Any]:
         return {
-            "schema": "axiom_rift_v2_empty_research_map_v1",
+            "schema": "axiom_rift_v2_research_map_v1",
             "scientific_epoch_id": self.scientific_epoch_id,
             "axes": [
                 {
@@ -520,6 +608,64 @@ class ScopedNegativeMemory:
             "identification_impossible": self.identification_impossible,
             "identification_receipt_id": self.identification_receipt_id,
         }
+
+    @classmethod
+    def from_payload(cls, payload: Mapping[str, Any]) -> "ScopedNegativeMemory":
+        expected_fields = {
+            "schema",
+            "hypothesis_id",
+            "family_id",
+            "strength",
+            "evidence_ids",
+            "tested_context",
+            "untested_contexts",
+            "do_not_retry_hashes",
+            "orthogonal_context_hashes",
+            "identification_impossible",
+            "identification_receipt_id",
+        }
+        if (
+            not isinstance(payload, Mapping)
+            or payload.get("schema")
+            != "axiom_rift_v2_scoped_negative_memory_v1"
+            or set(payload) != expected_fields
+        ):
+            raise AutonomyGuardError("negative memory payload schema is invalid")
+        list_fields = (
+            "evidence_ids",
+            "untested_contexts",
+            "do_not_retry_hashes",
+            "orthogonal_context_hashes",
+        )
+        if (
+            any(not isinstance(payload.get(field), list) for field in list_fields)
+            or not isinstance(payload.get("tested_context"), Mapping)
+            or not isinstance(payload.get("identification_impossible"), bool)
+            or (
+                payload.get("identification_receipt_id") is not None
+                and not isinstance(payload.get("identification_receipt_id"), str)
+            )
+        ):
+            raise AutonomyGuardError("negative memory payload fields are invalid")
+        try:
+            return cls(
+                hypothesis_id=str(payload["hypothesis_id"]),
+                family_id=str(payload["family_id"]),
+                strength=str(payload["strength"]),
+                evidence_ids=tuple(payload["evidence_ids"]),
+                tested_context=dict(payload["tested_context"]),
+                untested_contexts=tuple(payload["untested_contexts"]),
+                do_not_retry_hashes=tuple(payload["do_not_retry_hashes"]),
+                orthogonal_context_hashes=tuple(
+                    payload.get("orthogonal_context_hashes", [])
+                ),
+                identification_impossible=payload["identification_impossible"],
+                identification_receipt_id=payload["identification_receipt_id"],
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise AutonomyGuardError(
+                f"negative memory payload is invalid: {exc}"
+            ) from exc
 
 
 @dataclass(frozen=True)

@@ -1014,6 +1014,35 @@ class V21GenericLifecycleTests(unittest.TestCase):
 
 
 class V21MigrationAndHoldoutTests(unittest.TestCase):
+    def test_normal_control_load_rejects_unbound_active_science(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            state = v21_state()
+            state["scientific"] = {
+                "status": "active",
+                "root_mission_id": "AXIOM_ROOT_0001",
+                "epoch_id": "V2EPOCH0001",
+                "index_path": "registries/v2/scientific/index.yaml",
+                "research_map_path": "registries/v2/scientific/research_map.yaml",
+                "hypothesis_ledger_path": (
+                    "registries/v2/scientific/hypothesis_ledger.jsonl"
+                ),
+                "hypothesis_object_ids": [],
+                "trial_receipt_ids": [],
+                "negative_memory_object_ids": [],
+                "ingredient_object_ids": [],
+                "candidate_object_ids": [],
+                "selected_bundle_id": None,
+                "holdout_reveals": 0,
+            }
+            path = root / "control_state.yaml"
+            path.write_text(yaml.safe_dump(state, sort_keys=False), encoding="ascii")
+            store = ControlStore(path, object_store=ObjectStore(root / "objects"))
+            with self.assertRaisesRegex(
+                ControlStateError, "requires a bound control-state index"
+            ):
+                store.load()
+
     def test_v1_activation_state_migrates_idempotently_to_ready_root(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

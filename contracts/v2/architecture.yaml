@@ -15,8 +15,10 @@ canonical_paths:
   program_registry: configs/v2/program_registry.yaml
   autonomy_contract: contracts/v2/autonomy_contract.yaml
   autonomy_config: configs/v2/autonomy.yaml
-  scientific_index: registries/v2/scientific/index.yaml
-  research_map: registries/v2/scientific/research_map.yaml
+  active_scientific_index: registries/v2/control_state.yaml
+  scientific_index_seed: registries/v2/scientific/index.yaml
+  research_map_seed: registries/v2/scientific/research_map.yaml
+  research_map_objects: registries/v2/objects
   runtime_data_eligibility: registries/v2/runtime_data_eligibility.yaml
 legacy_frozen_paths:
   - campaigns/C*

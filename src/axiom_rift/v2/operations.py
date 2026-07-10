@@ -25,7 +25,7 @@ from axiom_rift.v2.paths import (
     V2_OBJECT_DIR,
     V2_VALIDATION_RECEIPT_LEDGER,
 )
-from axiom_rift.v2.state import ControlStore
+from axiom_rift.v2.state import ControlStateError, ControlStore
 from axiom_rift.v2.state.store import (
     CONTROL_STATE_SCHEMA_V2,
     RECENT_CLOSED_GOAL_LIMIT,
@@ -99,7 +99,12 @@ class V2OperationWriter:
                     "hypothesis_ledger_path"
                 )
             except Exception:
-                configured = None
+                try:
+                    configured = self.control.load(
+                        allow_legacy_scientific_bind=True
+                    ).get("scientific", {}).get("hypothesis_ledger_path")
+                except Exception:
+                    configured = None
             if isinstance(configured, str) and configured:
                 resolved_control = control_state.resolve()
                 if resolved_control.parent.name == "v2" and resolved_control.parent.parent.name == "registries":
@@ -451,6 +456,512 @@ class V2OperationWriter:
         ):
             return control_path.parents[2]
         return control_path.parent
+
+    def _scientific_hypothesis_ledger(self) -> HashChainLedger:
+        return HashChainLedger(
+            self._scientific_project_root()
+            / "registries/v2/scientific/hypothesis_ledger.jsonl",
+            "hypothesis",
+        )
+
+    def _require_scientific_hypothesis_ledger_binding(
+        self, scientific: Mapping[str, Any]
+    ) -> None:
+        expected = (
+            self._scientific_project_root()
+            / str(scientific.get("hypothesis_ledger_path"))
+        ).resolve()
+        if self.hypotheses.path != expected:
+            raise OperationStateError(
+                "writer hypothesis ledger differs from the bound scientific index"
+            )
+
+    def _load_scientific_seed_binding(self) -> dict[str, Any]:
+        import yaml
+
+        root = self._scientific_project_root().resolve()
+        index_relative = "registries/v2/scientific/index.yaml"
+        map_relative = "registries/v2/scientific/research_map.yaml"
+        payloads: dict[str, Any] = {}
+        hashes: dict[str, str] = {}
+        for label, relative in (("index", index_relative), ("map", map_relative)):
+            path = (root / relative).resolve()
+            if root not in path.parents or not path.is_file():
+                raise OperationStateError(f"scientific {label} seed is missing")
+            raw = path.read_bytes()
+            try:
+                payload = yaml.safe_load(raw.decode("ascii"))
+            except (UnicodeError, yaml.YAMLError) as exc:
+                raise OperationStateError(
+                    f"scientific {label} seed is not valid ASCII YAML: {exc}"
+                ) from exc
+            if not isinstance(payload, Mapping):
+                raise OperationStateError(
+                    f"scientific {label} seed must be a mapping"
+                )
+            payloads[label] = dict(payload)
+            hashes[label] = hashlib.sha256(raw).hexdigest()
+        index = payloads["index"]
+        research_map_seed = payloads["map"]
+        expected_index_keys = {
+            "schema",
+            "status",
+            "encoding",
+            "role",
+            "scientific_origin",
+            "active_index_path",
+            "research_map_seed_path",
+            "research_map_seed_sha256",
+            "durable_sources",
+            "reference_fields",
+            "mutable_scientific_content_allowed",
+        }
+        expected_map_keys = {
+            "schema",
+            "status",
+            "encoding",
+            "scientific_origin",
+            "dimensions",
+            "allowed_states",
+            "axis_id_template",
+            "initial_state",
+            "mutable_scientific_content_allowed",
+        }
+        if set(index) != expected_index_keys or set(research_map_seed) != expected_map_keys:
+            raise OperationStateError("scientific seed fields differ from the immutable schema")
+        expected_sources = {
+            "hypothesis": "registries/v2/scientific/hypothesis_ledger.jsonl",
+            "trial": "registries/v2/evidence_ledger.jsonl",
+            "negative_memory": "registries/v2/scientific/hypothesis_ledger.jsonl",
+            "ingredient": "registries/v2/material_ledger.jsonl",
+            "candidate": "registries/v2/evidence_ledger.jsonl",
+            "objects": "registries/v2/objects",
+        }
+        expected_references = {
+            "hypotheses": "hypothesis_object_ids",
+            "trials": "trial_receipt_ids",
+            "negative_memories": "negative_memory_object_ids",
+            "ingredients": "ingredient_object_ids",
+            "candidates": "candidate_object_ids",
+        }
+        from axiom_rift.v2.research.autonomy import (
+            GENERIC_DIMENSIONS,
+            RESEARCH_STATES,
+            assert_no_scientific_inheritance,
+        )
+
+        if (
+            index.get("schema") != "axiom_rift_v2_scientific_index_seed_v1"
+            or index.get("status") != "immutable_seed"
+            or index.get("encoding") != "ascii_only"
+            or index.get("role") != "active_index_bootstrap_manifest"
+            or index.get("scientific_origin") != "v2_current"
+            or index.get("active_index_path")
+            != "registries/v2/control_state.yaml"
+            or index.get("research_map_seed_path") != map_relative
+            or index.get("research_map_seed_sha256") != hashes["map"]
+            or index.get("durable_sources") != expected_sources
+            or index.get("reference_fields") != expected_references
+            or index.get("mutable_scientific_content_allowed") is not False
+            or research_map_seed.get("schema")
+            != "axiom_rift_v2_research_map_seed_v1"
+            or research_map_seed.get("status") != "immutable_seed"
+            or research_map_seed.get("encoding") != "ascii_only"
+            or research_map_seed.get("scientific_origin") != "v2_current"
+            or research_map_seed.get("dimensions") != list(GENERIC_DIMENSIONS)
+            or research_map_seed.get("allowed_states") != list(RESEARCH_STATES)
+            or research_map_seed.get("axis_id_template") != "axis_{dimension}"
+            or research_map_seed.get("initial_state") != "unseen"
+            or research_map_seed.get("mutable_scientific_content_allowed") is not False
+        ):
+            raise OperationStateError("scientific seed content is invalid")
+        try:
+            assert_no_scientific_inheritance(index)
+            assert_no_scientific_inheritance(research_map_seed)
+        except ValueError as exc:
+            raise OperationStateError(
+                f"scientific seed inheritance guard failed: {exc}"
+            ) from exc
+        return {
+            "seed_manifest_path": index_relative,
+            "seed_manifest_sha256": hashes["index"],
+            "research_map_seed_path": map_relative,
+            "research_map_seed_sha256": hashes["map"],
+        }
+
+    @staticmethod
+    def _scientific_references(scientific: Mapping[str, Any]) -> dict[str, list[str]]:
+        return {
+            field: list(scientific.get(field, []))
+            for field in (
+                "hypothesis_object_ids",
+                "trial_receipt_ids",
+                "negative_memory_object_ids",
+                "ingredient_object_ids",
+                "candidate_object_ids",
+            )
+        }
+
+    def _put_research_map_snapshot(
+        self,
+        *,
+        state: Mapping[str, Any],
+        research_map: Any,
+        snapshot_seq: int,
+        parent_object_id: str | None,
+        trigger: Mapping[str, Any],
+        references: Mapping[str, list[str]],
+        recent_dominant_axes: Iterable[str] = (),
+        binding: Mapping[str, str] | None = None,
+        root_mission_id: str | None = None,
+        goal_id: str | None = None,
+        scientific_epoch_id: str | None = None,
+    ) -> str:
+        scientific = state["scientific"]
+        self._require_scientific_hypothesis_ledger_binding(scientific)
+        resolved_binding = dict(binding or scientific)
+        payload = {
+            "schema": "axiom_rift_v2_research_map_snapshot_v1",
+            "scientific_origin": "v2_current",
+            "root_mission_id": (
+                scientific["root_mission_id"]
+                if root_mission_id is None
+                else root_mission_id
+            ),
+            "goal_id": (
+                state["cursor"].get("active_goal_id")
+                if goal_id is None
+                else goal_id
+            ),
+            "scientific_epoch_id": (
+                scientific["epoch_id"]
+                if scientific_epoch_id is None
+                else scientific_epoch_id
+            ),
+            "seed_manifest_sha256": resolved_binding["seed_manifest_sha256"],
+            "research_map_seed_sha256": resolved_binding[
+                "research_map_seed_sha256"
+            ],
+            "snapshot_seq": snapshot_seq,
+            "parent_research_map_object_id": parent_object_id,
+            "trigger": dict(trigger),
+            "axes": research_map.to_payload()["axes"],
+            "recent_dominant_axes": list(recent_dominant_axes)[-5:],
+            "references": {key: list(value) for key, value in references.items()},
+        }
+        return self.objects.put("research_map_snapshot", payload)
+
+    def _active_scientific_hypothesis_context(
+        self,
+        state: Mapping[str, Any],
+    ) -> tuple[Any, dict[str, Any], dict[str, Any], dict[str, Any]]:
+        research_map, map_snapshot = self._load_bound_research_map(state)
+        scientific = state["scientific"]
+        self._require_scientific_hypothesis_ledger_binding(scientific)
+        hypothesis_id = state["cursor"].get("active_hypothesis_id")
+        if not isinstance(hypothesis_id, str):
+            raise OperationStateError("active scientific hypothesis is missing")
+        hypothesis_row = next(
+            (
+                row
+                for row in self.hypotheses.rows()
+                if row.get("record_id") == hypothesis_id
+                and row.get("record_type") == "hypothesis_preregistered"
+            ),
+            None,
+        )
+        if hypothesis_row is None:
+            raise OperationStateError("active scientific hypothesis ledger row is missing")
+        ledger_payload = hypothesis_row.get("payload")
+        if not isinstance(ledger_payload, dict):
+            raise OperationStateError("active scientific hypothesis ledger payload is invalid")
+        hypothesis_object_id = ledger_payload.get("hypothesis_object_id")
+        dominant_axis = ledger_payload.get("dominant_axis")
+        if (
+            ledger_payload.get("scientific_origin") != "v2_current"
+            or ledger_payload.get("scientific_epoch_id") != scientific.get("epoch_id")
+            or ledger_payload.get("hypothesis_id") != hypothesis_id
+            or not isinstance(hypothesis_object_id, str)
+            or hypothesis_object_id
+            not in scientific.get("hypothesis_object_ids", [])
+            or state.get("claim", {}).get("identity_bundle_object_id")
+            != hypothesis_object_id
+            or not isinstance(dominant_axis, str)
+            or dominant_axis not in research_map.axes
+        ):
+            raise OperationStateError(
+                "active scientific hypothesis does not reconcile with the bound index"
+            )
+        wrapped = self.objects.get(hypothesis_object_id)
+        spec_payload = wrapped.get("payload")
+        if wrapped.get("kind") != "hypothesis_spec" or not isinstance(
+            spec_payload, dict
+        ):
+            raise OperationStateError("active scientific hypothesis object is invalid")
+        return research_map, map_snapshot, ledger_payload, spec_payload
+
+    @staticmethod
+    def _scientific_tested_context(receipt: Mapping[str, Any]) -> dict[str, str]:
+        bundle_hashes = receipt.get("bundle_role_hashes")
+        programs = receipt.get("programs")
+        anchors = receipt.get("scout_anchor_ids")
+        if not isinstance(bundle_hashes, Mapping) or not isinstance(programs, Mapping):
+            raise OperationStateError("scientific receipt lacks tested-context identities")
+        trade_programs = {
+            role: role_programs.get("trade")
+            for role, role_programs in sorted(programs.items())
+            if isinstance(role_programs, Mapping)
+        }
+        if len(trade_programs) != len(programs):
+            raise OperationStateError("scientific receipt trade-program context is incomplete")
+        return {
+            "program_bundle_sha256": sha256_payload(dict(sorted(bundle_hashes.items()))),
+            "data_identity_sha256": str(receipt.get("dataset_sha256")),
+            "split_identity_sha256": sha256_payload(
+                {
+                    "split_source_sha256": receipt.get("split_source_sha256"),
+                    "boundary_source_sha256": receipt.get("boundary_source_sha256"),
+                    "scout_anchor_ids": anchors,
+                }
+            ),
+            "cost_identity_sha256": sha256_payload(trade_programs),
+            "direction_context": "program_bundle_bound",
+            "session_context": "dataset_bound",
+            "regime_context": "dataset_bound",
+            "lifecycle_context": "trade_program_bound",
+        }
+
+    @staticmethod
+    def _nonregressive_research_state(
+        research_map: Any, axis_id: str, proposed: str
+    ) -> str:
+        depth = {
+            "unseen": 0,
+            "shallow": 1,
+            "contextual": 2,
+            "synthesis_ready": 2,
+            "deepened": 3,
+            "refuted": 4,
+        }
+        current = research_map.axes[axis_id].state
+        return current if depth[current] > depth[proposed] else proposed
+
+    def _load_bound_research_map(
+        self,
+        state: Mapping[str, Any],
+    ) -> tuple[Any, dict[str, Any]]:
+        scientific = state.get("scientific")
+        if (
+            not isinstance(scientific, Mapping)
+            or scientific.get("binding_schema")
+            != "axiom_rift_v2_scientific_index_binding_v1"
+        ):
+            raise OperationStateError("scientific control-state index is not bound")
+        binding = self._load_scientific_seed_binding()
+        if any(scientific.get(key) != value for key, value in binding.items()):
+            raise OperationStateError("scientific seed binding has drifted")
+        object_id = scientific.get("current_research_map_object_id")
+        if not isinstance(object_id, str):
+            raise OperationStateError("current research map object is missing")
+        wrapped = self.objects.get(object_id)
+        payload = wrapped.get("payload")
+        if wrapped.get("kind") != "research_map_snapshot" or not isinstance(
+            payload, dict
+        ):
+            raise OperationStateError("current research map object kind is invalid")
+        expected_payload_fields = {
+            "schema",
+            "scientific_origin",
+            "root_mission_id",
+            "goal_id",
+            "scientific_epoch_id",
+            "seed_manifest_sha256",
+            "research_map_seed_sha256",
+            "snapshot_seq",
+            "parent_research_map_object_id",
+            "trigger",
+            "axes",
+            "recent_dominant_axes",
+            "references",
+        }
+        expected_reference_fields = set(self._scientific_references(scientific))
+        if set(payload) != expected_payload_fields or not isinstance(
+            payload.get("references"), Mapping
+        ) or set(payload["references"]) != expected_reference_fields:
+            raise OperationStateError("research map snapshot fields are invalid")
+        try:
+            from axiom_rift.v2.research.autonomy import (
+                ResearchMap,
+                assert_no_scientific_inheritance,
+            )
+
+            assert_no_scientific_inheritance(payload)
+        except ValueError as exc:
+            raise OperationStateError(
+                f"research map snapshot inheritance guard failed: {exc}"
+            ) from exc
+        references = self._scientific_references(scientific)
+        snapshot_references = payload.get("references")
+        references_reconcile = isinstance(snapshot_references, Mapping)
+        if references_reconcile:
+            for field, current_values in references.items():
+                observed_values = snapshot_references.get(field)
+                if field == "hypothesis_object_ids":
+                    references_reconcile = (
+                        isinstance(observed_values, list)
+                        and current_values[: len(observed_values)] == observed_values
+                    )
+                else:
+                    references_reconcile = observed_values == current_values
+                if not references_reconcile:
+                    break
+        if (
+            payload.get("schema") != "axiom_rift_v2_research_map_snapshot_v1"
+            or payload.get("scientific_origin") != "v2_current"
+            or payload.get("root_mission_id") != scientific.get("root_mission_id")
+            or payload.get("goal_id") != state["cursor"].get("active_goal_id")
+            or payload.get("scientific_epoch_id") != scientific.get("epoch_id")
+            or payload.get("seed_manifest_sha256")
+            != scientific.get("seed_manifest_sha256")
+            or payload.get("research_map_seed_sha256")
+            != scientific.get("research_map_seed_sha256")
+            or payload.get("snapshot_seq")
+            != scientific.get("research_map_snapshot_seq")
+            or not references_reconcile
+        ):
+            raise OperationStateError("current research map snapshot does not reconcile")
+        recent = payload.get("recent_dominant_axes")
+        if (
+            not isinstance(recent, list)
+            or len(recent) > 5
+            or not all(isinstance(value, str) for value in recent)
+        ):
+            raise OperationStateError("research map recent-axis history is invalid")
+        snapshot_seq = payload["snapshot_seq"]
+        parent_object_id = payload.get("parent_research_map_object_id")
+        if snapshot_seq == 0:
+            if parent_object_id is not None:
+                raise OperationStateError("initial research map may not have a parent")
+        else:
+            if not isinstance(parent_object_id, str):
+                raise OperationStateError("research map parent object is missing")
+            parent = self.objects.get(parent_object_id)
+            parent_payload = parent.get("payload")
+            if (
+                parent.get("kind") != "research_map_snapshot"
+                or not isinstance(parent_payload, Mapping)
+                or parent_payload.get("scientific_epoch_id")
+                != payload.get("scientific_epoch_id")
+                or parent_payload.get("root_mission_id")
+                != payload.get("root_mission_id")
+                or parent_payload.get("snapshot_seq") != snapshot_seq - 1
+            ):
+                raise OperationStateError("research map parent chain is invalid")
+
+        research_map = ResearchMap.from_payload(
+            {
+                "schema": "axiom_rift_v2_research_map_v1",
+                "scientific_epoch_id": payload.get("scientific_epoch_id"),
+                "axes": payload.get("axes"),
+            }
+        )
+        if any(axis_id not in research_map.axes for axis_id in recent):
+            raise OperationStateError("research map recent-axis identity is invalid")
+        return research_map, payload
+
+    def bind_active_scientific_index(
+        self,
+        *,
+        expected_seed_manifest_sha256: str,
+        expected_research_map_seed_sha256: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        try:
+            state = self.control.load()
+        except ControlStateError:
+            state = self.control.load(allow_legacy_scientific_bind=True)
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        scientific = state.get("scientific")
+        if not isinstance(scientific, dict):
+            raise OperationStateError("scientific state is missing")
+        if scientific.get("binding_schema") is not None:
+            raise OperationStateError("scientific index is already bound")
+        if (
+            state["cursor"].get("active_hypothesis_id") is not None
+            or state["cursor"].get("stage") != "idle"
+            or state["reentry"].get("active_job") is not None
+            or state["holdout"].get("reveal_count") != 0
+            or any(self._scientific_references(scientific).values())
+            or scientific.get("selected_bundle_id") is not None
+        ):
+            raise OperationStateError(
+                "scientific index bind requires the empty pre-H boundary"
+            )
+        hypothesis_path = (
+            self._scientific_project_root()
+            / str(scientific.get("hypothesis_ledger_path"))
+        )
+        if hypothesis_path.exists() and hypothesis_path.read_bytes().strip():
+            raise OperationStateError(
+                "scientific index bind requires an empty hypothesis ledger"
+            )
+        binding = self._load_scientific_seed_binding()
+        if (
+            binding["seed_manifest_sha256"] != expected_seed_manifest_sha256
+            or binding["research_map_seed_sha256"]
+            != expected_research_map_seed_sha256
+        ):
+            raise OperationStateError("scientific seed hashes differ from bind inputs")
+        from axiom_rift.v2.research.autonomy import ResearchMap
+
+        research_map = ResearchMap.for_epoch(str(scientific["epoch_id"]))
+        references = self._scientific_references(scientific)
+        map_object_id = self._put_research_map_snapshot(
+            state=state,
+            research_map=research_map,
+            snapshot_seq=0,
+            parent_object_id=None,
+            trigger={
+                "kind": "epoch_open",
+                "hypothesis_id": None,
+                "evidence_id": None,
+                "negative_memory_object_id": None,
+                "ingredient_object_id": None,
+            },
+            references=references,
+            binding=binding,
+        )
+
+        def mutate(draft: dict[str, Any]) -> None:
+            legacy = draft["scientific"]
+            draft["scientific"] = {
+                "binding_schema": "axiom_rift_v2_scientific_index_binding_v1",
+                "status": "active",
+                "root_mission_id": legacy["root_mission_id"],
+                "epoch_id": legacy["epoch_id"],
+                "active_index_path": "registries/v2/control_state.yaml",
+                **binding,
+                "current_research_map_object_id": map_object_id,
+                "research_map_snapshot_seq": 0,
+                "hypothesis_ledger_path": legacy["hypothesis_ledger_path"],
+                **references,
+                "selected_bundle_id": None,
+                "holdout_reveals": 0,
+            }
+            self._add_authoritative_objects(draft, [map_object_id])
+            draft["reentry"]["current_artifact_hashes"][
+                "V2_SCIENTIFIC_RESEARCH_MAP"
+            ] = map_object_id
+
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=[map_object_id],
+            scientific_bind_policy=True,
+        )
 
     def _verified_scientific_artifacts(
         self,
@@ -889,6 +1400,7 @@ class V2OperationWriter:
             raise OperationStateError("another internal goal is already active")
         scientific = state.get("scientific")
         scientific_open: dict[str, Any] | None = None
+        scientific_binding: dict[str, Any] | None = None
         if isinstance(scientific, dict) and scientific.get("status") == "not_started":
             if state.get("cursor", {}).get("next_action", {}).get("kind") != "await_new_root_goal":
                 raise OperationStateError("empty scientific state is not at its root-goal boundary")
@@ -913,6 +1425,21 @@ class V2OperationWriter:
             epoch_id = candidate.get("epoch_id")
             if not isinstance(epoch_id, str) or re.fullmatch(r"V2EPOCH[0-9]{4}", epoch_id) is None:
                 raise OperationStateError("scientific mission requires a V2 epoch identity")
+            scientific_binding = self._load_scientific_seed_binding()
+            expected_binding = {
+                "binding_schema": "axiom_rift_v2_scientific_index_binding_v1",
+                "active_index_path": "registries/v2/control_state.yaml",
+                **scientific_binding,
+                "hypothesis_ledger_path": (
+                    "registries/v2/scientific/hypothesis_ledger.jsonl"
+                ),
+            }
+            if any(scientific.get(key) != value for key, value in expected_binding.items()):
+                raise OperationStateError("not-started scientific seed binding has drifted")
+            if self._scientific_hypothesis_ledger().rows():
+                raise OperationStateError(
+                    "future scientific goal requires an empty scientific hypothesis ledger"
+                )
             scientific_open = {
                 "emergency_hypothesis_ceiling": ceiling,
                 "epoch_id": epoch_id,
@@ -931,6 +1458,29 @@ class V2OperationWriter:
             "goal": goal_payload,
         }
         object_id = self.objects.put("internal_goal", payload)
+        research_map_object_id: str | None = None
+        if scientific_open is not None:
+            from axiom_rift.v2.research.autonomy import ResearchMap
+
+            references = self._scientific_references(scientific)
+            research_map_object_id = self._put_research_map_snapshot(
+                state=state,
+                research_map=ResearchMap.for_epoch(scientific_open["epoch_id"]),
+                snapshot_seq=0,
+                parent_object_id=None,
+                trigger={
+                    "kind": "epoch_open",
+                    "hypothesis_id": None,
+                    "evidence_id": None,
+                    "negative_memory_object_id": None,
+                    "ingredient_object_id": None,
+                },
+                references=references,
+                binding=scientific_binding,
+                root_mission_id=root_mission["mission_id"],
+                goal_id=allocated,
+                scientific_epoch_id=scientific_open["epoch_id"],
+            )
         row = self._append_or_existing(
             self.evidence,
             f"{allocated}_CREATED",
@@ -954,6 +1504,8 @@ class V2OperationWriter:
                         "status": "active",
                         "root_mission_id": draft["root_mission"]["mission_id"],
                         "epoch_id": scientific_open["epoch_id"],
+                        "current_research_map_object_id": research_map_object_id,
+                        "research_map_snapshot_seq": 0,
                     }
                 )
                 draft["harness"].update(
@@ -974,7 +1526,10 @@ class V2OperationWriter:
                 }
             )
             self._set_next_action(draft, action)
-            self._add_authoritative_objects(draft, [object_id])
+            authoritative_objects = [object_id]
+            if research_map_object_id is not None:
+                authoritative_objects.append(research_map_object_id)
+            self._add_authoritative_objects(draft, authoritative_objects)
             draft["ledger_heads"]["evidence"] = {
                 "ledger_seq": row["ledger_seq"],
                 "row_sha256": row["row_sha256"],
@@ -991,6 +1546,10 @@ class V2OperationWriter:
             reentry = draft["reentry"]
             reentry["active_job"] = None
             reentry["current_artifact_hashes"] = {allocated: object_id}
+            if research_map_object_id is not None:
+                reentry["current_artifact_hashes"][
+                    "V2_SCIENTIFIC_RESEARCH_MAP"
+                ] = research_map_object_id
             reentry["completed_receipt_ids"] = []
             reentry["completed_evidence_ids"] = []
             draft["slice_budget"] = self._new_slice_budget(f"{allocated}_H")
@@ -999,7 +1558,14 @@ class V2OperationWriter:
             state["revision"],
             idempotency_key,
             mutate,
-            referenced_object_ids=[object_id],
+            referenced_object_ids=[
+                object_id,
+                *(
+                    [research_map_object_id]
+                    if research_map_object_id is not None
+                    else []
+                ),
+            ],
         )
 
     def open_goal(
@@ -1327,6 +1893,11 @@ class V2OperationWriter:
             raise OperationStateError("reinforcement close requires no active job")
         if state.get("holdout", {}).get("reveal_count") != 0:
             raise OperationStateError("reinforcement close requires zero holdout reveals")
+        if self._scientific_hypothesis_ledger().rows():
+            raise OperationStateError(
+                "reinforcement close requires an empty scientific hypothesis ledger"
+            )
+        binding = self._load_scientific_seed_binding()
         payload = {
             "schema": "axiom_rift_v2_reinforcement_ready_receipt_v1",
             "baseline_commit": baseline_commit,
@@ -1363,12 +1934,17 @@ class V2OperationWriter:
                 "baseline_commit": baseline_commit,
             }
             draft["scientific"] = {
+                "binding_schema": "axiom_rift_v2_scientific_index_binding_v1",
                 "status": "not_started",
                 "root_mission_id": None,
                 "epoch_id": None,
-                "index_path": "registries/v2/scientific/index.yaml",
-                "research_map_path": "registries/v2/scientific/research_map.yaml",
-                "hypothesis_ledger_path": "registries/v2/scientific/hypothesis_ledger.jsonl",
+                "active_index_path": "registries/v2/control_state.yaml",
+                **binding,
+                "current_research_map_object_id": None,
+                "research_map_snapshot_seq": None,
+                "hypothesis_ledger_path": (
+                    "registries/v2/scientific/hypothesis_ledger.jsonl"
+                ),
                 "hypothesis_object_ids": [],
                 "trial_receipt_ids": [],
                 "negative_memory_object_ids": [],
@@ -1425,6 +2001,9 @@ class V2OperationWriter:
             }
             self._add_authoritative_objects(draft, [object_id])
             draft["reentry"]["active_job"] = None
+            draft["reentry"]["current_artifact_hashes"].pop(
+                "V2_SCIENTIFIC_RESEARCH_MAP", None
+            )
             draft["reentry"]["current_artifact_hashes"]["V2_HARNESS_READY"] = object_id
 
         return self.control.commit(
@@ -2268,7 +2847,16 @@ class V2OperationWriter:
                 raise OperationStateError(f"hypothesis preregistration is invalid: {exc}") from exc
             scientific = state.get("scientific")
             scientific_batch = None
+            scientific_research_map = None
             if isinstance(scientific, dict) and scientific.get("status") == "active":
+                if state["cursor"].get("active_hypothesis_id") is not None:
+                    raise OperationStateError(
+                        "prior scientific hypothesis requires a durable disposition"
+                    )
+                self._require_scientific_hypothesis_ledger_binding(scientific)
+                scientific_research_map, _map_snapshot = (
+                    self._load_bound_research_map(state)
+                )
                 scientific_batch = validated_hypothesis.get("hypothesis_batch")
                 if scientific_batch is None:
                     raise OperationStateError(
@@ -2280,6 +2868,37 @@ class V2OperationWriter:
                     raise OperationStateError("hypothesis epoch differs from active science")
                 if scientific_batch.hypothesis_id != hypothesis_id:
                     raise OperationStateError("autonomy batch identity differs from hypothesis")
+                if scientific_batch.dominant_axis not in scientific_research_map.axes:
+                    raise OperationStateError(
+                        "scientific hypothesis dominant axis is absent from the research map"
+                    )
+                if scientific_batch.hypothesis_type == "synthesis_ablation":
+                    parent_ids = set(scientific_batch.parent_evidence_ids)
+                    matched_parent_ids: set[str] = set()
+                    for ingredient_object_id in scientific.get(
+                        "ingredient_object_ids", []
+                    ):
+                        wrapped_ingredient = self.objects.get(ingredient_object_id)
+                        ingredient = wrapped_ingredient.get("payload")
+                        if (
+                            wrapped_ingredient.get("kind")
+                            != "scientific_ingredient"
+                            or not isinstance(ingredient, Mapping)
+                        ):
+                            raise OperationStateError(
+                                "scientific ingredient reference is invalid"
+                            )
+                        if (
+                            ingredient.get("scientific_epoch_id")
+                            == scientific.get("epoch_id")
+                            and ingredient.get("status") == "s_survivor"
+                            and ingredient.get("evidence_id") in parent_ids
+                        ):
+                            matched_parent_ids.add(ingredient["evidence_id"])
+                    if matched_parent_ids != parent_ids or len(parent_ids) < 2:
+                        raise OperationStateError(
+                            "synthesis parents are not durable same-epoch ingredients"
+                        )
                 raw_path = Path(spec_path)
                 if (
                     raw_path.is_absolute()
@@ -2378,6 +2997,54 @@ class V2OperationWriter:
                     raise OperationStateError(
                         "scientific hypothesis repeats a globally evaluated configuration"
                     )
+                try:
+                    from axiom_rift.v2.research.autonomy import ScopedNegativeMemory
+
+                    for memory_object_id in scientific.get(
+                        "negative_memory_object_ids", []
+                    ):
+                        wrapped_memory = self.objects.get(memory_object_id)
+                        if wrapped_memory.get("kind") != "negative_memory":
+                            raise OperationStateError(
+                                "scientific negative-memory object kind is invalid"
+                            )
+                        memory = ScopedNegativeMemory.from_payload(
+                            wrapped_memory.get("payload")
+                        )
+                        disposition_row = next(
+                            (
+                                row
+                                for row in self.hypotheses.rows()
+                                if row.get("record_type")
+                                == "hypothesis_disposition_recorded"
+                                and row.get("payload", {}).get(
+                                    "negative_memory_object_id"
+                                )
+                                == memory_object_id
+                                and row.get("payload", {}).get(
+                                    "scientific_epoch_id"
+                                )
+                                == scientific.get("epoch_id")
+                                and row.get("payload", {}).get("hypothesis_id")
+                                == memory.hypothesis_id
+                            ),
+                            None,
+                        )
+                        if disposition_row is None:
+                            raise OperationStateError(
+                                "scientific negative memory lacks a durable disposition"
+                            )
+                        if memory.blocks(
+                            family_id=scientific_batch.family_id,
+                            executable_hashes=initial_hashes,
+                        ):
+                            raise OperationStateError(
+                                "scientific hypothesis conflicts with durable negative memory"
+                            )
+                except ValueError as exc:
+                    raise OperationStateError(
+                        f"scientific negative memory is invalid: {exc}"
+                    ) from exc
         else:
             if hypothesis_id != "V2H0001":
                 raise ValueError("bootstrap writer expects the first V2 hypothesis identity")
@@ -2602,8 +3269,160 @@ class V2OperationWriter:
         if is_v2:
             self._validate_nested_scout_receipt(receipt)
             self._validate_scientific_scout_receipt(receipt, state=state)
+        scientific_receipt = (
+            is_v2
+            and receipt.get("schema")
+            == "axiom_rift_v2_scientific_scout_receipt_v1"
+        )
+        research_map = None
+        map_snapshot: dict[str, Any] | None = None
+        scientific_hypothesis: dict[str, Any] | None = None
+        if scientific_receipt:
+            (
+                research_map,
+                map_snapshot,
+                scientific_hypothesis,
+                _scientific_spec,
+            ) = self._active_scientific_hypothesis_context(state)
+            if scientific_hypothesis.get("family_id") != receipt.get(
+                "trial_accounting", {}
+            ).get("family_id"):
+                raise OperationStateError(
+                    "scientific receipt family differs from the active hypothesis"
+                )
+            if (
+                receipt.get("outcome") == "evidence_gap"
+                and promote_diagnostic_observation
+            ):
+                raise OperationStateError(
+                    "scientific evidence gaps may not promote a diagnostic claim"
+                )
+            outcome = receipt.get("outcome")
+            if outcome == "scientific_reject" and (
+                exact_next_action.get("kind")
+                != "record_hypothesis_disposition"
+                or exact_next_action.get("stage") != "H"
+                or exact_next_action.get("subject_id")
+                != receipt.get("hypothesis_id")
+                or evidence_id
+                not in exact_next_action.get("prerequisite_receipt_ids", [])
+            ):
+                raise OperationStateError(
+                    "scientific rejection must route to durable hypothesis disposition"
+                )
+            if outcome == "route_to_R" and (
+                exact_next_action.get("kind") != "open_stage"
+                or exact_next_action.get("stage") != "R"
+                or evidence_id
+                not in exact_next_action.get("prerequisite_receipt_ids", [])
+            ):
+                raise OperationStateError(
+                    "scientific survivor must route through the R stage gate"
+                )
+            if outcome == "evidence_gap" and exact_next_action.get("kind") != "repair":
+                raise OperationStateError(
+                    "scientific evidence gap must route to repair"
+                )
         occurred = utc_now()
         object_id = self.objects.put("evidence_receipt", receipt)
+        ingredient_object_id: str | None = None
+        research_map_object_id: str | None = None
+        scientific_references: dict[str, list[str]] | None = None
+        scientific_snapshot_seq: int | None = None
+        material_row: dict[str, Any] | None = None
+        if scientific_receipt:
+            scientific = state["scientific"]
+            scientific_references = self._scientific_references(scientific)
+            if evidence_id in scientific_references["trial_receipt_ids"]:
+                raise OperationStateError("scientific trial receipt is already indexed")
+            scientific_references["trial_receipt_ids"].append(evidence_id)
+            outcome = receipt.get("outcome")
+            if outcome == "route_to_R":
+                selected_rows = [
+                    {
+                        "fold_id": fold_id,
+                        "role": receipt["selected_roles"][fold_id],
+                        "bundle_sha256": receipt[
+                            "selected_model_bundle_sha256s"
+                        ][fold_id],
+                        "configuration_sha256": receipt[
+                            "selected_configuration_hashes"
+                        ][fold_id],
+                        "path_sha256": receipt["selected_path_hashes"][fold_id],
+                    }
+                    for fold_id in sorted(receipt["selected_roles"])
+                ]
+                ingredient_payload = {
+                    "schema": "axiom_rift_v2_scientific_ingredient_v1",
+                    "scientific_origin": "v2_current",
+                    "root_mission_id": scientific["root_mission_id"],
+                    "goal_id": receipt["goal_id"],
+                    "scientific_epoch_id": scientific["epoch_id"],
+                    "hypothesis_id": receipt["hypothesis_id"],
+                    "evidence_id": evidence_id,
+                    "receipt_object_id": object_id,
+                    "family_id": scientific_hypothesis["family_id"],
+                    "dominant_axis": scientific_hypothesis["dominant_axis"],
+                    "source_stage": "S",
+                    "status": "s_survivor",
+                    "program_bundle_sha256": sha256_payload(
+                        dict(sorted(receipt["bundle_role_hashes"].items()))
+                    ),
+                    "selection_rule_sha256": receipt["selection_rule_sha256"],
+                    "selected_paths": selected_rows,
+                    "claim_ceiling": "diagnostic_observation",
+                }
+                ingredient_object_id = self.objects.put(
+                    "scientific_ingredient", ingredient_payload
+                )
+                scientific_references["ingredient_object_ids"].append(
+                    ingredient_object_id
+                )
+                material_row = self._append_or_existing(
+                    self.materials,
+                    f"{evidence_id}_SCIENTIFIC_INGREDIENT",
+                    "scientific_ingredient_recorded",
+                    {
+                        "goal_id": receipt["goal_id"],
+                        "hypothesis_id": receipt["hypothesis_id"],
+                        "scientific_epoch_id": scientific["epoch_id"],
+                        "evidence_id": evidence_id,
+                        "ingredient_object_id": ingredient_object_id,
+                        "claim_ceiling": "diagnostic_observation",
+                    },
+                    occurred,
+                )
+            updated_map = research_map
+            recent_axes = list(map_snapshot.get("recent_dominant_axes", []))
+            if outcome in {"scientific_reject", "route_to_R"}:
+                updated_map = research_map.with_axis_observation(
+                    axis_id=scientific_hypothesis["dominant_axis"],
+                    state=self._nonregressive_research_state(
+                        research_map,
+                        scientific_hypothesis["dominant_axis"],
+                        "shallow",
+                    ),
+                    evidence_id=evidence_id,
+                    observation=f"{evidence_id}:{outcome}",
+                )
+                recent_axes.append(scientific_hypothesis["dominant_axis"])
+            scientific_snapshot_seq = scientific["research_map_snapshot_seq"] + 1
+            research_map_object_id = self._put_research_map_snapshot(
+                state=state,
+                research_map=updated_map,
+                snapshot_seq=scientific_snapshot_seq,
+                parent_object_id=scientific["current_research_map_object_id"],
+                trigger={
+                    "kind": "scout_evidence_recorded",
+                    "hypothesis_id": receipt["hypothesis_id"],
+                    "evidence_id": evidence_id,
+                    "outcome": outcome,
+                    "negative_memory_object_id": None,
+                    "ingredient_object_id": ingredient_object_id,
+                },
+                references=scientific_references,
+                recent_dominant_axes=recent_axes,
+            )
         payload = {
             "evidence_id": evidence_id,
             "goal_id": receipt.get("goal_id", "V2G0001" if not is_v2 else None),
@@ -2615,6 +3434,15 @@ class V2OperationWriter:
             "claim_ceiling": receipt.get("claim_ceiling", "none"),
             "result_sha256": receipt.get("result_sha256"),
         }
+        if scientific_receipt:
+            payload.update(
+                {
+                    "scientific_origin": "v2_current",
+                    "scientific_epoch_id": state["scientific"]["epoch_id"],
+                    "research_map_object_id": research_map_object_id,
+                    "ingredient_object_id": ingredient_object_id,
+                }
+            )
         row = self._append_or_existing(
             self.evidence,
             evidence_id,
@@ -2623,11 +3451,21 @@ class V2OperationWriter:
             occurred,
         )
         def mutate(draft: dict[str, Any]) -> None:
-            self._add_authoritative_objects(draft, [object_id])
+            authoritative_objects = [object_id]
+            if ingredient_object_id is not None:
+                authoritative_objects.append(ingredient_object_id)
+            if research_map_object_id is not None:
+                authoritative_objects.append(research_map_object_id)
+            self._add_authoritative_objects(draft, authoritative_objects)
             draft["ledger_heads"]["evidence"] = {
                 "ledger_seq": row["ledger_seq"],
                 "row_sha256": row["row_sha256"],
             }
+            if material_row is not None:
+                draft["ledger_heads"]["material"] = {
+                    "ledger_seq": material_row["ledger_seq"],
+                    "row_sha256": material_row["row_sha256"],
+                }
             completed = draft["reentry"].setdefault("completed_evidence_ids", [])
             if evidence_id not in completed:
                 completed.append(evidence_id)
@@ -2636,13 +3474,31 @@ class V2OperationWriter:
                 {},
             )
             hashes[evidence_id] = object_id
+            if ingredient_object_id is not None:
+                hashes[f"{evidence_id}_SCIENTIFIC_INGREDIENT"] = (
+                    ingredient_object_id
+                )
+            if research_map_object_id is not None:
+                hashes["V2_SCIENTIFIC_RESEARCH_MAP"] = research_map_object_id
+                scientific_state = draft["scientific"]
+                scientific_state.update(scientific_references)
+                scientific_state["current_research_map_object_id"] = (
+                    research_map_object_id
+                )
+                scientific_state["research_map_snapshot_seq"] = (
+                    scientific_snapshot_seq
+                )
             if job_matched:
                 draft["reentry"]["active_job"] = None
             self._set_next_action(draft, exact_next_action)
             if receipt.get("stage") == str(draft["cursor"].get("stage")):
                 draft["cursor"]["stage_status"] = "completed"
                 draft["cursor"]["stage_outcome"] = receipt.get("outcome")
-            if promote_diagnostic_observation and draft["claim"]["current_level"] == "none":
+            should_promote = promote_diagnostic_observation or (
+                scientific_receipt
+                and receipt.get("outcome") in {"scientific_reject", "route_to_R"}
+            )
+            if should_promote and draft["claim"]["current_level"] == "none":
                 draft["claim"] = promote_claim(
                     draft["claim"], "diagnostic_observation", [evidence_id]
                 )
@@ -2651,7 +3507,15 @@ class V2OperationWriter:
             state["revision"],
             idempotency_key,
             mutate,
-            referenced_object_ids=[object_id],
+            referenced_object_ids=[
+                object_id,
+                *([ingredient_object_id] if ingredient_object_id is not None else []),
+                *(
+                    [research_map_object_id]
+                    if research_map_object_id is not None
+                    else []
+                ),
+            ],
         )
 
     def record_hypothesis_disposition(
@@ -2671,6 +3535,13 @@ class V2OperationWriter:
             return state
         self._require_reconciled(state)
         is_v2 = self._is_v2_state(state)
+        scientific_disposition = False
+        research_map = None
+        map_snapshot: dict[str, Any] | None = None
+        scientific_hypothesis: dict[str, Any] | None = None
+        scientific_references: dict[str, list[str]] | None = None
+        scientific_snapshot_seq: int | None = None
+        research_map_object_id: str | None = None
         goal_id = (
             state["cursor"].get("active_goal_id") if is_v2 else "V2G0001"
         )
@@ -2700,10 +3571,224 @@ class V2OperationWriter:
             )
             if evidence_row is None or evidence_row["payload"].get("hypothesis_id") != hypothesis_id:
                 raise OperationStateError("disposition basis evidence does not match active hypothesis")
+            scientific = state.get("scientific")
+            scientific_disposition = (
+                isinstance(scientific, dict)
+                and scientific.get("status") == "active"
+                and scientific.get("binding_schema")
+                == "axiom_rift_v2_scientific_index_binding_v1"
+            )
+            if scientific_disposition:
+                (
+                    research_map,
+                    map_snapshot,
+                    scientific_hypothesis,
+                    _scientific_spec,
+                ) = self._active_scientific_hypothesis_context(state)
+                if outcome != "scientific_reject":
+                    raise OperationStateError(
+                        "scientific negative memory requires a scientific rejection"
+                    )
+                if evidence_id not in scientific.get("trial_receipt_ids", []):
+                    raise OperationStateError(
+                        "scientific disposition evidence is not in durable trial accounting"
+                    )
+                receipt_object_id = evidence_row["payload"].get(
+                    "receipt_object_id"
+                )
+                wrapped_receipt = self.objects.get(receipt_object_id)
+                scientific_receipt = wrapped_receipt.get("payload")
+                if (
+                    wrapped_receipt.get("kind") != "evidence_receipt"
+                    or not isinstance(scientific_receipt, dict)
+                    or scientific_receipt.get("schema")
+                    != "axiom_rift_v2_scientific_scout_receipt_v1"
+                    or scientific_receipt.get("outcome") != "scientific_reject"
+                    or scientific_receipt.get("hypothesis_id") != hypothesis_id
+                ):
+                    raise OperationStateError(
+                        "scientific disposition basis is not a rejected Scout receipt"
+                    )
+                raw_path = Path(memory_path)
+                if (
+                    raw_path.is_absolute()
+                    or "\\" in memory_path
+                    or ".." in raw_path.parts
+                    or not memory_path
+                ):
+                    raise OperationStateError(
+                        "scientific negative-memory path must be repo-relative POSIX"
+                    )
+                project_root = self._scientific_project_root().resolve()
+                resolved_memory = (project_root / raw_path).resolve()
+                if (
+                    project_root != resolved_memory.parent
+                    and project_root not in resolved_memory.parents
+                ):
+                    raise OperationStateError(
+                        "scientific negative-memory path escapes the project root"
+                    )
+                if not resolved_memory.is_file():
+                    raise OperationStateError(
+                        "scientific negative-memory file is missing"
+                    )
+                raw_memory = resolved_memory.read_bytes()
+                try:
+                    import yaml
+
+                    parsed_memory = yaml.safe_load(raw_memory.decode("ascii"))
+                except (UnicodeError, yaml.YAMLError) as exc:
+                    raise OperationStateError(
+                        f"scientific negative-memory file is invalid: {exc}"
+                    ) from exc
+                if parsed_memory != memory_payload:
+                    raise OperationStateError(
+                        "scientific negative-memory file differs from the writer payload"
+                    )
+                if hashlib.sha256(raw_memory).hexdigest() != memory_sha256:
+                    raise OperationStateError(
+                        "scientific negative-memory file hash differs"
+                    )
+                try:
+                    from axiom_rift.v2.research.autonomy import ScopedNegativeMemory
+
+                    memory = ScopedNegativeMemory.from_payload(memory_payload)
+                except ValueError as exc:
+                    raise OperationStateError(
+                        f"scientific negative memory is invalid: {exc}"
+                    ) from exc
+                if memory.to_payload() != memory_payload:
+                    raise OperationStateError(
+                        "scientific negative-memory payload is not canonical"
+                    )
+                expected_hashes = sorted(
+                    scientific_receipt["trial_accounting"]["configuration_hashes"]
+                )
+                if (
+                    memory.hypothesis_id != hypothesis_id
+                    or memory.family_id != scientific_hypothesis.get("family_id")
+                    or list(memory.evidence_ids) != [evidence_id]
+                    or dict(memory.tested_context)
+                    != self._scientific_tested_context(scientific_receipt)
+                    or list(memory.do_not_retry_hashes) != expected_hashes
+                ):
+                    raise OperationStateError(
+                        "scientific negative memory differs from its durable evidence"
+                    )
+                if memory.strength == "family_refuted":
+                    durable_context_hashes: set[str] = set()
+                    for prior_object_id in scientific.get(
+                        "negative_memory_object_ids", []
+                    ):
+                        prior_wrapped = self.objects.get(prior_object_id)
+                        try:
+                            prior_memory = ScopedNegativeMemory.from_payload(
+                                prior_wrapped.get("payload")
+                            )
+                        except ValueError as exc:
+                            raise OperationStateError(
+                                f"durable negative memory is invalid: {exc}"
+                            ) from exc
+                        if prior_memory.family_id == memory.family_id:
+                            durable_context_hashes.add(
+                                sha256_payload(dict(prior_memory.tested_context))
+                            )
+                    identification_row = next(
+                        (
+                            row
+                            for row in self.evidence.rows()
+                            if row.get("record_id")
+                            == memory.identification_receipt_id
+                            and row.get("record_type")
+                            == "scientific_identification_impossible"
+                            and row.get("payload", {}).get("hypothesis_id")
+                            == hypothesis_id
+                            and row.get("payload", {}).get("outcome")
+                            == "identification_impossible"
+                        ),
+                        None,
+                    )
+                    identification_receipt_valid = False
+                    if identification_row is not None:
+                        identification_object_id = identification_row.get(
+                            "payload", {}
+                        ).get("receipt_object_id")
+                        if isinstance(identification_object_id, str):
+                            identification_wrapped = self.objects.get(
+                                identification_object_id
+                            )
+                            identification_payload = identification_wrapped.get(
+                                "payload"
+                            )
+                            identification_receipt_valid = (
+                                identification_wrapped.get("kind")
+                                == "evidence_receipt"
+                                and isinstance(identification_payload, Mapping)
+                                and identification_payload.get("schema")
+                                == "axiom_rift_v2_scientific_identification_receipt_v1"
+                                and identification_payload.get("outcome")
+                                == "identification_impossible"
+                                and identification_payload.get("hypothesis_id")
+                                == hypothesis_id
+                            )
+                    orthogonal_hashes = set(memory.orthogonal_context_hashes)
+                    orthogonal_proven = (
+                        len(orthogonal_hashes) >= 2
+                        and orthogonal_hashes.issubset(durable_context_hashes)
+                    )
+                    identification_proven = (
+                        memory.identification_impossible
+                        and identification_receipt_valid
+                    )
+                    if not (orthogonal_proven or identification_proven):
+                        raise OperationStateError(
+                            "family refutation lacks durable orthogonal or identification evidence"
+                        )
         elif exact_next_action is None:
             raise TransitionError("schema v1 disposition requires exact_next_action text")
         occurred = utc_now()
         object_id = self.objects.put("negative_memory", memory_payload)
+        if scientific_disposition:
+            scientific_references = self._scientific_references(state["scientific"])
+            if object_id in scientific_references["negative_memory_object_ids"]:
+                raise OperationStateError("scientific negative memory is already indexed")
+            scientific_references["negative_memory_object_ids"].append(object_id)
+            proposed_axis_state = (
+                "refuted" if memory.strength == "family_refuted" else "shallow"
+            )
+            axis_state = self._nonregressive_research_state(
+                research_map,
+                scientific_hypothesis["dominant_axis"],
+                proposed_axis_state,
+            )
+            updated_map = research_map.with_axis_observation(
+                axis_id=scientific_hypothesis["dominant_axis"],
+                state=axis_state,
+                evidence_id=evidence_id,
+                observation=f"{evidence_id}:{outcome}:{memory.strength}",
+            )
+            recent_axes = list(map_snapshot.get("recent_dominant_axes", []))
+            scientific_snapshot_seq = (
+                state["scientific"]["research_map_snapshot_seq"] + 1
+            )
+            research_map_object_id = self._put_research_map_snapshot(
+                state=state,
+                research_map=updated_map,
+                snapshot_seq=scientific_snapshot_seq,
+                parent_object_id=state["scientific"][
+                    "current_research_map_object_id"
+                ],
+                trigger={
+                    "kind": "hypothesis_disposition_recorded",
+                    "hypothesis_id": hypothesis_id,
+                    "evidence_id": evidence_id,
+                    "outcome": outcome,
+                    "negative_memory_object_id": object_id,
+                    "ingredient_object_id": None,
+                },
+                references=scientific_references,
+                recent_dominant_axes=recent_axes,
+            )
         record_id = f"{hypothesis_id}_DISPOSITION"
         payload = {
             "goal_id": goal_id,
@@ -2716,6 +3801,16 @@ class V2OperationWriter:
             "negative_memory_object_id": object_id,
             "claim_ceiling": "diagnostic_observation",
         }
+        if scientific_disposition:
+            payload.update(
+                {
+                    "scientific_origin": "v2_current",
+                    "scientific_epoch_id": state["scientific"]["epoch_id"],
+                    "family_id": scientific_hypothesis["family_id"],
+                    "dominant_axis": scientific_hypothesis["dominant_axis"],
+                    "research_map_object_id": research_map_object_id,
+                }
+            )
         row = self._append_or_existing(
             self.hypotheses,
             record_id,
@@ -2724,7 +3819,10 @@ class V2OperationWriter:
             occurred,
         )
         def mutate(draft: dict[str, Any]) -> None:
-            self._add_authoritative_objects(draft, [object_id])
+            authoritative_objects = [object_id]
+            if research_map_object_id is not None:
+                authoritative_objects.append(research_map_object_id)
+            self._add_authoritative_objects(draft, authoritative_objects)
             draft["ledger_heads"]["hypothesis"] = {
                 "ledger_seq": row["ledger_seq"],
                 "row_sha256": row["row_sha256"],
@@ -2734,13 +3832,46 @@ class V2OperationWriter:
                 {},
             )
             hashes[f"{hypothesis_id}_negative_memory"] = object_id
+            if research_map_object_id is not None:
+                hashes["V2_SCIENTIFIC_RESEARCH_MAP"] = research_map_object_id
+                scientific_state = draft["scientific"]
+                scientific_state.update(scientific_references)
+                scientific_state["current_research_map_object_id"] = (
+                    research_map_object_id
+                )
+                scientific_state["research_map_snapshot_seq"] = (
+                    scientific_snapshot_seq
+                )
+                draft["cursor"].update(
+                    {
+                        "active_hypothesis_id": None,
+                        "stage_status": "disposed",
+                        "stage_outcome": outcome,
+                    }
+                )
+                draft["claim"] = {
+                    "subject_kind": "hypothesis",
+                    "subject_id": hypothesis_id,
+                    "current_level": "diagnostic_observation",
+                    "claim_ceiling": "diagnostic_observation",
+                    "identity_bundle_object_id": object_id,
+                    "basis_receipt_ids": [evidence_id],
+                    "blocked_by": [],
+                }
             self._set_next_action(draft, exact_next_action)
 
         return self.control.commit(
             state["revision"],
             idempotency_key,
             mutate,
-            referenced_object_ids=[object_id],
+            referenced_object_ids=[
+                object_id,
+                *(
+                    [research_map_object_id]
+                    if research_map_object_id is not None
+                    else []
+                ),
+            ],
         )
 
     def advance_stage(

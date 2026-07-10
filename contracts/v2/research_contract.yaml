@@ -130,8 +130,10 @@ program_semantics:
   bounded_jit_registration_allowed: true
   arbitrary_yaml_import_allowed: false
 scientific_origin:
-  active_index: registries/v2/scientific/index.yaml
-  active_research_map: registries/v2/scientific/research_map.yaml
+  active_index: registries/v2/control_state.yaml
+  scientific_index_seed: registries/v2/scientific/index.yaml
+  research_map_seed: registries/v2/scientific/research_map.yaml
+  active_research_map_objects: registries/v2/objects
   inherited_scientific_content_allowed: false
   engineering_provenance_may_choose_hypothesis: false
 external_runtime_data:
@@ -151,7 +153,7 @@ nested_parameter_discovery:
 trial_accounting:
   every_unique_executable_variant_counts: true
   cache_hit_same_hash_counts_again: false
-  incomplete_trial_ledger_blocks_research_candidate: true
+  incomplete_durable_trial_accounting_blocks_research_candidate: true
   development_variant_result_may_select_candidate: false
   durable_family_history_must_match_before_execution: true
   duplicate_configuration_across_folds_counts_once: true

@@ -12,6 +12,7 @@ from typing import Any, Iterable
 import yaml
 
 from axiom_rift.v2.identity import ObjectStore, sha256_payload
+from axiom_rift.v2.research.autonomy import GENERIC_DIMENSIONS, RESEARCH_STATES
 from axiom_rift.v2.research.programs import load_program_registry
 from axiom_rift.v2.state.store import ControlStore
 from axiom_rift.v2.validation.receipts import validation_key
@@ -20,6 +21,7 @@ from axiom_rift.v2.validation.types import ValidationIssue, ValidationResult
 
 VALIDATOR_ID = "axiom_rift_v2_4_autonomy_harness_v1"
 HASHED_INPUTS = (
+    ".gitattributes",
     "AGENTS.md",
     ".agents/skills/axiom-v2-goal-operator/SKILL.md",
     "contracts/v2/agents_router_candidate.md",
@@ -203,18 +205,110 @@ def validate_v24_autonomy_harness(root: Path) -> tuple[ValidationResult, dict[st
             issue("scientific_surface", relative, str(exc))
 
     try:
-        index = yaml.safe_load((root / SCIENTIFIC_SURFACES[0]).read_text(encoding="ascii"))
-        research_map = yaml.safe_load((root / SCIENTIFIC_SURFACES[1]).read_text(encoding="ascii"))
-        if index.get("status") != "not_started" or index.get("scientific_origin") != "v2_current":
-            issue("scientific_index", SCIENTIFIC_SURFACES[0], "index is not empty-ready")
-        if any(index.get("counts", {}).values()) or index.get("selected_bundle_id") is not None:
-            issue("scientific_index", SCIENTIFIC_SURFACES[0], "index contains scientific content")
-        if research_map.get("axes") != {} or research_map.get("coverage_audits") != []:
-            issue("research_map", SCIENTIFIC_SURFACES[1], "research map is not empty")
-        for path in index.get("ledgers", {}).values():
-            ledger = root / path
-            if ledger.exists() and ledger.read_bytes() != b"":
-                issue("scientific_ledger", path, "active scientific ledger is not empty")
+        index_path = root / SCIENTIFIC_SURFACES[0]
+        map_path = root / SCIENTIFIC_SURFACES[1]
+        index_raw = index_path.read_bytes()
+        map_raw = map_path.read_bytes()
+        index = yaml.safe_load(index_raw.decode("ascii"))
+        research_map = yaml.safe_load(map_raw.decode("ascii"))
+        map_sha256 = hashlib.sha256(map_raw).hexdigest()
+        index_sha256 = hashlib.sha256(index_raw).hexdigest()
+        expected_sources = {
+            "hypothesis": "registries/v2/scientific/hypothesis_ledger.jsonl",
+            "trial": "registries/v2/evidence_ledger.jsonl",
+            "negative_memory": "registries/v2/scientific/hypothesis_ledger.jsonl",
+            "ingredient": "registries/v2/material_ledger.jsonl",
+            "candidate": "registries/v2/evidence_ledger.jsonl",
+            "objects": "registries/v2/objects",
+        }
+        expected_references = {
+            "hypotheses": "hypothesis_object_ids",
+            "trials": "trial_receipt_ids",
+            "negative_memories": "negative_memory_object_ids",
+            "ingredients": "ingredient_object_ids",
+            "candidates": "candidate_object_ids",
+        }
+        if (
+            not isinstance(index, dict)
+            or set(index)
+            != {
+                "schema",
+                "status",
+                "encoding",
+                "role",
+                "scientific_origin",
+                "active_index_path",
+                "research_map_seed_path",
+                "research_map_seed_sha256",
+                "durable_sources",
+                "reference_fields",
+                "mutable_scientific_content_allowed",
+            }
+            or index.get("schema")
+            != "axiom_rift_v2_scientific_index_seed_v1"
+            or index.get("status") != "immutable_seed"
+            or index.get("encoding") != "ascii_only"
+            or index.get("role") != "active_index_bootstrap_manifest"
+            or index.get("scientific_origin") != "v2_current"
+            or index.get("active_index_path")
+            != "registries/v2/control_state.yaml"
+            or index.get("research_map_seed_path") != SCIENTIFIC_SURFACES[1]
+            or index.get("research_map_seed_sha256") != map_sha256
+            or index.get("durable_sources") != expected_sources
+            or index.get("reference_fields") != expected_references
+            or index.get("mutable_scientific_content_allowed") is not False
+        ):
+            issue("scientific_index", SCIENTIFIC_SURFACES[0], "index seed is invalid")
+        if (
+            not isinstance(research_map, dict)
+            or set(research_map)
+            != {
+                "schema",
+                "status",
+                "encoding",
+                "scientific_origin",
+                "dimensions",
+                "allowed_states",
+                "axis_id_template",
+                "initial_state",
+                "mutable_scientific_content_allowed",
+            }
+            or research_map.get("schema")
+            != "axiom_rift_v2_research_map_seed_v1"
+            or research_map.get("status") != "immutable_seed"
+            or research_map.get("encoding") != "ascii_only"
+            or research_map.get("scientific_origin") != "v2_current"
+            or research_map.get("dimensions") != list(GENERIC_DIMENSIONS)
+            or research_map.get("allowed_states") != list(RESEARCH_STATES)
+            or research_map.get("axis_id_template") != "axis_{dimension}"
+            or research_map.get("initial_state") != "unseen"
+            or research_map.get("mutable_scientific_content_allowed") is not False
+        ):
+            issue("research_map", SCIENTIFIC_SURFACES[1], "research map seed is invalid")
+        if (
+            scientific.get("binding_schema")
+            != "axiom_rift_v2_scientific_index_binding_v1"
+            or scientific.get("active_index_path")
+            != "registries/v2/control_state.yaml"
+            or scientific.get("seed_manifest_path") != SCIENTIFIC_SURFACES[0]
+            or scientific.get("seed_manifest_sha256") != index_sha256
+            or scientific.get("research_map_seed_path") != SCIENTIFIC_SURFACES[1]
+            or scientific.get("research_map_seed_sha256") != map_sha256
+            or scientific.get("current_research_map_object_id") is not None
+            or scientific.get("research_map_snapshot_seq") is not None
+        ):
+            issue(
+                "scientific_binding",
+                "registries/v2/control_state.yaml",
+                "ready scientific seed binding is invalid",
+            )
+        hypothesis_path = root / expected_sources["hypothesis"]
+        if hypothesis_path.exists() and hypothesis_path.read_bytes() != b"":
+            issue(
+                "scientific_ledger",
+                expected_sources["hypothesis"],
+                "scientific hypothesis ledger is not empty",
+            )
     except Exception as exc:
         issue("scientific_registry", "registries/v2/scientific", str(exc))
 
@@ -265,10 +359,6 @@ def validate_v24_autonomy_harness(root: Path) -> tuple[ValidationResult, dict[st
         )
         forbidden_suffixes = (
             "scientific/hypothesis_ledger.jsonl",
-            "scientific/trial_ledger.jsonl",
-            "scientific/negative_memory_ledger.jsonl",
-            "scientific/ingredient_ledger.jsonl",
-            "scientific/candidate_ledger.jsonl",
         )
         for changed in sorted(set(tracked + untracked)):
             normalized = changed.replace("\\", "/")
