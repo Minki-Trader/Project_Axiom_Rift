@@ -443,6 +443,431 @@ class V2OperationWriter:
         if accounting.get("global_history_sha256_after") != sha256_payload(global_after):
             raise OperationStateError("nested scout resulting global-history hash is invalid")
 
+    def _scientific_project_root(self) -> Path:
+        control_path = self.control.path.resolve()
+        if (
+            control_path.parent.name == "v2"
+            and control_path.parent.parent.name == "registries"
+        ):
+            return control_path.parents[2]
+        return control_path.parent
+
+    def _verified_scientific_artifacts(
+        self,
+        receipt: Mapping[str, Any],
+        required_names: set[str],
+    ) -> dict[str, Any]:
+        artifacts = receipt["artifacts"]
+        project_root = self._scientific_project_root().resolve()
+        payloads: dict[str, Any] = {}
+        for name in required_names:
+            descriptor = artifacts[name]
+            relative = Path(descriptor["path"])
+            if relative.is_absolute() or ".." in relative.parts or "\\" in descriptor["path"]:
+                raise OperationStateError(
+                    f"scientific scout artifact path is invalid: {name}"
+                )
+            resolved = (project_root / relative).resolve()
+            if project_root not in resolved.parents or not resolved.is_file():
+                raise OperationStateError(
+                    f"scientific scout artifact is missing: {name}"
+                )
+            raw = resolved.read_bytes()
+            if hashlib.sha256(raw).hexdigest() != descriptor["sha256"]:
+                raise OperationStateError(
+                    f"scientific scout artifact hash differs: {name}"
+                )
+            if name == "trades":
+                continue
+            try:
+                import json
+
+                payloads[name] = json.loads(raw.decode("ascii"))
+            except (UnicodeError, ValueError) as exc:
+                raise OperationStateError(
+                    f"scientific scout artifact is not valid ASCII JSON: {name}"
+                ) from exc
+        return payloads
+
+    def _validate_scientific_scout_receipt(
+        self,
+        receipt: Mapping[str, Any],
+        *,
+        state: Mapping[str, Any] | None = None,
+    ) -> None:
+        """Validate a scientific S receipt, including a valid empty-path rejection."""
+
+        if receipt.get("schema") != "axiom_rift_v2_scientific_scout_receipt_v1":
+            return
+        roles = (
+            "continuation_low",
+            "continuation_base",
+            "continuation_high",
+            "failed_break_reversal",
+            "compression_ablation",
+        )
+        anchors = ("V2D002", "V2D005", "V2D008")
+        if (
+            receipt.get("stage") != "S"
+            or receipt.get("scientific_programs") is not True
+            or receipt.get("nested_selection") is not True
+            or receipt.get("selection_source_data_role") != "validation_oos"
+            or receipt.get("development_paths_per_fold") != 1
+            or receipt.get("development_variant_selection") is not False
+        ):
+            raise OperationStateError("scientific scout receipt policy is invalid")
+        if (
+            receipt.get("claim_ceiling") != "diagnostic_observation"
+            or receipt.get("economics_claim_allowed") is not False
+            or receipt.get("mt5_executed") is not False
+            or receipt.get("isolated_nine_fold_executed") is not False
+        ):
+            raise OperationStateError("scientific scout receipt exceeds the S claim boundary")
+        if receipt.get("scout_anchor_ids") != list(anchors):
+            raise OperationStateError("scientific scout anchors differ from the frozen set")
+        for field in (
+            "selection_rule_sha256",
+            "result_sha256",
+            "spec_sha256",
+            "spec_payload_sha256",
+            "program_registry_sha256",
+            "runtime_sha256",
+            "runtime_executable_sha256",
+            "dataset_sha256",
+            "split_source_sha256",
+            "boundary_source_sha256",
+        ):
+            if re.fullmatch(r"[0-9a-f]{64}", str(receipt.get(field, ""))) is None:
+                raise OperationStateError(f"scientific scout receipt has invalid {field}")
+        registry_path = receipt.get("program_registry_path")
+        if (
+            not isinstance(registry_path, str)
+            or not registry_path
+            or "\\" in registry_path
+            or registry_path.startswith("/")
+            or ".." in Path(registry_path).parts
+        ):
+            raise OperationStateError("scientific scout registry path is invalid")
+        bundle_hashes = receipt.get("bundle_role_hashes")
+        release_hashes = receipt.get("release_configuration_hashes")
+        programs = receipt.get("programs")
+        if (
+            not isinstance(bundle_hashes, Mapping)
+            or set(bundle_hashes) != set(roles)
+            or not all(
+                re.fullmatch(r"[0-9a-f]{64}", str(value))
+                for value in bundle_hashes.values()
+            )
+            or len(set(bundle_hashes.values())) != len(roles)
+            or not isinstance(release_hashes, Mapping)
+            or set(release_hashes) != set(roles)
+            or not all(
+                re.fullmatch(r"[0-9a-f]{64}", str(value))
+                for value in release_hashes.values()
+            )
+            or len(set(release_hashes.values())) != len(roles)
+            or not isinstance(programs, Mapping)
+            or set(programs) != set(roles)
+            or any(
+                not isinstance(role_programs, Mapping)
+                or len(role_programs) != 8
+                for role_programs in programs.values()
+            )
+        ):
+            raise OperationStateError("scientific scout program bundle identity is incomplete")
+        selected_roles = receipt.get("selected_roles")
+        selected_variants = receipt.get("selected_variant_hashes")
+        selected_configurations = receipt.get("selected_configuration_hashes")
+        selected_bundles = receipt.get("selected_model_bundle_sha256s")
+        selected_paths = receipt.get("selected_path_hashes")
+        selected_mappings = (
+            selected_roles,
+            selected_variants,
+            selected_configurations,
+            selected_bundles,
+            selected_paths,
+        )
+        if any(not isinstance(mapping, Mapping) for mapping in selected_mappings):
+            raise OperationStateError("scientific scout selected-path mappings are missing")
+        selected_folds = set(selected_roles)
+        if (
+            not selected_folds.issubset(anchors)
+            or any(set(mapping) != selected_folds for mapping in selected_mappings[1:])
+        ):
+            raise OperationStateError("scientific scout selected-path folds do not reconcile")
+        for fold_id in selected_folds:
+            role = selected_roles[fold_id]
+            if (
+                role not in roles[:3]
+                or selected_configurations[fold_id] != bundle_hashes[role]
+                or selected_bundles[fold_id] != bundle_hashes[role]
+                or selected_variants[fold_id] != release_hashes[role]
+                or re.fullmatch(r"[0-9a-f]{64}", str(selected_paths[fold_id])) is None
+            ):
+                raise OperationStateError("scientific scout selected path is not a frozen continuation")
+        artifacts = receipt.get("artifacts")
+        required_artifacts = {
+            "metrics",
+            "models",
+            "trades",
+            "causal_checks",
+            "nested_selection",
+            "trial_accounting",
+        }
+        if not isinstance(artifacts, Mapping) or not required_artifacts.issubset(artifacts):
+            raise OperationStateError("scientific scout receipt artifacts are incomplete")
+        for name in required_artifacts:
+            descriptor = artifacts[name]
+            if (
+                not isinstance(descriptor, Mapping)
+                or not isinstance(descriptor.get("path"), str)
+                or re.fullmatch(r"[0-9a-f]{64}", str(descriptor.get("sha256", ""))) is None
+            ):
+                raise OperationStateError(f"scientific scout artifact is invalid: {name}")
+        artifact_payloads = self._verified_scientific_artifacts(
+            receipt, required_artifacts
+        )
+        if (
+            artifact_payloads["metrics"] != receipt.get("metrics_summary")
+            or artifact_payloads["causal_checks"] != receipt.get("causal_summary")
+            or artifact_payloads["trial_accounting"] != receipt.get("trial_accounting")
+            or artifact_payloads["nested_selection"].get("selection_rule_sha256")
+            != receipt.get("selection_rule_sha256")
+        ):
+            raise OperationStateError("scientific scout artifact payloads do not reconcile")
+        models_payload = artifact_payloads["models"]
+        if (
+            not isinstance(models_payload, Mapping)
+            or models_payload.get("program_identities") != programs
+            or models_payload.get("bundle_role_hashes") != bundle_hashes
+            or models_payload.get("release_configuration_hashes") != release_hashes
+            or models_payload.get("runtime_sha256") != receipt.get("runtime_sha256")
+            or models_payload.get("runtime_executable_sha256")
+            != receipt.get("runtime_executable_sha256")
+        ):
+            raise OperationStateError("scientific scout model artifact identity differs")
+        metrics = receipt.get("metrics_summary")
+        causal = receipt.get("causal_summary")
+        if not isinstance(metrics, Mapping) or not isinstance(causal, Mapping):
+            raise OperationStateError("scientific scout result summaries are missing")
+        unknown = metrics.get("unknown_cost_observation_count")
+        validation_unknown = metrics.get("validation_unknown_cost_observation_count")
+        development_unknown = metrics.get("development_unknown_cost_observation_count")
+        if (
+            isinstance(unknown, bool)
+            or not isinstance(unknown, int)
+            or unknown < 0
+            or isinstance(validation_unknown, bool)
+            or not isinstance(validation_unknown, int)
+            or validation_unknown < 0
+            or isinstance(development_unknown, bool)
+            or not isinstance(development_unknown, int)
+            or development_unknown < 0
+            or unknown != validation_unknown + development_unknown
+        ):
+            raise OperationStateError("scientific scout unknown-cost accounting is invalid")
+        causal_passed = causal.get("all_role_checks_passed") is True
+        outcome = receipt.get("outcome")
+        gate_passed = receipt.get("gate_passed")
+        if outcome == "route_to_R":
+            if gate_passed is not True or selected_folds != set(anchors) or unknown or not causal_passed:
+                raise OperationStateError("scientific scout R route lacks three evaluable causal paths")
+        elif outcome == "scientific_reject":
+            if gate_passed is not False or unknown or not causal_passed:
+                raise OperationStateError("scientific rejection contains a repair-class evidence gap")
+        elif outcome == "evidence_gap":
+            if gate_passed is not False or unknown == 0 or not causal_passed:
+                raise OperationStateError("scientific scout evidence-gap routing is unsupported")
+        elif outcome == "repair_required":
+            raise OperationStateError(
+                "scientific scout repair-required output cannot become hypothesis evidence"
+            )
+        else:
+            raise OperationStateError("scientific scout outcome is invalid")
+        accounting = receipt.get("trial_accounting")
+        if not isinstance(accounting, Mapping):
+            raise OperationStateError("scientific scout trial accounting is missing")
+        family_id = accounting.get("family_id")
+        if not isinstance(family_id, str) or not family_id:
+            raise OperationStateError("scientific scout family identity is missing")
+        prior = self._durable_family_configuration_hashes(family_id)
+        global_prior = self._durable_global_configuration_hashes()
+        declared_prior = self._require_sorted_sha256_list(
+            accounting.get("family_configuration_hashes_before"),
+            "family_configuration_hashes_before",
+        )
+        current = self._require_sorted_sha256_list(
+            accounting.get("configuration_hashes"), "configuration_hashes"
+        )
+        after = self._require_sorted_sha256_list(
+            accounting.get("family_configuration_hashes_after"),
+            "family_configuration_hashes_after",
+        )
+        declared_global_prior = self._require_sorted_sha256_list(
+            accounting.get("global_configuration_hashes_before"),
+            "global_configuration_hashes_before",
+        )
+        global_after = self._require_sorted_sha256_list(
+            accounting.get("global_configuration_hashes_after"),
+            "global_configuration_hashes_after",
+        )
+        expected_current = sorted(bundle_hashes.values())
+        expected_after = sorted(set(prior) | set(current))
+        expected_global_after = sorted(set(global_prior) | set(current))
+        if current != expected_current:
+            raise OperationStateError("scientific scout trials differ from the registered bundles")
+        if declared_prior != prior or after != expected_after:
+            raise OperationStateError("scientific scout family trial history differs from durable receipts")
+        if declared_global_prior != global_prior or global_after != expected_global_after:
+            raise OperationStateError("scientific scout global trial history differs from durable receipts")
+        integer_expectations = {
+            "configuration_trials": 5,
+            "job_unique_configuration_count": 5,
+            "new_family_configuration_trials": len(set(current) - set(prior)),
+            "validation_evaluation_cells": 15,
+            "local_calibration_trials": 0,
+            "inner_selection_events": 3,
+            "development_selected_paths": len(selected_folds),
+            "family_trials_before": len(prior),
+            "family_trials_cumulative": len(after),
+            "global_trials_before": len(global_prior),
+            "global_trials_cumulative": len(global_after),
+            "holdout_reveals": 0,
+        }
+        for field, expected in integer_expectations.items():
+            if accounting.get(field) != expected:
+                raise OperationStateError(
+                    f"scientific scout trial count does not reconcile: {field}"
+                )
+        if (
+            accounting.get("development_variant_selection") is not False
+            or accounting.get("trial_accounting_complete") is not True
+            or accounting.get("family_history_sha256_before") != sha256_payload(prior)
+            or accounting.get("family_history_sha256_after") != sha256_payload(after)
+            or accounting.get("global_history_sha256_before") != sha256_payload(global_prior)
+            or accounting.get("global_history_sha256_after") != sha256_payload(global_after)
+        ):
+            raise OperationStateError("scientific scout trial history hashes are invalid")
+
+        selection_payload = artifact_payloads["nested_selection"]
+        result_body = {
+            "outcome": outcome,
+            "gate_passed": gate_passed,
+            "metrics": artifact_payloads["metrics"],
+            "causal_checks": artifact_payloads["causal_checks"],
+            "validation_evaluations": selection_payload.get(
+                "validation_evaluations"
+            ),
+            "selections": selection_payload.get("selections"),
+            "development_evaluations": selection_payload.get(
+                "development_evaluations"
+            ),
+            "selected_path_hashes": dict(selected_paths),
+            "trial_accounting": artifact_payloads["trial_accounting"],
+            "claim_ceiling": "diagnostic_observation",
+            "mt5_executed": False,
+            "economics_claim_allowed": False,
+        }
+        if sha256_payload(result_body) != receipt.get("result_sha256"):
+            raise OperationStateError("scientific scout result hash does not reconcile")
+
+        if state is not None:
+            active_job = state.get("reentry", {}).get("active_job")
+            if not isinstance(active_job, Mapping):
+                raise OperationStateError(
+                    "scientific scout evidence requires a declared active job"
+                )
+            spec_object_id = active_job.get("spec_object_id")
+            if (
+                not isinstance(spec_object_id, str)
+                or state.get("claim", {}).get("identity_bundle_object_id")
+                != spec_object_id
+            ):
+                raise OperationStateError(
+                    "scientific scout job is not bound to the active hypothesis object"
+                )
+            spec_object = self.objects.get(spec_object_id)
+            if spec_object.get("kind") != "hypothesis_spec":
+                raise OperationStateError("scientific scout job spec is not a hypothesis")
+            spec_payload = spec_object.get("payload")
+            if (
+                not isinstance(spec_payload, Mapping)
+                or sha256_payload(spec_payload) != receipt.get("spec_payload_sha256")
+            ):
+                raise OperationStateError("scientific scout spec payload hash differs")
+            try:
+                from axiom_rift.v2.research.scout import (
+                    validate_hypothesis_v2_payload,
+                )
+
+                validated = validate_hypothesis_v2_payload(
+                    spec_payload,
+                    project_root=self._scientific_project_root(),
+                )
+            except (ImportError, ValueError) as exc:
+                raise OperationStateError(
+                    f"active scientific hypothesis binding is invalid: {exc}"
+                ) from exc
+            registry = validated["scientific_program_registry"]
+            batch = validated["scientific_bundle_batch"]
+            expected_programs = {
+                role: {
+                    kind: bundle.programs[kind].receipt_identity()
+                    for kind in bundle.programs
+                }
+                for role, bundle in batch.bundles.items()
+            }
+            trial_plan = validated["trial_plan"]
+            spec_data = spec_payload.get("data", {})
+            hypothesis_row = next(
+                (
+                    row
+                    for row in self.hypotheses.rows()
+                    if row["record_id"] == receipt.get("hypothesis_id")
+                ),
+                None,
+            )
+            if (
+                receipt.get("program_registry_path") != registry.relative_path
+                or receipt.get("program_registry_sha256") != registry.registry_sha256
+                or bundle_hashes != dict(batch.bundle_role_hashes)
+                or release_hashes
+                != dict(validated["release_configuration_hashes"])
+                or receipt.get("runtime_sha256") != validated["runtime_sha256"]
+                or receipt.get("runtime_executable_sha256")
+                != validated["runtime_executable_sha256"]
+                or receipt.get("selection_rule_sha256")
+                != validated["selection_rule_sha256"]
+                or programs != expected_programs
+                or accounting.get("family_id") != trial_plan.get("family_id")
+                or accounting.get("family_configuration_hashes_before")
+                != trial_plan.get("family_configuration_hashes_before")
+                or accounting.get("global_configuration_hashes_before")
+                != trial_plan.get("global_configuration_hashes_before")
+                or receipt.get("scout_anchor_ids")
+                != spec_data.get("scout_anchor_ids")
+                or receipt.get("dataset_path")
+                != spec_data.get("dataset", {}).get("path")
+                or receipt.get("dataset_sha256")
+                != spec_data.get("dataset", {}).get("sha256")
+                or receipt.get("split_source_path")
+                != spec_data.get("split_source", {}).get("path")
+                or receipt.get("split_source_sha256")
+                != spec_data.get("split_source", {}).get("sha256")
+                or receipt.get("boundary_source_path")
+                != spec_data.get("boundary_source", {}).get("path")
+                or receipt.get("boundary_source_sha256")
+                != spec_data.get("boundary_source", {}).get("sha256")
+                or hypothesis_row is None
+                or receipt.get("spec_path")
+                != hypothesis_row["payload"].get("spec_path")
+                or receipt.get("spec_sha256")
+                != hypothesis_row["payload"].get("spec_sha256")
+            ):
+                raise OperationStateError(
+                    "scientific scout receipt differs from the active hypothesis"
+                )
+
     def create_goal(
         self,
         *,
@@ -1824,10 +2249,21 @@ class V2OperationWriter:
                 raise OperationStateError("hypothesis spec goal_id does not match active goal")
             if spec_payload.get("hypothesis_id") != hypothesis_id:
                 raise OperationStateError("hypothesis spec identity does not match allocated identity")
+            control_path = self.control.path.resolve()
+            if (
+                control_path.parent.name == "v2"
+                and control_path.parent.parent.name == "registries"
+            ):
+                project_root = control_path.parents[2]
+            else:
+                project_root = control_path.parent
             try:
                 from axiom_rift.v2.research.scout import validate_hypothesis_v2_payload
 
-                validated_hypothesis = validate_hypothesis_v2_payload(spec_payload)
+                validated_hypothesis = validate_hypothesis_v2_payload(
+                    spec_payload,
+                    project_root=project_root,
+                )
             except (ImportError, ValueError) as exc:
                 raise OperationStateError(f"hypothesis preregistration is invalid: {exc}") from exc
             scientific = state.get("scientific")
@@ -1852,14 +2288,6 @@ class V2OperationWriter:
                     or not spec_path
                 ):
                     raise OperationStateError("scientific hypothesis path must be repo-relative POSIX")
-                control_path = self.control.path.resolve()
-                if (
-                    control_path.parent.name == "v2"
-                    and control_path.parent.parent.name == "registries"
-                ):
-                    project_root = control_path.parents[2]
-                else:
-                    project_root = control_path.parent
                 resolved_spec = (project_root / raw_path).resolve()
                 if project_root != resolved_spec.parent and project_root not in resolved_spec.parents:
                     raise OperationStateError("scientific hypothesis path escapes the project root")
@@ -1886,8 +2314,28 @@ class V2OperationWriter:
                 raise OperationStateError("acceptance profile identity differs from writer input")
             if data.get("split_set_id") != split_set_id:
                 raise OperationStateError("split-set identity differs from writer input")
-            if validated_hypothesis["sensitivity_plan"].hypothesis_id != hypothesis_id:
+            sensitivity_plan = validated_hypothesis["sensitivity_plan"]
+            if (
+                sensitivity_plan is not None
+                and sensitivity_plan.hypothesis_id != hypothesis_id
+            ):
                 raise OperationStateError("sensitivity plan identity differs from hypothesis")
+            if validated_hypothesis.get("scientific_bundle_batch") is not None:
+                declared_material_ids = data.get("material_ids")
+                if (
+                    not isinstance(declared_material_ids, list)
+                    or declared_material_ids != sorted(set(material_ids))
+                ):
+                    raise OperationStateError(
+                        "scientific hypothesis material ids differ from writer input"
+                    )
+                durable_material_ids = {
+                    row["record_id"] for row in self.materials.rows()
+                }
+                if not set(material_ids).issubset(durable_material_ids):
+                    raise OperationStateError(
+                        "scientific hypothesis references a non-durable material"
+                    )
             trial_plan = validated_hypothesis["trial_plan"]
             family_id = trial_plan.get("family_id")
             if not isinstance(family_id, str) or not family_id:
@@ -1922,6 +2370,14 @@ class V2OperationWriter:
                 durable_global_hashes
             ):
                 raise OperationStateError("hypothesis global history hash is invalid")
+            if scientific_batch is not None:
+                initial_hashes = set(
+                    validated_hypothesis.get("initial_configuration_hashes", [])
+                )
+                if initial_hashes & set(durable_global_hashes):
+                    raise OperationStateError(
+                        "scientific hypothesis repeats a globally evaluated configuration"
+                    )
         else:
             if hypothesis_id != "V2H0001":
                 raise ValueError("bootstrap writer expects the first V2 hypothesis identity")
@@ -2145,6 +2601,7 @@ class V2OperationWriter:
             job_matched = True
         if is_v2:
             self._validate_nested_scout_receipt(receipt)
+            self._validate_scientific_scout_receipt(receipt, state=state)
         occurred = utc_now()
         object_id = self.objects.put("evidence_receipt", receipt)
         payload = {

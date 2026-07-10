@@ -5,6 +5,7 @@ from __future__ import annotations
 import bisect
 import copy
 import csv
+import hashlib
 import math
 import re
 import time
@@ -489,7 +490,292 @@ def _history_sha256(configuration_hashes: list[str]) -> str:
     return sha256_payload(sorted(configuration_hashes))
 
 
-def validate_hypothesis_v2_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
+def _validate_scientific_bundle_hypothesis(
+    *,
+    payload: Mapping[str, Any],
+    project_root: Path | None,
+    hypothesis_batch: HypothesisBatch,
+    evaluation_profile: EvaluationProfile,
+    sensitivity: Mapping[str, Any],
+    trials: Mapping[str, Any],
+    programs: Mapping[str, Any],
+    data: Mapping[str, Any],
+    evidence_budget: Mapping[str, Any],
+) -> dict[str, Any]:
+    if project_root is None:
+        raise ScoutSpecError("scientific bundle validation requires the project root")
+    descriptor = payload.get("program_registry")
+    if not isinstance(descriptor, Mapping) or set(descriptor) != {"path", "sha256"}:
+        raise ScoutSpecError("scientific hypothesis program registry binding is incomplete")
+    registry_path = descriptor.get("path")
+    registry_sha256 = descriptor.get("sha256")
+    if not isinstance(registry_path, str) or not isinstance(registry_sha256, str):
+        raise ScoutSpecError("scientific hypothesis program registry binding is invalid")
+    try:
+        from axiom_rift.v2.research.scientific_programs import (
+            BUNDLE_ROLE_NAMES,
+            bind_compression_release_runtime,
+            build_scientific_bundle_batch,
+            load_scientific_program_registry,
+        )
+        from axiom_rift.v2.research.compression_release import (
+            COMPRESSION_RELEASE_EXECUTABLE_SHA256,
+        )
+        from axiom_rift.v2.research.scientific_scout import (
+            SCIENTIFIC_SELECTION_RULE_SHA256,
+        )
+
+        registry = load_scientific_program_registry(project_root, Path(registry_path))
+        bundle_batch = build_scientific_bundle_batch(registry, programs)
+        release_configuration_hashes = bind_compression_release_runtime(
+            registry, bundle_batch
+        )
+    except (ImportError, ValueError) as exc:
+        raise ScoutSpecError(f"scientific program bundle is invalid: {exc}") from exc
+    if registry.registry_sha256 != registry_sha256:
+        raise ScoutSpecError("scientific program registry hash differs from the H binding")
+    if tuple(bundle_batch.bundles) != tuple(BUNDLE_ROLE_NAMES):
+        raise ScoutSpecError("compression-release H requires all five registered bundle roles")
+    bundle_hashes = dict(bundle_batch.bundle_role_hashes)
+    if dict(hypothesis_batch.bundle_roles) != bundle_hashes:
+        raise ScoutSpecError("autonomy batch differs from the registered scientific bundles")
+    if (
+        programs.get("runtime_sha256") != registry.runtime_sha256
+        or programs.get("runtime_executable_sha256")
+        != COMPRESSION_RELEASE_EXECUTABLE_SHA256
+        or programs.get("release_configuration_hashes")
+        != dict(release_configuration_hashes)
+        or programs.get("selection_rule_sha256")
+        != SCIENTIFIC_SELECTION_RULE_SHA256
+    ):
+        raise ScoutSpecError(
+            "compression-release runtime identity differs from executable programs"
+        )
+    if (
+        hypothesis_batch.hypothesis_type != "structural_batch"
+        or hypothesis_batch.scout_mode != "s_breadth"
+        or hypothesis_batch.dominant_axis != "axis_selector"
+    ):
+        raise ScoutSpecError("compression-release H autonomy route is invalid")
+    knobs = tuple(hypothesis_batch.numeric_knobs)
+    if len(knobs) != 1 or (
+        knobs[0].path,
+        float(knobs[0].low),
+        float(knobs[0].baseline),
+        float(knobs[0].high),
+    ) != ("selector.compression_ratio_max", 2.0, 2.5, 3.0):
+        raise ScoutSpecError("compression-release H numeric surface is invalid")
+    if hypothesis_batch.local_calibration_rounds != 0:
+        raise ScoutSpecError("compression-release H does not preregister local calibration")
+    expected_policy = {
+        "selector": {
+            "compression_ratio_max": {
+                "type": "float",
+                "low": 2.0,
+                "baseline": 2.5,
+                "high": 3.0,
+            }
+        }
+    }
+    if (
+        sensitivity.get("enabled") is not True
+        or sensitivity.get("disabled_reason") not in {None, ""}
+        or sensitivity.get("data_role") != "validation_oos"
+        or sensitivity.get("development_variant_selection_allowed") is not False
+        or sensitivity.get("holdout_revealed") is not False
+        or sensitivity.get("candidate_frozen") is not False
+        or sensitivity.get("policy") != expected_policy
+        or sensitivity.get("local_calibration_rounds_max") != 0
+    ):
+        raise ScoutSpecError("compression-release H sensitivity policy is invalid")
+    feasibility = sensitivity.get("selection_feasibility")
+    expected_feasibility = {
+        "causal_checks_required": True,
+        "unknown_cost_observation_count_max": 0,
+        "evaluable_trade_count_min_per_fold": 20,
+    }
+    if feasibility != expected_feasibility:
+        raise ScoutSpecError("compression-release H selection feasibility is invalid")
+    surface_payload = sensitivity.get("surface_rule")
+    if not isinstance(surface_payload, Mapping):
+        raise ScoutSpecError("compression-release H surface rule is missing")
+    try:
+        surface_rule = SurfaceRule(
+            metric_name=str(surface_payload["metric_name"]),
+            higher_is_better=surface_payload["higher_is_better"],
+            pass_threshold=float(surface_payload["pass_threshold"]),
+            plateau_tolerance=float(surface_payload["plateau_tolerance"]),
+            fold_consistency_min=float(surface_payload.get("fold_consistency_min", 0.67)),
+            viability_threshold=(
+                None
+                if surface_payload.get("viability_threshold") is None
+                else float(surface_payload["viability_threshold"])
+            ),
+        )
+    except (KeyError, TypeError, ValueError, SensitivityError) as exc:
+        raise ScoutSpecError(f"compression-release H surface rule is invalid: {exc}") from exc
+    if not (
+        surface_rule.metric_name == "net_broker_points"
+        and surface_rule.higher_is_better is True
+        and surface_rule.pass_threshold == 0.01
+        and surface_rule.effective_viability_threshold == 0.0
+        and surface_rule.plateau_tolerance == 100.0
+        and surface_rule.fold_consistency_min == 0.67
+    ):
+        raise ScoutSpecError("compression-release H surface thresholds differ from preregistration")
+    surface_metric = next(
+        (rule for rule in evaluation_profile.rules if rule.name == "net_broker_points"),
+        None,
+    )
+    if surface_metric is None or Stage.S not in surface_metric.applicable_stages:
+        raise ScoutSpecError("compression-release surface metric is not an S rule")
+    profile_rules = {rule.name: rule for rule in evaluation_profile.rules}
+    if (
+        profile_rules["evaluable_trade_count"].pass_min != 60.0
+        or profile_rules["unknown_cost_observation_count"].pass_max != 0.0
+        or profile_rules["net_broker_points"].pass_min != 0.01
+        or profile_rules["positive_net_fold_count"].pass_min != 2.0
+        or profile_rules["causal_checks_all_pass"].expected is not True
+    ):
+        raise ScoutSpecError(
+            "compression-release acceptance thresholds differ from the hard S profile"
+        )
+    try:
+        data_config = yaml.safe_load(
+            (project_root / "configs/v2/data.yaml").read_text(encoding="ascii")
+        )
+        split_config = yaml.safe_load(
+            (project_root / "configs/v2/splits.yaml").read_text(encoding="ascii")
+        )
+    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+        raise ScoutSpecError(f"scientific data binding is unreadable: {exc}") from exc
+    if not isinstance(data_config, Mapping) or not isinstance(split_config, Mapping):
+        raise ScoutSpecError("scientific data configs must be mappings")
+    processed = data_config.get("processed")
+    boundary = data_config.get("boundary_source")
+    split_source = split_config.get("source")
+    lineage = data_config.get("lineage_requirements")
+    if not all(
+        isinstance(row, Mapping)
+        for row in (processed, boundary, split_source, lineage)
+    ):
+        raise ScoutSpecError("scientific data config bindings are incomplete")
+    expected_data = {
+        "dataset_id": data_config.get("dataset_id"),
+        "split_set_id": split_config.get("split_set_id"),
+        "material_ids": sorted(
+            [
+                str(split_config.get("dataset_material_id")),
+                str(lineage.get("split_set_material_id")),
+                str(lineage.get("boundary_mask_material_id")),
+                str(lineage.get("symbol_snapshot_material_id")),
+            ]
+        ),
+        "dataset": {
+            "material_id": split_config.get("dataset_material_id"),
+            "path": processed.get("path"),
+            "sha256": processed.get("sha256"),
+        },
+        "split_source": {
+            "material_id": lineage.get("split_set_material_id"),
+            "path": split_source.get("path"),
+            "sha256": split_source.get("sha256"),
+        },
+        "boundary_source": {
+            "material_id": lineage.get("boundary_mask_material_id"),
+            "path": boundary.get("path"),
+            "sha256": boundary.get("sha256"),
+            "non_allow_boundary_count": boundary.get(
+                "non_allow_boundary_count"
+            ),
+        },
+        "symbol_material_id": lineage.get("symbol_snapshot_material_id"),
+        "scout_anchor_ids": ["V2D002", "V2D005", "V2D008"],
+        "tail_access": "forbidden",
+        "forward_holdout_access": "forbidden",
+        "real_volume_used": False,
+        "external_source_ids": [],
+    }
+    if dict(data) != expected_data:
+        raise ScoutSpecError("compression-release H data binding is invalid")
+    for descriptor in (
+        expected_data["dataset"],
+        expected_data["split_source"],
+        expected_data["boundary_source"],
+    ):
+        source_path = project_root / str(descriptor["path"])
+        if (
+            not source_path.is_file()
+            or hashlib.sha256(source_path.read_bytes()).hexdigest()
+            != descriptor["sha256"]
+        ):
+            raise ScoutSpecError(
+                f"compression-release H data file hash differs: {descriptor['path']}"
+            )
+    if trials.get("frozen_before_results") is not True:
+        raise ScoutSpecError("compression-release trial plan was not frozen")
+    family_id = trials.get("family_id")
+    if not isinstance(family_id, str) or family_id != hypothesis_batch.family_id:
+        raise ScoutSpecError("compression-release trial family differs from autonomy")
+    exact_caps = {
+        "unique_variant_cap": 5,
+        "validation_evaluation_cell_cap": 15,
+        "local_calibration_new_evaluations_per_outer_fold_max": 0,
+        "development_paths_per_fold_max": 1,
+    }
+    if any(trials.get(field) != value for field, value in exact_caps.items()):
+        raise ScoutSpecError("compression-release trial caps are invalid")
+    for prefix in ("family", "global"):
+        hashes = trials.get(f"{prefix}_configuration_hashes_before")
+        count = trials.get(f"{prefix}_trials_before")
+        history_hash = trials.get(f"{prefix}_history_sha256_before")
+        if (
+            not isinstance(hashes, list)
+            or hashes != sorted(set(hashes))
+            or not all(isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) for value in hashes)
+            or count != len(hashes)
+            or history_hash != sha256_payload(hashes)
+        ):
+            raise ScoutSpecError(f"compression-release {prefix} trial history is invalid")
+    timeout_seconds = evidence_budget.get("job_timeout_seconds")
+    expected_evidence_budget = {
+        "scout_jobs_max": 1,
+        "configuration_trials_max": 5,
+        "validation_evaluation_cells_max": 15,
+        "development_paths_per_fold_max": 1,
+        "mt5_runs_max": 0,
+        "holdout_reveals_max": 0,
+        "job_timeout_seconds": timeout_seconds,
+    }
+    if (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, int)
+        or not 30 < timeout_seconds <= 3600
+        or dict(evidence_budget) != expected_evidence_budget
+    ):
+        raise ScoutSpecError("compression-release evidence budget is invalid")
+    return {
+        "evaluation_profile": evaluation_profile,
+        "sensitivity_plan": None,
+        "surface_rule": surface_rule,
+        "trial_plan": dict(trials),
+        "selection_feasibility": dict(expected_feasibility),
+        "initial_configuration_hashes": sorted(bundle_hashes.values()),
+        "hypothesis_batch": hypothesis_batch,
+        "scientific_program_registry": registry,
+        "scientific_bundle_batch": bundle_batch,
+        "release_configuration_hashes": dict(release_configuration_hashes),
+        "runtime_sha256": registry.runtime_sha256,
+        "runtime_executable_sha256": COMPRESSION_RELEASE_EXECUTABLE_SHA256,
+        "selection_rule_sha256": SCIENTIFIC_SELECTION_RULE_SHA256,
+    }
+
+
+def validate_hypothesis_v2_payload(
+    payload: Mapping[str, Any],
+    *,
+    project_root: Path | None = None,
+) -> dict[str, Any]:
     """Validate result-independent V2 H policy before any ledger commit."""
 
     if not isinstance(payload, Mapping) or payload.get("schema") != "axiom_rift_v2_hypothesis_v2":
@@ -556,6 +842,18 @@ def validate_hypothesis_v2_payload(payload: Mapping[str, Any]) -> dict[str, Any]
         raise ScoutSpecError("hypothesis v2 routing policy is incomplete")
     evaluation_profile = _load_evaluation_profile(acceptance)
     _require_mandatory_s_rules(evaluation_profile)
+    if programs.get("schema") == "axiom_rift_v2_scientific_bundle_batch_spec_v1":
+        return _validate_scientific_bundle_hypothesis(
+            payload=payload,
+            project_root=project_root,
+            hypothesis_batch=hypothesis_batch,
+            evaluation_profile=evaluation_profile,
+            sensitivity=sensitivity,
+            trials=trials,
+            programs=programs,
+            data=data,
+            evidence_budget=evidence_budget,
+        )
     required_program_sections = {
         "feature_program",
         "label_program",
@@ -814,7 +1112,7 @@ def load_scout_spec(
     path: Path,
     project_root: Path,
     program_registry_path: Path | None = None,
-) -> ScoutSpec:
+) -> Any:
     raw = path.read_bytes()
     raw.decode("ascii")
     payload = yaml.safe_load(raw)
@@ -844,6 +1142,63 @@ def load_scout_spec(
     programs = payload.get("executable_programs")
     if not isinstance(programs, Mapping):
         raise ScoutSpecError("executable programs are missing")
+    validated_v2 = (
+        validate_hypothesis_v2_payload(payload, project_root=project_root)
+        if hypothesis_schema == "axiom_rift_v2_hypothesis_v2"
+        else None
+    )
+    if programs.get("schema") == "axiom_rift_v2_scientific_bundle_batch_spec_v1":
+        if validated_v2 is None:
+            raise ScoutSpecError("scientific bundle Scout requires hypothesis schema v2")
+        from axiom_rift.v2.research.scientific_scout import ScientificScoutSpec
+
+        registry = validated_v2["scientific_program_registry"]
+        bundle_batch = validated_v2["scientific_bundle_batch"]
+        data = payload.get("data")
+        trials = payload.get("trial_plan")
+        acceptance = payload.get("acceptance_profile")
+        if not all(isinstance(item, Mapping) for item in (data, trials, acceptance)):
+            raise ScoutSpecError("scientific Scout declarative sections are incomplete")
+        program_identities = {
+            role: {
+                kind: bundle.programs[kind].receipt_identity()
+                for kind in bundle.programs
+            }
+            for role, bundle in bundle_batch.bundles.items()
+        }
+        return ScientificScoutSpec(
+            goal_id=str(payload.get("goal_id")),
+            hypothesis_id=str(payload.get("hypothesis_id")),
+            family_id=str(trials.get("family_id")),
+            bundle_role_hashes=dict(bundle_batch.bundle_role_hashes),
+            release_configuration_hashes=dict(
+                validated_v2["release_configuration_hashes"]
+            ),
+            evaluation_profile=validated_v2["evaluation_profile"],
+            runtime_sha256=str(validated_v2["runtime_sha256"]),
+            runtime_executable_sha256=str(
+                validated_v2["runtime_executable_sha256"]
+            ),
+            selection_rule_sha256=str(validated_v2["selection_rule_sha256"]),
+            family_configuration_hashes_before=tuple(
+                trials.get("family_configuration_hashes_before", [])
+            ),
+            family_history_sha256_before=str(
+                trials.get("family_history_sha256_before")
+            ),
+            global_configuration_hashes_before=tuple(
+                trials.get("global_configuration_hashes_before", [])
+            ),
+            global_history_sha256_before=str(
+                trials.get("global_history_sha256_before")
+            ),
+            anchors=tuple(data.get("scout_anchor_ids", [])),
+            program_registry_path=registry.relative_path,
+            program_registry_sha256=registry.registry_sha256,
+            program_identities=program_identities,
+            spec_sha256=sha256_payload(payload),
+            acceptance_profile=dict(acceptance),
+        )
     section_names = {
         "feature": "feature_program",
         "label": "label_program",
@@ -887,11 +1242,6 @@ def load_scout_spec(
         raise ScoutSpecError("scout anchors differ from the preregistered season-diverse set")
     if acceptance.get("frozen_before_results") is not True:
         raise ScoutSpecError("acceptance profile was not frozen before results")
-    validated_v2 = (
-        validate_hypothesis_v2_payload(payload)
-        if hypothesis_schema == "axiom_rift_v2_hypothesis_v2"
-        else None
-    )
     evaluation_profile = validated_v2["evaluation_profile"] if validated_v2 else None
     hold_bars = int(trade.get("hold_bars"))
     if int(label.get("horizon_bars_after_entry")) != hold_bars:

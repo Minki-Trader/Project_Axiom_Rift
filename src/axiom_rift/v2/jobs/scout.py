@@ -14,9 +14,12 @@ from typing import Any
 import yaml
 
 from axiom_rift.paths import PROJECT_ROOT
+from axiom_rift.v2.identity import sha256_payload
 from axiom_rift.v2.research.scout import (
     NestedScoutResult,
     ScoutTrade,
+    load_fold_bars,
+    load_fold_windows,
     load_scout_spec,
     run_causal_scout,
     run_nested_causal_scout,
@@ -83,12 +86,49 @@ def _write_trades(path: Path, trades: tuple[ScoutTrade, ...]) -> None:
             writer.writerow(trade.to_payload())
 
 
+def scientific_scout_input_hash(
+    *,
+    goal_id: str,
+    hypothesis_id: str,
+    stage_id: str,
+    spec_path: str,
+    spec_file_sha256: str,
+    spec_payload_sha256: str,
+    program_registry_sha256: str,
+    runtime_sha256: str,
+    dataset_sha256: str,
+    split_source_sha256: str,
+    boundary_source_sha256: str,
+    scout_anchor_ids: tuple[str, ...],
+) -> str:
+    return sha256_payload(
+        {
+            "schema": "axiom_rift_v2_scientific_scout_input_v1",
+            "goal_id": goal_id,
+            "hypothesis_id": hypothesis_id,
+            "stage_id": stage_id,
+            "spec_path": spec_path,
+            "spec_file_sha256": spec_file_sha256,
+            "spec_payload_sha256": spec_payload_sha256,
+            "program_registry_sha256": program_registry_sha256,
+            "runtime_sha256": runtime_sha256,
+            "dataset_sha256": dataset_sha256,
+            "split_source_sha256": split_source_sha256,
+            "boundary_source_sha256": boundary_source_sha256,
+            "scout_anchor_ids": list(scout_anchor_ids),
+        }
+    )
+
+
 def run_scout_job(
     goal_id: str,
     hypothesis_id: str,
     stage_id: str,
     spec_path: Path,
     output_dir: Path,
+    *,
+    job_id: str | None = None,
+    input_hash: str | None = None,
 ) -> dict[str, Any]:
     """Run one preregistered scout without assuming a campaign or namespace id."""
 
@@ -121,46 +161,131 @@ def run_scout_job(
             raise ValueError(f"preregistered input hash mismatch: {rel(path)}")
     started_at = utc_now()
     started = time.monotonic()
-    run = (
-        run_nested_causal_scout
-        if getattr(spec, "hypothesis_schema", "axiom_rift_v2_hypothesis_v1")
-        == "axiom_rift_v2_hypothesis_v2"
-        else run_causal_scout
+    from axiom_rift.v2.research.scientific_scout import (
+        ScientificFold,
+        ScientificScoutSpec,
+        run_scientific_scout,
     )
-    result = run(
-        spec,
-        base_frame_path=base_frame,
-        split_source_path=split_source,
-        boundary_source_path=boundary_source,
-    )
+
+    scientific = isinstance(spec, ScientificScoutSpec)
+    if scientific:
+        if (
+            not isinstance(job_id, str)
+            or not job_id
+            or re.fullmatch(r"[0-9a-f]{64}", str(input_hash or "")) is None
+        ):
+            raise ValueError("scientific scout requires the declared job id and input hash")
+        observed_input_hash = scientific_scout_input_hash(
+            goal_id=goal_id,
+            hypothesis_id=hypothesis_id,
+            stage_id=stage_id,
+            spec_path=rel(hypothesis_path),
+            spec_file_sha256=sha256_file(hypothesis_path),
+            spec_payload_sha256=spec.spec_sha256,
+            program_registry_sha256=spec.program_registry_sha256,
+            runtime_sha256=spec.runtime_sha256,
+            dataset_sha256=sha256_file(base_frame),
+            split_source_sha256=sha256_file(split_source),
+            boundary_source_sha256=sha256_file(boundary_source),
+            scout_anchor_ids=spec.anchors,
+        )
+        if input_hash != observed_input_hash:
+            raise ValueError("scientific scout input hash differs from declared inputs")
+        from axiom_rift.v2.data.blackouts import load_non_allow_gaps
+
+        windows = load_fold_windows(split_source, spec.anchors)
+        gaps = load_non_allow_gaps(boundary_source)
+        folds = tuple(
+            ScientificFold(
+                window=window,
+                bars=load_fold_bars(base_frame, window),
+                non_allow_gaps=gaps,
+            )
+            for window in windows
+        )
+        result = run_scientific_scout(spec, folds)
+    else:
+        run = (
+            run_nested_causal_scout
+            if getattr(spec, "hypothesis_schema", "axiom_rift_v2_hypothesis_v1")
+            == "axiom_rift_v2_hypothesis_v2"
+            else run_causal_scout
+        )
+        result = run(
+            spec,
+            base_frame_path=base_frame,
+            split_source_path=split_source,
+            boundary_source_path=boundary_source,
+        )
     metrics_path = work_unit_dir / "metrics.json"
     models_path = work_unit_dir / "model_bundles.json"
     trades_path = work_unit_dir / "trades.csv"
     causal_path = work_unit_dir / "causal_checks.json"
     selection_path = work_unit_dir / "nested_selection.json"
     trial_path = work_unit_dir / "trial_accounting.json"
-    nested = isinstance(result, NestedScoutResult)
-    _write_json(metrics_path, result.metrics)
-    _write_json(
-        models_path,
-        {
-            "schema": (
-                "axiom_rift_v2_nested_scout_model_bundles_v1"
-                if nested
-                else "axiom_rift_v2_scout_model_bundles_v1"
-            ),
-            "models": [model.to_payload() for model in result.models],
-            "claim_ceiling": "diagnostic_observation",
-        },
-    )
-    _write_trades(trades_path, result.trades)
-    _write_json(causal_path, result.causal_checks)
+    nested = isinstance(result, NestedScoutResult) or scientific
+    _write_json(metrics_path, dict(result.metrics))
+    if scientific:
+        selections_payload = [row.to_payload() for row in result.selections]
+        validation_payload = [row.to_payload() for row in result.validation_evaluations]
+        development_payload = [row.to_payload() for row in result.development_evaluations]
+        development_trades = tuple(
+            trade for row in result.development_evaluations for trade in row.trades
+        )
+        _write_json(
+            models_path,
+            {
+                "schema": "axiom_rift_v2_scientific_program_bundle_selections_v1",
+                "program_identities": dict(spec.program_identities),
+                "bundle_role_hashes": dict(spec.bundle_role_hashes),
+                "release_configuration_hashes": dict(
+                    spec.release_configuration_hashes
+                ),
+                "runtime_sha256": spec.runtime_sha256,
+                "runtime_executable_sha256": spec.runtime_executable_sha256,
+                "selections": selections_payload,
+                "claim_ceiling": "diagnostic_observation",
+            },
+        )
+        _write_trades(trades_path, development_trades)
+        _write_json(causal_path, dict(result.causal_checks))
+        _write_json(
+            selection_path,
+            {
+                "schema": "axiom_rift_v2_scientific_nested_selection_v1",
+                "validation_evaluations": validation_payload,
+                "selections": selections_payload,
+                "development_evaluations": development_payload,
+                "selection_source_data_role": "validation_oos",
+                "development_variant_selection": False,
+                "selection_rule_sha256": spec.selection_rule_sha256,
+            },
+        )
+        _write_json(trial_path, dict(result.trial_accounting))
+    else:
+        _write_json(
+            models_path,
+            {
+                "schema": (
+                    "axiom_rift_v2_nested_scout_model_bundles_v1"
+                    if nested
+                    else "axiom_rift_v2_scout_model_bundles_v1"
+                ),
+                "models": [model.to_payload() for model in result.models],
+                "claim_ceiling": "diagnostic_observation",
+            },
+        )
+        _write_trades(trades_path, result.trades)
+        _write_json(causal_path, result.causal_checks)
     if nested:
-        _write_json(selection_path, result.nested_selection)
-        _write_json(trial_path, result.trial_accounting)
+        if not scientific:
+            _write_json(selection_path, result.nested_selection)
+            _write_json(trial_path, result.trial_accounting)
     receipt = {
         "schema": (
-            "axiom_rift_v2_nested_scout_receipt_v1"
+            "axiom_rift_v2_scientific_scout_receipt_v1"
+            if scientific
+            else "axiom_rift_v2_nested_scout_receipt_v1"
             if nested
             else "axiom_rift_v2_scout_receipt_v1"
         ),
@@ -198,21 +323,68 @@ def run_scout_job(
             "causal_checks": {"path": rel(causal_path), "sha256": sha256_file(causal_path)},
         },
     }
+    if job_id is not None:
+        receipt["job_id"] = job_id
+    if input_hash is not None:
+        receipt["input_hash"] = input_hash
     if nested:
-        receipt.update(
-            {
-                "nested_selection": True,
-                "selection_source_data_role": "validation_oos",
-                "development_paths_per_fold": 1,
-                "development_variant_selection": False,
-                "selection_rule_sha256": result.selection_rule_sha256,
-                "selected_variant_hashes": result.selected_variant_hashes,
-                "selected_configuration_hashes": result.selected_configuration_hashes,
-                "selected_model_bundle_sha256s": result.selected_model_bundle_sha256s,
-                "selected_path_hashes": result.selected_path_hashes,
-                "trial_accounting": result.trial_accounting,
+        if scientific:
+            selected_configuration_hashes = {
+                row.fold_id: row.selected_configuration_sha256
+                for row in result.selections
+                if row.selected_configuration_sha256 is not None
+                and row.fold_id in result.selected_path_hashes
             }
-        )
+            selected_variant_hashes = {
+                row.fold_id: spec.release_configuration_hashes[row.selected_role]
+                for row in result.selections
+                if row.selected_role is not None and row.fold_id in result.selected_path_hashes
+            }
+            receipt.update(
+                {
+                    "scientific_programs": True,
+                    "nested_selection": True,
+                    "bundle_role_hashes": dict(spec.bundle_role_hashes),
+                    "release_configuration_hashes": dict(
+                        spec.release_configuration_hashes
+                    ),
+                    "runtime_sha256": spec.runtime_sha256,
+                    "runtime_executable_sha256": spec.runtime_executable_sha256,
+                    "scout_anchor_ids": list(spec.anchors),
+                    "selection_source_data_role": "validation_oos",
+                    "development_paths_per_fold": 1,
+                    "development_variant_selection": False,
+                    "selection_rule_sha256": spec.selection_rule_sha256,
+                    "selected_roles": {
+                        row.fold_id: row.selected_role
+                        for row in result.selections
+                        if row.selected_role is not None
+                        and row.fold_id in result.selected_path_hashes
+                    },
+                    "selected_variant_hashes": selected_variant_hashes,
+                    "selected_configuration_hashes": selected_configuration_hashes,
+                    "selected_model_bundle_sha256s": dict(selected_configuration_hashes),
+                    "selected_path_hashes": dict(result.selected_path_hashes),
+                    "trial_accounting": dict(result.trial_accounting),
+                    "metrics_summary": dict(result.metrics),
+                    "causal_summary": dict(result.causal_checks),
+                }
+            )
+        else:
+            receipt.update(
+                {
+                    "nested_selection": True,
+                    "selection_source_data_role": "validation_oos",
+                    "development_paths_per_fold": 1,
+                    "development_variant_selection": False,
+                    "selection_rule_sha256": result.selection_rule_sha256,
+                    "selected_variant_hashes": result.selected_variant_hashes,
+                    "selected_configuration_hashes": result.selected_configuration_hashes,
+                    "selected_model_bundle_sha256s": result.selected_model_bundle_sha256s,
+                    "selected_path_hashes": result.selected_path_hashes,
+                    "trial_accounting": result.trial_accounting,
+                }
+            )
         receipt["artifacts"].update(
             {
                 "nested_selection": {

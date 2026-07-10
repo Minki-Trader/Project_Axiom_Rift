@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -416,6 +418,180 @@ class V21GenericLifecycleTests(unittest.TestCase):
             receipt["trial_accounting"]["global_trials_cumulative"] = 0
             with self.assertRaises(OperationStateError):
                 writer._validate_nested_scout_receipt(receipt)
+
+    def test_scientific_receipt_accepts_valid_empty_path_rejection_only(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            writer = build_writer(Path(temp_dir), v21_state())
+            roles = (
+                "continuation_low",
+                "continuation_base",
+                "continuation_high",
+                "failed_break_reversal",
+                "compression_ablation",
+            )
+            bundle_hashes = {
+                role: sha256_payload({"scientific_bundle_role": role})
+                for role in roles
+            }
+            release_hashes = {
+                role: sha256_payload({"release_configuration": role})
+                for role in roles
+            }
+            configuration_hashes = sorted(bundle_hashes.values())
+            program_kinds = (
+                "feature",
+                "label",
+                "model",
+                "calibration",
+                "selector",
+                "trade",
+                "sizing",
+                "portfolio_risk",
+            )
+            programs = {
+                role: {
+                    kind: {"id": f"{role}_{kind}", "kind": kind}
+                    for kind in program_kinds
+                }
+                for role in roles
+            }
+            selection_rule_sha256 = sha256_payload({"selection_rule": "fixture"})
+            receipt = {
+                "schema": "axiom_rift_v2_scientific_scout_receipt_v1",
+                "stage": "S",
+                "scientific_programs": True,
+                "nested_selection": True,
+                "selection_source_data_role": "validation_oos",
+                "development_paths_per_fold": 1,
+                "development_variant_selection": False,
+                "claim_ceiling": "diagnostic_observation",
+                "economics_claim_allowed": False,
+                "mt5_executed": False,
+                "isolated_nine_fold_executed": False,
+                "scout_anchor_ids": ["V2D002", "V2D005", "V2D008"],
+                "selection_rule_sha256": selection_rule_sha256,
+                "result_sha256": "1" * 64,
+                "spec_sha256": "2" * 64,
+                "spec_payload_sha256": "3" * 64,
+                "program_registry_path": "configs/v2/scientific/program_registry.yaml",
+                "program_registry_sha256": "4" * 64,
+                "dataset_sha256": "5" * 64,
+                "split_source_sha256": "6" * 64,
+                "boundary_source_sha256": "7" * 64,
+                "bundle_role_hashes": bundle_hashes,
+                "release_configuration_hashes": release_hashes,
+                "runtime_sha256": "8" * 64,
+                "runtime_executable_sha256": "9" * 64,
+                "programs": programs,
+                "selected_roles": {},
+                "selected_variant_hashes": {},
+                "selected_configuration_hashes": {},
+                "selected_model_bundle_sha256s": {},
+                "selected_path_hashes": {},
+                "artifacts": {},
+                "metrics_summary": {
+                    "unknown_cost_observation_count": 0,
+                    "validation_unknown_cost_observation_count": 0,
+                    "development_unknown_cost_observation_count": 0,
+                },
+                "causal_summary": {"all_role_checks_passed": True},
+                "outcome": "scientific_reject",
+                "gate_passed": False,
+                "trial_accounting": {
+                    "family_id": "compression_release_event_v1",
+                    "configuration_trials": 5,
+                    "job_unique_configuration_count": 5,
+                    "new_family_configuration_trials": 5,
+                    "validation_evaluation_cells": 15,
+                    "local_calibration_trials": 0,
+                    "inner_selection_events": 3,
+                    "development_selected_paths": 0,
+                    "development_variant_selection": False,
+                    "family_trials_before": 0,
+                    "family_configuration_hashes_before": [],
+                    "family_history_sha256_before": sha256_payload([]),
+                    "family_configuration_hashes_after": configuration_hashes,
+                    "family_history_sha256_after": sha256_payload(configuration_hashes),
+                    "family_trials_cumulative": 5,
+                    "global_trials_before": 0,
+                    "global_configuration_hashes_before": [],
+                    "global_history_sha256_before": sha256_payload([]),
+                    "global_configuration_hashes_after": configuration_hashes,
+                    "global_history_sha256_after": sha256_payload(configuration_hashes),
+                    "global_trials_cumulative": 5,
+                    "configuration_hashes": configuration_hashes,
+                    "holdout_reveals": 0,
+                    "trial_accounting_complete": True,
+                },
+            }
+            selection_payload = {
+                "schema": "axiom_rift_v2_scientific_nested_selection_v1",
+                "validation_evaluations": [],
+                "selections": [],
+                "development_evaluations": [],
+                "selection_source_data_role": "validation_oos",
+                "development_variant_selection": False,
+                "selection_rule_sha256": selection_rule_sha256,
+            }
+            artifact_payloads = {
+                "metrics": receipt["metrics_summary"],
+                "models": {
+                    "schema": "axiom_rift_v2_scientific_program_bundle_selections_v1",
+                    "program_identities": programs,
+                    "bundle_role_hashes": bundle_hashes,
+                    "release_configuration_hashes": release_hashes,
+                    "runtime_sha256": receipt["runtime_sha256"],
+                    "runtime_executable_sha256": receipt[
+                        "runtime_executable_sha256"
+                    ],
+                    "selections": [],
+                    "claim_ceiling": "diagnostic_observation",
+                },
+                "causal_checks": receipt["causal_summary"],
+                "nested_selection": selection_payload,
+                "trial_accounting": receipt["trial_accounting"],
+            }
+            artifact_dir = Path(temp_dir) / "campaigns/v2/fixture"
+            artifact_dir.mkdir(parents=True)
+            for name, payload in artifact_payloads.items():
+                path = artifact_dir / f"{name}.json"
+                raw = (
+                    json.dumps(payload, indent=2, sort_keys=True, allow_nan=False)
+                    + "\n"
+                ).encode("ascii")
+                path.write_bytes(raw)
+                receipt["artifacts"][name] = {
+                    "path": path.relative_to(Path(temp_dir)).as_posix(),
+                    "sha256": hashlib.sha256(raw).hexdigest(),
+                }
+            trades_path = artifact_dir / "trades.csv"
+            trades_raw = b"fold_id\n"
+            trades_path.write_bytes(trades_raw)
+            receipt["artifacts"]["trades"] = {
+                "path": trades_path.relative_to(Path(temp_dir)).as_posix(),
+                "sha256": hashlib.sha256(trades_raw).hexdigest(),
+            }
+            receipt["result_sha256"] = sha256_payload(
+                {
+                    "outcome": receipt["outcome"],
+                    "gate_passed": receipt["gate_passed"],
+                    "metrics": receipt["metrics_summary"],
+                    "causal_checks": receipt["causal_summary"],
+                    "validation_evaluations": [],
+                    "selections": [],
+                    "development_evaluations": [],
+                    "selected_path_hashes": {},
+                    "trial_accounting": receipt["trial_accounting"],
+                    "claim_ceiling": "diagnostic_observation",
+                    "mt5_executed": False,
+                    "economics_claim_allowed": False,
+                }
+            )
+            writer._validate_scientific_scout_receipt(receipt)
+            receipt["outcome"] = "route_to_R"
+            receipt["gate_passed"] = True
+            with self.assertRaises(OperationStateError):
+                writer._validate_scientific_scout_receipt(receipt)
 
     def test_ready_mission_contract_can_be_repinned_but_active_mission_cannot(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

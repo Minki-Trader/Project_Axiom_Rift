@@ -1,0 +1,95 @@
+schema: axiom_rift_v2_compression_release_program_contract_v1
+status: preregistration_ready
+encoding: ascii_only
+scientific_origin: v2_current
+market:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+inputs:
+  fields:
+    - time
+    - open
+    - high
+    - low
+    - close
+    - spread
+  external_sources: []
+  real_volume_used: false
+decision:
+  availability: completed_bar_only
+  entry: next_bar_open
+  future_ranking: false
+  daily_entry_safety_cap: 10
+feature:
+  atr_bars: 24
+  box_bars: 12
+  release_buffer_atr: 0.05
+  release_clv_long_min: 0.75
+  release_clv_short_max: 0.25
+  release_body_atr_min: 0.30
+  reversal_clv_after_up_max: 0.35
+  reversal_clv_after_down_min: 0.65
+  reversal_body_atr_min: 0.20
+configurations:
+  continuation_low:
+    event_kind: continuation
+    compression_ratio_max: 2.0
+  continuation_base:
+    event_kind: continuation
+    compression_ratio_max: 2.5
+  continuation_high:
+    event_kind: continuation
+    compression_ratio_max: 3.0
+  failed_break_reversal:
+    event_kind: failed_break_reversal
+    compression_ratio_max: 2.5
+  compression_ablation:
+    event_kind: unconditioned_breakout
+    compression_ratio_max: null
+label:
+  definition: open_t_plus_7_minus_open_t_plus_1_divided_by_atr24_at_t
+  horizon_bars_after_entry: 6
+model:
+  family: deterministic_event_score
+  train_fit: hashed_no_op
+calibration:
+  family: identity_event_calibration
+  validation_selection_only: true
+selection:
+  source_data_role: validation_oos
+  utility_metric: total_fixed_lot_net_broker_points
+  continuation_roles:
+    - continuation_low
+    - continuation_base
+    - continuation_high
+  control_roles:
+    - failed_break_reversal
+    - compression_ablation
+  all_roles_must_be_evaluable: true
+  plateau_tolerance_broker_points: 100.0
+  ablation_noninferiority_rejects_compression: true
+  competing_reversal_dominance_rejects_continuation: true
+  development_variant_selection: false
+trade:
+  hold_bars: 6
+  spread: observed_broker_points
+  zero_spread: unknown_cost_observation
+  commission: 0
+  slippage: 0
+sizing:
+  mode: fixed_lot
+  lots: 1.0
+portfolio_risk:
+  one_position_per_role: true
+  overlap: forbidden
+  activity_target_role: combined_system_diagnostic
+causality:
+  prefix_invariance_required: true
+  decision_and_trade_boundary_exclusion_required: true
+  train_validation_development_order_required: true
+runtime_binding:
+  source_manifest_required: true
+  registered_parameters_must_equal_event_configurations: true
+  runtime_configuration_identity_required_on_every_evaluation: true
+claim_ceiling: none

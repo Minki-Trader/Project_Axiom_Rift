@@ -1,0 +1,180 @@
+schema: axiom_rift_v2_scientific_program_registry_v1
+status: active
+encoding: ascii_only
+scientific_origin: v2_current
+hash_semantics: compact_sorted_ascii_json_sha256
+arbitrary_import_allowed: false
+runtime:
+  schema: axiom_rift_v2_scientific_runtime_manifest_v1
+  files:
+    - path: src/axiom_rift/v2/research/compression_release.py
+      sha256: 79f9e314c766ecfb39572b0483d6c732d00b7126a4ba4fb3d8107f138ec3583d
+    - path: src/axiom_rift/v2/research/scientific_scout.py
+      sha256: db0b5cbbaecef06d62be17cf2d63182f9fe6f4c1a770b60bb576cccbb378322a
+  runtime_sha256: ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6
+programs:
+  V2FP1001:
+    kind: feature
+    version: 1
+    contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
+    contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
+    implementation_key: compression_release_features_v1
+    runtime_sha256: ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6
+    parameters:
+      atr_bars: 24
+      box_bars: 12
+    fixture_only: false
+    reuse_decision: new_scientific_component
+    program_sha256: 1dd310e85651b71a3acf6d1984587966a41fbf8a421a3edaf3c60d28cb09f5bf
+  V2LP1001:
+    kind: label
+    version: 1
+    contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
+    contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
+    implementation_key: forward_open_return_6bar_v1
+    runtime_sha256: ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6
+    parameters:
+      horizon_bars_after_entry: 6
+    fixture_only: false
+    reuse_decision: engine_primitive_reuse_without_evidence
+    program_sha256: 40d2da0e8c072f92769aa2fdeefb612da8e1ae8e3a3a76478ddb547e3d09c090
+  V2MP1001:
+    kind: model
+    version: 1
+    contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
+    contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
+    implementation_key: deterministic_event_score_v1
+    runtime_sha256: ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6
+    parameters:
+      family: deterministic_event_score
+      train_fit: hashed_no_op
+    fixture_only: false
+    reuse_decision: new_scientific_component
+    program_sha256: a5b0f3ede85f1545661582538b12c3aa623a31e1fe29adfc989b6d246a9a77c1
+  V2CP1001:
+    kind: calibration
+    version: 1
+    contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
+    contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
+    implementation_key: identity_event_calibration_v1
+    runtime_sha256: ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6
+    parameters:
+      family: identity_event_calibration
+    fixture_only: false
+    reuse_decision: new_scientific_component
+    program_sha256: a0b568d96bdcd4eda01ff322cd7a8719dc923db287340e5cb0c9a601918871c9
+  V2SEL1001:
+    kind: selector
+    version: 1
+    contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
+    contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
+    implementation_key: chronological_compression_selector_v1
+    runtime_sha256: ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6
+    parameters:
+      role: continuation_low
+      event_kind: continuation
+      compression_ratio_max: 2.0
+      daily_entry_safety_cap: 10
+    fixture_only: false
+    reuse_decision: new_scientific_component
+    program_sha256: d0220e3010c43c381a04ec85fee68251c43b97ced15619a00daa674ddb52a6df
+  V2SEL1002:
+    kind: selector
+    version: 1
+    contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
+    contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
+    implementation_key: chronological_compression_selector_v1
+    runtime_sha256: ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6
+    parameters:
+      role: continuation_base
+      event_kind: continuation
+      compression_ratio_max: 2.5
+      daily_entry_safety_cap: 10
+    fixture_only: false
+    reuse_decision: new_scientific_component
+    program_sha256: 3d017d981309cae446cb25e506644ba396dad41aaa1cb581abfb580cfe5beebd
+  V2SEL1003:
+    kind: selector
+    version: 1
+    contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
+    contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
+    implementation_key: chronological_compression_selector_v1
+    runtime_sha256: ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6
+    parameters:
+      role: continuation_high
+      event_kind: continuation
+      compression_ratio_max: 3.0
+      daily_entry_safety_cap: 10
+    fixture_only: false
+    reuse_decision: new_scientific_component
+    program_sha256: ff2f3bfb23275d5de65c120af9957b0182b8e0b6660ccaff722d450e574b8248
+  V2SEL1004:
+    kind: selector
+    version: 1
+    contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
+    contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
+    implementation_key: chronological_compression_selector_v1
+    runtime_sha256: ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6
+    parameters:
+      role: failed_break_reversal
+      event_kind: failed_break_reversal
+      compression_ratio_max: 2.5
+      daily_entry_safety_cap: 10
+    fixture_only: false
+    reuse_decision: new_scientific_component
+    program_sha256: 205bd7ce66cf62ddfa9e978265ab56b8d3dc7efbd6ee95a7b889805820d06334
+  V2SEL1005:
+    kind: selector
+    version: 1
+    contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
+    contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
+    implementation_key: chronological_compression_selector_v1
+    runtime_sha256: ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6
+    parameters:
+      role: compression_ablation
+      event_kind: unconditioned_breakout
+      compression_ratio_max: null
+      daily_entry_safety_cap: 10
+    fixture_only: false
+    reuse_decision: new_scientific_component
+    program_sha256: 97f642ea16b5ec04173d7c73752a9e141fe182c2be4256e9d6013041213857ab
+  V2TP1001:
+    kind: trade
+    version: 1
+    contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
+    contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
+    implementation_key: fixed_6bar_observed_spread_v1
+    runtime_sha256: ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6
+    parameters:
+      hold_bars: 6
+      spread: observed_broker_points
+      zero_spread: unknown_cost_observation
+    fixture_only: false
+    reuse_decision: engine_primitive_reuse_without_evidence
+    program_sha256: 29db8a07af30737643947d4fab063fa32ddb5b1b94e42d88d809358bb7c6d726
+  V2SZ1001:
+    kind: sizing
+    version: 1
+    contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
+    contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
+    implementation_key: fixed_lot_v1
+    runtime_sha256: ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6
+    parameters:
+      mode: fixed_lot
+      lots: 1.0
+    fixture_only: false
+    reuse_decision: engine_primitive_reuse_without_evidence
+    program_sha256: 7ae0a5f53fd0f709341185998110f1b645490bae8a100153d5be5b9c781d839c
+  V2PR1001:
+    kind: portfolio_risk
+    version: 1
+    contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
+    contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
+    implementation_key: one_position_safety_v1
+    runtime_sha256: ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6
+    parameters:
+      one_position_per_role: true
+      overlap: forbidden
+    fixture_only: false
+    reuse_decision: new_scientific_component
+    program_sha256: 158dba491f3f339f0aa94a19506859ee84df21e28027a5de9a226bf8e64f2964
