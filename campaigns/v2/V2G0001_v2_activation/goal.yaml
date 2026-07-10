@@ -42,7 +42,7 @@ work_units:
     status: closed_hardened
   - work_unit_id: V2B0003
     path: campaigns/v2/V2G0001_v2_activation/work_units/V2B0003.yaml
-    status: validated_pending_git
+    status: closed_hardened
 maintenance:
   purpose: v2_2_quant_research_governance
   claim_ceiling: none
@@ -52,8 +52,8 @@ maintenance:
   prior_validated_content_commit: f3ce884b49895612ac13b504751f01ff8dbbffa1
   prior_git_closeout_id: V2GC000001
   validation_receipt_id: V2VR000009
-  validated_content_commit: pending
-  git_closeout_id: pending
+  validated_content_commit: 8cdaee7eb28e0e0dfbc7018b5418f24d94b3098e
+  git_closeout_id: V2GC000002
 terminal_conditions_ref: contracts/v2/activation_contract.yaml
 claim_boundary:
   contract_or_skeleton_is_evidence: false

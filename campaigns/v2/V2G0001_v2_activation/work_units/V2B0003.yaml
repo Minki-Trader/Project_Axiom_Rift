@@ -1,5 +1,5 @@
 schema: axiom_rift_v2_bootstrap_maintenance_work_unit_v1
-status: validated_pending_git
+status: closed_hardened
 encoding: ascii_only
 work_unit_id: V2B0003
 goal_id: V2G0001
@@ -44,9 +44,10 @@ done_requires:
   - main_commit_and_origin_main_push_verified
 completion:
   passing_validation_receipt_id: V2VR000009
-  validated_content_commit: pending
-  git_closeout_id: pending
-  origin_main_verified: false
+  validated_content_commit: 8cdaee7eb28e0e0dfbc7018b5418f24d94b3098e
+  git_closeout_id: V2GC000002
+  git_closeout_object_id: 1306f7c040b93aef99446e62f50a8f8710b9dafa4082a71e7094f24db82ae6b4
+  origin_main_verified: true
 validation:
   initial_v2_suite:
     passed: 96
