@@ -7,6 +7,7 @@ from pathlib import Path
 import yaml
 
 from axiom_rift.v2.identity import ObjectStore, sha256_payload
+from axiom_rift.v2.git_closeout import GitCheckpointVerification
 from axiom_rift.v2.ledger import HashChainLedger
 from axiom_rift.v2.operations import OperationStateError, V2OperationWriter
 from axiom_rift.v2.state import ControlStateError, ControlStore
@@ -144,6 +145,16 @@ def build_writer(root: Path, state: dict) -> V2OperationWriter:
         evidence_ledger=root / "evidence.jsonl",
         material_ledger=root / "material.jsonl",
         validation_receipt_ledger=root / "validation.jsonl",
+        content_checkpoint_probe=lambda commit, _paths: GitCheckpointVerification(
+            True, "test_content_verified", commit, commit, commit
+        ),
+        metadata_checkpoint_probe=lambda sync: GitCheckpointVerification(
+            True,
+            "test_metadata_verified",
+            "b" * 40,
+            "b" * 40,
+            sync.get("validated_content_commit") if isinstance(sync, dict) else None,
+        ),
     )
 
 
@@ -535,8 +546,20 @@ class V21GenericLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             state = v21_state()
             state["root_mission"].update(
-                {"status": "terminal", "terminal_outcome": "completed_pre_live_handoff"}
+                {
+                    "status": "terminal",
+                    "terminal_outcome": "completed_pre_live_handoff",
+                    "terminal_request": {
+                        "mission_id": "AXIOM_ROOT_0001",
+                        "outcome": "completed_pre_live_handoff",
+                        "basis_evidence_id": "V2E000200",
+                        "requested_by_goal_id": "V2G0001",
+                        "request_object_id": "a" * 64,
+                    },
+                    "closeout_object_id": "b" * 64,
+                }
             )
+            state["cursor"]["terminal_outcome"] = "completed_pre_live_handoff"
             state["cursor"]["next_action"] = make_next_action("none", summary="complete")
             writer = build_writer(Path(temp_dir), state)
             with self.assertRaises(OperationStateError):
@@ -588,6 +611,139 @@ class V21GenericLifecycleTests(unittest.TestCase):
             )
             self.assertEqual(8, len(state["history"]["recent_closed_goals"]))
             self.assertEqual("V2G0002", state["history"]["recent_closed_goals"][0]["goal_id"])
+
+    def test_successful_internal_close_snapshots_claim_and_builds_exact_root_action(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            objects = ObjectStore(root / "objects")
+            receipt = {
+                "mission_id": "AXIOM_ROOT_0001",
+                "goal_id": "V2G0001",
+                "outcome": "completed_pre_live_handoff",
+            }
+            receipt_object_id = objects.put("evidence_receipt", receipt)
+            evidence = HashChainLedger(root / "evidence.jsonl", "evidence")
+            row = evidence.append(
+                "V2E000200",
+                "materialization_complete",
+                {"goal_id": "V2G0001", "receipt_object_id": receipt_object_id},
+                "2026-01-01T00:00:00Z",
+            )
+            state = v21_state()
+            state["root_mission"].update({"status": "active", "user_goal_received": True})
+            state["cursor"].update(
+                {
+                    "active_goal_id": "V2G0001",
+                    "goal_status": "open",
+                    "active_hypothesis_id": "V2H0001",
+                    "stage": "M",
+                    "stage_id": "V2M0001",
+                    "stage_status": "completed",
+                    "next_action": make_next_action("close_goal", goal_id="V2G0001"),
+                }
+            )
+            state["claim"].update(
+                {
+                    "subject_kind": "hypothesis",
+                    "subject_id": "V2H0001",
+                    "current_level": "pre_live_ready",
+                    "claim_ceiling": "pre_live_ready",
+                }
+            )
+            state["ledger_heads"]["evidence"] = {
+                "ledger_seq": row["ledger_seq"],
+                "row_sha256": row["row_sha256"],
+            }
+            writer = build_writer(root, state)
+
+            closed_goal = writer.close_goal(
+                outcome="completed_internal_goal",
+                basis_evidence_id="V2E000200",
+                summary_payload={"status": "materialized"},
+                idempotency_key="close-success-goal",
+            )
+
+            self.assertEqual("none", closed_goal["claim"]["current_level"])
+            action = closed_goal["cursor"]["next_action"]
+            self.assertEqual("close_root_mission", action["kind"])
+            self.assertEqual("AXIOM_ROOT_0001", action["mission_id"])
+            self.assertEqual("completed_pre_live_handoff", action["terminal_outcome"])
+            self.assertEqual("V2E000200", action["basis_evidence_id"])
+            request_id = closed_goal["root_mission"]["terminal_request"]["request_object_id"]
+            self.assertEqual(
+                "pre_live_ready",
+                writer.objects.get(request_id)["payload"]["claim_snapshot"]["current_level"],
+            )
+
+            pending = writer.close_root_mission(
+                outcome="completed_pre_live_handoff",
+                basis_evidence_id="V2E000200",
+                idempotency_key="close-success-root",
+            )
+            self.assertEqual("terminal_validation_pending", pending["root_mission"]["status"])
+            self.assertEqual("validate_root_closeout", pending["cursor"]["next_action"]["kind"])
+            terminal_slice = "AXIOM_ROOT_0001_terminal_closeout"
+            writer.consume_slice_budget(
+                phase="validation",
+                validation_key="root-validation-key",
+                expected_slice_id=terminal_slice,
+                idempotency_key="authorize-root-validation",
+            )
+            writer.record_validation_receipt(
+                receipt_id="V2VRROOT",
+                receipt={
+                    "validation_key": "root-validation-key",
+                    "outcome": "pass",
+                    "validator_id": "root-close-validator",
+                    "duration_seconds": 0.01,
+                    "slice_id": terminal_slice,
+                },
+                idempotency_key="record-root-validation",
+                exact_next_action=pending["cursor"]["next_action"],
+            )
+            validated = writer.close_slice(
+                slice_id=terminal_slice,
+                validation_receipt_id="V2VRROOT",
+                declared_content_paths=("registries/v2/control_state.yaml",),
+                idempotency_key="close-root-validation-slice",
+            )
+            self.assertEqual("terminal_validation_pending", validated["root_mission"]["status"])
+            self.assertEqual("verify_git_closeout", validated["cursor"]["next_action"]["kind"])
+            self.assertEqual("V2VRROOT", validated["reentry"]["git_sync"]["validation_receipt_id"])
+
+    def test_internal_close_rejects_root_outcome_and_store_rejects_direct_terminal(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            writer = build_writer(Path(temp_dir), v21_state())
+            with self.assertRaises(OperationStateError):
+                writer.close_goal(
+                    outcome="completed_pre_live_handoff",
+                    basis_evidence_id="missing",
+                    summary_payload={},
+                    idempotency_key="bad-root-as-internal",
+                )
+
+            state = writer.control.load()
+
+            def bypass(draft: dict) -> None:
+                draft["root_mission"]["status"] = "terminal_pending_push"
+                draft["root_mission"]["terminal_outcome"] = "stopped_by_user"
+
+            with self.assertRaises(ControlStateError):
+                writer.control.commit(state["revision"], "direct-terminal", bypass)
+
+            injected = v21_state()
+            injected["root_mission"].update({"status": "active", "user_goal_received": True})
+            injected["cursor"]["next_action"] = make_next_action(
+                "close_root_mission",
+                mission_id="AXIOM_ROOT_0001",
+                terminal_outcome="closed_no_candidate",
+                basis_evidence_id="V2E000999",
+                prerequisite_receipt_ids=["V2E000999"],
+            )
+            injected_root = Path(temp_dir) / "injected"
+            injected_root.mkdir()
+            with self.assertRaises(ControlStateError):
+                build_writer(injected_root, injected).control.load()
 
 
 class V21MigrationAndHoldoutTests(unittest.TestCase):
@@ -705,18 +861,30 @@ class V21MigrationAndHoldoutTests(unittest.TestCase):
                     trial_accounting_receipt_id="V2E000102",
                     idempotency_key="permit",
                 )
-            writer.control.commit(
+            dirty = writer.control.commit(
                 writer.control.load()["revision"],
+                "touch-freeze-state",
+                lambda _draft: None,
+            )
+            dirty_fingerprint = dirty["reentry"]["git_sync"]["dirty_state_fingerprint"]
+            writer.control.commit(
+                dirty["revision"],
                 "sync",
                 lambda draft: draft["reentry"].update(
                     {
                         "git_sync": {
-                            "status": "synced",
-                            "local_head": "b" * 40,
-                            "origin_main_head": "b" * 40,
+                            "status": "metadata_pending_push",
+                            "validated_content_commit": "a" * 40,
+                            "local_head": "a" * 40,
+                            "origin_main_head": "a" * 40,
+                            "validation_receipt_id": "V2VRTEST",
+                            "closeout_object_id": "c" * 64,
+                            "content_state_fingerprint": dirty_fingerprint,
+                            "metadata_allowed_paths": ["registries/v2"],
                         }
                     }
                 ),
+                git_sync_policy="record_metadata",
             )
             state = writer.issue_holdout_permit(
                 permit_id="V2HP0001",
@@ -760,15 +928,32 @@ class V21MigrationAndHoldoutTests(unittest.TestCase):
             state = v21_state()
             state["root_mission"]["status"] = "active"
             state["root_mission"]["user_goal_received"] = True
+            request_payload = {
+                "mission_id": "AXIOM_ROOT_0001",
+                "outcome": "closed_no_candidate",
+                "basis_evidence_id": "V2E000199",
+                "requested_by_goal_id": "V2G0001",
+                "claim_snapshot": state["claim"],
+            }
+            request_object_id = objects.put("root_terminal_request", request_payload)
+            state["root_mission"]["terminal_request"] = {
+                "mission_id": "AXIOM_ROOT_0001",
+                "outcome": "closed_no_candidate",
+                "basis_evidence_id": "V2E000199",
+                "requested_by_goal_id": "V2G0001",
+                "request_object_id": request_object_id,
+            }
+            state["cursor"]["next_action"] = make_next_action(
+                "close_root_mission",
+                mission_id="AXIOM_ROOT_0001",
+                terminal_outcome="closed_no_candidate",
+                basis_evidence_id="V2E000199",
+                prerequisite_receipt_ids=["V2E000199"],
+            )
             state["mission_budget"]["frozen"] = True
             state["ledger_heads"]["evidence"] = {
                 "ledger_seq": row["ledger_seq"],
                 "row_sha256": row["row_sha256"],
-            }
-            state["reentry"]["git_sync"] = {
-                "status": "synced",
-                "local_head": "a" * 40,
-                "origin_main_head": "a" * 40,
             }
             writer = build_writer(root, state)
             closed = writer.close_root_mission(
@@ -776,9 +961,10 @@ class V21MigrationAndHoldoutTests(unittest.TestCase):
                 basis_evidence_id="V2E000199",
                 idempotency_key="root-close",
             )
-            self.assertEqual("terminal", closed["root_mission"]["status"])
+            self.assertEqual("terminal_validation_pending", closed["root_mission"]["status"])
             self.assertEqual("closed_no_candidate", closed["root_mission"]["terminal_outcome"])
-            self.assertEqual("none", closed["cursor"]["next_action"]["kind"])
+            self.assertEqual("validate_root_closeout", closed["cursor"]["next_action"]["kind"])
+            self.assertEqual("unsynced", closed["reentry"]["git_sync"]["status"])
 
 
 if __name__ == "__main__":

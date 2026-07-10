@@ -1,5 +1,5 @@
 schema: axiom_rift_v2_control_state_v2
-revision: 37
+revision: 57
 status: active
 encoding: ascii_only
 active_truth: v2
@@ -37,23 +37,63 @@ reentry:
   - a64080e62f6f9a4bee0e808ec6e83cf8b4a09896c3eaf6dcb24390f1ea3c1873
   - 288294f84042381cceeb87c548ae9b7f66708704ff39a8e51bb9f7bde8a85186
   - 1306f7c040b93aef99446e62f50a8f8710b9dafa4082a71e7094f24db82ae6b4
+  - c7573f1b65582c1f1cefad728de98607d64e4f64a124060f1abd3735859b0447
+  - 0fe4939e0e6a3f1deb25e6a41309b088c49e84668e0be4130d4bb6d4d090c0fc
+  - 6d117d4fbd4306454ba46d3171934fc528960f47e406b425b0c7c5b866156ab8
+  - d1eb29124631af099ea4cc44df558c9244801a06466f4b56f47a570a0b1f8dfb
   current_artifact_hashes:
     V2VR000007: ce6ee55e7f90c7dbbe8df62f591d8e32b2cdda8fe5854f334e180c388f9b3860
     V2VR000008: d66247a437c4b6579c52a1b0a7b0dff57ffcd28121a959a24c14dc16a7ffe753
     V2VR000009: 288294f84042381cceeb87c548ae9b7f66708704ff39a8e51bb9f7bde8a85186
+    V2VR000010: c7573f1b65582c1f1cefad728de98607d64e4f64a124060f1abd3735859b0447
+    V2VR000011: 0fe4939e0e6a3f1deb25e6a41309b088c49e84668e0be4130d4bb6d4d090c0fc
+    V2VR000012: 6d117d4fbd4306454ba46d3171934fc528960f47e406b425b0c7c5b866156ab8
+    V2VR000013: d1eb29124631af099ea4cc44df558c9244801a06466f4b56f47a570a0b1f8dfb
   completed_receipt_ids:
   - V2VR000007
   - V2VR000008
   - V2VR000009
+  - V2VR000010
+  - V2VR000011
+  - V2VR000012
+  - V2VR000013
   completed_evidence_ids: []
   blocker: null
   git_sync:
-    status: synced
-    validated_content_commit: 8cdaee7eb28e0e0dfbc7018b5418f24d94b3098e
-    local_head: 8cdaee7eb28e0e0dfbc7018b5418f24d94b3098e
-    origin_main_head: 8cdaee7eb28e0e0dfbc7018b5418f24d94b3098e
-    validation_receipt_id: V2VR000009
-    closeout_object_id: 1306f7c040b93aef99446e62f50a8f8710b9dafa4082a71e7094f24db82ae6b4
+    status: unsynced
+    validation_receipt_id: V2VR000013
+    validation_key: 880c049583c44b661b08600abeea5f7f60b2d7cfdb693f07e80e99b972e0224e
+    validated_slice_id: V2SL0012_exact_git_checkpoint_binding
+    declared_content_paths:
+    - .agents/skills/axiom-v2-goal-operator/SKILL.md
+    - AGENTS.md
+    - configs/v2/git.yaml
+    - configs/v2/validation_surfaces.yaml
+    - contracts/v2/agents_router_candidate.md
+    - contracts/v2/handoff_contract.yaml
+    - contracts/v2/operator_contract.yaml
+    - contracts/v2/project_contract.yaml
+    - contracts/v2/state_machine.yaml
+    - registries/v2/control_state.yaml
+    - registries/v2/validation_receipts.jsonl
+    - src/axiom_rift/v2/cli.py
+    - src/axiom_rift/v2/git_closeout.py
+    - src/axiom_rift/v2/operations.py
+    - src/axiom_rift/v2/state/store.py
+    - src/axiom_rift/v2/state/transitions.py
+    - src/axiom_rift/v2/validation/bootstrap.py
+    - src/axiom_rift/v2/validation/harness.py
+    - tests/v2/test_identity_state.py
+    - tests/v2/test_v21_state_operations.py
+    - tests/v2/test_v21_validation_git_cli.py
+    - registries/v2/objects/0fe4939e0e6a3f1deb25e6a41309b088c49e84668e0be4130d4bb6d4d090c0fc.json
+    - registries/v2/objects/6d117d4fbd4306454ba46d3171934fc528960f47e406b425b0c7c5b866156ab8.json
+    - registries/v2/objects/c7573f1b65582c1f1cefad728de98607d64e4f64a124060f1abd3735859b0447.json
+    - registries/v2/objects/d1eb29124631af099ea4cc44df558c9244801a06466f4b56f47a570a0b1f8dfb.json
+    dirty_revision: 57
+    dirty_state_fingerprint: f79bad94815d4e9558865012a55bd7808b15c68235e6f32cb1e4410da89d7c06
+    invalidated_by_operation: close_V2SL0012_after_V2VR000013
+    previous_validated_content_commit: null
 claim:
   subject_kind: none
   subject_id: null
@@ -73,8 +113,8 @@ ledger_heads:
     ledger_seq: 20
     row_sha256: 1b0498be4d3be0ea22148aaec4141a60c46996805c705087717015b632c9afb4
   validation_receipt:
-    ledger_seq: 9
-    row_sha256: 1827aebe792c263d5672392cac974efa106af59ebcf179b5ade776661e060454
+    ledger_seq: 13
+    row_sha256: 50d0fcb7c47721b7fbe6e6f530cd964549ff18a5ad2578997d71bb79c82b24ee
 applied_idempotency_keys:
 - record_V2VR000001
 - record_V2_data_identity_slice
@@ -112,6 +152,26 @@ applied_idempotency_keys:
 - record_V2VR000009
 - close_V2SL0009_after_V2VR000009
 - record_V2GC000002_v22_quant_governance
+- open_V2SL0010_root_git_freshness
+- consume_V2SL0010_implementation
+- refresh_ready_mission_contract_v23_git_freshness
+- authorize_V2SL0010_root_git_freshness_validation_53f2a3c861ff9f688da34e8aea7f629e795e8d8043571d0a564f331676007932
+- consume_V2SL0010_repair_1
+- authorize_V2SL0010_root_git_freshness_recheck_8021dd9ad5aeb60e4bc4bd136e3653bdd52a588b4bfcbf76c8feb414d9183a75
+- record_V2VR000010
+- redesign_V2SL0010_to_V2SL0011_after_V2VR000010
+- authorize_V2SL0011_git_probe_boundary_validation_18080f347b1d1db36d814d1e20b36d28710e724e2dd76f6169cf45897d0d5c49
+- record_V2VR000011
+- consume_V2SL0011_repair_1
+- restore_ready_mission_contract_path_hash_V2SL0011
+- authorize_V2SL0011_git_probe_boundary_recheck_505d5cd1c1cf8a4b9a49f6c0677f07d7aa7c321084081b7cfc4ebbab22be5c97
+- record_V2VR000012
+- close_V2SL0011_after_V2VR000012
+- open_V2SL0012_exact_git_checkpoint_binding
+- consume_V2SL0012_implementation
+- authorize_V2SL0012_exact_git_checkpoint_binding_validation_880c049583c44b661b08600abeea5f7f60b2d7cfdb693f07e80e99b972e0224e
+- record_V2VR000013
+- close_V2SL0012_after_V2VR000013
 bootstrap_goal_outcome: activated
 activation:
   activation_evidence_id: V2E000008

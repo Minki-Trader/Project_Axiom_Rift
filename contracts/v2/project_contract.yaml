@@ -80,6 +80,9 @@ git_authority:
   push_required_at_candidate_freeze: true
   push_required_at_terminal_closeout: true
   remote_head_verification_required: true
+  ordinary_state_mutation_invalidates_checkpoint: true
+  closeout_metadata_must_be_pushed: true
+  terminal_status_is_derived_from_clean_remote_metadata: true
   force_push_allowed: false
 claim_boundary:
   contract_is_evidence: false

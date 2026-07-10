@@ -36,6 +36,7 @@ HASHED_INPUTS = (
     "contracts/v2/validation_contract.yaml",
     "contracts/v2/handoff_contract.yaml",
     "contracts/v2/operator_contract.yaml",
+    "contracts/v2/state_machine.yaml",
     "configs/v2/mission.yaml",
     "configs/v2/git.yaml",
     "configs/v2/validation.yaml",
@@ -51,6 +52,7 @@ HASHED_INPUTS = (
     "src/axiom_rift/v2/git_closeout.py",
     "src/axiom_rift/v2/cli.py",
     "tests/v2/test_v21_state_operations.py",
+    "tests/v2/test_identity_state.py",
     "tests/v2/test_v21_canonical_research.py",
     "tests/v2/test_v21_validation_git_cli.py",
 )

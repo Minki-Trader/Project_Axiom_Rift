@@ -35,15 +35,25 @@ STAGE_TRANSITIONS = {
     "P": {"H", "M"},
     "M": set(),
 }
-TERMINAL_OUTCOMES = {
+ROOT_TERMINAL_OUTCOMES = frozenset({
     "completed_pre_live_handoff",
     "closed_no_candidate",
     "blocked_external",
     "stopped_by_user",
+})
+INTERNAL_GOAL_TERMINAL_OUTCOMES = frozenset({
+    "completed_internal_goal",
+    "closed_no_candidate",
+    "blocked_internal",
+    "stopped_internal",
+})
+INTERNAL_TO_ROOT_OUTCOME = {
+    "completed_internal_goal": "completed_pre_live_handoff",
+    "closed_no_candidate": "closed_no_candidate",
+    "blocked_internal": "blocked_external",
+    "stopped_internal": "stopped_by_user",
 }
-
-INTERNAL_GOAL_TERMINAL_OUTCOMES = TERMINAL_OUTCOMES
-ROOT_TERMINAL_OUTCOMES = TERMINAL_OUTCOMES
+TERMINAL_OUTCOMES = ROOT_TERMINAL_OUTCOMES
 
 IDENTITY_SPECS = {
     "goal": ("V2G", "next_goal"),
@@ -72,6 +82,9 @@ NEXT_ACTION_KINDS = {
     "resume_job",
     "record_evidence",
     "close_goal",
+    "close_root_mission",
+    "validate_root_closeout",
+    "verify_git_closeout",
     "repair",
 }
 
@@ -83,6 +96,9 @@ NEXT_ACTION_FIELDS = {
     "job_kind",
     "prerequisite_receipt_ids",
     "summary",
+    "mission_id",
+    "terminal_outcome",
+    "basis_evidence_id",
 }
 
 ACTIVE_JOB_STATUSES = {
@@ -141,6 +157,9 @@ def make_next_action(
     job_kind: str | None = None,
     prerequisite_receipt_ids: Iterable[str] = (),
     summary: str | None = None,
+    mission_id: str | None = None,
+    terminal_outcome: str | None = None,
+    basis_evidence_id: str | None = None,
 ) -> dict[str, Any]:
     action = {
         "kind": kind,
@@ -150,6 +169,9 @@ def make_next_action(
         "job_kind": job_kind,
         "prerequisite_receipt_ids": list(dict.fromkeys(prerequisite_receipt_ids)),
         "summary": summary,
+        "mission_id": mission_id,
+        "terminal_outcome": terminal_outcome,
+        "basis_evidence_id": basis_evidence_id,
     }
     validate_next_action(action)
     return action
@@ -164,7 +186,16 @@ def validate_next_action(action: Any) -> None:
     kind = action.get("kind")
     if kind not in NEXT_ACTION_KINDS:
         raise TransitionError(f"invalid next_action kind: {kind}")
-    for field in ("goal_id", "stage", "subject_id", "job_kind", "summary"):
+    for field in (
+        "goal_id",
+        "stage",
+        "subject_id",
+        "job_kind",
+        "summary",
+        "mission_id",
+        "terminal_outcome",
+        "basis_evidence_id",
+    ):
         value = action.get(field)
         if value is not None and not isinstance(value, str):
             raise TransitionError(f"next_action.{field} must be a string or null")
@@ -189,6 +220,25 @@ def validate_next_action(action: Any) -> None:
         raise TransitionError("next_action open_stage requires stage and subject_id")
     if kind in {"declare_job", "run_job", "resume_job"} and not action.get("job_kind"):
         raise TransitionError(f"next_action {kind} requires job_kind")
+    root_fields = (
+        action.get("mission_id"),
+        action.get("terminal_outcome"),
+        action.get("basis_evidence_id"),
+    )
+    if kind == "close_root_mission":
+        mission_id, terminal_outcome, basis_evidence_id = root_fields
+        if not isinstance(mission_id, str) or re.fullmatch(r"AXIOM_ROOT_[0-9]{4}", mission_id) is None:
+            raise TransitionError("next_action close_root_mission requires mission_id")
+        if terminal_outcome not in ROOT_TERMINAL_OUTCOMES:
+            raise TransitionError("next_action close_root_mission requires a root terminal outcome")
+        if not isinstance(basis_evidence_id, str) or not basis_evidence_id:
+            raise TransitionError("next_action close_root_mission requires basis_evidence_id")
+        if any(action.get(field) is not None for field in ("goal_id", "stage", "subject_id", "job_kind")):
+            raise TransitionError("next_action close_root_mission may not name goal, stage, subject, or job")
+        if basis_evidence_id not in prerequisites:
+            raise TransitionError("root closeout basis must be a prerequisite receipt")
+    elif any(value is not None for value in root_fields):
+        raise TransitionError("root closeout fields are exclusive to close_root_mission")
 
 
 def validate_active_job(job: Any) -> None:

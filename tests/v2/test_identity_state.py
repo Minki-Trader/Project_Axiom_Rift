@@ -8,7 +8,13 @@ import yaml
 
 from axiom_rift.v2.identity import IdentityError, ObjectStore
 from axiom_rift.v2.state.store import ControlStateError, ControlStore
-from axiom_rift.v2.state.transitions import TransitionError, promote_claim, transition_stage
+from axiom_rift.v2.state.transitions import (
+    TransitionError,
+    make_next_action,
+    promote_claim,
+    transition_stage,
+    validate_next_action,
+)
 
 
 def bootstrap_state() -> dict:
@@ -78,6 +84,25 @@ class ControlStoreTests(unittest.TestCase):
             transition_stage(cursor, "R", "V2R0001")
         with self.assertRaises(TransitionError):
             promote_claim({"current_level": "none"}, "research_candidate", ["V2E000001"])
+
+    def test_root_close_action_requires_complete_exact_arguments(self) -> None:
+        action = make_next_action(
+            "close_root_mission",
+            mission_id="AXIOM_ROOT_0001",
+            terminal_outcome="closed_no_candidate",
+            basis_evidence_id="V2E000100",
+            prerequisite_receipt_ids=["V2E000100"],
+        )
+        validate_next_action(action)
+        self.assertEqual("AXIOM_ROOT_0001", action["mission_id"])
+        with self.assertRaises(TransitionError):
+            make_next_action("close_root_mission")
+        with self.assertRaises(TransitionError):
+            make_next_action(
+                "open_goal",
+                goal_id="V2G0001",
+                mission_id="AXIOM_ROOT_0001",
+            )
 
 
 if __name__ == "__main__":

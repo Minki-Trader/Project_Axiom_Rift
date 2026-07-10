@@ -85,6 +85,26 @@ class GitCloseoutResult:
         }
 
 
+@dataclass(frozen=True)
+class GitCheckpointVerification:
+    ok: bool
+    code: str
+    head: str | None
+    remote_head: str | None
+    validated_content_commit: str | None
+    changed_paths: tuple[str, ...] = ()
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "ok": self.ok,
+            "code": self.code,
+            "head": self.head,
+            "remote_head": self.remote_head,
+            "validated_content_commit": self.validated_content_commit,
+            "changed_paths": list(self.changed_paths),
+        }
+
+
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     command = ["git", *args]
     try:
@@ -107,6 +127,149 @@ def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
 
 def _detail(result: subprocess.CompletedProcess[str]) -> str:
     return (result.stderr or result.stdout or f"git exited {result.returncode}").strip()
+
+
+def _repository_root(start: Path) -> Path | None:
+    result = _git(start, "rev-parse", "--show-toplevel")
+    if result.returncode != 0:
+        return None
+    return Path(result.stdout.strip()).resolve()
+
+
+def _scoped_dirty_paths(root: Path, paths: tuple[str, ...]) -> tuple[str, ...]:
+    result = _git(root, "status", "--porcelain=v1", "--untracked-files=all", "--", *paths)
+    if result.returncode != 0:
+        return ("<status-failed>",)
+    dirty: list[str] = []
+    for line in result.stdout.splitlines():
+        value = line[3:].strip().strip('"').replace("\\", "/")
+        if value and value not in dirty:
+            dirty.append(value)
+    return tuple(dirty)
+
+
+def verify_content_checkpoint(
+    start: Path,
+    control_state_path: Path,
+    expected_commit: str,
+    declared_paths: tuple[str, ...],
+) -> GitCheckpointVerification:
+    """Prove that the current control state is clean and present in pushed commit A."""
+
+    root = _repository_root(start.resolve())
+    if root is None:
+        return GitCheckpointVerification(False, "repository_unavailable", None, None, expected_commit)
+    branch = _git(root, "branch", "--show-current")
+    if branch.returncode != 0 or branch.stdout.strip() != "main":
+        return GitCheckpointVerification(False, "branch_not_main", None, None, expected_commit)
+    head_result = _git(root, "rev-parse", "HEAD")
+    head = head_result.stdout.strip() if head_result.returncode == 0 else None
+    try:
+        remote_head = _remote_head(root)
+    except RuntimeError:
+        remote_head = None
+    if head != expected_commit or remote_head != expected_commit:
+        return GitCheckpointVerification(False, "content_head_mismatch", head, remote_head, expected_commit)
+    if not declared_paths:
+        return GitCheckpointVerification(False, "content_scope_missing", head, remote_head, expected_commit)
+    try:
+        dirty = _dirty_paths(root)
+    except RuntimeError:
+        dirty = ("<status-failed>",)
+    if dirty:
+        return GitCheckpointVerification(False, "content_worktree_dirty", head, remote_head, expected_commit, dirty)
+    try:
+        relative = control_state_path.resolve().relative_to(root).as_posix()
+    except ValueError:
+        return GitCheckpointVerification(False, "control_state_outside_repo", head, remote_head, expected_commit)
+    if relative not in declared_paths:
+        return GitCheckpointVerification(False, "control_state_not_declared", head, remote_head, expected_commit)
+    changed_result = _git(root, "diff", "--name-only", f"{expected_commit}^..{expected_commit}")
+    changed = _name_lines(changed_result) if changed_result.returncode == 0 else ()
+    if set(changed) != set(declared_paths):
+        return GitCheckpointVerification(
+            False,
+            "content_scope_mismatch",
+            head,
+            remote_head,
+            expected_commit,
+            changed,
+        )
+    committed_blob = _git(root, "rev-parse", f"{expected_commit}:{relative}")
+    working_blob = _git(root, "hash-object", f"--path={relative}", "--", relative)
+    if (
+        committed_blob.returncode != 0
+        or working_blob.returncode != 0
+        or committed_blob.stdout.strip() != working_blob.stdout.strip()
+    ):
+        return GitCheckpointVerification(False, "control_state_not_in_content_commit", head, remote_head, expected_commit)
+    return GitCheckpointVerification(True, "content_checkpoint_verified", head, remote_head, expected_commit)
+
+
+def verify_metadata_checkpoint(
+    start: Path,
+    git_sync: dict[str, Any] | None,
+) -> GitCheckpointVerification:
+    """Derive whether metadata commit B is clean, pushed, and based directly on A."""
+
+    if not isinstance(git_sync, dict) or git_sync.get("status") not in {
+        "metadata_pending_push",
+        "synced",
+    }:
+        return GitCheckpointVerification(False, "metadata_not_recorded", None, None, None)
+    validated = git_sync.get("validated_content_commit")
+    if not isinstance(validated, str):
+        return GitCheckpointVerification(False, "validated_content_missing", None, None, None)
+    root = _repository_root(start.resolve())
+    if root is None:
+        return GitCheckpointVerification(False, "repository_unavailable", None, None, validated)
+    branch = _git(root, "branch", "--show-current")
+    if branch.returncode != 0 or branch.stdout.strip() != "main":
+        return GitCheckpointVerification(False, "branch_not_main", None, None, validated)
+    head_result = _git(root, "rev-parse", "HEAD")
+    head = head_result.stdout.strip() if head_result.returncode == 0 else None
+    try:
+        remote_head = _remote_head(root)
+    except RuntimeError:
+        remote_head = None
+    if not head or head != remote_head:
+        return GitCheckpointVerification(False, "metadata_not_pushed", head, remote_head, validated)
+    if head == validated:
+        return GitCheckpointVerification(False, "metadata_commit_missing", head, remote_head, validated)
+    parent = _git(root, "rev-parse", f"{head}^")
+    if parent.returncode != 0 or parent.stdout.strip() != validated:
+        return GitCheckpointVerification(False, "metadata_parent_mismatch", head, remote_head, validated)
+    allowed_raw = git_sync.get("metadata_allowed_paths")
+    allowed = tuple(allowed_raw) if isinstance(allowed_raw, list) else ()
+    if not allowed:
+        return GitCheckpointVerification(False, "metadata_scope_missing", head, remote_head, validated)
+    diff = _git(root, "diff", "--name-only", f"{validated}..{head}")
+    if diff.returncode != 0:
+        return GitCheckpointVerification(False, "metadata_diff_failed", head, remote_head, validated)
+    changed = _name_lines(diff)
+    if not changed or set(changed) != set(allowed):
+        return GitCheckpointVerification(
+            False,
+            "metadata_scope_violation",
+            head,
+            remote_head,
+            validated,
+            changed,
+        )
+    try:
+        dirty = _dirty_paths(root)
+    except RuntimeError:
+        dirty = ("<status-failed>",)
+    if dirty:
+        return GitCheckpointVerification(False, "metadata_worktree_dirty", head, remote_head, validated, dirty)
+    return GitCheckpointVerification(
+        True,
+        "metadata_checkpoint_verified",
+        head,
+        remote_head,
+        validated,
+        changed,
+    )
 
 
 def _normalize_declared_paths(root: Path, paths: Iterable[str]) -> tuple[str, ...]:

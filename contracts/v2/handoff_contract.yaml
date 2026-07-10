@@ -54,4 +54,8 @@ git_closeout:
   validated_commit_required: true
   push_required: true
   remote_head_verification_required: true
+  root_closeout_before_validation: terminal_validation_pending
+  persisted_terminal_before_metadata_push: terminal_pending_push
+  effective_terminal_requires_clean_head_equal_origin_main: true
+  metadata_parent_must_equal_validated_content_commit: true
   force_push_allowed: false

@@ -27,7 +27,8 @@ closeout, materialization, or blocker, read:
 
 One user goal opens one persistent root mission. Internal goal, hypothesis, or
 stage changes do not require another user prompt. A failed hypothesis does not
-end the root mission. Continue until a contract-valid terminal outcome exists.
+end the root mission. Continue until a contract-valid terminal outcome has a
+clean metadata commit verified on `origin/main`.
 
 Ask the user only for a scope change, destructive authority, live-capital
 authority, a new credential or external-data permission, or a genuine external
@@ -57,6 +58,12 @@ blocker. Routine research, implementation, and stage decisions are autonomous.
   forbidden.
 - The writer creates structured next actions; callers do not inject free-form
   transition commands.
+- Every ordinary state mutation invalidates the prior Git checkpoint. A stored
+  sync flag, `terminal_validation_pending`, or `terminal_pending_push` is not
+  completion authority.
+- Derive effective sync and terminal status read-only from a clean local HEAD,
+  equal `origin/main`, and a metadata commit whose parent is the validated
+  content commit. Do not create a third self-referential metadata commit.
 - Resume a declared active job before creating another job.
 - Work above 30 seconds is a declared bounded evidence job with input hashes,
   timeout, expected artifacts, logs, and a resume action.
@@ -106,7 +113,8 @@ names them.
 Update durable objects and ledgers before control state. Keep one structured
 next action and no undeclared active job. Validate one coherent changed surface,
 then commit the declared milestone paths on local `main`, push `origin/main`,
-and verify local and remote heads match.
+and verify local and remote heads match. Root terminal state remains
+`terminal_pending_push` until this read-only verification succeeds.
 
 Commit and push H preregistration, evidence-stage closeout, candidate freeze,
 complete blocker, and root terminal closeout. Do not validate, commit, or push

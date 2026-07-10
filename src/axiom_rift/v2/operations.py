@@ -6,8 +6,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 import re
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
+from axiom_rift.v2.git_closeout import (
+    GitCheckpointVerification,
+    verify_content_checkpoint,
+    verify_metadata_checkpoint,
+)
 from axiom_rift.v2.identity import ObjectStore, sha256_payload
 from axiom_rift.v2.ledger import HashChainLedger, LedgerError
 from axiom_rift.v2.lifecycle import validate_stage_basis
@@ -20,9 +25,15 @@ from axiom_rift.v2.paths import (
     V2_VALIDATION_RECEIPT_LEDGER,
 )
 from axiom_rift.v2.state import ControlStore
-from axiom_rift.v2.state.store import CONTROL_STATE_SCHEMA_V2, RECENT_CLOSED_GOAL_LIMIT
+from axiom_rift.v2.state.store import (
+    CONTROL_STATE_SCHEMA_V2,
+    RECENT_CLOSED_GOAL_LIMIT,
+    control_state_fingerprint,
+)
 from axiom_rift.v2.state.transitions import (
+    INTERNAL_TO_ROOT_OUTCOME,
     INTERNAL_GOAL_TERMINAL_OUTCOMES,
+    ROOT_TERMINAL_OUTCOMES,
     STAGE_IDENTITY_KINDS,
     TransitionError,
     claim_index,
@@ -74,6 +85,9 @@ class V2OperationWriter:
         evidence_ledger: Path = V2_EVIDENCE_LEDGER,
         material_ledger: Path = V2_MATERIAL_LEDGER,
         validation_receipt_ledger: Path = V2_VALIDATION_RECEIPT_LEDGER,
+        content_checkpoint_probe: Callable[[str, tuple[str, ...]], GitCheckpointVerification]
+        | None = None,
+        metadata_checkpoint_probe: Callable[[dict[str, Any]], GitCheckpointVerification] | None = None,
     ) -> None:
         self.objects = ObjectStore(object_dir)
         self.control = ControlStore(control_state, object_store=self.objects)
@@ -82,6 +96,17 @@ class V2OperationWriter:
         self.materials = HashChainLedger(material_ledger, "material")
         self.validation_receipts = HashChainLedger(
             validation_receipt_ledger, "validation_receipt"
+        )
+        self._content_checkpoint_probe = content_checkpoint_probe or (
+            lambda commit, declared_paths: verify_content_checkpoint(
+                self.control.path.parent,
+                self.control.path,
+                commit,
+                declared_paths,
+            )
+        )
+        self._metadata_checkpoint_probe = metadata_checkpoint_probe or (
+            lambda git_sync: verify_metadata_checkpoint(self.control.path.parent, git_sync)
         )
 
     @property
@@ -756,7 +781,17 @@ class V2OperationWriter:
         def mutate(draft: dict[str, Any]) -> None:
             draft["slice_budget"][counter_key] = 0
 
-        return self.control.commit(state["revision"], idempotency_key, mutate)
+        terminal_policy = (
+            "validation_mutation"
+            if state.get("root_mission", {}).get("status") == "terminal_validation_pending"
+            else None
+        )
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            terminal_validation_policy=terminal_policy,
+        )
 
     def open_slice(self, *, slice_id: str, idempotency_key: str) -> dict[str, Any]:
         state = self.control.load()
@@ -810,6 +845,7 @@ class V2OperationWriter:
         *,
         slice_id: str,
         validation_receipt_id: str,
+        declared_content_paths: Iterable[str],
         idempotency_key: str,
     ) -> dict[str, Any]:
         state = self.control.load()
@@ -834,9 +870,98 @@ class V2OperationWriter:
         )
         if row is None or row["payload"].get("outcome") != "pass":
             raise OperationStateError("slice closeout requires a passing validation receipt")
+        receipt_object_id = row["payload"].get("receipt_object_id")
+        if not isinstance(receipt_object_id, str):
+            raise OperationStateError("slice closeout validation receipt object is missing")
+        receipt = self.objects.get(receipt_object_id)["payload"]
+        if receipt.get("slice_id") != slice_id:
+            raise OperationStateError("validation receipt belongs to another slice")
+        declared = tuple(dict.fromkeys(path.replace("\\", "/") for path in declared_content_paths))
+        if not declared or any(
+            not path
+            or path.startswith("/")
+            or ":" in path.split("/", 1)[0]
+            or ".." in path.split("/")
+            for path in declared
+        ):
+            raise OperationStateError("slice closeout declared content paths are invalid")
 
         def mutate(draft: dict[str, Any]) -> None:
             draft["slice_budget"] = None
+            draft["reentry"]["git_sync"] = {
+                "status": "unsynced",
+                "validation_receipt_id": validation_receipt_id,
+                "validation_key": row["payload"]["validation_key"],
+                "validated_slice_id": slice_id,
+                "declared_content_paths": list(declared),
+            }
+            if draft.get("root_mission", {}).get("status") == "terminal_validation_pending":
+                self._set_next_action(
+                    draft,
+                    make_next_action(
+                        "verify_git_closeout",
+                        summary="commit and push validated root closeout content",
+                    ),
+                )
+
+        terminal_policy = (
+            "validated_content"
+            if state.get("root_mission", {}).get("status") == "terminal_validation_pending"
+            else None
+        )
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=[receipt_object_id],
+            git_sync_policy="validated_content",
+            terminal_validation_policy=terminal_policy,
+        )
+
+    def redesign_slice_after_failed_recheck(
+        self,
+        *,
+        current_slice_id: str,
+        new_slice_id: str,
+        failed_validation_receipt_id: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Open one boundary-redesign slice after the original repair path is exhausted."""
+
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("slice redesign requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        budget = state.get("slice_budget")
+        if not isinstance(budget, dict) or budget.get("slice_id") != current_slice_id:
+            raise OperationStateError("slice redesign identity mismatch")
+        if any(
+            budget.get(field) != 0
+            for field in ("implementation_remaining", "validation_remaining", "repair_remaining", "recheck_remaining")
+        ):
+            raise OperationStateError("slice redesign requires exhausted implementation and check budgets")
+        if not isinstance(new_slice_id, str) or not new_slice_id or new_slice_id == current_slice_id:
+            raise OperationStateError("slice redesign requires a distinct new slice id")
+        row = next(
+            (
+                item
+                for item in self.validation_receipts.rows()
+                if item["record_id"] == failed_validation_receipt_id
+            ),
+            None,
+        )
+        if row is None or row["payload"].get("outcome") != "fail":
+            raise OperationStateError("slice redesign requires the failed recheck receipt")
+        if state["reentry"].get("active_job") is not None:
+            raise OperationStateError("slice redesign requires no active job")
+
+        def mutate(draft: dict[str, Any]) -> None:
+            replacement = self._new_slice_budget(new_slice_id)
+            replacement["implementation_remaining"] = 0
+            replacement["redesign_from_slice_id"] = current_slice_id
+            replacement["failed_validation_receipt_id"] = failed_validation_receipt_id
+            draft["slice_budget"] = replacement
 
         return self.control.commit(state["revision"], idempotency_key, mutate)
 
@@ -865,6 +990,26 @@ class V2OperationWriter:
             validated_content_commit == local_head_observed == origin_main_head_observed
         ):
             raise OperationStateError("validated content commit was not the synchronized remote head")
+        current_sync = state.get("reentry", {}).get("git_sync")
+        if not isinstance(current_sync, dict) or current_sync.get("status") != "unsynced":
+            raise OperationStateError("Git closeout requires an unsynced content state")
+        dirty_fingerprint = current_sync.get("dirty_state_fingerprint")
+        if dirty_fingerprint != control_state_fingerprint(state):
+            raise OperationStateError("Git closeout state fingerprint differs")
+        if current_sync.get("validation_receipt_id") != validation_receipt_id:
+            raise OperationStateError("Git closeout receipt differs from validated content binding")
+        declared_raw = current_sync.get("declared_content_paths")
+        if not isinstance(declared_raw, list) or not declared_raw:
+            raise OperationStateError("Git closeout declared content scope is missing")
+        declared_content_paths = tuple(declared_raw)
+        checkpoint = self._content_checkpoint_probe(
+            validated_content_commit,
+            declared_content_paths,
+        )
+        if not checkpoint.ok:
+            raise OperationStateError(f"Git content checkpoint failed: {checkpoint.code}")
+        if checkpoint.head != local_head_observed or checkpoint.remote_head != origin_main_head_observed:
+            raise OperationStateError("observed Git heads differ from the verified content checkpoint")
         validation_row = next(
             (
                 row
@@ -875,6 +1020,13 @@ class V2OperationWriter:
         )
         if validation_row is None or validation_row["payload"].get("outcome") != "pass":
             raise OperationStateError("Git closeout requires a passing validation receipt")
+        validation_rows = self.validation_receipts.rows()
+        if not validation_rows or validation_rows[-1]["record_id"] != validation_receipt_id:
+            raise OperationStateError("Git closeout requires the latest validation receipt")
+        if validation_row["payload"].get("validation_key") != current_sync.get("validation_key"):
+            raise OperationStateError("Git closeout validation key differs from content binding")
+        if validation_row["payload"].get("slice_id") != current_sync.get("validated_slice_id"):
+            raise OperationStateError("Git closeout validation slice differs from content binding")
         receipt_object_id = validation_row["payload"].get("receipt_object_id")
         if not isinstance(receipt_object_id, str):
             raise OperationStateError("validation receipt object is missing")
@@ -887,9 +1039,17 @@ class V2OperationWriter:
             "push_target": "origin/main",
             "local_head_observed": local_head_observed,
             "origin_main_head_observed": origin_main_head_observed,
-            "status": "synced",
+            "content_state_fingerprint": dirty_fingerprint,
+            "dirty_revision": current_sync.get("dirty_revision"),
+            "declared_content_paths": list(declared_content_paths),
+            "status": "metadata_pending_push",
         }
         object_id = self.objects.put("git_closeout", payload)
+        metadata_paths = [
+            "registries/v2/control_state.yaml",
+            "registries/v2/evidence_ledger.jsonl",
+            f"registries/v2/objects/{object_id}.json",
+        ]
         row = self._append_or_existing(
             self.evidence,
             closeout_id,
@@ -905,19 +1065,35 @@ class V2OperationWriter:
             }
             self._add_authoritative_objects(draft, [object_id])
             draft["reentry"]["git_sync"] = {
-                "status": "synced",
+                "status": "metadata_pending_push",
                 "validated_content_commit": validated_content_commit,
                 "local_head": local_head_observed,
                 "origin_main_head": origin_main_head_observed,
                 "validation_receipt_id": validation_receipt_id,
                 "closeout_object_id": object_id,
+                "content_state_fingerprint": dirty_fingerprint,
+                "dirty_revision": current_sync.get("dirty_revision"),
+                "declared_content_paths": list(declared_content_paths),
+                "metadata_allowed_paths": metadata_paths,
             }
+            if draft.get("root_mission", {}).get("status") == "terminal_validation_pending":
+                draft["root_mission"]["status"] = "terminal_pending_push"
+                self._set_next_action(
+                    draft,
+                    make_next_action(
+                        "verify_git_closeout",
+                        summary="push and verify root terminal metadata",
+                    ),
+                )
 
+        finalize_root = state.get("root_mission", {}).get("status") == "terminal_validation_pending"
         return self.control.commit(
             state["revision"],
             idempotency_key,
             mutate,
             referenced_object_ids=[receipt_object_id, object_id],
+            git_sync_policy="record_metadata",
+            root_transition_policy="finalize_metadata" if finalize_root else None,
         )
 
     def issue_holdout_permit(
@@ -993,16 +1169,16 @@ class V2OperationWriter:
         ):
             raise OperationStateError("trial-accounting receipt is incomplete or belongs to another candidate")
         git_sync = state["reentry"].get("git_sync")
-        if not isinstance(git_sync, dict) or git_sync.get("status") != "synced":
-            raise OperationStateError("holdout permit requires synced Git state")
-        local_head = git_sync.get("local_head")
-        origin_head = git_sync.get("origin_main_head")
-        if (
-            not isinstance(local_head, str)
-            or re.fullmatch(r"[0-9a-f]{40}", local_head) is None
-            or local_head != origin_head
-        ):
-            raise OperationStateError("local HEAD and origin/main are not synchronized")
+        if not isinstance(git_sync, dict) or git_sync.get("status") not in {
+            "metadata_pending_push",
+            "synced",
+        }:
+            raise OperationStateError("holdout permit requires recorded Git closeout metadata")
+        checkpoint = self._metadata_checkpoint_probe(git_sync if isinstance(git_sync, dict) else {})
+        if not checkpoint.ok or not isinstance(checkpoint.head, str):
+            raise OperationStateError(
+                f"holdout permit requires a pushed Git metadata checkpoint: {checkpoint.code}"
+            )
         goal_id = cursor["active_goal_id"]
         stage_id = cursor["stage_id"]
         action = next_action or make_next_action(
@@ -1024,7 +1200,7 @@ class V2OperationWriter:
             "frozen_identity_bundle_sha256": frozen_identity_bundle_sha256,
             "p_gate_receipt_id": p_gate_receipt_id,
             "trial_accounting_receipt_id": trial_accounting_receipt_id,
-            "git_sync_commit": local_head,
+            "git_sync_commit": checkpoint.head,
             "reveal_count_before": 0,
             "max_reveals": 1,
             "status": "issued_not_consumed",
@@ -1073,6 +1249,7 @@ class V2OperationWriter:
         basis_evidence_id: str,
         summary_payload: dict[str, Any],
         idempotency_key: str,
+        root_terminal_outcome: str | None = None,
         next_action: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         if outcome not in INTERNAL_GOAL_TERMINAL_OUTCOMES:
@@ -1098,23 +1275,62 @@ class V2OperationWriter:
         evidence_goal_id = evidence_row["payload"].get("goal_id")
         if evidence_goal_id != goal_id:
             raise OperationStateError("goal closeout evidence does not belong to the active goal")
-        if next_action is None:
-            if outcome == "completed_pre_live_handoff":
-                next_action = make_next_action("none", summary="root mission completed")
-            elif outcome in {"blocked_external", "stopped_by_user"}:
-                next_action = make_next_action("none", summary=f"internal goal ended: {outcome}")
-            else:
-                next_action = make_next_action(
-                    "open_goal",
-                    goal_id=format_identity("goal", state["namespace"]["next_goal"]),
-                    summary="open the next internal research goal",
-                )
+        if root_terminal_outcome is None and outcome == "completed_internal_goal":
+            root_terminal_outcome = INTERNAL_TO_ROOT_OUTCOME[outcome]
+        if root_terminal_outcome is not None:
+            expected_root_outcome = INTERNAL_TO_ROOT_OUTCOME[outcome]
+            if root_terminal_outcome != expected_root_outcome:
+                raise OperationStateError("internal and root terminal outcomes do not correspond")
+            if next_action is not None:
+                raise OperationStateError("root closeout next_action is writer-owned")
+            if state["root_mission"].get("status") != "active":
+                raise OperationStateError("root terminal request requires an active root mission")
+            if (
+                root_terminal_outcome == "completed_pre_live_handoff"
+                and state["claim"].get("current_level") != "pre_live_ready"
+            ):
+                raise OperationStateError("successful root request requires pre_live_ready claim")
+            next_action = make_next_action(
+                "close_root_mission",
+                mission_id=state["root_mission"]["mission_id"],
+                terminal_outcome=root_terminal_outcome,
+                basis_evidence_id=basis_evidence_id,
+                prerequisite_receipt_ids=[basis_evidence_id],
+                summary=f"close root mission as {root_terminal_outcome}",
+            )
+        elif next_action is None:
+            next_action = make_next_action(
+                "open_goal",
+                goal_id=format_identity("goal", state["namespace"]["next_goal"]),
+                summary="open the next internal research goal",
+            )
+        elif next_action.get("kind") == "close_root_mission":
+            raise OperationStateError("caller may not inject a root closeout action")
         validate_next_action(next_action)
+        request_object_id: str | None = None
+        terminal_request: dict[str, Any] | None = None
+        if root_terminal_outcome is not None:
+            request_payload = {
+                "mission_id": state["root_mission"]["mission_id"],
+                "outcome": root_terminal_outcome,
+                "basis_evidence_id": basis_evidence_id,
+                "requested_by_goal_id": goal_id,
+                "claim_snapshot": state["claim"],
+            }
+            request_object_id = self.objects.put("root_terminal_request", request_payload)
+            terminal_request = {
+                "mission_id": request_payload["mission_id"],
+                "outcome": root_terminal_outcome,
+                "basis_evidence_id": basis_evidence_id,
+                "requested_by_goal_id": goal_id,
+                "request_object_id": request_object_id,
+            }
         summary = {
             "goal_id": goal_id,
             "outcome": outcome,
             "basis_evidence_id": basis_evidence_id,
             "summary": summary_payload,
+            "root_terminal_request_object_id": request_object_id,
         }
         object_id = self.objects.put("internal_goal_closeout", summary)
         row = self._append_or_existing(
@@ -1126,6 +1342,7 @@ class V2OperationWriter:
                 "outcome": outcome,
                 "basis_evidence_id": basis_evidence_id,
                 "summary_object_id": object_id,
+                "root_terminal_request_object_id": request_object_id,
             },
             utc_now(),
         )
@@ -1154,6 +1371,8 @@ class V2OperationWriter:
                 }
             )
             self._set_next_action(draft, next_action)
+            if terminal_request is not None:
+                draft["root_mission"]["terminal_request"] = terminal_request
             draft["claim"] = {
                 "subject_kind": "none",
                 "subject_id": None,
@@ -1169,20 +1388,19 @@ class V2OperationWriter:
             draft["reentry"]["completed_receipt_ids"] = []
             draft["reentry"]["completed_evidence_ids"] = []
             draft["slice_budget"] = None
-            if outcome == "completed_pre_live_handoff":
-                draft["root_mission"]["status"] = "terminal"
-                draft["root_mission"]["terminal_outcome"] = outcome
-                draft["cursor"]["terminal_outcome"] = outcome
-            elif outcome in {"blocked_external", "stopped_by_user"}:
-                draft["root_mission"]["status"] = "terminal"
-                draft["root_mission"]["terminal_outcome"] = outcome
-                draft["cursor"]["terminal_outcome"] = outcome
+            authoritative = [object_id]
+            if request_object_id is not None:
+                authoritative.append(request_object_id)
+            self._add_authoritative_objects(draft, authoritative)
 
+        referenced = [object_id]
+        if request_object_id is not None:
+            referenced.append(request_object_id)
         return self.control.commit(
             state["revision"],
             idempotency_key,
             mutate,
-            referenced_object_ids=[object_id],
+            referenced_object_ids=referenced,
         )
 
     def close_root_mission(
@@ -1200,17 +1418,37 @@ class V2OperationWriter:
         if self._already_applied(state, idempotency_key):
             return state
         self._require_reconciled(state)
-        if outcome not in {
-            "completed_pre_live_handoff",
-            "closed_no_candidate",
-            "blocked_external",
-            "stopped_by_user",
-        }:
+        if outcome not in ROOT_TERMINAL_OUTCOMES:
             raise OperationStateError(f"invalid root mission outcome: {outcome}")
+        root_mission = state["root_mission"]
+        if root_mission.get("status") != "active":
+            raise OperationStateError("root mission closeout requires active status")
         if state["cursor"].get("active_goal_id") is not None:
             raise OperationStateError("close the active internal goal before the root mission")
         if state["reentry"].get("active_job") is not None:
             raise OperationStateError("root mission cannot close with an active job")
+        action = state["cursor"].get("next_action")
+        if not isinstance(action, dict) or action.get("kind") != "close_root_mission":
+            raise OperationStateError("root closeout requires its structured next action")
+        if (
+            action.get("mission_id") != root_mission["mission_id"]
+            or action.get("terminal_outcome") != outcome
+            or action.get("basis_evidence_id") != basis_evidence_id
+        ):
+            raise OperationStateError("root closeout arguments differ from the structured action")
+        request = root_mission.get("terminal_request")
+        if not isinstance(request, dict):
+            raise OperationStateError("root terminal request is missing")
+        if (
+            request.get("mission_id") != root_mission["mission_id"]
+            or request.get("outcome") != outcome
+            or request.get("basis_evidence_id") != basis_evidence_id
+        ):
+            raise OperationStateError("root terminal request differs from closeout arguments")
+        request_object_id = request.get("request_object_id")
+        if not isinstance(request_object_id, str):
+            raise OperationStateError("root terminal request object is missing")
+        request_payload = self.objects.get(request_object_id)["payload"]
         evidence_row = next(
             (row for row in self.evidence.rows() if row["record_id"] == basis_evidence_id),
             None,
@@ -1221,7 +1459,7 @@ class V2OperationWriter:
         if not isinstance(receipt_object_id, str):
             raise OperationStateError("root mission basis evidence has no receipt object")
         receipt = self.objects.get(receipt_object_id)["payload"]
-        mission_id = state["root_mission"]["mission_id"]
+        mission_id = root_mission["mission_id"]
         if receipt.get("mission_id") != mission_id or receipt.get("outcome") != outcome:
             raise OperationStateError("root mission basis receipt identity or outcome differs")
         if outcome == "closed_no_candidate":
@@ -1232,21 +1470,22 @@ class V2OperationWriter:
                 or receipt.get("remaining_axes_low_information_value") is True
             ):
                 raise OperationStateError("material exhaustion basis is incomplete")
-        if outcome == "completed_pre_live_handoff" and state["claim"].get("current_level") != "pre_live_ready":
-            raise OperationStateError("successful root closeout requires pre_live_ready")
+        claim_snapshot = request_payload.get("claim_snapshot")
+        if outcome == "completed_pre_live_handoff" and (
+            not isinstance(claim_snapshot, dict)
+            or claim_snapshot.get("current_level") != "pre_live_ready"
+        ):
+            raise OperationStateError("successful root closeout requires pre_live_ready request claim")
         if outcome == "blocked_external" and not isinstance(state["reentry"].get("blocker"), dict):
             raise OperationStateError("blocked_external requires a complete blocker")
-        if outcome != "blocked_external":
-            git_sync = state["reentry"].get("git_sync")
-            if not isinstance(git_sync, dict) or git_sync.get("status") != "synced":
-                raise OperationStateError("root terminal closeout requires synced validated content")
         payload = {
             "mission_id": mission_id,
             "outcome": outcome,
             "basis_evidence_id": basis_evidence_id,
             "basis_receipt_object_id": receipt_object_id,
+            "terminal_request_object_id": request_object_id,
             "mission_budget": state["mission_budget"],
-            "git_sync": state["reentry"].get("git_sync"),
+            "status": "terminal_validation_pending",
         }
         object_id = self.objects.put("root_mission_closeout", payload)
         row = self._append_or_existing(
@@ -1258,14 +1497,20 @@ class V2OperationWriter:
         )
 
         def mutate(draft: dict[str, Any]) -> None:
-            draft["root_mission"]["status"] = "terminal"
+            draft["root_mission"]["status"] = "terminal_validation_pending"
             draft["root_mission"]["terminal_outcome"] = outcome
+            draft["root_mission"]["closeout_object_id"] = object_id
             draft["cursor"]["terminal_outcome"] = outcome
             self._set_next_action(
                 draft,
-                make_next_action("none", summary=f"root mission terminal: {outcome}"),
+                make_next_action(
+                    "validate_root_closeout",
+                    summary=f"validate root terminal content: {outcome}",
+                ),
             )
-            draft["slice_budget"] = None
+            terminal_slice_id = f"{mission_id}_terminal_closeout"
+            draft["slice_budget"] = self._new_slice_budget(terminal_slice_id)
+            draft["slice_budget"]["implementation_remaining"] = 0
             draft["ledger_heads"]["evidence"] = {
                 "ledger_seq": row["ledger_seq"],
                 "row_sha256": row["row_sha256"],
@@ -1276,7 +1521,8 @@ class V2OperationWriter:
             state["revision"],
             idempotency_key,
             mutate,
-            referenced_object_ids=[receipt_object_id, object_id],
+            referenced_object_ids=[request_object_id, receipt_object_id, object_id],
+            root_transition_policy="prepare_validation",
         )
 
     def register_material_batch(
@@ -1821,6 +2067,7 @@ class V2OperationWriter:
             "receipt_object_id": object_id,
             "validator_id": receipt["validator_id"],
             "duration_seconds": receipt["duration_seconds"],
+            "slice_id": receipt.get("slice_id"),
         }
         row = self._append_or_existing(
             self.validation_receipts,
@@ -1845,11 +2092,17 @@ class V2OperationWriter:
             hashes[receipt_id] = object_id
             self._set_next_action(draft, exact_next_action)
 
+        terminal_policy = (
+            "validation_mutation"
+            if state.get("root_mission", {}).get("status") == "terminal_validation_pending"
+            else None
+        )
         return self.control.commit(
             state["revision"],
             idempotency_key,
             mutate,
             referenced_object_ids=[object_id],
+            terminal_validation_policy=terminal_policy,
         )
 
     def migrate_control_state_v1_to_v2(
@@ -1954,12 +2207,9 @@ class V2OperationWriter:
                 "completed_evidence_ids": [],
                 "blocker": None,
                 "git_sync": {
-                    "status": "pending_v2_1_content_closeout",
-                    "validated_content_commit": None,
-                    "local_head": None,
-                    "origin_main_head": None,
-                    "validation_receipt_id": None,
-                    "closeout_object_id": None,
+                    "status": "unsynced",
+                    "invalidated_by_operation": "migrate_control_state_v1_to_v2",
+                    "previous_validated_content_commit": None,
                 },
             }
             draft["claim"] = {

@@ -20,7 +20,12 @@ from axiom_rift.v2.cli import (
     reconcile_state,
     structured_goal_action,
 )
-from axiom_rift.v2.git_closeout import git_preflight, scoped_git_closeout
+from axiom_rift.v2.git_closeout import (
+    git_preflight,
+    scoped_git_closeout,
+    verify_content_checkpoint,
+    verify_metadata_checkpoint,
+)
 from axiom_rift.v2.identity import ObjectStore
 from axiom_rift.v2.ledger import HashChainLedger
 from axiom_rift.v2.validation.budget import (
@@ -164,6 +169,55 @@ class ScopedGitCloseoutTests(unittest.TestCase):
             self.assertEqual(result.push_attempts, 2)
             self.assertEqual(result.blocker.code, "push_failed")
             self.assertEqual(result.blocker.external_state_required, "remote_or_auth_state")
+
+    def test_content_and_metadata_checkpoints_are_derived_without_third_commit(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            repo, _ = initialize_temp_repo(Path(temp_dir))
+            control = repo / "registries" / "v2" / "control_state.yaml"
+            control.parent.mkdir(parents=True)
+            control.write_text("revision: 1\n", encoding="ascii")
+            run_git(repo, "add", "--", "registries/v2/control_state.yaml")
+            run_git(repo, "commit", "-m", "content A")
+            run_git(repo, "push", "origin", "main")
+            content_commit = run_git(repo, "rev-parse", "HEAD").stdout.strip()
+
+            content = verify_content_checkpoint(
+                repo,
+                control,
+                content_commit,
+                ("registries/v2/control_state.yaml",),
+            )
+            self.assertTrue(content.ok, content.to_payload())
+
+            control.write_text("revision: 2\n", encoding="ascii")
+            (repo / "registries" / "v2" / "evidence_ledger.jsonl").write_text(
+                "{}\n", encoding="ascii"
+            )
+            run_git(repo, "add", "--", "registries/v2")
+            run_git(repo, "commit", "-m", "metadata B")
+            sync = {
+                "status": "metadata_pending_push",
+                "validated_content_commit": content_commit,
+                "metadata_allowed_paths": [
+                    "registries/v2/control_state.yaml",
+                    "registries/v2/evidence_ledger.jsonl",
+                ],
+            }
+            before_push = verify_metadata_checkpoint(repo, sync)
+            self.assertFalse(before_push.ok)
+            self.assertEqual("metadata_not_pushed", before_push.code)
+
+            run_git(repo, "push", "origin", "main")
+            bad_scope = verify_metadata_checkpoint(
+                repo,
+                {**sync, "metadata_allowed_paths": ["registries/v2/control_state.yaml"]},
+            )
+            self.assertFalse(bad_scope.ok)
+            self.assertEqual("metadata_scope_violation", bad_scope.code)
+            after_push = verify_metadata_checkpoint(repo, sync)
+            self.assertTrue(after_push.ok, after_push.to_payload())
+            self.assertEqual(content_commit, after_push.validated_content_commit)
+            self.assertEqual(content_commit, run_git(repo, "rev-parse", "HEAD^").stdout.strip())
 
 
 class BoundedCliTests(unittest.TestCase):

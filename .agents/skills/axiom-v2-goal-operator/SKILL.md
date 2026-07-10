@@ -33,7 +33,7 @@ Allowed root outcomes are `completed_pre_live_handoff`,
 
 ## Run the Bounded Loop
 
-While no root outcome exists:
+While no remotely verified effective root outcome exists:
 
 1. Load and validate control state and Git preconditions.
 2. Resume the declared active job, if any.
@@ -43,6 +43,15 @@ While no root outcome exists:
 6. Commit only declared milestone paths on local `main`.
 7. Push `origin/main` and verify local and remote heads match.
 8. Transition state and continue immediately.
+
+An ordinary mutation invalidates the previous Git checkpoint. Persist
+`terminal_validation_pending`, then `terminal_pending_push` and
+`metadata_pending_push`; never treat any stored pending value as completion.
+Bind the passing receipt and exact content paths before content commit A. Derive
+completion read-only when the worktree is clean,
+local HEAD equals `origin/main`, the metadata commit parent is the validated
+content commit, and its changed paths stay inside the metadata scope. This
+avoids a third self-referential commit.
 
 Use bounded steps with durable reentry. Do not create a daemon, workflow DAG,
 or unbounded shell process. Codex supplies high-dimensional hypothesis judgment;
@@ -187,6 +196,11 @@ Use Git as the remote evidence checkpoint, not as a review workflow. Commit and
 push H preregistration, evidence-stage closeout, candidate freeze, complete
 blocker, and root terminal closeout. Do not commit or push per file, artifact,
 fold, or micro-fix.
+
+Record validated content commit A first, then one exact-scope closeout metadata
+commit B. B must be
+clean and pushed before a holdout gate or root terminal is effective. Git
+freshness checks never rerun scientific validation.
 
 Stage declared paths only. Do not use `git add -A`, force-push, hard reset,
 auto-merge, auto-rebase, or discard unrelated work. A push failure never reruns

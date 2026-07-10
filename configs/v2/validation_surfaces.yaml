@@ -28,6 +28,8 @@ surfaces:
       - canonical_program_registry
       - bounded_cli_surface
       - validation_and_git_policy
+      - root_terminal_transition_guards
+      - derived_git_checkpoint_freshness
     forbidden:
       - data_build
       - model_training

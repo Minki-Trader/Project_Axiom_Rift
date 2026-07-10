@@ -17,7 +17,7 @@ from axiom_rift.v2.validation.types import ValidationIssue, ValidationResult
 EXPECTED_SCHEMAS = {
     "contracts/v2/goal_packet.yaml": "axiom_rift_v2_goal_packet_v1",
     "contracts/v2/architecture.yaml": "axiom_rift_v2_architecture_v1",
-    "contracts/v2/state_machine.yaml": "axiom_rift_v2_state_machine_v1",
+    "contracts/v2/state_machine.yaml": "axiom_rift_v2_state_machine_v2",
     "contracts/v2/claim_ladder.yaml": "axiom_rift_v2_claim_ladder_v1",
     "contracts/v2/split_policy.yaml": "axiom_rift_v2_split_policy_v1",
     "contracts/v2/identity_policy.yaml": "axiom_rift_v2_identity_policy_v1",

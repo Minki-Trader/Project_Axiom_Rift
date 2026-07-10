@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from axiom_rift.paths import PROJECT_ROOT
+from axiom_rift.v2.git_closeout import verify_metadata_checkpoint
 from axiom_rift.v2.identity import sha256_payload
 from axiom_rift.v2.state.transitions import make_next_action, validate_next_action
 
@@ -256,7 +257,21 @@ def load_control_action(root: Path, *, resume: bool = False) -> dict[str, Any]:
             summary=job.get("resume_action"),
         )
     else:
-        action = state.get("cursor", {}).get("next_action")
+        root_mission = state.get("root_mission", {})
+        if root_mission.get("status") == "terminal_pending_push":
+            checkpoint = verify_metadata_checkpoint(
+                root,
+                state.get("reentry", {}).get("git_sync"),
+            )
+            if checkpoint.ok:
+                action = make_next_action(
+                    "none",
+                    summary=f"verified root terminal: {root_mission.get('terminal_outcome')}",
+                )
+            else:
+                action = state.get("cursor", {}).get("next_action")
+        else:
+            action = state.get("cursor", {}).get("next_action")
         validate_next_action(action)
     return action
 
@@ -268,12 +283,26 @@ def compact_status(root: Path) -> dict[str, Any]:
     cursor = state.get("cursor", {})
     claim = state.get("claim", {})
     reentry = state.get("reentry", {})
+    root_mission = dict(state.get("root_mission", {}))
+    checkpoint = verify_metadata_checkpoint(root, reentry.get("git_sync"))
+    if root_mission.get("status") == "terminal_pending_push" and checkpoint.ok:
+        effective_root_status = "terminal"
+        effective_terminal_outcome = root_mission.get("terminal_outcome")
+    else:
+        effective_root_status = root_mission.get("status")
+        effective_terminal_outcome = (
+            root_mission.get("terminal_outcome")
+            if root_mission.get("status") == "terminal"
+            else None
+        )
     return {
         "schema": "axiom_rift_v21_compact_status_v1",
         "revision": state.get("revision"),
         "status": state.get("status"),
         "active_truth": state.get("active_truth"),
-        "root_mission": state.get("root_mission"),
+        "root_mission": root_mission,
+        "effective_root_status": effective_root_status,
+        "effective_terminal_outcome": effective_terminal_outcome,
         "mission_budget": state.get("mission_budget"),
         "slice_budget": state.get("slice_budget"),
         "cursor": {
@@ -300,6 +329,7 @@ def compact_status(root: Path) -> dict[str, Any]:
             "active_job": reentry.get("active_job"),
             "blocker": reentry.get("blocker"),
             "git_sync": reentry.get("git_sync", reentry.get("git_closeout")),
+            "git_sync_effective": checkpoint.to_payload(),
         },
         "daemon": False,
     }
@@ -519,6 +549,7 @@ def _validate_surface(args: argparse.Namespace, root: Path) -> int:
         result_code = 2
     else:
         result_code = 0 if result.ok else 1
+    receipt = {**receipt, "slice_id": args.slice_id}
     record = None
     if args.record_id is not None:
         if root.resolve() == PROJECT_ROOT.resolve():

@@ -21,6 +21,8 @@ state:
   structured_next_action_required: true
   free_form_transition_injection_allowed: false
   compact_active_references_only: true
+  ordinary_mutation_invalidates_git_checkpoint: true
+  root_terminal_is_derived_from_remote_metadata: true
 active_job:
   required_above_seconds: 30
   evidence_must_match_job_stage_inputs_and_outputs: true
@@ -52,6 +54,10 @@ git:
   push_required: true
   remote_head_check_required: true
   scientific_validation_rerun_after_push_failure: false
+  content_commit_then_metadata_commit: true
+  metadata_commit_sha_stored_in_state: false
+  metadata_push_verified_read_only: true
+  persisted_synced_flag_is_completion_authority: false
 blocker:
   required_fields:
     - root_cause
@@ -70,3 +76,6 @@ terminal:
     - stopped_by_user
   success_semantics: current_machine_local_pre_live_bundle
   live_ready_allowed: false
+  persisted_status_before_focused_validation: terminal_validation_pending
+  persisted_status_before_remote_verification: terminal_pending_push
+  completion_requires_effective_remote_verification: true
