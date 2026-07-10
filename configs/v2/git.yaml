@@ -1,0 +1,22 @@
+schema: axiom_rift_v2_git_config_v1
+status: active
+encoding: ascii_only
+branch: main
+remote: origin
+push_target: origin/main
+milestone_commit_required: true
+push_required: true
+remote_head_verification_required: true
+fast_forward_only: true
+force_push_allowed: false
+hard_reset_allowed: false
+auto_merge_allowed: false
+auto_rebase_allowed: false
+stage_unrelated_files_allowed: false
+stage_all_allowed: false
+command_timeout_seconds: 30
+push_policy:
+  initial_attempts: 1
+  diagnostic_retry_max: 1
+  rerun_scientific_validation_on_failure: false
+  repeated_failure_outcome: blocked_external

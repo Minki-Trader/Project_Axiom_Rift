@@ -20,6 +20,8 @@ def activation_validation_identity(root: Path, phase: str) -> dict[str, Any]:
         {
             "active_truth": state.get("active_truth"),
             "status": state.get("status"),
+            "root_mission": state.get("root_mission"),
+            "mission_budget": state.get("mission_budget"),
             "cursor": {
                 "active_goal_id": state.get("cursor", {}).get("active_goal_id"),
                 "active_hypothesis_id": state.get("cursor", {}).get("active_hypothesis_id"),
@@ -27,7 +29,7 @@ def activation_validation_identity(root: Path, phase: str) -> dict[str, Any]:
                 "stage_id": state.get("cursor", {}).get("stage_id"),
                 "stage_status": state.get("cursor", {}).get("stage_status"),
                 "stage_outcome": state.get("cursor", {}).get("stage_outcome"),
-                "exact_next_action": state.get("cursor", {}).get("exact_next_action"),
+                "next_action": state.get("cursor", {}).get("next_action"),
             },
             "active_job": state.get("reentry", {}).get("active_job"),
             "claim": state.get("claim"),

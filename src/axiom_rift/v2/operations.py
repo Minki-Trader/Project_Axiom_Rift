@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, Iterable
+from pathlib import Path
+import re
+from typing import Any, Iterable, Mapping
 
 from axiom_rift.v2.identity import ObjectStore, sha256_payload
 from axiom_rift.v2.ledger import HashChainLedger, LedgerError
@@ -18,7 +20,21 @@ from axiom_rift.v2.paths import (
     V2_VALIDATION_RECEIPT_LEDGER,
 )
 from axiom_rift.v2.state import ControlStore
-from axiom_rift.v2.state.transitions import promote_claim, transition_stage
+from axiom_rift.v2.state.store import CONTROL_STATE_SCHEMA_V2, RECENT_CLOSED_GOAL_LIMIT
+from axiom_rift.v2.state.transitions import (
+    INTERNAL_GOAL_TERMINAL_OUTCOMES,
+    STAGE_IDENTITY_KINDS,
+    TransitionError,
+    claim_index,
+    format_identity,
+    identity_kind_for_stage,
+    make_next_action,
+    namespace_key,
+    promote_claim,
+    transition_stage,
+    validate_identity,
+    validate_next_action,
+)
 
 
 def utc_now() -> str:
@@ -32,18 +48,178 @@ class MaterialRecord:
     payload: dict[str, Any]
 
 
+class OperationStateError(RuntimeError):
+    """Raised when durable ledgers and the compact control state disagree."""
+
+
+DEFAULT_MISSION_BUDGET_LIMITS = {
+    "hypothesis_batches": 12,
+    "scout_jobs": 12,
+    "confirmation_jobs": 4,
+    "promotion_candidates": 2,
+    "full_nine_fold_mt5_batches": 2,
+    "holdout_reveals": 1,
+}
+
+
 class V2OperationWriter:
     """Own all active V2 state mutations; research functions remain pure."""
 
-    def __init__(self) -> None:
-        self.objects = ObjectStore(V2_OBJECT_DIR)
-        self.control = ControlStore(V2_CONTROL_STATE, object_store=self.objects)
-        self.hypotheses = HashChainLedger(V2_HYPOTHESIS_LEDGER, "hypothesis")
-        self.evidence = HashChainLedger(V2_EVIDENCE_LEDGER, "evidence")
-        self.materials = HashChainLedger(V2_MATERIAL_LEDGER, "material")
+    def __init__(
+        self,
+        *,
+        object_dir: Path = V2_OBJECT_DIR,
+        control_state: Path = V2_CONTROL_STATE,
+        hypothesis_ledger: Path = V2_HYPOTHESIS_LEDGER,
+        evidence_ledger: Path = V2_EVIDENCE_LEDGER,
+        material_ledger: Path = V2_MATERIAL_LEDGER,
+        validation_receipt_ledger: Path = V2_VALIDATION_RECEIPT_LEDGER,
+    ) -> None:
+        self.objects = ObjectStore(object_dir)
+        self.control = ControlStore(control_state, object_store=self.objects)
+        self.hypotheses = HashChainLedger(hypothesis_ledger, "hypothesis")
+        self.evidence = HashChainLedger(evidence_ledger, "evidence")
+        self.materials = HashChainLedger(material_ledger, "material")
         self.validation_receipts = HashChainLedger(
-            V2_VALIDATION_RECEIPT_LEDGER, "validation_receipt"
+            validation_receipt_ledger, "validation_receipt"
         )
+
+    @property
+    def ledgers(self) -> dict[str, HashChainLedger]:
+        return {
+            "hypothesis": self.hypotheses,
+            "evidence": self.evidence,
+            "material": self.materials,
+            "validation_receipt": self.validation_receipts,
+        }
+
+    def reconciliation_report(self, state: dict[str, Any] | None = None) -> dict[str, Any]:
+        current = state or self.control.load()
+        recorded_heads = current.get("ledger_heads", {})
+        reports: dict[str, dict[str, Any]] = {}
+        for name, ledger in self.ledgers.items():
+            rows = ledger.rows()
+            observed = {
+                "ledger_seq": rows[-1]["ledger_seq"] if rows else 0,
+                "row_sha256": rows[-1]["row_sha256"] if rows else None,
+            }
+            recorded_raw = recorded_heads.get(name)
+            recorded = (
+                {
+                    "ledger_seq": int(recorded_raw.get("ledger_seq", 0)),
+                    "row_sha256": recorded_raw.get("row_sha256"),
+                }
+                if isinstance(recorded_raw, dict)
+                else {"ledger_seq": 0, "row_sha256": None}
+            )
+            if observed == recorded:
+                status = "in_sync"
+            elif observed["ledger_seq"] > recorded["ledger_seq"]:
+                status = "ledger_ahead_orphan_detected"
+            elif observed["ledger_seq"] < recorded["ledger_seq"]:
+                status = "control_head_ahead"
+            else:
+                status = "head_hash_mismatch"
+            reports[name] = {"status": status, "recorded": recorded, "observed": observed}
+        return {
+            "ok": all(item["status"] == "in_sync" for item in reports.values()),
+            "ledgers": reports,
+            "pending_control_recovery": self.control.recovery_path.exists(),
+        }
+
+    def recover_pending_control(self) -> dict[str, Any]:
+        """Complete a validated control replace that failed after durable ledger append."""
+
+        candidate = self.control.load_recovery()
+        if candidate is None:
+            return self.control.load()
+        report = self.reconciliation_report(candidate)
+        if not report["ok"]:
+            raise OperationStateError("pending control recovery does not match durable ledger heads")
+        for object_id in candidate.get("reentry", {}).get("current_object_ids", []):
+            self.objects.get(object_id)
+        recovered = self.control.apply_recovery()
+        if not self.reconciliation_report(recovered)["ok"]:
+            raise OperationStateError("control recovery applied but ledger heads remain inconsistent")
+        return recovered
+
+    def _require_reconciled(self, state: dict[str, Any]) -> None:
+        report = self.reconciliation_report(state)
+        if not report["ok"]:
+            problems = [
+                f"{name}:{detail['status']}"
+                for name, detail in report["ledgers"].items()
+                if detail["status"] != "in_sync"
+            ]
+            raise OperationStateError("ledger/control reconciliation failed: " + ", ".join(problems))
+
+    @staticmethod
+    def _already_applied(state: dict[str, Any], idempotency_key: str) -> bool:
+        return idempotency_key in state.get("applied_idempotency_keys", [])
+
+    @staticmethod
+    def _is_v2_state(state: Mapping[str, Any]) -> bool:
+        return state.get("schema") == CONTROL_STATE_SCHEMA_V2
+
+    @staticmethod
+    def _new_slice_budget(slice_id: str) -> dict[str, Any]:
+        return {
+            "slice_id": slice_id,
+            "implementation_remaining": 1,
+            "validation_remaining": 1,
+            "repair_remaining": 1,
+            "recheck_remaining": 1,
+            "identical_retry_allowed": False,
+            "automatic_timeout_extension_allowed": False,
+        }
+
+    @staticmethod
+    def _consume_mission_budget(draft: dict[str, Any], key: str) -> None:
+        budget = draft.get("mission_budget")
+        if not isinstance(budget, dict) or budget.get("frozen") is not True:
+            raise OperationStateError("root mission budget must be frozen before research work")
+        remaining = budget.get("remaining", {})
+        if key not in remaining or not isinstance(remaining[key], int):
+            raise OperationStateError(f"mission budget key is missing: {key}")
+        if remaining[key] < 1:
+            raise OperationStateError(f"mission budget is exhausted: {key}")
+        remaining[key] -= 1
+
+    @staticmethod
+    def _require_mission_budget_available(state: dict[str, Any], key: str) -> None:
+        budget = state.get("mission_budget")
+        remaining = budget.get("remaining", {}) if isinstance(budget, dict) else {}
+        if not isinstance(budget, dict) or budget.get("frozen") is not True or remaining.get(key, 0) < 1:
+            raise OperationStateError(f"mission budget is unavailable: {key}")
+
+    @staticmethod
+    def _allocated_identity(
+        state: dict[str, Any],
+        kind: str,
+        requested: str | None,
+    ) -> tuple[str, str, int]:
+        key = namespace_key(kind)
+        counter = state.get("namespace", {}).get(key)
+        expected = format_identity(kind, counter)
+        identity = requested or expected
+        validate_identity(kind, identity, counter)
+        return identity, key, counter
+
+    @staticmethod
+    def _set_next_action(
+        draft: dict[str, Any],
+        action: dict[str, Any] | str,
+    ) -> None:
+        if draft.get("schema") == CONTROL_STATE_SCHEMA_V2:
+            if not isinstance(action, dict):
+                raise TransitionError("schema v2 requires structured next_action")
+            validate_next_action(action)
+            draft["cursor"]["next_action"] = action
+            draft["cursor"].pop("exact_next_action", None)
+        else:
+            if not isinstance(action, str):
+                raise TransitionError("schema v1 requires exact_next_action text")
+            draft["cursor"]["exact_next_action"] = action
 
     @staticmethod
     def _append_or_existing(
@@ -62,20 +238,875 @@ class V2OperationWriter:
 
     @staticmethod
     def _add_authoritative_objects(state: dict[str, Any], object_ids: Iterable[str]) -> None:
+        if state.get("schema") == CONTROL_STATE_SCHEMA_V2:
+            reentry = state.setdefault("reentry", {})
+            current = list(reentry.get("current_object_ids", []))
+            for object_id in object_ids:
+                if object_id not in current:
+                    current.append(object_id)
+            reentry["current_object_ids"] = current[-32:]
+            return
         current = list(state["cursor"].get("authoritative_object_ids", []))
         for object_id in object_ids:
             if object_id not in current:
                 current.append(object_id)
         state["cursor"]["authoritative_object_ids"] = current
 
+    def create_goal(
+        self,
+        *,
+        goal_payload: dict[str, Any],
+        idempotency_key: str,
+        goal_id: str | None = None,
+        next_action: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("generic goal lifecycle requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        root_mission = state["root_mission"]
+        if root_mission.get("terminal_outcome") is not None:
+            raise OperationStateError("root mission is terminal and cannot open another internal goal")
+        if state["cursor"].get("active_goal_id") is not None:
+            raise OperationStateError("another internal goal is already active")
+        allocated, namespace_field, counter = self._allocated_identity(state, "goal", goal_id)
+        action = next_action or make_next_action(
+            "preregister_hypothesis",
+            goal_id=allocated,
+            summary=f"preregister first hypothesis for {allocated}",
+        )
+        validate_next_action(action)
+        payload = {
+            "goal_id": allocated,
+            "root_mission_id": root_mission["mission_id"],
+            "status": "created",
+            "goal": goal_payload,
+        }
+        object_id = self.objects.put("internal_goal", payload)
+        row = self._append_or_existing(
+            self.evidence,
+            f"{allocated}_CREATED",
+            "internal_goal_created",
+            {"goal_id": allocated, "goal_object_id": object_id, "status": "created"},
+            utc_now(),
+        )
+        def mutate(draft: dict[str, Any]) -> None:
+            if draft["root_mission"]["status"] == "ready":
+                draft["root_mission"]["status"] = "active"
+                draft["root_mission"]["user_goal_received"] = True
+                draft["mission_budget"]["frozen"] = True
+            draft["namespace"][namespace_field] = counter + 1
+            cursor = draft["cursor"]
+            cursor.update(
+                {
+                    "active_goal_id": allocated,
+                    "active_goal_object_id": object_id,
+                    "goal_status": "created",
+                    "active_hypothesis_id": None,
+                    "stage": "idle",
+                    "stage_id": None,
+                    "stage_status": "idle",
+                    "terminal_outcome": None,
+                }
+            )
+            self._set_next_action(draft, action)
+            self._add_authoritative_objects(draft, [object_id])
+            draft["ledger_heads"]["evidence"] = {
+                "ledger_seq": row["ledger_seq"],
+                "row_sha256": row["row_sha256"],
+            }
+            draft["claim"] = {
+                "subject_kind": "none",
+                "subject_id": None,
+                "current_level": "none",
+                "claim_ceiling": "none",
+                "identity_bundle_object_id": None,
+                "basis_receipt_ids": [],
+                "blocked_by": [],
+            }
+            reentry = draft["reentry"]
+            reentry["active_job"] = None
+            reentry["current_artifact_hashes"] = {allocated: object_id}
+            reentry["completed_receipt_ids"] = []
+            reentry["completed_evidence_ids"] = []
+            draft["slice_budget"] = self._new_slice_budget(f"{allocated}_H")
+
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=[object_id],
+        )
+
+    def open_goal(
+        self,
+        *,
+        goal_id: str,
+        idempotency_key: str,
+        next_action: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("generic goal lifecycle requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        validate_identity("goal", goal_id)
+        cursor = state["cursor"]
+        if cursor.get("active_goal_id") != goal_id or cursor.get("goal_status") != "created":
+            raise OperationStateError("only the currently created goal may be opened")
+        action = next_action or make_next_action(
+            "preregister_hypothesis",
+            goal_id=goal_id,
+            summary=f"preregister a hypothesis for {goal_id}",
+        )
+
+        def mutate(draft: dict[str, Any]) -> None:
+            draft["cursor"]["goal_status"] = "open"
+            self._set_next_action(draft, action)
+
+        return self.control.commit(state["revision"], idempotency_key, mutate)
+
+    def open_stage(
+        self,
+        *,
+        new_stage: str,
+        idempotency_key: str,
+        stage_id: str | None = None,
+        basis_evidence_id: str | None = None,
+        next_action: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("generic stage lifecycle requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        cursor = state["cursor"]
+        goal_id = cursor.get("active_goal_id")
+        if cursor.get("goal_status") != "open" or not isinstance(goal_id, str):
+            raise OperationStateError("an open internal goal is required")
+        if state["reentry"].get("active_job") is not None:
+            raise OperationStateError("cannot open a stage while an evidence job is active")
+        kind = identity_kind_for_stage(new_stage)
+        allocated, namespace_field, counter = self._allocated_identity(state, kind, stage_id)
+        current_stage = str(cursor.get("stage"))
+        budget_key = {
+            "S": "scout_jobs",
+            "R": "confirmation_jobs",
+            "P": "promotion_candidates",
+        }.get(new_stage)
+        if budget_key is not None:
+            self._require_mission_budget_available(state, budget_key)
+        receipt_object_id: str | None = None
+        if current_stage == "H" and new_stage == "S":
+            if cursor.get("stage_status") != "preregistered":
+                raise OperationStateError("H -> S requires preregistered hypothesis state")
+        else:
+            if not basis_evidence_id:
+                raise OperationStateError(f"{current_stage} -> {new_stage} requires basis evidence")
+            evidence_row = next(
+                (row for row in self.evidence.rows() if row["record_id"] == basis_evidence_id),
+                None,
+            )
+            if evidence_row is None:
+                raise OperationStateError(f"basis evidence does not exist: {basis_evidence_id}")
+            receipt_object_id = evidence_row["payload"].get("receipt_object_id")
+            if not isinstance(receipt_object_id, str):
+                raise OperationStateError("basis evidence has no receipt object")
+            receipt = self.objects.get(receipt_object_id)["payload"]
+            validate_stage_basis(
+                current_stage=current_stage,
+                new_stage=new_stage,
+                new_stage_id=allocated,
+                current_claim=str(state["claim"]["current_level"]),
+                basis=receipt,
+            )
+        action = next_action or make_next_action(
+            "declare_job",
+            goal_id=goal_id,
+            stage=new_stage,
+            subject_id=allocated,
+            job_kind=f"{new_stage.lower()}_evidence",
+            prerequisite_receipt_ids=[basis_evidence_id] if basis_evidence_id else [],
+            summary=f"declare evidence job for {allocated}",
+        )
+
+        def mutate(draft: dict[str, Any]) -> None:
+            if budget_key is not None:
+                self._consume_mission_budget(draft, budget_key)
+            draft["namespace"][namespace_field] = counter + 1
+            draft["cursor"] = transition_stage(draft["cursor"], new_stage, allocated)
+            self._set_next_action(draft, action)
+            draft["reentry"]["active_job"] = None
+            draft["slice_budget"] = self._new_slice_budget(allocated)
+
+        referenced = [receipt_object_id] if receipt_object_id is not None else []
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=referenced,
+        )
+
+    def declare_active_job(
+        self,
+        *,
+        job_id: str,
+        kind: str,
+        spec_object_id: str,
+        input_hash: str,
+        timeout_seconds: int,
+        output_path: str,
+        command: str,
+        expected_artifacts: list[str],
+        log_path: str,
+        resume_action: str,
+        idempotency_key: str,
+        next_action: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("structured active_job requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        cursor = state["cursor"]
+        goal_id = cursor.get("active_goal_id")
+        stage = str(cursor.get("stage"))
+        stage_id = cursor.get("stage_id")
+        if not isinstance(goal_id, str) or stage not in STAGE_IDENTITY_KINDS or not isinstance(stage_id, str):
+            raise OperationStateError("active goal and evidence stage are required")
+        if state["reentry"].get("active_job") is not None:
+            raise OperationStateError("an evidence job is already active")
+        self.objects.get(spec_object_id)
+        if kind == "full_nine_fold_mt5":
+            self._require_mission_budget_available(state, "full_nine_fold_mt5_batches")
+        job = {
+            "job_id": job_id,
+            "goal_id": goal_id,
+            "stage_id": stage_id,
+            "kind": kind,
+            "command": command,
+            "status": "declared",
+            "spec_object_id": spec_object_id,
+            "input_hash": input_hash,
+            "timeout_seconds": timeout_seconds,
+            "output_path": output_path,
+            "expected_artifacts": list(expected_artifacts),
+            "log_path": log_path,
+            "declared_at_utc": utc_now(),
+            "started_at_utc": None,
+            "resume_action": resume_action,
+        }
+        action = next_action or make_next_action(
+            "run_job",
+            goal_id=goal_id,
+            stage=stage,
+            subject_id=stage_id,
+            job_kind=kind,
+            summary=f"run declared job {job_id}",
+        )
+
+        def mutate(draft: dict[str, Any]) -> None:
+            if kind == "full_nine_fold_mt5":
+                self._consume_mission_budget(draft, "full_nine_fold_mt5_batches")
+            draft["reentry"]["active_job"] = job
+            self._set_next_action(draft, action)
+
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=[spec_object_id],
+        )
+
+    def start_active_job(
+        self,
+        *,
+        job_id: str,
+        idempotency_key: str,
+        next_action: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("structured active_job requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        job = state["reentry"].get("active_job")
+        if not isinstance(job, dict) or job.get("job_id") != job_id or job.get("status") != "declared":
+            raise OperationStateError("only the declared active job may start")
+        action = next_action or make_next_action(
+            "record_evidence",
+            goal_id=job["goal_id"],
+            stage=str(state["cursor"]["stage"]),
+            subject_id=job["stage_id"],
+            prerequisite_receipt_ids=[],
+            summary=f"record evidence for {job_id}",
+        )
+
+        def mutate(draft: dict[str, Any]) -> None:
+            draft_job = draft["reentry"]["active_job"]
+            draft_job["status"] = "running"
+            draft_job["started_at_utc"] = utc_now()
+            self._set_next_action(draft, action)
+
+        return self.control.commit(state["revision"], idempotency_key, mutate)
+
+    def consume_slice_budget(
+        self,
+        *,
+        phase: str,
+        idempotency_key: str,
+        validation_key: str | None = None,
+        expected_slice_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Authorize one implementation, validation, repair, or recheck batch."""
+
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("slice budget enforcement requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        budget = state.get("slice_budget")
+        if not isinstance(budget, dict):
+            raise OperationStateError("no active slice budget exists")
+        if expected_slice_id is not None and budget.get("slice_id") != expected_slice_id:
+            raise OperationStateError("slice budget identity mismatch")
+        key_by_phase = {
+            "implementation": "implementation_remaining",
+            "validation": "validation_remaining",
+            "repair": "repair_remaining",
+            "recheck": "recheck_remaining",
+        }
+        counter_key = key_by_phase.get(phase)
+        if counter_key is None:
+            raise OperationStateError(f"unknown slice budget phase: {phase}")
+        if phase in {"validation", "recheck"}:
+            if not isinstance(validation_key, str) or not validation_key:
+                raise OperationStateError(f"{phase} requires a validation key")
+            matching = [
+                row
+                for row in self.validation_receipts.rows()
+                if row.get("payload", {}).get("validation_key") == validation_key
+            ]
+            if any(row["payload"].get("outcome") == "pass" for row in matching):
+                return state
+            if any(row["payload"].get("outcome") == "fail" for row in matching):
+                raise OperationStateError(
+                    "identical failed validation cannot be retried; change inputs or validator identity"
+                )
+        if budget.get(counter_key) != 1:
+            raise OperationStateError(f"slice budget is exhausted: {phase}")
+
+        def mutate(draft: dict[str, Any]) -> None:
+            draft["slice_budget"][counter_key] = 0
+
+        return self.control.commit(state["revision"], idempotency_key, mutate)
+
+    def open_slice(self, *, slice_id: str, idempotency_key: str) -> dict[str, Any]:
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("slice lifecycle requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        if state.get("slice_budget") is not None:
+            raise OperationStateError("another coherent slice is already active")
+
+        def mutate(draft: dict[str, Any]) -> None:
+            draft["slice_budget"] = self._new_slice_budget(slice_id)
+
+        return self.control.commit(state["revision"], idempotency_key, mutate)
+
+    def close_slice(
+        self,
+        *,
+        slice_id: str,
+        validation_receipt_id: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("slice lifecycle requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        budget = state.get("slice_budget")
+        if not isinstance(budget, dict) or budget.get("slice_id") != slice_id:
+            raise OperationStateError("slice closeout identity mismatch")
+        if budget.get("validation_remaining") != 0:
+            raise OperationStateError("slice closeout requires consumed validation budget")
+        if state["reentry"].get("active_job") is not None:
+            raise OperationStateError("slice closeout requires no active job")
+        row = next(
+            (
+                item
+                for item in self.validation_receipts.rows()
+                if item["record_id"] == validation_receipt_id
+            ),
+            None,
+        )
+        if row is None or row["payload"].get("outcome") != "pass":
+            raise OperationStateError("slice closeout requires a passing validation receipt")
+
+        def mutate(draft: dict[str, Any]) -> None:
+            draft["slice_budget"] = None
+
+        return self.control.commit(state["revision"], idempotency_key, mutate)
+
+    def record_git_closeout(
+        self,
+        *,
+        closeout_id: str,
+        validated_content_commit: str,
+        local_head_observed: str,
+        origin_main_head_observed: str,
+        validation_receipt_id: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Record a verified content commit without self-referencing its metadata commit."""
+
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("Git closeout recording requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        for value in (validated_content_commit, local_head_observed, origin_main_head_observed):
+            if re.fullmatch(r"[0-9a-f]{40}", value) is None:
+                raise OperationStateError("Git closeout commits must be lowercase 40-character hashes")
+        if not (
+            validated_content_commit == local_head_observed == origin_main_head_observed
+        ):
+            raise OperationStateError("validated content commit was not the synchronized remote head")
+        validation_row = next(
+            (
+                row
+                for row in self.validation_receipts.rows()
+                if row["record_id"] == validation_receipt_id
+            ),
+            None,
+        )
+        if validation_row is None or validation_row["payload"].get("outcome") != "pass":
+            raise OperationStateError("Git closeout requires a passing validation receipt")
+        receipt_object_id = validation_row["payload"].get("receipt_object_id")
+        if not isinstance(receipt_object_id, str):
+            raise OperationStateError("validation receipt object is missing")
+        payload = {
+            "closeout_id": closeout_id,
+            "validated_content_commit": validated_content_commit,
+            "validation_receipt_id": validation_receipt_id,
+            "validation_receipt_object_id": receipt_object_id,
+            "branch": "main",
+            "push_target": "origin/main",
+            "local_head_observed": local_head_observed,
+            "origin_main_head_observed": origin_main_head_observed,
+            "status": "synced",
+        }
+        object_id = self.objects.put("git_closeout", payload)
+        row = self._append_or_existing(
+            self.evidence,
+            closeout_id,
+            "git_closeout_recorded",
+            {**payload, "closeout_object_id": object_id},
+            utc_now(),
+        )
+
+        def mutate(draft: dict[str, Any]) -> None:
+            draft["ledger_heads"]["evidence"] = {
+                "ledger_seq": row["ledger_seq"],
+                "row_sha256": row["row_sha256"],
+            }
+            self._add_authoritative_objects(draft, [object_id])
+            draft["reentry"]["git_sync"] = {
+                "status": "synced",
+                "validated_content_commit": validated_content_commit,
+                "local_head": local_head_observed,
+                "origin_main_head": origin_main_head_observed,
+                "validation_receipt_id": validation_receipt_id,
+                "closeout_object_id": object_id,
+            }
+
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=[receipt_object_id, object_id],
+        )
+
+    def issue_holdout_permit(
+        self,
+        *,
+        permit_id: str,
+        candidate_id: str,
+        frozen_identity_bundle_sha256: str,
+        p_gate_receipt_id: str,
+        trial_accounting_receipt_id: str,
+        idempotency_key: str,
+        next_action: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Issue, but do not consume, a one-time P-stage holdout permit."""
+
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("holdout permits require control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        if re.fullmatch(r"V2HP[0-9]{4}", permit_id) is None:
+            raise OperationStateError(f"invalid holdout permit identity: {permit_id}")
+        validate_identity("hypothesis", candidate_id)
+        cursor = state["cursor"]
+        if cursor.get("stage") != "P" or cursor.get("goal_status") != "open":
+            raise OperationStateError("holdout permit requires an open P stage")
+        if state["reentry"].get("active_job") is not None:
+            raise OperationStateError("holdout permit requires no active evidence job")
+        holdout = state.get("holdout", {})
+        if holdout.get("reveal_count") != 0 or holdout.get("permit") is not None:
+            raise OperationStateError("holdout has already been revealed or permitted")
+        self._require_mission_budget_available(state, "holdout_reveals")
+        claim = state["claim"]
+        if claim.get("subject_id") != candidate_id or claim.get("identity_frozen") is not True:
+            raise OperationStateError("candidate identity is not frozen")
+        if claim_index(str(claim.get("current_level"))) < claim_index("economics_pass"):
+            raise OperationStateError("holdout permit requires economics_pass evidence")
+        frozen_object_id = claim.get("identity_bundle_object_id")
+        if not isinstance(frozen_object_id, str):
+            raise OperationStateError("frozen identity bundle object is missing")
+        frozen_object = self.objects.get(frozen_object_id)
+        observed_frozen_hash = sha256_payload(frozen_object["payload"])
+        if (
+            claim.get("frozen_identity_bundle_sha256") != frozen_identity_bundle_sha256
+            or observed_frozen_hash != frozen_identity_bundle_sha256
+        ):
+            raise OperationStateError("frozen identity bundle hash does not match")
+        evidence_rows = {row["record_id"]: row for row in self.evidence.rows()}
+        p_gate_row = evidence_rows.get(p_gate_receipt_id)
+        trial_row = evidence_rows.get(trial_accounting_receipt_id)
+        if p_gate_row is None or trial_row is None:
+            raise OperationStateError("P gate and trial-accounting receipts must exist in evidence ledger")
+
+        def receipt_from(row: dict[str, Any], label: str) -> tuple[str, dict[str, Any]]:
+            object_id = row["payload"].get("receipt_object_id")
+            if not isinstance(object_id, str):
+                raise OperationStateError(f"{label} evidence has no receipt object")
+            return object_id, self.objects.get(object_id)["payload"]
+
+        p_gate_object_id, p_gate_receipt = receipt_from(p_gate_row, "P gate")
+        trial_object_id, trial_receipt = receipt_from(trial_row, "trial accounting")
+        if (
+            p_gate_receipt.get("stage") != "P"
+            or p_gate_receipt.get("gate_passed") is not True
+            or p_gate_receipt.get("candidate_id") != candidate_id
+            or p_gate_receipt.get("frozen_identity_bundle_sha256") != frozen_identity_bundle_sha256
+        ):
+            raise OperationStateError("P gate receipt is incomplete or belongs to another candidate")
+        if (
+            trial_receipt.get("trial_accounting_complete") is not True
+            or trial_receipt.get("candidate_id") != candidate_id
+        ):
+            raise OperationStateError("trial-accounting receipt is incomplete or belongs to another candidate")
+        git_sync = state["reentry"].get("git_sync")
+        if not isinstance(git_sync, dict) or git_sync.get("status") != "synced":
+            raise OperationStateError("holdout permit requires synced Git state")
+        local_head = git_sync.get("local_head")
+        origin_head = git_sync.get("origin_main_head")
+        if (
+            not isinstance(local_head, str)
+            or re.fullmatch(r"[0-9a-f]{40}", local_head) is None
+            or local_head != origin_head
+        ):
+            raise OperationStateError("local HEAD and origin/main are not synchronized")
+        goal_id = cursor["active_goal_id"]
+        stage_id = cursor["stage_id"]
+        action = next_action or make_next_action(
+            "declare_job",
+            goal_id=goal_id,
+            stage="P",
+            subject_id=stage_id,
+            job_kind="forward_holdout_reveal",
+            prerequisite_receipt_ids=[p_gate_receipt_id, trial_accounting_receipt_id],
+            summary=f"declare one-time holdout reveal under {permit_id}",
+        )
+        validate_next_action(action)
+        permit_payload = {
+            "permit_id": permit_id,
+            "goal_id": goal_id,
+            "candidate_id": candidate_id,
+            "stage_id": stage_id,
+            "frozen_identity_bundle_object_id": frozen_object_id,
+            "frozen_identity_bundle_sha256": frozen_identity_bundle_sha256,
+            "p_gate_receipt_id": p_gate_receipt_id,
+            "trial_accounting_receipt_id": trial_accounting_receipt_id,
+            "git_sync_commit": local_head,
+            "reveal_count_before": 0,
+            "max_reveals": 1,
+            "status": "issued_not_consumed",
+        }
+        permit_object_id = self.objects.put("holdout_permit", permit_payload)
+        row = self._append_or_existing(
+            self.evidence,
+            permit_id,
+            "holdout_permit_issued",
+            {**permit_payload, "permit_object_id": permit_object_id},
+            utc_now(),
+        )
+        def mutate(draft: dict[str, Any]) -> None:
+            self._consume_mission_budget(draft, "holdout_reveals")
+            draft["holdout"]["permit"] = {
+                "permit_id": permit_id,
+                "permit_object_id": permit_object_id,
+                "candidate_id": candidate_id,
+                "frozen_identity_bundle_sha256": frozen_identity_bundle_sha256,
+                "p_gate_receipt_id": p_gate_receipt_id,
+                "trial_accounting_receipt_id": trial_accounting_receipt_id,
+            }
+            draft["ledger_heads"]["evidence"] = {
+                "ledger_seq": row["ledger_seq"],
+                "row_sha256": row["row_sha256"],
+            }
+            self._add_authoritative_objects(draft, [permit_object_id])
+            self._set_next_action(draft, action)
+
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=[
+                frozen_object_id,
+                p_gate_object_id,
+                trial_object_id,
+                permit_object_id,
+            ],
+        )
+
+    def close_goal(
+        self,
+        *,
+        outcome: str,
+        basis_evidence_id: str,
+        summary_payload: dict[str, Any],
+        idempotency_key: str,
+        next_action: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        if outcome not in INTERNAL_GOAL_TERMINAL_OUTCOMES:
+            raise OperationStateError(f"invalid internal goal outcome: {outcome}")
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("generic goal lifecycle requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        cursor = state["cursor"]
+        goal_id = cursor.get("active_goal_id")
+        if not isinstance(goal_id, str) or cursor.get("goal_status") != "open":
+            raise OperationStateError("an open internal goal is required")
+        if state["reentry"].get("active_job") is not None:
+            raise OperationStateError("cannot close an internal goal with an active job")
+        evidence_row = next(
+            (row for row in self.evidence.rows() if row["record_id"] == basis_evidence_id),
+            None,
+        )
+        if evidence_row is None:
+            raise OperationStateError(f"basis evidence does not exist: {basis_evidence_id}")
+        evidence_goal_id = evidence_row["payload"].get("goal_id")
+        if evidence_goal_id != goal_id:
+            raise OperationStateError("goal closeout evidence does not belong to the active goal")
+        if next_action is None:
+            if outcome == "completed_pre_live_handoff":
+                next_action = make_next_action("none", summary="root mission completed")
+            elif outcome in {"blocked_external", "stopped_by_user"}:
+                next_action = make_next_action("none", summary=f"internal goal ended: {outcome}")
+            else:
+                next_action = make_next_action(
+                    "open_goal",
+                    goal_id=format_identity("goal", state["namespace"]["next_goal"]),
+                    summary="open the next internal research goal",
+                )
+        validate_next_action(next_action)
+        summary = {
+            "goal_id": goal_id,
+            "outcome": outcome,
+            "basis_evidence_id": basis_evidence_id,
+            "summary": summary_payload,
+        }
+        object_id = self.objects.put("internal_goal_closeout", summary)
+        row = self._append_or_existing(
+            self.evidence,
+            f"{goal_id}_CLOSEOUT",
+            "internal_goal_closed",
+            {
+                "goal_id": goal_id,
+                "outcome": outcome,
+                "basis_evidence_id": basis_evidence_id,
+                "summary_object_id": object_id,
+            },
+            utc_now(),
+        )
+        def mutate(draft: dict[str, Any]) -> None:
+            history = draft.setdefault("history", {}).setdefault("recent_closed_goals", [])
+            history.append(
+                {"goal_id": goal_id, "outcome": outcome, "summary_object_id": object_id}
+            )
+            draft["history"]["recent_closed_goals"] = history[-RECENT_CLOSED_GOAL_LIMIT:]
+            draft["ledger_heads"]["evidence"] = {
+                "ledger_seq": row["ledger_seq"],
+                "row_sha256": row["row_sha256"],
+            }
+            draft["cursor"].update(
+                {
+                    "active_goal_id": None,
+                    "active_goal_object_id": None,
+                    "goal_status": "closed",
+                    "last_closed_goal_id": goal_id,
+                    "last_goal_outcome": outcome,
+                    "active_hypothesis_id": None,
+                    "stage": "idle",
+                    "stage_id": None,
+                    "stage_status": "idle",
+                    "terminal_outcome": None,
+                }
+            )
+            self._set_next_action(draft, next_action)
+            draft["claim"] = {
+                "subject_kind": "none",
+                "subject_id": None,
+                "current_level": "none",
+                "claim_ceiling": "none",
+                "identity_bundle_object_id": None,
+                "basis_receipt_ids": [],
+                "blocked_by": [],
+            }
+            draft["reentry"]["active_job"] = None
+            draft["reentry"]["current_object_ids"] = []
+            draft["reentry"]["current_artifact_hashes"] = {}
+            draft["reentry"]["completed_receipt_ids"] = []
+            draft["reentry"]["completed_evidence_ids"] = []
+            draft["slice_budget"] = None
+            if outcome == "completed_pre_live_handoff":
+                draft["root_mission"]["status"] = "terminal"
+                draft["root_mission"]["terminal_outcome"] = outcome
+                draft["cursor"]["terminal_outcome"] = outcome
+            elif outcome in {"blocked_external", "stopped_by_user"}:
+                draft["root_mission"]["status"] = "terminal"
+                draft["root_mission"]["terminal_outcome"] = outcome
+                draft["cursor"]["terminal_outcome"] = outcome
+
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=[object_id],
+        )
+
+    def close_root_mission(
+        self,
+        *,
+        outcome: str,
+        basis_evidence_id: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Close the persistent root only from durable terminal evidence."""
+
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("root mission closeout requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        if outcome not in {
+            "completed_pre_live_handoff",
+            "closed_no_candidate",
+            "blocked_external",
+            "stopped_by_user",
+        }:
+            raise OperationStateError(f"invalid root mission outcome: {outcome}")
+        if state["cursor"].get("active_goal_id") is not None:
+            raise OperationStateError("close the active internal goal before the root mission")
+        if state["reentry"].get("active_job") is not None:
+            raise OperationStateError("root mission cannot close with an active job")
+        evidence_row = next(
+            (row for row in self.evidence.rows() if row["record_id"] == basis_evidence_id),
+            None,
+        )
+        if evidence_row is None:
+            raise OperationStateError("root mission basis evidence is missing")
+        receipt_object_id = evidence_row["payload"].get("receipt_object_id")
+        if not isinstance(receipt_object_id, str):
+            raise OperationStateError("root mission basis evidence has no receipt object")
+        receipt = self.objects.get(receipt_object_id)["payload"]
+        mission_id = state["root_mission"]["mission_id"]
+        if receipt.get("mission_id") != mission_id or receipt.get("outcome") != outcome:
+            raise OperationStateError("root mission basis receipt identity or outcome differs")
+        if outcome == "closed_no_candidate":
+            if receipt.get("material_exhaustion_complete") is not True:
+                raise OperationStateError("closed_no_candidate requires material exhaustion evidence")
+            if not (
+                receipt.get("mission_budget_exhausted") is True
+                or receipt.get("remaining_axes_low_information_value") is True
+            ):
+                raise OperationStateError("material exhaustion basis is incomplete")
+        if outcome == "completed_pre_live_handoff" and state["claim"].get("current_level") != "pre_live_ready":
+            raise OperationStateError("successful root closeout requires pre_live_ready")
+        if outcome == "blocked_external" and not isinstance(state["reentry"].get("blocker"), dict):
+            raise OperationStateError("blocked_external requires a complete blocker")
+        if outcome != "blocked_external":
+            git_sync = state["reentry"].get("git_sync")
+            if not isinstance(git_sync, dict) or git_sync.get("status") != "synced":
+                raise OperationStateError("root terminal closeout requires synced validated content")
+        payload = {
+            "mission_id": mission_id,
+            "outcome": outcome,
+            "basis_evidence_id": basis_evidence_id,
+            "basis_receipt_object_id": receipt_object_id,
+            "mission_budget": state["mission_budget"],
+            "git_sync": state["reentry"].get("git_sync"),
+        }
+        object_id = self.objects.put("root_mission_closeout", payload)
+        row = self._append_or_existing(
+            self.evidence,
+            f"{mission_id}_CLOSEOUT",
+            "root_mission_closed",
+            {**payload, "closeout_object_id": object_id},
+            utc_now(),
+        )
+
+        def mutate(draft: dict[str, Any]) -> None:
+            draft["root_mission"]["status"] = "terminal"
+            draft["root_mission"]["terminal_outcome"] = outcome
+            draft["cursor"]["terminal_outcome"] = outcome
+            self._set_next_action(
+                draft,
+                make_next_action("none", summary=f"root mission terminal: {outcome}"),
+            )
+            draft["slice_budget"] = None
+            draft["ledger_heads"]["evidence"] = {
+                "ledger_seq": row["ledger_seq"],
+                "row_sha256": row["row_sha256"],
+            }
+            self._add_authoritative_objects(draft, [object_id])
+
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=[receipt_object_id, object_id],
+        )
+
     def register_material_batch(
         self,
         records: tuple[MaterialRecord, ...],
         *,
         idempotency_key: str,
-        exact_next_action: str,
+        exact_next_action: str | dict[str, Any],
         occurred_at_utc: str | None = None,
     ) -> dict[str, Any]:
+        state = self.control.load()
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
         occurred = occurred_at_utc or utc_now()
         object_ids: list[str] = []
         rows: list[dict[str, Any]] = []
@@ -95,18 +1126,19 @@ class V2OperationWriter:
             )
             object_ids.append(object_id)
             rows.append(row)
-        state = self.control.load()
-
         def mutate(draft: dict[str, Any]) -> None:
             self._add_authoritative_objects(draft, object_ids)
             draft["ledger_heads"]["material"] = {
                 "ledger_seq": rows[-1]["ledger_seq"],
                 "row_sha256": rows[-1]["row_sha256"],
             }
-            artifact_hashes = draft["reentry"].setdefault("artifact_hashes", {})
+            artifact_hashes = draft["reentry"].setdefault(
+                "current_artifact_hashes" if self._is_v2_state(draft) else "artifact_hashes",
+                {},
+            )
             for record, object_id in zip(records, object_ids, strict=True):
                 artifact_hashes[record.material_id] = object_id
-            draft["cursor"]["exact_next_action"] = exact_next_action
+            self._set_next_action(draft, exact_next_action)
 
         return self.control.commit(
             state["revision"],
@@ -118,20 +1150,58 @@ class V2OperationWriter:
     def preregister_hypothesis(
         self,
         *,
-        hypothesis_id: str,
+        hypothesis_id: str | None,
         spec_path: str,
         spec_sha256: str,
         spec_payload: dict[str, Any],
         split_set_id: str,
         material_ids: list[str],
         idempotency_key: str,
+        goal_id: str | None = None,
+        acceptance_profile_id: str = "V2SAP0001",
+        next_action: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        if hypothesis_id != "V2H0001":
-            raise ValueError("bootstrap writer expects the first V2 hypothesis identity")
+        state = self.control.load()
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        is_v2 = self._is_v2_state(state)
+        if is_v2:
+            active_goal_id = state["cursor"].get("active_goal_id")
+            if state["cursor"].get("goal_status") != "open" or not isinstance(active_goal_id, str):
+                raise OperationStateError("an open internal goal is required before preregistration")
+            if goal_id is not None and goal_id != active_goal_id:
+                raise OperationStateError("hypothesis goal_id does not match active goal")
+            goal_id = active_goal_id
+            allocated, namespace_field, counter = self._allocated_identity(
+                state, "hypothesis", hypothesis_id
+            )
+            hypothesis_id = allocated
+            self._require_mission_budget_available(state, "hypothesis_batches")
+        else:
+            if hypothesis_id != "V2H0001":
+                raise ValueError("bootstrap writer expects the first V2 hypothesis identity")
+            goal_id = "V2G0001"
+            namespace_field = "next_hypothesis"
+            counter = 1
+        action = next_action or (
+            make_next_action(
+                "open_stage",
+                goal_id=goal_id,
+                stage="S",
+                subject_id=format_identity("scout", state["namespace"]["next_scout"]),
+                prerequisite_receipt_ids=[],
+                summary=f"open causal scout for {hypothesis_id}",
+            )
+            if is_v2
+            else "open_V2S0001_causal_scout"
+        )
+        if is_v2:
+            validate_next_action(action)
         occurred = utc_now()
         object_id = self.objects.put("hypothesis_spec", spec_payload)
         ledger_payload = {
-            "goal_id": "V2G0001",
+            "goal_id": goal_id,
             "hypothesis_id": hypothesis_id,
             "spec_path": spec_path,
             "spec_sha256": spec_sha256,
@@ -140,7 +1210,7 @@ class V2OperationWriter:
             "v1_evidence_inherited": False,
             "material_ids": material_ids,
             "split_set_id": split_set_id,
-            "acceptance_profile_id": "V2SAP0001",
+            "acceptance_profile_id": acceptance_profile_id,
             "claim_ceiling": "diagnostic_observation",
             "status": "preregistered",
         }
@@ -151,16 +1221,16 @@ class V2OperationWriter:
             ledger_payload,
             occurred,
         )
-        state = self.control.load()
-
         def mutate(draft: dict[str, Any]) -> None:
-            if draft["namespace"]["next_hypothesis"] != 1:
-                raise ValueError("hypothesis namespace does not point to V2H0001")
-            draft["namespace"]["next_hypothesis"] = 2
+            if draft["namespace"][namespace_field] != counter:
+                raise ValueError("hypothesis namespace changed before commit")
+            draft["namespace"][namespace_field] = counter + 1
+            if is_v2:
+                self._consume_mission_budget(draft, "hypothesis_batches")
             draft["cursor"] = transition_stage(draft["cursor"], "H", hypothesis_id)
             draft["cursor"]["active_hypothesis_id"] = hypothesis_id
             draft["cursor"]["stage_status"] = "preregistered"
-            draft["cursor"]["exact_next_action"] = "open_V2S0001_causal_scout"
+            self._set_next_action(draft, action)
             self._add_authoritative_objects(draft, [object_id])
             draft["ledger_heads"]["hypothesis"] = {
                 "ledger_seq": row["ledger_seq"],
@@ -175,8 +1245,13 @@ class V2OperationWriter:
                 "basis_receipt_ids": [],
                 "blocked_by": [],
             }
-            draft["reentry"]["active_slice_id"] = "V2SL0005_first_scout"
-            draft["reentry"]["artifact_hashes"][hypothesis_id] = object_id
+            if not is_v2:
+                draft["reentry"]["active_slice_id"] = "V2SL0005_first_scout"
+            hashes = draft["reentry"].setdefault(
+                "current_artifact_hashes" if is_v2 else "artifact_hashes",
+                {},
+            )
+            hashes[hypothesis_id] = object_id
 
         return self.control.commit(
             state["revision"],
@@ -185,8 +1260,24 @@ class V2OperationWriter:
             referenced_object_ids=[object_id],
         )
 
-    def open_scout(self, *, idempotency_key: str) -> dict[str, Any]:
+    def open_scout(
+        self,
+        *,
+        idempotency_key: str,
+        scout_id: str | None = None,
+        next_action: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
         state = self.control.load()
+        if self._is_v2_state(state):
+            return self.open_stage(
+                new_stage="S",
+                stage_id=scout_id,
+                idempotency_key=idempotency_key,
+                next_action=next_action,
+            )
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
 
         def mutate(draft: dict[str, Any]) -> None:
             if draft["namespace"]["next_scout"] != 1:
@@ -214,14 +1305,68 @@ class V2OperationWriter:
         record_type: str,
         receipt: dict[str, Any],
         idempotency_key: str,
-        exact_next_action: str,
+        exact_next_action: str | dict[str, Any],
         promote_diagnostic_observation: bool = False,
     ) -> dict[str, Any]:
+        state = self.control.load()
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        is_v2 = self._is_v2_state(state)
+        active_job = state.get("reentry", {}).get("active_job")
+        job_matched = False
+        if is_v2:
+            if not isinstance(exact_next_action, dict):
+                raise TransitionError("schema v2 evidence recording requires structured next_action")
+            validate_next_action(exact_next_action)
+            expected_context = {
+                "goal_id": state["cursor"].get("active_goal_id"),
+                "stage": state["cursor"].get("stage"),
+                "stage_id": state["cursor"].get("stage_id"),
+            }
+            observed_context = {field: receipt.get(field) for field in expected_context}
+            if observed_context != expected_context:
+                raise OperationStateError(
+                    f"evidence receipt does not match active stage: expected {expected_context}, "
+                    f"observed {observed_context}"
+                )
+            receipt_hypothesis = receipt.get("hypothesis_id")
+            if receipt_hypothesis is not None and receipt_hypothesis != state["cursor"].get("active_hypothesis_id"):
+                raise OperationStateError("evidence receipt hypothesis does not match active hypothesis")
+        if is_v2 and active_job is not None:
+            if not isinstance(active_job, dict):
+                raise OperationStateError("active_job is invalid")
+            expected = {
+                "job_id": active_job.get("job_id"),
+                "goal_id": active_job.get("goal_id"),
+                "stage_id": active_job.get("stage_id"),
+                "input_hash": active_job.get("input_hash"),
+            }
+            observed = {field: receipt.get(field) for field in expected}
+            if observed != expected:
+                raise OperationStateError(
+                    f"evidence receipt does not match active job: expected {expected}, observed {observed}"
+                )
+            if active_job.get("status") not in {"running", "completed_pending_record"}:
+                raise OperationStateError("active job must be running or completed_pending_record")
+            receipt_artifacts = receipt.get("artifacts")
+            artifact_paths = {
+                item.get("path")
+                for item in receipt_artifacts.values()
+                if isinstance(receipt_artifacts, dict) and isinstance(item, dict)
+            } if isinstance(receipt_artifacts, dict) else set()
+            missing_artifacts = set(active_job.get("expected_artifacts", [])) - artifact_paths
+            if missing_artifacts:
+                raise OperationStateError(
+                    "evidence receipt is missing active-job artifacts: "
+                    + ", ".join(sorted(missing_artifacts))
+                )
+            job_matched = True
         occurred = utc_now()
         object_id = self.objects.put("evidence_receipt", receipt)
         payload = {
             "evidence_id": evidence_id,
-            "goal_id": receipt.get("goal_id", "V2G0001"),
+            "goal_id": receipt.get("goal_id", "V2G0001" if not is_v2 else None),
             "hypothesis_id": receipt.get("hypothesis_id"),
             "stage": receipt.get("stage", "bootstrap"),
             "stage_id": receipt.get("stage_id"),
@@ -237,8 +1382,6 @@ class V2OperationWriter:
             payload,
             occurred,
         )
-        state = self.control.load()
-
         def mutate(draft: dict[str, Any]) -> None:
             self._add_authoritative_objects(draft, [object_id])
             draft["ledger_heads"]["evidence"] = {
@@ -248,10 +1391,15 @@ class V2OperationWriter:
             completed = draft["reentry"].setdefault("completed_evidence_ids", [])
             if evidence_id not in completed:
                 completed.append(evidence_id)
-            draft["reentry"]["artifact_hashes"][evidence_id] = object_id
-            draft["reentry"]["active_job"] = None
-            draft["cursor"]["exact_next_action"] = exact_next_action
-            if receipt.get("stage") == "S":
+            hashes = draft["reentry"].setdefault(
+                "current_artifact_hashes" if is_v2 else "artifact_hashes",
+                {},
+            )
+            hashes[evidence_id] = object_id
+            if job_matched:
+                draft["reentry"]["active_job"] = None
+            self._set_next_action(draft, exact_next_action)
+            if receipt.get("stage") == str(draft["cursor"].get("stage")):
                 draft["cursor"]["stage_status"] = "completed"
                 draft["cursor"]["stage_outcome"] = receipt.get("outcome")
             if promote_diagnostic_observation and draft["claim"]["current_level"] == "none":
@@ -276,13 +1424,49 @@ class V2OperationWriter:
         memory_sha256: str,
         memory_payload: dict[str, Any],
         idempotency_key: str,
-        exact_next_action: str,
+        exact_next_action: str | dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        state = self.control.load()
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        is_v2 = self._is_v2_state(state)
+        goal_id = (
+            state["cursor"].get("active_goal_id") if is_v2 else "V2G0001"
+        )
+        if is_v2:
+            if exact_next_action is None and isinstance(goal_id, str):
+                exact_next_action = make_next_action(
+                    "preregister_hypothesis",
+                    goal_id=goal_id,
+                    stage="H",
+                    subject_id=format_identity(
+                        "hypothesis", state["namespace"]["next_hypothesis"]
+                    ),
+                    prerequisite_receipt_ids=[evidence_id],
+                    summary="select and preregister the next distinct high-information hypothesis",
+                )
+            if not isinstance(exact_next_action, dict):
+                raise TransitionError("schema v2 disposition requires structured next_action")
+            validate_next_action(exact_next_action)
+            validate_identity("hypothesis", hypothesis_id)
+            if state["cursor"].get("active_hypothesis_id") != hypothesis_id:
+                raise OperationStateError("disposition hypothesis is not active")
+            if not isinstance(goal_id, str):
+                raise OperationStateError("disposition requires an active goal")
+            evidence_row = next(
+                (row for row in self.evidence.rows() if row["record_id"] == evidence_id),
+                None,
+            )
+            if evidence_row is None or evidence_row["payload"].get("hypothesis_id") != hypothesis_id:
+                raise OperationStateError("disposition basis evidence does not match active hypothesis")
+        elif exact_next_action is None:
+            raise TransitionError("schema v1 disposition requires exact_next_action text")
         occurred = utc_now()
         object_id = self.objects.put("negative_memory", memory_payload)
         record_id = f"{hypothesis_id}_DISPOSITION"
         payload = {
-            "goal_id": "V2G0001",
+            "goal_id": goal_id,
             "hypothesis_id": hypothesis_id,
             "event_type": "disposition_recorded",
             "outcome": outcome,
@@ -299,16 +1483,18 @@ class V2OperationWriter:
             payload,
             occurred,
         )
-        state = self.control.load()
-
         def mutate(draft: dict[str, Any]) -> None:
             self._add_authoritative_objects(draft, [object_id])
             draft["ledger_heads"]["hypothesis"] = {
                 "ledger_seq": row["ledger_seq"],
                 "row_sha256": row["row_sha256"],
             }
-            draft["reentry"]["artifact_hashes"][f"{hypothesis_id}_negative_memory"] = object_id
-            draft["cursor"]["exact_next_action"] = exact_next_action
+            hashes = draft["reentry"].setdefault(
+                "current_artifact_hashes" if is_v2 else "artifact_hashes",
+                {},
+            )
+            hashes[f"{hypothesis_id}_negative_memory"] = object_id
+            self._set_next_action(draft, exact_next_action)
 
         return self.control.commit(
             state["revision"],
@@ -324,8 +1510,22 @@ class V2OperationWriter:
         stage_id: str,
         basis_evidence_id: str,
         idempotency_key: str,
-        exact_next_action: str,
+        exact_next_action: str | dict[str, Any],
     ) -> dict[str, Any]:
+        state = self.control.load()
+        if self._is_v2_state(state):
+            if not isinstance(exact_next_action, dict):
+                raise TransitionError("schema v2 stage transition requires structured next_action")
+            return self.open_stage(
+                new_stage=new_stage,
+                stage_id=stage_id,
+                basis_evidence_id=basis_evidence_id,
+                idempotency_key=idempotency_key,
+                next_action=exact_next_action,
+            )
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
         evidence_row = next(
             (row for row in self.evidence.rows() if row["record_id"] == basis_evidence_id),
             None,
@@ -336,7 +1536,6 @@ class V2OperationWriter:
         if not isinstance(receipt_object_id, str):
             raise ValueError("basis evidence has no receipt object")
         receipt = self.objects.get(receipt_object_id)["payload"]
-        state = self.control.load()
         validate_stage_basis(
             current_stage=str(state["cursor"]["stage"]),
             new_stage=new_stage,
@@ -347,7 +1546,7 @@ class V2OperationWriter:
 
         def mutate(draft: dict[str, Any]) -> None:
             draft["cursor"] = transition_stage(draft["cursor"], new_stage, stage_id)
-            draft["cursor"]["exact_next_action"] = exact_next_action
+            self._set_next_action(draft, exact_next_action)
             draft["reentry"]["active_job"] = None
 
         return self.control.commit(
@@ -363,10 +1562,19 @@ class V2OperationWriter:
         receipt_id: str,
         receipt: dict[str, Any],
         idempotency_key: str,
-        exact_next_action: str,
+        exact_next_action: str | dict[str, Any],
     ) -> dict[str, Any]:
         if receipt.get("outcome") not in {"pass", "fail"}:
             raise ValueError("validation receipt outcome must be pass or fail")
+        state = self.control.load()
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        is_v2 = self._is_v2_state(state)
+        if is_v2:
+            if not isinstance(exact_next_action, dict):
+                raise TransitionError("schema v2 validation receipt requires structured next_action")
+            validate_next_action(exact_next_action)
         occurred = utc_now()
         object_id = self.objects.put("validation_receipt", receipt)
         payload = {
@@ -383,8 +1591,6 @@ class V2OperationWriter:
             payload,
             occurred,
         )
-        state = self.control.load()
-
         def mutate(draft: dict[str, Any]) -> None:
             self._add_authoritative_objects(draft, [object_id])
             draft["ledger_heads"]["validation_receipt"] = {
@@ -394,14 +1600,168 @@ class V2OperationWriter:
             completed = draft["reentry"].setdefault("completed_receipt_ids", [])
             if receipt_id not in completed:
                 completed.append(receipt_id)
-            draft["reentry"]["artifact_hashes"][receipt_id] = object_id
-            draft["cursor"]["exact_next_action"] = exact_next_action
+            hashes = draft["reentry"].setdefault(
+                "current_artifact_hashes" if is_v2 else "artifact_hashes",
+                {},
+            )
+            hashes[receipt_id] = object_id
+            self._set_next_action(draft, exact_next_action)
 
         return self.control.commit(
             state["revision"],
             idempotency_key,
             mutate,
             referenced_object_ids=[object_id],
+        )
+
+    def migrate_control_state_v1_to_v2(
+        self,
+        *,
+        mission_id: str,
+        mission_contract_path: str,
+        mission_contract_sha256: str,
+        mission_budget_limits: Mapping[str, int] | None = None,
+        idempotency_key: str = "migrate_control_state_v1_to_v2",
+        closed_goal_id: str = "V2G0001",
+        closed_work_unit_id: str = "V2B0001",
+    ) -> dict[str, Any]:
+        """Atomically replace the activated bootstrap snapshot with compact V2.1 state.
+
+        Immutable activation objects and every ledger head are retained. The
+        bootstrap goal is recorded as history, while the root mission becomes
+        ready for the already-reserved next internal goal.
+        """
+
+        state = self.control.load()
+        if self._is_v2_state(state):
+            migration = state.get("migration", {})
+            if self._already_applied(state, idempotency_key) or migration.get("v1_to_v2") == "completed":
+                return state
+            raise OperationStateError("control state already uses schema v2 without migration marker")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        if state.get("active_truth") != "v2" or state.get("bootstrap_goal_outcome") != "activated":
+            raise OperationStateError("migration requires completed V2 activation")
+        if state.get("reentry", {}).get("active_job") is not None:
+            raise OperationStateError("migration requires no active evidence job")
+        validate_identity("goal", closed_goal_id)
+        activation = state.get("activation")
+        if not isinstance(activation, dict):
+            raise OperationStateError("migration requires activation evidence references")
+        activation_evidence_id = activation.get("activation_evidence_id")
+        activation_object_id = activation.get("activation_object_id")
+        if not isinstance(activation_evidence_id, str) or not isinstance(activation_object_id, str):
+            raise OperationStateError("activation evidence identity is incomplete")
+        self.objects.get(activation_object_id)
+        limits = dict(mission_budget_limits or DEFAULT_MISSION_BUDGET_LIMITS)
+        if set(limits) != set(DEFAULT_MISSION_BUDGET_LIMITS) or any(
+            not isinstance(value, int) or isinstance(value, bool) or value < 0
+            for value in limits.values()
+        ):
+            raise OperationStateError("mission budget limits are incomplete or invalid")
+        reserved_goal_id = format_identity("goal", state["namespace"]["next_goal"])
+        summary_payload = {
+            "goal_id": closed_goal_id,
+            "work_unit_id": closed_work_unit_id,
+            "outcome": "completed_v2_activation",
+            "activation_evidence_id": activation_evidence_id,
+            "activation_object_id": activation_object_id,
+            "candidate_validation_receipt_id": activation.get("candidate_validation_receipt_id"),
+            "ledger_heads": state.get("ledger_heads", {}),
+            "git_closeout": state.get("reentry", {}).get("git_closeout"),
+        }
+        summary_object_id = self.objects.put("bootstrap_goal_closeout", summary_payload)
+        next_action = make_next_action(
+            "open_goal",
+            goal_id=reserved_goal_id,
+            summary=f"open reserved internal goal {reserved_goal_id}",
+        )
+        def mutate(draft: dict[str, Any]) -> None:
+            draft["schema"] = CONTROL_STATE_SCHEMA_V2
+            draft["status"] = "active"
+            draft.pop("goal_id", None)
+            draft["root_mission"] = {
+                "mission_id": mission_id,
+                "contract_path": mission_contract_path,
+                "contract_sha256": mission_contract_sha256,
+                "status": "ready",
+                "terminal_outcome": None,
+                "user_goal_received": False,
+            }
+            draft["mission_budget"] = {
+                "frozen": False,
+                "limits": limits,
+                "remaining": dict(limits),
+            }
+            draft["slice_budget"] = None
+            draft["cursor"] = {
+                "active_goal_id": None,
+                "active_goal_object_id": None,
+                "goal_status": "closed",
+                "last_closed_goal_id": closed_goal_id,
+                "last_goal_outcome": "completed_v2_activation",
+                "active_hypothesis_id": None,
+                "stage": "idle",
+                "stage_id": None,
+                "stage_status": "idle",
+                "terminal_outcome": None,
+                "next_action": next_action,
+            }
+            draft["reentry"] = {
+                "active_job": None,
+                "current_object_ids": [],
+                "current_artifact_hashes": {},
+                "completed_receipt_ids": [],
+                "completed_evidence_ids": [],
+                "blocker": None,
+                "git_sync": {
+                    "status": "pending_v2_1_content_closeout",
+                    "validated_content_commit": None,
+                    "local_head": None,
+                    "origin_main_head": None,
+                    "validation_receipt_id": None,
+                    "closeout_object_id": None,
+                },
+            }
+            draft["claim"] = {
+                "subject_kind": "none",
+                "subject_id": None,
+                "current_level": "none",
+                "claim_ceiling": "none",
+                "identity_bundle_object_id": None,
+                "basis_receipt_ids": [],
+                "blocked_by": [],
+            }
+            draft["history"] = {
+                "recent_closed_goals": [
+                    {
+                        "goal_id": closed_goal_id,
+                        "work_unit_id": closed_work_unit_id,
+                        "outcome": "completed_v2_activation",
+                        "summary_object_id": summary_object_id,
+                    }
+                ],
+                "activation_closeout_object_id": summary_object_id,
+            }
+            draft["holdout"] = {
+                "reveal_count": 0,
+                "max_reveals": 1,
+                "permit": None,
+            }
+            draft["migration"] = {
+                "v1_to_v2": "completed",
+                "source_schema": "axiom_rift_v2_control_state_v1",
+                "closed_goal_id": closed_goal_id,
+                "closed_work_unit_id": closed_work_unit_id,
+                "reserved_next_goal_id": reserved_goal_id,
+            }
+
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=[summary_object_id, activation_object_id],
         )
 
     def activate_v2(
@@ -427,6 +1787,11 @@ class V2OperationWriter:
         if validation_receipt.get("phase") != "candidate":
             raise ValueError("activation basis receipt is not a candidate-phase gate")
         state = self.control.load()
+        if self._already_applied(state, idempotency_key):
+            return state
+        if self._is_v2_state(state):
+            raise ValueError("activate_v2 is bootstrap-only and cannot run on schema v2")
+        self._require_reconciled(state)
         if state.get("active_truth") != "v1_until_v2_activation":
             raise ValueError("activation compare-and-swap expected V1 authority")
         activation_receipt = {

@@ -28,6 +28,7 @@ REQUIRED_CONTRACTS = (
     "handoff_contract.yaml",
     "identity_policy.yaml",
     "materialization_contract.yaml",
+    "operator_contract.yaml",
     "project_contract.yaml",
     "research_contract.yaml",
     "split_policy.yaml",
@@ -71,6 +72,10 @@ def _input_hashes(root: Path, phase: str) -> dict[str, str]:
         "contracts/v2/goal_packet.yaml",
         "contracts/v2/agents_router_candidate.md",
         "configs/v2/validation.yaml",
+        "configs/v2/validation_surfaces.yaml",
+        "configs/v2/mission.yaml",
+        "configs/v2/git.yaml",
+        "configs/v2/program_registry.yaml",
         "configs/v2/data.yaml",
         "configs/v2/splits.yaml",
         "configs/v2/feature_programs/causal_bar_v1.yaml",
@@ -81,6 +86,8 @@ def _input_hashes(root: Path, phase: str) -> dict[str, str]:
         "registries/v2/legacy_debt.yaml",
         ".agents/skills/axiom-v2-goal-operator/SKILL.md",
         "campaigns/v2/V2G0001_v2_activation/negative_memory/V2H0001.yaml",
+        "campaigns/v2/V2G0001_v2_activation/work_units/V2B0001.yaml",
+        "campaigns/v2/V2G0001_v2_activation/work_units/V2B0002.yaml",
         *REQUIRED_EVIDENCE_FILES.values(),
     ]
     if phase == "active":
@@ -91,6 +98,8 @@ def _input_hashes(root: Path, phase: str) -> dict[str, str]:
         {
             "active_truth": state.get("active_truth"),
             "status": state.get("status"),
+            "root_mission": state.get("root_mission"),
+            "mission_budget": state.get("mission_budget"),
             "cursor": {
                 "active_goal_id": state.get("cursor", {}).get("active_goal_id"),
                 "active_hypothesis_id": state.get("cursor", {}).get("active_hypothesis_id"),
@@ -98,7 +107,7 @@ def _input_hashes(root: Path, phase: str) -> dict[str, str]:
                 "stage_id": state.get("cursor", {}).get("stage_id"),
                 "stage_status": state.get("cursor", {}).get("stage_status"),
                 "stage_outcome": state.get("cursor", {}).get("stage_outcome"),
-                "exact_next_action": state.get("cursor", {}).get("exact_next_action"),
+                "next_action": state.get("cursor", {}).get("next_action"),
             },
             "active_job": state.get("reentry", {}).get("active_job"),
             "claim": state.get("claim"),
@@ -121,7 +130,7 @@ def validate_v2_activation(root: Path, phase: str = "candidate") -> tuple[Valida
             payload = yaml.safe_load(path.read_text(encoding="ascii"))
             _check(isinstance(payload, dict), issues, "invalid_contract", path, "contract root must be a mapping")
             if isinstance(payload, dict):
-                expected_status = "active" if phase == "active" else "bootstrap_candidate"
+                expected_status = "active"
                 _check(payload.get("status") == expected_status, issues, "contract_status", path, f"expected status {expected_status}")
             contract_hashes[path.relative_to(root).as_posix()] = sha256_file(path)
         except Exception as exc:
@@ -150,17 +159,24 @@ def validate_v2_activation(root: Path, phase: str = "candidate") -> tuple[Valida
     objects = ObjectStore(root / "registries/v2/objects")
     try:
         state = ControlStore(state_path, object_store=objects).load()
-        expected_truth = "v2" if phase == "active" else "v1_until_v2_activation"
+        expected_truth = "v2"
         _check(state.get("active_truth") == expected_truth, issues, "active_truth", state_path, f"expected {expected_truth}")
         _check(state["reentry"].get("active_job") is None, issues, "active_job", state_path, "activation requires no active long job")
-        _check(state["cursor"].get("stage") == "S", issues, "stage", state_path, "bootstrap scout must be the completed S stage")
-        _check(state["cursor"].get("stage_status") == "completed", issues, "stage_status", state_path, "scout stage is incomplete")
-        _check(state["cursor"].get("stage_outcome") == "scout_rejected", issues, "stage_outcome", state_path, "first scout disposition is missing")
-        _check(state["claim"].get("current_level") == "diagnostic_observation", issues, "claim_level", state_path, "first scout must remain diagnostic")
+        _check(state.get("bootstrap_goal_outcome") == "activated", issues, "bootstrap_outcome", state_path, "activation outcome is missing")
+        _check(state.get("migration", {}).get("v1_to_v2") == "completed", issues, "control_migration", state_path, "V2.1 control migration is missing")
+        closed = state.get("history", {}).get("recent_closed_goals", [])
+        _check(
+            any(item.get("goal_id") == "V2G0001" and item.get("outcome") == "completed_v2_activation" for item in closed if isinstance(item, dict)),
+            issues,
+            "bootstrap_history",
+            state_path,
+            "activated bootstrap goal is not preserved as closed history",
+        )
+        _check(state["claim"].get("current_level") == "none", issues, "claim_level", state_path, "ready root mission must not retain the closed scout claim")
         if phase == "active":
             _check(state.get("status") == "active", issues, "state_status", state_path, "V2 state is not active")
             _check(isinstance(state.get("activation"), dict), issues, "activation_receipt", state_path, "activation receipt reference is missing")
-        for object_id in state["cursor"].get("authoritative_object_ids", []):
+        for object_id in state.get("reentry", {}).get("current_object_ids", []):
             objects.get(object_id)
     except Exception as exc:
         state = {}
@@ -233,6 +249,18 @@ def validate_v2_activation(root: Path, phase: str = "candidate") -> tuple[Valida
         _check(memory.get("outcome") == "scout_rejected", issues, "negative_memory", negative_memory, "negative memory outcome differs")
     except Exception as exc:
         _issue(issues, "invalid_negative_memory", negative_memory, str(exc))
+    bootstrap_work_unit = root / "campaigns/v2/V2G0001_v2_activation/work_units/V2B0001.yaml"
+    try:
+        bootstrap = yaml.safe_load(bootstrap_work_unit.read_text(encoding="ascii"))
+        _check(
+            bootstrap.get("status") == "closed_activated",
+            issues,
+            "bootstrap_work_unit",
+            bootstrap_work_unit,
+            "V2B0001 is not closed after activation",
+        )
+    except Exception as exc:
+        _issue(issues, "invalid_bootstrap_work_unit", bootstrap_work_unit, str(exc))
     legacy_debt = root / "registries/v2/legacy_debt.yaml"
     try:
         debt = yaml.safe_load(legacy_debt.read_text(encoding="ascii"))

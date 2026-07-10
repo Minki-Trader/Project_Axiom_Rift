@@ -4,6 +4,9 @@ encoding: ascii_only
 authority:
   goal_spec: contracts/v2/goal_spec.md
   architecture: contracts/v2/architecture.yaml
+  operator: contracts/v2/operator_contract.yaml
+  goal_spec_role: immutable_v2_build_and_philosophy_source
+  operator_role: active_post_activation_root_mission_operation
 mission:
   broker: FPMarkets
   symbol: US100
@@ -17,6 +20,15 @@ mission:
   profitability_target: strong_after_native_spread_and_realistic_slippage
   terminal_scope: ea_onnx_reproducible_pre_live_handoff
   live_operation: out_of_scope
+operation_mode:
+  user_goal_count: one_until_root_terminal
+  codex_session_role: single_logical_session
+  ask_user_for_routine_decisions: false
+  external_review_required: false
+  human_intermediate_approval_required: false
+  portable_deployment_required: false
+  current_machine_only: true
+  active_mutation_jobs_max: 1
 inherited_invariants:
   early_research_sizing: fixed_lot
   equity_percent_sizing_phase: post_candidate_robustness_or_growth
@@ -57,6 +69,18 @@ project_scope:
     - production_vps_operation
     - live_monitoring
     - live_ready_authority
+    - external_collaboration_platform
+    - portable_installer
+    - mandatory_pull_request_or_ci
+git_authority:
+  local_branch: main
+  remote_target: origin/main
+  push_required_at_preregistration: true
+  push_required_at_evidence_closeout: true
+  push_required_at_candidate_freeze: true
+  push_required_at_terminal_closeout: true
+  remote_head_verification_required: true
+  force_push_allowed: false
 claim_boundary:
   contract_is_evidence: false
   current_level_created: none

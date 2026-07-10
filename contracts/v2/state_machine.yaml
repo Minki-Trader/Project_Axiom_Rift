@@ -2,6 +2,7 @@ schema: axiom_rift_v2_state_machine_v1
 status: active
 encoding: ascii_only
 id_patterns:
+  mission: '^AXIOM_ROOT_[0-9]{4}$'
   goal: '^V2G[0-9]{4}$'
   hypothesis: '^V2H[0-9]{4}$'
   scout: '^V2S[0-9]{4}$'
@@ -40,5 +41,27 @@ terminal_outcomes:
   - closed_no_candidate
   - blocked_external
   - stopped_by_user
+mission_statuses:
+  - ready
+  - active
+  - terminal
+root_mission_rules:
+  one_user_goal_until_terminal: true
+  failed_hypothesis_is_terminal: false
+  internal_transition_requires_user_prompt: false
+  terminal_requires_git_sync: true
+structured_action_required_fields:
+  - kind
+  - goal_id
+  - stage
+  - subject_id
+  - job_kind
+  - prerequisite_receipt_ids
+  - summary
+structured_action_guards:
+  writer_owned: true
+  control_revision_cas_required_for_execution: true
+  operation_idempotency_key_required_for_execution: true
+  workflow_dsl_allowed: false
 repair_is_stage_outcome: false
 broken_code_is_hypothesis_evidence: false

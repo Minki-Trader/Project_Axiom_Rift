@@ -1,0 +1,64 @@
+schema: axiom_rift_v2_operator_contract_v1
+status: active
+encoding: ascii_only
+authority:
+  project: contracts/v2/project_contract.yaml
+  state_machine: contracts/v2/state_machine.yaml
+  validation: contracts/v2/validation_contract.yaml
+  mission_defaults: configs/v2/mission.yaml
+  git: configs/v2/git.yaml
+root_loop:
+  user_goal_count: one_until_terminal
+  internal_transition_requires_user_prompt: false
+  failed_hypothesis_ends_root: false
+  bounded_steps_with_durable_reentry: true
+  background_daemon_required: false
+  codex_selects_high_dimensional_research_actions: true
+  harness_enforces_deterministic_guards: true
+state:
+  single_writer: src/axiom_rift/v2/operations.py
+  active_mutation_jobs_max: 1
+  structured_next_action_required: true
+  free_form_transition_injection_allowed: false
+  compact_active_references_only: true
+active_job:
+  required_above_seconds: 30
+  evidence_must_match_job_stage_inputs_and_outputs: true
+  clear_without_matching_receipt: false
+  resume_before_new_job: true
+validation:
+  focused_batches_per_slice: 1
+  repair_batches_per_slice: 1
+  recheck_batches_per_slice: 1
+  identical_success: cache_hit_without_budget
+  identical_failure_retry: forbidden
+git:
+  milestones:
+    - H_preregistration
+    - evidence_stage_close
+    - candidate_freeze
+    - complete_blocker
+    - root_terminal_close
+  per_file_artifact_fold_or_micro_fix: forbidden
+  declared_paths_only: true
+  push_required: true
+  remote_head_check_required: true
+  scientific_validation_rerun_after_push_failure: false
+blocker:
+  required_fields:
+    - root_cause
+    - reproduction_command
+    - failing_artifact
+    - affected_claims
+    - completed_safe_work
+    - exact_resume_action
+    - required_external_state
+    - local_commit_if_push_failed
+terminal:
+  allowed:
+    - completed_pre_live_handoff
+    - closed_no_candidate
+    - blocked_external
+    - stopped_by_user
+  success_semantics: current_machine_local_pre_live_bundle
+  live_ready_allowed: false

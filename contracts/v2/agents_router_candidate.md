@@ -13,39 +13,57 @@ Read in order:
 
 1. `AGENTS.md`
 2. `registries/v2/control_state.yaml`
-3. Active V2 work unit or receipt named by control state
-4. Only V2 contracts touched by the task
+3. The active V2 work unit, job, or receipt named by control state
+4. Only the V2 contracts touched by the current action
 
 Do not boot from V1 registries, campaigns, results, or archives.
 
-## Goal Operation
+## Root Mission
 
 For a short `/goal`, continuation, next-work decision, H/S/R/P/M operation,
 closeout, materialization, or blocker, read:
 
 - `.agents/skills/axiom-v2-goal-operator/SKILL.md`
 
-Short goals inherit `contracts/v2/`. One logical research goal continues across
-stage changes without another user goal.
+One user goal opens one persistent root mission. Internal goal, hypothesis, or
+stage changes do not require another user prompt. A failed hypothesis does not
+end the root mission. Continue until a contract-valid terminal outcome exists.
+
+Ask the user only for a scope change, destructive authority, live-capital
+authority, a new credential or external-data permission, or a genuine external
+blocker. Routine research, implementation, and stage decisions are autonomous.
 
 ## Active Boundaries
 
+- Operate only on this PC, this repository, the current Python environment, and
+  the current FPMarkets MT5 environment.
 - FPMarkets US100 M5 is the project market target.
-- The 5-to-10 entry target applies to the combined system per eligible day.
+- The 5-to-10 entry target applies to the combined system per eligible day and
+  is a target, not a quota.
 - Discovery is fixed-lot; growth sizing is later evidence.
 - V1 research, candidates, failures, and C0144 are legacy references only.
 - V1 infrastructure is reusable only through a registered reuse decision.
-- Claims may not exceed `registries/v2/control_state.yaml` and durable receipts.
+- Claims may not exceed control state and durable receipts.
 - No `live_ready` claim is allowed.
 - Active project text is ASCII; Korean explanation belongs in chat.
+- External review, PR approval, mandatory CI, portable deployment, and human
+  intermediate reports are not completion requirements.
 
 ## Execution Boundaries
 
 - Research code does not mutate active state.
 - `src/axiom_rift/v2/operations.py` is the single state writer.
-- Routine validators never build data, train, compile, export ONNX, run MT5, or
-  download inputs.
-- Work above 30 seconds is a declared bounded evidence job.
+- Permit one active mutation or evidence job. Parallel state mutation is
+  forbidden.
+- The writer creates structured next actions; callers do not inject free-form
+  transition commands.
+- Resume a declared active job before creating another job.
+- Work above 30 seconds is a declared bounded evidence job with input hashes,
+  timeout, expected artifacts, logs, and a resume action.
+- Routine validators are receipt checkers. They never build data, train,
+  compile, export ONNX, run MT5, or download inputs.
+- Consume validation, repair, and recheck budgets in code. Reuse an identical
+  successful receipt and reject an identical failed retry.
 - S has no MT5 requirement.
 - Full isolated nine-fold MT5 is limited to P, recertification, or a recorded
   partition-equivalence failure.
@@ -67,7 +85,13 @@ names them.
 
 ## Closeout
 
-Update durable objects and ledgers before control state. Keep one exact next
-action and no undeclared active job. Validate the changed surface, commit a
-coherent milestone on local `main`, and push `origin/main`. Do not force-push,
-hard reset, or discard unrelated work.
+Update durable objects and ledgers before control state. Keep one structured
+next action and no undeclared active job. Validate one coherent changed surface,
+then commit the declared milestone paths on local `main`, push `origin/main`,
+and verify local and remote heads match.
+
+Commit and push H preregistration, evidence-stage closeout, candidate freeze,
+complete blocker, and root terminal closeout. Do not validate, commit, or push
+per file, artifact, fold, or micro-fix. A closeout is incomplete while its push
+is unverified. Do not force-push, hard reset, auto-merge, auto-rebase, stage
+unrelated paths, or discard unrelated work.

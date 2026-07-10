@@ -1,0 +1,108 @@
+schema: axiom_rift_v2_validation_surfaces_v1
+status: active
+encoding: ascii_only
+surfaces:
+  v2_1_harness:
+    checks:
+      - control_state_and_ledger_reconciliation
+      - generic_lifecycle_guards
+      - canonical_program_registry
+      - bounded_cli_surface
+      - validation_and_git_policy
+    forbidden:
+      - data_build
+      - model_training
+      - mt5_test
+      - onnx_export
+      - download
+  contract_or_yaml:
+    checks:
+      - ascii
+      - yaml_parse
+      - schema_and_reference_ids
+    forbidden:
+      - data_build
+      - model_training
+      - mt5
+  hypothesis_spec:
+    checks:
+      - schema
+      - duplicate_executable_hash
+      - acceptance_freeze
+      - split_access
+    forbidden:
+      - broad_repository_validation
+  feature_code:
+    checks:
+      - prefix_invariance
+      - completed_decision_append_invariance
+      - canonical_feature_parity
+    forbidden:
+      - unrelated_campaign_validation
+  label_code:
+    checks:
+      - boundary_purge
+      - horizon_isolation
+      - future_leakage
+    forbidden:
+      - ea_compile
+  model_code:
+    checks:
+      - train_only_fit
+      - determinism
+      - small_fixture
+    forbidden:
+      - mt5
+  selector_code:
+    checks:
+      - chronological_selection
+      - no_future_ranking
+      - one_position_state
+    forbidden:
+      - broad_model_retraining
+  research_core:
+    checks:
+      - related_unit_tests
+      - small_end_to_end
+    forbidden:
+      - full_mt5
+  mql_feature_include:
+    checks:
+      - compile
+      - feature_fixture
+    forbidden:
+      - isolated_nine_fold_mt5
+  ea_lifecycle:
+    checks:
+      - compile
+      - short_lifecycle_smoke
+    forbidden:
+      - research_hypothesis_reevaluation
+  mt5_runner:
+    checks:
+      - small_tester_job
+      - parser_fixture
+    forbidden:
+      - historical_campaign_revalidation
+  state_writer:
+    checks:
+      - cas
+      - ledger_chain
+      - idempotency
+      - recovery
+    forbidden:
+      - market_data_work
+  candidate_freeze:
+    checks:
+      - identity_bundle
+      - receipt_basis
+      - git_remote_sync
+    forbidden:
+      - v1_validation
+  documentation_only:
+    checks:
+      - ascii
+      - links
+      - schema
+    forbidden:
+      - economic_evidence_job

@@ -21,11 +21,16 @@ EXPECTED_SCHEMAS = {
     "contracts/v2/claim_ladder.yaml": "axiom_rift_v2_claim_ladder_v1",
     "contracts/v2/split_policy.yaml": "axiom_rift_v2_split_policy_v1",
     "contracts/v2/identity_policy.yaml": "axiom_rift_v2_identity_policy_v1",
+    "contracts/v2/operator_contract.yaml": "axiom_rift_v2_operator_contract_v1",
     "configs/v2/market.yaml": "axiom_rift_v2_market_config_v1",
     "configs/v2/data.yaml": "axiom_rift_v2_data_config_v1",
     "configs/v2/splits.yaml": "axiom_rift_v2_split_config_v1",
     "configs/v2/validation.yaml": "axiom_rift_v2_validation_budget_v1",
-    "registries/v2/control_state.yaml": "axiom_rift_v2_control_state_v1",
+    "configs/v2/validation_surfaces.yaml": "axiom_rift_v2_validation_surfaces_v1",
+    "configs/v2/mission.yaml": "axiom_rift_v2_mission_config_v1",
+    "configs/v2/git.yaml": "axiom_rift_v2_git_config_v1",
+    "configs/v2/program_registry.yaml": "axiom_rift_v2_program_registry_v1",
+    "registries/v2/control_state.yaml": "axiom_rift_v2_control_state_v2",
 }
 LEDGERS = {
     "hypothesis": "registries/v2/hypothesis_ledger.jsonl",
@@ -84,13 +89,33 @@ def validate_v2_bootstrap(root: Path = PROJECT_ROOT) -> ValidationResult:
         expected_hash = str(packet.get("authoritative_spec", {}).get("sha256", ""))
         if _sha256(spec_path) != expected_hash:
             issues.append(ValidationIssue("goal_spec_hash_mismatch", "contracts/v2/goal_spec.md", "goal spec hash differs from packet"))
-    if packet is not None and control is not None and packet.get("goal_id") != control.get("goal_id"):
-        issues.append(ValidationIssue("goal_id_drift", "registries/v2/control_state.yaml", "control state and goal packet differ"))
+    if packet is not None and control is not None:
+        closed = control.get("history", {}).get("recent_closed_goals", [])
+        if packet.get("goal_id") not in {
+            item.get("goal_id") for item in closed if isinstance(item, dict)
+        }:
+            issues.append(
+                ValidationIssue(
+                    "bootstrap_goal_history_missing",
+                    "registries/v2/control_state.yaml",
+                    "activated bootstrap goal is not preserved in bounded history",
+                )
+            )
     if control is not None:
         try:
             validate_control_state(control)
         except ControlStateError as exc:
             issues.append(ValidationIssue("invalid_control_state", "registries/v2/control_state.yaml", str(exc)))
+        mission = control.get("root_mission", {})
+        mission_path = root / str(mission.get("contract_path", ""))
+        if not mission_path.is_file() or _sha256(mission_path) != mission.get("contract_sha256"):
+            issues.append(
+                ValidationIssue(
+                    "root_mission_contract_drift",
+                    "registries/v2/control_state.yaml",
+                    "root mission contract path or hash differs",
+                )
+            )
     if validation is not None:
         routine = validation.get("routine_validator", {})
         if routine.get("hard_ceiling_seconds") != 30:
@@ -104,4 +129,10 @@ def validate_v2_bootstrap(root: Path = PROJECT_ROOT) -> ValidationResult:
                 HashChainLedger(path, name).rows()
             except LedgerError as exc:
                 issues.append(ValidationIssue("invalid_ledger", relative, str(exc)))
+    try:
+        router = (root / "contracts/v2/agents_router_candidate.md").read_text(encoding="ascii")
+        if (root / "AGENTS.md").read_text(encoding="ascii") != router:
+            issues.append(ValidationIssue("active_router_mismatch", "AGENTS.md", "active router differs from candidate"))
+    except (OSError, UnicodeError) as exc:
+        issues.append(ValidationIssue("invalid_router", "AGENTS.md", str(exc)))
     return ValidationResult("v2-bootstrap", tuple(issues))

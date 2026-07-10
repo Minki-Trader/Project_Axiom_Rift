@@ -1,114 +1,154 @@
 ---
 name: axiom-v2-goal-operator
-description: Operate Project Axiom Rift V2 from a short goal or continuation prompt through the H/S/R/P/M lifecycle, including preregistration, bounded evidence jobs, claim-safe transitions, negative memory, ONNX/EA materialization, activation, reentry, and git closeout. Use for Axiom V2 next-work decisions, stage changes, scout or confirmation runs, promotion, materialization, blockers, closeouts, or resuming an active job.
+description: Operate one persistent Project Axiom Rift V2 root mission from a single user goal through repeated H/S/R/P/M cycles, bounded evidence jobs, automatic failed-hypothesis continuation, claim-safe transitions, negative memory, ONNX/EA materialization, reentry, and required main-to-origin Git closeout. Use for V2 goal start or continuation, next-work decisions, stage changes, scout or confirmation runs, promotion, materialization, blockers, closeouts, or active-job resume.
 ---
 
 # Axiom V2 Goal Operator
 
 ## Boot
 
-Read in this order:
+Read in order:
 
 1. `AGENTS.md`.
 2. `registries/v2/control_state.yaml`.
-3. The active work unit and receipt named by control state.
-4. Only the V2 contracts governing the requested stage.
+3. The active work unit, job, or receipt named by control state.
+4. Only the V2 contracts governing the structured next action.
 
-Do not boot from V1 registries, campaigns, results, or archive files.
+Do not boot from V1 registries, campaigns, results, or archives.
+
+## Persist the Root Mission
+
+Treat one user goal as one root mission until a terminal outcome exists. Internal
+goal, hypothesis, and stage IDs may change without another user prompt. A failed
+hypothesis closes only that hypothesis; it never closes the root mission.
+
+Ask the user only for a scope change, destructive authority, live-capital
+authority, a new credential or external-data permission, or a genuine external
+blocker. Make routine research, implementation, and transition decisions
+autonomously.
+
+Allowed root outcomes are `completed_pre_live_handoff`,
+`closed_no_candidate`, `blocked_external`, and `stopped_by_user`.
+`completed_pre_live_handoff` means a verified local-machine pre-live bundle.
+
+## Run the Bounded Loop
+
+While no root outcome exists:
+
+1. Load and validate control state and Git preconditions.
+2. Resume the declared active job, if any.
+3. Otherwise execute or materialize the structured next action.
+4. Write immutable objects and ledger rows before control state.
+5. Run one focused close validator for the coherent slice.
+6. Commit only declared milestone paths on local `main`.
+7. Push `origin/main` and verify local and remote heads match.
+8. Transition state and continue immediately.
+
+Use bounded steps with durable reentry. Do not create a daemon, workflow DAG,
+or unbounded shell process. Codex supplies high-dimensional hypothesis judgment;
+the harness supplies deterministic guards and state transitions.
 
 ## Resume Before Starting
 
-If `reentry.active_job` is non-null, inspect its declared artifacts and resume or
-close that exact job. Do not create a replacement run or repeat an unchanged
-successful receipt.
+If `active_job` is non-null, inspect its declared artifacts and resume, close,
+or block that exact job. Do not create a replacement job or repeat an unchanged
+successful receipt. Clear an active job only when the receipt matches its job,
+stage, input identity, and expected artifacts.
 
-Keep one exact next action. The single writer in
-`src/axiom_rift/v2/operations.py` owns active objects, ledgers, and control-state
-mutation. Research code returns results and must not mutate registries.
+Keep one structured next action. The single writer in
+`src/axiom_rift/v2/operations.py` owns active objects, ledgers, budgets, and
+control-state mutation. Research code returns results and never mutates state.
 
-## Classify the Operation
+## Classify Work
 
-Classify the next action as one of:
+Classify the next action as:
 
 - true hypothesis or program variant
-- repair of broken code or evidence plumbing
+- broken-code or evidence-plumbing repair
 - stage closeout or negative-memory synthesis
 - engine recertification
 - pause or genuine external blocker
 
 Reject adjacent threshold, window, stop, target, or retry-only changes presented
-as a new research axis.
+as new research axes.
 
-## H/S/R/P/M Flow
+## H/S/R/P/M
 
 ### H - Hypothesis
 
 Preregister the question, executable component identities, split roles,
-falsification, frozen acceptance profile, novelty, portability, evidence budget,
-and claim ceiling. Check V1 only after preregistration and only for mechanical
-duplication or implementation hazards.
+falsification, frozen acceptance profile, novelty, evidence budget, and claim
+ceiling. Validate schema and identity only, then commit and push before S.
 
 ### S - Scout
 
-Use only preregistered representative development anchors. Enforce causal
-features, fold-isolated fit and calibration, sequential admission, unknown-cost
-handling, activity across all eligible days, and boundary purge. Do not run MT5
-or isolated nine-fold validation. Close weak results as diagnostic negative
-memory.
+Use preregistered representative development anchors, fold-isolated fit and
+calibration, sequential admission, unknown-cost handling, and boundary purge.
+Do not run MT5 or isolated nine-fold validation. On rejection, record evidence,
+negative memory, and disposition; validate once, commit and push, select the
+next high-information axis, preregister the next H, and continue.
 
 ### R - Confirmation
 
-Open R only from a surviving S receipt. Use all required development folds,
-uncertainty, trial accounting, and minimal certified MT5 confirmation. When a
-valid conformance receipt applies, default to one aggregate closed-bar run and
-one aggregate real-tick run, then partition only under proven boundary
-equivalence.
+Open R only from a surviving S receipt. Freeze R inputs and push them before the
+evidence job. Use all development folds, uncertainty, trial accounting, and the
+minimum certified MT5 confirmation. Prefer one aggregate closed-bar and one
+aggregate real-tick run with receipt-backed partitioning.
 
 ### P - Promotion
 
-Reserve full isolated nine-fold MT5 for promotion, engine recertification, or a
-recorded partition-equivalence failure. Freeze the candidate before holdout
-access. Require realistic cost stress, stability, drawdown, exposure, and
-multiple-testing evidence before stronger claims.
+Reserve isolated nine-fold MT5 for promotion, recertification, or recorded
+partition-equivalence failure. Freeze candidate identity and verify its commit
+on `origin/main` before the single permitted holdout reveal.
 
 ### M - Materialization
 
 Enter only with a selected frozen identity. Export ONNX, integrate native online
-EA inference, and prove parity in contract order. Produce the hashed pre-live
-handoff. Do not create `live_ready`.
+EA inference, prove required parity and lifecycle recovery, and create the hashed
+local pre-live bundle. Never create `live_ready`.
 
-Continue one logical goal across stage changes. End only as
-`completed_pre_live_handoff`, `closed_no_candidate`, `blocked_external`, or
-`stopped_by_user`.
+Build real R, P, and M adapters only when a candidate reaches their gates. Keep
+their deterministic transition guards available earlier.
 
 ## Validation Economics
 
 Routine validators are receipt checkers only. Target 3-15 seconds and fail at 30
-seconds. They must not build data, train, compile, export ONNX, launch MT5, or
+seconds. Never let them build data, train, compile, export ONNX, launch MT5, or
 download inputs.
 
-For one coherent slice use one implementation batch, one focused validation
-batch, at most one consolidated repair, and one focused recheck. A repeated
-failure requires root-cause boundary redesign, component replacement, or a
-complete blocker.
+Consume one implementation, validation, repair, and recheck budget per coherent
+slice. An identical successful validation is a cache hit and spends no budget.
+Reject an identical failed retry. After one consolidated repair and recheck,
+redesign the boundary, replace the component, or record a complete blocker.
 
-Declare work expected above 30 seconds as a bounded evidence job with input
-hashes, timeout, logs, expected artifacts, and a resume boundary.
+Declare work expected above 30 seconds as a bounded evidence job with exact
+command, input hashes, timeout, logs, expected artifacts, claim ceiling, and
+resume action.
 
-## Claims and Failures
+## Claims and Exhaustion
 
-Use the scalar claim ladder in `contracts/v2/claim_ladder.yaml`. Never infer a
-stronger claim from aggregate profit, development CV, an ONNX file, compilation,
-schedule replay, or missing KPI.
+Use `contracts/v2/claim_ladder.yaml`. Never infer a stronger claim from
+aggregate profit, development CV, an ONNX file, compilation, schedule replay,
+or missing KPI.
 
-Broken code is repair evidence, not hypothesis evidence. Record a failed valid
-hypothesis as negative memory, parity lesson, execution-divergence lesson,
-evidence gap, or non-portable lesson.
+Broken code is repair evidence, not hypothesis evidence. Preserve valid failures
+as negative memory, parity lessons, execution-divergence lessons, evidence gaps,
+or non-portable lessons.
 
-## Closeout
+Close a root mission as `closed_no_candidate` only after the frozen mission
+budget is exhausted or every remaining causal axis has low expected information
+value, is directly contradicted by negative memory, requires holdout reuse, or
+is adjacent tuning.
 
-Update control state only after durable objects and ledger rows exist. Record
-receipt IDs, artifact hashes, no active job, remaining budgets, and one exact
-next action. Validate the changed surface, commit a coherent milestone on local
-`main`, and push `origin/main`. Never force-push, reset, or discard unrelated
-work.
+## Git Closeout
+
+Use Git as the remote evidence checkpoint, not as a review workflow. Commit and
+push H preregistration, evidence-stage closeout, candidate freeze, complete
+blocker, and root terminal closeout. Do not commit or push per file, artifact,
+fold, or micro-fix.
+
+Stage declared paths only. Do not use `git add -A`, force-push, hard reset,
+auto-merge, auto-rebase, or discard unrelated work. A push failure never reruns
+scientific validation. Retry one safe identical commit at most once after
+diagnosis; otherwise record `blocked_external` with the local commit and exact
+resume command.

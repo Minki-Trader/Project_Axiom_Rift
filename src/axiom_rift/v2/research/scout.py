@@ -22,6 +22,7 @@ from axiom_rift.v2.features import (
     FEATURE_NAMES,
     WARMUP_BARS,
     BarArrays,
+    FeatureContractError,
     bars_from_rows,
     compute_feature_matrix,
     feature_order_sha256,
@@ -29,17 +30,13 @@ from axiom_rift.v2.features import (
     load_feature_contract,
 )
 from axiom_rift.v2.identity import sha256_payload
+from axiom_rift.v2.research.programs import (
+    ProgramRegistryError,
+    load_program_registry,
+)
 
 
 TIME_FORMAT = "%Y-%m-%d %H:%M:%S"
-ALLOWED_PROGRAMS = {
-    "feature": {"V2FP0001"},
-    "label": {"V2LP0001"},
-    "model": {"V2MP0001"},
-    "calibration": {"V2CP0001"},
-    "selector": {"V2SEL0001"},
-    "trade": {"V2TP0001"},
-}
 
 
 class ScoutSpecError(ValueError):
@@ -59,6 +56,7 @@ class FoldWindow:
 
 @dataclass(frozen=True)
 class ScoutSpec:
+    goal_id: str
     hypothesis_id: str
     feature_program_id: str
     feature_contract_path: Path
@@ -74,6 +72,9 @@ class ScoutSpec:
     maximum_daily_entries: int
     anchors: tuple[str, ...]
     acceptance_profile: dict[str, Any]
+    program_registry_path: str
+    program_registry_sha256: str
+    program_identities: dict[str, dict[str, Any]]
     spec_sha256: str
 
 
@@ -170,17 +171,11 @@ class ScoutResult:
         }
 
 
-def _program_id(payload: Mapping[str, Any], section: str, kind: str) -> str:
-    value = payload.get(section)
-    if not isinstance(value, Mapping):
-        raise ScoutSpecError(f"missing executable program section: {section}")
-    program_id = str(value.get("id"))
-    if program_id not in ALLOWED_PROGRAMS[kind]:
-        raise ScoutSpecError(f"program is not whitelisted: {kind}={program_id}")
-    return program_id
-
-
-def load_scout_spec(path: Path, project_root: Path) -> ScoutSpec:
+def load_scout_spec(
+    path: Path,
+    project_root: Path,
+    program_registry_path: Path | None = None,
+) -> ScoutSpec:
     raw = path.read_bytes()
     raw.decode("ascii")
     payload = yaml.safe_load(raw)
@@ -191,16 +186,40 @@ def load_scout_spec(path: Path, project_root: Path) -> ScoutSpec:
     programs = payload.get("executable_programs")
     if not isinstance(programs, Mapping):
         raise ScoutSpecError("executable programs are missing")
-    feature_section = programs.get("feature_program")
-    if not isinstance(feature_section, Mapping):
-        raise ScoutSpecError("feature program is missing")
-    feature_path = (project_root / str(feature_section.get("path"))).resolve()
-    if project_root.resolve() not in feature_path.parents:
-        raise ScoutSpecError("feature contract escapes the project root")
-    model = programs.get("model_program")
-    calibration = programs.get("calibration_program")
-    selector = programs.get("selector_program")
-    trade = programs.get("trade_program")
+    section_names = {
+        "feature": "feature_program",
+        "label": "label_program",
+        "model": "model_program",
+        "calibration": "calibration_program",
+        "selector": "selector_program",
+        "trade": "trade_program",
+    }
+    if set(programs) != set(section_names.values()):
+        raise ScoutSpecError("executable program sections differ from the canonical scout surface")
+    sections = {kind: programs.get(section) for kind, section in section_names.items()}
+    if not all(isinstance(section, Mapping) for section in sections.values()):
+        raise ScoutSpecError("hypothesis executable program sections are incomplete")
+    try:
+        registry = load_program_registry(project_root, program_registry_path)
+        definitions = {
+            kind: registry.resolve_section(kind, section)
+            for kind, section in sections.items()
+            if isinstance(section, Mapping)
+        }
+    except ProgramRegistryError as exc:
+        raise ScoutSpecError(str(exc)) from exc
+    feature_path = (project_root.resolve() / definitions["feature"].contract_path).resolve()
+    try:
+        feature_contract = load_feature_contract(feature_path)
+    except FeatureContractError as exc:
+        raise ScoutSpecError(str(exc)) from exc
+    if feature_contract.get("program_id") != definitions["feature"].program_id:
+        raise ScoutSpecError("feature contract program id differs from the registry")
+    label = sections["label"]
+    model = sections["model"]
+    calibration = sections["calibration"]
+    selector = sections["selector"]
+    trade = sections["trade"]
     data = payload.get("data")
     acceptance = payload.get("acceptance_profile")
     if not all(isinstance(item, Mapping) for item in (model, calibration, selector, trade, data, acceptance)):
@@ -210,22 +229,37 @@ def load_scout_spec(path: Path, project_root: Path) -> ScoutSpec:
         raise ScoutSpecError("scout anchors differ from the preregistered season-diverse set")
     if acceptance.get("frozen_before_results") is not True:
         raise ScoutSpecError("acceptance profile was not frozen before results")
+    hold_bars = int(trade.get("hold_bars"))
+    if int(label.get("horizon_bars_after_entry")) != hold_bars:
+        raise ScoutSpecError("label horizon and trade hold must describe the same executable interval")
+    feature_input = feature_contract.get("input")
+    if not isinstance(feature_input, Mapping):
+        raise ScoutSpecError("feature contract input section is missing")
+    point_size = float(feature_input.get("point_size"))
+    if point_size <= 0.0:
+        raise ScoutSpecError("feature contract point size must be positive")
     return ScoutSpec(
+        goal_id=str(payload.get("goal_id")),
         hypothesis_id=str(payload.get("hypothesis_id")),
-        feature_program_id=_program_id(programs, "feature_program", "feature"),
+        feature_program_id=definitions["feature"].program_id,
         feature_contract_path=feature_path,
-        label_program_id=_program_id(programs, "label_program", "label"),
-        model_program_id=_program_id(programs, "model_program", "model"),
-        calibration_program_id=_program_id(programs, "calibration_program", "calibration"),
-        selector_program_id=_program_id(programs, "selector_program", "selector"),
-        trade_program_id=_program_id(programs, "trade_program", "trade"),
+        label_program_id=definitions["label"].program_id,
+        model_program_id=definitions["model"].program_id,
+        calibration_program_id=definitions["calibration"].program_id,
+        selector_program_id=definitions["selector"].program_id,
+        trade_program_id=definitions["trade"].program_id,
         alpha=float(model.get("alpha")),
         residual_quantile=float(calibration.get("quantile")),
-        hold_bars=int(trade.get("hold_bars")),
-        point_size=0.01,
+        hold_bars=hold_bars,
+        point_size=point_size,
         maximum_daily_entries=int(selector.get("daily_entry_safety_cap")),
         anchors=anchors,
         acceptance_profile=dict(acceptance),
+        program_registry_path=registry.relative_path,
+        program_registry_sha256=registry.registry_sha256,
+        program_identities={
+            kind: definitions[kind].receipt_identity() for kind in section_names
+        },
         spec_sha256=sha256_payload(payload),
     )
 

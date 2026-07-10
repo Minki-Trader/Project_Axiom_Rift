@@ -11,8 +11,12 @@ object_store:
   idempotent_same_content: true
 control_state:
   path: registries/v2/control_state.yaml
+  schema: axiom_rift_v2_control_state_v2
   mutable_authority_count: 1
   update: bounded_lock_cas_unique_temp_fsync_single_replace
+  active_history: bounded_recent_references_only
+  durable_history: immutable_objects_and_hash_chain_ledgers
+  next_action: structured_writer_owned
 ledgers:
   hypothesis: registries/v2/hypothesis_ledger.jsonl
   evidence: registries/v2/evidence_ledger.jsonl
@@ -24,6 +28,9 @@ ledger_rules:
   hash_chain: true
   existing_row_mutation: false
   duplicate_content_policy: reject_without_consuming_namespace
+reconciliation:
+  orphan_ledger_or_object_detection_required: true
+  automatic_destructive_repair_allowed: false
 legacy_reuse_required_fields:
   - source_path
   - decision

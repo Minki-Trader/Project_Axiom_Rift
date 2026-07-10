@@ -2,7 +2,7 @@ schema: axiom_rift_v2_architecture_v1
 status: active
 encoding: ascii_only
 strategy: same_repository_strangler
-active_truth_during_bootstrap: v1
+active_truth: v2
 activation_requires_receipt: true
 canonical_paths:
   source: src/axiom_rift/v2
@@ -11,7 +11,8 @@ canonical_paths:
   registries: registries/v2
   immutable_objects: registries/v2/objects
   work_units: campaigns/v2
-  cli: axiom-rift-v2
+  cli: axiom-rift
+  program_registry: configs/v2/program_registry.yaml
 legacy_frozen_paths:
   - campaigns/C*
   - campaigns/SC*
@@ -21,8 +22,10 @@ legacy_frozen_paths:
   - registries/reentry.yaml
   - registries/decision_cursor.yaml
 v2_layers:
+  - persistent_root_mission
   - identity_and_object_store
   - scalar_control_state
+  - structured_next_action
   - validation_receipts
   - causal_data_and_splits
   - declarative_research_components
@@ -35,6 +38,15 @@ dependency_rules:
   research_code_may_mutate_state: false
   evidence_writer_is_single_state_owner: true
   arbitrary_python_import_from_yaml: false
+  active_mutation_jobs_max: 1
+  operational_research_engine_count: 1
+  git_push_inside_state_transaction: false
+deferred_until_evidence_requires:
+  - dynamic_plugin_system
+  - workflow_dag_or_daemon
+  - database_or_job_queue
+  - human_dashboard
+  - real_R_P_M_adapters_before_stage_entry
 reuse_decisions:
   project_root:
     source: src/axiom_rift/paths.py

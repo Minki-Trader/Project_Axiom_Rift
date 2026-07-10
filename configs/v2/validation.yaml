@@ -1,6 +1,7 @@
 schema: axiom_rift_v2_validation_budget_v1
 status: active
 encoding: ascii_only
+surface_policy: configs/v2/validation_surfaces.yaml
 routine_validator:
   role: receipt_checker_only
   target_seconds_min: 3
@@ -15,6 +16,23 @@ slice_loop:
   consolidated_repair_batches: 1
   recheck_batches: 1
   repeated_failure_action: root_cause_redesign_or_blocker
+  consume_budget_before_execution: true
+  identical_success_spends_budget: false
+  identical_failure_retry_allowed: false
+  automatic_timeout_extension: false
+triggers:
+  allowed:
+    - coherent_slice_close
+    - evidence_stage_close
+    - shared_core_change
+    - candidate_freeze
+    - root_mission_close
+  forbidden:
+    - each_file_edit
+    - each_artifact
+    - each_fold
+    - each_micro_commit
+    - unchanged_success
 long_job:
   threshold_seconds: 30
   explicit: true

@@ -1,5 +1,5 @@
 schema: axiom_rift_v2_bootstrap_work_unit_v1
-status: in_progress
+status: closed_activated
 encoding: ascii_only
 work_unit_id: V2B0001
 goal_id: V2G0001
@@ -36,6 +36,12 @@ done_requires:
   - validated_commit_on_main
   - origin_main_push
 next_action_source: registries/v2/control_state.yaml
+completion:
+  activation_evidence_id: V2E000008
+  activation_validation_receipt_id: V2VR000006
+  content_commit: 890c48b005e26c45b4f5bff53c8920c0a214dc6f
+  closeout_commit: d019c3066573375ad837ad087fee3e8d816f1ed7
+  origin_main_verified: true
 claim_boundary:
   work_unit_creation_is_evidence: false
   selected: false

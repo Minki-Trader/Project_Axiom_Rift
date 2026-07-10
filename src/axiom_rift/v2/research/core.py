@@ -1,4 +1,9 @@
-"""Pure, deterministic orchestration for one bounded V2 research evaluation."""
+"""Fixture-only synthetic research engine retained for causal unit tests.
+
+Operational V2 research uses ``axiom_rift.v2.features`` and
+``axiom_rift.v2.research.scout``. Nothing in this module may create campaign
+evidence or be treated as the canonical execution path.
+"""
 
 from __future__ import annotations
 
@@ -19,8 +24,13 @@ from axiom_rift.v2.research.samples import build_supervised_samples
 from axiom_rift.v2.research.specs import Bar, IndexBoundary, ResearchSpec, ResearchSpecError
 
 
+FIXTURE_ONLY = True
+
+
 @dataclass(frozen=True)
 class ResearchResult:
+    """Non-economic result from the fixture-only synthetic engine."""
+
     spec_hash: str
     data_hash: str
     train_sample_count: int
@@ -35,7 +45,9 @@ class ResearchResult:
 
     def _body_payload(self) -> dict[str, Any]:
         return {
-            "schema": "axiom_rift_v2_research_result_v1",
+            "schema": "axiom_rift_v2_fixture_research_result_v1",
+            "fixture_only": True,
+            "operational_evidence_allowed": False,
             "spec_hash": self.spec_hash,
             "data_hash": self.data_hash,
             "train_sample_count": self.train_sample_count,
@@ -72,7 +84,7 @@ def run_research(
     validation: IndexBoundary,
     evaluation: IndexBoundary,
 ) -> ResearchResult:
-    """Run without filesystem, registry, ledger, campaign, or control-state mutation."""
+    """Run a synthetic fixture without creating operational research evidence."""
 
     frozen_bars = tuple(bars)
     if not frozen_bars:

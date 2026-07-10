@@ -24,6 +24,12 @@ package:
     - deterministic_reproduction_commands
   all_paths: repo_relative
   all_text_metadata: ascii_only
+terminal_bundle:
+  mode: local_machine_only
+  portable_installation_required: false
+  external_operator_documentation_required: false
+  codex_reentry_required: true
+  current_mt5_runtime_required: true
 closeout_checks:
   object_hashes_verify: true
   ledger_chain_verifies: true
@@ -39,6 +45,7 @@ out_of_scope:
   - live_ready_claim
 terminal_outcome:
   success: completed_pre_live_handoff
+  semantic_alias: completed_local_pre_live_bundle
   claim_level: pre_live_ready
   live_ready: false
 git_closeout:
@@ -46,4 +53,5 @@ git_closeout:
   remote: origin
   validated_commit_required: true
   push_required: true
+  remote_head_verification_required: true
   force_push_allowed: false

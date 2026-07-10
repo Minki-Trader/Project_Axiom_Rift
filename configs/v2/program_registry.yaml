@@ -1,0 +1,85 @@
+schema: axiom_rift_v2_program_registry_v1
+status: active
+encoding: ascii_only
+hash_semantics: compact_sorted_ascii_json_sha256
+canonical_engine:
+  engine_key: causal_scout_v1
+  feature_path: src/axiom_rift/v2/features.py
+  scout_path: src/axiom_rift/v2/research/scout.py
+fixture_only:
+  research_core_path: src/axiom_rift/v2/research/core.py
+programs:
+  V2FP0001:
+    kind: feature
+    version: 1
+    contract_path: configs/v2/feature_programs/causal_bar_v1.yaml
+    contract_sha256: d8f0d14a4e43bff1b930ea5a302f0513adca468768e1918c51a09f131f3f0810
+    implementation_key: canonical_completed_bar_features_v1
+    parameters:
+      path: configs/v2/feature_programs/causal_bar_v1.yaml
+    program_sha256: 54301164657724deec6dbd736c15a6939cd47fd4bcb251d17a2fa749e5009867
+  V2LP0001:
+    kind: label
+    version: 1
+    contract_path: contracts/v2/research_contract.yaml
+    contract_sha256: eb3254b26e4c3649408d76865c97e7ecc052cda81ccf7ab65d4af93fa9bd4bc3
+    implementation_key: normalized_forward_open_return_v1
+    parameters:
+      definition: open_t_plus_7_minus_open_t_plus_1_divided_by_mean_true_range_24_at_t
+      horizon_bars_after_entry: 6
+    program_sha256: 66676657e7f5537957ac35810929b8adda137a319f9370ad6ac13db5453e68f3
+  V2MP0001:
+    kind: model
+    version: 1
+    contract_path: contracts/v2/research_contract.yaml
+    contract_sha256: eb3254b26e4c3649408d76865c97e7ecc052cda81ccf7ab65d4af93fa9bd4bc3
+    implementation_key: train_scaled_ridge_v1
+    parameters:
+      family: ridge
+      alpha: 1.0
+      fit_intercept: true
+      scaler_fit_role: train_is_only
+    program_sha256: a5d29e2010190f938bd6b0e6ce350c0508055bd533e67ddefde87b450b7fe989
+  V2CP0001:
+    kind: calibration
+    version: 1
+    contract_path: contracts/v2/research_contract.yaml
+    contract_sha256: eb3254b26e4c3649408d76865c97e7ecc052cda81ccf7ab65d4af93fa9bd4bc3
+    implementation_key: validation_absolute_residual_quantile_v1
+    parameters:
+      definition: validation_absolute_residual_quantile
+      quantile: 0.35
+    program_sha256: e2eb0b0c9f4d08029eaa4fe50b0bb3bdc7747a4dd718a26f34717dd15858744e
+  V2SEL0001:
+    kind: selector
+    version: 1
+    contract_path: contracts/v2/research_contract.yaml
+    contract_sha256: eb3254b26e4c3649408d76865c97e7ecc052cda81ccf7ab65d4af93fa9bd4bc3
+    implementation_key: sequential_cost_abstention_v1
+    parameters:
+      mode: chronological_sequential_abstention
+      long_rule: prediction_minus_band_gt_causal_normalized_cost
+      short_rule: prediction_plus_band_lt_negative_causal_normalized_cost
+      causal_normalized_cost: decision_bar_spread_times_point_size_divided_by_mean_true_range_24
+      one_position: true
+      same_day_future_ranking: false
+      full_day_top_k: false
+      daily_entry_safety_cap: 10
+      quota: false
+    program_sha256: 91c6ca6670e48de74cf320e7f519cbf7f241deb0fd3d74f0b50322d9757d0e42
+  V2TP0001:
+    kind: trade
+    version: 1
+    contract_path: contracts/v2/research_contract.yaml
+    contract_sha256: eb3254b26e4c3649408d76865c97e7ecc052cda81ccf7ab65d4af93fa9bd4bc3
+    implementation_key: fixed_horizon_observed_spread_v1
+    parameters:
+      entry: bid_open_t_plus_1_with_long_entry_ask_spread
+      exit: bid_open_t_plus_7_with_short_exit_ask_spread
+      hold_bars: 6
+      commission: 0
+      slippage: 0
+      spread: observed_broker_points
+      zero_spread: unknown_cost_reject_after_cost_sample
+      sizing: fixed_lot
+    program_sha256: 9c3549bcd48337de4ee41699b8d56289e7c596d3b797cf199cb18380743301a8

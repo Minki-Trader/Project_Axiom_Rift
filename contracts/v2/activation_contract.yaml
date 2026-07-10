@@ -46,6 +46,13 @@ completion:
   origin_main_push_required: true
   active_truth_must_read_v2_after_push: true
   uncommitted_or_unpushed_activation_is_complete: false
+  bootstrap_work_unit_status: closed_activated
+post_activation_maintenance:
+  work_unit: V2B0002
+  role: generic_root_mission_harness_hardening
+  required_before_next_research_goal: true
+  claim_ceiling: none
+  activation_reversal_allowed: false
 claim_boundary:
   activation_is_alpha_evidence: false
   activation_creates_selected_or_runtime_claim: false

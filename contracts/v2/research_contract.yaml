@@ -6,6 +6,16 @@ authority:
   claims: contracts/v2/claim_ladder.yaml
   splits: contracts/v2/split_policy.yaml
   identity: contracts/v2/identity_policy.yaml
+  operator: contracts/v2/operator_contract.yaml
+  programs: configs/v2/program_registry.yaml
+root_mission:
+  failed_hypothesis_ends_mission: false
+  multiple_hypothesis_cycles_allowed: true
+  automatic_next_hypothesis_selection: true
+  automatic_stage_continuation: true
+  another_user_goal_required_for_internal_transition: false
+  budget_frozen_on_open: true
+  material_exhaustion_receipt_required: true
 stages:
   H:
     role: preregister_hypothesis_batch_and_executable_identity
@@ -84,6 +94,18 @@ novelty:
     - trade_program
   v1_alpha_evidence_inherited: false
   v1_duplicate_check_timing: after_v2_preregistration
+program_semantics:
+  registry: configs/v2/program_registry.yaml
+  canonical_runner_count: 1
+  stage_differences_are_data_scope_fold_count_evidence_strength_and_claim_ceiling: true
+  synthetic_fixture_is_operational_evidence: false
+holdout:
+  human_approval_required: false
+  permit_issuer: single_state_writer
+  candidate_freeze_commit_required: true
+  origin_main_sync_required_before_reveal: true
+  reveal_count_max: 1
+  retuning_after_reveal: false
 terminal_outcomes:
   - completed_pre_live_handoff
   - closed_no_candidate

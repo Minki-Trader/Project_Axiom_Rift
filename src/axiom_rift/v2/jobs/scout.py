@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import re
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -30,6 +31,21 @@ def sha256_file(path: Path) -> str:
 
 def rel(path: Path) -> str:
     return path.resolve().relative_to(PROJECT_ROOT).as_posix()
+
+
+def _project_path(path: Path, *, must_exist: bool) -> Path:
+    candidate = path.resolve() if path.is_absolute() else (PROJECT_ROOT / path).resolve()
+    root = PROJECT_ROOT.resolve()
+    if root not in candidate.parents:
+        raise ValueError(f"scout path escapes project root: {path}")
+    if must_exist and not candidate.is_file():
+        raise ValueError(f"scout input is missing: {rel(candidate)}")
+    return candidate
+
+
+def _validate_stage_identity(value: str, prefix: str) -> None:
+    if re.fullmatch(rf"V2{prefix}[0-9]{{4}}", value) is None:
+        raise ValueError(f"invalid V2 {prefix} identity: {value}")
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -61,15 +77,32 @@ def _write_trades(path: Path, trades: tuple[ScoutTrade, ...]) -> None:
             writer.writerow(trade.to_payload())
 
 
-def run_v2s0001_job(work_unit_dir: Path) -> dict[str, Any]:
-    work_unit_dir = work_unit_dir.resolve()
+def run_scout_job(
+    goal_id: str,
+    hypothesis_id: str,
+    stage_id: str,
+    spec_path: Path,
+    output_dir: Path,
+) -> dict[str, Any]:
+    """Run one preregistered scout without assuming a campaign or namespace id."""
+
+    _validate_stage_identity(goal_id, "G")
+    _validate_stage_identity(hypothesis_id, "H")
+    _validate_stage_identity(stage_id, "S")
+    hypothesis_path = _project_path(Path(spec_path), must_exist=True)
+    work_unit_dir = _project_path(Path(output_dir), must_exist=False)
     work_unit_dir.mkdir(parents=True, exist_ok=True)
-    hypothesis_path = PROJECT_ROOT / "campaigns" / "v2" / "V2G0001_v2_activation" / "hypotheses" / "V2H0001.yaml"
     data_config_path = PROJECT_ROOT / "configs" / "v2" / "data.yaml"
     split_config_path = PROJECT_ROOT / "configs" / "v2" / "splits.yaml"
     data_config = yaml.safe_load(data_config_path.read_text(encoding="ascii"))
     split_config = yaml.safe_load(split_config_path.read_text(encoding="ascii"))
     spec = load_scout_spec(hypothesis_path, PROJECT_ROOT)
+    if spec.goal_id != goal_id:
+        raise ValueError(f"goal id differs from preregistered spec: {goal_id} != {spec.goal_id}")
+    if spec.hypothesis_id != hypothesis_id:
+        raise ValueError(
+            f"hypothesis id differs from preregistered spec: {hypothesis_id} != {spec.hypothesis_id}"
+        )
     base_frame = PROJECT_ROOT / data_config["processed"]["path"]
     split_source = PROJECT_ROOT / split_config["source"]["path"]
     boundary_source = PROJECT_ROOT / data_config["boundary_source"]["path"]
@@ -106,10 +139,10 @@ def run_v2s0001_job(work_unit_dir: Path) -> dict[str, Any]:
     receipt = {
         "schema": "axiom_rift_v2_scout_receipt_v1",
         "status": "completed",
-        "goal_id": "V2G0001",
+        "goal_id": goal_id,
         "hypothesis_id": spec.hypothesis_id,
         "stage": "S",
-        "stage_id": "V2S0001",
+        "stage_id": stage_id,
         "started_at_utc": started_at,
         "completed_at_utc": utc_now(),
         "duration_seconds": time.monotonic() - started,
@@ -122,6 +155,9 @@ def run_v2s0001_job(work_unit_dir: Path) -> dict[str, Any]:
         "spec_path": rel(hypothesis_path),
         "spec_sha256": sha256_file(hypothesis_path),
         "spec_payload_sha256": spec.spec_sha256,
+        "program_registry_path": spec.program_registry_path,
+        "program_registry_sha256": spec.program_registry_sha256,
+        "programs": spec.program_identities,
         "dataset_path": rel(base_frame),
         "dataset_sha256": sha256_file(base_frame),
         "split_source_path": rel(split_source),
@@ -139,3 +175,15 @@ def run_v2s0001_job(work_unit_dir: Path) -> dict[str, Any]:
     receipt_path = work_unit_dir / "receipt.json"
     _write_json(receipt_path, receipt)
     return receipt
+
+
+def run_v2s0001_job(work_unit_dir: Path) -> dict[str, Any]:
+    """Bootstrap-legacy compatibility wrapper; new work calls run_scout_job."""
+
+    return run_scout_job(
+        "V2G0001",
+        "V2H0001",
+        "V2S0001",
+        Path("campaigns/v2/V2G0001_v2_activation/hypotheses/V2H0001.yaml"),
+        work_unit_dir,
+    )

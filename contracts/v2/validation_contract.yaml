@@ -3,6 +3,8 @@ status: active
 encoding: ascii_only
 authority:
   budget_config: configs/v2/validation.yaml
+  surface_config: configs/v2/validation_surfaces.yaml
+  operator: contracts/v2/operator_contract.yaml
 routine_validator:
   role: fast_read_only_receipt_checker
   target_seconds_min: 3
@@ -30,6 +32,21 @@ slice_loop:
   retry_identical_failure: false
   automatic_timeout_extension: false
   repeated_failure_action: root_cause_redesign_component_replacement_or_blocker
+  budget_consumption_enforced_by_writer: true
+  identical_success_spends_budget: false
+  identical_failure_retry_allowed: false
+validation_triggers:
+  - coherent_slice_close
+  - evidence_stage_close
+  - shared_core_change
+  - candidate_freeze
+  - root_mission_close
+forbidden_triggers:
+  - each_file_edit
+  - each_artifact
+  - each_fold
+  - each_micro_commit
+  - unchanged_success
 long_evidence_job:
   threshold_seconds: 30
   explicit_declaration_required: true
@@ -53,6 +70,7 @@ receipt:
   duration_seconds_required: true
   outcome_required: true
   receipt_is_hypothesis_evidence: false
+  failed_validation_key_is_durable: true
 broken_code:
   missing_kpi_may_count_as_evidence: false
   blocker_requires:

@@ -25,17 +25,26 @@ stage_model:
     - M
   governing_contract: contracts/v2/research_contract.yaml
 planned_first_scout:
-  hypothesis_id: unallocated
+  hypothesis_id: V2H0001
   anchor_ids:
     - V2D002
     - V2D005
     - V2D008
   claim_ceiling: diagnostic_observation
   mt5_required: false
+  outcome: scout_rejected
 work_units:
   - work_unit_id: V2B0001
     path: campaigns/v2/V2G0001_v2_activation/work_units/V2B0001.yaml
-    status: in_progress
+    status: closed_activated
+  - work_unit_id: V2B0002
+    path: campaigns/v2/V2G0001_v2_activation/work_units/V2B0002.yaml
+    status: closed_hardened
+maintenance:
+  purpose: v2_1_root_mission_harness_hardening
+  claim_ceiling: none
+  next_research_goal_reserved: V2G0002
+  validation_receipt_id: V2VR000008
 terminal_conditions_ref: contracts/v2/activation_contract.yaml
 claim_boundary:
   contract_or_skeleton_is_evidence: false
