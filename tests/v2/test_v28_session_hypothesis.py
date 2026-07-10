@@ -107,6 +107,9 @@ def session_hypothesis_payload() -> dict[str, object]:
     payload["data"]["causal_cost_policy"] = deepcopy(
         data_config["cost_quality"]["active_causal_fallback"]
     )
+    payload["data"]["material_ids"] = sorted(
+        [*payload["data"]["material_ids"], "V2MAT000006"]
+    )
     payload["data"]["session_clock_binding"] = {
         "clock_contract_material_id": "V2MAT000006",
         "clock_rule_id": "fpmarkets_ny_close_plus_7_v1",

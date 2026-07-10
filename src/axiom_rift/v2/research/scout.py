@@ -860,17 +860,18 @@ def _validate_scientific_bundle_hypothesis(
         for row in (processed, boundary, split_source, lineage)
     ):
         raise ScoutSpecError("scientific data config bindings are incomplete")
+    material_ids = [
+        str(split_config.get("dataset_material_id")),
+        str(lineage.get("split_set_material_id")),
+        str(lineage.get("boundary_mask_material_id")),
+        str(lineage.get("symbol_snapshot_material_id")),
+    ]
+    if session_layout:
+        material_ids.append(str(lineage.get("clock_contract_material_id")))
     expected_data = {
         "dataset_id": data_config.get("dataset_id"),
         "split_set_id": split_config.get("split_set_id"),
-        "material_ids": sorted(
-            [
-                str(split_config.get("dataset_material_id")),
-                str(lineage.get("split_set_material_id")),
-                str(lineage.get("boundary_mask_material_id")),
-                str(lineage.get("symbol_snapshot_material_id")),
-            ]
-        ),
+        "material_ids": sorted(material_ids),
         "dataset": {
             "material_id": split_config.get("dataset_material_id"),
             "path": processed.get("path"),
