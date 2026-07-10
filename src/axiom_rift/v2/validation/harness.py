@@ -66,6 +66,13 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+def sha256_yaml_payload(path: Path) -> str:
+    payload = yaml.safe_load(path.read_text(encoding="ascii"))
+    if not isinstance(payload, dict):
+        raise ValueError("mission contract must be a YAML mapping")
+    return sha256_payload(payload)
+
+
 def _state_identity(state: dict[str, Any]) -> str:
     return sha256_payload(
         {
@@ -176,7 +183,7 @@ def validate_v21_harness(root: Path) -> tuple[ValidationResult, dict[str, Any]]:
         if state.get("reentry", {}).get("active_job") is not None:
             issue("active_job", "registries/v2/control_state.yaml", "harness closeout requires no job")
         contract = root / str(state.get("root_mission", {}).get("contract_path", ""))
-        if not contract.is_file() or sha256_file(contract) != state.get("root_mission", {}).get(
+        if not contract.is_file() or sha256_yaml_payload(contract) != state.get("root_mission", {}).get(
             "contract_sha256"
         ):
             issue("mission_contract_drift", "registries/v2/control_state.yaml", "mission hash differs")

@@ -4,6 +4,7 @@ import hashlib
 import json
 import tempfile
 import unittest
+from copy import deepcopy
 from pathlib import Path
 
 import yaml
@@ -13,6 +14,14 @@ from axiom_rift.v2.git_closeout import GitCheckpointVerification
 from axiom_rift.v2.ledger import HashChainLedger
 from axiom_rift.v2.operations import OperationStateError, V2OperationWriter
 from axiom_rift.v2.research.autonomy import HypothesisBatch, NumericKnob
+from axiom_rift.v2.research.evaluation import (
+    EvaluationProfile,
+    FailureEffect,
+    MetricRule,
+    Stage,
+    interpret_kpis,
+)
+from axiom_rift.v2.research.scientific_scout import scientific_kpi_observations
 from axiom_rift.v2.research.scout import _configuration_sha256
 from axiom_rift.v2.research.sensitivity import build_oat_plan
 from axiom_rift.v2.state import ControlStateError, ControlStore
@@ -605,6 +614,149 @@ class V21GenericLifecycleTests(unittest.TestCase):
             receipt["gate_passed"] = True
             with self.assertRaises(OperationStateError):
                 writer._validate_scientific_scout_receipt(receipt)
+
+    def test_causal_shadow_kpi_replay_routes_gap_and_blocks_forged_R(self) -> None:
+        profile = EvaluationProfile(
+            profile_id="V2SAP_CAUSAL_TEST",
+            rules=(
+                MetricRule.equal(
+                    "causal_checks_all_pass",
+                    "integrity",
+                    stages=(Stage.S,),
+                    expected=True,
+                    failure_effect=FailureEffect.REPAIR,
+                ),
+                MetricRule.minimum(
+                    "evaluable_trade_count",
+                    "inferential_density",
+                    stages=(Stage.S,),
+                    pass_at=60,
+                ),
+                MetricRule.maximum(
+                    "unknown_cost_observation_count",
+                    "integrity",
+                    stages=(Stage.S,),
+                    pass_at=0,
+                    failure_effect=FailureEffect.EVIDENCE_GAP,
+                ),
+                MetricRule.minimum(
+                    "net_broker_points",
+                    "economics",
+                    stages=(Stage.S,),
+                    pass_at=0.01,
+                ),
+                MetricRule.minimum(
+                    "positive_net_fold_count",
+                    "stability",
+                    stages=(Stage.S,),
+                    pass_at=2,
+                ),
+                MetricRule.minimum(
+                    "shadow_evaluable_trade_count",
+                    "inferential_density",
+                    stages=(Stage.S,),
+                    pass_at=60,
+                    failure_effect=FailureEffect.EVIDENCE_GAP,
+                ),
+                MetricRule.minimum(
+                    "shadow_net_broker_points",
+                    "economics",
+                    stages=(Stage.S,),
+                    pass_at=0.01,
+                ),
+                MetricRule.minimum(
+                    "shadow_positive_net_fold_count",
+                    "stability",
+                    stages=(Stage.S,),
+                    pass_at=2,
+                ),
+            ),
+        )
+        metrics = {
+            "evaluable_trade_count": 60,
+            "unknown_cost_observation_count": 0,
+            "net_broker_points": 10.0,
+            "positive_net_fold_count": 3,
+            "shadow_evaluable_trade_count": 0,
+            "shadow_net_broker_points": 10.0,
+            "shadow_positive_net_fold_count": 3,
+        }
+        observations = scientific_kpi_observations(
+            metrics,
+            causal_checks_passed=True,
+            trade_implementation_key="fixed_6bar_causal_spread_floor_v1",
+        )
+        evaluation = interpret_kpis("S", observations, profile).to_payload()
+        self.assertEqual("evidence_gap", evaluation["route"])
+        metrics["kpi_evaluation"] = evaluation
+        causal = {
+            "all_role_checks_passed": True,
+            "kpi_route": "evidence_gap",
+            "hard_profile_passed": False,
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            writer = build_writer(Path(temp_dir), v21_state())
+            self.assertEqual(
+                "evidence_gap",
+                writer._replay_scientific_kpi_evaluation(
+                    metrics=metrics,
+                    causal=causal,
+                    trade_implementation_key=(
+                        "fixed_6bar_causal_spread_floor_v1"
+                    ),
+                    evaluation_profile=profile,
+                ),
+            )
+            forged_metrics = deepcopy(metrics)
+            forged_metrics["kpi_evaluation"]["route"] = "route_to_R"
+            forged_causal = {
+                **causal,
+                "kpi_route": "route_to_R",
+                "hard_profile_passed": True,
+            }
+            with self.assertRaisesRegex(
+                OperationStateError,
+                "differs from preregistration",
+            ):
+                writer._replay_scientific_kpi_evaluation(
+                    metrics=forged_metrics,
+                    causal=forged_causal,
+                    trade_implementation_key=(
+                        "fixed_6bar_causal_spread_floor_v1"
+                    ),
+                    evaluation_profile=profile,
+                )
+            passing_metrics = {
+                **metrics,
+                "shadow_evaluable_trade_count": 60,
+            }
+            passing_metrics["kpi_evaluation"] = interpret_kpis(
+                "S",
+                scientific_kpi_observations(
+                    passing_metrics,
+                    causal_checks_passed=True,
+                    trade_implementation_key=(
+                        "fixed_6bar_causal_spread_floor_v1"
+                    ),
+                ),
+                profile,
+            ).to_payload()
+            passing_causal = {
+                "all_role_checks_passed": True,
+                "kpi_route": "route_to_R",
+                "hard_profile_passed": True,
+            }
+            self.assertEqual(
+                "route_to_R",
+                writer._replay_scientific_kpi_evaluation(
+                    metrics=passing_metrics,
+                    causal=passing_causal,
+                    trade_implementation_key=(
+                        "fixed_6bar_causal_spread_floor_v1"
+                    ),
+                    evaluation_profile=profile,
+                ),
+            )
 
     def test_ready_mission_contract_can_be_repinned_but_active_mission_cannot(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

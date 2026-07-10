@@ -216,9 +216,13 @@ class ScoutTrade:
     exclusion_reason: str | None
     market_day: str
     market_hour: int
+    decision_spread_broker_points: float | None = None
+    applicable_execution_spread_broker_points: float | None = None
+    cost_source: str | None = None
+    execution_spread_fallback_used: bool | None = None
 
     def to_payload(self) -> dict[str, Any]:
-        return {
+        payload = {
             "fold_id": self.fold_id,
             "signal_time": self.signal_time,
             "entry_time": self.entry_time,
@@ -235,6 +239,22 @@ class ScoutTrade:
             "market_day": self.market_day,
             "market_hour": self.market_hour,
         }
+        if self.decision_spread_broker_points is not None:
+            payload.update(
+                {
+                    "decision_spread_broker_points": (
+                        self.decision_spread_broker_points
+                    ),
+                    "applicable_execution_spread_broker_points": (
+                        self.applicable_execution_spread_broker_points
+                    ),
+                    "cost_source": self.cost_source,
+                    "execution_spread_fallback_used": (
+                        self.execution_spread_fallback_used
+                    ),
+                }
+            )
+        return payload
 
 
 @dataclass(frozen=True)
@@ -404,6 +424,12 @@ def _load_evaluation_profile(acceptance: Mapping[str, Any]) -> EvaluationProfile
     )
 
 
+def load_evaluation_profile(acceptance: Mapping[str, Any]) -> EvaluationProfile:
+    """Load one frozen profile for execution and independent receipt replay."""
+
+    return _load_evaluation_profile(acceptance)
+
+
 def _require_mandatory_s_rules(profile: EvaluationProfile) -> None:
     rules = {rule.name: rule for rule in profile.rules}
     required = {
@@ -536,6 +562,23 @@ def _validate_scientific_bundle_hypothesis(
         raise ScoutSpecError("scientific program registry hash differs from the H binding")
     if tuple(bundle_batch.bundles) != tuple(BUNDLE_ROLE_NAMES):
         raise ScoutSpecError("compression-release H requires all five registered bundle roles")
+    trade_implementation_keys = {
+        bundle.programs["trade"].implementation_key
+        for bundle in bundle_batch.bundles.values()
+    }
+    selector_implementation_keys = {
+        bundle.programs["selector"].implementation_key
+        for bundle in bundle_batch.bundles.values()
+    }
+    if len(trade_implementation_keys) != 1 or len(selector_implementation_keys) != 1:
+        raise ScoutSpecError(
+            "compression-release H may not mix selector or trade implementations"
+        )
+    trade_implementation_key = next(iter(trade_implementation_keys))
+    selector_implementation_key = next(iter(selector_implementation_keys))
+    causal_spread_floor = (
+        trade_implementation_key == "fixed_6bar_causal_spread_floor_v1"
+    )
     bundle_hashes = dict(bundle_batch.bundle_role_hashes)
     if dict(hypothesis_batch.bundle_roles) != bundle_hashes:
         raise ScoutSpecError("autonomy batch differs from the registered scientific bundles")
@@ -551,10 +594,27 @@ def _validate_scientific_bundle_hypothesis(
         raise ScoutSpecError(
             "compression-release runtime identity differs from executable programs"
         )
-    if (
-        hypothesis_batch.hypothesis_type != "structural_batch"
-        or hypothesis_batch.scout_mode != "s_breadth"
+    if hypothesis_batch.scout_mode != "s_breadth":
+        raise ScoutSpecError("compression-release H autonomy route is invalid")
+    if causal_spread_floor:
+        if (
+            hypothesis_batch.hypothesis_type != "coupled_mechanism"
+            or hypothesis_batch.dominant_axis != "axis_trade"
+            or set(hypothesis_batch.coupled_program_kinds)
+            != {"selector", "trade"}
+            or selector_implementation_key
+            != "chronological_compression_cost_gated_selector_v1"
+        ):
+            raise ScoutSpecError(
+                "causal-spread-floor H autonomy coupling is invalid"
+            )
+    elif (
+        trade_implementation_key != "fixed_6bar_observed_spread_v1"
+        or selector_implementation_key
+        != "chronological_compression_selector_v1"
+        or hypothesis_batch.hypothesis_type != "structural_batch"
         or hypothesis_batch.dominant_axis != "axis_selector"
+        or hypothesis_batch.coupled_program_kinds
     ):
         raise ScoutSpecError("compression-release H autonomy route is invalid")
     knobs = tuple(hypothesis_batch.numeric_knobs)
@@ -640,6 +700,40 @@ def _validate_scientific_bundle_hypothesis(
         raise ScoutSpecError(
             "compression-release acceptance thresholds differ from the hard S profile"
         )
+    if causal_spread_floor:
+        shadow_count = profile_rules.get("shadow_evaluable_trade_count")
+        shadow_net = profile_rules.get("shadow_net_broker_points")
+        shadow_folds = profile_rules.get("shadow_positive_net_fold_count")
+        if (
+            shadow_count is None
+            or shadow_count.dimension != "inferential_density"
+            or shadow_count.comparison is not Comparison.MINIMUM
+            or shadow_count.pass_min != 60.0
+            or shadow_count.failure_effect is not FailureEffect.EVIDENCE_GAP
+            or shadow_net is None
+            or shadow_net.dimension != "economics"
+            or shadow_net.comparison is not Comparison.MINIMUM
+            or shadow_net.pass_min != 0.01
+            or shadow_net.failure_effect is not FailureEffect.REJECT
+            or shadow_folds is None
+            or shadow_folds.dimension != "stability"
+            or shadow_folds.comparison is not Comparison.MINIMUM
+            or shadow_folds.pass_min != 2.0
+            or shadow_folds.failure_effect is not FailureEffect.REJECT
+        ):
+            raise ScoutSpecError(
+                "causal-spread-floor H requires the strict observed-cost shadow"
+            )
+    elif set(profile_rules) != {
+        "causal_checks_all_pass",
+        "evaluable_trade_count",
+        "unknown_cost_observation_count",
+        "net_broker_points",
+        "positive_net_fold_count",
+    }:
+        raise ScoutSpecError(
+            "legacy compression-release H acceptance profile has drifted"
+        )
     try:
         data_config = yaml.safe_load(
             (project_root / "configs/v2/data.yaml").read_text(encoding="ascii")
@@ -696,6 +790,45 @@ def _validate_scientific_bundle_hypothesis(
         "real_volume_used": False,
         "external_source_ids": [],
     }
+    if causal_spread_floor:
+        cost_quality = data_config.get("cost_quality")
+        active_fallback = (
+            cost_quality.get("active_causal_fallback")
+            if isinstance(cost_quality, Mapping)
+            else None
+        )
+        expected_fallback = {
+            "policy_id": "V2CF0001",
+            "program_id": "V2TP1002",
+            "selector_program_ids": [
+                "V2SEL2001",
+                "V2SEL2002",
+                "V2SEL2003",
+                "V2SEL2004",
+                "V2SEL2005",
+            ],
+            "implementation_key": "fixed_6bar_causal_spread_floor_v1",
+            "decision_zero_action": "reject_signal_admission",
+            "positive_execution_rule": "max_decision_and_execution_spread",
+            "execution_zero_action": "positive_decision_spread_floor",
+            "negative_or_nonfinite_action": "data_integrity_failure",
+            "true_cost_upper_bound_claim": False,
+            "after_cost_metric_state": "causal_policy_evaluable",
+            "after_cost_metric_state_is_observed_cost": False,
+            "observed_execution_shadow_required_before_R": True,
+            "policy_parameter_count": 0,
+            "external_source_ids": [],
+        }
+        if (
+            not isinstance(cost_quality, Mapping)
+            or cost_quality.get("causal_fallback_allowed_only_when_preregistered")
+            is not True
+            or active_fallback != expected_fallback
+        ):
+            raise ScoutSpecError(
+                "causal-spread-floor H data policy is not active and exact"
+            )
+        expected_data["causal_cost_policy"] = expected_fallback
     if dict(data) != expected_data:
         raise ScoutSpecError("compression-release H data binding is invalid")
     for descriptor in (
@@ -768,6 +901,7 @@ def _validate_scientific_bundle_hypothesis(
         "runtime_sha256": registry.runtime_sha256,
         "runtime_executable_sha256": COMPRESSION_RELEASE_EXECUTABLE_SHA256,
         "selection_rule_sha256": SCIENTIFIC_SELECTION_RULE_SHA256,
+        "trade_implementation_key": trade_implementation_key,
     }
 
 
@@ -1180,6 +1314,9 @@ def load_scout_spec(
                 validated_v2["runtime_executable_sha256"]
             ),
             selection_rule_sha256=str(validated_v2["selection_rule_sha256"]),
+            trade_implementation_key=str(
+                validated_v2["trade_implementation_key"]
+            ),
             family_configuration_hashes_before=tuple(
                 trials.get("family_configuration_hashes_before", [])
             ),

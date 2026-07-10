@@ -1,0 +1,56 @@
+schema: axiom_rift_v2_causal_cost_policy_contract_v1
+status: preregistration_ready
+encoding: ascii_only
+scientific_origin: v2_current
+policy_id: V2CF0001
+program_ids:
+  trade: V2TP1002
+  selectors:
+    - V2SEL2001
+    - V2SEL2002
+    - V2SEL2003
+    - V2SEL2004
+    - V2SEL2005
+market:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+inputs:
+  decision_spread:
+    field: spread
+    unit: broker_points
+    available_at: completed_decision_bar_close
+  applicable_execution_spread:
+    field: spread
+    unit: broker_points
+    long_index: entry_bar
+    short_index: exit_bar
+    use: realized_cost_accounting_only
+rules:
+  zero_decision_spread: reject_signal_admission
+  positive_execution_spread: max_decision_and_execution_spread
+  zero_execution_spread: positive_decision_spread_floor
+  negative_or_nonfinite_spread: data_integrity_failure
+  admission_cost_edge: positive_decision_spread_only
+  parameters: []
+trade_lifecycle:
+  entry: next_bar_open
+  hold_bars: 6
+  commission_broker_points: 0
+  slippage_broker_points: 0
+causality:
+  future_execution_spread_may_gate_signal: false
+  completed_bar_signal_required: true
+  prefix_invariance_required: true
+  external_sources: []
+identification_boundary:
+  target_population: signals_with_positive_decision_spread
+  zero_decision_spread_alpha_claim: forbidden
+  rejected_signal_count_is_diagnostic: true
+  missing_execution_spread_is_not_free_cost: true
+  decision_spread_floor_is_true_cost_upper_bound: false
+  after_cost_metric_state: causal_policy_evaluable
+  after_cost_metric_state_is_observed_cost: false
+  observed_execution_shadow_required_before_R: true
+  policy_parameter_count: 0
+claim_ceiling: none

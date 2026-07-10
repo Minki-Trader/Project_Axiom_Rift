@@ -7,6 +7,8 @@ import unittest
 from datetime import datetime
 from pathlib import Path
 
+import yaml
+
 from axiom_rift.v2.data.blackouts import (
     BoundaryGap,
     interval_crosses_non_allow_boundary,
@@ -47,6 +49,62 @@ class ClockContractTests(unittest.TestCase):
 
 
 class DatasetContractTests(unittest.TestCase):
+    def test_active_causal_spread_floor_is_exact_and_not_an_upper_bound_claim(self) -> None:
+        data = yaml.safe_load(
+            (PROJECT_ROOT / "configs/v2/data.yaml").read_text(encoding="ascii")
+        )
+        fallback = data["cost_quality"]["active_causal_fallback"]
+        self.assertEqual("V2CF0001", fallback["policy_id"])
+        self.assertEqual("V2TP1002", fallback["program_id"])
+        self.assertEqual("reject_signal_admission", fallback["decision_zero_action"])
+        self.assertEqual(
+            "max_decision_and_execution_spread",
+            fallback["positive_execution_rule"],
+        )
+        self.assertEqual(
+            "positive_decision_spread_floor",
+            fallback["execution_zero_action"],
+        )
+        self.assertEqual(
+            "data_integrity_failure",
+            fallback["negative_or_nonfinite_action"],
+        )
+        self.assertFalse(fallback["true_cost_upper_bound_claim"])
+        self.assertEqual(
+            "causal_policy_evaluable",
+            fallback["after_cost_metric_state"],
+        )
+        self.assertFalse(fallback["after_cost_metric_state_is_observed_cost"])
+        self.assertTrue(fallback["observed_execution_shadow_required_before_R"])
+        self.assertEqual(0, fallback["policy_parameter_count"])
+        self.assertEqual([], fallback["external_source_ids"])
+        contract = yaml.safe_load(
+            (
+                PROJECT_ROOT
+                / "configs/v2/scientific/programs/causal_spread_floor_v1.yaml"
+            ).read_text(encoding="ascii")
+        )
+        self.assertEqual("signals_with_positive_decision_spread", contract["identification_boundary"]["target_population"])
+        self.assertFalse(
+            contract["identification_boundary"][
+                "decision_spread_floor_is_true_cost_upper_bound"
+            ]
+        )
+        self.assertEqual(
+            "causal_policy_evaluable",
+            contract["identification_boundary"]["after_cost_metric_state"],
+        )
+        self.assertFalse(
+            contract["identification_boundary"][
+                "after_cost_metric_state_is_observed_cost"
+            ]
+        )
+        self.assertTrue(
+            contract["identification_boundary"][
+                "observed_execution_shadow_required_before_R"
+            ]
+        )
+
     def test_active_base_frame_reports_cost_and_volume_quality(self) -> None:
         path = PROJECT_ROOT / "data/processed/datasets/us100_m5_base_frame.csv"
         receipt = inspect_base_frame(

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 import json
 from pathlib import Path
@@ -23,6 +23,7 @@ from axiom_rift.v2.research.scientific_scout import (
     ANCHORS,
     BUNDLE_ROLES,
     ScientificFold,
+    ScientificScoutError,
     ScientificScoutSpec,
     SCIENTIFIC_SELECTION_RULE_SHA256,
     evaluate_signal_role,
@@ -260,6 +261,130 @@ class ScientificScoutTests(unittest.TestCase):
             ],
         )
         self.assertIsNotNone(row.trades[-1].gross_broker_points)
+
+    def test_causal_spread_floor_rejects_zero_decision_and_records_cost_source(self) -> None:
+        bars = _bars(datetime(2025, 1, 1), size=90)
+        spread = bars.spread.copy()
+        spread[11] = 0.0  # long execution fallback
+        spread[12] = 0.0  # rejected even while the prior trade is occupied
+        spread[27] = 0.0  # short execution fallback
+        spread[37] = 1.0  # short execution below the decision floor
+        spread[40] = 0.0  # rejected before occupancy
+        spread[51] = 5.0  # long execution above the decision spread
+        bars = BarArrays(
+            time=bars.time,
+            open=bars.open,
+            high=bars.high,
+            low=bars.low,
+            close=bars.close,
+            tick_volume=bars.tick_volume,
+            spread=spread,
+        )
+        directions = [0] * len(bars)
+        for index, direction in (
+            (10, 1),
+            (12, 1),
+            (20, -1),
+            (30, -1),
+            (40, 1),
+            (41, 1),
+            (50, 1),
+        ):
+            directions[index] = direction
+        evaluation = FakeEvaluation(
+            directions=tuple(directions),
+            scores=(1.0,) * len(bars),
+            valid_mask=(True,) * len(bars),
+        )
+        spec = replace(
+            _spec(),
+            trade_implementation_key="fixed_6bar_causal_spread_floor_v1",
+        )
+        row = evaluate_signal_role(
+            fold_id="V2D002",
+            bars=bars,
+            boundary=IndexBoundary("validation_oos", 5, 70),
+            configuration_role="continuation_base",
+            configuration_sha256=spec.bundle_role_hashes["continuation_base"],
+            evaluation=evaluation,
+            spec=spec,
+        )
+        self.assertEqual(5, row.metrics["entry_count"])
+        self.assertEqual(5, row.metrics["evaluable_trade_count"])
+        self.assertEqual(0, row.metrics["unknown_cost_observation_count"])
+        self.assertEqual(
+            2, row.metrics["zero_decision_spread_rejection_count"]
+        )
+        self.assertEqual(2, row.metrics["execution_spread_fallback_count"])
+        self.assertEqual(3, row.metrics["observed_execution_cost_trade_count"])
+        self.assertEqual(3, row.metrics["shadow_evaluable_trade_count"])
+        self.assertEqual(
+            [2.0, 2.0, 2.0, 2.0, 5.0],
+            [trade.spread_cost_broker_points for trade in row.trades],
+        )
+        self.assertEqual(
+            [0.0, 0.0, 1.0, 2.0, 5.0],
+            [
+                trade.applicable_execution_spread_broker_points
+                for trade in row.trades
+            ],
+        )
+        self.assertEqual(
+            [True, True, False, False, False],
+            [trade.execution_spread_fallback_used for trade in row.trades],
+        )
+        self.assertTrue(
+            row.causal_checks["zero_decision_rejected_before_admission"]
+        )
+        self.assertTrue(
+            row.causal_checks["observed_execution_cost_not_undercharged"]
+        )
+        self.assertEqual(
+            "causal_policy_evaluable",
+            row.metrics["after_cost_metric_state"],
+        )
+        self.assertFalse(row.metrics["selection_feasible"])
+
+    def test_causal_spread_floor_rejects_negative_or_nonfinite_input(self) -> None:
+        base = _bars(datetime(2025, 1, 1), size=90)
+        directions = [0] * len(base)
+        directions[10] = 1
+        evaluation = FakeEvaluation(
+            directions=tuple(directions),
+            scores=(1.0,) * len(base),
+            valid_mask=(True,) * len(base),
+        )
+        spec = replace(
+            _spec(),
+            trade_implementation_key="fixed_6bar_causal_spread_floor_v1",
+        )
+        for invalid in (-1.0, float("nan")):
+            spread = base.spread.copy()
+            spread[11] = invalid
+            bars = BarArrays(
+                time=base.time,
+                open=base.open,
+                high=base.high,
+                low=base.low,
+                close=base.close,
+                tick_volume=base.tick_volume,
+                spread=spread,
+            )
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(
+                ScientificScoutError,
+                "finite and nonnegative",
+            ):
+                evaluate_signal_role(
+                    fold_id="V2D002",
+                    bars=bars,
+                    boundary=IndexBoundary("validation_oos", 5, 70),
+                    configuration_role="continuation_base",
+                    configuration_sha256=spec.bundle_role_hashes[
+                        "continuation_base"
+                    ],
+                    evaluation=evaluation,
+                    spec=spec,
+                )
 
     def test_validation_unknown_cost_is_an_evidence_gap_not_a_rejection(self) -> None:
         folds = list(

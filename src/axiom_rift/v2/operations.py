@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
+import math
 from pathlib import Path
 import re
 from typing import Any, Callable, Iterable, Mapping
@@ -1199,6 +1200,108 @@ class V2OperationWriter:
                 ) from exc
         return payloads
 
+    def _scientific_receipt_evaluation_profile(
+        self,
+        receipt: Mapping[str, Any],
+    ) -> Any | None:
+        """Resolve the immutable preregistered KPI profile without live-registry replay."""
+
+        rows = [
+            row
+            for row in self._scientific_hypothesis_ledger().rows()
+            if row.get("record_type") == "hypothesis_preregistered"
+            and row.get("record_id") == receipt.get("hypothesis_id")
+        ]
+        if not rows:
+            return None
+        if len(rows) != 1:
+            raise OperationStateError(
+                "scientific scout hypothesis profile binding is ambiguous"
+            )
+        object_id = rows[0].get("payload", {}).get("hypothesis_object_id")
+        if not isinstance(object_id, str):
+            raise OperationStateError(
+                "scientific scout hypothesis profile object is missing"
+            )
+        wrapped = self.objects.get(object_id)
+        spec_payload = wrapped.get("payload")
+        if (
+            wrapped.get("kind") != "hypothesis_spec"
+            or not isinstance(spec_payload, Mapping)
+            or sha256_payload(spec_payload) != receipt.get("spec_payload_sha256")
+        ):
+            raise OperationStateError(
+                "scientific scout hypothesis profile binding differs"
+            )
+        acceptance = spec_payload.get("acceptance_profile")
+        if not isinstance(acceptance, Mapping):
+            raise OperationStateError(
+                "scientific scout acceptance profile is missing"
+            )
+        try:
+            from axiom_rift.v2.research.scout import load_evaluation_profile
+
+            return load_evaluation_profile(acceptance)
+        except (ImportError, ValueError) as exc:
+            raise OperationStateError(
+                f"scientific scout acceptance profile is invalid: {exc}"
+            ) from exc
+
+    def _replay_scientific_kpi_evaluation(
+        self,
+        *,
+        metrics: Mapping[str, Any],
+        causal: Mapping[str, Any],
+        trade_implementation_key: str,
+        evaluation_profile: Any | None,
+    ) -> str | None:
+        """Reconcile a declared KPI route against frozen rules and aggregate inputs."""
+
+        kpi = metrics.get("kpi_evaluation")
+        kpi_route = kpi.get("route") if isinstance(kpi, Mapping) else None
+        if isinstance(kpi, Mapping):
+            if (
+                kpi.get("schema") != "axiom_rift_v2_kpi_evaluation_v1"
+                or kpi.get("stage") != "S"
+                or kpi_route
+                not in {"route_to_R", "scientific_reject", "evidence_gap", "repair_required"}
+                or causal.get("kpi_route") != kpi_route
+                or causal.get("hard_profile_passed")
+                is not (kpi_route == "route_to_R")
+            ):
+                raise OperationStateError(
+                    "scientific scout KPI route does not reconcile"
+                )
+        elif evaluation_profile is not None:
+            raise OperationStateError("scientific scout KPI evaluation is missing")
+        if evaluation_profile is not None:
+            try:
+                from axiom_rift.v2.research.evaluation import interpret_kpis
+                from axiom_rift.v2.research.scientific_scout import (
+                    scientific_kpi_observations,
+                )
+
+                expected_kpi = interpret_kpis(
+                    "S",
+                    scientific_kpi_observations(
+                        metrics,
+                        causal_checks_passed=(
+                            causal.get("all_role_checks_passed") is True
+                        ),
+                        trade_implementation_key=trade_implementation_key,
+                    ),
+                    evaluation_profile,
+                ).to_payload()
+            except (ImportError, ValueError) as exc:
+                raise OperationStateError(
+                    f"scientific scout KPI replay failed: {exc}"
+                ) from exc
+            if dict(kpi) != expected_kpi:
+                raise OperationStateError(
+                    "scientific scout KPI evaluation differs from preregistration"
+                )
+        return kpi_route
+
     def _validate_scientific_scout_receipt(
         self,
         receipt: Mapping[str, Any],
@@ -1286,6 +1389,32 @@ class V2OperationWriter:
             )
         ):
             raise OperationStateError("scientific scout program bundle identity is incomplete")
+        trade_implementation_keys = {
+            role_programs["trade"].get(
+                "implementation_key",
+                "fixed_6bar_observed_spread_v1",
+            )
+            for role_programs in programs.values()
+            if isinstance(role_programs, Mapping)
+            and isinstance(role_programs.get("trade"), Mapping)
+        }
+        declared_trade_implementation = receipt.get(
+            "trade_implementation_key",
+            "fixed_6bar_observed_spread_v1",
+        )
+        if (
+            len(trade_implementation_keys) != 1
+            or next(iter(trade_implementation_keys))
+            != declared_trade_implementation
+            or declared_trade_implementation
+            not in {
+                "fixed_6bar_observed_spread_v1",
+                "fixed_6bar_causal_spread_floor_v1",
+            }
+        ):
+            raise OperationStateError(
+                "scientific scout trade implementation identity differs"
+            )
         selected_roles = receipt.get("selected_roles")
         selected_variants = receipt.get("selected_variant_hashes")
         selected_configurations = receipt.get("selected_configuration_hashes")
@@ -1355,6 +1484,11 @@ class V2OperationWriter:
             or models_payload.get("runtime_sha256") != receipt.get("runtime_sha256")
             or models_payload.get("runtime_executable_sha256")
             != receipt.get("runtime_executable_sha256")
+            or models_payload.get(
+                "trade_implementation_key",
+                "fixed_6bar_observed_spread_v1",
+            )
+            != declared_trade_implementation
         ):
             raise OperationStateError("scientific scout model artifact identity differs")
         metrics = receipt.get("metrics_summary")
@@ -1378,16 +1512,248 @@ class V2OperationWriter:
         ):
             raise OperationStateError("scientific scout unknown-cost accounting is invalid")
         causal_passed = causal.get("all_role_checks_passed") is True
+        evaluation_profile = self._scientific_receipt_evaluation_profile(receipt)
+        kpi_route = self._replay_scientific_kpi_evaluation(
+            metrics=metrics,
+            causal=causal,
+            trade_implementation_key=declared_trade_implementation,
+            evaluation_profile=evaluation_profile,
+        )
+
+        selection_payload = artifact_payloads["nested_selection"]
+        validation_evaluations = selection_payload.get("validation_evaluations")
+        development_evaluations = selection_payload.get("development_evaluations")
+        selection_rows = selection_payload.get("selections")
+        if evaluation_profile is not None:
+            if (
+                not isinstance(validation_evaluations, list)
+                or len(validation_evaluations) != 15
+                or not isinstance(development_evaluations, list)
+                or len(development_evaluations) != len(selected_folds)
+                or not isinstance(selection_rows, list)
+                or len(selection_rows) != 3
+            ):
+                raise OperationStateError(
+                    "scientific scout nested evaluation counts do not reconcile"
+                )
+            evaluation_rows = (*validation_evaluations, *development_evaluations)
+            if any(
+                not isinstance(row, Mapping)
+                or not isinstance(row.get("metrics"), Mapping)
+                for row in evaluation_rows
+            ):
+                raise OperationStateError(
+                    "scientific scout nested evaluation metrics are missing"
+                )
+            validation_metrics = [row["metrics"] for row in validation_evaluations]
+            development_metrics = [row["metrics"] for row in development_evaluations]
+
+            def nonnegative_integer(value: Any) -> bool:
+                return (
+                    isinstance(value, int)
+                    and not isinstance(value, bool)
+                    and value >= 0
+                )
+
+            nested_unknown_values = [
+                row.get("unknown_cost_observation_count")
+                for row in (*validation_metrics, *development_metrics)
+            ]
+            if not all(nonnegative_integer(value) for value in nested_unknown_values):
+                raise OperationStateError(
+                    "scientific scout nested unknown-cost accounting is invalid"
+                )
+            if (
+                validation_unknown
+                != sum(
+                    int(row["unknown_cost_observation_count"])
+                    for row in validation_metrics
+                )
+                or development_unknown
+                != sum(
+                    int(row["unknown_cost_observation_count"])
+                    for row in development_metrics
+                )
+            ):
+                raise OperationStateError(
+                    "scientific scout nested unknown-cost totals differ"
+                )
+            development_evaluable = [
+                row.get("evaluable_trade_count") for row in development_metrics
+            ]
+            development_net = [
+                row.get("net_broker_points") for row in development_metrics
+            ]
+            if (
+                not all(nonnegative_integer(value) for value in development_evaluable)
+                or not nonnegative_integer(metrics.get("evaluable_trade_count"))
+                or metrics.get("evaluable_trade_count")
+                != sum(int(value) for value in development_evaluable)
+                or not nonnegative_integer(metrics.get("positive_net_fold_count"))
+                or metrics.get("positive_net_fold_count")
+                != sum(
+                    isinstance(value, (int, float))
+                    and not isinstance(value, bool)
+                    and math.isfinite(float(value))
+                    and float(value) > 0.0
+                    for value in development_net
+                )
+            ):
+                raise OperationStateError(
+                    "scientific scout development economics counts differ"
+                )
+            if unknown == 0:
+                if (
+                    not all(
+                        isinstance(value, (int, float))
+                        and not isinstance(value, bool)
+                        and math.isfinite(float(value))
+                        for value in development_net
+                    )
+                    or not isinstance(metrics.get("net_broker_points"), (int, float))
+                    or isinstance(metrics.get("net_broker_points"), bool)
+                    or not math.isfinite(float(metrics["net_broker_points"]))
+                    or not math.isclose(
+                        float(metrics["net_broker_points"]),
+                        sum(float(value) for value in development_net),
+                        rel_tol=1e-12,
+                        abs_tol=1e-9,
+                    )
+                ):
+                    raise OperationStateError(
+                        "scientific scout development net economics differ"
+                    )
+            elif metrics.get("net_broker_points") is not None:
+                raise OperationStateError(
+                    "scientific scout unknown costs cannot have aggregate net economics"
+                )
+
+            if declared_trade_implementation == "fixed_6bar_causal_spread_floor_v1":
+                required_count_metrics = (
+                    "shadow_evaluable_trade_count",
+                    "shadow_positive_net_fold_count",
+                    "validation_zero_decision_spread_rejection_count",
+                    "development_zero_decision_spread_rejection_count",
+                    "validation_execution_spread_fallback_count",
+                    "development_execution_spread_fallback_count",
+                )
+                if (
+                    any(
+                        not nonnegative_integer(metrics.get(name))
+                        for name in required_count_metrics
+                    )
+                    or not isinstance(metrics.get("shadow_net_broker_points"), (int, float))
+                    or isinstance(metrics.get("shadow_net_broker_points"), bool)
+                    or not math.isfinite(float(metrics["shadow_net_broker_points"]))
+                    or metrics.get("after_cost_metric_state")
+                    != "causal_policy_evaluable"
+                ):
+                    raise OperationStateError(
+                        "scientific scout causal cost metrics are invalid"
+                    )
+                for row in (*validation_metrics, *development_metrics):
+                    if (
+                        not nonnegative_integer(
+                            row.get("shadow_evaluable_trade_count")
+                        )
+                        or not nonnegative_integer(
+                            row.get("zero_decision_spread_rejection_count")
+                        )
+                        or not nonnegative_integer(
+                            row.get("execution_spread_fallback_count")
+                        )
+                        or not isinstance(
+                            row.get("shadow_net_broker_points"), (int, float)
+                        )
+                        or isinstance(row.get("shadow_net_broker_points"), bool)
+                        or not math.isfinite(
+                            float(row["shadow_net_broker_points"])
+                        )
+                        or row.get("after_cost_metric_state")
+                        != "causal_policy_evaluable"
+                        or int(row["shadow_evaluable_trade_count"])
+                        > int(row.get("evaluable_trade_count", -1))
+                    ):
+                        raise OperationStateError(
+                            "scientific scout nested causal cost metrics are invalid"
+                        )
+                expected_shadow_count = sum(
+                    int(row["shadow_evaluable_trade_count"])
+                    for row in development_metrics
+                )
+                expected_shadow_net = sum(
+                    float(row["shadow_net_broker_points"])
+                    for row in development_metrics
+                )
+                expected_shadow_positive = sum(
+                    float(row["shadow_net_broker_points"]) > 0.0
+                    for row in development_metrics
+                )
+                causal_count_expectations = {
+                    "shadow_evaluable_trade_count": expected_shadow_count,
+                    "shadow_positive_net_fold_count": expected_shadow_positive,
+                    "validation_zero_decision_spread_rejection_count": sum(
+                        int(row["zero_decision_spread_rejection_count"])
+                        for row in validation_metrics
+                    ),
+                    "development_zero_decision_spread_rejection_count": sum(
+                        int(row["zero_decision_spread_rejection_count"])
+                        for row in development_metrics
+                    ),
+                    "validation_execution_spread_fallback_count": sum(
+                        int(row["execution_spread_fallback_count"])
+                        for row in validation_metrics
+                    ),
+                    "development_execution_spread_fallback_count": sum(
+                        int(row["execution_spread_fallback_count"])
+                        for row in development_metrics
+                    ),
+                }
+                if any(
+                    metrics.get(name) != value
+                    for name, value in causal_count_expectations.items()
+                ) or not math.isclose(
+                    float(metrics["shadow_net_broker_points"]),
+                    expected_shadow_net,
+                    rel_tol=1e-12,
+                    abs_tol=1e-9,
+                ):
+                    raise OperationStateError(
+                        "scientific scout causal shadow totals do not reconcile"
+                    )
+        elif declared_trade_implementation == "fixed_6bar_causal_spread_floor_v1":
+            raise OperationStateError(
+                "scientific scout causal receipt lacks a preregistered profile"
+            )
+
         outcome = receipt.get("outcome")
         gate_passed = receipt.get("gate_passed")
         if outcome == "route_to_R":
-            if gate_passed is not True or selected_folds != set(anchors) or unknown or not causal_passed:
+            if (
+                gate_passed is not True
+                or selected_folds != set(anchors)
+                or unknown
+                or not causal_passed
+                or kpi_route not in {None, "route_to_R"}
+            ):
                 raise OperationStateError("scientific scout R route lacks three evaluable causal paths")
         elif outcome == "scientific_reject":
-            if gate_passed is not False or unknown or not causal_passed:
+            if (
+                gate_passed is not False
+                or unknown
+                or not causal_passed
+                or kpi_route in {"evidence_gap", "repair_required"}
+            ):
                 raise OperationStateError("scientific rejection contains a repair-class evidence gap")
         elif outcome == "evidence_gap":
-            if gate_passed is not False or unknown == 0 or not causal_passed:
+            if (
+                gate_passed is not False
+                or not causal_passed
+                or (
+                    kpi_route != "evidence_gap"
+                    and not (kpi_route is None and unknown > 0)
+                )
+            ):
                 raise OperationStateError("scientific scout evidence-gap routing is unsupported")
         elif outcome == "repair_required":
             raise OperationStateError(
@@ -1465,7 +1831,6 @@ class V2OperationWriter:
         ):
             raise OperationStateError("scientific scout trial history hashes are invalid")
 
-        selection_payload = artifact_payloads["nested_selection"]
         result_body = {
             "outcome": outcome,
             "gate_passed": gate_passed,
@@ -4033,6 +4398,33 @@ class V2OperationWriter:
             else None
         )
         kpi = metrics.get("kpi_evaluation") if isinstance(metrics, Mapping) else None
+        verdict_rows = (
+            kpi.get("metric_verdicts", []) if isinstance(kpi, Mapping) else []
+        )
+        evidence_gap_metrics = [
+            {
+                "name": row.get("name"),
+                "dimension": row.get("dimension"),
+                "status": row.get("status"),
+                "reason_code": row.get("reason_code"),
+                "value": row.get("value"),
+            }
+            for row in verdict_rows
+            if isinstance(row, Mapping)
+            and row.get("failure_effect") == "evidence_gap"
+            and row.get("status") in {"fail", "censored", "not_evaluable"}
+            and isinstance(row.get("name"), str)
+        ]
+        if not evidence_gap_metrics and isinstance(unknown_cost, int) and unknown_cost > 0:
+            evidence_gap_metrics = [
+                {
+                    "name": "unknown_cost_observation_count",
+                    "dimension": "integrity",
+                    "status": "fail",
+                    "reason_code": "outside_hard_boundary",
+                    "value": unknown_cost,
+                }
+            ]
         if (
             receipt.get("goal_id") != goal_id
             or receipt.get("hypothesis_id") != hypothesis_id
@@ -4044,9 +4436,10 @@ class V2OperationWriter:
             or causal.get("all_role_checks_passed") is not True
             or isinstance(unknown_cost, bool)
             or not isinstance(unknown_cost, int)
-            or unknown_cost <= 0
+            or unknown_cost < 0
             or not isinstance(kpi, Mapping)
             or kpi.get("route") != "evidence_gap"
+            or not evidence_gap_metrics
             or evidence_payload.get("result_sha256")
             != receipt.get("result_sha256")
         ):
@@ -4092,6 +4485,10 @@ class V2OperationWriter:
             "development_unknown_cost_observation_count": metrics.get(
                 "development_unknown_cost_observation_count"
             ),
+            "evidence_gap_metrics": evidence_gap_metrics,
+            "unidentified_metric_names": [
+                row["name"] for row in evidence_gap_metrics
+            ],
             "reason_codes": list(kpi.get("reason_codes", [])),
             "gate_passed": False,
             "causal_checks_passed": True,

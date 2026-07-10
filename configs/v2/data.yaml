@@ -30,7 +30,26 @@ cost_quality:
   zero_spread_semantics: unknown_cost
   zero_spread_default_action: reject_entry_and_economics
   causal_fallback_allowed_only_when_preregistered: true
-  active_causal_fallback: null
+  active_causal_fallback:
+    policy_id: V2CF0001
+    program_id: V2TP1002
+    selector_program_ids:
+      - V2SEL2001
+      - V2SEL2002
+      - V2SEL2003
+      - V2SEL2004
+      - V2SEL2005
+    implementation_key: fixed_6bar_causal_spread_floor_v1
+    decision_zero_action: reject_signal_admission
+    positive_execution_rule: max_decision_and_execution_spread
+    execution_zero_action: positive_decision_spread_floor
+    negative_or_nonfinite_action: data_integrity_failure
+    true_cost_upper_bound_claim: false
+    after_cost_metric_state: causal_policy_evaluable
+    after_cost_metric_state_is_observed_cost: false
+    observed_execution_shadow_required_before_R: true
+    policy_parameter_count: 0
+    external_source_ids: []
   observed_counts:
     full_dataset_zero_spread: 3497
     modeling_span_zero_spread: 2127

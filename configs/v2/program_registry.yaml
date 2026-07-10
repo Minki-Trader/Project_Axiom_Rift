@@ -26,39 +26,39 @@ programs:
     kind: label
     version: 1
     contract_path: contracts/v2/research_contract.yaml
-    contract_sha256: 5e0a33ab6d4aafb7ceeb61cf64cb9e530392a6ad831b29e556ac13463e691968
+    contract_sha256: 1e44091b61182ef82ac0b1d1cd7b5dc3635c5fbdbcfb5911cc7162b8698aab0c
     implementation_key: normalized_forward_open_return_v1
     parameters:
       definition: open_t_plus_7_minus_open_t_plus_1_divided_by_mean_true_range_24_at_t
       horizon_bars_after_entry: 6
-    program_sha256: a3bac4bb8259c753e2e47e6ce769a1d77496126eb27418fe982d0f42ab12ff3f
+    program_sha256: 157620276f9a130c2acb734b20386cacbfd03cdf95774b49c6f78c404e660faa
   V2MP0001:
     kind: model
     version: 1
     contract_path: contracts/v2/research_contract.yaml
-    contract_sha256: 5e0a33ab6d4aafb7ceeb61cf64cb9e530392a6ad831b29e556ac13463e691968
+    contract_sha256: 1e44091b61182ef82ac0b1d1cd7b5dc3635c5fbdbcfb5911cc7162b8698aab0c
     implementation_key: train_scaled_ridge_v1
     parameters:
       family: ridge
       alpha: 1.0
       fit_intercept: true
       scaler_fit_role: train_is_only
-    program_sha256: aae8d72f9514fdb999977b08a0ea6e83426a279aafd3f8bfb3c3b9d25b9a98a9
+    program_sha256: a76fca2dd448a800d0d06254cc6d459e683e080a179a4b1fca1fc3ade5f9e9f4
   V2CP0001:
     kind: calibration
     version: 1
     contract_path: contracts/v2/research_contract.yaml
-    contract_sha256: 5e0a33ab6d4aafb7ceeb61cf64cb9e530392a6ad831b29e556ac13463e691968
+    contract_sha256: 1e44091b61182ef82ac0b1d1cd7b5dc3635c5fbdbcfb5911cc7162b8698aab0c
     implementation_key: validation_absolute_residual_quantile_v1
     parameters:
       definition: validation_absolute_residual_quantile
       quantile: 0.35
-    program_sha256: 94b6673f34c23f832c4714c90fe926b98ce06e2c5451ec20b7bba3c492984073
+    program_sha256: ce0c689461ef31ed7d2da494c3b63cb9e43d31dd145b4be965a3e48758d692d1
   V2SEL0001:
     kind: selector
     version: 1
     contract_path: contracts/v2/research_contract.yaml
-    contract_sha256: 5e0a33ab6d4aafb7ceeb61cf64cb9e530392a6ad831b29e556ac13463e691968
+    contract_sha256: 1e44091b61182ef82ac0b1d1cd7b5dc3635c5fbdbcfb5911cc7162b8698aab0c
     implementation_key: sequential_cost_abstention_v1
     parameters:
       mode: chronological_sequential_abstention
@@ -70,12 +70,12 @@ programs:
       full_day_top_k: false
       daily_entry_safety_cap: 10
       quota: false
-    program_sha256: 49f08c0f5c75e04fd2f5f11e1c8e47ca7526a0421f4732c7b109d1b8a4ac21fb
+    program_sha256: 12b87812dcf99b479e16f10d9ef268be3927d3116e4b15577b5e1d997d26c92b
   V2TP0001:
     kind: trade
     version: 1
     contract_path: contracts/v2/research_contract.yaml
-    contract_sha256: 5e0a33ab6d4aafb7ceeb61cf64cb9e530392a6ad831b29e556ac13463e691968
+    contract_sha256: 1e44091b61182ef82ac0b1d1cd7b5dc3635c5fbdbcfb5911cc7162b8698aab0c
     implementation_key: fixed_horizon_observed_spread_v1
     parameters:
       entry: bid_open_t_plus_1_with_long_entry_ask_spread
@@ -86,4 +86,4 @@ programs:
       spread: observed_broker_points
       zero_spread: unknown_cost_reject_after_cost_sample
       sizing: fixed_lot
-    program_sha256: fece27a914dd71403d89287b145aac19dbc7760f6dfa16d2d522827d043eb8e8
+    program_sha256: 92d143841a3a5b6454ec275dc717562ddfd09679b870cab8a0ebbae6317ead56

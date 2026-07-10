@@ -12,7 +12,6 @@ from axiom_rift.v2.identity import sha256_payload
 from axiom_rift.v2.research.dispatch import PROGRAM_KINDS
 from axiom_rift.v2.research.scientific_programs import (
     SCIENTIFIC_BUNDLE_ROLES,
-    SCIENTIFIC_IMPLEMENTATION_KEYS,
     ScientificProgramRegistryError,
     bind_compression_release_runtime,
     build_scientific_bundle_batch,
@@ -99,6 +98,16 @@ def _valid_tree(root: Path) -> tuple[Path, dict[str, object], dict[str, dict[str
         },
     }
     programs: dict[str, dict[str, object]] = {}
+    implementation_keys = {
+        "feature": "compression_release_features_v1",
+        "label": "forward_open_return_6bar_v1",
+        "model": "deterministic_event_score_v1",
+        "calibration": "identity_event_calibration_v1",
+        "selector": "chronological_compression_selector_v1",
+        "trade": "fixed_6bar_observed_spread_v1",
+        "sizing": "fixed_lot_v1",
+        "portfolio_risk": "one_position_safety_v1",
+    }
     for kind in PROGRAM_KINDS:
         program_id = PROGRAM_IDS[kind]
         body: dict[str, object] = {
@@ -106,7 +115,7 @@ def _valid_tree(root: Path) -> tuple[Path, dict[str, object], dict[str, dict[str
             "version": 1,
             "contract_path": "contracts/v2/scientific/compression_release_v1.yaml",
             "contract_sha256": contract_sha256,
-            "implementation_key": next(iter(SCIENTIFIC_IMPLEMENTATION_KEYS[kind])),
+            "implementation_key": implementation_keys[kind],
             "runtime_sha256": runtime_sha256,
             "parameters": shared_parameters[kind],
             "fixture_only": False,
@@ -165,6 +174,56 @@ def _valid_tree(root: Path) -> tuple[Path, dict[str, object], dict[str, dict[str
 
 
 class ScientificProgramRegistryTests(unittest.TestCase):
+    def test_active_causal_registry_binds_new_disjoint_five_role_batch(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        registry = load_scientific_program_registry(root)
+        selectors = dict(
+            zip(
+                SCIENTIFIC_BUNDLE_ROLES,
+                (
+                    "V2SEL2001",
+                    "V2SEL2002",
+                    "V2SEL2003",
+                    "V2SEL2004",
+                    "V2SEL2005",
+                ),
+                strict=True,
+            )
+        )
+        shared = {
+            "feature": "V2FP1001",
+            "label": "V2LP1001",
+            "model": "V2MP1001",
+            "calibration": "V2CP1001",
+            "trade": "V2TP1002",
+            "sizing": "V2SZ1001",
+            "portfolio_risk": "V2PR1001",
+        }
+        batch = build_scientific_bundle_batch(
+            registry,
+            {
+                role: {**shared, "selector": selectors[role]}
+                for role in SCIENTIFIC_BUNDLE_ROLES
+            },
+        )
+        bind_compression_release_runtime(registry, batch)
+        prior = {
+            "027be0975647858cae1d71d319a20ccaeda85d2c5feda1deebd78de7ea6d04c0",
+            "1b0d2674b6d1e43143540f1b7cf12302d322078f296097810d41382aa0fb319e",
+            "2a111689327a43ce46a784287017196ad25b1ac4f8446b913e78e25ad841df06",
+            "604cf897b7a0541513bb873fc3ae487ca83919da88bdbe873da55b15cf1ea5d9",
+            "cdd8cb3132a04aaa747fafe7214759276ef14f9ff4df1480d6f071e780fcdce0",
+        }
+        self.assertEqual(5, len(set(batch.bundle_role_hashes.values())))
+        self.assertTrue(set(batch.bundle_role_hashes.values()).isdisjoint(prior))
+        self.assertEqual(
+            {"fixed_6bar_causal_spread_floor_v1"},
+            {
+                bundle.programs["trade"].implementation_key
+                for bundle in batch.bundles.values()
+            },
+        )
+
     def test_hypothesis_routing_contract_preserves_all_scientific_routes(self) -> None:
         root = Path(__file__).resolve().parents[2]
         contract = yaml.safe_load(
@@ -339,6 +398,65 @@ class ScientificProgramRegistryTests(unittest.TestCase):
                 ScientificProgramRegistryError, "selector differs from runtime"
             ):
                 bind_compression_release_runtime(first_registry, swapped_batch)
+
+    def test_causal_spread_floor_bundle_is_uniform_and_rejects_mixed_policy(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            registry_path, payload, roles = _valid_tree(root)
+            programs = payload["programs"]
+            assert isinstance(programs, dict)
+            legacy_trade = programs["V2TP0001"]
+            assert isinstance(legacy_trade, dict)
+            causal_trade = deepcopy(legacy_trade)
+            causal_trade.update(
+                {
+                    "implementation_key": "fixed_6bar_causal_spread_floor_v1",
+                    "parameters": {
+                        "hold_bars": 6,
+                        "policy_id": "V2CF0001",
+                        "decision_zero_action": "reject_signal_admission",
+                        "positive_execution_rule": (
+                            "max_decision_and_execution_spread"
+                        ),
+                        "execution_zero_action": (
+                            "positive_decision_spread_floor"
+                        ),
+                        "policy_parameter_count": 0,
+                    },
+                }
+            )
+            _rehash("V2TP0002", causal_trade)
+            programs["V2TP0002"] = causal_trade
+            causal_roles = deepcopy(roles)
+            for index, role in enumerate(SCIENTIFIC_BUNDLE_ROLES, start=1):
+                legacy_selector_id = roles[role]["selector"]
+                selector = deepcopy(programs[legacy_selector_id])
+                assert isinstance(selector, dict)
+                selector["implementation_key"] = (
+                    "chronological_compression_cost_gated_selector_v1"
+                )
+                selector["parameters"] = {
+                    **dict(selector["parameters"]),
+                    "admission_cost_policy_id": "V2CF0001",
+                }
+                selector_id = f"V2SEL01{index:02d}"
+                _rehash(selector_id, selector)
+                programs[selector_id] = selector
+                causal_roles[role]["selector"] = selector_id
+                causal_roles[role]["trade"] = "V2TP0002"
+            _write_payload(registry_path, payload)
+            registry = load_scientific_program_registry(root, registry_path)
+            batch = build_scientific_bundle_batch(registry, causal_roles)
+            release_hashes = bind_compression_release_runtime(registry, batch)
+            self.assertEqual(set(SCIENTIFIC_BUNDLE_ROLES), set(release_hashes))
+
+            mixed = deepcopy(causal_roles)
+            mixed["continuation_low"]["trade"] = "V2TP0001"
+            mixed_batch = build_scientific_bundle_batch(registry, mixed)
+            with self.assertRaisesRegex(
+                ScientificProgramRegistryError, "mix trade cost policies"
+            ):
+                bind_compression_release_runtime(registry, mixed_batch)
 
 
 if __name__ == "__main__":

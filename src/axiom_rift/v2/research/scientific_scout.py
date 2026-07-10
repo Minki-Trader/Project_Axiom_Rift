@@ -70,6 +70,16 @@ SCIENTIFIC_SELECTION_RULE_SHA256 = sha256_payload(
 )
 ANCHORS = tuple(sorted(SCOUT_ANCHORS))
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
+LEGACY_TRADE_IMPLEMENTATION_KEY = "fixed_6bar_observed_spread_v1"
+CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY = (
+    "fixed_6bar_causal_spread_floor_v1"
+)
+TRADE_IMPLEMENTATION_KEYS = frozenset(
+    {
+        LEGACY_TRADE_IMPLEMENTATION_KEY,
+        CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY,
+    }
+)
 
 
 class ScientificScoutError(ValueError):
@@ -118,6 +128,7 @@ class ScientificScoutSpec:
     runtime_sha256: str
     runtime_executable_sha256: str
     selection_rule_sha256: str
+    trade_implementation_key: str = LEGACY_TRADE_IMPLEMENTATION_KEY
     family_configuration_hashes_before: tuple[str, ...] = ()
     family_history_sha256_before: str = EMPTY_TRIAL_HISTORY_SHA256
     global_configuration_hashes_before: tuple[str, ...] = ()
@@ -176,6 +187,10 @@ class ScientificScoutSpec:
             or self.selection_rule_sha256 != SCIENTIFIC_SELECTION_RULE_SHA256
         ):
             raise ScientificScoutError("scientific Scout runtime binding is invalid")
+        if self.trade_implementation_key not in TRADE_IMPLEMENTATION_KEYS:
+            raise ScientificScoutError(
+                "scientific Scout trade implementation is invalid"
+            )
         if self.program_registry_path:
             if (
                 "\\" in self.program_registry_path
@@ -214,6 +229,7 @@ class ScientificScoutSpec:
             "runtime_sha256": self.runtime_sha256,
             "runtime_executable_sha256": self.runtime_executable_sha256,
             "selection_rule_sha256": self.selection_rule_sha256,
+            "trade_implementation_key": self.trade_implementation_key,
             "family_configuration_hashes_before": list(self.family_configuration_hashes_before),
             "family_history_sha256_before": self.family_history_sha256_before,
             "global_configuration_hashes_before": list(self.global_configuration_hashes_before),
@@ -355,6 +371,43 @@ class ScientificScoutResult:
         }
 
 
+def scientific_kpi_observations(
+    metrics: Mapping[str, Any],
+    *,
+    causal_checks_passed: bool,
+    trade_implementation_key: str,
+) -> dict[str, Any]:
+    """Build the exact registered S observations used by producer and receipt audit."""
+
+    unknown = metrics.get("unknown_cost_observation_count")
+    observations: dict[str, Any] = {
+        "causal_checks_all_pass": causal_checks_passed,
+        "evaluable_trade_count": metrics.get("evaluable_trade_count"),
+        "unknown_cost_observation_count": unknown,
+        "net_broker_points": (
+            metrics.get("net_broker_points")
+            if unknown == 0
+            else MetricObservation.not_evaluable("unknown_cost_observations")
+        ),
+        "positive_net_fold_count": metrics.get("positive_net_fold_count"),
+    }
+    if trade_implementation_key == CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY:
+        observations.update(
+            {
+                "shadow_evaluable_trade_count": metrics.get(
+                    "shadow_evaluable_trade_count"
+                ),
+                "shadow_net_broker_points": metrics.get(
+                    "shadow_net_broker_points"
+                ),
+                "shadow_positive_net_fold_count": metrics.get(
+                    "shadow_positive_net_fold_count"
+                ),
+            }
+        )
+    return observations
+
+
 def _slice_bars(bars: BarArrays, end: int) -> BarArrays:
     return BarArrays(
         time=bars.time[:end], open=bars.open[:end], high=bars.high[:end],
@@ -408,18 +461,48 @@ def evaluate_signal_role(
         raise ScientificScoutError("configuration identity is invalid")
     boundary.validate(len(bars))
     directions, scores, _valid = _signal_arrays(evaluation, len(bars))
+    causal_floor = (
+        spec.trade_implementation_key
+        == CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY
+    )
+    spread_values = np.asarray(bars.spread, dtype=np.float64)
+    if causal_floor and (
+        spread_values.shape != (len(bars),)
+        or not np.isfinite(spread_values).all()
+        or np.any(spread_values < 0.0)
+    ):
+        raise ScientificScoutError(
+            "causal spread-floor inputs must be finite and nonnegative"
+        )
     last_decision = boundary.end - 1 - spec.hold_bars
     daily_entries: dict[str, int] = defaultdict(int)
     occupied_until = -1
     trades: list[ScoutTrade] = []
+    zero_decision_rejections = 0
+    execution_spread_fallbacks = 0
+    observed_execution_costs = 0
+    zero_decision_by_hour: dict[int, int] = defaultdict(int)
+    zero_decision_by_direction: dict[str, int] = defaultdict(int)
+    fallback_by_hour: dict[int, int] = defaultdict(int)
+    fallback_by_direction: dict[str, int] = defaultdict(int)
     lifecycle_inside = True
     boundary_crossings_excluded = True
     observed_features = getattr(evaluation, "features", None)
     for decision_index in range(boundary.start, max(boundary.start, last_decision)):
         direction = int(directions[decision_index])
-        if direction == 0 or decision_index < occupied_until:
+        if direction == 0:
             continue
         market_day, market_hour = _market_parts(bars.time[decision_index])
+        decision_spread = float(bars.spread[decision_index])
+        if causal_floor and decision_spread == 0.0:
+            zero_decision_rejections += 1
+            zero_decision_by_hour[market_hour] += 1
+            zero_decision_by_direction[
+                "long" if direction > 0 else "short"
+            ] += 1
+            continue
+        if decision_index < occupied_until:
+            continue
         if daily_entries[market_day] >= spec.maximum_daily_entries:
             continue
         entry_index = decision_index + 1
@@ -433,7 +516,6 @@ def evaluate_signal_role(
             bars.time[lookback_index], bars.time[exit_index], non_allow_gaps
         ):
             continue
-        decision_spread = float(bars.spread[decision_index])
         atr = None
         if observed_features is not None and decision_index < len(observed_features):
             atr = getattr(observed_features[decision_index], "atr_24", None)
@@ -442,12 +524,12 @@ def evaluate_signal_role(
             if decision_spread > 0.0 and atr is not None and float(atr) > 0.0
             else 0.0
         )
-        gross = (
-            direction
-            * (float(bars.open[exit_index]) - float(bars.open[entry_index]))
-            / spec.point_size
-        )
         if decision_spread <= 0.0:
+            gross = (
+                direction
+                * (float(bars.open[exit_index]) - float(bars.open[entry_index]))
+                / spec.point_size
+            )
             daily_entries[market_day] += 1
             occupied_until = exit_index
             trades.append(ScoutTrade(
@@ -470,12 +552,44 @@ def evaluate_signal_role(
             continue
         if atr is not None and abs(float(scores[decision_index])) <= causal_cost:
             continue
+        gross = (
+            direction
+            * (float(bars.open[exit_index]) - float(bars.open[entry_index]))
+            / spec.point_size
+        )
         daily_entries[market_day] += 1
         occupied_until = exit_index
         spread_index = entry_index if direction > 0 else exit_index
         required_spread = float(bars.spread[spread_index])
-        evaluable = required_spread > 0.0
-        net = gross - required_spread if evaluable else None
+        execution_observed = required_spread > 0.0
+        if causal_floor:
+            effective_spread = (
+                max(decision_spread, required_spread)
+                if execution_observed
+                else decision_spread
+            )
+            evaluable = True
+            net = gross - effective_spread
+            fallback_used = not execution_observed
+            if fallback_used:
+                execution_spread_fallbacks += 1
+                fallback_by_hour[market_hour] += 1
+                fallback_by_direction[
+                    "long" if direction > 0 else "short"
+                ] += 1
+            else:
+                observed_execution_costs += 1
+            cost_source = (
+                "decision_spread_floor"
+                if fallback_used
+                else "max_decision_and_execution_spread"
+            )
+        else:
+            effective_spread = required_spread
+            evaluable = execution_observed
+            net = gross - required_spread if evaluable else None
+            fallback_used = None
+            cost_source = None
         trades.append(ScoutTrade(
             fold_id=fold_id,
             signal_time=bars.time[decision_index].strftime(TIME_FORMAT),
@@ -486,21 +600,41 @@ def evaluate_signal_role(
             residual_band=0.0,
             causal_cost_edge=causal_cost,
             gross_broker_points=gross,
-            spread_cost_broker_points=required_spread if evaluable else None,
+            spread_cost_broker_points=(
+                effective_spread if evaluable else None
+            ),
             net_broker_points=net,
             evaluable_after_cost=evaluable,
             exclusion_reason=None if evaluable else "unknown_required_spread",
             market_day=market_day,
             market_hour=market_hour,
+            decision_spread_broker_points=(
+                decision_spread if causal_floor else None
+            ),
+            applicable_execution_spread_broker_points=(
+                required_spread if causal_floor else None
+            ),
+            cost_source=cost_source,
+            execution_spread_fallback_used=fallback_used,
         ))
     unknown = sum(not trade.evaluable_after_cost for trade in trades)
     evaluable = [trade for trade in trades if trade.evaluable_after_cost]
     net_values = [float(trade.net_broker_points) for trade in evaluable if trade.net_broker_points is not None]
+    shadow_evaluable = [
+        trade
+        for trade in evaluable
+        if trade.execution_spread_fallback_used is False
+    ]
+    shadow_net_values = [
+        float(trade.net_broker_points)
+        for trade in shadow_evaluable
+        if trade.net_broker_points is not None
+    ]
     eligible_days = sorted({_market_parts(value)[0] for value in bars.time[boundary.start:boundary.end]})
     daily_counts = [daily_entries.get(day, 0) for day in eligible_days]
     gains = sum(value for value in net_values if value > 0.0)
     losses = -sum(value for value in net_values if value < 0.0)
-    after_cost_observed = unknown == 0
+    after_cost_evaluable = unknown == 0
     causal_checks = {
         "completed_bar_signal": True,
         "train_fit_hashed_no_op": True,
@@ -512,11 +646,50 @@ def evaluate_signal_role(
         "prefix_invariance": bool(prefix_invariant),
         "development_variant_selection": False,
     }
+    if (
+        spec.trade_implementation_key
+        == CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY
+    ):
+        causal_checks.update(
+            {
+                "zero_decision_rejected_before_admission": all(
+                    trade.decision_spread_broker_points is not None
+                    and trade.decision_spread_broker_points > 0.0
+                    for trade in trades
+                ),
+                "future_execution_spread_not_signal_gate": True,
+                "all_admitted_costs_positive": all(
+                    trade.spread_cost_broker_points is not None
+                    and trade.spread_cost_broker_points > 0.0
+                    for trade in trades
+                ),
+                "observed_execution_cost_not_undercharged": all(
+                    trade.execution_spread_fallback_used is True
+                    or (
+                        trade.spread_cost_broker_points is not None
+                        and trade.decision_spread_broker_points is not None
+                        and trade.applicable_execution_spread_broker_points
+                        is not None
+                        and trade.spread_cost_broker_points
+                        >= trade.decision_spread_broker_points
+                        and trade.spread_cost_broker_points
+                        >= trade.applicable_execution_spread_broker_points
+                    )
+                    for trade in trades
+                ),
+                "decision_floor_is_not_true_cost_upper_bound": True,
+            }
+        )
     causal_passed = all(value for key, value in causal_checks.items() if key != "development_variant_selection") and not causal_checks["development_variant_selection"]
     feasible = (
         boundary.role == "validation_oos"
         and causal_passed and unknown == 0
         and len(evaluable) >= spec.minimum_validation_trades_per_fold
+        and (
+            spec.trade_implementation_key
+            != CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY
+            or len(shadow_evaluable) >= spec.minimum_validation_trades_per_fold
+        )
     )
     metrics: dict[str, Any] = {
         "entry_count": len(trades),
@@ -531,13 +704,54 @@ def evaluate_signal_role(
             if trade.gross_broker_points is not None
         ),
         "spread_cost_broker_points": sum(float(trade.spread_cost_broker_points) for trade in evaluable),
-        "net_broker_points": sum(net_values) if after_cost_observed else None,
-        "profit_factor": gains / losses if after_cost_observed and losses > 0.0 else None,
-        "expectancy_broker_points": float(np.mean(net_values)) if after_cost_observed and net_values else None,
-        "after_cost_metric_state": "observed" if after_cost_observed else "not_evaluable",
+        "net_broker_points": sum(net_values) if after_cost_evaluable else None,
+        "profit_factor": gains / losses if after_cost_evaluable and losses > 0.0 else None,
+        "expectancy_broker_points": float(np.mean(net_values)) if after_cost_evaluable and net_values else None,
+        "after_cost_metric_state": (
+            "causal_policy_evaluable"
+            if causal_floor and after_cost_evaluable
+            else "observed"
+            if after_cost_evaluable
+            else "not_evaluable"
+        ),
         "selection_feasible": feasible,
         "sizing_mode": "fixed_lot",
     }
+    if (
+        spec.trade_implementation_key
+        == CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY
+    ):
+        metrics.update(
+            {
+                "zero_decision_spread_rejection_count": (
+                    zero_decision_rejections
+                ),
+                "execution_spread_fallback_count": (
+                    execution_spread_fallbacks
+                ),
+                "observed_execution_cost_trade_count": (
+                    observed_execution_costs
+                ),
+                "shadow_evaluable_trade_count": len(shadow_evaluable),
+                "shadow_net_broker_points": sum(shadow_net_values),
+                "cost_policy_diagnostics": {
+                    "zero_decision_rejections_by_market_hour": {
+                        str(key): value
+                        for key, value in sorted(zero_decision_by_hour.items())
+                    },
+                    "zero_decision_rejections_by_direction": dict(
+                        sorted(zero_decision_by_direction.items())
+                    ),
+                    "execution_spread_fallbacks_by_market_hour": {
+                        str(key): value
+                        for key, value in sorted(fallback_by_hour.items())
+                    },
+                    "execution_spread_fallbacks_by_direction": dict(
+                        sorted(fallback_by_direction.items())
+                    ),
+                },
+            }
+        )
     body = {
         "fold_id": fold_id, "data_role": boundary.role,
         "configuration_role": configuration_role,
@@ -778,6 +992,34 @@ def run_scientific_scout(
     evaluable_trade_count = sum(
         int(row.metrics["evaluable_trade_count"]) for row in developments
     )
+    causal_floor = (
+        spec.trade_implementation_key
+        == CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY
+    )
+    shadow_evaluable_trade_count = (
+        sum(
+            int(row.metrics["shadow_evaluable_trade_count"])
+            for row in developments
+        )
+        if causal_floor
+        else 0
+    )
+    shadow_net = (
+        sum(
+            float(row.metrics["shadow_net_broker_points"])
+            for row in developments
+        )
+        if causal_floor
+        else None
+    )
+    shadow_positive_net_fold_count = (
+        sum(
+            float(row.metrics["shadow_net_broker_points"]) > 0.0
+            for row in developments
+        )
+        if causal_floor
+        else 0
+    )
     metrics = {
         "per_fold": [dict(row.metrics) for row in developments],
         "entry_count": len(all_development_trades),
@@ -787,22 +1029,50 @@ def run_scientific_scout(
         "development_unknown_cost_observation_count": development_unknown,
         "net_broker_points": net,
         "positive_net_fold_count": positive_net_fold_count,
-        "after_cost_metric_state": "observed" if unknown == 0 else "not_evaluable",
+        "after_cost_metric_state": (
+            "causal_policy_evaluable"
+            if causal_floor and unknown == 0
+            else "observed"
+            if unknown == 0
+            else "not_evaluable"
+        ),
         "sizing_mode": "fixed_lot",
     }
+    if causal_floor:
+        metrics.update(
+            {
+                "shadow_evaluable_trade_count": (
+                    shadow_evaluable_trade_count
+                ),
+                "shadow_net_broker_points": shadow_net,
+                "shadow_positive_net_fold_count": (
+                    shadow_positive_net_fold_count
+                ),
+                "validation_zero_decision_spread_rejection_count": sum(
+                    int(row.metrics["zero_decision_spread_rejection_count"])
+                    for row in validations
+                ),
+                "development_zero_decision_spread_rejection_count": sum(
+                    int(row.metrics["zero_decision_spread_rejection_count"])
+                    for row in developments
+                ),
+                "validation_execution_spread_fallback_count": sum(
+                    int(row.metrics["execution_spread_fallback_count"])
+                    for row in validations
+                ),
+                "development_execution_spread_fallback_count": sum(
+                    int(row.metrics["execution_spread_fallback_count"])
+                    for row in developments
+                ),
+            }
+        )
     validation_passed = len(selections) == 3 and all(row.selected_role and not row.falsifier_triggered for row in selections)
     causal_passed = all(all(value for key, value in row.causal_checks.items() if key != "development_variant_selection") for row in (*validations, *developments))
-    observations = {
-        "causal_checks_all_pass": causal_passed,
-        "evaluable_trade_count": evaluable_trade_count,
-        "unknown_cost_observation_count": unknown,
-        "net_broker_points": (
-            net
-            if unknown == 0
-            else MetricObservation.not_evaluable("unknown_cost_observations")
-        ),
-        "positive_net_fold_count": positive_net_fold_count,
-    }
+    observations = scientific_kpi_observations(
+        metrics,
+        causal_checks_passed=causal_passed,
+        trade_implementation_key=spec.trade_implementation_key,
+    )
     kpi_evaluation = interpret_kpis(
         "S", observations, spec.evaluation_profile
     )
@@ -856,6 +1126,8 @@ def run_scientific_scout(
 
 __all__ = [
     "ANCHORS", "BUNDLE_ROLES", "CONTINUATION_ROLES", "FALSIFIER_ROLES",
+    "CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY",
+    "LEGACY_TRADE_IMPLEMENTATION_KEY",
     "SCIENTIFIC_SELECTION_RULE_PAYLOAD", "SCIENTIFIC_SELECTION_RULE_SHA256",
     "FoldSelection", "RoleEvaluation", "ScientificFold", "ScientificScoutError",
     "ScientificScoutResult", "ScientificScoutSpec", "evaluate_signal_role",

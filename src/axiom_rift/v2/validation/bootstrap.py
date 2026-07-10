@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from axiom_rift.paths import PROJECT_ROOT
+from axiom_rift.v2.identity import sha256_payload
 from axiom_rift.v2.ledger import HashChainLedger, LedgerError
 from axiom_rift.v2.state.store import ControlStateError, validate_control_state
 from axiom_rift.v2.validation.types import ValidationIssue, ValidationResult
@@ -46,6 +47,13 @@ def _sha256(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _yaml_sha256(path: Path) -> str:
+    payload = yaml.safe_load(path.read_text(encoding="ascii"))
+    if not isinstance(payload, dict):
+        raise ValueError("mission contract must be a YAML mapping")
+    return sha256_payload(payload)
 
 
 def _load_yaml(root: Path, relative: str, issues: list[ValidationIssue]) -> dict[str, Any] | None:
@@ -108,7 +116,11 @@ def validate_v2_bootstrap(root: Path = PROJECT_ROOT) -> ValidationResult:
             issues.append(ValidationIssue("invalid_control_state", "registries/v2/control_state.yaml", str(exc)))
         mission = control.get("root_mission", {})
         mission_path = root / str(mission.get("contract_path", ""))
-        if not mission_path.is_file() or _sha256(mission_path) != mission.get("contract_sha256"):
+        try:
+            mission_hash = _yaml_sha256(mission_path) if mission_path.is_file() else None
+        except (OSError, UnicodeError, ValueError, yaml.YAMLError):
+            mission_hash = None
+        if mission_hash != mission.get("contract_sha256"):
             issues.append(
                 ValidationIssue(
                     "root_mission_contract_drift",

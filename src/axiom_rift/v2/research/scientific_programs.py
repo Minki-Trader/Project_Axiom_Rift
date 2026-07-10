@@ -50,8 +50,18 @@ _IMPLEMENTATION_KEYS = {
     "label": frozenset({"forward_open_return_6bar_v1"}),
     "model": frozenset({"deterministic_event_score_v1"}),
     "calibration": frozenset({"identity_event_calibration_v1"}),
-    "selector": frozenset({"chronological_compression_selector_v1"}),
-    "trade": frozenset({"fixed_6bar_observed_spread_v1"}),
+    "selector": frozenset(
+        {
+            "chronological_compression_selector_v1",
+            "chronological_compression_cost_gated_selector_v1",
+        }
+    ),
+    "trade": frozenset(
+        {
+            "fixed_6bar_observed_spread_v1",
+            "fixed_6bar_causal_spread_floor_v1",
+        }
+    ),
     "sizing": frozenset({"fixed_lot_v1"}),
     "portfolio_risk": frozenset({"one_position_safety_v1"}),
 }
@@ -688,17 +698,44 @@ def bind_compression_release_runtime(
             "train_fit": "hashed_no_op",
         },
         "calibration": {"family": "identity_event_calibration"},
-        "trade": {
-            "hold_bars": 6,
-            "spread": "observed_broker_points",
-            "zero_spread": "unknown_cost_observation",
-        },
         "sizing": {"mode": "fixed_lot", "lots": 1.0},
         "portfolio_risk": {
             "one_position_per_role": True,
             "overlap": "forbidden",
         },
     }
+    expected_trade_parameters = {
+        "fixed_6bar_observed_spread_v1": {
+            "hold_bars": 6,
+            "spread": "observed_broker_points",
+            "zero_spread": "unknown_cost_observation",
+        },
+        "fixed_6bar_causal_spread_floor_v1": {
+            "hold_bars": 6,
+            "policy_id": "V2CF0001",
+            "decision_zero_action": "reject_signal_admission",
+            "positive_execution_rule": "max_decision_and_execution_spread",
+            "execution_zero_action": "positive_decision_spread_floor",
+            "policy_parameter_count": 0,
+        },
+    }
+    trade_program_ids = {
+        bundle.programs["trade"].program_id for bundle in batch.bundles.values()
+    }
+    trade_implementation_keys = {
+        bundle.programs["trade"].implementation_key
+        for bundle in batch.bundles.values()
+    }
+    if len(trade_program_ids) != 1 or len(trade_implementation_keys) != 1:
+        raise ScientificProgramRegistryError(
+            "compression-release batch may not mix trade cost policies"
+        )
+    trade_implementation_key = next(iter(trade_implementation_keys))
+    expected_trade = expected_trade_parameters.get(trade_implementation_key)
+    if expected_trade is None:
+        raise ScientificProgramRegistryError(
+            "compression-release trade policy is not registered"
+        )
     configurations = {row.role: row for row in EVENT_CONFIGURATIONS}
     release_hashes: dict[str, str] = {}
     for role in SCIENTIFIC_BUNDLE_ROLES:
@@ -712,6 +749,14 @@ def bind_compression_release_runtime(
                 raise ScientificProgramRegistryError(
                     f"compression-release runtime hash differs: {role}.{kind}"
                 )
+        trade = bundle.programs["trade"]
+        if (
+            dict(trade.parameters) != expected_trade
+            or trade.runtime_sha256 != registry.runtime_sha256
+        ):
+            raise ScientificProgramRegistryError(
+                f"compression-release trade policy differs from runtime: {role}"
+            )
         configuration = configurations[role]
         expected_selector = {
             "role": role,
@@ -719,9 +764,16 @@ def bind_compression_release_runtime(
             "compression_ratio_max": configuration.compression_ratio_max,
             "daily_entry_safety_cap": 10,
         }
+        expected_selector_key = "chronological_compression_selector_v1"
+        if trade_implementation_key == "fixed_6bar_causal_spread_floor_v1":
+            expected_selector["admission_cost_policy_id"] = "V2CF0001"
+            expected_selector_key = (
+                "chronological_compression_cost_gated_selector_v1"
+            )
         selector = bundle.programs["selector"]
         if (
             dict(selector.parameters) != expected_selector
+            or selector.implementation_key != expected_selector_key
             or selector.runtime_sha256 != registry.runtime_sha256
         ):
             raise ScientificProgramRegistryError(

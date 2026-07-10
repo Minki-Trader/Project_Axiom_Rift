@@ -157,7 +157,10 @@ def prepare_scientific_s(root: Path) -> tuple[V2OperationWriter, dict]:
 
 
 def scientific_persistence_receipt(
-    state: dict, outcome: str
+    state: dict,
+    outcome: str,
+    *,
+    evidence_gap_metric: str = "unknown_cost_observation_count",
 ) -> dict:
     roles = (
         "continuation_low",
@@ -187,7 +190,12 @@ def scientific_persistence_receipt(
         for fold_id in selected_roles
     }
     configurations = sorted(bundle_hashes.values())
-    unknown_cost = 3 if outcome == "evidence_gap" else 0
+    unknown_cost = (
+        3
+        if outcome == "evidence_gap"
+        and evidence_gap_metric == "unknown_cost_observation_count"
+        else 0
+    )
     return {
         "schema": "axiom_rift_v2_scientific_scout_receipt_v1",
         "job_id": "V2J0001",
@@ -226,6 +234,25 @@ def scientific_persistence_receipt(
                 "route": outcome,
                 "reason_codes": (
                     ["required_evidence_is_not_identified"]
+                    if outcome == "evidence_gap"
+                    else []
+                ),
+                "metric_verdicts": (
+                    [
+                        {
+                            "name": evidence_gap_metric,
+                            "dimension": "inferential_density",
+                            "failure_effect": "evidence_gap",
+                            "status": "fail",
+                            "reason_code": "outside_hard_boundary",
+                            "value": (
+                                unknown_cost
+                                if evidence_gap_metric
+                                == "unknown_cost_observation_count"
+                                else 0
+                            ),
+                        }
+                    ]
                     if outcome == "evidence_gap"
                     else []
                 ),
@@ -1073,6 +1100,62 @@ class ReadyBoundaryWriterTests(unittest.TestCase):
                     evidence_id="V2E000001",
                     idempotency_key="gap-disposition",
                 )
+
+    def test_shadow_density_gap_disposes_with_zero_unknown_cost(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            writer, running = prepare_scientific_s(Path(temporary))
+            receipt = scientific_persistence_receipt(
+                running,
+                "evidence_gap",
+                evidence_gap_metric="shadow_evaluable_trade_count",
+            )
+            action = make_next_action(
+                "repair",
+                goal_id="V2G0001",
+                stage="S",
+                subject_id="V2S0001",
+                prerequisite_receipt_ids=["V2E000001"],
+                summary="dispose unidentified strict-shadow density",
+            )
+            with mock.patch.object(
+                writer, "_validate_scientific_scout_receipt", return_value=None
+            ):
+                before = writer.record_evidence(
+                    evidence_id="V2E000001",
+                    record_type="scientific_scout_completed",
+                    receipt=receipt,
+                    idempotency_key="shadow-evidence",
+                    exact_next_action=action,
+                )
+            scientific_before = deepcopy(before["scientific"])
+            with mock.patch.object(
+                writer,
+                "validate_recorded_scientific_scout_receipt",
+                return_value=receipt,
+            ):
+                disposed = writer.record_hypothesis_evidence_gap_disposition(
+                    hypothesis_id="V2H0001",
+                    evidence_id="V2E000001",
+                    idempotency_key="shadow-gap-disposition",
+                )
+            self.assertEqual(scientific_before, disposed["scientific"])
+            self.assertIsNone(disposed["cursor"]["active_hypothesis_id"])
+            self.assertEqual("disposed", disposed["cursor"]["stage_status"])
+            self.assertEqual(
+                "preregister_hypothesis",
+                disposed["cursor"]["next_action"]["kind"],
+            )
+            self.assertEqual([], disposed["scientific"]["negative_memory_object_ids"])
+            gap_id = disposed["reentry"]["current_artifact_hashes"][
+                "V2H0001_EVIDENCE_GAP"
+            ]
+            gap = writer.objects.get(gap_id)["payload"]
+            self.assertEqual(0, gap["unknown_cost_observation_count"])
+            self.assertEqual(
+                ["shadow_evaluable_trade_count"],
+                gap["unidentified_metric_names"],
+            )
+            self.assertFalse(gap["scientific_failure"])
 
     def test_scientific_route_creates_one_aggregate_ingredient(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
