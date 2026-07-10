@@ -31,6 +31,7 @@ from axiom_rift.v2.research.scientific_scout import (
     ScientificScoutSpec,
     SCIENTIFIC_SELECTION_RULE_SHA256,
     evaluate_signal_role,
+    resolve_scientific_scout_outcome,
     run_scientific_scout,
     select_continuation_path,
 )
@@ -159,6 +160,32 @@ def _directional_spec() -> ScientificScoutSpec:
 
 
 class ScientificScoutTests(unittest.TestCase):
+    def test_identified_falsifier_precedes_induced_evidence_gap(self) -> None:
+        self.assertEqual(
+            resolve_scientific_scout_outcome(
+                kpi_route="evidence_gap",
+                gate_passed=False,
+                identified_falsifier=True,
+            ),
+            "scientific_reject",
+        )
+        self.assertEqual(
+            resolve_scientific_scout_outcome(
+                kpi_route="repair_required",
+                gate_passed=False,
+                identified_falsifier=True,
+            ),
+            "repair_required",
+        )
+        self.assertEqual(
+            resolve_scientific_scout_outcome(
+                kpi_route="evidence_gap",
+                gate_passed=False,
+                identified_falsifier=False,
+            ),
+            "evidence_gap",
+        )
+
     def test_directional_selection_uses_shadow_and_never_selects_controls(self) -> None:
         spec = _directional_spec()
 

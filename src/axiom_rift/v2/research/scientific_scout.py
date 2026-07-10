@@ -1302,14 +1302,15 @@ def run_scientific_scout(
         and unknown == 0
         and hard_profile_passed
     )
-    if kpi_evaluation.route == "repair_required":
-        outcome = "repair_required"
-    elif kpi_evaluation.route == "evidence_gap":
-        outcome = "evidence_gap"
-    elif gate_passed:
-        outcome = "route_to_R"
-    else:
-        outcome = "scientific_reject"
+    outcome = resolve_scientific_scout_outcome(
+        kpi_route=kpi_evaluation.route,
+        gate_passed=gate_passed,
+        identified_falsifier=(
+            unknown == 0
+            and causal_passed
+            and any(row.falsifier_triggered for row in selections)
+        ),
+    )
     causal = {
         "all_validation_selection_source_only": True,
         "development_paths_frozen_before_evaluation": True,
@@ -1341,6 +1342,25 @@ def run_scientific_scout(
     )
 
 
+def resolve_scientific_scout_outcome(
+    *,
+    kpi_route: str,
+    gate_passed: bool,
+    identified_falsifier: bool,
+) -> str:
+    """Apply preregistered falsifiers before unidentified KPI-gap routing."""
+
+    if kpi_route == "repair_required":
+        return "repair_required"
+    if identified_falsifier:
+        return "scientific_reject"
+    if kpi_route == "evidence_gap":
+        return "evidence_gap"
+    if gate_passed:
+        return "route_to_R"
+    return "scientific_reject"
+
+
 __all__ = [
     "ANCHORS", "BUNDLE_ROLES", "CONTINUATION_ROLES", "FALSIFIER_ROLES",
     "CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY",
@@ -1350,6 +1370,7 @@ __all__ = [
     "SCIENTIFIC_SELECTION_RULE_PAYLOAD", "SCIENTIFIC_SELECTION_RULE_SHA256",
     "FoldSelection", "RoleEvaluation", "ScientificFold", "ScientificScoutError",
     "ScientificScoutResult", "ScientificScoutSpec", "evaluate_signal_role",
-    "run_scientific_scout", "select_continuation_path",
+    "resolve_scientific_scout_outcome", "run_scientific_scout",
+    "select_continuation_path",
     "selection_layout_for_hash", "trial_history_sha256",
 ]

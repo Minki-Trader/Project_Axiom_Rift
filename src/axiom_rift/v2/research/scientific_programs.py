@@ -56,6 +56,7 @@ ALL_SCIENTIFIC_BUNDLE_ROLES = frozenset(
 SCIENTIFIC_RUNTIME_PATHS = (
     "src/axiom_rift/v2/research/compression_release.py",
     "src/axiom_rift/v2/research/directional_reversal.py",
+    "src/axiom_rift/v2/research/evaluation.py",
     "src/axiom_rift/v2/research/scientific_scout.py",
 )
 SCIENTIFIC_RUNTIME_SCHEMA = "axiom_rift_v2_scientific_runtime_manifest_v1"

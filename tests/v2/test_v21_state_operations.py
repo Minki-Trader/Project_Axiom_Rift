@@ -377,6 +377,32 @@ def v22_hypothesis_payload(goal_id: str, hypothesis_id: str) -> dict:
 
 
 class V21GenericLifecycleTests(unittest.TestCase):
+    def test_rectifiable_falsifier_gap_requires_identified_cost_and_causality(self) -> None:
+        receipt = {
+            "outcome": "evidence_gap",
+            "metrics_summary": {"unknown_cost_observation_count": 0},
+            "causal_summary": {"all_role_checks_passed": True},
+        }
+        selections = [{"falsifier_triggered": True}]
+        self.assertTrue(
+            V2OperationWriter._rectifiable_scientific_falsifier_gap(
+                receipt, selections
+            )
+        )
+        receipt["metrics_summary"]["unknown_cost_observation_count"] = 1
+        self.assertFalse(
+            V2OperationWriter._rectifiable_scientific_falsifier_gap(
+                receipt, selections
+            )
+        )
+        receipt["metrics_summary"]["unknown_cost_observation_count"] = 0
+        receipt["causal_summary"]["all_role_checks_passed"] = False
+        self.assertFalse(
+            V2OperationWriter._rectifiable_scientific_falsifier_gap(
+                receipt, selections
+            )
+        )
+
     def test_nested_receipt_reconciles_family_global_and_selected_path_hashes(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             writer = build_writer(Path(temp_dir), v21_state())

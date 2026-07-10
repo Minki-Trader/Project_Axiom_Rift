@@ -757,6 +757,27 @@ class V2OperationWriter:
             "lifecycle_context": "trade_program_bound",
         }
 
+    @staticmethod
+    def _rectifiable_scientific_falsifier_gap(
+        receipt: Mapping[str, Any],
+        selection_rows: object,
+    ) -> bool:
+        metrics = receipt.get("metrics_summary")
+        causal = receipt.get("causal_summary")
+        return bool(
+            receipt.get("outcome") == "evidence_gap"
+            and isinstance(metrics, Mapping)
+            and metrics.get("unknown_cost_observation_count") == 0
+            and isinstance(causal, Mapping)
+            and causal.get("all_role_checks_passed") is True
+            and isinstance(selection_rows, list)
+            and any(
+                isinstance(row, Mapping)
+                and row.get("falsifier_triggered") is True
+                for row in selection_rows
+            )
+        )
+
     def _validate_scientific_scheduler_audit(
         self,
         *,
@@ -1327,6 +1348,7 @@ class V2OperationWriter:
         state: Mapping[str, Any] | None = None,
         exclude_receipt_object_id: str | None = None,
         prior_to_evidence_ledger_seq: int | None = None,
+        allow_superseded_falsifier_gap: bool = False,
     ) -> None:
         """Validate a scientific S receipt, including a valid empty-path rejection."""
 
@@ -1552,6 +1574,19 @@ class V2OperationWriter:
         validation_evaluations = selection_payload.get("validation_evaluations")
         development_evaluations = selection_payload.get("development_evaluations")
         selection_rows = selection_payload.get("selections")
+        identified_falsifier = bool(
+            isinstance(selection_rows, list)
+            and any(
+                isinstance(row, Mapping)
+                and row.get("falsifier_triggered") is True
+                for row in selection_rows
+            )
+        )
+        rectifiable_falsifier_gap = (
+            self._rectifiable_scientific_falsifier_gap(
+                receipt, selection_rows
+            )
+        )
         if evaluation_profile is not None:
             if (
                 not isinstance(validation_evaluations, list)
@@ -1770,13 +1805,19 @@ class V2OperationWriter:
                 gate_passed is not False
                 or unknown
                 or not causal_passed
-                or kpi_route in {"evidence_gap", "repair_required"}
+                or kpi_route == "repair_required"
+                or (kpi_route == "evidence_gap" and not identified_falsifier)
             ):
                 raise OperationStateError("scientific rejection contains a repair-class evidence gap")
         elif outcome == "evidence_gap":
             if (
                 gate_passed is not False
                 or not causal_passed
+                or (identified_falsifier and not allow_superseded_falsifier_gap)
+                or (
+                    allow_superseded_falsifier_gap
+                    and not rectifiable_falsifier_gap
+                )
                 or (
                     kpi_route != "evidence_gap"
                     and not (kpi_route is None and unknown > 0)
@@ -2007,10 +2048,26 @@ class V2OperationWriter:
             raise OperationStateError(
                 "recorded scientific scout receipt must have one evidence row"
             )
+        superseding_rows = [
+            row
+            for row in self.hypotheses.rows()
+            if row.get("record_type") == "hypothesis_disposition_recorded"
+            and row.get("payload", {}).get("event_type")
+            == "disposition_rectified"
+            and row.get("payload", {}).get("receipt_object_id")
+            == receipt_object_id
+            and row.get("payload", {}).get("effective_outcome")
+            == "scientific_reject"
+        ]
+        if len(superseding_rows) > 1:
+            raise OperationStateError(
+                "recorded scientific scout receipt has ambiguous rectification"
+            )
         self._validate_scientific_scout_receipt(
             receipt,
             exclude_receipt_object_id=receipt_object_id,
             prior_to_evidence_ledger_seq=int(matching_rows[0]["ledger_seq"]),
+            allow_superseded_falsifier_gap=bool(superseding_rows),
         )
         return receipt
 
@@ -4593,6 +4650,599 @@ class V2OperationWriter:
             idempotency_key,
             mutate,
             referenced_object_ids=[receipt_object_id, gap_object_id],
+        )
+
+    def rectify_scientific_gap_disposition(
+        self,
+        *,
+        hypothesis_id: str,
+        evidence_id: str,
+        gap_object_id: str,
+        memory_path: str,
+        memory_sha256: str,
+        memory_payload: dict[str, Any],
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Supersede a gap that masked an identified preregistered falsifier."""
+
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError(
+                "scientific disposition rectification requires control-state schema v2"
+            )
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        validate_identity("hypothesis", hypothesis_id)
+        cursor = state.get("cursor", {})
+        goal_id = cursor.get("active_goal_id")
+        stage_id = cursor.get("stage_id")
+        if (
+            not isinstance(goal_id, str)
+            or cursor.get("goal_status") != "open"
+            or cursor.get("active_hypothesis_id") is not None
+            or cursor.get("stage") != "S"
+            or not isinstance(stage_id, str)
+            or cursor.get("stage_status") != "disposed"
+            or cursor.get("stage_outcome") != "evidence_gap"
+            or state.get("reentry", {}).get("active_job") is not None
+        ):
+            raise OperationStateError(
+                "scientific disposition rectification requires the disposed Scout gap"
+            )
+        pending = cursor.get("next_action")
+        next_hypothesis_id = format_identity(
+            "hypothesis", state["namespace"]["next_hypothesis"]
+        )
+        if (
+            not isinstance(pending, Mapping)
+            or pending.get("kind") != "preregister_hypothesis"
+            or pending.get("goal_id") != goal_id
+            or pending.get("stage") != "H"
+            or pending.get("subject_id") != next_hypothesis_id
+            or pending.get("prerequisite_receipt_ids") != [evidence_id]
+        ):
+            raise OperationStateError(
+                "scientific disposition rectification differs from the pending H route"
+            )
+        claim = state.get("claim", {})
+        if (
+            claim.get("subject_id") != hypothesis_id
+            or claim.get("current_level") != "none"
+            or claim.get("claim_ceiling") != "none"
+            or claim.get("basis_receipt_ids") != []
+        ):
+            raise OperationStateError(
+                "scientific disposition rectification requires the unpromoted gap claim"
+            )
+        scientific = state.get("scientific")
+        if (
+            not isinstance(scientific, dict)
+            or scientific.get("status") != "active"
+            or scientific.get("binding_schema")
+            != "axiom_rift_v2_scientific_index_binding_v1"
+            or evidence_id not in scientific.get("trial_receipt_ids", [])
+            or evidence_id
+            not in state.get("reentry", {}).get("completed_evidence_ids", [])
+        ):
+            raise OperationStateError(
+                "scientific disposition rectification lacks indexed trial evidence"
+            )
+
+        evidence_rows = [
+            row
+            for row in self.evidence.rows()
+            if row.get("record_id") == evidence_id
+            and row.get("record_type") == "scientific_scout_completed"
+        ]
+        if len(evidence_rows) != 1:
+            raise OperationStateError(
+                "scientific disposition rectification requires one Scout receipt"
+            )
+        evidence_row = evidence_rows[0]
+        evidence_payload = evidence_row.get("payload", {})
+        receipt_object_id = evidence_payload.get("receipt_object_id")
+        if not isinstance(receipt_object_id, str):
+            raise OperationStateError(
+                "scientific disposition rectification receipt object is missing"
+            )
+        wrapped_receipt = self.objects.get(receipt_object_id)
+        receipt = wrapped_receipt.get("payload")
+        if (
+            wrapped_receipt.get("kind") != "evidence_receipt"
+            or not isinstance(receipt, dict)
+            or receipt.get("schema")
+            != "axiom_rift_v2_scientific_scout_receipt_v1"
+            or receipt.get("goal_id") != goal_id
+            or receipt.get("hypothesis_id") != hypothesis_id
+            or receipt.get("stage_id") != stage_id
+            or receipt.get("outcome") != "evidence_gap"
+            or receipt.get("gate_passed") is not False
+            or evidence_payload.get("result_sha256")
+            != receipt.get("result_sha256")
+        ):
+            raise OperationStateError(
+                "scientific disposition rectification basis is not the original gap"
+            )
+        self._validate_scientific_scout_receipt(
+            receipt,
+            exclude_receipt_object_id=receipt_object_id,
+            prior_to_evidence_ledger_seq=int(evidence_row["ledger_seq"]),
+            allow_superseded_falsifier_gap=True,
+        )
+
+        hypothesis_rows = [
+            row
+            for row in self.hypotheses.rows()
+            if row.get("record_id") == hypothesis_id
+            and row.get("record_type") == "hypothesis_preregistered"
+        ]
+        if len(hypothesis_rows) != 1:
+            raise OperationStateError(
+                "scientific disposition rectification hypothesis is ambiguous"
+            )
+        hypothesis_row = hypothesis_rows[0]
+        hypothesis_ledger_payload = hypothesis_row.get("payload", {})
+        hypothesis_object_id = hypothesis_ledger_payload.get(
+            "hypothesis_object_id"
+        )
+        dominant_axis = hypothesis_ledger_payload.get("dominant_axis")
+        wrapped_hypothesis = (
+            self.objects.get(hypothesis_object_id)
+            if isinstance(hypothesis_object_id, str)
+            else {}
+        )
+        scientific_spec = wrapped_hypothesis.get("payload")
+        if (
+            wrapped_hypothesis.get("kind") != "hypothesis_spec"
+            or not isinstance(scientific_spec, Mapping)
+            or hypothesis_ledger_payload.get("family_id")
+            != receipt.get("trial_accounting", {}).get("family_id")
+            or hypothesis_ledger_payload.get("scientific_epoch_id")
+            != scientific.get("epoch_id")
+            or hypothesis_object_id
+            not in scientific.get("hypothesis_object_ids", [])
+            or not isinstance(dominant_axis, str)
+        ):
+            raise OperationStateError(
+                "scientific disposition rectification hypothesis binding differs"
+            )
+        reject_conditions = scientific_spec.get("falsification", {}).get(
+            "scientific_reject_conditions", []
+        )
+        directional_condition = (
+            "either_long_reversal_or_short_continuation_control_is_"
+            "noninferior_to_the_selected_short_reversal"
+        )
+        if directional_condition not in reject_conditions:
+            raise OperationStateError(
+                "scientific disposition rectification lacks the frozen control falsifier"
+            )
+
+        gap_rows = [
+            row
+            for row in self.hypotheses.rows()
+            if row.get("record_id") == f"{hypothesis_id}_DISPOSITION"
+            and row.get("record_type") == "hypothesis_disposition_recorded"
+        ]
+        if len(gap_rows) != 1:
+            raise OperationStateError(
+                "scientific disposition rectification gap row is ambiguous"
+            )
+        gap_row = gap_rows[0]
+        if (
+            gap_row.get("payload", {}).get("outcome") != "evidence_gap"
+            or gap_row.get("payload", {}).get("evidence_ids") != [evidence_id]
+            or gap_row.get("payload", {}).get("evidence_gap_object_id")
+            != gap_object_id
+            or state.get("reentry", {})
+            .get("current_artifact_hashes", {})
+            .get(f"{hypothesis_id}_EVIDENCE_GAP")
+            != gap_object_id
+        ):
+            raise OperationStateError(
+                "scientific disposition rectification gap provenance differs"
+            )
+        wrapped_gap = self.objects.get(gap_object_id)
+        gap_payload = wrapped_gap.get("payload")
+        if (
+            wrapped_gap.get("kind") != "scientific_evidence_gap"
+            or not isinstance(gap_payload, Mapping)
+            or gap_payload.get("outcome") != "evidence_gap"
+            or gap_payload.get("scientific_failure") is not False
+            or gap_payload.get("evidence_id") != evidence_id
+            or gap_payload.get("negative_memory_object_id") is not None
+        ):
+            raise OperationStateError(
+                "scientific disposition rectification gap object differs"
+            )
+
+        artifact_payloads = self._verified_scientific_artifacts(
+            receipt, {"nested_selection"}
+        )
+        nested = artifact_payloads["nested_selection"]
+        selection_rows = nested.get("selections")
+        validation_rows = nested.get("validation_evaluations")
+        if not isinstance(selection_rows, list) or not isinstance(
+            validation_rows, list
+        ):
+            raise OperationStateError(
+                "scientific disposition rectification selection evidence is missing"
+            )
+        evaluation_by_key = {
+            (row.get("fold_id"), row.get("configuration_role")): row
+            for row in validation_rows
+            if isinstance(row, Mapping)
+        }
+        feasibility = scientific_spec.get("sensitivity_plan", {}).get(
+            "selection_feasibility", {}
+        )
+        minimum_trades = feasibility.get("evaluable_trade_count_min_per_fold")
+        tolerance = scientific_spec.get("sensitivity_plan", {}).get(
+            "surface_rule", {}
+        ).get("plateau_tolerance")
+        if (
+            isinstance(minimum_trades, bool)
+            or not isinstance(minimum_trades, int)
+            or minimum_trades <= 0
+            or isinstance(tolerance, bool)
+            or not isinstance(tolerance, (int, float))
+            or not math.isfinite(float(tolerance))
+            or float(tolerance) < 0.0
+        ):
+            raise OperationStateError(
+                "scientific disposition rectification feasibility is invalid"
+            )
+        falsifier_diagnostics: list[dict[str, Any]] = []
+        for selection in selection_rows:
+            if (
+                not isinstance(selection, Mapping)
+                or selection.get("falsifier_triggered") is not True
+            ):
+                continue
+            fold_id = selection.get("fold_id")
+            selected_role = selection.get("selected_role")
+            contrasts = selection.get("validation_contrasts")
+            if (
+                not isinstance(fold_id, str)
+                or not isinstance(selected_role, str)
+                or not isinstance(contrasts, Mapping)
+                or contrasts.get("required_roles_evaluable") is not True
+            ):
+                continue
+            selected_row = evaluation_by_key.get((fold_id, selected_role))
+            selected_metrics = (
+                selected_row.get("metrics", {})
+                if isinstance(selected_row, Mapping)
+                else {}
+            )
+            selected_shadow = selected_metrics.get("shadow_net_broker_points")
+            if (
+                selected_metrics.get("selection_feasible") is not True
+                or selected_metrics.get("unknown_cost_observation_count") != 0
+                or selected_metrics.get("shadow_evaluable_trade_count", -1)
+                < minimum_trades
+                or isinstance(selected_shadow, bool)
+                or not isinstance(selected_shadow, (int, float))
+                or not math.isfinite(float(selected_shadow))
+            ):
+                continue
+            triggered_controls: list[dict[str, Any]] = []
+            for flag, role, declared_value_key in (
+                (
+                    "long_reversal_control_falsifies",
+                    "long_reversal_control",
+                    "long_reversal_control_shadow_net_broker_points",
+                ),
+                (
+                    "short_continuation_control_falsifies",
+                    "short_continuation_control",
+                    "short_continuation_control_shadow_net_broker_points",
+                ),
+            ):
+                if contrasts.get(flag) is not True:
+                    continue
+                control_row = evaluation_by_key.get((fold_id, role))
+                control_metrics = (
+                    control_row.get("metrics", {})
+                    if isinstance(control_row, Mapping)
+                    else {}
+                )
+                control_shadow = control_metrics.get("shadow_net_broker_points")
+                declared_shadow = contrasts.get(declared_value_key)
+                if (
+                    control_metrics.get("selection_feasible") is not True
+                    or control_metrics.get("unknown_cost_observation_count") != 0
+                    or control_metrics.get("shadow_evaluable_trade_count", -1)
+                    < minimum_trades
+                    or isinstance(control_shadow, bool)
+                    or not isinstance(control_shadow, (int, float))
+                    or not math.isfinite(float(control_shadow))
+                    or isinstance(declared_shadow, bool)
+                    or not isinstance(declared_shadow, (int, float))
+                    or not math.isclose(
+                        float(control_shadow),
+                        float(declared_shadow),
+                        rel_tol=1e-12,
+                        abs_tol=1e-9,
+                    )
+                    or float(control_shadow)
+                    < float(selected_shadow) - float(tolerance)
+                ):
+                    raise OperationStateError(
+                        "scientific disposition rectification control falsifier is not identified"
+                    )
+                triggered_controls.append(
+                    {
+                        "role": role,
+                        "shadow_evaluable_trade_count": control_metrics[
+                            "shadow_evaluable_trade_count"
+                        ],
+                        "shadow_net_broker_points": float(control_shadow),
+                        "minus_selected_broker_points": float(control_shadow)
+                        - float(selected_shadow),
+                    }
+                )
+            if triggered_controls:
+                falsifier_diagnostics.append(
+                    {
+                        "fold_id": fold_id,
+                        "selected_role": selected_role,
+                        "selected_shadow_evaluable_trade_count": selected_metrics[
+                            "shadow_evaluable_trade_count"
+                        ],
+                        "selected_shadow_net_broker_points": float(
+                            selected_shadow
+                        ),
+                        "triggered_controls": triggered_controls,
+                    }
+                )
+        if not falsifier_diagnostics:
+            raise OperationStateError(
+                "scientific disposition rectification has no identified falsifier"
+            )
+
+        research_map, map_snapshot = self._load_bound_research_map(state)
+        if (
+            dominant_axis not in research_map.axes
+            or evidence_id in research_map.axes[dominant_axis].evidence_ids
+        ):
+            raise OperationStateError(
+                "scientific disposition rectification research axis is already observed"
+            )
+        raw_memory_path = Path(memory_path)
+        if (
+            raw_memory_path.is_absolute()
+            or "\\" in memory_path
+            or ".." in raw_memory_path.parts
+            or not memory_path
+        ):
+            raise OperationStateError(
+                "scientific disposition rectification memory path is invalid"
+            )
+        project_root = self._scientific_project_root().resolve()
+        resolved_memory = (project_root / raw_memory_path).resolve()
+        if project_root not in resolved_memory.parents or not resolved_memory.is_file():
+            raise OperationStateError(
+                "scientific disposition rectification memory file is missing"
+            )
+        raw_memory = resolved_memory.read_bytes()
+        try:
+            import yaml
+
+            parsed_memory = yaml.safe_load(raw_memory.decode("ascii"))
+            from axiom_rift.v2.research.autonomy import ScopedNegativeMemory
+
+            memory = ScopedNegativeMemory.from_payload(memory_payload)
+        except (UnicodeError, yaml.YAMLError, ValueError) as exc:
+            raise OperationStateError(
+                f"scientific disposition rectification memory is invalid: {exc}"
+            ) from exc
+        expected_hashes = sorted(
+            receipt.get("trial_accounting", {}).get("configuration_hashes", [])
+        )
+        if (
+            parsed_memory != memory_payload
+            or memory.to_payload() != memory_payload
+            or hashlib.sha256(raw_memory).hexdigest() != memory_sha256
+            or memory.hypothesis_id != hypothesis_id
+            or memory.family_id != hypothesis_ledger_payload.get("family_id")
+            or memory.strength != "shallow_negative"
+            or list(memory.evidence_ids) != [evidence_id]
+            or dict(memory.tested_context)
+            != self._scientific_tested_context(receipt)
+            or list(memory.do_not_retry_hashes) != expected_hashes
+        ):
+            raise OperationStateError(
+                "scientific disposition rectification memory differs from evidence"
+            )
+
+        occurred = utc_now()
+        memory_object_id = self.objects.put("negative_memory", memory_payload)
+        references = self._scientific_references(scientific)
+        if memory_object_id in references["negative_memory_object_ids"]:
+            raise OperationStateError(
+                "scientific disposition rectification memory is already indexed"
+            )
+        references["negative_memory_object_ids"].append(memory_object_id)
+        axis_state = self._nonregressive_research_state(
+            research_map, dominant_axis, "shallow"
+        )
+        updated_map = research_map.with_axis_observation(
+            axis_id=dominant_axis,
+            state=axis_state,
+            evidence_id=evidence_id,
+            observation=(
+                f"{evidence_id}:scientific_reject:rectified_precedence"
+            ),
+        ).with_axis_observation(
+            axis_id=dominant_axis,
+            state=axis_state,
+            evidence_id=evidence_id,
+            observation=f"{evidence_id}:scientific_reject:{memory.strength}",
+        )
+        recent_axes = [*map_snapshot.get("recent_dominant_axes", []), dominant_axis]
+        snapshot_seq = scientific["research_map_snapshot_seq"] + 1
+        rectification_record_id = (
+            f"{hypothesis_id}_DISPOSITION_RECTIFICATION_1"
+        )
+        research_map_object_id = self._put_research_map_snapshot(
+            state=state,
+            research_map=updated_map,
+            snapshot_seq=snapshot_seq,
+            parent_object_id=scientific["current_research_map_object_id"],
+            trigger={
+                "kind": "hypothesis_disposition_rectified",
+                "hypothesis_id": hypothesis_id,
+                "evidence_id": evidence_id,
+                "outcome": "scientific_reject",
+                "supersedes_record_id": f"{hypothesis_id}_DISPOSITION",
+                "rectification_record_id": rectification_record_id,
+                "negative_memory_object_id": memory_object_id,
+                "ingredient_object_id": None,
+            },
+            references=references,
+            recent_dominant_axes=recent_axes,
+        )
+        policy_payload = {
+            "schema": "axiom_rift_v2_scientific_falsifier_precedence_v1",
+            "precedence": [
+                "repair_required",
+                "identified_preregistered_falsifier",
+                "evidence_gap",
+                "stage_gate",
+            ],
+            "reason": (
+                "identified_preregistered_control_falsifier_precedes_"
+                "an_induced_development_density_gap"
+            ),
+        }
+        rectification_payload = {
+            "schema": "axiom_rift_v2_scientific_disposition_rectification_v1",
+            "scientific_origin": "v2_current",
+            "root_mission_id": scientific["root_mission_id"],
+            "goal_id": goal_id,
+            "scientific_epoch_id": scientific["epoch_id"],
+            "hypothesis_id": hypothesis_id,
+            "stage": "S",
+            "stage_id": stage_id,
+            "evidence_id": evidence_id,
+            "receipt_object_id": receipt_object_id,
+            "result_sha256": receipt["result_sha256"],
+            "original_evidence_row_sha256": evidence_row["row_sha256"],
+            "original_disposition_record_id": f"{hypothesis_id}_DISPOSITION",
+            "original_disposition_row_sha256": gap_row["row_sha256"],
+            "original_gap_object_id": gap_object_id,
+            "original_outcome": "evidence_gap",
+            "original_kpi_route": receipt["metrics_summary"]["kpi_evaluation"][
+                "route"
+            ],
+            "effective_outcome": "scientific_reject",
+            "effective_route_basis": "identified_preregistered_falsifier",
+            "classification_policy": policy_payload,
+            "classification_policy_sha256": sha256_payload(policy_payload),
+            "falsifier_diagnostics": falsifier_diagnostics,
+            "negative_memory_object_id": memory_object_id,
+            "research_map_object_id": research_map_object_id,
+            "scientific_evaluation_rerun": False,
+            "trial_count_delta": 0,
+            "claim_ceiling": "diagnostic_observation",
+        }
+        rectification_object_id = self.objects.put(
+            "scientific_disposition_rectification", rectification_payload
+        )
+        disposition_payload = {
+            "goal_id": goal_id,
+            "hypothesis_id": hypothesis_id,
+            "event_type": "disposition_rectified",
+            "outcome": "scientific_reject",
+            "effective_outcome": "scientific_reject",
+            "original_outcome": "evidence_gap",
+            "supersedes_record_id": f"{hypothesis_id}_DISPOSITION",
+            "evidence_ids": [evidence_id],
+            "receipt_object_id": receipt_object_id,
+            "rectification_object_id": rectification_object_id,
+            "negative_memory_path": memory_path,
+            "negative_memory_sha256": memory_sha256,
+            "negative_memory_object_id": memory_object_id,
+            "claim_ceiling": "diagnostic_observation",
+            "scientific_origin": "v2_current",
+            "scientific_epoch_id": scientific["epoch_id"],
+            "family_id": hypothesis_ledger_payload["family_id"],
+            "dominant_axis": dominant_axis,
+            "research_map_object_id": research_map_object_id,
+            "scientific_evaluation_rerun": False,
+            "trial_count_delta": 0,
+        }
+        disposition_row = self._append_or_existing(
+            self.hypotheses,
+            rectification_record_id,
+            "hypothesis_disposition_recorded",
+            disposition_payload,
+            occurred,
+        )
+        next_action = make_next_action(
+            "preregister_hypothesis",
+            goal_id=goal_id,
+            stage="H",
+            subject_id=next_hypothesis_id,
+            prerequisite_receipt_ids=[evidence_id],
+            summary=(
+                "select and preregister a distinct hypothesis after the "
+                "rectified scientific rejection"
+            ),
+        )
+
+        def mutate(draft: dict[str, Any]) -> None:
+            draft["ledger_heads"]["hypothesis"] = {
+                "ledger_seq": disposition_row["ledger_seq"],
+                "row_sha256": disposition_row["row_sha256"],
+            }
+            self._add_authoritative_objects(
+                draft,
+                [
+                    memory_object_id,
+                    research_map_object_id,
+                    rectification_object_id,
+                ],
+            )
+            hashes = draft["reentry"]["current_artifact_hashes"]
+            hashes[f"{hypothesis_id}_negative_memory"] = memory_object_id
+            hashes[rectification_record_id] = rectification_object_id
+            hashes["V2_SCIENTIFIC_RESEARCH_MAP"] = research_map_object_id
+            scientific_state = draft["scientific"]
+            scientific_state.update(references)
+            scientific_state["current_research_map_object_id"] = (
+                research_map_object_id
+            )
+            scientific_state["research_map_snapshot_seq"] = snapshot_seq
+            draft["cursor"].update(
+                {
+                    "active_hypothesis_id": None,
+                    "stage_status": "disposed",
+                    "stage_outcome": "scientific_reject",
+                }
+            )
+            draft["claim"] = {
+                "subject_kind": "hypothesis",
+                "subject_id": hypothesis_id,
+                "current_level": "diagnostic_observation",
+                "claim_ceiling": "diagnostic_observation",
+                "identity_bundle_object_id": memory_object_id,
+                "basis_receipt_ids": [evidence_id],
+                "blocked_by": [],
+            }
+            self._set_next_action(draft, next_action)
+
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=[
+                memory_object_id,
+                research_map_object_id,
+                rectification_object_id,
+            ],
         )
 
     def record_hypothesis_disposition(

@@ -13,6 +13,7 @@ from axiom_rift.v2.research.dispatch import PROGRAM_KINDS
 from axiom_rift.v2.research.scientific_programs import (
     DIRECTIONAL_BUNDLE_ROLES,
     SCIENTIFIC_BUNDLE_ROLES,
+    SCIENTIFIC_RUNTIME_PATHS,
     ScientificProgramRegistryError,
     bind_compression_release_runtime,
     bind_directional_reversal_runtime,
@@ -48,6 +49,7 @@ def _valid_tree(root: Path) -> tuple[Path, dict[str, object], dict[str, dict[str
     for relative_path in (
         "src/axiom_rift/v2/research/compression_release.py",
         "src/axiom_rift/v2/research/directional_reversal.py",
+        "src/axiom_rift/v2/research/evaluation.py",
         "src/axiom_rift/v2/research/scientific_scout.py",
     ):
         runtime_path = root / relative_path
@@ -180,6 +182,14 @@ class ScientificProgramRegistryTests(unittest.TestCase):
     def test_active_causal_registry_binds_new_disjoint_five_role_batch(self) -> None:
         root = Path(__file__).resolve().parents[2]
         registry = load_scientific_program_registry(root)
+        self.assertEqual(
+            tuple(row["path"] for row in registry.runtime_files),
+            SCIENTIFIC_RUNTIME_PATHS,
+        )
+        self.assertIn(
+            "src/axiom_rift/v2/research/evaluation.py",
+            SCIENTIFIC_RUNTIME_PATHS,
+        )
         selectors = dict(
             zip(
                 SCIENTIFIC_BUNDLE_ROLES,
