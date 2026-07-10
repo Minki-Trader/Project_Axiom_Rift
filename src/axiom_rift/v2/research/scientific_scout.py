@@ -45,6 +45,13 @@ BUNDLE_ROLES = (
     "failed_break_reversal",
     "compression_ablation",
 )
+DIRECTIONAL_BUNDLE_ROLES = (
+    "short_reversal_low",
+    "short_reversal_base",
+    "short_reversal_high",
+    "long_reversal_control",
+    "short_continuation_control",
+)
 CONTINUATION_ROLES = BUNDLE_ROLES[:3]
 FALSIFIER_ROLES = BUNDLE_ROLES[3:]
 PREFERRED_CONTINUATION_ORDER = (
@@ -68,6 +75,70 @@ SCIENTIFIC_SELECTION_RULE_PAYLOAD = {
 SCIENTIFIC_SELECTION_RULE_SHA256 = sha256_payload(
     SCIENTIFIC_SELECTION_RULE_PAYLOAD
 )
+DIRECTIONAL_SELECTION_RULE_PAYLOAD = {
+    "schema": "axiom_rift_v2_directional_reversal_selection_rule_v1",
+    "selection_source_data_role": "validation_oos",
+    "development_variant_selection": False,
+    "utility_metric": "strict_observed_shadow_total_fixed_lot_net_broker_points",
+    "primary_roles": list(DIRECTIONAL_BUNDLE_ROLES[:3]),
+    "control_roles": list(DIRECTIONAL_BUNDLE_ROLES[3:]),
+    "required_feasible_roles": [
+        "short_reversal_base",
+        "long_reversal_control",
+        "short_continuation_control",
+    ],
+    "preferred_primary_order": [
+        "short_reversal_base",
+        "short_reversal_low",
+        "short_reversal_high",
+    ],
+    "plateau_tolerance_broker_points": 100.0,
+    "long_reversal_noninferiority_rejects_short_asymmetry": True,
+    "short_continuation_noninferiority_rejects_reversal": True,
+}
+DIRECTIONAL_SELECTION_RULE_SHA256 = sha256_payload(
+    DIRECTIONAL_SELECTION_RULE_PAYLOAD
+)
+
+
+def selection_layout_for_hash(selection_rule_sha256: str) -> Mapping[str, Any]:
+    """Return one immutable role layout without widening runtime dispatch."""
+
+    if selection_rule_sha256 == SCIENTIFIC_SELECTION_RULE_SHA256:
+        return MappingProxyType(
+            {
+                "roles": BUNDLE_ROLES,
+                "primary_roles": CONTINUATION_ROLES,
+                "control_roles": FALSIFIER_ROLES,
+                "required_feasible_roles": BUNDLE_ROLES,
+                "preferred_order": PREFERRED_CONTINUATION_ORDER,
+                "utility_metric": "net_broker_points",
+                "reversal_roles": ("failed_break_reversal",),
+                "layout": "compression_release",
+            }
+        )
+    if selection_rule_sha256 == DIRECTIONAL_SELECTION_RULE_SHA256:
+        return MappingProxyType(
+            {
+                "roles": DIRECTIONAL_BUNDLE_ROLES,
+                "primary_roles": DIRECTIONAL_BUNDLE_ROLES[:3],
+                "control_roles": DIRECTIONAL_BUNDLE_ROLES[3:],
+                "required_feasible_roles": (
+                    "short_reversal_base",
+                    "long_reversal_control",
+                    "short_continuation_control",
+                ),
+                "preferred_order": (
+                    "short_reversal_base",
+                    "short_reversal_low",
+                    "short_reversal_high",
+                ),
+                "utility_metric": "shadow_net_broker_points",
+                "reversal_roles": DIRECTIONAL_BUNDLE_ROLES[:4],
+                "layout": "directional_reversal",
+            }
+        )
+    raise ScientificScoutError("scientific Scout selection rule is not registered")
 ANCHORS = tuple(sorted(SCOUT_ANCHORS))
 SHA256_PATTERN = re.compile(r"[0-9a-f]{64}")
 LEGACY_TRADE_IMPLEMENTATION_KEY = "fixed_6bar_observed_spread_v1"
@@ -165,26 +236,31 @@ class ScientificScoutSpec:
         )
         if not fixed:
             raise ScientificScoutError("compression Scout fixed parameters differ from preregistration")
+        layout = selection_layout_for_hash(self.selection_rule_sha256)
+        role_names = tuple(layout["roles"])
         roles = dict(self.bundle_role_hashes)
-        if set(roles) != set(BUNDLE_ROLES) or not all(_is_sha256(value) for value in roles.values()):
-            raise ScientificScoutError("bundle_role_hashes must cover the five immutable roles")
-        if len(set(roles.values())) != len(BUNDLE_ROLES):
+        if set(roles) != set(role_names) or not all(_is_sha256(value) for value in roles.values()):
+            raise ScientificScoutError("bundle_role_hashes must cover one registered five-role layout")
+        if len(set(roles.values())) != len(role_names):
             raise ScientificScoutError("each Scout role requires a distinct executable bundle hash")
         release_hashes = dict(self.release_configuration_hashes)
         if (
-            set(release_hashes) != set(BUNDLE_ROLES)
+            set(release_hashes) != set(role_names)
             or not all(_is_sha256(value) for value in release_hashes.values())
-            or len(set(release_hashes.values())) != len(BUNDLE_ROLES)
+            or len(set(release_hashes.values())) != len(role_names)
         ):
             raise ScientificScoutError(
-                "release_configuration_hashes must cover the five runtime roles"
+                "release_configuration_hashes must cover the registered runtime roles"
             )
         if not isinstance(self.evaluation_profile, EvaluationProfile):
             raise ScientificScoutError("scientific Scout evaluation profile is invalid")
         if (
             not _is_sha256(self.runtime_sha256)
             or not _is_sha256(self.runtime_executable_sha256)
-            or self.selection_rule_sha256 != SCIENTIFIC_SELECTION_RULE_SHA256
+            or self.selection_rule_sha256 not in {
+                SCIENTIFIC_SELECTION_RULE_SHA256,
+                DIRECTIONAL_SELECTION_RULE_SHA256,
+            }
         ):
             raise ScientificScoutError("scientific Scout runtime binding is invalid")
         if self.trade_implementation_key not in TRADE_IMPLEMENTATION_KEYS:
@@ -457,7 +533,8 @@ def evaluate_signal_role(
 
     if boundary.role not in {"validation_oos", "development_cv"}:
         raise ScientificScoutError("unsupported Scout data role")
-    if configuration_role not in BUNDLE_ROLES or not _is_sha256(configuration_sha256):
+    layout = selection_layout_for_hash(spec.selection_rule_sha256)
+    if configuration_role not in layout["roles"] or not _is_sha256(configuration_sha256):
         raise ScientificScoutError("configuration identity is invalid")
     boundary.validate(len(bars))
     directions, scores, _valid = _signal_arrays(evaluation, len(bars))
@@ -510,7 +587,9 @@ def evaluate_signal_role(
         if exit_index >= boundary.end:
             lifecycle_inside = False
             continue
-        dependency_bars = 26 if configuration_role == "failed_break_reversal" else 25
+        dependency_bars = (
+            26 if configuration_role in layout["reversal_roles"] else 25
+        )
         lookback_index = max(0, decision_index - dependency_bars)
         if non_allow_gaps and interval_crosses_non_allow_boundary(
             bars.time[lookback_index], bars.time[exit_index], non_allow_gaps
@@ -769,9 +848,129 @@ def evaluate_signal_role(
     )
 
 
+def _select_directional_reversal_path(
+    fold_id: str,
+    evaluations: Mapping[str, RoleEvaluation],
+    spec: ScientificScoutSpec,
+) -> FoldSelection:
+    layout = selection_layout_for_hash(spec.selection_rule_sha256)
+    roles = tuple(layout["roles"])
+    primary_roles = tuple(layout["primary_roles"])
+    control_roles = tuple(layout["control_roles"])
+    required_roles = set(layout["required_feasible_roles"])
+    preferred = tuple(layout["preferred_order"])
+    if set(evaluations) != set(roles):
+        raise ScientificScoutError(
+            "directional selection requires all five registered roles"
+        )
+    if any(
+        row.data_role != "validation_oos" or row.fold_id != fold_id
+        for row in evaluations.values()
+    ):
+        raise ScientificScoutError(
+            "selection may inspect validation_oos from one fold only"
+        )
+    feasible = {
+        role: float(row.metrics["shadow_net_broker_points"])
+        for role, row in evaluations.items()
+        if row.feasible
+        and isinstance(row.metrics.get("shadow_net_broker_points"), (int, float))
+        and not isinstance(row.metrics.get("shadow_net_broker_points"), bool)
+        and math.isfinite(float(row.metrics["shadow_net_broker_points"]))
+    }
+    primary = {role: feasible[role] for role in primary_roles if role in feasible}
+    required_feasible = required_roles.issubset(feasible)
+    selected_role: str | None = None
+    plateau: tuple[str, ...] = ()
+    basis = "required_directional_role_not_evaluable"
+    if required_feasible and primary:
+        best = max(primary.values())
+        plateau = tuple(
+            role
+            for role in preferred
+            if role in primary
+            and primary[role] >= best - spec.plateau_tolerance_broker_points
+        )
+        selected_role = plateau[0]
+        basis = (
+            "base_preferred_validation_shadow_plateau"
+            if selected_role == "short_reversal_base"
+            else "best_feasible_validation_shadow_plateau"
+        )
+    elif required_feasible:
+        basis = "no_feasible_short_reversal"
+    selected_utility = primary.get(selected_role) if selected_role else None
+    long_control = feasible.get("long_reversal_control")
+    continuation_control = feasible.get("short_continuation_control")
+    long_falsifies = bool(
+        selected_utility is not None
+        and long_control is not None
+        and long_control
+        >= selected_utility - spec.plateau_tolerance_broker_points
+    )
+    continuation_falsifies = bool(
+        selected_utility is not None
+        and continuation_control is not None
+        and continuation_control
+        >= selected_utility - spec.plateau_tolerance_broker_points
+    )
+    contrasts = {
+        "short_reversal_shadow_net_broker_points": {
+            role: primary.get(role) for role in primary_roles
+        },
+        "long_reversal_control_shadow_net_broker_points": long_control,
+        "short_continuation_control_shadow_net_broker_points": (
+            continuation_control
+        ),
+        "long_control_minus_selected": (
+            None
+            if selected_utility is None or long_control is None
+            else long_control - selected_utility
+        ),
+        "continuation_control_minus_selected": (
+            None
+            if selected_utility is None or continuation_control is None
+            else continuation_control - selected_utility
+        ),
+        "long_reversal_control_falsifies": long_falsifies,
+        "short_continuation_control_falsifies": continuation_falsifies,
+        "controls_selection_eligible": False,
+        "required_roles_evaluable": required_feasible,
+        "all_roles_evaluable": set(feasible) == set(roles),
+        "unevaluable_roles": sorted(set(roles) - set(feasible)),
+        "selection_source_role": "validation_oos",
+        "selection_utility": "strict_observed_shadow_net_broker_points",
+    }
+    body = {
+        "fold_id": fold_id,
+        "selected_role": selected_role,
+        "selected_configuration_sha256": (
+            evaluations[selected_role].configuration_sha256
+            if selected_role
+            else None
+        ),
+        "selection_basis": basis,
+        "plateau_roles": list(plateau),
+        "falsifier_triggered": long_falsifies or continuation_falsifies,
+        "validation_contrasts": contrasts,
+    }
+    return FoldSelection(
+        fold_id=fold_id,
+        selected_role=selected_role,
+        selected_configuration_sha256=body["selected_configuration_sha256"],
+        selection_basis=basis,
+        plateau_roles=plateau,
+        falsifier_triggered=long_falsifies or continuation_falsifies,
+        validation_contrasts=MappingProxyType(contrasts),
+        selection_sha256=sha256_payload(body),
+    )
+
+
 def select_continuation_path(
     fold_id: str, evaluations: Mapping[str, RoleEvaluation], spec: ScientificScoutSpec,
 ) -> FoldSelection:
+    if spec.selection_rule_sha256 == DIRECTIONAL_SELECTION_RULE_SHA256:
+        return _select_directional_reversal_path(fold_id, evaluations, spec)
     if set(evaluations) != set(BUNDLE_ROLES):
         raise ScientificScoutError("selection requires all five validation roles")
     if any(row.data_role != "validation_oos" or row.fold_id != fold_id for row in evaluations.values()):
@@ -829,7 +1028,19 @@ def select_continuation_path(
     )
 
 
-def _default_release_surface() -> tuple[Sequence[EventConfigurationLike], Callable[[BarArrays, EventConfigurationLike], CompressionEvaluationLike]]:
+def _default_release_surface(
+    selection_rule_sha256: str,
+) -> tuple[
+    Sequence[EventConfigurationLike],
+    Callable[[BarArrays, EventConfigurationLike], CompressionEvaluationLike],
+]:
+    if selection_rule_sha256 == DIRECTIONAL_SELECTION_RULE_SHA256:
+        from axiom_rift.v2.research.directional_reversal import (
+            DIRECTIONAL_EVENT_CONFIGURATIONS,
+            evaluate_directional_configuration,
+        )
+
+        return DIRECTIONAL_EVENT_CONFIGURATIONS, evaluate_directional_configuration
     from axiom_rift.v2.research.compression_release import EVENT_CONFIGURATIONS, evaluate_configuration
     return EVENT_CONFIGURATIONS, evaluate_configuration
 
@@ -852,11 +1063,15 @@ def run_scientific_scout(
     """Run the bounded validation-selection-development path without I/O."""
 
     if configurations is None or evaluator is None:
-        default_configs, default_evaluator = _default_release_surface()
+        default_configs, default_evaluator = _default_release_surface(
+            spec.selection_rule_sha256
+        )
         configurations = default_configs if configurations is None else configurations
         evaluator = default_evaluator if evaluator is None else evaluator
+    layout = selection_layout_for_hash(spec.selection_rule_sha256)
+    role_names = tuple(layout["roles"])
     by_role = {configuration.role: configuration for configuration in configurations}
-    if set(by_role) != set(BUNDLE_ROLES) or len(configurations) != len(BUNDLE_ROLES):
+    if set(by_role) != set(role_names) or len(configurations) != len(role_names):
         raise ScientificScoutError("release surface must expose exactly five immutable roles")
     ordered_folds = tuple(sorted(folds, key=lambda row: row.window.development_id))
     if tuple(row.window.development_id for row in ordered_folds) != spec.anchors:
@@ -872,7 +1087,7 @@ def run_scientific_scout(
         validation_bars = _slice_bars(fold.bars, validation_end)
         rows: dict[str, RoleEvaluation] = {}
         full_observations: dict[str, CompressionEvaluationLike] = {}
-        for role in BUNDLE_ROLES:
+        for role in role_names:
             observed = evaluator(validation_bars, by_role[role])
             full_observed = evaluator(fold.bars, by_role[role])
             _validate_runtime_evaluation(observed, role=role, spec=spec)
@@ -944,7 +1159,9 @@ def run_scientific_scout(
             "source_data_role": "validation_oos",
             "evaluation_target_role": "development_cv",
         })
-    new_hashes = tuple(sorted(spec.bundle_role_hashes[role] for role in BUNDLE_ROLES))
+    new_hashes = tuple(
+        sorted(spec.bundle_role_hashes[role] for role in role_names)
+    )
     family_after = tuple(sorted(set(spec.family_configuration_hashes_before) | set(new_hashes)))
     global_after = tuple(sorted(set(spec.global_configuration_hashes_before) | set(new_hashes)))
     accounting = {
@@ -1127,9 +1344,12 @@ def run_scientific_scout(
 __all__ = [
     "ANCHORS", "BUNDLE_ROLES", "CONTINUATION_ROLES", "FALSIFIER_ROLES",
     "CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY",
+    "DIRECTIONAL_BUNDLE_ROLES", "DIRECTIONAL_SELECTION_RULE_PAYLOAD",
+    "DIRECTIONAL_SELECTION_RULE_SHA256",
     "LEGACY_TRADE_IMPLEMENTATION_KEY",
     "SCIENTIFIC_SELECTION_RULE_PAYLOAD", "SCIENTIFIC_SELECTION_RULE_SHA256",
     "FoldSelection", "RoleEvaluation", "ScientificFold", "ScientificScoutError",
     "ScientificScoutResult", "ScientificScoutSpec", "evaluate_signal_role",
-    "run_scientific_scout", "select_continuation_path", "trial_history_sha256",
+    "run_scientific_scout", "select_continuation_path",
+    "selection_layout_for_hash", "trial_history_sha256",
 ]

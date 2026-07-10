@@ -1,0 +1,82 @@
+schema: axiom_rift_v2_directional_failed_break_reversal_contract_v1
+status: preregistration_ready
+encoding: ascii_only
+scientific_origin: v2_current
+market:
+  broker: FPMarkets
+  symbol: US100
+  timeframe: M5
+inputs:
+  fields:
+    - time
+    - open
+    - high
+    - low
+    - close
+    - spread
+  external_sources: []
+  real_volume_used: false
+decision:
+  availability: completed_bar_only
+  entry: next_bar_open
+  direction_filter_stage: before_cost_gate_occupancy_and_daily_cap
+  daily_entry_safety_cap: 10
+feature:
+  source_program_id: V2FP1001
+  atr_bars: 24
+  box_bars: 12
+primary_surface:
+  event_kind: failed_break_reversal
+  direction_filter: short
+  compression_ratio_max:
+    low: 2.0
+    baseline: 2.5
+    high: 3.0
+controls:
+  long_reversal_control:
+    event_kind: failed_break_reversal
+    direction_filter: long
+    compression_ratio_max: 2.5
+  short_continuation_control:
+    event_kind: continuation
+    direction_filter: short
+    compression_ratio_max: 2.5
+selection:
+  source_data_role: validation_oos
+  utility_metric: strict_observed_shadow_total_fixed_lot_net_broker_points
+  primary_roles:
+    - short_reversal_low
+    - short_reversal_base
+    - short_reversal_high
+  control_roles:
+    - long_reversal_control
+    - short_continuation_control
+  required_feasible_roles:
+    - short_reversal_base
+    - long_reversal_control
+    - short_continuation_control
+  controls_selection_eligible: false
+  plateau_tolerance_broker_points: 100.0
+  control_noninferiority_rejects_mechanism: true
+  development_variant_selection: false
+trade:
+  program_id: V2TP1002
+  hold_bars: 6
+  cost_policy_id: V2CF0001
+  observed_execution_shadow_required_before_R: true
+sizing:
+  mode: fixed_lot
+  lots: 1.0
+portfolio_risk:
+  one_position_per_role: true
+  overlap: forbidden
+causality:
+  prefix_invariance_required: true
+  direction_filter_precedes_admission_required: true
+  decision_and_trade_boundary_exclusion_required: true
+  train_validation_development_order_required: true
+runtime_binding:
+  source_manifest_required: true
+  registered_parameters_must_equal_directional_configurations: true
+  runtime_configuration_identity_required_on_every_evaluation: true
+claim_ceiling: none

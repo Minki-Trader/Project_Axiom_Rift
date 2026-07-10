@@ -11,9 +11,11 @@ import yaml
 from axiom_rift.v2.identity import sha256_payload
 from axiom_rift.v2.research.dispatch import PROGRAM_KINDS
 from axiom_rift.v2.research.scientific_programs import (
+    DIRECTIONAL_BUNDLE_ROLES,
     SCIENTIFIC_BUNDLE_ROLES,
     ScientificProgramRegistryError,
     bind_compression_release_runtime,
+    bind_directional_reversal_runtime,
     build_scientific_bundle_batch,
     load_scientific_program_registry,
 )
@@ -45,6 +47,7 @@ def _valid_tree(root: Path) -> tuple[Path, dict[str, object], dict[str, dict[str
     runtime_files: list[dict[str, str]] = []
     for relative_path in (
         "src/axiom_rift/v2/research/compression_release.py",
+        "src/axiom_rift/v2/research/directional_reversal.py",
         "src/axiom_rift/v2/research/scientific_scout.py",
     ):
         runtime_path = root / relative_path
@@ -222,6 +225,71 @@ class ScientificProgramRegistryTests(unittest.TestCase):
                 bundle.programs["trade"].implementation_key
                 for bundle in batch.bundles.values()
             },
+        )
+
+    def test_active_registry_binds_directional_reversal_layout(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        registry = load_scientific_program_registry(root)
+        selectors = dict(
+            zip(
+                DIRECTIONAL_BUNDLE_ROLES,
+                (
+                    "V2SEL3001",
+                    "V2SEL3002",
+                    "V2SEL3003",
+                    "V2SEL3004",
+                    "V2SEL3005",
+                ),
+                strict=True,
+            )
+        )
+        shared = {
+            "feature": "V2FP1001",
+            "label": "V2LP1001",
+            "model": "V2MP1001",
+            "calibration": "V2CP1001",
+            "trade": "V2TP1002",
+            "sizing": "V2SZ1001",
+            "portfolio_risk": "V2PR1001",
+        }
+        batch = build_scientific_bundle_batch(
+            registry,
+            {
+                role: {**shared, "selector": selectors[role]}
+                for role in DIRECTIONAL_BUNDLE_ROLES
+            },
+        )
+        hashes = bind_directional_reversal_runtime(registry, batch)
+        self.assertEqual(set(DIRECTIONAL_BUNDLE_ROLES), set(hashes))
+        self.assertEqual(5, len(set(batch.bundle_role_hashes.values())))
+
+        data = yaml.safe_load(
+            (root / "configs/v2/data.yaml").read_text(encoding="ascii")
+        )
+        policy = yaml.safe_load(
+            (
+                root
+                / "configs/v2/scientific/programs/causal_spread_floor_v1.yaml"
+            ).read_text(encoding="ascii")
+        )
+        consumers = sorted(
+            program_id
+            for program_id, definition in registry.programs.items()
+            if definition.kind == "selector"
+            and definition.parameters.get("admission_cost_policy_id")
+            == "V2CF0001"
+        )
+        self.assertEqual(
+            consumers,
+            sorted(
+                data["cost_quality"]["active_causal_fallback"][
+                    "selector_program_ids"
+                ]
+            ),
+        )
+        self.assertEqual(
+            consumers,
+            sorted(policy["program_ids"]["selectors"]),
         )
 
     def test_hypothesis_routing_contract_preserves_all_scientific_routes(self) -> None:

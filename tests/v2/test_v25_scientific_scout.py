@@ -22,12 +22,17 @@ from axiom_rift.v2.research.evaluation import (
 from axiom_rift.v2.research.scientific_scout import (
     ANCHORS,
     BUNDLE_ROLES,
+    CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY,
+    DIRECTIONAL_BUNDLE_ROLES,
+    DIRECTIONAL_SELECTION_RULE_SHA256,
+    RoleEvaluation,
     ScientificFold,
     ScientificScoutError,
     ScientificScoutSpec,
     SCIENTIFIC_SELECTION_RULE_SHA256,
     evaluate_signal_role,
     run_scientific_scout,
+    select_continuation_path,
 )
 from axiom_rift.v2.research.scout import FoldWindow
 from axiom_rift.v2.research.specs import IndexBoundary
@@ -135,7 +140,84 @@ def _spec() -> ScientificScoutSpec:
     )
 
 
+def _directional_spec() -> ScientificScoutSpec:
+    base = _spec()
+    return replace(
+        base,
+        hypothesis_id="V2H0004",
+        bundle_role_hashes={
+            role: sha256_payload({"directional_bundle_role": role})
+            for role in DIRECTIONAL_BUNDLE_ROLES
+        },
+        release_configuration_hashes={
+            role: sha256_payload({"directional_configuration": role})
+            for role in DIRECTIONAL_BUNDLE_ROLES
+        },
+        selection_rule_sha256=DIRECTIONAL_SELECTION_RULE_SHA256,
+        trade_implementation_key=CAUSAL_SPREAD_FLOOR_IMPLEMENTATION_KEY,
+    )
+
+
 class ScientificScoutTests(unittest.TestCase):
+    def test_directional_selection_uses_shadow_and_never_selects_controls(self) -> None:
+        spec = _directional_spec()
+
+        def row(role: str, value: float, *, feasible: bool = True) -> RoleEvaluation:
+            metrics = MappingProxyType(
+                {
+                    "selection_feasible": feasible,
+                    "net_broker_points": value + 5000.0,
+                    "shadow_net_broker_points": value,
+                }
+            )
+            return RoleEvaluation(
+                fold_id="V2D002",
+                data_role="validation_oos",
+                configuration_role=role,
+                configuration_sha256=spec.bundle_role_hashes[role],
+                metrics=metrics,
+                causal_checks=MappingProxyType({"prefix_invariance": True}),
+                trades=(),
+                evaluation_sha256=sha256_payload(
+                    {"role": role, "shadow": value, "feasible": feasible}
+                ),
+            )
+
+        evaluations = {
+            "short_reversal_low": row(
+                "short_reversal_low", 50000.0, feasible=False
+            ),
+            "short_reversal_base": row("short_reversal_base", 1000.0),
+            "short_reversal_high": row("short_reversal_high", 900.0),
+            "long_reversal_control": row("long_reversal_control", 0.0),
+            "short_continuation_control": row(
+                "short_continuation_control", 100.0
+            ),
+        }
+        selected = select_continuation_path("V2D002", evaluations, spec)
+        self.assertEqual(selected.selected_role, "short_reversal_base")
+        self.assertFalse(selected.falsifier_triggered)
+        self.assertEqual(
+            selected.plateau_roles,
+            ("short_reversal_base", "short_reversal_high"),
+        )
+        self.assertIn(
+            "short_reversal_low",
+            selected.validation_contrasts["unevaluable_roles"],
+        )
+
+        evaluations["long_reversal_control"] = row(
+            "long_reversal_control", 950.0
+        )
+        falsified = select_continuation_path("V2D002", evaluations, spec)
+        self.assertEqual(falsified.selected_role, "short_reversal_base")
+        self.assertTrue(falsified.falsifier_triggered)
+        self.assertTrue(
+            falsified.validation_contrasts[
+                "long_reversal_control_falsifies"
+            ]
+        )
+
     def test_artifact_writer_serializes_nested_immutable_mappings(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "receipt.json"

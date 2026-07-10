@@ -314,9 +314,15 @@ class V2OperationWriter:
         family_id: str,
         *,
         exclude_receipt_object_id: str | None = None,
+        before_ledger_seq: int | None = None,
     ) -> list[str]:
         hashes: set[str] = set()
         for row in self.evidence.rows():
+            if (
+                before_ledger_seq is not None
+                and int(row.get("ledger_seq", 0)) >= before_ledger_seq
+            ):
+                continue
             receipt_object_id = row.get("payload", {}).get("receipt_object_id")
             if not isinstance(receipt_object_id, str):
                 continue
@@ -339,9 +345,15 @@ class V2OperationWriter:
         self,
         *,
         exclude_receipt_object_id: str | None = None,
+        before_ledger_seq: int | None = None,
     ) -> list[str]:
         hashes: set[str] = set()
         for row in self.evidence.rows():
+            if (
+                before_ledger_seq is not None
+                and int(row.get("ledger_seq", 0)) >= before_ledger_seq
+            ):
+                continue
             receipt_object_id = row.get("payload", {}).get("receipt_object_id")
             if not isinstance(receipt_object_id, str):
                 continue
@@ -1314,18 +1326,26 @@ class V2OperationWriter:
         *,
         state: Mapping[str, Any] | None = None,
         exclude_receipt_object_id: str | None = None,
+        prior_to_evidence_ledger_seq: int | None = None,
     ) -> None:
         """Validate a scientific S receipt, including a valid empty-path rejection."""
 
         if receipt.get("schema") != "axiom_rift_v2_scientific_scout_receipt_v1":
             return
-        roles = (
-            "continuation_low",
-            "continuation_base",
-            "continuation_high",
-            "failed_break_reversal",
-            "compression_ablation",
-        )
+        try:
+            from axiom_rift.v2.research.scientific_scout import (
+                selection_layout_for_hash,
+            )
+
+            layout = selection_layout_for_hash(
+                str(receipt.get("selection_rule_sha256", ""))
+            )
+        except (ImportError, ValueError) as exc:
+            raise OperationStateError(
+                f"scientific scout selection layout is invalid: {exc}"
+            ) from exc
+        roles = tuple(layout["roles"])
+        primary_roles = tuple(layout["primary_roles"])
         anchors = ("V2D002", "V2D005", "V2D008")
         if (
             receipt.get("stage") != "S"
@@ -1444,13 +1464,15 @@ class V2OperationWriter:
         for fold_id in selected_folds:
             role = selected_roles[fold_id]
             if (
-                role not in roles[:3]
+                role not in primary_roles
                 or selected_configurations[fold_id] != bundle_hashes[role]
                 or selected_bundles[fold_id] != bundle_hashes[role]
                 or selected_variants[fold_id] != release_hashes[role]
                 or re.fullmatch(r"[0-9a-f]{64}", str(selected_paths[fold_id])) is None
             ):
-                raise OperationStateError("scientific scout selected path is not a frozen continuation")
+                raise OperationStateError(
+                    "scientific scout selected path is not a frozen primary role"
+                )
         artifacts = receipt.get("artifacts")
         required_artifacts = {
             "metrics",
@@ -1533,7 +1555,7 @@ class V2OperationWriter:
         if evaluation_profile is not None:
             if (
                 not isinstance(validation_evaluations, list)
-                or len(validation_evaluations) != 15
+                or len(validation_evaluations) != len(roles) * len(anchors)
                 or not isinstance(development_evaluations, list)
                 or len(development_evaluations) != len(selected_folds)
                 or not isinstance(selection_rows, list)
@@ -1776,9 +1798,11 @@ class V2OperationWriter:
         prior = self._durable_family_configuration_hashes(
             family_id,
             exclude_receipt_object_id=exclude_receipt_object_id,
+            before_ledger_seq=prior_to_evidence_ledger_seq,
         )
         global_prior = self._durable_global_configuration_hashes(
             exclude_receipt_object_id=exclude_receipt_object_id,
+            before_ledger_seq=prior_to_evidence_ledger_seq,
         )
         declared_prior = self._require_sorted_sha256_list(
             accounting.get("family_configuration_hashes_before"),
@@ -1809,10 +1833,10 @@ class V2OperationWriter:
         if declared_global_prior != global_prior or global_after != expected_global_after:
             raise OperationStateError("scientific scout global trial history differs from durable receipts")
         integer_expectations = {
-            "configuration_trials": 5,
-            "job_unique_configuration_count": 5,
+            "configuration_trials": len(roles),
+            "job_unique_configuration_count": len(roles),
             "new_family_configuration_trials": len(set(current) - set(prior)),
-            "validation_evaluation_cells": 15,
+            "validation_evaluation_cells": len(roles) * len(anchors),
             "local_calibration_trials": 0,
             "inner_selection_events": 3,
             "development_selected_paths": len(selected_folds),
@@ -1986,6 +2010,7 @@ class V2OperationWriter:
         self._validate_scientific_scout_receipt(
             receipt,
             exclude_receipt_object_id=receipt_object_id,
+            prior_to_evidence_ledger_seq=int(matching_rows[0]["ledger_seq"]),
         )
         return receipt
 

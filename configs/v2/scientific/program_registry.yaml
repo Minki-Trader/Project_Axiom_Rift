@@ -9,9 +9,11 @@ runtime:
   files:
     - path: src/axiom_rift/v2/research/compression_release.py
       sha256: 79f9e314c766ecfb39572b0483d6c732d00b7126a4ba4fb3d8107f138ec3583d
+    - path: src/axiom_rift/v2/research/directional_reversal.py
+      sha256: f23c8223d26ce4573e7a0a1d05db1eb7b2c37a352629ab42dd1d753dd3bd2c33
     - path: src/axiom_rift/v2/research/scientific_scout.py
-      sha256: 36ba3fd72628c359a7f91aa47bbb96dd258f141548394711c4ccd5a4aedb95c8
-  runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+      sha256: e0ce3c65ebc57673a305679c4fe84f5b26f5e761d2772e372a434d4858f73fc5
+  runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
 programs:
   V2FP1001:
     kind: feature
@@ -19,57 +21,57 @@ programs:
     contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
     contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
     implementation_key: compression_release_features_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       atr_bars: 24
       box_bars: 12
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: 5e4669bb7936f81e3eabd12ba71565199513762438fdb054cbec8173554b2ff0
+    program_sha256: 092cfe3c419ab8b9dd176fd5024cd1dadab65f170fce16161db9525a10883d2c
   V2LP1001:
     kind: label
     version: 1
     contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
     contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
     implementation_key: forward_open_return_6bar_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       horizon_bars_after_entry: 6
     fixture_only: false
     reuse_decision: engine_primitive_reuse_without_evidence
-    program_sha256: fda250af0730046e90553b83714063a0e3ddf769a5884fcae9fb8782e2cab3c1
+    program_sha256: d17a3c3cab116c9b3178d38e1b387c657cec728c01c2e06caea76b9cb0e62fbc
   V2MP1001:
     kind: model
     version: 1
     contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
     contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
     implementation_key: deterministic_event_score_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       family: deterministic_event_score
       train_fit: hashed_no_op
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: 8496def664671fba2d6fcaab56cce7da956d7dff0d5e46cd00a3384d740dfefb
+    program_sha256: 6b951b968ccea314af234c4cf2ff1a7fc9947c8e75dab4ae66c31d7c8199a616
   V2CP1001:
     kind: calibration
     version: 1
     contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
     contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
     implementation_key: identity_event_calibration_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       family: identity_event_calibration
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: cf5e0b222c84cc249cb32edcdcdd1a900b10bb1a614ab273dc1e4ead20362fae
+    program_sha256: 5d2d359c606d9808370a5585a0d53fd7bcd2b7d52adbe0bb6d97d8162045d62b
   V2SEL1001:
     kind: selector
     version: 1
     contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
     contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
     implementation_key: chronological_compression_selector_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       role: continuation_low
       event_kind: continuation
@@ -77,14 +79,14 @@ programs:
       daily_entry_safety_cap: 10
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: 3774b06b1a86e4b5e10e865cea8082e4e942b0dda4a38120d2493a48e5146b53
+    program_sha256: fcc1de65ead7c958cc057b5376f7092d8858b79ed0130ca9afac25851d85f54e
   V2SEL1002:
     kind: selector
     version: 1
     contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
     contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
     implementation_key: chronological_compression_selector_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       role: continuation_base
       event_kind: continuation
@@ -92,14 +94,14 @@ programs:
       daily_entry_safety_cap: 10
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: db6cd150827b9756e9f6b0d4cdc9c718e8330dce63eefd110dd219b6303b3109
+    program_sha256: dad318cbc086578141480956a27e3ef2562e8fdc874756d330d0b97516160401
   V2SEL1003:
     kind: selector
     version: 1
     contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
     contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
     implementation_key: chronological_compression_selector_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       role: continuation_high
       event_kind: continuation
@@ -107,14 +109,14 @@ programs:
       daily_entry_safety_cap: 10
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: 57a5bf4de67471808883e57e4e1031bb6f5bed2d9a48993c886f3d81c0e7b5fa
+    program_sha256: 82ab19bb5f5903cb77767c4dcab25bce47be4695f0d20815930b8027919f5f60
   V2SEL1004:
     kind: selector
     version: 1
     contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
     contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
     implementation_key: chronological_compression_selector_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       role: failed_break_reversal
       event_kind: failed_break_reversal
@@ -122,14 +124,14 @@ programs:
       daily_entry_safety_cap: 10
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: 1d1d6f645a73d1aa34d4d7e44a98c2a0f07754e81d841a87b20a3bd0ebc4c8e2
+    program_sha256: f058afef41d08f957b9c17de07bf0517e191b00db8e84eb163d5cdf2298ceb54
   V2SEL1005:
     kind: selector
     version: 1
     contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
     contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
     implementation_key: chronological_compression_selector_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       role: compression_ablation
       event_kind: unconditioned_breakout
@@ -137,14 +139,14 @@ programs:
       daily_entry_safety_cap: 10
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: 4547f48e78aa72b5a6af00df45f1fa2f870f04b2fab8b424ef536d65f1188938
+    program_sha256: 2e506c2e70d8c3f2922d04830fb272868bda2f4077699ecb837adadf765d2819
   V2SEL2001:
     kind: selector
     version: 1
     contract_path: configs/v2/scientific/programs/causal_spread_floor_v1.yaml
-    contract_sha256: 8b90feeb33c7cff5ee1a38c9ea4b00a4780a985d9e80c671aedd302acda5374e
+    contract_sha256: c211d6ff44849ce233d2d3813034e98a7f53b1ba3cc0a732eacc3200cec8b33a
     implementation_key: chronological_compression_cost_gated_selector_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       role: continuation_low
       event_kind: continuation
@@ -153,14 +155,14 @@ programs:
       admission_cost_policy_id: V2CF0001
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: d76ace8edc0e04f38a7fcc8403e934641b000f009c7ee03b1608fea747ee7744
+    program_sha256: 14c2804e822887d3c942e09a4999829fc101ed7f961bd38e3a95549a3f2fe2be
   V2SEL2002:
     kind: selector
     version: 1
     contract_path: configs/v2/scientific/programs/causal_spread_floor_v1.yaml
-    contract_sha256: 8b90feeb33c7cff5ee1a38c9ea4b00a4780a985d9e80c671aedd302acda5374e
+    contract_sha256: c211d6ff44849ce233d2d3813034e98a7f53b1ba3cc0a732eacc3200cec8b33a
     implementation_key: chronological_compression_cost_gated_selector_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       role: continuation_base
       event_kind: continuation
@@ -169,14 +171,14 @@ programs:
       admission_cost_policy_id: V2CF0001
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: 7d2959bfac1753569665a75c2f8e8284be9c884ec00b95000a6da8147635fe0c
+    program_sha256: 69f364b804e46fc62e0763bec5d92de43a46063cc91f7f70cc9dbe634135cbff
   V2SEL2003:
     kind: selector
     version: 1
     contract_path: configs/v2/scientific/programs/causal_spread_floor_v1.yaml
-    contract_sha256: 8b90feeb33c7cff5ee1a38c9ea4b00a4780a985d9e80c671aedd302acda5374e
+    contract_sha256: c211d6ff44849ce233d2d3813034e98a7f53b1ba3cc0a732eacc3200cec8b33a
     implementation_key: chronological_compression_cost_gated_selector_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       role: continuation_high
       event_kind: continuation
@@ -185,14 +187,14 @@ programs:
       admission_cost_policy_id: V2CF0001
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: 02de35521eb30ebcb8675dfe96992d5ca2468e736ba52994e4e4a85771833865
+    program_sha256: 2b3ba6e7e44a40b635a3f4e31450c559b6fccbcb3e8cd4d7053346f87c1cd178
   V2SEL2004:
     kind: selector
     version: 1
     contract_path: configs/v2/scientific/programs/causal_spread_floor_v1.yaml
-    contract_sha256: 8b90feeb33c7cff5ee1a38c9ea4b00a4780a985d9e80c671aedd302acda5374e
+    contract_sha256: c211d6ff44849ce233d2d3813034e98a7f53b1ba3cc0a732eacc3200cec8b33a
     implementation_key: chronological_compression_cost_gated_selector_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       role: failed_break_reversal
       event_kind: failed_break_reversal
@@ -201,14 +203,14 @@ programs:
       admission_cost_policy_id: V2CF0001
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: 7fdf0bdcb32cfe7547760d5acee35d97b3398f4cf6453debc53d53a7f540f66e
+    program_sha256: 2b8f2136fcd478af523c8a4cef95e349312f3c5703638f19910be57e0606275c
   V2SEL2005:
     kind: selector
     version: 1
     contract_path: configs/v2/scientific/programs/causal_spread_floor_v1.yaml
-    contract_sha256: 8b90feeb33c7cff5ee1a38c9ea4b00a4780a985d9e80c671aedd302acda5374e
+    contract_sha256: c211d6ff44849ce233d2d3813034e98a7f53b1ba3cc0a732eacc3200cec8b33a
     implementation_key: chronological_compression_cost_gated_selector_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       role: compression_ablation
       event_kind: unconditioned_breakout
@@ -217,28 +219,113 @@ programs:
       admission_cost_policy_id: V2CF0001
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: 59fdc0192536a42f2c28f9b78dcab7c555afb9cbf08d0eac89db7dc409045dc5
+    program_sha256: 32281eab813e603dc103bebadcb740640cdb4f48ab80229dbe70f26c0447029a
+  V2SEL3001:
+    kind: selector
+    version: 1
+    contract_path: configs/v2/scientific/programs/directional_failed_break_reversal_v1.yaml
+    contract_sha256: 92f5f5c8dc9cefdc61076ef06288c928cc0ee421cb86702f622864d3e8f953f5
+    implementation_key: chronological_directional_reversal_cost_gated_selector_v1
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
+    parameters:
+      role: short_reversal_low
+      event_kind: failed_break_reversal
+      compression_ratio_max: 2.0
+      direction_filter: -1
+      daily_entry_safety_cap: 10
+      admission_cost_policy_id: V2CF0001
+    fixture_only: false
+    reuse_decision: new_scientific_component
+    program_sha256: c09920a684dafb4b9938644dba497e34f64e92e5da411c03099a9486d036ca0b
+  V2SEL3002:
+    kind: selector
+    version: 1
+    contract_path: configs/v2/scientific/programs/directional_failed_break_reversal_v1.yaml
+    contract_sha256: 92f5f5c8dc9cefdc61076ef06288c928cc0ee421cb86702f622864d3e8f953f5
+    implementation_key: chronological_directional_reversal_cost_gated_selector_v1
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
+    parameters:
+      role: short_reversal_base
+      event_kind: failed_break_reversal
+      compression_ratio_max: 2.5
+      direction_filter: -1
+      daily_entry_safety_cap: 10
+      admission_cost_policy_id: V2CF0001
+    fixture_only: false
+    reuse_decision: new_scientific_component
+    program_sha256: 55a134bf8a05a91f308a720a45a77cbfc6263adb185c05f8a087c0db44d9d828
+  V2SEL3003:
+    kind: selector
+    version: 1
+    contract_path: configs/v2/scientific/programs/directional_failed_break_reversal_v1.yaml
+    contract_sha256: 92f5f5c8dc9cefdc61076ef06288c928cc0ee421cb86702f622864d3e8f953f5
+    implementation_key: chronological_directional_reversal_cost_gated_selector_v1
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
+    parameters:
+      role: short_reversal_high
+      event_kind: failed_break_reversal
+      compression_ratio_max: 3.0
+      direction_filter: -1
+      daily_entry_safety_cap: 10
+      admission_cost_policy_id: V2CF0001
+    fixture_only: false
+    reuse_decision: new_scientific_component
+    program_sha256: e55c11861618a74ca6bba8d25132624a2ed9ceb56b1478e69a0a0030558123d6
+  V2SEL3004:
+    kind: selector
+    version: 1
+    contract_path: configs/v2/scientific/programs/directional_failed_break_reversal_v1.yaml
+    contract_sha256: 92f5f5c8dc9cefdc61076ef06288c928cc0ee421cb86702f622864d3e8f953f5
+    implementation_key: chronological_directional_reversal_cost_gated_selector_v1
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
+    parameters:
+      role: long_reversal_control
+      event_kind: failed_break_reversal
+      compression_ratio_max: 2.5
+      direction_filter: 1
+      daily_entry_safety_cap: 10
+      admission_cost_policy_id: V2CF0001
+    fixture_only: false
+    reuse_decision: new_scientific_component
+    program_sha256: a0b8f204342f35e849490363a23f476fcaedfd988e26308ce6206c5ca673ee25
+  V2SEL3005:
+    kind: selector
+    version: 1
+    contract_path: configs/v2/scientific/programs/directional_failed_break_reversal_v1.yaml
+    contract_sha256: 92f5f5c8dc9cefdc61076ef06288c928cc0ee421cb86702f622864d3e8f953f5
+    implementation_key: chronological_directional_reversal_cost_gated_selector_v1
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
+    parameters:
+      role: short_continuation_control
+      event_kind: continuation
+      compression_ratio_max: 2.5
+      direction_filter: -1
+      daily_entry_safety_cap: 10
+      admission_cost_policy_id: V2CF0001
+    fixture_only: false
+    reuse_decision: new_scientific_component
+    program_sha256: eb9ac218c3816ea2f1070859bc669ecb2428070b30ddfe33d09702e0d79c8008
   V2TP1001:
     kind: trade
     version: 1
     contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
     contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
     implementation_key: fixed_6bar_observed_spread_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       hold_bars: 6
       spread: observed_broker_points
       zero_spread: unknown_cost_observation
     fixture_only: false
     reuse_decision: engine_primitive_reuse_without_evidence
-    program_sha256: bc0dea75582a0632b3f53ed5a6879b5007e2be928467760bcfb70712366491b6
+    program_sha256: 1cc3a6bb800f3e5f3c71afcbf0bfb847551925af4839ef0bffd3ba61eb93f7ed
   V2TP1002:
     kind: trade
     version: 1
     contract_path: configs/v2/scientific/programs/causal_spread_floor_v1.yaml
-    contract_sha256: 8b90feeb33c7cff5ee1a38c9ea4b00a4780a985d9e80c671aedd302acda5374e
+    contract_sha256: c211d6ff44849ce233d2d3813034e98a7f53b1ba3cc0a732eacc3200cec8b33a
     implementation_key: fixed_6bar_causal_spread_floor_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       hold_bars: 6
       policy_id: V2CF0001
@@ -248,30 +335,30 @@ programs:
       policy_parameter_count: 0
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: 2fd19c66c91f154f2a9a028c46cb71feae6dcc461fe932949f563af4895354e1
+    program_sha256: 82fefec0dc518778952744914f878a34dd951a6078b48a2cce0c201f44e50ba8
   V2SZ1001:
     kind: sizing
     version: 1
     contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
     contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
     implementation_key: fixed_lot_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       mode: fixed_lot
       lots: 1.0
     fixture_only: false
     reuse_decision: engine_primitive_reuse_without_evidence
-    program_sha256: 0aa28fccab30b076d57a1103d9dd1848565844694e1cb01d07d78eb09dc25fa8
+    program_sha256: 1975e7593c7ac21b4d55fbf4248fdf5c79fe3c19fe5bc19b088a5574971693bf
   V2PR1001:
     kind: portfolio_risk
     version: 1
     contract_path: configs/v2/scientific/programs/compression_release_v1.yaml
     contract_sha256: 70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582
     implementation_key: one_position_safety_v1
-    runtime_sha256: b18cad8db7ae9c6de490797d09d64770691544d04bc794485b552a12b39a65b2
+    runtime_sha256: 85d8c882eec0483a558d461582d0359966c490f91860bbf0891678ad170b997f
     parameters:
       one_position_per_role: true
       overlap: forbidden
     fixture_only: false
     reuse_decision: new_scientific_component
-    program_sha256: 42213d237b235b7ef1efa27f8da73680591d8d42b8b3ba689757ef9dc7d07558
+    program_sha256: c126e1f12977afd9820b66a1143deac5ca6c39e1988fdfa107cba6c14cd56fd7

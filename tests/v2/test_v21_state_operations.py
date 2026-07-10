@@ -21,7 +21,10 @@ from axiom_rift.v2.research.evaluation import (
     Stage,
     interpret_kpis,
 )
-from axiom_rift.v2.research.scientific_scout import scientific_kpi_observations
+from axiom_rift.v2.research.scientific_scout import (
+    SCIENTIFIC_SELECTION_RULE_SHA256,
+    scientific_kpi_observations,
+)
 from axiom_rift.v2.research.scout import _configuration_sha256
 from axiom_rift.v2.research.sensitivity import build_oat_plan
 from axiom_rift.v2.state import ControlStateError, ControlStore
@@ -464,7 +467,7 @@ class V21GenericLifecycleTests(unittest.TestCase):
                 }
                 for role in roles
             }
-            selection_rule_sha256 = sha256_payload({"selection_rule": "fixture"})
+            selection_rule_sha256 = SCIENTIFIC_SELECTION_RULE_SHA256
             receipt = {
                 "schema": "axiom_rift_v2_scientific_scout_receipt_v1",
                 "stage": "S",
@@ -603,6 +606,28 @@ class V21GenericLifecycleTests(unittest.TestCase):
                 "scientific_scout_completed",
                 {"receipt_object_id": receipt_object_id},
                 "2026-01-01T00:00:00Z",
+            )
+            self.assertEqual(
+                receipt,
+                writer.validate_recorded_scientific_scout_receipt(
+                    receipt_object_id
+                ),
+            )
+            future_hash = sha256_payload({"future_configuration": 1})
+            future_receipt_object_id = writer.objects.put(
+                "evidence_receipt",
+                {
+                    "trial_accounting": {
+                        "family_id": "compression_release_event_v1",
+                        "configuration_hashes": [future_hash],
+                    }
+                },
+            )
+            writer.evidence.append(
+                "V2E000002",
+                "scientific_scout_completed",
+                {"receipt_object_id": future_receipt_object_id},
+                "2026-01-02T00:00:00Z",
             )
             self.assertEqual(
                 receipt,

@@ -11,6 +11,11 @@ program_ids:
     - V2SEL2003
     - V2SEL2004
     - V2SEL2005
+    - V2SEL3001
+    - V2SEL3002
+    - V2SEL3003
+    - V2SEL3004
+    - V2SEL3005
 market:
   broker: FPMarkets
   symbol: US100

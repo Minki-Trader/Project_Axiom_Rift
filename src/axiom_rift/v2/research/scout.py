@@ -539,29 +539,45 @@ def _validate_scientific_bundle_hypothesis(
         raise ScoutSpecError("scientific hypothesis program registry binding is invalid")
     try:
         from axiom_rift.v2.research.scientific_programs import (
-            BUNDLE_ROLE_NAMES,
-            bind_compression_release_runtime,
+            DIRECTIONAL_BUNDLE_ROLES,
+            SCIENTIFIC_BUNDLE_ROLES,
+            bind_scientific_runtime,
             build_scientific_bundle_batch,
             load_scientific_program_registry,
         )
         from axiom_rift.v2.research.compression_release import (
             COMPRESSION_RELEASE_EXECUTABLE_SHA256,
         )
+        from axiom_rift.v2.research.directional_reversal import (
+            DIRECTIONAL_REVERSAL_EXECUTABLE_SHA256,
+        )
         from axiom_rift.v2.research.scientific_scout import (
+            DIRECTIONAL_SELECTION_RULE_SHA256,
             SCIENTIFIC_SELECTION_RULE_SHA256,
         )
 
         registry = load_scientific_program_registry(project_root, Path(registry_path))
         bundle_batch = build_scientific_bundle_batch(registry, programs)
-        release_configuration_hashes = bind_compression_release_runtime(
-            registry, bundle_batch
-        )
+        release_configuration_hashes = bind_scientific_runtime(registry, bundle_batch)
     except (ImportError, ValueError) as exc:
         raise ScoutSpecError(f"scientific program bundle is invalid: {exc}") from exc
     if registry.registry_sha256 != registry_sha256:
         raise ScoutSpecError("scientific program registry hash differs from the H binding")
-    if tuple(bundle_batch.bundles) != tuple(BUNDLE_ROLE_NAMES):
-        raise ScoutSpecError("compression-release H requires all five registered bundle roles")
+    role_names = tuple(bundle_batch.bundles)
+    legacy_layout = set(role_names) == set(SCIENTIFIC_BUNDLE_ROLES)
+    directional_layout = set(role_names) == set(DIRECTIONAL_BUNDLE_ROLES)
+    if not (legacy_layout or directional_layout):
+        raise ScoutSpecError("scientific H requires one registered five-role layout")
+    expected_runtime_executable_sha256 = (
+        DIRECTIONAL_REVERSAL_EXECUTABLE_SHA256
+        if directional_layout
+        else COMPRESSION_RELEASE_EXECUTABLE_SHA256
+    )
+    expected_selection_rule_sha256 = (
+        DIRECTIONAL_SELECTION_RULE_SHA256
+        if directional_layout
+        else SCIENTIFIC_SELECTION_RULE_SHA256
+    )
     trade_implementation_keys = {
         bundle.programs["trade"].implementation_key
         for bundle in bundle_batch.bundles.values()
@@ -585,18 +601,30 @@ def _validate_scientific_bundle_hypothesis(
     if (
         programs.get("runtime_sha256") != registry.runtime_sha256
         or programs.get("runtime_executable_sha256")
-        != COMPRESSION_RELEASE_EXECUTABLE_SHA256
+        != expected_runtime_executable_sha256
         or programs.get("release_configuration_hashes")
         != dict(release_configuration_hashes)
         or programs.get("selection_rule_sha256")
-        != SCIENTIFIC_SELECTION_RULE_SHA256
+        != expected_selection_rule_sha256
     ):
         raise ScoutSpecError(
             "compression-release runtime identity differs from executable programs"
         )
     if hypothesis_batch.scout_mode != "s_breadth":
         raise ScoutSpecError("compression-release H autonomy route is invalid")
-    if causal_spread_floor:
+    if directional_layout:
+        if (
+            not causal_spread_floor
+            or hypothesis_batch.hypothesis_type != "structural_batch"
+            or hypothesis_batch.dominant_axis != "axis_direction"
+            or hypothesis_batch.coupled_program_kinds
+            or selector_implementation_key
+            != "chronological_directional_reversal_cost_gated_selector_v1"
+        ):
+            raise ScoutSpecError(
+                "directional-reversal H autonomy route is invalid"
+            )
+    elif causal_spread_floor:
         if (
             hypothesis_batch.hypothesis_type != "coupled_mechanism"
             or hypothesis_batch.dominant_axis != "axis_trade"
@@ -618,12 +646,18 @@ def _validate_scientific_bundle_hypothesis(
     ):
         raise ScoutSpecError("compression-release H autonomy route is invalid")
     knobs = tuple(hypothesis_batch.numeric_knobs)
+    expected_knob = (
+        "selector.compression_ratio_max",
+        2.0,
+        2.5,
+        3.0,
+    )
     if len(knobs) != 1 or (
         knobs[0].path,
         float(knobs[0].low),
         float(knobs[0].baseline),
         float(knobs[0].high),
-    ) != ("selector.compression_ratio_max", 2.0, 2.5, 3.0):
+    ) != expected_knob:
         raise ScoutSpecError("compression-release H numeric surface is invalid")
     if hypothesis_batch.local_calibration_rounds != 0:
         raise ScoutSpecError("compression-release H does not preregister local calibration")
@@ -674,8 +708,13 @@ def _validate_scientific_bundle_hypothesis(
         )
     except (KeyError, TypeError, ValueError, SensitivityError) as exc:
         raise ScoutSpecError(f"compression-release H surface rule is invalid: {exc}") from exc
+    expected_surface_metric = (
+        "shadow_net_broker_points"
+        if directional_layout
+        else "net_broker_points"
+    )
     if not (
-        surface_rule.metric_name == "net_broker_points"
+        surface_rule.metric_name == expected_surface_metric
         and surface_rule.higher_is_better is True
         and surface_rule.pass_threshold == 0.01
         and surface_rule.effective_viability_threshold == 0.0
@@ -806,6 +845,11 @@ def _validate_scientific_bundle_hypothesis(
                 "V2SEL2003",
                 "V2SEL2004",
                 "V2SEL2005",
+                "V2SEL3001",
+                "V2SEL3002",
+                "V2SEL3003",
+                "V2SEL3004",
+                "V2SEL3005",
             ],
             "implementation_key": "fixed_6bar_causal_spread_floor_v1",
             "decision_zero_action": "reject_signal_admission",
@@ -899,8 +943,8 @@ def _validate_scientific_bundle_hypothesis(
         "scientific_bundle_batch": bundle_batch,
         "release_configuration_hashes": dict(release_configuration_hashes),
         "runtime_sha256": registry.runtime_sha256,
-        "runtime_executable_sha256": COMPRESSION_RELEASE_EXECUTABLE_SHA256,
-        "selection_rule_sha256": SCIENTIFIC_SELECTION_RULE_SHA256,
+        "runtime_executable_sha256": expected_runtime_executable_sha256,
+        "selection_rule_sha256": expected_selection_rule_sha256,
         "trade_implementation_key": trade_implementation_key,
     }
 

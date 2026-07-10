@@ -39,8 +39,23 @@ SCIENTIFIC_BUNDLE_ROLES = (
     "failed_break_reversal",
     "compression_ablation",
 )
+DIRECTIONAL_BUNDLE_ROLES = (
+    "short_reversal_low",
+    "short_reversal_base",
+    "short_reversal_high",
+    "long_reversal_control",
+    "short_continuation_control",
+)
+SCIENTIFIC_BUNDLE_ROLE_LAYOUTS = (
+    SCIENTIFIC_BUNDLE_ROLES,
+    DIRECTIONAL_BUNDLE_ROLES,
+)
+ALL_SCIENTIFIC_BUNDLE_ROLES = frozenset(
+    role for layout in SCIENTIFIC_BUNDLE_ROLE_LAYOUTS for role in layout
+)
 SCIENTIFIC_RUNTIME_PATHS = (
     "src/axiom_rift/v2/research/compression_release.py",
+    "src/axiom_rift/v2/research/directional_reversal.py",
     "src/axiom_rift/v2/research/scientific_scout.py",
 )
 SCIENTIFIC_RUNTIME_SCHEMA = "axiom_rift_v2_scientific_runtime_manifest_v1"
@@ -54,6 +69,7 @@ _IMPLEMENTATION_KEYS = {
         {
             "chronological_compression_selector_v1",
             "chronological_compression_cost_gated_selector_v1",
+            "chronological_directional_reversal_cost_gated_selector_v1",
         }
     ),
     "trade": frozenset(
@@ -276,19 +292,20 @@ class ScientificBundleBatch:
 
     def __post_init__(self) -> None:
         roles = dict(self.bundles)
-        if not 3 <= len(roles) <= 5:
+        layout = next(
+            (
+                candidate
+                for candidate in SCIENTIFIC_BUNDLE_ROLE_LAYOUTS
+                if set(roles) == set(candidate)
+            ),
+            None,
+        )
+        if layout is None:
             raise ScientificProgramRegistryError(
-                "scientific bundle batch requires three to five roles"
-            )
-        unknown = set(roles) - set(SCIENTIFIC_BUNDLE_ROLES)
-        if unknown:
-            raise ScientificProgramRegistryError(
-                f"scientific bundle batch has unknown roles: {sorted(unknown)}"
+                "scientific bundle batch must match one registered five-role layout"
             )
         normalized: dict[str, ScientificProgramBundle] = {}
-        for role in SCIENTIFIC_BUNDLE_ROLES:
-            if role not in roles:
-                continue
+        for role in layout:
             bundle = roles[role]
             if not isinstance(bundle, ScientificProgramBundle):
                 raise ScientificProgramRegistryError(
@@ -783,6 +800,107 @@ def bind_compression_release_runtime(
     return MappingProxyType(release_hashes)
 
 
+def bind_directional_reversal_runtime(
+    registry: ScientificProgramRegistry,
+    batch: ScientificBundleBatch,
+) -> Mapping[str, str]:
+    """Bind the direction-isolated failed-break surface to exact programs."""
+
+    from axiom_rift.v2.research.directional_reversal import (
+        DIRECTIONAL_EVENT_CONFIGURATIONS,
+    )
+
+    if set(batch.bundles) != set(DIRECTIONAL_BUNDLE_ROLES):
+        raise ScientificProgramRegistryError(
+            "directional-reversal runtime requires its exact five-role layout"
+        )
+    expected_shared: dict[str, dict[str, Any]] = {
+        "feature": {"atr_bars": 24, "box_bars": 12},
+        "label": {"horizon_bars_after_entry": 6},
+        "model": {
+            "family": "deterministic_event_score",
+            "train_fit": "hashed_no_op",
+        },
+        "calibration": {"family": "identity_event_calibration"},
+        "sizing": {"mode": "fixed_lot", "lots": 1.0},
+        "portfolio_risk": {
+            "one_position_per_role": True,
+            "overlap": "forbidden",
+        },
+    }
+    expected_trade = {
+        "hold_bars": 6,
+        "policy_id": "V2CF0001",
+        "decision_zero_action": "reject_signal_admission",
+        "positive_execution_rule": "max_decision_and_execution_spread",
+        "execution_zero_action": "positive_decision_spread_floor",
+        "policy_parameter_count": 0,
+    }
+    trade_program_ids = {
+        bundle.programs["trade"].program_id
+        for bundle in batch.bundles.values()
+    }
+    if len(trade_program_ids) != 1:
+        raise ScientificProgramRegistryError(
+            "directional-reversal batch may not mix trade policies"
+        )
+    configurations = {row.role: row for row in DIRECTIONAL_EVENT_CONFIGURATIONS}
+    release_hashes: dict[str, str] = {}
+    for role in DIRECTIONAL_BUNDLE_ROLES:
+        bundle = batch.bundles[role]
+        for kind, expected in expected_shared.items():
+            if (
+                dict(bundle.programs[kind].parameters) != expected
+                or bundle.programs[kind].runtime_sha256 != registry.runtime_sha256
+            ):
+                raise ScientificProgramRegistryError(
+                    f"directional-reversal runtime parameters differ: {role}.{kind}"
+                )
+        trade = bundle.programs["trade"]
+        if (
+            trade.implementation_key != "fixed_6bar_causal_spread_floor_v1"
+            or dict(trade.parameters) != expected_trade
+            or trade.runtime_sha256 != registry.runtime_sha256
+        ):
+            raise ScientificProgramRegistryError(
+                f"directional-reversal trade policy differs from runtime: {role}"
+            )
+        configuration = configurations[role]
+        expected_selector = {
+            "role": role,
+            "event_kind": configuration.event_kind,
+            "compression_ratio_max": configuration.compression_ratio_max,
+            "direction_filter": configuration.direction_filter,
+            "daily_entry_safety_cap": 10,
+            "admission_cost_policy_id": "V2CF0001",
+        }
+        selector = bundle.programs["selector"]
+        if (
+            selector.implementation_key
+            != "chronological_directional_reversal_cost_gated_selector_v1"
+            or dict(selector.parameters) != expected_selector
+            or selector.runtime_sha256 != registry.runtime_sha256
+        ):
+            raise ScientificProgramRegistryError(
+                f"directional-reversal selector differs from runtime: {role}"
+            )
+        release_hashes[role] = configuration.identity_sha256
+    return MappingProxyType(release_hashes)
+
+
+def bind_scientific_runtime(
+    registry: ScientificProgramRegistry,
+    batch: ScientificBundleBatch,
+) -> Mapping[str, str]:
+    """Dispatch only among explicitly registered scientific role layouts."""
+
+    if set(batch.bundles) == set(SCIENTIFIC_BUNDLE_ROLES):
+        return bind_compression_release_runtime(registry, batch)
+    if set(batch.bundles) == set(DIRECTIONAL_BUNDLE_ROLES):
+        return bind_directional_reversal_runtime(registry, batch)
+    raise ScientificProgramRegistryError("scientific runtime layout is unregistered")
+
+
 def _bundle_role_payload(payload: Mapping[str, Any]) -> Mapping[str, Any]:
     """Accept direct role maps and one explicit no-external-source envelope."""
 
@@ -836,19 +954,20 @@ def build_scientific_bundle_batch(
             "scientific bundle batch payload must be a mapping"
         )
     role_payload = _bundle_role_payload(payload)
-    if not 3 <= len(role_payload) <= 5:
+    layout = next(
+        (
+            candidate
+            for candidate in SCIENTIFIC_BUNDLE_ROLE_LAYOUTS
+            if set(role_payload) == set(candidate)
+        ),
+        None,
+    )
+    if layout is None:
         raise ScientificProgramRegistryError(
-            "scientific bundle batch requires three to five roles"
-        )
-    unknown = set(role_payload) - set(SCIENTIFIC_BUNDLE_ROLES)
-    if unknown:
-        raise ScientificProgramRegistryError(
-            f"scientific bundle batch has unknown roles: {sorted(unknown)}"
+            "scientific bundle batch must match one registered five-role layout"
         )
     bundles: dict[str, ScientificProgramBundle] = {}
-    for role in SCIENTIFIC_BUNDLE_ROLES:
-        if role not in role_payload:
-            continue
+    for role in layout:
         program_ids = role_payload[role]
         if not isinstance(program_ids, Mapping):
             raise ScientificProgramRegistryError(
@@ -859,13 +978,16 @@ def build_scientific_bundle_batch(
 
 
 __all__ = [
+    "ALL_SCIENTIFIC_BUNDLE_ROLES",
     "BUNDLE_ROLE_NAMES",
     "DEFAULT_SCIENTIFIC_PROGRAM_REGISTRY_PATH",
+    "DIRECTIONAL_BUNDLE_ROLES",
     "IMPLEMENTATION_KEY_ALLOWLIST",
     "ProgramDefinition",
     "REUSE_DECISIONS",
     "SAFE_IMPLEMENTATION_KEYS",
     "SCIENTIFIC_BUNDLE_ROLES",
+    "SCIENTIFIC_BUNDLE_ROLE_LAYOUTS",
     "SCIENTIFIC_IMPLEMENTATION_KEYS",
     "SCIENTIFIC_ORIGIN",
     "SCIENTIFIC_REGISTRY_SCHEMA",
@@ -879,6 +1001,8 @@ __all__ = [
     "ScientificProgramRegistryError",
     "build_scientific_bundle_batch",
     "build_scientific_program_bundle",
+    "bind_directional_reversal_runtime",
     "bind_compression_release_runtime",
+    "bind_scientific_runtime",
     "load_scientific_program_registry",
 ]
