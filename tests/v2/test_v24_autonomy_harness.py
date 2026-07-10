@@ -1,12 +1,19 @@
 from __future__ import annotations
 
+import hashlib
 import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 from axiom_rift.v2.operations import OperationStateError
 from axiom_rift.v2.state.transitions import make_next_action
-from tests.v2.test_v21_state_operations import build_writer, v21_state
+from tests.v2.test_v21_state_operations import (
+    build_writer,
+    v21_state,
+    v22_hypothesis_payload,
+)
 
 from axiom_rift.v2.research.autonomy import (
     AutonomyGuardError,
@@ -544,8 +551,58 @@ class ReadyBoundaryWriterTests(unittest.TestCase):
             )
             self.assertEqual(state["scientific"]["status"], "active")
             self.assertEqual(state["mission_budget"]["limits"]["hypothesis_batches"], 24)
+            self.assertEqual(state["cursor"]["goal_status"], "created")
+            self.assertEqual(state["cursor"]["next_action"]["kind"], "open_goal")
 
-    def test_future_writer_accepts_only_guarded_autonomous_batch(self) -> None:
+    def test_future_writer_preregisters_one_full_bound_scientific_spec(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            writer, _state = self.ready_writer(root)
+            writer.create_goal(
+                goal_payload={
+                    "scientific_mission": {
+                        "scientific_origin": "v2_current",
+                        "epoch_id": "V2EPOCH0001",
+                        "emergency_hypothesis_ceiling": 24,
+                        "result_independent": True,
+                    }
+                },
+                idempotency_key="goal",
+            )
+            writer.open_goal(goal_id="V2G0001", idempotency_key="open")
+            payload = v22_hypothesis_payload("V2G0001", "V2H0001")
+            relative = Path("campaigns/v2/V2G0001/hypotheses/V2H0001.yaml")
+            path = root / relative
+            path.parent.mkdir(parents=True)
+            raw = yaml.safe_dump(payload, sort_keys=False).encode("ascii")
+            path.write_bytes(raw)
+            state = writer.preregister_hypothesis(
+                hypothesis_id="V2H0001",
+                spec_path=relative.as_posix(),
+                spec_sha256=hashlib.sha256(raw).hexdigest(),
+                spec_payload=payload,
+                split_set_id="V2SP0001",
+                material_ids=[],
+                idempotency_key="full_h",
+            )
+            object_id = state["claim"]["identity_bundle_object_id"]
+            self.assertEqual(state["cursor"]["stage"], "H")
+            self.assertEqual([object_id], state["scientific"]["hypothesis_object_ids"])
+            self.assertEqual("hypothesis_spec", writer.objects.get(object_id)["kind"])
+            self.assertEqual(1, len(writer.hypotheses.rows()))
+            replay = writer.preregister_hypothesis(
+                hypothesis_id="V2H0001",
+                spec_path=relative.as_posix(),
+                spec_sha256=hashlib.sha256(raw).hexdigest(),
+                spec_payload=payload,
+                split_set_id="V2SP0001",
+                material_ids=[],
+                idempotency_key="full_h",
+            )
+            self.assertEqual(state["revision"], replay["revision"])
+            self.assertEqual(1, len(writer.hypotheses.rows()))
+
+    def test_future_writer_rejects_incomplete_batch_only_preregistration(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             writer, _state = self.ready_writer(Path(temporary))
             writer.create_goal(
@@ -574,12 +631,16 @@ class ReadyBoundaryWriterTests(unittest.TestCase):
                 },
                 semantic_signature_sha256="4" * 64,
             )
-            state = writer.preregister_autonomous_hypothesis(
-                batch_payload=batch.to_payload(),
-                idempotency_key="batch",
-            )
-            self.assertEqual(state["cursor"]["stage"], "H")
-            self.assertEqual(len(state["scientific"]["hypothesis_object_ids"]), 1)
+            before = writer.control.load()
+            with self.assertRaisesRegex(OperationStateError, "batch-only"):
+                writer.preregister_autonomous_hypothesis(
+                    batch_payload=batch.to_payload(),
+                    idempotency_key="batch",
+                )
+            after = writer.control.load()
+            self.assertEqual(before["revision"], after["revision"])
+            self.assertEqual([], writer.hypotheses.rows())
+            self.assertEqual([], after["scientific"]["hypothesis_object_ids"])
 
 
 if __name__ == "__main__":

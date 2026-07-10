@@ -33,6 +33,11 @@ from axiom_rift.v2.features import (
     load_feature_contract,
 )
 from axiom_rift.v2.identity import sha256_payload
+from axiom_rift.v2.research.autonomy import (
+    AutonomyGuardError,
+    HypothesisBatch,
+    assert_no_scientific_inheritance,
+)
 from axiom_rift.v2.research.evaluation import (
     Comparison,
     EvaluationProfile,
@@ -490,6 +495,7 @@ def validate_hypothesis_v2_payload(payload: Mapping[str, Any]) -> dict[str, Any]
     if not isinstance(payload, Mapping) or payload.get("schema") != "axiom_rift_v2_hypothesis_v2":
         raise ScoutSpecError("active hypothesis must use axiom_rift_v2_hypothesis_v2")
     required_sections = {
+        "autonomy_batch",
         "executable_programs",
         "data",
         "falsification",
@@ -504,16 +510,50 @@ def validate_hypothesis_v2_payload(payload: Mapping[str, Any]) -> dict[str, Any]
         raise ScoutSpecError("hypothesis v2 is missing sections: " + ", ".join(missing))
     if payload.get("status") != "preregistered" or payload.get("v1_evidence_inherited") is not False:
         raise ScoutSpecError("hypothesis v2 must be fresh and preregistered")
+    if payload.get("scientific_origin") != "v2_current":
+        raise ScoutSpecError("hypothesis v2 scientific origin is invalid")
+    try:
+        assert_no_scientific_inheritance(payload)
+        hypothesis_batch = HypothesisBatch.from_payload(payload["autonomy_batch"])
+    except (AutonomyGuardError, KeyError, TypeError) as exc:
+        raise ScoutSpecError(f"hypothesis v2 autonomy batch is invalid: {exc}") from exc
     hypothesis_id = payload.get("hypothesis_id")
     if not isinstance(hypothesis_id, str) or re.fullmatch(r"V2H[0-9]{4}", hypothesis_id) is None:
         raise ScoutSpecError("hypothesis v2 identity is invalid")
+    if hypothesis_batch.hypothesis_id != hypothesis_id:
+        raise ScoutSpecError("autonomy batch hypothesis identity differs")
+    if payload.get("scientific_epoch_id") != hypothesis_batch.scientific_epoch_id:
+        raise ScoutSpecError("outer scientific epoch differs from autonomy batch")
     acceptance = payload.get("acceptance_profile")
     sensitivity = payload.get("sensitivity_plan")
     trials = payload.get("trial_plan")
     programs = payload.get("executable_programs")
     data = payload.get("data")
+    falsification = payload.get("falsification")
+    routing = payload.get("routing")
+    evidence_budget = payload.get("evidence_budget")
     if not all(isinstance(row, Mapping) for row in (acceptance, sensitivity, trials, programs, data)):
         raise ScoutSpecError("hypothesis v2 declarative sections must be mappings")
+    if not all(isinstance(row, Mapping) for row in (falsification, routing, evidence_budget)):
+        raise ScoutSpecError("hypothesis v2 decision and budget sections must be mappings")
+    for field in (
+        "scientific_reject_conditions",
+        "repair_conditions",
+        "scale_miss_conditions",
+    ):
+        conditions = falsification.get(field)
+        if not isinstance(conditions, list) or not conditions or not all(
+            isinstance(value, str) and value for value in conditions
+        ):
+            raise ScoutSpecError(f"hypothesis v2 falsification is incomplete: {field}")
+    expected_routing = {
+        "broken_execution": "repair_same_scope",
+        "scientific_reject": "record_negative_memory_then_rotate",
+        "scientific_survive": "advance_by_stage_gate",
+        "holdout_informed_redesign": "forbidden",
+    }
+    if dict(routing) != expected_routing:
+        raise ScoutSpecError("hypothesis v2 routing policy is incomplete")
     evaluation_profile = _load_evaluation_profile(acceptance)
     _require_mandatory_s_rules(evaluation_profile)
     required_program_sections = {
@@ -638,6 +678,8 @@ def validate_hypothesis_v2_payload(payload: Mapping[str, Any]) -> dict[str, Any]
     family_id = trials.get("family_id")
     if not isinstance(family_id, str) or not family_id:
         raise ScoutSpecError("hypothesis v2 trial family_id is missing")
+    if hypothesis_batch.family_id != family_id:
+        raise ScoutSpecError("autonomy batch family differs from trial plan")
     local_cells_max = len(anchors) if enabled else 0
     integer_fields = {
         "unique_variant_cap": len(plan.variants) + local_cells_max,
@@ -655,6 +697,25 @@ def validate_hypothesis_v2_payload(payload: Mapping[str, Any]) -> dict[str, Any]
         raise ScoutSpecError("per-fold local calibration cap differs from sensitivity mode")
     if trials["development_paths_per_fold_max"] != 1:
         raise ScoutSpecError("exactly one development path per fold must be declared")
+    timeout_seconds = evidence_budget.get("job_timeout_seconds")
+    if (
+        isinstance(timeout_seconds, bool)
+        or not isinstance(timeout_seconds, int)
+        or timeout_seconds <= 30
+        or timeout_seconds > 3600
+    ):
+        raise ScoutSpecError("hypothesis v2 evidence timeout must be bounded above 30 seconds")
+    expected_evidence_budget = {
+        "scout_jobs_max": 1,
+        "configuration_trials_max": trials.get("unique_variant_cap"),
+        "validation_evaluation_cells_max": trials.get("validation_evaluation_cell_cap"),
+        "development_paths_per_fold_max": 1,
+        "mt5_runs_max": 0,
+        "holdout_reveals_max": 0,
+        "job_timeout_seconds": timeout_seconds,
+    }
+    if dict(evidence_budget) != expected_evidence_budget:
+        raise ScoutSpecError("hypothesis v2 evidence budget is incomplete or inconsistent")
     family_trials_before = trials.get("family_trials_before")
     family_hashes_before = trials.get("family_configuration_hashes_before")
     family_history_before = trials.get("family_history_sha256_before")
@@ -703,6 +764,41 @@ def validate_hypothesis_v2_payload(payload: Mapping[str, Any]) -> dict[str, Any]
             for variant in plan.variants
         }
     )
+    batch_knobs = sorted(
+        (
+            knob.path,
+            float(knob.low),
+            float(knob.baseline),
+            float(knob.high),
+        )
+        for knob in hypothesis_batch.numeric_knobs
+    )
+    plan_knobs = sorted(
+        (
+            knob.path,
+            float(knob.low),
+            float(knob.baseline),
+            float(knob.high),
+        )
+        for knob in plan.knobs
+    )
+    if batch_knobs != plan_knobs:
+        raise ScoutSpecError("autonomy batch numeric knobs differ from sensitivity plan")
+    if hypothesis_batch.local_calibration_rounds != trials.get(
+        "local_calibration_new_evaluations_per_outer_fold_max"
+    ):
+        raise ScoutSpecError("autonomy batch local calibration differs from trial plan")
+    batch_configuration_hashes = sorted(hypothesis_batch.bundle_roles.values())
+    if plan.knobs:
+        bundle_identity_matches = batch_configuration_hashes == initial_configuration_hashes
+    else:
+        bundle_identity_matches = set(initial_configuration_hashes).issubset(
+            batch_configuration_hashes
+        )
+    if not bundle_identity_matches:
+        raise ScoutSpecError(
+            "autonomy batch bundle identities differ from executable configurations"
+        )
     return {
         "evaluation_profile": evaluation_profile,
         "sensitivity_plan": plan,
@@ -710,6 +806,7 @@ def validate_hypothesis_v2_payload(payload: Mapping[str, Any]) -> dict[str, Any]
         "trial_plan": dict(trials),
         "selection_feasibility": dict(feasibility),
         "initial_configuration_hashes": initial_configuration_hashes,
+        "hypothesis_batch": hypothesis_batch,
     }
 
 

@@ -6,6 +6,7 @@ legacy_closed_schema:
   schema: axiom_rift_v2_hypothesis_v1
   allowed_identity: V2H0001
 required_sections:
+  - autonomy_batch
   - executable_programs
   - data
   - falsification
@@ -20,8 +21,37 @@ hypothesis_types:
   - synthesis_ablation
 scientific_origin:
   required: v2_current
+  active_epoch_match_required: true
   inherited_parent_allowed: false
   external_dependencies_require_runtime_eligibility: true
+autonomy_batch:
+  schema: axiom_rift_v2_hypothesis_batch_v1
+  same_object_as_full_hypothesis: true
+  identity_must_match_outer_hypothesis: true
+  family_must_match_trial_plan: true
+  numeric_knobs_must_match_sensitivity_plan: true
+  local_calibration_rounds_must_match_trial_plan: true
+  bundle_hashes_must_cover_initial_executable_configurations: true
+  enabled_sensitivity_requires_exact_bundle_hash_match: true
+  batch_only_preregistration_allowed: false
+falsification:
+  required_condition_lists:
+    - scientific_reject_conditions
+    - repair_conditions
+    - scale_miss_conditions
+routing:
+  broken_execution: repair_same_scope
+  scientific_reject: record_negative_memory_then_rotate
+  scientific_survive: advance_by_stage_gate
+  holdout_informed_redesign: forbidden
+evidence_budget:
+  scout_jobs_max: 1
+  mt5_runs_max: 0
+  holdout_reveals_max: 0
+  configuration_and_cell_caps_must_match_trial_plan: true
+  declared_job_timeout_seconds_range:
+    minimum_exclusive: 30
+    maximum_inclusive: 3600
 acceptance_profile:
   frozen_before_results: true
   resolved_metric_rules_required: true

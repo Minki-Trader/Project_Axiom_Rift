@@ -10,6 +10,9 @@ from axiom_rift.v2.identity import ObjectStore, sha256_payload
 from axiom_rift.v2.git_closeout import GitCheckpointVerification
 from axiom_rift.v2.ledger import HashChainLedger
 from axiom_rift.v2.operations import OperationStateError, V2OperationWriter
+from axiom_rift.v2.research.autonomy import HypothesisBatch, NumericKnob
+from axiom_rift.v2.research.scout import _configuration_sha256
+from axiom_rift.v2.research.sensitivity import build_oat_plan
 from axiom_rift.v2.state import ControlStateError, ControlStore
 from axiom_rift.v2.state.transitions import TransitionError, make_next_action
 
@@ -228,11 +231,13 @@ def v22_hypothesis_payload(goal_id: str, hypothesis_id: str) -> dict:
             "dimension_order": dimensions,
         }
     )
-    return {
+    payload = {
         "schema": "axiom_rift_v2_hypothesis_v2",
         "status": "preregistered",
         "goal_id": goal_id,
         "hypothesis_id": hypothesis_id,
+        "scientific_origin": "v2_current",
+        "scientific_epoch_id": "V2EPOCH0001",
         "v1_evidence_inherited": False,
         "executable_programs": {
             "feature_program": {"id": "V2FP0001"},
@@ -246,7 +251,11 @@ def v22_hypothesis_payload(goal_id: str, hypothesis_id: str) -> dict:
             "split_set_id": "V2SP0001",
             "scout_anchor_ids": ["V2D002", "V2D005", "V2D008"],
         },
-        "falsification": {},
+        "falsification": {
+            "scientific_reject_conditions": ["a required S hard dimension fails"],
+            "repair_conditions": ["a required metric is missing or invalid"],
+            "scale_miss_conditions": ["the registered surface ends at a boundary trend"],
+        },
         "acceptance_profile": {
             "profile_id": "V2SAP0001",
             "frozen_before_results": True,
@@ -286,7 +295,7 @@ def v22_hypothesis_payload(goal_id: str, hypothesis_id: str) -> dict:
         },
         "trial_plan": {
             "frozen_before_results": True,
-            "family_id": "V2FAM_TEST",
+            "family_id": "v2fam_test",
             "unique_variant_cap": 6,
             "validation_evaluation_cell_cap": 12,
             "local_calibration_new_evaluations_per_outer_fold_max": 1,
@@ -298,9 +307,59 @@ def v22_hypothesis_payload(goal_id: str, hypothesis_id: str) -> dict:
             "global_configuration_hashes_before": [],
             "global_history_sha256_before": sha256_payload([]),
         },
-        "routing": {},
-        "evidence_budget": {},
+        "routing": {
+            "broken_execution": "repair_same_scope",
+            "scientific_reject": "record_negative_memory_then_rotate",
+            "scientific_survive": "advance_by_stage_gate",
+            "holdout_informed_redesign": "forbidden",
+        },
+        "evidence_budget": {
+            "scout_jobs_max": 1,
+            "configuration_trials_max": 6,
+            "validation_evaluation_cells_max": 12,
+            "development_paths_per_fold_max": 1,
+            "mt5_runs_max": 0,
+            "holdout_reveals_max": 0,
+            "job_timeout_seconds": 1800,
+        },
     }
+    plan = build_oat_plan(
+        hypothesis_id=hypothesis_id,
+        stage="S",
+        baseline_parameters={"model": {"alpha": 1.0}, "calibration": {"quantile": 0.35}},
+        nested_policy=payload["sensitivity_plan"]["policy"],
+    )
+    configuration_hashes = sorted(
+        {
+            _configuration_sha256(
+                executable_programs=payload["executable_programs"],
+                parameters=variant.parameters,
+            )
+            for variant in plan.variants
+        }
+    )
+    payload["autonomy_batch"] = HypothesisBatch(
+        hypothesis_id=hypothesis_id,
+        family_id=payload["trial_plan"]["family_id"],
+        hypothesis_type="structural_batch",
+        dominant_axis="axis_model",
+        scientific_epoch_id="V2EPOCH0001",
+        scout_mode="s_breadth",
+        bundle_roles={
+            f"configuration_{index}": value
+            for index, value in enumerate(configuration_hashes, start=1)
+        },
+        semantic_signature_sha256=sha256_payload(
+            {
+                "family_id": payload["trial_plan"]["family_id"],
+                "dominant_axis": "axis_model",
+                "configuration_hashes": configuration_hashes,
+            }
+        ),
+        numeric_knobs=(NumericKnob("model.alpha", 0.1, 1.0, 10.0),),
+        local_calibration_rounds=1,
+    ).to_payload()
+    return payload
 
 
 class V21GenericLifecycleTests(unittest.TestCase):
@@ -333,7 +392,7 @@ class V21GenericLifecycleTests(unittest.TestCase):
                     )
                 },
                 "trial_accounting": {
-                    "family_id": "V2FAM_TEST",
+                    "family_id": "v2fam_test",
                     "configuration_hashes": [configuration_hash],
                     "job_unique_configuration_count": 1,
                     "new_family_configuration_trials": 1,

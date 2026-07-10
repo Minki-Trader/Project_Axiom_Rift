@@ -11,6 +11,7 @@ import yaml
 
 from axiom_rift.v2.identity import sha256_payload
 from axiom_rift.v2.jobs import scout as scout_job
+from axiom_rift.v2.research.autonomy import HypothesisBatch, NumericKnob
 from axiom_rift.v2.research.evaluation import EvaluationProfile, MetricRule
 from axiom_rift.v2.research.scout import (
     NestedScoutResult,
@@ -115,11 +116,13 @@ def _hypothesis_payload(*, enabled: bool = True) -> dict[str, object]:
     )
     initial_variants = 3 if enabled else 1
     local_cells = 3 if enabled else 0
-    return {
+    payload = {
         "schema": "axiom_rift_v2_hypothesis_v2",
         "status": "preregistered",
         "goal_id": "V2G9001",
         "hypothesis_id": "V2H9001",
+        "scientific_origin": "v2_current",
+        "scientific_epoch_id": "V2EPOCH0001",
         "v1_evidence_inherited": False,
         "executable_programs": {
             "feature_program": {"id": "V2FP0001"},
@@ -133,7 +136,11 @@ def _hypothesis_payload(*, enabled: bool = True) -> dict[str, object]:
             "split_set_id": "V2SP0001",
             "scout_anchor_ids": ["V2D002", "V2D005", "V2D008"],
         },
-        "falsification": {},
+        "falsification": {
+            "scientific_reject_conditions": ["a required S hard dimension fails"],
+            "repair_conditions": ["a required metric is missing or invalid"],
+            "scale_miss_conditions": ["the registered surface ends at a boundary trend"],
+        },
         "acceptance_profile": _resolved_acceptance(),
         "sensitivity_plan": {
             "enabled": enabled,
@@ -159,7 +166,7 @@ def _hypothesis_payload(*, enabled: bool = True) -> dict[str, object]:
         },
         "trial_plan": {
             "frozen_before_results": True,
-            "family_id": "V2FAM9001",
+            "family_id": "v2fam9001",
             "unique_variant_cap": initial_variants + local_cells,
             "validation_evaluation_cell_cap": initial_variants * 3 + local_cells,
             "local_calibration_new_evaluations_per_outer_fold_max": 1 if enabled else 0,
@@ -171,9 +178,63 @@ def _hypothesis_payload(*, enabled: bool = True) -> dict[str, object]:
             "global_configuration_hashes_before": [],
             "global_history_sha256_before": sha256_payload([]),
         },
-        "routing": {},
-        "evidence_budget": {},
+        "routing": {
+            "broken_execution": "repair_same_scope",
+            "scientific_reject": "record_negative_memory_then_rotate",
+            "scientific_survive": "advance_by_stage_gate",
+            "holdout_informed_redesign": "forbidden",
+        },
+        "evidence_budget": {
+            "scout_jobs_max": 1,
+            "configuration_trials_max": initial_variants + local_cells,
+            "validation_evaluation_cells_max": initial_variants * 3 + local_cells,
+            "development_paths_per_fold_max": 1,
+            "mt5_runs_max": 0,
+            "holdout_reveals_max": 0,
+            "job_timeout_seconds": 1800,
+        },
     }
+    plan = build_oat_plan(
+        hypothesis_id="V2H9001",
+        stage="S",
+        baseline_parameters={"model": {"alpha": 1.0}, "calibration": {"quantile": 0.35}},
+        nested_policy=policy,
+        disabled_reason=None if enabled else "no_safe_registered_numeric_knob",
+    )
+    configuration_hashes = sorted(
+        {
+            _configuration_sha256(
+                executable_programs=payload["executable_programs"],
+                parameters=variant.parameters,
+            )
+            for variant in plan.variants
+        }
+    )
+    if not enabled:
+        configuration_hashes.extend(
+            [
+                sha256_payload({"disabled_control": 1}),
+                sha256_payload({"disabled_control": 2}),
+            ]
+        )
+    payload["autonomy_batch"] = HypothesisBatch(
+        hypothesis_id="V2H9001",
+        family_id="v2fam9001",
+        hypothesis_type="structural_batch",
+        dominant_axis="axis_model",
+        scientific_epoch_id="V2EPOCH0001",
+        scout_mode="s_breadth",
+        bundle_roles={
+            f"configuration_{index}": value
+            for index, value in enumerate(sorted(configuration_hashes), start=1)
+        },
+        semantic_signature_sha256=sha256_payload(
+            {"family_id": "v2fam9001", "configuration_hashes": configuration_hashes}
+        ),
+        numeric_knobs=(NumericKnob("model.alpha", 0.1, 1.0, 10.0),) if enabled else (),
+        local_calibration_rounds=1 if enabled else 0,
+    ).to_payload()
+    return payload
 
 
 class _FakeModel:

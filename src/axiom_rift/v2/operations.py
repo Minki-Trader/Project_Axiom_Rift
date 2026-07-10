@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
 from pathlib import Path
 import re
 from typing import Any, Callable, Iterable, Mapping
@@ -466,6 +467,14 @@ class V2OperationWriter:
         if isinstance(scientific, dict) and scientific.get("status") == "not_started":
             if state.get("cursor", {}).get("next_action", {}).get("kind") != "await_new_root_goal":
                 raise OperationStateError("empty scientific state is not at its root-goal boundary")
+            git_sync = state.get("reentry", {}).get("git_sync")
+            checkpoint = self._metadata_checkpoint_probe(
+                git_sync if isinstance(git_sync, dict) else {}
+            )
+            if not checkpoint.ok:
+                raise OperationStateError(
+                    f"scientific root requires a verified metadata checkpoint: {checkpoint.code}"
+                )
             candidate = goal_payload.get("scientific_mission")
             if not isinstance(candidate, dict):
                 raise OperationStateError("future scientific goal requires mission-open policy")
@@ -485,9 +494,9 @@ class V2OperationWriter:
             }
         allocated, namespace_field, counter = self._allocated_identity(state, "goal", goal_id)
         action = next_action or make_next_action(
-            "preregister_hypothesis",
+            "open_goal",
             goal_id=allocated,
-            summary=f"preregister first hypothesis for {allocated}",
+            summary=f"open created scientific goal {allocated}",
         )
         validate_next_action(action)
         payload = {
@@ -585,6 +594,13 @@ class V2OperationWriter:
         cursor = state["cursor"]
         if cursor.get("active_goal_id") != goal_id or cursor.get("goal_status") != "created":
             raise OperationStateError("only the currently created goal may be opened")
+        pending = cursor.get("next_action")
+        if (
+            not isinstance(pending, dict)
+            or pending.get("kind") != "open_goal"
+            or pending.get("goal_id") != goal_id
+        ):
+            raise OperationStateError("open_goal does not match the structured next action")
         action = next_action or make_next_action(
             "preregister_hypothesis",
             goal_id=goal_id,
@@ -1787,6 +1803,15 @@ class V2OperationWriter:
             active_goal_id = state["cursor"].get("active_goal_id")
             if state["cursor"].get("goal_status") != "open" or not isinstance(active_goal_id, str):
                 raise OperationStateError("an open internal goal is required before preregistration")
+            pending = state["cursor"].get("next_action")
+            if (
+                not isinstance(pending, dict)
+                or pending.get("kind") != "preregister_hypothesis"
+                or pending.get("goal_id") != active_goal_id
+            ):
+                raise OperationStateError(
+                    "hypothesis preregistration does not match the structured next action"
+                )
             if goal_id is not None and goal_id != active_goal_id:
                 raise OperationStateError("hypothesis goal_id does not match active goal")
             goal_id = active_goal_id
@@ -1805,6 +1830,56 @@ class V2OperationWriter:
                 validated_hypothesis = validate_hypothesis_v2_payload(spec_payload)
             except (ImportError, ValueError) as exc:
                 raise OperationStateError(f"hypothesis preregistration is invalid: {exc}") from exc
+            scientific = state.get("scientific")
+            scientific_batch = None
+            if isinstance(scientific, dict) and scientific.get("status") == "active":
+                scientific_batch = validated_hypothesis.get("hypothesis_batch")
+                if scientific_batch is None:
+                    raise OperationStateError(
+                        "active scientific preregistration requires an autonomy batch"
+                    )
+                if spec_payload.get("scientific_origin") != "v2_current":
+                    raise OperationStateError("hypothesis scientific origin is invalid")
+                if scientific_batch.scientific_epoch_id != scientific.get("epoch_id"):
+                    raise OperationStateError("hypothesis epoch differs from active science")
+                if scientific_batch.hypothesis_id != hypothesis_id:
+                    raise OperationStateError("autonomy batch identity differs from hypothesis")
+                raw_path = Path(spec_path)
+                if (
+                    raw_path.is_absolute()
+                    or "\\" in spec_path
+                    or ".." in raw_path.parts
+                    or not spec_path
+                ):
+                    raise OperationStateError("scientific hypothesis path must be repo-relative POSIX")
+                control_path = self.control.path.resolve()
+                if (
+                    control_path.parent.name == "v2"
+                    and control_path.parent.parent.name == "registries"
+                ):
+                    project_root = control_path.parents[2]
+                else:
+                    project_root = control_path.parent
+                resolved_spec = (project_root / raw_path).resolve()
+                if project_root != resolved_spec.parent and project_root not in resolved_spec.parents:
+                    raise OperationStateError("scientific hypothesis path escapes the project root")
+                if not resolved_spec.is_file():
+                    raise OperationStateError("scientific hypothesis file is missing")
+                raw_spec = resolved_spec.read_bytes()
+                try:
+                    import yaml
+
+                    parsed_spec = yaml.safe_load(raw_spec.decode("ascii"))
+                except (UnicodeError, yaml.YAMLError) as exc:
+                    raise OperationStateError(
+                        f"scientific hypothesis file is not valid ASCII YAML: {exc}"
+                    ) from exc
+                if parsed_spec != spec_payload:
+                    raise OperationStateError(
+                        "scientific hypothesis file differs from the writer payload"
+                    )
+                if hashlib.sha256(raw_spec).hexdigest() != spec_sha256:
+                    raise OperationStateError("scientific hypothesis file hash differs")
             acceptance = spec_payload.get("acceptance_profile", {})
             data = spec_payload.get("data", {})
             if acceptance.get("profile_id") != acceptance_profile_id:
@@ -1883,6 +1958,20 @@ class V2OperationWriter:
             "claim_ceiling": "diagnostic_observation",
             "status": "preregistered",
         }
+        if is_v2 and scientific_batch is not None:
+            ledger_payload.update(
+                {
+                    "scientific_origin": "v2_current",
+                    "scientific_epoch_id": scientific_batch.scientific_epoch_id,
+                    "hypothesis_type": scientific_batch.hypothesis_type,
+                    "dominant_axis": scientific_batch.dominant_axis,
+                    "scout_mode": scientific_batch.scout_mode,
+                    "family_id": scientific_batch.family_id,
+                    "semantic_signature_sha256": scientific_batch.semantic_signature_sha256,
+                    "bundle_roles": dict(scientific_batch.bundle_roles),
+                    "autonomy_batch_sha256": sha256_payload(scientific_batch.to_payload()),
+                }
+            )
         row = self._append_or_existing(
             self.hypotheses,
             hypothesis_id,
@@ -1905,6 +1994,15 @@ class V2OperationWriter:
                 "ledger_seq": row["ledger_seq"],
                 "row_sha256": row["row_sha256"],
             }
+            scientific_state = draft.get("scientific")
+            if (
+                is_v2
+                and isinstance(scientific_state, dict)
+                and scientific_state.get("status") == "active"
+            ):
+                refs = scientific_state["hypothesis_object_ids"]
+                if object_id not in refs:
+                    refs.append(object_id)
             draft["claim"] = {
                 "subject_kind": "hypothesis",
                 "subject_id": hypothesis_id,
@@ -1936,92 +2034,11 @@ class V2OperationWriter:
         idempotency_key: str,
         next_action: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Register one future-epoch batch without using bootstrap scout semantics."""
+        """Reject the incomplete batch-only path; the full H spec is canonical."""
 
-        state = self.control.load()
-        if not self._is_v2_state(state):
-            raise OperationStateError("autonomous preregistration requires schema v2")
-        if self._already_applied(state, idempotency_key):
-            return state
-        self._require_reconciled(state)
-        scientific = state.get("scientific")
-        if not isinstance(scientific, dict) or scientific.get("status") != "active":
-            raise OperationStateError("an active scientific epoch is required")
-        goal_id = state.get("cursor", {}).get("active_goal_id")
-        if state.get("cursor", {}).get("goal_status") != "open" or not isinstance(goal_id, str):
-            raise OperationStateError("an open internal goal is required")
-        try:
-            from axiom_rift.v2.research.autonomy import HypothesisBatch
-
-            batch = HypothesisBatch.from_payload(batch_payload)
-        except (ImportError, ValueError) as exc:
-            raise OperationStateError(f"autonomous hypothesis batch is invalid: {exc}") from exc
-        if batch.scientific_epoch_id != scientific.get("epoch_id"):
-            raise OperationStateError("hypothesis epoch differs from active science")
-        allocated, namespace_field, counter = self._allocated_identity(
-            state,
-            "hypothesis",
-            batch.hypothesis_id,
-        )
-        self._require_mission_budget_available(state, "hypothesis_batches")
-        action = next_action or make_next_action(
-            "open_stage",
-            goal_id=goal_id,
-            stage="S",
-            subject_id=format_identity("scout", state["namespace"]["next_scout"]),
-            summary=f"open registered Scout mode for {allocated}",
-        )
-        validate_next_action(action)
-        object_id = self.objects.put("autonomous_hypothesis_batch", batch.to_payload())
-        row = self._append_or_existing(
-            self.hypotheses,
-            allocated,
-            "autonomous_hypothesis_preregistered",
-            {
-                "goal_id": goal_id,
-                "hypothesis_id": allocated,
-                "hypothesis_object_id": object_id,
-                "scientific_epoch_id": batch.scientific_epoch_id,
-                "hypothesis_type": batch.hypothesis_type,
-                "scout_mode": batch.scout_mode,
-                "claim_ceiling": "diagnostic_observation",
-            },
-            utc_now(),
-        )
-
-        def mutate(draft: dict[str, Any]) -> None:
-            if draft["namespace"][namespace_field] != counter:
-                raise OperationStateError("hypothesis namespace changed before commit")
-            draft["namespace"][namespace_field] = counter + 1
-            self._consume_mission_budget(draft, "hypothesis_batches")
-            draft["cursor"] = transition_stage(draft["cursor"], "H", allocated)
-            draft["cursor"]["active_hypothesis_id"] = allocated
-            draft["cursor"]["stage_status"] = "preregistered"
-            self._set_next_action(draft, action)
-            self._add_authoritative_objects(draft, [object_id])
-            draft["ledger_heads"]["hypothesis"] = {
-                "ledger_seq": row["ledger_seq"],
-                "row_sha256": row["row_sha256"],
-            }
-            refs = draft["scientific"]["hypothesis_object_ids"]
-            if object_id not in refs:
-                refs.append(object_id)
-            draft["claim"] = {
-                "subject_kind": "hypothesis",
-                "subject_id": allocated,
-                "current_level": "none",
-                "claim_ceiling": "none",
-                "identity_bundle_object_id": object_id,
-                "basis_receipt_ids": [],
-                "blocked_by": [],
-            }
-            draft["reentry"]["current_artifact_hashes"][allocated] = object_id
-
-        return self.control.commit(
-            state["revision"],
-            idempotency_key,
-            mutate,
-            referenced_object_ids=[object_id],
+        raise OperationStateError(
+            "batch-only autonomous preregistration is forbidden; "
+            "use preregister_hypothesis with one full scientific specification"
         )
 
     def open_scout(

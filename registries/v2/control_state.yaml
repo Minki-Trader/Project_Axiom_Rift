@@ -1,19 +1,19 @@
 schema: axiom_rift_v2_control_state_v2
-revision: 71
+revision: 80
 status: active
 encoding: ascii_only
 active_truth: v2
 namespace:
-  next_goal: 2
+  next_goal: 3
   next_hypothesis: 2
   next_scout: 2
   next_confirmation: 1
   next_promotion: 1
   next_materialization: 1
 cursor:
-  active_goal_id: null
-  active_goal_object_id: null
-  goal_status: closed
+  active_goal_id: V2G0002
+  active_goal_object_id: f4047b46fd1af5e9c0df7814e690dd1b2cf09feee3c9ff9c632da365aa3469d2
+  goal_status: open
   last_closed_goal_id: V2G0001
   last_goal_outcome: completed_v2_activation
   active_hypothesis_id: null
@@ -22,13 +22,13 @@ cursor:
   stage_status: idle
   terminal_outcome: null
   next_action:
-    kind: await_new_root_goal
-    goal_id: null
+    kind: preregister_hypothesis
+    goal_id: V2G0002
     stage: null
     subject_id: null
     job_kind: null
     prerequisite_receipt_ids: []
-    summary: await a separate autonomous research root goal
+    summary: preregister a hypothesis for V2G0002
     mission_id: null
     terminal_outcome: null
     basis_evidence_id: null
@@ -49,48 +49,40 @@ reentry:
   - cb34374d70d3d2c479b9af2dacffcf0d871aaf687304e64d2525e99366cf7067
   - 556528ee464c056724c65243a8cc9825dd4ee4fcd8d2eddf4073c56eb20d5e7d
   - f55a17e144b34f312e64bc44fcbcbee205b01cd4f6c6fc49e24f1e12fb06a642
+  - f4047b46fd1af5e9c0df7814e690dd1b2cf09feee3c9ff9c632da365aa3469d2
+  - b843f916f96fc510d62455c11943fdd253e16e20c3d3ab4340e6b117f0a22fa1
+  - 834a5dcc9ebca7ef007f24cbfa5681082705822218b164c1816d5ac931f8286f
   current_artifact_hashes:
-    V2VR000007: ce6ee55e7f90c7dbbe8df62f591d8e32b2cdda8fe5854f334e180c388f9b3860
-    V2VR000008: d66247a437c4b6579c52a1b0a7b0dff57ffcd28121a959a24c14dc16a7ffe753
-    V2VR000009: 288294f84042381cceeb87c548ae9b7f66708704ff39a8e51bb9f7bde8a85186
-    V2VR000010: c7573f1b65582c1f1cefad728de98607d64e4f64a124060f1abd3735859b0447
-    V2VR000011: 0fe4939e0e6a3f1deb25e6a41309b088c49e84668e0be4130d4bb6d4d090c0fc
-    V2VR000012: 6d117d4fbd4306454ba46d3171934fc528960f47e406b425b0c7c5b866156ab8
-    V2VR000013: d1eb29124631af099ea4cc44df558c9244801a06466f4b56f47a570a0b1f8dfb
-    V2_HARNESS_READY: 53b67e51b23bf3522ee22da3d1ca82a409d13b92ce2b8bb98e44655831b931a5
-    V2VR000014: cb34374d70d3d2c479b9af2dacffcf0d871aaf687304e64d2525e99366cf7067
-    V2VR000015: 556528ee464c056724c65243a8cc9825dd4ee4fcd8d2eddf4073c56eb20d5e7d
+    V2G0002: f4047b46fd1af5e9c0df7814e690dd1b2cf09feee3c9ff9c632da365aa3469d2
+    V2VR000016: b843f916f96fc510d62455c11943fdd253e16e20c3d3ab4340e6b117f0a22fa1
+    V2VR000017: 834a5dcc9ebca7ef007f24cbfa5681082705822218b164c1816d5ac931f8286f
   completed_receipt_ids:
-  - V2VR000007
-  - V2VR000008
-  - V2VR000009
-  - V2VR000010
-  - V2VR000011
-  - V2VR000012
-  - V2VR000013
-  - V2VR000014
-  - V2VR000015
+  - V2VR000016
+  - V2VR000017
   completed_evidence_ids: []
   blocker: null
   git_sync:
-    status: metadata_pending_push
-    validated_content_commit: a928213e2f8945dfa3ca13433ed9e76784674de5
-    local_head: a928213e2f8945dfa3ca13433ed9e76784674de5
-    origin_main_head: a928213e2f8945dfa3ca13433ed9e76784674de5
-    validation_receipt_id: V2VR000015
-    closeout_object_id: f55a17e144b34f312e64bc44fcbcbee205b01cd4f6c6fc49e24f1e12fb06a642
-    content_state_fingerprint: 56fd6362e2d2b682547db4450ee8c04a77c6363d56111629c172cda0d12ea70b
-    dirty_revision: 70
+    status: unsynced
+    validation_receipt_id: V2VR000017
+    validation_key: cc6437d2dbefacae271f264eea0d19f8cb7812a681dc17d0eab76297aff8a742
+    validated_slice_id: V2G0002_H
     declared_content_paths:
-    - registries/v2/control_state.yaml
-    - registries/v2/validation_receipts.jsonl
-    - registries/v2/objects/556528ee464c056724c65243a8cc9825dd4ee4fcd8d2eddf4073c56eb20d5e7d.json
-    - src/axiom_rift/v2/operations.py
-    - tests/v2/test_v21_state_operations.py
-    metadata_allowed_paths:
+    - contracts/v2/hypothesis_contract.yaml
     - registries/v2/control_state.yaml
     - registries/v2/evidence_ledger.jsonl
-    - registries/v2/objects/f55a17e144b34f312e64bc44fcbcbee205b01cd4f6c6fc49e24f1e12fb06a642.json
+    - registries/v2/validation_receipts.jsonl
+    - registries/v2/objects/834a5dcc9ebca7ef007f24cbfa5681082705822218b164c1816d5ac931f8286f.json
+    - registries/v2/objects/b843f916f96fc510d62455c11943fdd253e16e20c3d3ab4340e6b117f0a22fa1.json
+    - registries/v2/objects/f4047b46fd1af5e9c0df7814e690dd1b2cf09feee3c9ff9c632da365aa3469d2.json
+    - src/axiom_rift/v2/operations.py
+    - src/axiom_rift/v2/research/scout.py
+    - tests/v2/test_v21_state_operations.py
+    - tests/v2/test_v22_nested_scout.py
+    - tests/v2/test_v24_autonomy_harness.py
+    dirty_revision: 80
+    dirty_state_fingerprint: c1b70d5092b0907af587a58a40e8e868e5da319aa5c6e1e92ead1918236ac3d7
+    invalidated_by_operation: close_V2G0002_H_after_V2VR000017
+    previous_validated_content_commit: null
 claim:
   subject_kind: none
   subject_id: null
@@ -104,14 +96,14 @@ ledger_heads:
     ledger_seq: 0
     row_sha256: null
   evidence:
-    ledger_seq: 13
-    row_sha256: 63d5732fb62580618ec27aa9f8c3dac72a76b353f2dda93fe362713a58620bcb
+    ledger_seq: 14
+    row_sha256: 3b03f352a8ab3bd95c15ce577182b7f4b6a060439a07d6c4dec79f8e634f5121
   material:
     ledger_seq: 20
     row_sha256: 1b0498be4d3be0ea22148aaec4141a60c46996805c705087717015b632c9afb4
   validation_receipt:
-    ledger_seq: 15
-    row_sha256: 5beb9f3d3a41210e4ef81c5641902f869cd2d5cb662828331501d7c60dc4da2a
+    ledger_seq: 17
+    row_sha256: 081ac04760c1cb7fce61b8a7a5124b5d1929bfa7bc4643c3cfe5b81ed40fff97
 applied_idempotency_keys:
 - record_V2VR000001
 - record_V2_data_identity_slice
@@ -183,6 +175,15 @@ applied_idempotency_keys:
 - record_V2VR000015
 - close_V2SL0014_after_V2VR000015
 - record_V2GC000004_autonomy_harness
+- create_V2G0002_scientific_root
+- open_V2G0002_scientific_root
+- consume_V2G0002_H_root_to_H_guard_implementation
+- authorize_V2G0002_H_root_to_H_guard_validation_eb99442fc365bdc0ad6b12e3dd78f2e6d7aa57d0e98e5257467d067869a529e9
+- record_V2VR000016
+- consume_V2G0002_H_root_to_H_guard_repair_1
+- authorize_V2G0002_H_root_to_H_guard_recheck_cc6437d2dbefacae271f264eea0d19f8cb7812a681dc17d0eab76297aff8a742
+- record_V2VR000017
+- close_V2G0002_H_after_V2VR000017
 bootstrap_goal_outcome: activated
 activation:
   activation_evidence_id: V2E000008
@@ -193,21 +194,21 @@ root_mission:
   mission_id: AXIOM_ROOT_0001
   contract_path: configs/v2/mission.yaml
   contract_sha256: 6b2ace45a4980c509a77521490a24fdc84eb17f78c7c2f67202136e6eed2bd36
-  status: ready
+  status: active
   terminal_outcome: null
-  user_goal_received: false
+  user_goal_received: true
 mission_budget:
-  frozen: false
+  frozen: true
   limits:
-    hypothesis_batches: 12
-    scout_jobs: 12
+    hypothesis_batches: 24
+    scout_jobs: 24
     confirmation_jobs: 4
     promotion_candidates: 2
     full_nine_fold_mt5_batches: 2
     holdout_reveals: 1
   remaining:
-    hypothesis_batches: 12
-    scout_jobs: 12
+    hypothesis_batches: 24
+    scout_jobs: 24
     confirmation_jobs: 4
     promotion_candidates: 2
     full_nine_fold_mt5_batches: 2
@@ -231,14 +232,14 @@ migration:
   closed_work_unit_id: V2B0001
   reserved_next_goal_id: V2G0002
 harness:
-  status: ready
-  real_research_started: false
+  status: operational
+  real_research_started: true
   ready_receipt_object_id: 53b67e51b23bf3522ee22da3d1ca82a409d13b92ce2b8bb98e44655831b931a5
   baseline_commit: 4c31e7227eef170b9fd6c4cabedad0751e0e830c
 scientific:
-  status: not_started
-  root_mission_id: null
-  epoch_id: null
+  status: active
+  root_mission_id: AXIOM_ROOT_0001
+  epoch_id: V2EPOCH0001
   index_path: registries/v2/scientific/index.yaml
   research_map_path: registries/v2/scientific/research_map.yaml
   hypothesis_ledger_path: registries/v2/scientific/hypothesis_ledger.jsonl
