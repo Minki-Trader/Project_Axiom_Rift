@@ -29,6 +29,9 @@ v2_layers:
   - validation_receipts
   - causal_data_and_splits
   - declarative_research_components
+  - multidimensional_kpi_interpreter
+  - nested_sensitivity_and_calibration
+  - trial_accounting
   - generic_stage_runner
   - mt5_evidence_adapter
   - feature_contract_and_materialization
@@ -41,6 +44,11 @@ dependency_rules:
   active_mutation_jobs_max: 1
   operational_research_engine_count: 1
   git_push_inside_state_transaction: false
+  validation_may_select_development_variant: false
+  development_metrics_may_enter_calibration: false
+  one_outer_development_path_per_fold: true
+  primary_sensitivity_metric_may_bypass_feasibility: false
+  family_trial_history_source_count: 1
 deferred_until_evidence_requires:
   - dynamic_plugin_system
   - workflow_dag_or_daemon

@@ -26,6 +26,14 @@ active_job:
   evidence_must_match_job_stage_inputs_and_outputs: true
   clear_without_matching_receipt: false
   resume_before_new_job: true
+research_jobs:
+  nested_sensitivity_is_one_declared_scout_job: true
+  sensitivity_and_calibration_role: validation_oos
+  development_selected_paths_per_fold_max: 1
+  local_calibration_rounds_max: 1
+  validator_may_execute_research_job: false
+  nested_receipt_requires_trial_history_reconciliation: true
+  nested_receipt_requires_full_validation_metric_surface: true
 validation:
   focused_batches_per_slice: 1
   repair_batches_per_slice: 1

@@ -37,3 +37,28 @@ legacy_reuse_required_fields:
   - deficiency
   - parity_boundary
   - rollback_boundary
+research_variant_identity:
+  layers:
+    executable_configuration:
+      - executable_program_payload
+      - resolved_numeric_parameters
+    fold_evaluation:
+      - executable_configuration_hash
+      - data_role
+      - split_ids
+    selected_path:
+      - fold_evaluation_hash
+      - selection_rule_hash
+      - selected_model_bundle_hash
+  candidate_identity_includes_calibration_rule_hash: true
+  fold_selected_parameter_and_bundle_hash_required: true
+  semantic_rename_resets_family_trial_count: false
+  executable_configuration_hash_excludes:
+    - hypothesis_id
+    - fold_id
+    - runtime_duration
+  executable_configuration_hash_includes:
+    - executable_program_payload
+    - resolved_numeric_parameters
+  durable_family_history_hash_required: true
+  durable_global_history_hash_required: true

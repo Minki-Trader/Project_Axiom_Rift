@@ -14,9 +14,11 @@ from axiom_rift.v2.identity import sha256_payload
 
 DEFAULT_PROGRAM_REGISTRY_PATH = Path("configs/v2/program_registry.yaml")
 CANONICAL_ENGINE = {
-    "engine_key": "causal_scout_v1",
+    "engine_key": "nested_causal_scout_v2",
     "feature_path": "src/axiom_rift/v2/features.py",
     "scout_path": "src/axiom_rift/v2/research/scout.py",
+    "evaluation_path": "src/axiom_rift/v2/research/evaluation.py",
+    "sensitivity_path": "src/axiom_rift/v2/research/sensitivity.py",
 }
 FIXTURE_ONLY = {"research_core_path": "src/axiom_rift/v2/research/core.py"}
 PROGRAM_KINDS = ("feature", "label", "model", "calibration", "selector", "trade")

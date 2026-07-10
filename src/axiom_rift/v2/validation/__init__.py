@@ -10,6 +10,10 @@ from axiom_rift.v2.validation.budget import (
     ValidationDurationExceeded,
 )
 from axiom_rift.v2.validation.harness import harness_validation_identity, validate_v21_harness
+from axiom_rift.v2.validation.governance import (
+    governance_validation_identity,
+    validate_v22_quant_governance,
+)
 
 __all__ = [
     "BudgetAuthorization",
@@ -18,7 +22,9 @@ __all__ = [
     "ValidationBudgetError",
     "ValidationDurationExceeded",
     "harness_validation_identity",
+    "governance_validation_identity",
     "validate_v21_harness",
+    "validate_v22_quant_governance",
     "validate_v2_activation",
     "validate_v2_bootstrap",
 ]

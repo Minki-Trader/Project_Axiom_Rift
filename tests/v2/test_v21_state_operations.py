@@ -147,7 +147,229 @@ def build_writer(root: Path, state: dict) -> V2OperationWriter:
     )
 
 
+def v22_hypothesis_payload(goal_id: str, hypothesis_id: str) -> dict:
+    rules = [
+        {
+            "name": "causal_checks_all_pass",
+            "dimension": "integrity",
+            "comparison": "equal",
+            "stages": ["S"],
+            "required_stages": ["S"],
+            "failure_effect": "repair",
+            "tuning_role": "none",
+            "expected": True,
+        },
+        {
+            "name": "evaluable_trade_count",
+            "dimension": "inferential_density",
+            "comparison": "minimum",
+            "stages": ["S"],
+            "required_stages": ["S"],
+            "failure_effect": "reject",
+            "tuning_role": "sensitivity_only",
+            "pass_at": 1.0,
+        },
+        {
+            "name": "unknown_cost_observation_count",
+            "dimension": "integrity",
+            "comparison": "maximum",
+            "stages": ["S"],
+            "required_stages": ["S"],
+            "failure_effect": "evidence_gap",
+            "tuning_role": "none",
+            "pass_at": 0.0,
+        },
+        {
+            "name": "net_broker_points",
+            "dimension": "economics",
+            "comparison": "minimum",
+            "stages": ["S"],
+            "required_stages": ["S"],
+            "failure_effect": "reject",
+            "tuning_role": "sensitivity_only",
+            "pass_at": 0.0,
+        },
+        {
+            "name": "positive_net_fold_count",
+            "dimension": "stability",
+            "comparison": "minimum",
+            "stages": ["S"],
+            "required_stages": ["S"],
+            "failure_effect": "reject",
+            "tuning_role": "none",
+            "pass_at": 1.0,
+        },
+    ]
+    dimensions = [
+        "integrity",
+        "inferential_density",
+        "activity",
+        "economics",
+        "risk",
+        "stability",
+        "execution",
+        "portfolio_fit",
+    ]
+    profile_hash = sha256_payload(
+        {
+            "profile_id": "V2SAP0001",
+            "resolved_rules": rules,
+            "dimension_order": dimensions,
+        }
+    )
+    return {
+        "schema": "axiom_rift_v2_hypothesis_v2",
+        "status": "preregistered",
+        "goal_id": goal_id,
+        "hypothesis_id": hypothesis_id,
+        "v1_evidence_inherited": False,
+        "executable_programs": {
+            "feature_program": {"id": "V2FP0001"},
+            "label_program": {"id": "V2LP0001", "horizon_bars_after_entry": 6},
+            "model_program": {"id": "V2MP0001", "alpha": 1.0},
+            "calibration_program": {"id": "V2CP0001", "quantile": 0.35},
+            "selector_program": {"id": "V2SEL0001", "daily_entry_safety_cap": 10},
+            "trade_program": {"id": "V2TP0001", "hold_bars": 6},
+        },
+        "data": {
+            "split_set_id": "V2SP0001",
+            "scout_anchor_ids": ["V2D002", "V2D005", "V2D008"],
+        },
+        "falsification": {},
+        "acceptance_profile": {
+            "profile_id": "V2SAP0001",
+            "frozen_before_results": True,
+            "resolved_rules": rules,
+            "dimension_order": dimensions,
+            "profile_sha256": profile_hash,
+        },
+        "sensitivity_plan": {
+            "enabled": True,
+            "data_role": "validation_oos",
+            "development_variant_selection_allowed": False,
+            "holdout_revealed": False,
+            "candidate_frozen": False,
+            "selection_feasibility": {
+                "causal_checks_required": True,
+                "unknown_cost_observation_count_max": 0,
+                "evaluable_trade_count_min_per_fold": 1,
+            },
+            "policy": {
+                "model": {
+                    "alpha": {
+                        "type": "float",
+                        "low": 0.1,
+                        "baseline": 1.0,
+                        "high": 10.0,
+                    }
+                }
+            },
+            "surface_rule": {
+                "metric_name": "net_broker_points",
+                "higher_is_better": True,
+                "viability_threshold": -10.0,
+                "pass_threshold": 0.0,
+                "plateau_tolerance": 10.0,
+                "fold_consistency_min": 0.67,
+            },
+        },
+        "trial_plan": {
+            "frozen_before_results": True,
+            "family_id": "V2FAM_TEST",
+            "unique_variant_cap": 6,
+            "validation_evaluation_cell_cap": 12,
+            "local_calibration_new_evaluations_per_outer_fold_max": 1,
+            "development_paths_per_fold_max": 1,
+            "family_trials_before": 0,
+            "family_configuration_hashes_before": [],
+            "family_history_sha256_before": sha256_payload([]),
+            "global_trials_before": 0,
+            "global_configuration_hashes_before": [],
+            "global_history_sha256_before": sha256_payload([]),
+        },
+        "routing": {},
+        "evidence_budget": {},
+    }
+
+
 class V21GenericLifecycleTests(unittest.TestCase):
+    def test_nested_receipt_reconciles_family_global_and_selected_path_hashes(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            writer = build_writer(Path(temp_dir), v21_state())
+            configuration_hash = "a" * 64
+            receipt = {
+                "schema": "axiom_rift_v2_nested_scout_receipt_v1",
+                "stage": "S",
+                "nested_selection": True,
+                "selection_source_data_role": "validation_oos",
+                "development_paths_per_fold": 1,
+                "development_variant_selection": False,
+                "selection_rule_sha256": "b" * 64,
+                "result_sha256": "c" * 64,
+                "selected_variant_hashes": {"V2D002": "d" * 64},
+                "selected_configuration_hashes": {"V2D002": configuration_hash},
+                "selected_model_bundle_sha256s": {"V2D002": "e" * 64},
+                "selected_path_hashes": {"V2D002": "f" * 64},
+                "artifacts": {
+                    name: {"path": f"artifacts/{name}"}
+                    for name in (
+                        "metrics",
+                        "models",
+                        "trades",
+                        "causal_checks",
+                        "nested_selection",
+                        "trial_accounting",
+                    )
+                },
+                "trial_accounting": {
+                    "family_id": "V2FAM_TEST",
+                    "configuration_hashes": [configuration_hash],
+                    "job_unique_configuration_count": 1,
+                    "new_family_configuration_trials": 1,
+                    "family_trials_before": 0,
+                    "family_configuration_hashes_before": [],
+                    "family_history_sha256_before": sha256_payload([]),
+                    "family_configuration_hashes_after": [configuration_hash],
+                    "family_history_sha256_after": sha256_payload([configuration_hash]),
+                    "family_trials_cumulative": 1,
+                    "global_trials_before": 0,
+                    "global_configuration_hashes_before": [],
+                    "global_history_sha256_before": sha256_payload([]),
+                    "global_configuration_hashes_after": [configuration_hash],
+                    "global_history_sha256_after": sha256_payload([configuration_hash]),
+                    "global_trials_cumulative": 1,
+                    "development_selected_paths": 1,
+                    "development_variant_selection": False,
+                },
+            }
+            writer._validate_nested_scout_receipt(receipt)
+            receipt["trial_accounting"]["global_trials_cumulative"] = 0
+            with self.assertRaises(OperationStateError):
+                writer._validate_nested_scout_receipt(receipt)
+
+    def test_ready_mission_contract_can_be_repinned_but_active_mission_cannot(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            writer = build_writer(Path(temp_dir), v21_state())
+            state = writer.refresh_ready_mission_contract(
+                expected_previous_sha256="1" * 64,
+                new_contract_sha256="2" * 64,
+                idempotency_key="repin_ready_mission",
+            )
+            self.assertEqual(state["root_mission"]["contract_sha256"], "2" * 64)
+
+            active = v21_state()
+            active["root_mission"]["status"] = "active"
+            active["root_mission"]["user_goal_received"] = True
+            active_root = Path(temp_dir) / "active"
+            active_root.mkdir()
+            active_writer = build_writer(active_root, active)
+            with self.assertRaises(OperationStateError):
+                active_writer.refresh_ready_mission_contract(
+                    expected_previous_sha256="1" * 64,
+                    new_contract_sha256="2" * 64,
+                    idempotency_key="reject_active_repin",
+                )
+
     def test_generic_goal_stage_job_evidence_and_closeout(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             writer = build_writer(Path(temp_dir), v21_state())
@@ -163,7 +385,7 @@ class V21GenericLifecycleTests(unittest.TestCase):
                 hypothesis_id=None,
                 spec_path="campaigns/v2/G1/H1.yaml",
                 spec_sha256="2" * 64,
-                spec_payload={"question": "fresh"},
+                spec_payload=v22_hypothesis_payload("V2G0001", "V2H0001"),
                 split_set_id="V2SP0001",
                 material_ids=[],
                 idempotency_key="hypothesis",
@@ -286,7 +508,7 @@ class V21GenericLifecycleTests(unittest.TestCase):
                 hypothesis_id=None,
                 spec_path="campaigns/v2/G1/H1.yaml",
                 spec_sha256="2" * 64,
-                spec_payload={"question": "budget"},
+                spec_payload=v22_hypothesis_payload("V2G0001", "V2H0001"),
                 split_set_id="V2SP0001",
                 material_ids=[],
                 idempotency_key="hypothesis",
@@ -339,7 +561,7 @@ class V21GenericLifecycleTests(unittest.TestCase):
                 hypothesis_id=None,
                 spec_path="campaigns/v2/G9/H1.yaml",
                 spec_sha256="2" * 64,
-                spec_payload={"question": "ninth"},
+                spec_payload=v22_hypothesis_payload("V2G0009", "V2H0001"),
                 split_set_id="V2SP0001",
                 material_ids=[],
                 idempotency_key="hypothesis",

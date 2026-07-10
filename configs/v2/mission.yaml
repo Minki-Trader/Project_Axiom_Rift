@@ -16,7 +16,6 @@ budget_defaults:
   promotion_candidates_max: 2
   full_nine_fold_mt5_batches_max: 2
   holdout_reveals_max: 1
-  adjacent_threshold_retries_max: 0
   implementation_batches_per_slice_max: 1
   validation_batches_per_slice_max: 1
   repair_batches_per_slice_max: 1
@@ -24,6 +23,16 @@ budget_defaults:
   identical_validation_retries_max: 0
   freeze_on_mission_open: true
   results_may_increase_budget: false
+bounded_parameter_discovery:
+  unregistered_adjacent_retries_max: 0
+  sensitivity_batches_per_hypothesis_max: 1
+  knobs_per_hypothesis_max: 2
+  base_and_extreme_variants_max: 5
+  local_calibration_rounds_max: 1
+  local_calibration_new_evaluations_per_outer_fold_max: 1
+  local_candidate_set_including_bracket_max: 3
+  automatic_range_extension_max: 0
+  development_extreme_variants_max: 0
 terminal_policy:
   allowed:
     - completed_pre_live_handoff
@@ -37,9 +46,9 @@ continue_requires:
   - causal_execution_is_possible_on_current_data
   - cost_fits_remaining_budget
   - negative_memory_does_not_directly_refute
-  - not_adjacent_tuning
+  - not_unregistered_adjacent_retry
 exhaustion_conditions:
-  - only_adjacent_tuning_remains
+  - only_exhausted_or_forbidden_local_tuning_remains
   - negative_memory_refutes_remaining_structures
   - current_data_cannot_identify_remaining_axes
   - mission_budget_exhausted

@@ -53,6 +53,8 @@ class V21CanonicalResearchTests(unittest.TestCase):
             "contracts/v2/research_contract.yaml",
             "src/axiom_rift/v2/features.py",
             "src/axiom_rift/v2/research/scout.py",
+            "src/axiom_rift/v2/research/evaluation.py",
+            "src/axiom_rift/v2/research/sensitivity.py",
             "src/axiom_rift/v2/research/core.py",
         )
         with tempfile.TemporaryDirectory() as directory:

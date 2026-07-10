@@ -252,6 +252,157 @@ class V2OperationWriter:
                 current.append(object_id)
         state["cursor"]["authoritative_object_ids"] = current
 
+    @staticmethod
+    def _require_sorted_sha256_list(value: Any, label: str) -> list[str]:
+        if not isinstance(value, list) or any(
+            not isinstance(item, str) or re.fullmatch(r"[0-9a-f]{64}", item) is None
+            for item in value
+        ):
+            raise OperationStateError(f"{label} must be a sha256 list")
+        if value != sorted(set(value)):
+            raise OperationStateError(f"{label} must be sorted and unique")
+        return value
+
+    def _durable_family_configuration_hashes(self, family_id: str) -> list[str]:
+        hashes: set[str] = set()
+        for row in self.evidence.rows():
+            receipt_object_id = row.get("payload", {}).get("receipt_object_id")
+            if not isinstance(receipt_object_id, str):
+                continue
+            receipt = self.objects.get(receipt_object_id).get("payload", {})
+            accounting = receipt.get("trial_accounting")
+            if not isinstance(accounting, Mapping) or accounting.get("family_id") != family_id:
+                continue
+            values = accounting.get("configuration_hashes", [])
+            if isinstance(values, list):
+                hashes.update(
+                    value
+                    for value in values
+                    if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
+                )
+        return sorted(hashes)
+
+    def _durable_global_configuration_hashes(self) -> list[str]:
+        hashes: set[str] = set()
+        for row in self.evidence.rows():
+            receipt_object_id = row.get("payload", {}).get("receipt_object_id")
+            if not isinstance(receipt_object_id, str):
+                continue
+            receipt = self.objects.get(receipt_object_id).get("payload", {})
+            accounting = receipt.get("trial_accounting")
+            if not isinstance(accounting, Mapping):
+                continue
+            values = accounting.get("configuration_hashes", [])
+            if isinstance(values, list):
+                hashes.update(
+                    value
+                    for value in values
+                    if isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value)
+                )
+        return sorted(hashes)
+
+    def _validate_nested_scout_receipt(self, receipt: Mapping[str, Any]) -> None:
+        if receipt.get("schema") != "axiom_rift_v2_nested_scout_receipt_v1":
+            return
+        if receipt.get("stage") != "S" or receipt.get("nested_selection") is not True:
+            raise OperationStateError("nested scout receipt stage or marker is invalid")
+        if receipt.get("selection_source_data_role") != "validation_oos":
+            raise OperationStateError("nested scout selection must use validation_oos")
+        if receipt.get("development_paths_per_fold") != 1:
+            raise OperationStateError("nested scout must freeze one development path per fold")
+        if receipt.get("development_variant_selection") is not False:
+            raise OperationStateError("nested scout receipt permits development selection")
+        for field in ("selection_rule_sha256", "result_sha256"):
+            if re.fullmatch(r"[0-9a-f]{64}", str(receipt.get(field, ""))) is None:
+                raise OperationStateError(f"nested scout receipt has invalid {field}")
+        selected = receipt.get("selected_variant_hashes")
+        configuration_hashes = receipt.get("selected_configuration_hashes")
+        bundle_hashes = receipt.get("selected_model_bundle_sha256s")
+        path_hashes = receipt.get("selected_path_hashes")
+        if not isinstance(selected, Mapping) or not selected:
+            raise OperationStateError("nested scout selected variant hashes are missing")
+        if any(
+            not isinstance(mapping, Mapping) or set(mapping) != set(selected)
+            for mapping in (configuration_hashes, bundle_hashes, path_hashes)
+        ):
+            raise OperationStateError("nested scout selected-path hashes do not match folds")
+        for mapping, label in (
+            (selected, "selected variant"),
+            (configuration_hashes, "selected configuration"),
+            (bundle_hashes, "selected model bundle"),
+            (path_hashes, "selected path"),
+        ):
+            if any(
+                re.fullmatch(r"[0-9a-f]{64}", str(value)) is None
+                for value in mapping.values()
+            ):
+                raise OperationStateError(f"nested scout {label} hash is invalid")
+        artifacts = receipt.get("artifacts")
+        if not isinstance(artifacts, Mapping) or not {
+            "metrics",
+            "models",
+            "trades",
+            "causal_checks",
+            "nested_selection",
+            "trial_accounting",
+        }.issubset(artifacts):
+            raise OperationStateError("nested scout receipt artifacts are incomplete")
+        accounting = receipt.get("trial_accounting")
+        if not isinstance(accounting, Mapping):
+            raise OperationStateError("nested scout trial accounting is missing")
+        family_id = accounting.get("family_id")
+        if not isinstance(family_id, str) or not family_id:
+            raise OperationStateError("nested scout family identity is missing")
+        prior = self._durable_family_configuration_hashes(family_id)
+        global_prior = self._durable_global_configuration_hashes()
+        declared_prior = self._require_sorted_sha256_list(
+            accounting.get("family_configuration_hashes_before"),
+            "family_configuration_hashes_before",
+        )
+        current = self._require_sorted_sha256_list(
+            accounting.get("configuration_hashes"), "configuration_hashes"
+        )
+        after = self._require_sorted_sha256_list(
+            accounting.get("family_configuration_hashes_after"),
+            "family_configuration_hashes_after",
+        )
+        declared_global_prior = self._require_sorted_sha256_list(
+            accounting.get("global_configuration_hashes_before"),
+            "global_configuration_hashes_before",
+        )
+        global_after = self._require_sorted_sha256_list(
+            accounting.get("global_configuration_hashes_after"),
+            "global_configuration_hashes_after",
+        )
+        expected_after = sorted(set(prior) | set(current))
+        expected_global_after = sorted(set(global_prior) | set(current))
+        if declared_prior != prior or after != expected_after:
+            raise OperationStateError("nested scout family trial history differs from durable receipts")
+        if declared_global_prior != global_prior or global_after != expected_global_after:
+            raise OperationStateError("nested scout global trial history differs from durable receipts")
+        integer_expectations = {
+            "job_unique_configuration_count": len(current),
+            "new_family_configuration_trials": len(set(current) - set(prior)),
+            "family_trials_before": len(prior),
+            "family_trials_cumulative": len(after),
+            "global_trials_before": len(global_prior),
+            "global_trials_cumulative": len(global_after),
+            "development_selected_paths": len(selected),
+        }
+        for field, expected in integer_expectations.items():
+            if accounting.get(field) != expected:
+                raise OperationStateError(f"nested scout trial count does not reconcile: {field}")
+        if accounting.get("development_variant_selection") is not False:
+            raise OperationStateError("nested scout trial accounting permits development selection")
+        if accounting.get("family_history_sha256_before") != sha256_payload(prior):
+            raise OperationStateError("nested scout prior family-history hash is invalid")
+        if accounting.get("family_history_sha256_after") != sha256_payload(after):
+            raise OperationStateError("nested scout resulting family-history hash is invalid")
+        if accounting.get("global_history_sha256_before") != sha256_payload(global_prior):
+            raise OperationStateError("nested scout prior global-history hash is invalid")
+        if accounting.get("global_history_sha256_after") != sha256_payload(global_after):
+            raise OperationStateError("nested scout resulting global-history hash is invalid")
+
     def create_goal(
         self,
         *,
@@ -618,6 +769,39 @@ class V2OperationWriter:
 
         def mutate(draft: dict[str, Any]) -> None:
             draft["slice_budget"] = self._new_slice_budget(slice_id)
+
+        return self.control.commit(state["revision"], idempotency_key, mutate)
+
+    def refresh_ready_mission_contract(
+        self,
+        *,
+        expected_previous_sha256: str,
+        new_contract_sha256: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Repin a ready, unopened root mission after a governance-only change."""
+
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("mission contract refresh requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        for value in (expected_previous_sha256, new_contract_sha256):
+            if re.fullmatch(r"[0-9a-f]{64}", value) is None:
+                raise OperationStateError("mission contract hashes must be lowercase sha256")
+        mission = state.get("root_mission", {})
+        if mission.get("status") != "ready" or mission.get("user_goal_received") is not False:
+            raise OperationStateError("an active or terminal root mission contract cannot be repinned")
+        if mission.get("contract_sha256") != expected_previous_sha256:
+            raise OperationStateError("mission contract previous hash does not match control state")
+        if state.get("reentry", {}).get("active_job") is not None:
+            raise OperationStateError("mission contract refresh requires no active evidence job")
+        if state.get("cursor", {}).get("active_goal_id") is not None:
+            raise OperationStateError("mission contract refresh requires no open internal goal")
+
+        def mutate(draft: dict[str, Any]) -> None:
+            draft["root_mission"]["contract_sha256"] = new_contract_sha256
 
         return self.control.commit(state["revision"], idempotency_key, mutate)
 
@@ -1178,6 +1362,58 @@ class V2OperationWriter:
             )
             hypothesis_id = allocated
             self._require_mission_budget_available(state, "hypothesis_batches")
+            if spec_payload.get("goal_id") != goal_id:
+                raise OperationStateError("hypothesis spec goal_id does not match active goal")
+            if spec_payload.get("hypothesis_id") != hypothesis_id:
+                raise OperationStateError("hypothesis spec identity does not match allocated identity")
+            try:
+                from axiom_rift.v2.research.scout import validate_hypothesis_v2_payload
+
+                validated_hypothesis = validate_hypothesis_v2_payload(spec_payload)
+            except (ImportError, ValueError) as exc:
+                raise OperationStateError(f"hypothesis preregistration is invalid: {exc}") from exc
+            acceptance = spec_payload.get("acceptance_profile", {})
+            data = spec_payload.get("data", {})
+            if acceptance.get("profile_id") != acceptance_profile_id:
+                raise OperationStateError("acceptance profile identity differs from writer input")
+            if data.get("split_set_id") != split_set_id:
+                raise OperationStateError("split-set identity differs from writer input")
+            if validated_hypothesis["sensitivity_plan"].hypothesis_id != hypothesis_id:
+                raise OperationStateError("sensitivity plan identity differs from hypothesis")
+            trial_plan = validated_hypothesis["trial_plan"]
+            family_id = trial_plan.get("family_id")
+            if not isinstance(family_id, str) or not family_id:
+                raise OperationStateError("trial family identity is missing")
+            durable_family_hashes = self._durable_family_configuration_hashes(family_id)
+            declared_family_hashes = self._require_sorted_sha256_list(
+                trial_plan.get("family_configuration_hashes_before"),
+                "family_configuration_hashes_before",
+            )
+            if declared_family_hashes != durable_family_hashes:
+                raise OperationStateError(
+                    "hypothesis family history differs from durable evidence receipts"
+                )
+            if trial_plan.get("family_trials_before") != len(durable_family_hashes):
+                raise OperationStateError("hypothesis family trial count is not durable")
+            if trial_plan.get("family_history_sha256_before") != sha256_payload(
+                durable_family_hashes
+            ):
+                raise OperationStateError("hypothesis family history hash is invalid")
+            durable_global_hashes = self._durable_global_configuration_hashes()
+            declared_global_hashes = self._require_sorted_sha256_list(
+                trial_plan.get("global_configuration_hashes_before"),
+                "global_configuration_hashes_before",
+            )
+            if declared_global_hashes != durable_global_hashes:
+                raise OperationStateError(
+                    "hypothesis global history differs from durable evidence receipts"
+                )
+            if trial_plan.get("global_trials_before") != len(durable_global_hashes):
+                raise OperationStateError("hypothesis global trial count is not durable")
+            if trial_plan.get("global_history_sha256_before") != sha256_payload(
+                durable_global_hashes
+            ):
+                raise OperationStateError("hypothesis global history hash is invalid")
         else:
             if hypothesis_id != "V2H0001":
                 raise ValueError("bootstrap writer expects the first V2 hypothesis identity")
@@ -1362,6 +1598,8 @@ class V2OperationWriter:
                     + ", ".join(sorted(missing_artifacts))
                 )
             job_matched = True
+        if is_v2:
+            self._validate_nested_scout_receipt(receipt)
         occurred = utc_now()
         object_id = self.objects.put("evidence_receipt", receipt)
         payload = {

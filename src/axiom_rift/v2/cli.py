@@ -24,6 +24,7 @@ DECLARED_JOB_KINDS = (
     "data_identity",
     "reference_fixture",
     "scout",
+    "nested_scout",
     "confirmation",
     "promotion",
     "materialization",
@@ -170,7 +171,13 @@ def load_goal_action(path: Path) -> dict[str, Any]:
             "job_kind": job_kind,
             "spec_object_id": spec_object_id,
         }
-        if job_kind in {"scout", "confirmation", "promotion", "materialization"}:
+        if job_kind in {
+            "scout",
+            "nested_scout",
+            "confirmation",
+            "promotion",
+            "materialization",
+        }:
             normalized["hypothesis_id"] = _require_string(parameters, "hypothesis_id")
     else:
         _reject_extra_parameters(parameters, {"outcome", "basis_receipt_ids"})
@@ -411,12 +418,21 @@ def _validate_surface(args: argparse.Namespace, root: Path) -> int:
         harness_validation_identity,
         validate_v21_harness,
     )
+    from axiom_rift.v2.validation.governance import (
+        governance_validation_identity,
+        validate_v22_quant_governance,
+    )
 
     if args.hard_ceiling_seconds <= 0 or args.hard_ceiling_seconds > 30:
         _json({"status": "blocked", "code": "invalid_hard_ceiling", "maximum_seconds": 30})
         return 2
     declaration = load_validation_surface(root, args.surface)
-    executable_surfaces = {"activation-candidate", "activation-active", "v2_1_harness"}
+    executable_surfaces = {
+        "activation-candidate",
+        "activation-active",
+        "v2_1_harness",
+        "v2_2_quant_governance",
+    }
     if args.surface not in executable_surfaces:
         _json(
             {
@@ -429,7 +445,10 @@ def _validate_surface(args: argparse.Namespace, root: Path) -> int:
             }
         )
         return 0
-    if args.surface == "v2_1_harness":
+    if args.surface == "v2_2_quant_governance":
+        phase = None
+        identity = governance_validation_identity(root)
+    elif args.surface == "v2_1_harness":
         phase = None
         identity = harness_validation_identity(root)
     else:
@@ -482,7 +501,9 @@ def _validate_surface(args: argparse.Namespace, root: Path) -> int:
                     f"{identity['validation_key']}"
                 ),
             )
-    if args.surface == "v2_1_harness":
+    if args.surface == "v2_2_quant_governance":
+        result, receipt = validate_v22_quant_governance(root)
+    elif args.surface == "v2_1_harness":
         result, receipt = validate_v21_harness(root)
     else:
         result, receipt = validate_v2_activation(root, str(phase))

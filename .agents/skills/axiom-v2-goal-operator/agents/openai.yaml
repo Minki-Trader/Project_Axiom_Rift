@@ -1,4 +1,4 @@
 interface:
-  display_name: "Axiom V2 Root Mission Operator"
-  short_description: "Run one persistent Axiom V2 mission through H/S/R/P/M"
-  default_prompt: "Use $axiom-v2-goal-operator to continue the persistent Axiom Rift V2 root mission from control state until a valid terminal outcome."
+  display_name: "Axiom V2 Quant Mission Operator"
+  short_description: "Run nested KPI-governed Axiom V2 missions"
+  default_prompt: "Use $axiom-v2-goal-operator to continue Axiom Rift with nested sensitivity, bounded calibration, claim-safe routing, and durable closeout."

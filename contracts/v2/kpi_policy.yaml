@@ -1,0 +1,118 @@
+schema: axiom_rift_v2_kpi_policy_v1
+status: active
+encoding: ascii_only
+authority:
+  evaluation: contracts/v2/evaluation_contract.yaml
+  claims: contracts/v2/claim_ladder.yaml
+aggregation:
+  method: non_compensatory_precedence
+  weighted_composite_score_allowed: false
+  decision_order:
+    - integrity
+    - inferential_density
+    - activity
+    - economics
+    - risk
+    - stability
+    - execution
+    - portfolio_fit
+metric_states:
+  observed: valid_result
+  censored: partially_identified_result
+  not_evaluable: valid_but_insufficient_sample_or_denominator
+  not_scheduled: belongs_to_later_stage
+  not_applicable: excluded_by_preregistered_design
+  missing: required_output_not_produced
+  invalid: nonfinite_contradictory_or_schema_invalid
+state_routing:
+  missing: repair_not_hypothesis_failure
+  invalid: repair_not_hypothesis_failure
+  censored: never_auto_pass
+  not_evaluable: scientific_nonpass_not_repair
+  not_scheduled: no_current_gate_and_no_claim_basis
+  not_applicable: no_current_gate_and_no_claim_basis
+  unknown_cost_after_cost_metric: evidence_gap_not_hypothesis_failure
+stage_strength:
+  S:
+    hard:
+      - integrity
+      - inferential_density
+      - minimum_after_cost_survival
+      - minimum_fold_portability
+    diagnostic:
+      - activity
+      - risk
+      - concentration
+    not_scheduled:
+      - mt5_execution
+      - monthly_tail_risk
+      - portfolio_fit
+    mandatory_profile_rules:
+      causal_checks_all_pass:
+        dimension: integrity
+        comparison: equal
+        expected: true
+        failure_effect: repair
+      evaluable_trade_count:
+        dimension: inferential_density
+        comparison: minimum
+        failure_effect: reject
+      unknown_cost_observation_count:
+        dimension: integrity
+        comparison: maximum
+        pass_max: 0
+        failure_effect: evidence_gap
+      net_broker_points:
+        dimension: economics
+        comparison: minimum
+        failure_effect: reject
+      positive_net_fold_count:
+        dimension: stability
+        comparison: minimum
+        failure_effect: reject
+  R:
+    hard:
+      - integrity
+      - inferential_density
+      - selection_adjusted_economics
+      - coarse_risk
+      - fold_stability
+      - minimum_mt5_execution
+    diagnostic:
+      - combined_system_activity
+      - portfolio_fit
+  P:
+    hard:
+      - integrity
+      - inferential_density
+      - trial_adjusted_economics
+      - monthly_and_tail_risk
+      - fold_regime_and_cost_stability
+      - isolated_nine_fold_real_tick_execution
+      - combined_system_activity
+      - portfolio_fit
+  M:
+    hard:
+      - feature_score_decision_and_lifecycle_parity
+      - restart_and_failure_recovery
+    read_only:
+      - frozen_economics
+      - frozen_risk
+semantic_guards:
+  zero_trades_drawdown_zero_is_observed_low_risk: false
+  zero_losses_profit_factor_is_infinite_pass: false
+  unknown_cost_allows_after_cost_claim: false
+  five_to_ten_entries_is_single_sleeve_quota: false
+  direction_concentration_is_universal_failure: false
+  concentration_requires_declared_design_comparison: true
+  exact_thresholds_must_be_preregistered: true
+  development_result_may_change_thresholds: false
+  partial_unknown_cost_allows_pooled_after_cost_gate: false
+  sensitivity_primary_metric_alone_may_select: false
+trial_adjustment:
+  S: nested_isolation_and_complete_trial_count
+  R: selection_adjusted_lower_confidence_bound
+  P: family_trial_adjusted_max_statistic_or_documented_equivalent
+claim_boundary:
+  policy_is_evidence: false
+  missing_or_invalid_kpi_may_close_hypothesis: false

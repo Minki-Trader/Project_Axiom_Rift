@@ -1,0 +1,136 @@
+schema: axiom_rift_v2_sensitivity_policy_v1
+status: active
+encoding: ascii_only
+authority:
+  research: contracts/v2/research_contract.yaml
+  hypothesis: contracts/v2/hypothesis_contract.yaml
+  config: configs/v2/sensitivity.yaml
+nested_roles:
+  fit: train_is
+  sensitivity_and_calibration: validation_oos
+  frozen_evaluation: development_cv
+  development_paths_per_fold_max: 1
+  development_extreme_variants_default: forbidden
+selection_feasibility:
+  preregistered_per_validation_fold: true
+  required_fields:
+    - causal_checks_required
+    - unknown_cost_observation_count_max
+    - evaluable_trade_count_min_per_fold
+  causal_checks_required: true
+  unknown_cost_observation_count_max: 0
+  evaluable_trade_count_min_per_fold_must_be_positive: true
+  primary_metric_alone_may_select: false
+  infeasible_variant_may_authorize_calibration: false
+design:
+  mode: one_factor_at_a_time
+  cartesian_product_allowed: false
+  baseline_required: true
+  low_and_high_per_knob: true
+  result_order:
+    - baseline
+    - knob_1_low
+    - knob_1_high
+    - knob_2_low
+    - knob_2_high
+limits:
+  knobs_max: 2
+  base_and_extreme_variants_max: 5
+  local_calibration_rounds_max: 1
+  local_calibration_new_evaluations_per_outer_fold_max: 1
+  local_candidate_set_including_bracket_max: 3
+  automatic_range_extension_max: 0
+  holdout_reveal_max: 1
+parameter_policy:
+  current_local_calibration_allowlist:
+    - V2MP0001.alpha
+    - V2CP0001.quantile
+  executable_program_parameter_required: true
+  structural_parameters:
+    - hold_bars
+    - label_horizon
+    - stop
+    - target
+    - position_lifecycle
+  structural_parameter_action: distinct_program_and_hypothesis
+  structural_local_calibration_allowed: false
+surface_classes:
+  - plateau
+  - needle
+  - boundary_trend
+  - unstable
+  - weak
+routing:
+  plateau_baseline_pass: freeze_baseline_then_one_development_path
+  plateau_bracketed_near_pass: one_local_calibration_then_one_development_path
+  needle: reject_fragile_no_calibration
+  boundary_trend: close_scale_miss_then_distinct_H_if_information_value_positive
+  unstable: reject_instability_then_structural_or_regime_H
+  weak: reject_tested_domain
+  development_failure: negative_memory_no_retuning
+local_calibration:
+  data_role: validation_oos
+  one_knob_max: true
+  points: one_strict_interior_midpoint
+  new_candidates_per_outer_fold_max: 1
+  later_fold_validation_selects_earlier_fold_path: false
+  endpoint_allowed: false
+  second_search_allowed: false
+  selection: passing_midpoint_else_baseline
+identity:
+  candidate_is_selection_rule_not_lucky_scalar: true
+  fold_selected_scalar_and_bundle_recorded: true
+  final_materialization_freezes_numeric_value: true
+  live_retuning_allowed: false
+trial_accounting:
+  every_unique_executable_variant_counts: true
+  baseline_counts: true
+  diagnostic_extremes_count: true
+  local_candidates_count: true
+  cache_hit_same_hash_counts_again: false
+  execution_failure_before_metrics_is_scientific_trial: false
+  required_fields:
+    - configuration_trials
+    - validation_evaluation_cells
+    - local_calibration_trials
+    - inner_selection_events
+    - development_selected_paths
+    - family_trials_cumulative
+    - holdout_reveals
+    - configuration_hashes
+    - family_configuration_hashes_before
+    - family_history_sha256_before
+    - family_configuration_hashes_after
+    - family_history_sha256_after
+    - global_configuration_hashes_before
+    - global_history_sha256_before
+    - global_configuration_hashes_after
+    - global_history_sha256_after
+  family_history_source: durable_nested_scout_receipts
+  global_history_source: all_durable_nested_scout_receipts
+  hypothesis_supplied_history_must_match_durable_history: true
+  identical_configuration_across_folds_counts_once: true
+  fold_evaluation_cells_count_separately: true
+negative_memory:
+  required_fields:
+    - family_id
+    - tested_data_roles
+    - tested_parameter_ranges
+    - variant_hashes
+    - surface_class
+    - reason_codes
+    - refuted_inside_tested_domain
+    - not_refuted
+    - do_not_retry_hashes
+    - family_trials_cumulative
+    - holdout_influenced_next_design
+  boundary_trend_refutes_entire_family: false
+  partial_fold_density_failure_refutes_feature_family: false
+freeze_boundaries:
+  candidate_identity_freeze: no_economic_retuning
+  holdout_permit: no_economic_retuning
+  holdout_reveal: no_economic_retuning
+  M: no_economic_retuning
+claim_boundary:
+  validation_surface_is_economic_evidence: false
+  development_unselected_variants_may_support_promotion: false

@@ -36,6 +36,16 @@ allowed_transitions:
     - H
     - M
   M: []
+stage_internal_routes:
+  S:
+    - repair_required
+    - validation_sensitivity
+    - validation_local_calibration
+    - freeze_one_development_path_per_fold
+    - scout_rejected
+    - scale_miss_to_distinct_H
+    - route_to_R
+  development_result_may_return_to_local_calibration: false
 terminal_outcomes:
   - completed_pre_live_handoff
   - closed_no_candidate

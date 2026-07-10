@@ -1,0 +1,57 @@
+schema: axiom_rift_v2_hypothesis_contract_v1
+status: active
+encoding: ascii_only
+active_new_hypothesis_schema: axiom_rift_v2_hypothesis_v2
+legacy_closed_schema:
+  schema: axiom_rift_v2_hypothesis_v1
+  allowed_identity: V2H0001
+required_sections:
+  - executable_programs
+  - data
+  - falsification
+  - acceptance_profile
+  - sensitivity_plan
+  - trial_plan
+  - routing
+  - evidence_budget
+acceptance_profile:
+  frozen_before_results: true
+  resolved_metric_rules_required: true
+  exact_thresholds_required: true
+  weighted_composite_score_allowed: false
+  profile_hash_required: true
+sensitivity_plan:
+  enabled_when_safe_numeric_parameter_exists: true
+  disabled_requires_reason: true
+  policy_ref: contracts/v2/sensitivity_policy.yaml
+  config_ref: configs/v2/sensitivity.yaml
+  data_role_must_be: validation_oos
+  development_variant_selection_allowed: false
+  per_fold_selection_feasibility_required: true
+  feasibility_fields:
+    - causal_checks_required
+    - unknown_cost_observation_count_max
+    - evaluable_trade_count_min_per_fold
+trial_plan:
+  frozen_before_results: true
+  unique_variant_cap_required: true
+  evaluation_cell_cap_required: true
+  family_id_required: true
+  local_calibration_new_evaluations_per_outer_fold_max: 1
+  local_candidate_set_including_bracket_max: 3
+  durable_family_history_required: true
+  required_history_fields:
+    - family_trials_before
+    - family_configuration_hashes_before
+    - family_history_sha256_before
+    - global_trials_before
+    - global_configuration_hashes_before
+    - global_history_sha256_before
+routing:
+  repair_is_not_hypothesis_failure: true
+  boundary_trend_is_not_family_refutation: true
+  development_failure_allows_same_H_retuning: false
+  holdout_influenced_redesign_allowed: false
+claim_boundary:
+  preregistration_is_evidence: false
+  sensitivity_surface_is_candidate_claim: false

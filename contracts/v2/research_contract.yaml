@@ -8,6 +8,9 @@ authority:
   identity: contracts/v2/identity_policy.yaml
   operator: contracts/v2/operator_contract.yaml
   programs: configs/v2/program_registry.yaml
+  hypothesis: contracts/v2/hypothesis_contract.yaml
+  kpi: contracts/v2/kpi_policy.yaml
+  sensitivity: contracts/v2/sensitivity_policy.yaml
 root_mission:
   failed_hypothesis_ends_mission: false
   multiple_hypothesis_cycles_allowed: true
@@ -21,8 +24,10 @@ stages:
     role: preregister_hypothesis_batch_and_executable_identity
     claim_ceiling: none
     data_execution_allowed: false
+    resolved_kpi_profile_required: true
+    sensitivity_or_disable_reason_required: true
   S:
-    role: fast_causal_scout
+    role: nested_fast_causal_scout
     claim_ceiling: diagnostic_observation
     mt5_required: false
     candidate_or_economics_claim_allowed: false
@@ -31,6 +36,9 @@ stages:
       - V2D005
       - V2D008
     anchor_policy: fixed_season_diverse_early_middle_recent_before_results
+    parameter_discovery_role: validation_oos_only
+    development_variant_paths_per_fold_max: 1
+    development_driven_retuning_allowed: false
   R:
     role: full_development_confirmation
     claim_ceiling: research_candidate
@@ -83,6 +91,8 @@ causality:
     - full_day_top_k
     - future_candidate_count_dependence
     - test_or_holdout_calibration
+    - development_variant_selection
+    - development_driven_retuning
     - silent_external_forward_fill
 novelty:
   semantic_name_is_evidence: false
@@ -99,6 +109,24 @@ program_semantics:
   canonical_runner_count: 1
   stage_differences_are_data_scope_fold_count_evidence_strength_and_claim_ceiling: true
   synthetic_fixture_is_operational_evidence: false
+nested_parameter_discovery:
+  policy: contracts/v2/sensitivity_policy.yaml
+  config: configs/v2/sensitivity.yaml
+  train_role: train_is
+  sensitivity_role: validation_oos
+  outer_evaluation_role: development_cv
+  fold_specific_selection_rule_must_be_causal: true
+  candidate_identity_includes_selection_rule_hash: true
+  final_runtime_value_is_frozen_not_live_retuned: true
+trial_accounting:
+  every_unique_executable_variant_counts: true
+  cache_hit_same_hash_counts_again: false
+  incomplete_trial_ledger_blocks_research_candidate: true
+  development_variant_result_may_select_candidate: false
+  durable_family_history_must_match_before_execution: true
+  duplicate_configuration_across_folds_counts_once: true
+  configuration_fold_cells_count_separately: true
+  scientific_result_hash_includes_runtime_duration: false
 holdout:
   human_approval_required: false
   permit_issuer: single_state_writer

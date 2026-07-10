@@ -5,6 +5,7 @@ authority:
   project: contracts/v2/project_contract.yaml
   claims: contracts/v2/claim_ladder.yaml
   splits: contracts/v2/split_policy.yaml
+  kpi_policy: contracts/v2/kpi_policy.yaml
 cost_policy:
   commission_per_trade: 0
   synthetic_commission_allowed: false
@@ -51,23 +52,36 @@ activity_kpi:
     - daily_entry_count_median
     - daily_entry_count_p90
     - maximum_daily_entries
-    - direction_concentration
+    - single_direction_share
     - session_concentration
     - regime_concentration
   daily_cap_role: safety_cap_not_quota
   five_to_ten_target_level: combined_system_after_exposure_netting
+  single_sleeve_five_to_ten_hard_gate: false
 economics_kpi:
   required_by_P:
-    - net_points_after_cost
-    - profit_factor_after_cost
-    - expectancy_after_cost
-    - monthly_drawdown
+    - net_broker_points
+    - profit_factor
+    - expectancy_broker_points
+    - monthly_maximum_drawdown_broker_points
     - time_under_water
     - turnover
     - exposure_concentration
     - cost_stress
     - fold_and_regime_stability
+metric_namespace:
+  canonical_units: broker_points
+  canonical:
+    direction_concentration: single_direction_share
+    net_points_after_cost: net_broker_points
+    profit_factor_after_cost: profit_factor
+    expectancy_after_cost: expectancy_broker_points
+    monthly_drawdown: monthly_maximum_drawdown_broker_points
+  semantic_aliases_are_executable_names: false
+  hypothesis_profiles_use_canonical_values: true
 gate_policy:
+  aggregation: non_compensatory_precedence
+  weighted_composite_score_allowed: false
   acceptance_profile_frozen_before_results: true
   exact_thresholds_live_in_acceptance_profile: true
   aggregate_result_is_not_robustness_evidence: true
@@ -77,6 +91,24 @@ gate_policy:
     - family_trials
     - candidate_selections
     - holdout_reveals
+metric_availability:
+  policy: contracts/v2/kpi_policy.yaml
+  missing_or_invalid: repair_not_hypothesis_failure
+  censored: never_auto_pass
+  not_evaluable: scientific_nonpass
+  not_scheduled_or_not_applicable: no_current_claim_basis
+special_cases:
+  zero_trade_drawdown:
+    numeric_value: null
+    state: not_evaluable
+  zero_loss_profit_factor:
+    numeric_value: null
+    state: censored
+  direction_or_session_concentration:
+    compare_to_preregistered_design_intent: true
+  partial_unknown_cost:
+    after_cost_metric_state: not_evaluable
+    route: evidence_gap
 claim_boundary:
   contract_is_evidence: false
   economics_pass_created: false

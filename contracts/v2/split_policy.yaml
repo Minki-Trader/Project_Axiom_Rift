@@ -63,10 +63,16 @@ cost_boundary:
   preregistered_causal_fallback_allowed: true
 access:
   H: metadata_only
-  S: assigned_anchor_development_only
+  S: assigned_anchor_train_validation_then_one_development_path
   R: all_development_folds
   P: isolated_development_mt5_and_permitted_holdout
   M: read_sealed_holdout_receipt_only
+nested_sensitivity:
+  train_is: fit_only
+  validation_oos: sensitivity_calibration_and_selection_only
+  development_cv: one_frozen_path_per_fold_only
+  later_fold_validation_may_select_earlier_fold_path: false
+  development_variant_selection_allowed: false
 tail_2026_05_01_to_2026_06_26:
   status: quarantine_pending_access_audit
   claim_use_allowed: false

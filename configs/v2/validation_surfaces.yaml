@@ -2,6 +2,25 @@ schema: axiom_rift_v2_validation_surfaces_v1
 status: active
 encoding: ascii_only
 surfaces:
+  v2_2_quant_governance:
+    checks:
+      - control_state_and_ledger_reconciliation
+      - nested_role_isolation
+      - bounded_oat_and_local_calibration
+      - multidimensional_kpi_routes
+      - trial_accounting
+      - validation_selection_feasibility
+      - durable_family_trial_history
+      - selected_path_identity
+      - hypothesis_preregistration_guards
+      - canonical_program_registry
+    forbidden:
+      - data_build
+      - model_training
+      - sensitivity_execution
+      - mt5_test
+      - onnx_export
+      - download
   v2_1_harness:
     checks:
       - control_state_and_ledger_reconciliation

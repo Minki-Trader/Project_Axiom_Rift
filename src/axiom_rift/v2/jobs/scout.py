@@ -14,7 +14,13 @@ from typing import Any
 import yaml
 
 from axiom_rift.paths import PROJECT_ROOT
-from axiom_rift.v2.research.scout import ScoutTrade, load_scout_spec, run_causal_scout
+from axiom_rift.v2.research.scout import (
+    NestedScoutResult,
+    ScoutTrade,
+    load_scout_spec,
+    run_causal_scout,
+    run_nested_causal_scout,
+)
 
 
 def utc_now() -> str:
@@ -115,7 +121,13 @@ def run_scout_job(
             raise ValueError(f"preregistered input hash mismatch: {rel(path)}")
     started_at = utc_now()
     started = time.monotonic()
-    result = run_causal_scout(
+    run = (
+        run_nested_causal_scout
+        if getattr(spec, "hypothesis_schema", "axiom_rift_v2_hypothesis_v1")
+        == "axiom_rift_v2_hypothesis_v2"
+        else run_causal_scout
+    )
+    result = run(
         spec,
         base_frame_path=base_frame,
         split_source_path=split_source,
@@ -125,19 +137,33 @@ def run_scout_job(
     models_path = work_unit_dir / "model_bundles.json"
     trades_path = work_unit_dir / "trades.csv"
     causal_path = work_unit_dir / "causal_checks.json"
+    selection_path = work_unit_dir / "nested_selection.json"
+    trial_path = work_unit_dir / "trial_accounting.json"
+    nested = isinstance(result, NestedScoutResult)
     _write_json(metrics_path, result.metrics)
     _write_json(
         models_path,
         {
-            "schema": "axiom_rift_v2_scout_model_bundles_v1",
+            "schema": (
+                "axiom_rift_v2_nested_scout_model_bundles_v1"
+                if nested
+                else "axiom_rift_v2_scout_model_bundles_v1"
+            ),
             "models": [model.to_payload() for model in result.models],
             "claim_ceiling": "diagnostic_observation",
         },
     )
     _write_trades(trades_path, result.trades)
     _write_json(causal_path, result.causal_checks)
+    if nested:
+        _write_json(selection_path, result.nested_selection)
+        _write_json(trial_path, result.trial_accounting)
     receipt = {
-        "schema": "axiom_rift_v2_scout_receipt_v1",
+        "schema": (
+            "axiom_rift_v2_nested_scout_receipt_v1"
+            if nested
+            else "axiom_rift_v2_scout_receipt_v1"
+        ),
         "status": "completed",
         "goal_id": goal_id,
         "hypothesis_id": spec.hypothesis_id,
@@ -172,6 +198,33 @@ def run_scout_job(
             "causal_checks": {"path": rel(causal_path), "sha256": sha256_file(causal_path)},
         },
     }
+    if nested:
+        receipt.update(
+            {
+                "nested_selection": True,
+                "selection_source_data_role": "validation_oos",
+                "development_paths_per_fold": 1,
+                "development_variant_selection": False,
+                "selection_rule_sha256": result.selection_rule_sha256,
+                "selected_variant_hashes": result.selected_variant_hashes,
+                "selected_configuration_hashes": result.selected_configuration_hashes,
+                "selected_model_bundle_sha256s": result.selected_model_bundle_sha256s,
+                "selected_path_hashes": result.selected_path_hashes,
+                "trial_accounting": result.trial_accounting,
+            }
+        )
+        receipt["artifacts"].update(
+            {
+                "nested_selection": {
+                    "path": rel(selection_path),
+                    "sha256": sha256_file(selection_path),
+                },
+                "trial_accounting": {
+                    "path": rel(trial_path),
+                    "sha256": sha256_file(trial_path),
+                },
+            }
+        )
     receipt_path = work_unit_dir / "receipt.json"
     _write_json(receipt_path, receipt)
     return receipt

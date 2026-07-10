@@ -63,14 +63,16 @@ control-state mutation. Research code returns results and never mutates state.
 
 Classify the next action as:
 
-- true hypothesis or program variant
+- true structural hypothesis or registered numeric sensitivity work
 - broken-code or evidence-plumbing repair
 - stage closeout or negative-memory synthesis
 - engine recertification
 - pause or genuine external blocker
 
-Reject adjacent threshold, window, stop, target, or retry-only changes presented
-as new research axes.
+Reject unregistered adjacent or retry-only changes presented as new research
+axes. Keep preregistered low/base/high numeric sensitivity inside one H. Treat
+hold, label horizon, stop, target, or lifecycle changes as distinct registered
+programs and H identities rather than cheap local calibration.
 
 ## H/S/R/P/M
 
@@ -78,15 +80,23 @@ as new research axes.
 
 Preregister the question, executable component identities, split roles,
 falsification, frozen acceptance profile, novelty, evidence budget, and claim
-ceiling. Validate schema and identity only, then commit and push before S.
+ceiling. Resolve KPI rules, exact thresholds, sensitivity ranges, local
+calibration rule, trial cap, and selection tie-breaks before results. Permit at
+most two registered numeric knobs, baseline plus low/high, no Cartesian grid,
+and one local-calibration round. Validate schema and identity only, then commit
+and push before S.
 
 ### S - Scout
 
-Use preregistered representative development anchors, fold-isolated fit and
-calibration, sequential admission, unknown-cost handling, and boundary purge.
-Do not run MT5 or isolated nine-fold validation. On rejection, record evidence,
-negative memory, and disposition; validate once, commit and push, select the
-next high-information axis, preregister the next H, and continue.
+For every outer fold, fit on `train_is`, evaluate the preregistered OAT
+low/base/high surface on `validation_oos`, optionally execute one deterministic
+strictly interior local calibration on that same validation role, freeze one
+causal operating path, and evaluate exactly that path on `development_cv`.
+Never select among development variants or retune from development results.
+Do not run MT5 or isolated nine-fold validation. On rejection or scale miss,
+record scoped negative memory and disposition; validate once, commit and push,
+select the next high-information structural axis, preregister the next H, and
+continue.
 
 ### R - Confirmation
 
@@ -125,6 +135,37 @@ Declare work expected above 30 seconds as a bounded evidence job with exact
 command, input hashes, timeout, logs, expected artifacts, claim ceiling, and
 resume action.
 
+## KPI and Parameter Governance
+
+Interpret KPI in non-compensatory order: integrity, inferential density,
+activity, economics, risk, stability, execution, then portfolio fit. Never hide
+a failed hard dimension inside a weighted score. Missing or invalid required KPI
+is repair evidence, not hypothesis failure. Censored or not-evaluable KPI never
+auto-passes. Treat five-to-ten entries as a combined-system target; a sparse but
+complementary sleeve is not rejected solely for missing that band.
+
+Use sensitivity to classify a registered numeric surface as plateau, needle,
+boundary trend, unstable, or weak. Freeze a passing baseline on a plateau. Run
+one preregistered local calibration only for a bracketed plateau. Do not locally
+calibrate a needle, boundary hit, unstable surface, structural trade parameter,
+frozen candidate, or holdout-informed design. A boundary trend may justify one
+distinct H with a new preregistered range; it never authorizes automatic range
+extension.
+
+Count every unique executable baseline, extreme, and local candidate as a
+trial. Count variant-by-fold work separately as evaluation cells. A cache hit of
+the same successful hash is not another trial; code failure before metrics is an
+execution failure, not a scientific trial. Incomplete trial accounting blocks
+`research_candidate` and stronger claims.
+
+Do not let a primary sensitivity KPI choose by itself. Each validation-fold
+candidate must first pass the preregistered feasibility floor: causal checks,
+zero unknown-cost observations, and minimum evaluable trades. Reconcile the
+family and global configuration lists and their history hashes against durable
+prior receipts before preregistration. Renaming a family never resets a global
+trial. Count identical executable configurations once across folds while
+counting their fold evaluation cells separately.
+
 ## Claims and Exhaustion
 
 Use `contracts/v2/claim_ladder.yaml`. Never infer a stronger claim from
@@ -137,8 +178,8 @@ or non-portable lessons.
 
 Close a root mission as `closed_no_candidate` only after the frozen mission
 budget is exhausted or every remaining causal axis has low expected information
-value, is directly contradicted by negative memory, requires holdout reuse, or
-is adjacent tuning.
+value, is directly contradicted by scoped negative memory, requires holdout
+reuse, or consists only of exhausted or forbidden local tuning.
 
 ## Git Closeout
 

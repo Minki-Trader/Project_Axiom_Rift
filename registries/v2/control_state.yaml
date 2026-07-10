@@ -1,5 +1,5 @@
 schema: axiom_rift_v2_control_state_v2
-revision: 28
+revision: 36
 status: active
 encoding: ascii_only
 active_truth: v2
@@ -35,12 +35,15 @@ reentry:
   - ce6ee55e7f90c7dbbe8df62f591d8e32b2cdda8fe5854f334e180c388f9b3860
   - d66247a437c4b6579c52a1b0a7b0dff57ffcd28121a959a24c14dc16a7ffe753
   - a64080e62f6f9a4bee0e808ec6e83cf8b4a09896c3eaf6dcb24390f1ea3c1873
+  - 288294f84042381cceeb87c548ae9b7f66708704ff39a8e51bb9f7bde8a85186
   current_artifact_hashes:
     V2VR000007: ce6ee55e7f90c7dbbe8df62f591d8e32b2cdda8fe5854f334e180c388f9b3860
     V2VR000008: d66247a437c4b6579c52a1b0a7b0dff57ffcd28121a959a24c14dc16a7ffe753
+    V2VR000009: 288294f84042381cceeb87c548ae9b7f66708704ff39a8e51bb9f7bde8a85186
   completed_receipt_ids:
   - V2VR000007
   - V2VR000008
+  - V2VR000009
   completed_evidence_ids: []
   blocker: null
   git_sync:
@@ -69,8 +72,8 @@ ledger_heads:
     ledger_seq: 20
     row_sha256: 1b0498be4d3be0ea22148aaec4141a60c46996805c705087717015b632c9afb4
   validation_receipt:
-    ledger_seq: 8
-    row_sha256: c155faa0199f55d8a803361c6260fa9bd7849f409b3f0ba3ee20a2849ea6c61d
+    ledger_seq: 9
+    row_sha256: 1827aebe792c263d5672392cac974efa106af59ebcf179b5ade776661e060454
 applied_idempotency_keys:
 - record_V2VR000001
 - record_V2_data_identity_slice
@@ -99,6 +102,14 @@ applied_idempotency_keys:
 - record_V2VR000008
 - close_V2SL0008_after_V2VR000008
 - record_V2GC000001_v21_harness
+- open_V2SL0009_quant_research_governance
+- consume_V2SL0009_implementation
+- refresh_ready_mission_contract_v22_quant_governance
+- consume_V2SL0009_repair_1
+- consume_V2SL0009_recheck_1
+- authorize_V2SL0009_quant_research_governance_validation_7746fb1ff7863b51f5879e5d461dfa44cfcaed35512a4a539b6210d8bfa570a5
+- record_V2VR000009
+- close_V2SL0009_after_V2VR000009
 bootstrap_goal_outcome: activated
 activation:
   activation_evidence_id: V2E000008
@@ -108,7 +119,7 @@ activation:
 root_mission:
   mission_id: AXIOM_ROOT_0001
   contract_path: configs/v2/mission.yaml
-  contract_sha256: 29e8ccaeb139e116df5d48a46a7bc191c6df33d0fdc6b130a164f72269954e83
+  contract_sha256: a7e431e36dfbf46329311b37e90179798ca12901c852abdbfe381669f636952b
   status: ready
   terminal_outcome: null
   user_goal_received: false

@@ -65,6 +65,24 @@ blocker. Routine research, implementation, and stage decisions are autonomous.
 - Consume validation, repair, and recheck budgets in code. Reuse an identical
   successful receipt and reject an identical failed retry.
 - S has no MT5 requirement.
+- A preregistered OAT sensitivity batch is part of one H, not a collection of
+  adjacent H identities. Use at most two registered numeric knobs, baseline plus
+  low/high, and one bounded local-calibration round.
+- Fit on `train_is`, perform sensitivity and calibration on `validation_oos`,
+  freeze one causal path per fold, and evaluate only that path on
+  `development_cv`. Development-driven retuning is forbidden.
+- Interpret KPI by non-compensatory dimensions. Missing or invalid KPI is a
+  repair surface; censored or not-evaluable KPI never auto-passes.
+- The 5-to-10 entry target is diagnostic for a sleeve and hard only for the
+  combined system after exposure netting.
+- Count every unique evaluated configuration and local candidate as a trial.
+  An identical successful receipt cache hit is not another trial.
+- Before a validation surface may choose a path, require causal checks, zero
+  unknown-cost observations, and the preregistered per-fold trade minimum.
+- Reconcile family and global trial hashes against durable prior receipts before
+  H opens. A family rename or hypothesis-provided counter never resets history.
+- Structural hold, horizon, stop, target, or lifecycle changes require a
+  distinct registered program and H; they are not cheap local calibration.
 - Full isolated nine-fold MT5 is limited to P, recertification, or a recorded
   partition-equivalence failure.
 - Zero spread is unknown cost, not free execution.

@@ -1,0 +1,78 @@
+schema: axiom_rift_v2_bootstrap_maintenance_work_unit_v1
+status: validated_pending_git
+encoding: ascii_only
+work_unit_id: V2B0003
+goal_id: V2G0001
+work_unit_class: v2_2_quant_research_governance
+objective: build_nested_sensitivity_kpi_feasibility_bounded_calibration_and_durable_trial_accounting
+claim_ceiling: none
+slice_id: V2SL0009_quant_research_governance
+scope:
+  - stage_aware_multidimensional_kpi_interpretation
+  - validation_only_oat_sensitivity
+  - one_round_bounded_local_calibration
+  - one_frozen_development_path_per_fold
+  - deterministic_surface_and_route_policy
+  - explicit_trial_accounting
+  - mandatory_scout_gate_profile
+  - per_fold_selection_feasibility
+  - durable_family_trial_history
+  - complete_selected_path_identity
+  - preregistration_and_job_guards
+excluded:
+  - real_market_evidence
+  - development_variant_selection
+  - holdout_retuning
+  - structural_trade_lifecycle_local_tuning
+  - premature_R_P_M_runtime_adapters
+  - human_dashboard
+validation_budget:
+  focused_batches: 1
+  repair_batches_max: 1
+  rechecks_max: 1
+done_requires:
+  - kpi_availability_and_dimension_routes_are_executable
+  - oat_plan_is_typed_bounded_and_hash_identified
+  - calibration_is_validation_only_and_single_round
+  - development_evaluates_one_frozen_path_per_fold
+  - every_evaluated_variant_is_trial_accounted
+  - partial_unknown_cost_cannot_support_after_cost_selection
+  - family_trial_history_matches_durable_receipts
+  - selected_fold_paths_include_configuration_rule_and_model_hashes
+  - boundary_trend_opens_structural_H_instead_of_chasing
+  - focused_validation_receipt_exists
+  - main_commit_and_origin_main_push_verified
+completion:
+  passing_validation_receipt_id: V2VR000009
+  validated_content_commit: pending
+  git_closeout_id: pending
+  origin_main_verified: false
+validation:
+  initial_v2_suite:
+    passed: 96
+    failed: 6
+    duration_seconds: 18.05
+  integrated_repair:
+    causes:
+      - missing_regex_import
+      - canonical_engine_fixture_missing_new_module_paths
+  targeted_recheck:
+    passed: 6
+    failed: 0
+    duration_seconds: 1.49
+  effective_final_tests:
+    passed: 102
+    failed: 0
+  skill_quick_validate: pass
+  focused_validator:
+    receipt_id: V2VR000009
+    outcome: pass
+    duration_seconds: 0.133635
+    evidence_jobs_launched: false
+claim_boundary:
+  harness_work_is_alpha_evidence: false
+  research_candidate: false
+  economics_pass: false
+  selected: false
+  onnx_ready: false
+  pre_live_ready: false
