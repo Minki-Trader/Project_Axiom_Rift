@@ -1,0 +1,604 @@
+{
+  "bundle_role_hashes": {
+    "compression_ablation": "2a111689327a43ce46a784287017196ad25b1ac4f8446b913e78e25ad841df06",
+    "continuation_base": "027be0975647858cae1d71d319a20ccaeda85d2c5feda1deebd78de7ea6d04c0",
+    "continuation_high": "cdd8cb3132a04aaa747fafe7214759276ef14f9ff4df1480d6f071e780fcdce0",
+    "continuation_low": "1b0d2674b6d1e43143540f1b7cf12302d322078f296097810d41382aa0fb319e",
+    "failed_break_reversal": "604cf897b7a0541513bb873fc3ae487ca83919da88bdbe873da55b15cf1ea5d9"
+  },
+  "claim_ceiling": "diagnostic_observation",
+  "program_identities": {
+    "compression_ablation": {
+      "calibration": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2CP1001",
+        "implementation_key": "identity_event_calibration_v1",
+        "kind": "calibration",
+        "program_sha256": "a0b568d96bdcd4eda01ff322cd7a8719dc923db287340e5cb0c9a601918871c9",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "feature": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2FP1001",
+        "implementation_key": "compression_release_features_v1",
+        "kind": "feature",
+        "program_sha256": "1dd310e85651b71a3acf6d1984587966a41fbf8a421a3edaf3c60d28cb09f5bf",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "label": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2LP1001",
+        "implementation_key": "forward_open_return_6bar_v1",
+        "kind": "label",
+        "program_sha256": "40d2da0e8c072f92769aa2fdeefb612da8e1ae8e3a3a76478ddb547e3d09c090",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "model": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2MP1001",
+        "implementation_key": "deterministic_event_score_v1",
+        "kind": "model",
+        "program_sha256": "a5b0f3ede85f1545661582538b12c3aa623a31e1fe29adfc989b6d246a9a77c1",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "portfolio_risk": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2PR1001",
+        "implementation_key": "one_position_safety_v1",
+        "kind": "portfolio_risk",
+        "program_sha256": "158dba491f3f339f0aa94a19506859ee84df21e28027a5de9a226bf8e64f2964",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "selector": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2SEL1005",
+        "implementation_key": "chronological_compression_selector_v1",
+        "kind": "selector",
+        "program_sha256": "97f642ea16b5ec04173d7c73752a9e141fe182c2be4256e9d6013041213857ab",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "sizing": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2SZ1001",
+        "implementation_key": "fixed_lot_v1",
+        "kind": "sizing",
+        "program_sha256": "7ae0a5f53fd0f709341185998110f1b645490bae8a100153d5be5b9c781d839c",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "trade": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2TP1001",
+        "implementation_key": "fixed_6bar_observed_spread_v1",
+        "kind": "trade",
+        "program_sha256": "29db8a07af30737643947d4fab063fa32ddb5b1b94e42d88d809358bb7c6d726",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      }
+    },
+    "continuation_base": {
+      "calibration": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2CP1001",
+        "implementation_key": "identity_event_calibration_v1",
+        "kind": "calibration",
+        "program_sha256": "a0b568d96bdcd4eda01ff322cd7a8719dc923db287340e5cb0c9a601918871c9",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "feature": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2FP1001",
+        "implementation_key": "compression_release_features_v1",
+        "kind": "feature",
+        "program_sha256": "1dd310e85651b71a3acf6d1984587966a41fbf8a421a3edaf3c60d28cb09f5bf",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "label": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2LP1001",
+        "implementation_key": "forward_open_return_6bar_v1",
+        "kind": "label",
+        "program_sha256": "40d2da0e8c072f92769aa2fdeefb612da8e1ae8e3a3a76478ddb547e3d09c090",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "model": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2MP1001",
+        "implementation_key": "deterministic_event_score_v1",
+        "kind": "model",
+        "program_sha256": "a5b0f3ede85f1545661582538b12c3aa623a31e1fe29adfc989b6d246a9a77c1",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "portfolio_risk": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2PR1001",
+        "implementation_key": "one_position_safety_v1",
+        "kind": "portfolio_risk",
+        "program_sha256": "158dba491f3f339f0aa94a19506859ee84df21e28027a5de9a226bf8e64f2964",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "selector": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2SEL1002",
+        "implementation_key": "chronological_compression_selector_v1",
+        "kind": "selector",
+        "program_sha256": "3d017d981309cae446cb25e506644ba396dad41aaa1cb581abfb580cfe5beebd",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "sizing": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2SZ1001",
+        "implementation_key": "fixed_lot_v1",
+        "kind": "sizing",
+        "program_sha256": "7ae0a5f53fd0f709341185998110f1b645490bae8a100153d5be5b9c781d839c",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "trade": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2TP1001",
+        "implementation_key": "fixed_6bar_observed_spread_v1",
+        "kind": "trade",
+        "program_sha256": "29db8a07af30737643947d4fab063fa32ddb5b1b94e42d88d809358bb7c6d726",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      }
+    },
+    "continuation_high": {
+      "calibration": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2CP1001",
+        "implementation_key": "identity_event_calibration_v1",
+        "kind": "calibration",
+        "program_sha256": "a0b568d96bdcd4eda01ff322cd7a8719dc923db287340e5cb0c9a601918871c9",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "feature": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2FP1001",
+        "implementation_key": "compression_release_features_v1",
+        "kind": "feature",
+        "program_sha256": "1dd310e85651b71a3acf6d1984587966a41fbf8a421a3edaf3c60d28cb09f5bf",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "label": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2LP1001",
+        "implementation_key": "forward_open_return_6bar_v1",
+        "kind": "label",
+        "program_sha256": "40d2da0e8c072f92769aa2fdeefb612da8e1ae8e3a3a76478ddb547e3d09c090",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "model": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2MP1001",
+        "implementation_key": "deterministic_event_score_v1",
+        "kind": "model",
+        "program_sha256": "a5b0f3ede85f1545661582538b12c3aa623a31e1fe29adfc989b6d246a9a77c1",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "portfolio_risk": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2PR1001",
+        "implementation_key": "one_position_safety_v1",
+        "kind": "portfolio_risk",
+        "program_sha256": "158dba491f3f339f0aa94a19506859ee84df21e28027a5de9a226bf8e64f2964",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "selector": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2SEL1003",
+        "implementation_key": "chronological_compression_selector_v1",
+        "kind": "selector",
+        "program_sha256": "ff2f3bfb23275d5de65c120af9957b0182b8e0b6660ccaff722d450e574b8248",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "sizing": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2SZ1001",
+        "implementation_key": "fixed_lot_v1",
+        "kind": "sizing",
+        "program_sha256": "7ae0a5f53fd0f709341185998110f1b645490bae8a100153d5be5b9c781d839c",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "trade": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2TP1001",
+        "implementation_key": "fixed_6bar_observed_spread_v1",
+        "kind": "trade",
+        "program_sha256": "29db8a07af30737643947d4fab063fa32ddb5b1b94e42d88d809358bb7c6d726",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      }
+    },
+    "continuation_low": {
+      "calibration": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2CP1001",
+        "implementation_key": "identity_event_calibration_v1",
+        "kind": "calibration",
+        "program_sha256": "a0b568d96bdcd4eda01ff322cd7a8719dc923db287340e5cb0c9a601918871c9",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "feature": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2FP1001",
+        "implementation_key": "compression_release_features_v1",
+        "kind": "feature",
+        "program_sha256": "1dd310e85651b71a3acf6d1984587966a41fbf8a421a3edaf3c60d28cb09f5bf",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "label": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2LP1001",
+        "implementation_key": "forward_open_return_6bar_v1",
+        "kind": "label",
+        "program_sha256": "40d2da0e8c072f92769aa2fdeefb612da8e1ae8e3a3a76478ddb547e3d09c090",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "model": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2MP1001",
+        "implementation_key": "deterministic_event_score_v1",
+        "kind": "model",
+        "program_sha256": "a5b0f3ede85f1545661582538b12c3aa623a31e1fe29adfc989b6d246a9a77c1",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "portfolio_risk": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2PR1001",
+        "implementation_key": "one_position_safety_v1",
+        "kind": "portfolio_risk",
+        "program_sha256": "158dba491f3f339f0aa94a19506859ee84df21e28027a5de9a226bf8e64f2964",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "selector": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2SEL1001",
+        "implementation_key": "chronological_compression_selector_v1",
+        "kind": "selector",
+        "program_sha256": "d0220e3010c43c381a04ec85fee68251c43b97ced15619a00daa674ddb52a6df",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "sizing": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2SZ1001",
+        "implementation_key": "fixed_lot_v1",
+        "kind": "sizing",
+        "program_sha256": "7ae0a5f53fd0f709341185998110f1b645490bae8a100153d5be5b9c781d839c",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "trade": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2TP1001",
+        "implementation_key": "fixed_6bar_observed_spread_v1",
+        "kind": "trade",
+        "program_sha256": "29db8a07af30737643947d4fab063fa32ddb5b1b94e42d88d809358bb7c6d726",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      }
+    },
+    "failed_break_reversal": {
+      "calibration": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2CP1001",
+        "implementation_key": "identity_event_calibration_v1",
+        "kind": "calibration",
+        "program_sha256": "a0b568d96bdcd4eda01ff322cd7a8719dc923db287340e5cb0c9a601918871c9",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "feature": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2FP1001",
+        "implementation_key": "compression_release_features_v1",
+        "kind": "feature",
+        "program_sha256": "1dd310e85651b71a3acf6d1984587966a41fbf8a421a3edaf3c60d28cb09f5bf",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "label": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2LP1001",
+        "implementation_key": "forward_open_return_6bar_v1",
+        "kind": "label",
+        "program_sha256": "40d2da0e8c072f92769aa2fdeefb612da8e1ae8e3a3a76478ddb547e3d09c090",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "model": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2MP1001",
+        "implementation_key": "deterministic_event_score_v1",
+        "kind": "model",
+        "program_sha256": "a5b0f3ede85f1545661582538b12c3aa623a31e1fe29adfc989b6d246a9a77c1",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "portfolio_risk": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2PR1001",
+        "implementation_key": "one_position_safety_v1",
+        "kind": "portfolio_risk",
+        "program_sha256": "158dba491f3f339f0aa94a19506859ee84df21e28027a5de9a226bf8e64f2964",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "selector": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2SEL1004",
+        "implementation_key": "chronological_compression_selector_v1",
+        "kind": "selector",
+        "program_sha256": "205bd7ce66cf62ddfa9e978265ab56b8d3dc7efbd6ee95a7b889805820d06334",
+        "reuse_decision": "new_scientific_component",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "sizing": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2SZ1001",
+        "implementation_key": "fixed_lot_v1",
+        "kind": "sizing",
+        "program_sha256": "7ae0a5f53fd0f709341185998110f1b645490bae8a100153d5be5b9c781d839c",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      },
+      "trade": {
+        "contract_path": "configs/v2/scientific/programs/compression_release_v1.yaml",
+        "contract_sha256": "70b251f4056b5a70f62ed3b7b16912dfa12dbe82ac6ba427d2e34605c4fbb582",
+        "fixture_only": false,
+        "id": "V2TP1001",
+        "implementation_key": "fixed_6bar_observed_spread_v1",
+        "kind": "trade",
+        "program_sha256": "29db8a07af30737643947d4fab063fa32ddb5b1b94e42d88d809358bb7c6d726",
+        "reuse_decision": "engine_primitive_reuse_without_evidence",
+        "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+        "version": 1
+      }
+    }
+  },
+  "release_configuration_hashes": {
+    "compression_ablation": "499b81ba0a795fec4393e6473ab8622a4da33a495ad04d7e3b9994a0cf2f233c",
+    "continuation_base": "9329900e9733fe98feab947c6cd4b81684ab20f69cfc45fef882d18f929f4ae1",
+    "continuation_high": "caf7019752e36d970e9ca3b90210d45c11447d5dee6545f820337f27afcc1156",
+    "continuation_low": "4f00a93d4102d8a6ca0b4a2066bf2aa0201a992f1d5ced7fa2d78257ed46a6b1",
+    "failed_break_reversal": "3a8d990220eecf273b747e9be9e848612c20072d032e50adacea4895a30e33f7"
+  },
+  "runtime_executable_sha256": "6ad35accccd17b1ccecf4eecce45a577fb91ccb902c2dca5797c1e4295ffc2f9",
+  "runtime_sha256": "ab4d4b7ac8c203ce3d370243fa6b6fe28fe34a3a717998693c69ba25e50980e6",
+  "schema": "axiom_rift_v2_scientific_program_bundle_selections_v1",
+  "selections": [
+    {
+      "falsifier_triggered": false,
+      "fold_id": "V2D002",
+      "plateau_roles": [],
+      "selected_configuration_sha256": null,
+      "selected_role": null,
+      "selection_basis": "validation_role_not_evaluable",
+      "selection_sha256": "af0e67883075b6389c6267b012c67045457c6b4da43296acc25d7cfbdd221dd6",
+      "validation_contrasts": {
+        "ablation_falsifies": false,
+        "ablation_minus_selected": null,
+        "ablation_net_broker_points": null,
+        "all_roles_evaluable": false,
+        "continuation_net_broker_points": {
+          "continuation_base": null,
+          "continuation_high": null,
+          "continuation_low": null
+        },
+        "falsifiers_selection_eligible": false,
+        "reversal_falsifies": false,
+        "reversal_minus_selected": null,
+        "reversal_net_broker_points": null,
+        "selection_source_role": "validation_oos",
+        "unevaluable_roles": [
+          "compression_ablation",
+          "continuation_base",
+          "continuation_high",
+          "continuation_low",
+          "failed_break_reversal"
+        ]
+      }
+    },
+    {
+      "falsifier_triggered": false,
+      "fold_id": "V2D005",
+      "plateau_roles": [],
+      "selected_configuration_sha256": null,
+      "selected_role": null,
+      "selection_basis": "validation_role_not_evaluable",
+      "selection_sha256": "4fa6520b9b2d15a3c90509bbea1d2ac08677b750f9f334a450e9a760d0b2fb02",
+      "validation_contrasts": {
+        "ablation_falsifies": false,
+        "ablation_minus_selected": null,
+        "ablation_net_broker_points": null,
+        "all_roles_evaluable": false,
+        "continuation_net_broker_points": {
+          "continuation_base": null,
+          "continuation_high": null,
+          "continuation_low": -36590.99999999846
+        },
+        "falsifiers_selection_eligible": false,
+        "reversal_falsifies": false,
+        "reversal_minus_selected": null,
+        "reversal_net_broker_points": -15151.999999998516,
+        "selection_source_role": "validation_oos",
+        "unevaluable_roles": [
+          "compression_ablation",
+          "continuation_base",
+          "continuation_high"
+        ]
+      }
+    },
+    {
+      "falsifier_triggered": false,
+      "fold_id": "V2D008",
+      "plateau_roles": [],
+      "selected_configuration_sha256": null,
+      "selected_role": null,
+      "selection_basis": "validation_role_not_evaluable",
+      "selection_sha256": "50f3cdc4d8062ba3aed6fcdcca4767f0badb83ceb7a21ee5f30e51962d725697",
+      "validation_contrasts": {
+        "ablation_falsifies": false,
+        "ablation_minus_selected": null,
+        "ablation_net_broker_points": -19803.99999999223,
+        "all_roles_evaluable": false,
+        "continuation_net_broker_points": {
+          "continuation_base": -62003.999999999796,
+          "continuation_high": -86835.99999999817,
+          "continuation_low": 7575.0
+        },
+        "falsifiers_selection_eligible": false,
+        "reversal_falsifies": false,
+        "reversal_minus_selected": null,
+        "reversal_net_broker_points": null,
+        "selection_source_role": "validation_oos",
+        "unevaluable_roles": [
+          "failed_break_reversal"
+        ]
+      }
+    }
+  ]
+}

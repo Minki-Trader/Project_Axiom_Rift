@@ -1,0 +1,146 @@
+{
+  "after_cost_metric_state": "not_evaluable",
+  "development_unknown_cost_observation_count": 0,
+  "entry_count": 0,
+  "evaluable_trade_count": 0,
+  "kpi_evaluation": {
+    "aggregation": "non_compensatory_precedence",
+    "dimension_verdicts": [
+      {
+        "dimension": "integrity",
+        "metric_names": [
+          "causal_checks_all_pass",
+          "unknown_cost_observation_count"
+        ],
+        "reason_codes": [
+          "outside_hard_boundary"
+        ],
+        "status": "fail"
+      },
+      {
+        "dimension": "inferential_density",
+        "metric_names": [
+          "evaluable_trade_count"
+        ],
+        "reason_codes": [
+          "outside_hard_boundary"
+        ],
+        "status": "fail"
+      },
+      {
+        "dimension": "activity",
+        "metric_names": [],
+        "reason_codes": [],
+        "status": "not_required"
+      },
+      {
+        "dimension": "economics",
+        "metric_names": [
+          "net_broker_points"
+        ],
+        "reason_codes": [
+          "unknown_cost_observations"
+        ],
+        "status": "not_evaluable"
+      },
+      {
+        "dimension": "risk",
+        "metric_names": [],
+        "reason_codes": [],
+        "status": "not_required"
+      },
+      {
+        "dimension": "stability",
+        "metric_names": [
+          "positive_net_fold_count"
+        ],
+        "reason_codes": [
+          "outside_hard_boundary"
+        ],
+        "status": "fail"
+      },
+      {
+        "dimension": "execution",
+        "metric_names": [],
+        "reason_codes": [],
+        "status": "not_required"
+      },
+      {
+        "dimension": "portfolio_fit",
+        "metric_names": [],
+        "reason_codes": [],
+        "status": "not_required"
+      }
+    ],
+    "metric_verdicts": [
+      {
+        "dimension": "integrity",
+        "failure_effect": "repair",
+        "name": "causal_checks_all_pass",
+        "reason_code": "matches_expected",
+        "required": true,
+        "status": "pass",
+        "tuning_role": "none",
+        "value": true
+      },
+      {
+        "dimension": "inferential_density",
+        "failure_effect": "reject",
+        "name": "evaluable_trade_count",
+        "reason_code": "outside_hard_boundary",
+        "required": true,
+        "status": "fail",
+        "tuning_role": "none",
+        "value": 0
+      },
+      {
+        "dimension": "integrity",
+        "failure_effect": "evidence_gap",
+        "name": "unknown_cost_observation_count",
+        "reason_code": "outside_hard_boundary",
+        "required": true,
+        "status": "fail",
+        "tuning_role": "none",
+        "value": 231
+      },
+      {
+        "dimension": "economics",
+        "failure_effect": "reject",
+        "name": "net_broker_points",
+        "reason_code": "unknown_cost_observations",
+        "required": true,
+        "status": "not_evaluable",
+        "tuning_role": "sensitivity_only",
+        "value": null
+      },
+      {
+        "dimension": "stability",
+        "failure_effect": "reject",
+        "name": "positive_net_fold_count",
+        "reason_code": "outside_hard_boundary",
+        "required": true,
+        "status": "fail",
+        "tuning_role": "none",
+        "value": 0
+      }
+    ],
+    "profile_id": "V2SAP0002",
+    "reason_codes": [
+      "required_evidence_is_not_identified",
+      "evaluable_trade_count:outside_hard_boundary",
+      "unknown_cost_observation_count:outside_hard_boundary",
+      "net_broker_points:unknown_cost_observations",
+      "positive_net_fold_count:outside_hard_boundary"
+    ],
+    "route": "evidence_gap",
+    "schema": "axiom_rift_v2_kpi_evaluation_v1",
+    "stage": "S",
+    "unregistered_metric_names": []
+  },
+  "net_broker_points": null,
+  "per_fold": [],
+  "positive_net_fold_count": 0,
+  "sizing_mode": "fixed_lot",
+  "unknown_cost_observation_count": 231,
+  "validation_unknown_cost_observation_count": 231
+}

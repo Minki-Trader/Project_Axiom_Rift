@@ -43,7 +43,19 @@ routing:
   broken_execution: repair_same_scope
   scientific_reject: record_negative_memory_then_rotate
   scientific_survive: advance_by_stage_gate
+  scientific_evidence_gap: close_without_negative_memory_then_preregister_distinct_H
   holdout_informed_redesign: forbidden
+  repair_is_not_hypothesis_failure: true
+  boundary_trend_is_not_family_refutation: true
+  development_failure_allows_same_H_retuning: false
+  holdout_influenced_redesign_allowed: false
+  scout_modes:
+    - breadth
+    - depth
+    - synthesis
+  renamed_duplicate_allowed: false
+  identical_executable_retry_allowed: false
+  one_context_failure_may_refute_family: false
 evidence_budget:
   scout_jobs_max: 1
   mt5_runs_max: 0
@@ -85,18 +97,6 @@ trial_plan:
     - global_trials_before
     - global_configuration_hashes_before
     - global_history_sha256_before
-routing:
-  repair_is_not_hypothesis_failure: true
-  boundary_trend_is_not_family_refutation: true
-  development_failure_allows_same_H_retuning: false
-  holdout_influenced_redesign_allowed: false
-  scout_modes:
-    - breadth
-    - depth
-    - synthesis
-  renamed_duplicate_allowed: false
-  identical_executable_retry_allowed: false
-  one_context_failure_may_refute_family: false
 claim_boundary:
   preregistration_is_evidence: false
   sensitivity_surface_is_candidate_claim: false

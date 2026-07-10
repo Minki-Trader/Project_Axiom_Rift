@@ -1,0 +1,44 @@
+{
+  "configuration_hashes": [
+    "027be0975647858cae1d71d319a20ccaeda85d2c5feda1deebd78de7ea6d04c0",
+    "1b0d2674b6d1e43143540f1b7cf12302d322078f296097810d41382aa0fb319e",
+    "2a111689327a43ce46a784287017196ad25b1ac4f8446b913e78e25ad841df06",
+    "604cf897b7a0541513bb873fc3ae487ca83919da88bdbe873da55b15cf1ea5d9",
+    "cdd8cb3132a04aaa747fafe7214759276ef14f9ff4df1480d6f071e780fcdce0"
+  ],
+  "configuration_trials": 5,
+  "development_selected_paths": 0,
+  "development_variant_selection": false,
+  "family_configuration_hashes_after": [
+    "027be0975647858cae1d71d319a20ccaeda85d2c5feda1deebd78de7ea6d04c0",
+    "1b0d2674b6d1e43143540f1b7cf12302d322078f296097810d41382aa0fb319e",
+    "2a111689327a43ce46a784287017196ad25b1ac4f8446b913e78e25ad841df06",
+    "604cf897b7a0541513bb873fc3ae487ca83919da88bdbe873da55b15cf1ea5d9",
+    "cdd8cb3132a04aaa747fafe7214759276ef14f9ff4df1480d6f071e780fcdce0"
+  ],
+  "family_configuration_hashes_before": [],
+  "family_history_sha256_after": "5f39253a242a9ee5a9f873b447d3a4c991be8ed2e3d86067032f0863ee022e6f",
+  "family_history_sha256_before": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "family_id": "compression_release_event_v1",
+  "family_trials_before": 0,
+  "family_trials_cumulative": 5,
+  "global_configuration_hashes_after": [
+    "027be0975647858cae1d71d319a20ccaeda85d2c5feda1deebd78de7ea6d04c0",
+    "1b0d2674b6d1e43143540f1b7cf12302d322078f296097810d41382aa0fb319e",
+    "2a111689327a43ce46a784287017196ad25b1ac4f8446b913e78e25ad841df06",
+    "604cf897b7a0541513bb873fc3ae487ca83919da88bdbe873da55b15cf1ea5d9",
+    "cdd8cb3132a04aaa747fafe7214759276ef14f9ff4df1480d6f071e780fcdce0"
+  ],
+  "global_configuration_hashes_before": [],
+  "global_history_sha256_after": "5f39253a242a9ee5a9f873b447d3a4c991be8ed2e3d86067032f0863ee022e6f",
+  "global_history_sha256_before": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "global_trials_before": 0,
+  "global_trials_cumulative": 5,
+  "holdout_reveals": 0,
+  "inner_selection_events": 3,
+  "job_unique_configuration_count": 5,
+  "local_calibration_trials": 0,
+  "new_family_configuration_trials": 5,
+  "trial_accounting_complete": true,
+  "validation_evaluation_cells": 15
+}

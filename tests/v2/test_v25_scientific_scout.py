@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import json
+from pathlib import Path
+from types import MappingProxyType
+import tempfile
 import unittest
 
 import numpy as np
@@ -9,6 +13,7 @@ import numpy as np
 from axiom_rift.v2.data.blackouts import BoundaryGap
 from axiom_rift.v2.features import BarArrays
 from axiom_rift.v2.identity import sha256_payload
+from axiom_rift.v2.jobs.scout import _write_json
 from axiom_rift.v2.research.evaluation import (
     EvaluationProfile,
     FailureEffect,
@@ -130,6 +135,27 @@ def _spec() -> ScientificScoutSpec:
 
 
 class ScientificScoutTests(unittest.TestCase):
+    def test_artifact_writer_serializes_nested_immutable_mappings(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "receipt.json"
+            _write_json(
+                path,
+                {
+                    "programs": MappingProxyType(
+                        {
+                            "role": MappingProxyType(
+                                {"trade": MappingProxyType({"id": "V2TP1001"})}
+                            )
+                        }
+                    )
+                },
+            )
+            self.assertEqual(
+                {"programs": {"role": {"trade": {"id": "V2TP1001"}}}},
+                json.loads(path.read_text(encoding="ascii")),
+            )
+            self.assertNotIn(b"\r", path.read_bytes())
+
     def test_validation_only_selection_and_complete_trial_accounting(self) -> None:
         folds = tuple(
             _fold(fold_id, datetime(2020 + index * 2, 1, 1))

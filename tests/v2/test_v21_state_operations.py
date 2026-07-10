@@ -588,6 +588,19 @@ class V21GenericLifecycleTests(unittest.TestCase):
                 }
             )
             writer._validate_scientific_scout_receipt(receipt)
+            receipt_object_id = writer.objects.put("evidence_receipt", receipt)
+            writer.evidence.append(
+                "V2E000001",
+                "scientific_scout_completed",
+                {"receipt_object_id": receipt_object_id},
+                "2026-01-01T00:00:00Z",
+            )
+            self.assertEqual(
+                receipt,
+                writer.validate_recorded_scientific_scout_receipt(
+                    receipt_object_id
+                ),
+            )
             receipt["outcome"] = "route_to_R"
             receipt["gate_passed"] = True
             with self.assertRaises(OperationStateError):
@@ -707,6 +720,83 @@ class V21GenericLifecycleTests(unittest.TestCase):
             self.assertEqual("idle", state["cursor"]["stage"])
             self.assertEqual("open_goal", state["cursor"]["next_action"]["kind"])
             self.assertEqual("closed_no_candidate", state["history"]["recent_closed_goals"][-1]["outcome"])
+
+    def test_active_job_failure_is_not_scientific_evidence_and_resumes_after_repair(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            writer = build_writer(Path(temp_dir), v21_state())
+            writer.create_goal(goal_payload={"objective": "test"}, idempotency_key="create")
+            writer.open_goal(goal_id="V2G0001", idempotency_key="open")
+            writer.preregister_hypothesis(
+                hypothesis_id=None,
+                spec_path="campaigns/v2/G1/H1.yaml",
+                spec_sha256="2" * 64,
+                spec_payload=v22_hypothesis_payload("V2G0001", "V2H0001"),
+                split_set_id="V2SP0001",
+                material_ids=[],
+                idempotency_key="hypothesis",
+            )
+            writer.open_stage(new_stage="S", idempotency_key="stage")
+            writer.consume_slice_budget(
+                phase="implementation",
+                expected_slice_id="V2S0001",
+                idempotency_key="implementation",
+            )
+            job_spec_id = writer.objects.put("job_spec", {"stage": "S"})
+            input_hash = sha256_payload({"input": 1})
+            writer.declare_active_job(
+                job_id="V2J0001",
+                kind="scientific_scout",
+                spec_object_id=job_spec_id,
+                input_hash=input_hash,
+                timeout_seconds=60,
+                output_path="campaigns/v2/G1/S1",
+                command="axiom-rift goal-run",
+                expected_artifacts=["campaigns/v2/G1/S1/receipt.json"],
+                log_path="campaigns/v2/G1/S1/job.log",
+                resume_action="resume V2J0001",
+                idempotency_key="declare",
+            )
+            writer.start_active_job(job_id="V2J0001", idempotency_key="start")
+
+            failed = writer.record_active_job_failure(
+                job_id="V2J0001",
+                failure_id="V2S0001_FAILURE_1",
+                failure_code="receipt_serialization",
+                summary="Receipt serialization failed after artifact generation.",
+                idempotency_key="failure",
+            )
+            failure_object_id = failed["reentry"]["active_job"]["failure_object_id"]
+            failure = writer.objects.get(failure_object_id)["payload"]
+            self.assertFalse(failure["scientific_evidence"])
+            self.assertEqual(0, failure["trial_count_delta"])
+            self.assertEqual("failed", failed["reentry"]["active_job"]["status"])
+            self.assertEqual("repair", failed["cursor"]["next_action"]["kind"])
+            row = writer.evidence.rows()[-1]
+            self.assertEqual("evidence_job_failed", row["record_type"])
+            self.assertEqual(failure_object_id, row["payload"]["failure_object_id"])
+
+            with self.assertRaisesRegex(OperationStateError, "consumed repair budget"):
+                writer.resume_active_job_after_repair(
+                    job_id="V2J0001",
+                    repaired_code_sha256="3" * 64,
+                    idempotency_key="early-resume",
+                )
+            writer.consume_slice_budget(
+                phase="repair",
+                expected_slice_id="V2S0001",
+                idempotency_key="repair",
+            )
+            resumed = writer.resume_active_job_after_repair(
+                job_id="V2J0001",
+                repaired_code_sha256="3" * 64,
+                idempotency_key="resume",
+            )
+            job = resumed["reentry"]["active_job"]
+            self.assertEqual("running", job["status"])
+            self.assertEqual(input_hash, job["input_hash"])
+            self.assertEqual("V2S0001_FAILURE_1", job["resumed_after_failure_id"])
+            self.assertEqual(1, job["resume_count"])
+            self.assertEqual("record_evidence", resumed["cursor"]["next_action"]["kind"])
 
     def test_mismatched_identity_does_not_consume_namespace_or_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+from collections.abc import Mapping
 import hashlib
 import json
 import re
@@ -57,8 +58,26 @@ def _validate_stage_identity(value: str, prefix: str) -> None:
         raise ValueError(f"invalid V2 {prefix} identity: {value}")
 
 
-def _write_json(path: Path, payload: dict[str, Any]) -> None:
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="ascii")
+def _json_safe(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
+def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
+    path.write_text(
+        json.dumps(
+            _json_safe(payload),
+            indent=2,
+            sort_keys=True,
+            allow_nan=False,
+        )
+        + "\n",
+        encoding="ascii",
+        newline="\n",
+    )
 
 
 def _write_trades(path: Path, trades: tuple[ScoutTrade, ...]) -> None:

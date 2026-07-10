@@ -308,11 +308,18 @@ class V2OperationWriter:
             raise OperationStateError(f"{label} must be sorted and unique")
         return value
 
-    def _durable_family_configuration_hashes(self, family_id: str) -> list[str]:
+    def _durable_family_configuration_hashes(
+        self,
+        family_id: str,
+        *,
+        exclude_receipt_object_id: str | None = None,
+    ) -> list[str]:
         hashes: set[str] = set()
         for row in self.evidence.rows():
             receipt_object_id = row.get("payload", {}).get("receipt_object_id")
             if not isinstance(receipt_object_id, str):
+                continue
+            if receipt_object_id == exclude_receipt_object_id:
                 continue
             receipt = self.objects.get(receipt_object_id).get("payload", {})
             accounting = receipt.get("trial_accounting")
@@ -327,11 +334,17 @@ class V2OperationWriter:
                 )
         return sorted(hashes)
 
-    def _durable_global_configuration_hashes(self) -> list[str]:
+    def _durable_global_configuration_hashes(
+        self,
+        *,
+        exclude_receipt_object_id: str | None = None,
+    ) -> list[str]:
         hashes: set[str] = set()
         for row in self.evidence.rows():
             receipt_object_id = row.get("payload", {}).get("receipt_object_id")
             if not isinstance(receipt_object_id, str):
+                continue
+            if receipt_object_id == exclude_receipt_object_id:
                 continue
             receipt = self.objects.get(receipt_object_id).get("payload", {})
             accounting = receipt.get("trial_accounting")
@@ -1191,6 +1204,7 @@ class V2OperationWriter:
         receipt: Mapping[str, Any],
         *,
         state: Mapping[str, Any] | None = None,
+        exclude_receipt_object_id: str | None = None,
     ) -> None:
         """Validate a scientific S receipt, including a valid empty-path rejection."""
 
@@ -1387,8 +1401,13 @@ class V2OperationWriter:
         family_id = accounting.get("family_id")
         if not isinstance(family_id, str) or not family_id:
             raise OperationStateError("scientific scout family identity is missing")
-        prior = self._durable_family_configuration_hashes(family_id)
-        global_prior = self._durable_global_configuration_hashes()
+        prior = self._durable_family_configuration_hashes(
+            family_id,
+            exclude_receipt_object_id=exclude_receipt_object_id,
+        )
+        global_prior = self._durable_global_configuration_hashes(
+            exclude_receipt_object_id=exclude_receipt_object_id,
+        )
         declared_prior = self._require_sorted_sha256_list(
             accounting.get("family_configuration_hashes_before"),
             "family_configuration_hashes_before",
@@ -1564,6 +1583,40 @@ class V2OperationWriter:
                 raise OperationStateError(
                     "scientific scout receipt differs from the active hypothesis"
                 )
+
+    def validate_recorded_scientific_scout_receipt(
+        self,
+        receipt_object_id: str,
+    ) -> dict[str, Any]:
+        """Revalidate one recorded scout against its pre-append trial history."""
+
+        wrapped = self.objects.get(receipt_object_id)
+        receipt = wrapped.get("payload")
+        if (
+            wrapped.get("kind") != "evidence_receipt"
+            or not isinstance(receipt, dict)
+            or receipt.get("schema")
+            != "axiom_rift_v2_scientific_scout_receipt_v1"
+        ):
+            raise OperationStateError(
+                "recorded scientific scout receipt object is invalid"
+            )
+        matching_rows = [
+            row
+            for row in self.evidence.rows()
+            if row.get("record_type") == "scientific_scout_completed"
+            and row.get("payload", {}).get("receipt_object_id")
+            == receipt_object_id
+        ]
+        if len(matching_rows) != 1:
+            raise OperationStateError(
+                "recorded scientific scout receipt must have one evidence row"
+            )
+        self._validate_scientific_scout_receipt(
+            receipt,
+            exclude_receipt_object_id=receipt_object_id,
+        )
+        return receipt
 
     def create_goal(
         self,
@@ -1973,6 +2026,149 @@ class V2OperationWriter:
             draft_job = draft["reentry"]["active_job"]
             draft_job["status"] = "running"
             draft_job["started_at_utc"] = utc_now()
+            self._set_next_action(draft, action)
+
+        return self.control.commit(state["revision"], idempotency_key, mutate)
+
+    def record_active_job_failure(
+        self,
+        *,
+        job_id: str,
+        failure_id: str,
+        failure_code: str,
+        summary: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Persist an execution failure without treating it as hypothesis evidence."""
+
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("active-job failure requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        job = state.get("reentry", {}).get("active_job")
+        if (
+            not isinstance(job, dict)
+            or job.get("job_id") != job_id
+            or job.get("status") != "running"
+        ):
+            raise OperationStateError("only the running active job may record failure")
+        if re.fullmatch(r"[a-z][a-z0-9_]*", failure_code) is None:
+            raise OperationStateError("active-job failure code is invalid")
+        if not isinstance(summary, str) or not summary.strip():
+            raise OperationStateError("active-job failure summary is required")
+        try:
+            summary.encode("ascii")
+        except UnicodeEncodeError as exc:
+            raise OperationStateError("active-job failure summary must be ASCII") from exc
+        occurred = utc_now()
+        payload = {
+            "schema": "axiom_rift_v2_evidence_job_failure_v1",
+            "job_id": job_id,
+            "goal_id": job["goal_id"],
+            "stage_id": job["stage_id"],
+            "kind": job["kind"],
+            "spec_object_id": job["spec_object_id"],
+            "input_hash": job["input_hash"],
+            "failure_code": failure_code,
+            "summary": summary,
+            "log_path": job["log_path"],
+            "failed_at_utc": occurred,
+            "scientific_evidence": False,
+            "trial_count_delta": 0,
+            "claim_ceiling": "none",
+        }
+        object_id = self.objects.put("evidence_job_failure", payload)
+        row = self._append_or_existing(
+            self.evidence,
+            failure_id,
+            "evidence_job_failed",
+            {**payload, "failure_object_id": object_id},
+            occurred,
+        )
+        action = make_next_action(
+            "repair",
+            goal_id=job["goal_id"],
+            stage=str(state["cursor"]["stage"]),
+            subject_id=job["stage_id"],
+            prerequisite_receipt_ids=[failure_id],
+            summary=f"repair failed evidence job {job_id}",
+        )
+
+        def mutate(draft: dict[str, Any]) -> None:
+            draft_job = draft["reentry"]["active_job"]
+            draft_job.update(
+                {
+                    "status": "failed",
+                    "failure_id": failure_id,
+                    "failure_object_id": object_id,
+                    "failure_code": failure_code,
+                    "failed_at_utc": occurred,
+                }
+            )
+            draft["ledger_heads"]["evidence"] = {
+                "ledger_seq": row["ledger_seq"],
+                "row_sha256": row["row_sha256"],
+            }
+            self._add_authoritative_objects(draft, [object_id])
+            draft["reentry"]["current_artifact_hashes"][failure_id] = object_id
+            self._set_next_action(draft, action)
+
+        return self.control.commit(
+            state["revision"],
+            idempotency_key,
+            mutate,
+            referenced_object_ids=[object_id],
+        )
+
+    def resume_active_job_after_repair(
+        self,
+        *,
+        job_id: str,
+        repaired_code_sha256: str,
+        idempotency_key: str,
+    ) -> dict[str, Any]:
+        """Resume the same declared input after one bounded implementation repair."""
+
+        state = self.control.load()
+        if not self._is_v2_state(state):
+            raise OperationStateError("active-job resume requires control-state schema v2")
+        if self._already_applied(state, idempotency_key):
+            return state
+        self._require_reconciled(state)
+        job = state.get("reentry", {}).get("active_job")
+        if (
+            not isinstance(job, dict)
+            or job.get("job_id") != job_id
+            or job.get("status") not in {"failed", "timed_out"}
+        ):
+            raise OperationStateError("only a failed active job may resume after repair")
+        if re.fullmatch(r"[0-9a-f]{64}", repaired_code_sha256) is None:
+            raise OperationStateError("repaired code hash is invalid")
+        budget = state.get("slice_budget")
+        if not isinstance(budget, dict) or budget.get("repair_remaining") != 0:
+            raise OperationStateError("active-job resume requires a consumed repair budget")
+        action = make_next_action(
+            "record_evidence",
+            goal_id=job["goal_id"],
+            stage=str(state["cursor"]["stage"]),
+            subject_id=job["stage_id"],
+            prerequisite_receipt_ids=[job["failure_id"]],
+            summary=f"record repaired evidence for {job_id}",
+        )
+
+        def mutate(draft: dict[str, Any]) -> None:
+            draft_job = draft["reentry"]["active_job"]
+            draft_job.update(
+                {
+                    "status": "running",
+                    "started_at_utc": utc_now(),
+                    "resumed_after_failure_id": draft_job["failure_id"],
+                    "repaired_code_sha256": repaired_code_sha256,
+                    "resume_count": int(draft_job.get("resume_count", 0)) + 1,
+                }
+            )
             self._set_next_action(draft, action)
 
         return self.control.commit(state["revision"], idempotency_key, mutate)

@@ -165,6 +165,35 @@ def _valid_tree(root: Path) -> tuple[Path, dict[str, object], dict[str, dict[str
 
 
 class ScientificProgramRegistryTests(unittest.TestCase):
+    def test_hypothesis_routing_contract_preserves_all_scientific_routes(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        contract = yaml.safe_load(
+            (root / "contracts/v2/hypothesis_contract.yaml").read_text(
+                encoding="ascii"
+            )
+        )
+        routing = contract["routing"]
+        self.assertEqual("repair_same_scope", routing["broken_execution"])
+        self.assertEqual(
+            "record_negative_memory_then_rotate",
+            routing["scientific_reject"],
+        )
+        self.assertEqual("advance_by_stage_gate", routing["scientific_survive"])
+        self.assertEqual(
+            "close_without_negative_memory_then_preregister_distinct_H",
+            routing["scientific_evidence_gap"],
+        )
+        self.assertFalse(routing["identical_executable_retry_allowed"])
+        state_machine = yaml.safe_load(
+            (root / "contracts/v2/state_machine.yaml").read_text(
+                encoding="ascii"
+            )
+        )
+        self.assertIn(
+            "evidence_gap_to_distinct_H",
+            state_machine["stage_internal_routes"]["S"],
+        )
+
     def test_contract_and_program_hashes_are_verified(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

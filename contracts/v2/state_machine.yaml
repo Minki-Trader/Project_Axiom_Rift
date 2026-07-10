@@ -43,6 +43,7 @@ stage_internal_routes:
     - validation_local_calibration
     - freeze_one_development_path_per_fold
     - scout_rejected
+    - evidence_gap_to_distinct_H
     - scale_miss_to_distinct_H
     - route_to_R
   development_result_may_return_to_local_calibration: false
