@@ -1,5 +1,5 @@
 schema: axiom_rift_v2_control_state_v2
-revision: 80
+revision: 81
 status: active
 encoding: ascii_only
 active_truth: v2
@@ -52,6 +52,7 @@ reentry:
   - f4047b46fd1af5e9c0df7814e690dd1b2cf09feee3c9ff9c632da365aa3469d2
   - b843f916f96fc510d62455c11943fdd253e16e20c3d3ab4340e6b117f0a22fa1
   - 834a5dcc9ebca7ef007f24cbfa5681082705822218b164c1816d5ac931f8286f
+  - 2d08746b9460265ca6fe866fb63a88d967d83d541d8ec4aaaabbb343113eadaf
   current_artifact_hashes:
     V2G0002: f4047b46fd1af5e9c0df7814e690dd1b2cf09feee3c9ff9c632da365aa3469d2
     V2VR000016: b843f916f96fc510d62455c11943fdd253e16e20c3d3ab4340e6b117f0a22fa1
@@ -62,10 +63,14 @@ reentry:
   completed_evidence_ids: []
   blocker: null
   git_sync:
-    status: unsynced
+    status: metadata_pending_push
+    validated_content_commit: 3e4ca70fe39a0d05838a116ba2ad2013b34b648f
+    local_head: 3e4ca70fe39a0d05838a116ba2ad2013b34b648f
+    origin_main_head: 3e4ca70fe39a0d05838a116ba2ad2013b34b648f
     validation_receipt_id: V2VR000017
-    validation_key: cc6437d2dbefacae271f264eea0d19f8cb7812a681dc17d0eab76297aff8a742
-    validated_slice_id: V2G0002_H
+    closeout_object_id: 2d08746b9460265ca6fe866fb63a88d967d83d541d8ec4aaaabbb343113eadaf
+    content_state_fingerprint: c1b70d5092b0907af587a58a40e8e868e5da319aa5c6e1e92ead1918236ac3d7
+    dirty_revision: 80
     declared_content_paths:
     - contracts/v2/hypothesis_contract.yaml
     - registries/v2/control_state.yaml
@@ -79,10 +84,10 @@ reentry:
     - tests/v2/test_v21_state_operations.py
     - tests/v2/test_v22_nested_scout.py
     - tests/v2/test_v24_autonomy_harness.py
-    dirty_revision: 80
-    dirty_state_fingerprint: c1b70d5092b0907af587a58a40e8e868e5da319aa5c6e1e92ead1918236ac3d7
-    invalidated_by_operation: close_V2G0002_H_after_V2VR000017
-    previous_validated_content_commit: null
+    metadata_allowed_paths:
+    - registries/v2/control_state.yaml
+    - registries/v2/evidence_ledger.jsonl
+    - registries/v2/objects/2d08746b9460265ca6fe866fb63a88d967d83d541d8ec4aaaabbb343113eadaf.json
 claim:
   subject_kind: none
   subject_id: null
@@ -96,8 +101,8 @@ ledger_heads:
     ledger_seq: 0
     row_sha256: null
   evidence:
-    ledger_seq: 14
-    row_sha256: 3b03f352a8ab3bd95c15ce577182b7f4b6a060439a07d6c4dec79f8e634f5121
+    ledger_seq: 15
+    row_sha256: 2be5204c1387e82b87419a471c094a0282457a1caec4dba34e6757f8bc64c9b5
   material:
     ledger_seq: 20
     row_sha256: 1b0498be4d3be0ea22148aaec4141a60c46996805c705087717015b632c9afb4
@@ -184,6 +189,7 @@ applied_idempotency_keys:
 - authorize_V2G0002_H_root_to_H_guard_recheck_cc6437d2dbefacae271f264eea0d19f8cb7812a681dc17d0eab76297aff8a742
 - record_V2VR000017
 - close_V2G0002_H_after_V2VR000017
+- record_V2GC000005_root_to_H_guard
 bootstrap_goal_outcome: activated
 activation:
   activation_evidence_id: V2E000008
