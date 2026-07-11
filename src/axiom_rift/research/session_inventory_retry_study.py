@@ -1,4 +1,4 @@
-"""Declarative evidence plan for the registered session-inventory Study."""
+"""Retry runner for the corrected registered session-inventory Study."""
 
 from __future__ import annotations
 
@@ -38,8 +38,8 @@ from axiom_rift.research.validation import (
 
 
 MISSION_ID = "MIS-0001"
-STUDY_ID = "STU-0006"
-CALLABLE_IDENTITY = "axiom_rift.research.session_inventory_study.execute_session_inventory_job.v1"
+STUDY_ID = "STU-0007"
+CALLABLE_IDENTITY = "axiom_rift.research.session_inventory_retry_study.execute_session_inventory_job.v1"
 EVIDENCE_DEPTH = "discovery"
 PLANNED_CLAIMS = (
     "activity_and_concentration",
@@ -401,7 +401,7 @@ def planned_verdict(
 
 def output_names(executable_id: str) -> dict[str, str]:
     short = executable_id.removeprefix("executable:")[:16]
-    prefix = f"scientific/STU-0006/{short}"
+    prefix = f"scientific/{STUDY_ID}/{short}"
     return {
         "context": f"{prefix}/evaluation.json",
         "environment": f"{prefix}/environment.json",
@@ -889,4 +889,6 @@ __all__ = [
     "surface_manifest_output_name",
     "SessionInventoryJobPacket",
 ]
+
+
 

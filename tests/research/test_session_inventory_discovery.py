@@ -41,10 +41,10 @@ class SessionInventoryDiscoveryTests(unittest.TestCase):
         self.assertEqual(
             [item.configuration_id for item in configurations[:4]],
             [
-                "broker_01_inventory_12-fade-h12",
-                "broker_01_inventory_12-fade-h48",
-                "broker_01_inventory_12-follow-h12",
-                "broker_01_inventory_12-follow-h48",
+                "broker_23_inventory_48-fade-h12",
+                "broker_23_inventory_48-fade-h48",
+                "broker_23_inventory_48-follow-h12",
+                "broker_23_inventory_48-follow-h48",
             ],
         )
         for executable in executables:
@@ -58,12 +58,12 @@ class SessionInventoryDiscoveryTests(unittest.TestCase):
             self.assertIn(
                 session_inventory.loader_implementation_sha256(), executable.engine_contract
             )
-            self.assertIn("bonferroni_90", executable.engine_contract)
+            self.assertIn("bonferroni_114", executable.engine_contract)
 
     def test_feature_is_prefix_invariant_and_rewarms_after_gap(self) -> None:
         frame = synthetic_frame()
         opportunities = {
-            "broker_01_inventory_12": (0, 55),
+            "broker_23_inventory_48": (22, 55),
             "broker_08_inventory_24": (7, 55),
             "broker_15_inventory_36": (14, 55),
         }
@@ -103,7 +103,7 @@ class SessionInventoryDiscoveryTests(unittest.TestCase):
         frame["time"] = frame["time"].dt.tz_localize("UTC")
         with self.assertRaisesRegex(ValueError, "timezone-naive broker clock"):
             session_inventory.compute_session_inventory_score(
-                frame, "broker_01_inventory_12"
+                frame, "broker_23_inventory_48"
             )
 
     def test_selector_is_fold_only_opportunity_seventy_fifth_percentile(self) -> None:
@@ -113,19 +113,19 @@ class SessionInventoryDiscoveryTests(unittest.TestCase):
         expected = np.quantile(np.abs(score[:150]), 0.75, method="higher")
         self.assertEqual(session_inventory.calibrate_selector(score, train), expected)
         train[:] = False
-        train[:19] = True
-        with self.assertRaisesRegex(ValueError, "fewer than 20 opportunities"):
+        train[:99] = True
+        with self.assertRaisesRegex(ValueError, "fewer than 100 opportunities"):
             session_inventory.calibrate_selector(score, train)
-        train[19] = True
+        train[99] = True
         self.assertEqual(
             session_inventory.calibrate_selector(score, train),
-            np.quantile(np.abs(score[:20]), 0.75, method="higher"),
+            np.quantile(np.abs(score[:100]), 0.75, method="higher"),
         )
 
     def test_registered_control_metrics_are_pairwise_noncompensatory(self) -> None:
         days = pd.date_range("2025-01-01", periods=40, freq="D")
         profile_net = {
-            "broker_01_inventory_12": 100,
+            "broker_23_inventory_48": 100,
             "broker_08_inventory_24": 80,
             "broker_15_inventory_36": 60,
         }
@@ -151,7 +151,7 @@ class SessionInventoryDiscoveryTests(unittest.TestCase):
         subject = next(
             item for item in results
             if item.configuration.configuration_id
-            == "broker_01_inventory_12-follow-h12"
+            == "broker_23_inventory_48-follow-h12"
         )
         self.assertEqual(
             subject.metrics["feature_control_worst_delta_net_profit_micropoints"], 20
@@ -222,4 +222,3 @@ class SessionInventoryDiscoveryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

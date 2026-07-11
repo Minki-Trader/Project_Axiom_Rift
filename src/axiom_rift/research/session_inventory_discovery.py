@@ -49,16 +49,16 @@ from axiom_rift.research.discovery import (
 SELECTOR_QUANTILE_BP = 7_500
 SELECTION_BOOTSTRAP_SAMPLES = 41_999
 SELECTION_BLOCK_LENGTHS = (5, 10, 20)
-SELECTION_TOTAL_EXPOSURES = 90
+SELECTION_TOTAL_EXPOSURES = 114
 SELECTION_SEED = 612_337_279
 SELECTION_MONTE_CARLO_CONFIDENCE_PPM = 990_000
 
 _PROFILE_SPECS: dict[str, dict[str, int | str]] = {
-    "broker_01_inventory_12": {
-        "decision_hour": 0,
+    "broker_23_inventory_48": {
+        "decision_hour": 22,
         "decision_minute": 55,
-        "lookback_bars": 12,
-        "target_open_hour": 1,
+        "lookback_bars": 48,
+        "target_open_hour": 23,
     },
     "broker_08_inventory_24": {
         "decision_hour": 7,
@@ -154,7 +154,7 @@ def session_inventory_configurations() -> tuple[SessionInventoryConfiguration, .
     return tuple(
         SessionInventoryConfiguration(profile, signal_sign, holding_bars)
         for profile in (
-            "broker_01_inventory_12",
+            "broker_23_inventory_48",
             "broker_08_inventory_24",
             "broker_15_inventory_36",
         )
@@ -210,7 +210,7 @@ def session_inventory_components() -> tuple[ComponentSpec, ...]:
             spec={
                 "calibration_role": "train_is_only",
                 "decision_rule": "absolute_score_at_least_threshold",
-                "minimum_train_opportunities": 20,
+                "minimum_train_opportunities": 100,
                 "quantile_basis_points": SELECTOR_QUANTILE_BP,
                 "quantile_method": "higher",
             },
@@ -223,7 +223,7 @@ def session_inventory_components() -> tuple[ComponentSpec, ...]:
                 "decision_time": "bar_open_plus_5m",
                 "entry_time": "decision_time_at_next_exact_bar_open",
                 "direction": "follow_or_fade_times_inventory_sign",
-                "target_opens": ["01:00", "08:00", "15:00"],
+                "target_opens": ["08:00", "15:00", "23:00"],
                 "parameter_fields": ["signal_sign"],
             },
         ),
@@ -357,8 +357,8 @@ def compute_session_inventory_score(
 
 def calibrate_selector(score: np.ndarray, train_mask: np.ndarray) -> float:
     values = np.abs(score[train_mask & np.isfinite(score)])
-    if len(values) < 20:
-        raise ValueError("selector calibration has fewer than 20 opportunities")
+    if len(values) < 100:
+        raise ValueError("selector calibration has fewer than 100 opportunities")
     return float(
         np.quantile(values, SELECTOR_QUANTILE_BP / 10_000, method="higher")
     )
@@ -407,7 +407,7 @@ def _evaluate_configuration(
             & (run >= max(49, configuration.rewarm_bars))
         )
         train_volatility = volatility[eligible_train]
-        if len(train_volatility) < 20:
+        if len(train_volatility) < 100:
             raise SessionInventoryBoundaryError("regime calibration is too small")
         cutoffs = (
             float(np.quantile(train_volatility, 1 / 3, method="higher")),

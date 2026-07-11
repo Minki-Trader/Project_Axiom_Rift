@@ -15,7 +15,7 @@ from axiom_rift.research.session_inventory_discovery import (
     session_inventory_executable_configuration_map,
     trend_dependency_sha256,
 )
-from axiom_rift.research.session_inventory_study import (
+from axiom_rift.research.session_inventory_retry_study import (
     CALLABLE_IDENTITY,
     EVIDENCE_MODES,
     PLANNED_CLAIMS,
@@ -69,7 +69,7 @@ def evaluation(*, evaluable: bool = True, net: int = 1_000_000) -> dict[str, obj
     }
 
 
-class SessionInventoryStudyPlanTests(unittest.TestCase):
+class SessionInventoryRetryStudyPlanTests(unittest.TestCase):
     def setUp(self) -> None:
         executable_ids = sorted(session_inventory_executable_configuration_map())
         self.assertEqual(len(executable_ids), 12)
@@ -81,6 +81,23 @@ class SessionInventoryStudyPlanTests(unittest.TestCase):
         self.assertEqual(tuple(self.plan["planned_claims"]), PLANNED_CLAIMS)
         self.assertFalse(self.plan["candidate_eligible_on_pass"])
         self.assertEqual(SELECTION_TOTAL_EXPOSURES, 114)
+        self.assertEqual(
+            CALLABLE_IDENTITY,
+            "axiom_rift.research.session_inventory_retry_study."
+            "execute_session_inventory_job.v1",
+        )
+        self.assertTrue(
+            all(
+                name.startswith("scientific/STU-0007/")
+                for name in output_names(self.executable_id).values()
+            )
+        )
+        self.assertTrue(
+            surface_cache_output_name().startswith("local/cache/STU-0007/")
+        )
+        self.assertTrue(
+            surface_manifest_output_name().startswith("scientific/STU-0007/")
+        )
         self.assertEqual(tuple(self.plan["evidence_modes"]), EVIDENCE_MODES)
         self.assertEqual(
             {item["claim_id"] for item in self.plan["criteria"]},
@@ -184,16 +201,16 @@ class SessionInventoryStudyPlanTests(unittest.TestCase):
             "initiative_id": "INI-0002",
             "mission_id": "MIS-0001",
             "spec": spec,
-            "study_id": "STU-0006",
+            "study_id": "STU-0007",
         }
         with TemporaryDirectory() as temporary, patch(
-            "axiom_rift.research.session_inventory_study.StateWriter.verify_running_job_execution",
+            "axiom_rift.research.session_inventory_retry_study.StateWriter.verify_running_job_execution",
             return_value=binding,
         ), patch(
-            "axiom_rift.research.session_inventory_study._compute_registered_session_inventory_surface",
+            "axiom_rift.research.session_inventory_retry_study._compute_registered_session_inventory_surface",
             return_value={"schema": "fixture_surface"},
         ), patch(
-            "axiom_rift.research.session_inventory_study.project_session_inventory_evaluation",
+            "axiom_rift.research.session_inventory_retry_study.project_session_inventory_evaluation",
             return_value=evaluation(),
         ):
             packet = execute_session_inventory_job(
@@ -261,13 +278,13 @@ class SessionInventoryStudyPlanTests(unittest.TestCase):
                     (consumer_execution, consumer_binding, consumer_names)
                 )
             with patch(
-                "axiom_rift.research.session_inventory_study.StateWriter.verify_running_job_execution",
+                "axiom_rift.research.session_inventory_retry_study.StateWriter.verify_running_job_execution",
                 side_effect=[case[1] for case in consumer_cases],
             ), patch(
-                "axiom_rift.research.session_inventory_study.StateWriter.verify_reproducible_cache_producer",
+                "axiom_rift.research.session_inventory_retry_study.StateWriter.verify_reproducible_cache_producer",
                 return_value=None,
             ) as verify_producer, patch(
-                "axiom_rift.research.session_inventory_study._compute_registered_session_inventory_surface",
+                "axiom_rift.research.session_inventory_retry_study._compute_registered_session_inventory_surface",
                 side_effect=AssertionError("consumer recomputed the surface"),
             ) as recompute:
                 consumer_packets = [
@@ -312,5 +329,7 @@ class SessionInventoryStudyPlanTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
 
 
