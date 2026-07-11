@@ -318,6 +318,7 @@ def _trend_evaluation(
         not in {
             "reversion_discovery_evaluation.v1",
             "trend_discovery_evaluation.v3",
+            "volume_price_discovery_evaluation.v1",
             "volatility_discovery_evaluation.v1",
         }
     ):
@@ -445,6 +446,7 @@ def _trend_evaluation(
     expected_total_exposures = {
         "reversion_discovery_evaluation.v1": 54,
         "trend_discovery_evaluation.v3": 42,
+        "volume_price_discovery_evaluation.v1": 78,
         "volatility_discovery_evaluation.v1": 66,
     }[schema]
     if selection_method != {
