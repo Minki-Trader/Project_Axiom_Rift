@@ -723,6 +723,7 @@ def _evaluate_configuration(
         str, tuple[float, tuple[float, float], float]
     ],
     time: pd.Series,
+    executable_id: str | None = None,
 ) -> _ConfigurationResult:
     score, volatility, run = features
     simulations: list[SimulationResult] = []
@@ -999,7 +1000,11 @@ def _evaluate_configuration(
     }
     return _ConfigurationResult(
         configuration=configuration,
-        executable_id=trend_executable(configuration).identity,
+        executable_id=(
+            trend_executable(configuration).identity
+            if executable_id is None
+            else executable_id
+        ),
         metrics=metrics,
         fold_metrics=fold_metrics,
         regime_metrics=regime_metrics,
@@ -1018,6 +1023,7 @@ def _adjusted_bootstrap_upper_pvalue(
     values: np.ndarray,
     *,
     seed_label: str,
+    total_exposures: int = SELECTION_TOTAL_EXPOSURES,
 ) -> int:
     """Return the worst 99% MC-upper p-value across registered block lengths."""
 
@@ -1100,7 +1106,7 @@ def _adjusted_bootstrap_upper_pvalue(
             min(
                 1.0,
                 max(point_pvalue, monte_carlo_upper)
-                * SELECTION_TOTAL_EXPOSURES,
+                * total_exposures,
             ),
         )
     return min(1_000_000, int(ceil(1_000_000 * worst_adjusted)))
@@ -1108,6 +1114,8 @@ def _adjusted_bootstrap_upper_pvalue(
 
 def _selection_adjusted_pvalues(
     results: Sequence[_ConfigurationResult],
+    *,
+    total_exposures: int = SELECTION_TOTAL_EXPOSURES,
 ) -> dict[str, int]:
     days = pd.DatetimeIndex(
         sorted(set().union(*(set(result.daily_pnl.index) for result in results)))
@@ -1118,6 +1126,7 @@ def _selection_adjusted_pvalues(
         result.executable_id: _adjusted_bootstrap_upper_pvalue(
             result.daily_pnl.reindex(days, fill_value=0.0).to_numpy(dtype=float),
             seed_label=f"selection:{result.executable_id}",
+            total_exposures=total_exposures,
         )
         for result in results
     }
@@ -1128,6 +1137,7 @@ def _paired_control_pvalue(
     control: _ConfigurationResult,
     *,
     role: str,
+    total_exposures: int = SELECTION_TOTAL_EXPOSURES,
 ) -> int:
     if not subject.daily_pnl.index.equals(control.daily_pnl.index):
         raise DiscoveryBoundaryError("paired controls have different eligible days")
@@ -1140,6 +1150,7 @@ def _paired_control_pvalue(
         seed_label=(
             f"control:{role}:{subject.executable_id}:{control.executable_id}"
         ),
+        total_exposures=total_exposures,
     )
 
 
@@ -1162,7 +1173,9 @@ def _matched_result(
     return matches[0]
 
 
-def _selection_method() -> dict[str, Any]:
+def _selection_method(
+    total_exposures: int = SELECTION_TOTAL_EXPOSURES,
+) -> dict[str, Any]:
     return {
         "bootstrap_samples": SELECTION_BOOTSTRAP_SAMPLES,
         "block_days": list(SELECTION_BLOCK_LENGTHS),
@@ -1179,7 +1192,7 @@ def _selection_method() -> dict[str, Any]:
         ),
         "seed": SELECTION_SEED,
         "seed_derivation": "sha256_base_seed_label_block_length_first_u64",
-        "total_exposures": SELECTION_TOTAL_EXPOSURES,
+        "total_exposures": total_exposures,
     }
 
 
@@ -1198,6 +1211,8 @@ def _claim_limits() -> list[str]:
 
 def _populate_registered_control_metrics(
     results: Sequence[_ConfigurationResult],
+    *,
+    total_exposures: int = SELECTION_TOTAL_EXPOSURES,
 ) -> None:
     for subject in results:
         opposite = _matched_result(
@@ -1237,6 +1252,7 @@ def _populate_registered_control_metrics(
             subject,
             opposite,
             role="opposite_sign",
+            total_exposures=total_exposures,
         )
         subject.metrics[
             "feature_control_worst_delta_net_profit_micropoints"
@@ -1248,7 +1264,12 @@ def _populate_registered_control_metrics(
         subject.metrics[
             "feature_control_worst_pvalue_upper_ppm"
         ] = max(
-            _paired_control_pvalue(subject, control, role="feature")
+            _paired_control_pvalue(
+                subject,
+                control,
+                role="feature",
+                total_exposures=total_exposures,
+            )
             for control in feature_controls
         )
         if any(type(value) is not int for value in subject.metrics.values()):
