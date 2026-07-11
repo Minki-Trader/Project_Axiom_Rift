@@ -316,6 +316,7 @@ def _trend_evaluation(
         or set(value) != _TREND_EVALUATION_FIELDS
         or schema
         not in {
+            "composite_router_evaluation.v1",
             "reversion_discovery_evaluation.v1",
             "reversion_regime_followup_evaluation.v1",
             "session_inventory_discovery_evaluation.v1",
@@ -450,6 +451,7 @@ def _trend_evaluation(
         raise EvidenceValidationError("trend subject is absent from selection context")
     selection_method = value.get("selection_method")
     expected_total_exposures = {
+        "composite_router_evaluation.v1": 210,
         "reversion_discovery_evaluation.v1": 54,
         "reversion_regime_followup_evaluation.v1": 186,
         "session_inventory_discovery_evaluation.v1": 114,
