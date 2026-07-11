@@ -310,10 +310,15 @@ def _trend_evaluation(
     job_id: str,
     job_hash: str,
 ) -> dict[str, Any]:
+    schema = value.get("schema") if isinstance(value, dict) else None
     if (
         not isinstance(value, dict)
         or set(value) != _TREND_EVALUATION_FIELDS
-        or value.get("schema") != "trend_discovery_evaluation.v3"
+        or schema
+        not in {
+            "reversion_discovery_evaluation.v1",
+            "trend_discovery_evaluation.v3",
+        }
     ):
         raise EvidenceValidationError("trend evaluation schema is invalid")
     if value.get("subject_executable_id") != executable_id:
@@ -435,7 +440,11 @@ def _trend_evaluation(
                 raise EvidenceValidationError("trend subject selection metrics differ")
     if subject_rows != 1:
         raise EvidenceValidationError("trend subject is absent from selection context")
-    if value.get("selection_method") != {
+    selection_method = value.get("selection_method")
+    expected_total_exposures = (
+        54 if schema == "reversion_discovery_evaluation.v1" else 42
+    )
+    if selection_method != {
         "bootstrap_samples": 41999,
         "block_days": [5, 10, 20],
         "method": (
@@ -449,7 +458,7 @@ def _trend_evaluation(
         ),
         "seed": 612337279,
         "seed_derivation": "sha256_base_seed_label_block_length_first_u64",
-        "total_exposures": 42,
+        "total_exposures": expected_total_exposures,
     }:
         raise EvidenceValidationError("trend selection method differs from preregistration")
     if value.get("session_semantics") != (
