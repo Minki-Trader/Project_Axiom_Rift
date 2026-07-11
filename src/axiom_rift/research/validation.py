@@ -328,6 +328,7 @@ def _trend_evaluation(
             "shock_cluster_evaluation.v1",
             "nonlinear_interaction_evaluation.v1",
             "shock_level_interaction_evaluation.v1",
+            "cyclical_phase_evaluation.v1",
             "reversion_discovery_evaluation.v1",
             "reversion_regime_followup_evaluation.v1",
             "session_inventory_discovery_evaluation.v1",
@@ -428,6 +429,7 @@ def _trend_evaluation(
     context = value.get("selection_context")
     expected_context_count = {
         "shock_level_interaction_evaluation.v1": 4,
+        "cyclical_phase_evaluation.v1": 6,
     }.get(schema, 12)
     if not isinstance(context, list) or len(context) != expected_context_count:
         raise EvidenceValidationError("scientific selection context count is invalid")
@@ -477,6 +479,7 @@ def _trend_evaluation(
         "shock_cluster_evaluation.v1": 318,
         "nonlinear_interaction_evaluation.v1": 330,
         "shock_level_interaction_evaluation.v1": 334,
+        "cyclical_phase_evaluation.v1": 340,
         "reversion_discovery_evaluation.v1": 54,
         "reversion_regime_followup_evaluation.v1": 186,
         "session_inventory_discovery_evaluation.v1": 114,
