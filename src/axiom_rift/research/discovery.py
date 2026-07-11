@@ -462,11 +462,24 @@ def simulate_fixed_hold(
                 )
             )
             continue
-        next_decision_index = exit_index
-        if not (
-            np.isfinite(spreads[entry_index])
-            and np.isfinite(spreads[exit_index])
+        entry_cost_known = np.isfinite(spreads[entry_index])
+        if (
+            not entry_cost_known
+            and getattr(configuration, "unknown_entry_action", None)
+            == "cancel_before_open"
         ):
+            intents.append(
+                (
+                    decision_time,
+                    entry_time,
+                    exit_time,
+                    direction,
+                    "entry_cancelled_unknown_cost",
+                )
+            )
+            continue
+        next_decision_index = exit_index
+        if not (entry_cost_known and np.isfinite(spreads[exit_index])):
             unresolved += 1
             intents.append(
                 (decision_time, entry_time, exit_time, direction, "unknown_cost")

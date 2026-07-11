@@ -2,7 +2,7 @@ from __future__ import annotations
 import unittest
 import numpy as np
 import pandas as pd
-from axiom_rift.research.gap_recovery_discovery import DiscoveryBoundaryError,calibrate_selector,compute_gap_score,executable_configuration_map,gap_configurations
+from axiom_rift.research.gap_recovery_discovery import DiscoveryBoundaryError,calibrate_selector,causal_gap_effective_spread,compute_gap_score,executable_configuration_map,gap_configurations
 from axiom_rift.research.gap_recovery_study import build_gap_validation_plan
 class GapRecoveryTests(unittest.TestCase):
     def test_surface_has_four_unique_executables(self)->None:self.assertEqual(len(gap_configurations()),4);self.assertEqual(len(executable_configuration_map()),4)
@@ -14,4 +14,7 @@ class GapRecoveryTests(unittest.TestCase):
     def test_selector_uses_observed_density_boundary(self)->None:
         score=np.arange(350,dtype=float);mask=np.ones(350,dtype=bool);self.assertEqual(calibrate_selector(score,mask),245.0)
         with self.assertRaises(DiscoveryBoundaryError):calibrate_selector(score[:-1],mask[:-1])
+    def test_gap_spread_repairs_only_from_past_segment_values(self)->None:
+        spread=np.array([100,0,50,0,0,80,0],dtype=float);time=np.array([0,300,600,900,1800,2100,2400],dtype=np.int64)*1_000_000_000
+        actual=causal_gap_effective_spread(spread,time);np.testing.assert_allclose(actual[:4],[100,100,50,75]);self.assertTrue(np.isnan(actual[4]));np.testing.assert_allclose(actual[5:],[80,80])
 if __name__=="__main__":unittest.main()
