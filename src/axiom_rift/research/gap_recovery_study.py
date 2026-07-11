@@ -15,7 +15,7 @@ from axiom_rift.research.discovery import DATASET_SHA256,OBSERVED_MATERIAL_ID,RO
 from axiom_rift.research.gap_recovery_discovery import compute_registered_gap_surface,executable_configuration_map,gap_implementation_sha256,loader_implementation_sha256,project_gap_evaluation
 from axiom_rift.research.trend_study import CRITERIA,EVIDENCE_MODES,PLANNED_CLAIMS,_claim_metrics,planned_verdict
 from axiom_rift.research.validation import SCIENTIFIC_DISCOVERY_VALIDATOR_ID,SCIENTIFIC_MEASUREMENT_SCHEMA,SCIENTIFIC_RESULT_SCHEMA,build_validation_plan
-MISSION_ID="MIS-0004";STUDY_ID="STU-0044";CALLABLE_IDENTITY="axiom_rift.research.gap_recovery_study.execute_gap_job.v1";EVIDENCE_DEPTH="discovery"
+MISSION_ID="MIS-0004";STUDY_ID="STU-0045";CALLABLE_IDENTITY="axiom_rift.research.gap_recovery_study.execute_gap_job.v2";EVIDENCE_DEPTH="discovery"
 def build_gap_validation_plan(eid:str)->dict[str,object]:return build_validation_plan(mission_id=MISSION_ID,executable_id=eid,evidence_depth=EVIDENCE_DEPTH,planned_claims=PLANNED_CLAIMS,evidence_modes=EVIDENCE_MODES,criteria=CRITERIA,candidate_eligible_on_pass=False)
 def output_names(eid:str)->dict[str,str]:
     p=f"scientific/{STUDY_ID}/{eid.removeprefix('executable:')[:16]}";return {"context":f"{p}/evaluation.json","environment":f"{p}/environment.json","measurement":f"{p}/measurement.json","plan":f"{p}/validation-plan.json","result":f"{p}/result.json"}
@@ -36,7 +36,7 @@ def _load(w:StateWriter,hashes:tuple[str,...])->tuple[dict[str,Any],str,str]:
     for h in hashes:
         try:a=w.evidence.verify(h);v=parse_canonical((w.evidence._root/a.relative_path).read_bytes())
         except (FileNotFoundError,OSError,RuntimeError,ValueError):continue
-        if isinstance(v,dict) and v.get("schema")=="gap_recovery_surface.v1":s=(v,h)
+        if isinstance(v,dict) and v.get("schema")=="gap_recovery_surface.v2":s=(v,h)
         if isinstance(v,dict) and v.get("schema")=="gap_surface_manifest.v1":m=(v,h)
     if s is None or m is None or m[0].get("surface_artifact_hash")!=s[1]:raise ValueError("surface missing")
     return s[0],s[1],m[1]

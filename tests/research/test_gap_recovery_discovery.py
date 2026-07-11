@@ -2,7 +2,7 @@ from __future__ import annotations
 import unittest
 import numpy as np
 import pandas as pd
-from axiom_rift.research.gap_recovery_discovery import compute_gap_score,executable_configuration_map,gap_configurations
+from axiom_rift.research.gap_recovery_discovery import DiscoveryBoundaryError,calibrate_selector,compute_gap_score,executable_configuration_map,gap_configurations
 from axiom_rift.research.gap_recovery_study import build_gap_validation_plan
 class GapRecoveryTests(unittest.TestCase):
     def test_surface_has_four_unique_executables(self)->None:self.assertEqual(len(gap_configurations()),4);self.assertEqual(len(executable_configuration_map()),4)
@@ -11,4 +11,7 @@ class GapRecoveryTests(unittest.TestCase):
         for left,right in zip(full,prefix,strict=True):np.testing.assert_allclose(left[:160],right,rtol=0,atol=0,equal_nan=True)
     def test_plan_is_fourth_mission_bound(self)->None:
         eid=next(iter(executable_configuration_map()));self.assertEqual(build_gap_validation_plan(eid)["mission_id"],"MIS-0004")
+    def test_selector_uses_observed_density_boundary(self)->None:
+        score=np.arange(350,dtype=float);mask=np.ones(350,dtype=bool);self.assertEqual(calibrate_selector(score,mask),245.0)
+        with self.assertRaises(DiscoveryBoundaryError):calibrate_selector(score[:-1],mask[:-1])
 if __name__=="__main__":unittest.main()
