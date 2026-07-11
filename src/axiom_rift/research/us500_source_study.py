@@ -1,0 +1,223 @@
+"""Journal-bound source eligibility Jobs for FPMarkets US500 M5."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from hashlib import sha256
+from pathlib import Path
+from typing import Any, Mapping
+
+from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.research import source_eligibility_validation as validator_module
+from axiom_rift.research import us500_source as source_module
+from axiom_rift.research.source_eligibility_validation import (
+    SOURCE_ELIGIBILITY_VALIDATOR_ID,
+)
+from axiom_rift.research.us500_source import (
+    build_us500_historical_audit,
+    probe_us500_runtime,
+    source_validation_plan_hash,
+    us500_source_contract,
+)
+
+
+MISSION_ID = "MIS-0001"
+STUDY_ID = "STU-0018"
+HISTORICAL_CALLABLE_IDENTITY = (
+    "axiom_rift.research.us500_source_study.execute_us500_historical_audit_job.v1"
+)
+RUNTIME_CALLABLE_IDENTITY = (
+    "axiom_rift.research.us500_source_study.execute_us500_runtime_availability_job.v1"
+)
+_THIS_FILE = Path(__file__).resolve()
+
+
+def _file_sha256(path: Path) -> str:
+    return sha256(path.read_bytes()).hexdigest()
+
+
+def source_study_implementation_sha256() -> str:
+    return _file_sha256(_THIS_FILE)
+
+
+def source_dependency_sha256() -> str:
+    return _file_sha256(Path(source_module.__file__).resolve())
+
+
+def source_validator_implementation_sha256() -> str:
+    return _file_sha256(Path(validator_module.__file__).resolve())
+
+
+def output_names(transition_evidence: str) -> dict[str, str]:
+    if transition_evidence == "historical_audit":
+        return {
+            "raw": "source/STU-0018/us500-historical.csv",
+            "measurement": "source/STU-0018/us500-historical-audit.json",
+            "result": "source/STU-0018/us500-historical-result.json",
+        }
+    if transition_evidence == "runtime_availability_proof":
+        return {
+            "measurement": "source/STU-0018/us500-runtime-probe.json",
+            "result": "source/STU-0018/us500-runtime-result.json",
+        }
+    raise ValueError("source transition is not registered")
+
+
+@dataclass(frozen=True, slots=True)
+class SourceJobPacket:
+    artifacts: tuple[tuple[str, bytes], ...]
+    output_manifest: tuple[tuple[str, str], ...]
+    transition_evidence: str
+
+    def artifact(self, role: str) -> bytes:
+        return dict(self.artifacts)[role]
+
+    def completion_output_manifest(self) -> dict[str, str]:
+        return dict(self.output_manifest)
+
+
+def _build_result(
+    *,
+    execution: RunningJobExecution,
+    transition_evidence: str,
+    observed_at_utc: str,
+    facts: Mapping[str, Any],
+    measurement_hashes: tuple[str, ...],
+) -> dict[str, Any]:
+    result = {
+        "schema": "source_eligibility_evidence.v1",
+        "job_id": execution.job_id,
+        "job_hash": execution.job_hash,
+        "mission_id": MISSION_ID,
+        "source_contract_id": us500_source_contract().source_contract_id,
+        "transition_evidence": transition_evidence,
+        "observed_at_utc": observed_at_utc,
+        "facts": dict(facts),
+        "measurement_artifact_hashes": sorted(measurement_hashes),
+    }
+    canonical_bytes(result)
+    return result
+
+
+def _execute(
+    *,
+    repository_root: str | Path,
+    execution: RunningJobExecution,
+    transition_evidence: str,
+    callable_identity: str,
+) -> SourceJobPacket:
+    root = Path(repository_root).resolve()
+    writer = StateWriter(root)
+    binding = writer.verify_running_job_execution(
+        execution,
+        expected_callable_identity=callable_identity,
+        expected_evidence_subject={"kind": "Study", "id": STUDY_ID},
+    )
+    source_binding = binding["spec"].get("source_binding")
+    names = output_names(transition_evidence)
+    contract_id = us500_source_contract().source_contract_id
+    plan_hash = source_validation_plan_hash(transition_evidence)
+    if (
+        binding.get("mission_id") != MISSION_ID
+        or binding.get("study_id") != STUDY_ID
+        or not isinstance(source_binding, dict)
+        or source_binding.get("source_contract_id") != contract_id
+        or source_binding.get("transition_evidence") != transition_evidence
+        or source_binding.get("validation_plan_hash") != plan_hash
+        or source_binding.get("validator_id") != SOURCE_ELIGIBILITY_VALIDATOR_ID
+        or source_binding.get("result_manifest_output") != names["result"]
+    ):
+        raise ValueError("running Job is not bound to the registered US500 source transition")
+    spec = binding["spec"]
+    required_inputs = {
+        contract_id.removeprefix("source:"),
+        plan_hash,
+        source_study_implementation_sha256(),
+        source_dependency_sha256(),
+        source_validator_implementation_sha256(),
+    }
+    if not required_inputs.issubset(spec.get("input_hashes", [])):
+        raise ValueError("US500 source Job omits a required content-bound input")
+    expected_outputs = set(names.values())
+    if (
+        set(spec.get("expected_outputs", [])) != expected_outputs
+        or spec.get("output_classes")
+        != {name: "durable_evidence" for name in expected_outputs}
+    ):
+        raise ValueError("US500 source Job outputs differ from registration")
+
+    artifact_bytes: dict[str, bytes]
+    if transition_evidence == "historical_audit":
+        raw, measurement = build_us500_historical_audit(root)
+        artifact_bytes = {
+            "raw": raw,
+            "measurement": canonical_bytes(measurement),
+        }
+        facts = measurement["facts"]
+        observed_at = measurement["observed_at_utc"]
+    else:
+        measurement = probe_us500_runtime(root)
+        artifact_bytes = {"measurement": canonical_bytes(measurement)}
+        facts = measurement["facts"]
+        observed_at = measurement["observed_at_utc"]
+    output_manifest = {
+        names[role]: writer.evidence.finalize(content).sha256
+        for role, content in artifact_bytes.items()
+    }
+    measurement_hashes = tuple(sorted(output_manifest.values()))
+    result = _build_result(
+        execution=execution,
+        transition_evidence=transition_evidence,
+        observed_at_utc=observed_at,
+        facts=facts,
+        measurement_hashes=measurement_hashes,
+    )
+    result_bytes = canonical_bytes(result)
+    output_manifest[names["result"]] = writer.evidence.finalize(result_bytes).sha256
+    artifact_bytes["result"] = result_bytes
+    if set(output_manifest) != expected_outputs:
+        raise ValueError("US500 source materialization differs from declaration")
+    return SourceJobPacket(
+        artifacts=tuple(sorted(artifact_bytes.items())),
+        output_manifest=tuple(sorted(output_manifest.items())),
+        transition_evidence=transition_evidence,
+    )
+
+
+def execute_us500_historical_audit_job(
+    *, repository_root: str | Path, execution: RunningJobExecution
+) -> SourceJobPacket:
+    return _execute(
+        repository_root=repository_root,
+        execution=execution,
+        transition_evidence="historical_audit",
+        callable_identity=HISTORICAL_CALLABLE_IDENTITY,
+    )
+
+
+def execute_us500_runtime_availability_job(
+    *, repository_root: str | Path, execution: RunningJobExecution
+) -> SourceJobPacket:
+    return _execute(
+        repository_root=repository_root,
+        execution=execution,
+        transition_evidence="runtime_availability_proof",
+        callable_identity=RUNTIME_CALLABLE_IDENTITY,
+    )
+
+
+__all__ = [
+    "HISTORICAL_CALLABLE_IDENTITY",
+    "MISSION_ID",
+    "RUNTIME_CALLABLE_IDENTITY",
+    "SOURCE_ELIGIBILITY_VALIDATOR_ID",
+    "STUDY_ID",
+    "SourceJobPacket",
+    "execute_us500_historical_audit_job",
+    "execute_us500_runtime_availability_job",
+    "output_names",
+    "source_dependency_sha256",
+    "source_study_implementation_sha256",
+    "source_validator_implementation_sha256",
+]
