@@ -80,7 +80,7 @@ class SessionInventoryFollowupStudyPlanTests(unittest.TestCase):
         self.assertEqual(
             {configuration.profile for configuration in configuration_map.values()},
             {
-                "broker_02_inventory_12",
+                "broker_02_inventory_11",
                 "broker_08_inventory_48",
                 "broker_15_inventory_72",
             },
@@ -348,6 +348,5 @@ class SessionInventoryFollowupStudyPlanTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
 
 
