@@ -346,6 +346,25 @@ class ScientificValidationTests(unittest.TestCase):
         self.assertTrue(validated.scientific_eligible)
         self.assertFalse(validated.candidate_eligible)
 
+    def test_cross_asset_downside_spillover_schema_binds_246_exposures(self) -> None:
+        request, _ = self._request(
+            evaluation_schema="cross_asset_downside_spillover_evaluation.v1",
+            selection_total_exposures=246,
+        )
+
+        validated, _ = self._validate(request)
+
+        self.assertEqual(validated.verdict, "passed")
+        self.assertTrue(validated.scientific_eligible)
+        self.assertFalse(validated.candidate_eligible)
+
+        stale_request, _ = self._request(
+            evaluation_schema="cross_asset_downside_spillover_evaluation.v1",
+            selection_total_exposures=234,
+        )
+        with self.assertRaises(EvidenceValidationError):
+            self._validate(stale_request)
+
     def test_failed_and_not_evaluable_are_independently_derived(self) -> None:
         cases = {
             "failed": {
