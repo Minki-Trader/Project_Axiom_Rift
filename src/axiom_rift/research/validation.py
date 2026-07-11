@@ -317,6 +317,7 @@ def _trend_evaluation(
         or schema
         not in {
             "reversion_discovery_evaluation.v1",
+            "reversion_regime_followup_evaluation.v1",
             "session_inventory_discovery_evaluation.v1",
             "session_inventory_followup_evaluation.v1",
             "trend_discovery_evaluation.v3",
@@ -449,6 +450,7 @@ def _trend_evaluation(
     selection_method = value.get("selection_method")
     expected_total_exposures = {
         "reversion_discovery_evaluation.v1": 54,
+        "reversion_regime_followup_evaluation.v1": 186,
         "session_inventory_discovery_evaluation.v1": 114,
         "session_inventory_followup_evaluation.v1": 162,
         "trend_discovery_evaluation.v3": 42,
