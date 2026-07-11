@@ -23,12 +23,12 @@ from axiom_rift.research.us500_source import (
 
 
 MISSION_ID = "MIS-0001"
-STUDY_ID = "STU-0018"
+STUDY_ID = "STU-0019"
 HISTORICAL_CALLABLE_IDENTITY = (
-    "axiom_rift.research.us500_source_study.execute_us500_historical_audit_job.v1"
+    "axiom_rift.research.us500_source_study.execute_us500_historical_audit_job.v2"
 )
 RUNTIME_CALLABLE_IDENTITY = (
-    "axiom_rift.research.us500_source_study.execute_us500_runtime_availability_job.v1"
+    "axiom_rift.research.us500_source_study.execute_us500_runtime_availability_job.v2"
 )
 _THIS_FILE = Path(__file__).resolve()
 
@@ -52,14 +52,14 @@ def source_validator_implementation_sha256() -> str:
 def output_names(transition_evidence: str) -> dict[str, str]:
     if transition_evidence == "historical_audit":
         return {
-            "raw": "source/STU-0018/us500-historical.csv",
-            "measurement": "source/STU-0018/us500-historical-audit.json",
-            "result": "source/STU-0018/us500-historical-result.json",
+            "raw": "source/STU-0019/us500-historical.csv",
+            "measurement": "source/STU-0019/us500-historical-audit.json",
+            "result": "source/STU-0019/us500-historical-result.json",
         }
     if transition_evidence == "runtime_availability_proof":
         return {
-            "measurement": "source/STU-0018/us500-runtime-probe.json",
-            "result": "source/STU-0018/us500-runtime-result.json",
+            "measurement": "source/STU-0019/us500-runtime-probe.json",
+            "result": "source/STU-0019/us500-runtime-result.json",
         }
     raise ValueError("source transition is not registered")
 

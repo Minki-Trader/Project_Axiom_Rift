@@ -596,7 +596,17 @@ class StateWriter:
             now = datetime.fromisoformat(
                 self.clock().replace("Z", "+00:00")
             ).astimezone(timezone.utc)
-            ttl_seconds = contract.availability()["causal_ttl_seconds"]
+            availability = contract.availability()
+            ttl_seconds = availability.get(
+                "eligibility_receipt_ttl_seconds",
+                availability["causal_ttl_seconds"],
+            )
+            if (
+                isinstance(ttl_seconds, bool)
+                or not isinstance(ttl_seconds, int)
+                or ttl_seconds <= 0
+            ):
+                raise ValueError("runtime source eligibility TTL is invalid")
             age_seconds = (now - observed_at).total_seconds()
             if age_seconds < 0 or age_seconds > ttl_seconds:
                 raise ValueError("runtime source eligibility receipt is stale")

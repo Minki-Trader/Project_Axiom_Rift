@@ -19,8 +19,8 @@ class US500SourceStudyTests(unittest.TestCase):
         runtime = output_names("runtime_availability_proof")
         self.assertEqual(set(historical), {"raw", "measurement", "result"})
         self.assertEqual(set(runtime), {"measurement", "result"})
-        self.assertTrue(all(name.startswith("source/STU-0018/") for name in historical.values()))
-        self.assertTrue(all(name.startswith("source/STU-0018/") for name in runtime.values()))
+        self.assertTrue(all(name.startswith("source/STU-0019/") for name in historical.values()))
+        self.assertTrue(all(name.startswith("source/STU-0019/") for name in runtime.values()))
         self.assertNotEqual(
             source_validation_plan_hash("historical_audit"),
             source_validation_plan_hash("runtime_availability_proof"),

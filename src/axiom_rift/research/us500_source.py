@@ -100,6 +100,7 @@ def us500_source_contract() -> SourceContract:
             "gap_policy": "exact_timestamp_inner_join_fail_closed_no_fill",
             "revision_or_vintage": "immutable_broker_snapshot_by_sha256",
             "causal_ttl_seconds": 360,
+            "eligibility_receipt_ttl_seconds": 21_600,
             "runtime_retrieval_method": "copy_rates_from_pos_plus_symbol_tick",
         },
     )
