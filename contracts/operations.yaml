@@ -180,6 +180,33 @@ git:
       retry_same_commit: true
       retry_at_next_stable_delivery_opportunity: true
       duplicate_closeout_commit_allowed: false
+  study_kpi_historical_backfill_checkpoint:
+    trigger_event: study_kpi_backfilled
+    applies_once: true
+    activation_operation_id: study-close-kpi-main-delivery-authority-v1
+    source: complete_pre_activation_immutable_study_close_set
+    classification: coherent_milestone
+    one_commit_for_complete_history: true
+    per_historical_study_commit_allowed: false
+    old_history_rewrite_allowed: false
+    required_same_commit_paths:
+      - state/control.json
+      - records/journal.jsonl
+      - records/STUDY_KPI.md
+    local_ref: main
+    remote_ref: origin/main
+    exact_path_staging_required: true
+    unrelated_staging_allowed: false
+    commit_trailers:
+      - Axiom-Study-KPI-Backfill
+      - Axiom-State-Revision
+    push_mode: non_force
+    remote_tree_equality_observed_read_only: true
+    push_failure:
+      rolls_back_backfill_authority: false
+      changes_claim_trial_holdout_or_next_action: false
+      retry_same_commit: true
+      duplicate_backfill_commit_allowed: false
   prohibited:
     - force_push
     - hard_reset

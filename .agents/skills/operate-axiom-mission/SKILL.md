@@ -25,6 +25,10 @@ Use the repository as authority. Do not depend on chat history.
    `origin/main` observation, require the closeout commit to be its ancestor,
    and otherwise make the immediate non-force push attempt before new science
    while retaining same-commit delivery debt after a bounded failed attempt.
+   Audit a `historical_backfill` provenance set as one authenticated
+   `study_kpi_backfilled` checkpoint instead of requiring fictional commits at
+   each old close time; its commit snapshot must bind the complete original
+   close set and exact deterministic ledger bytes.
 6. If an active Job or Repair exists, resume or dispose it before opening work.
 
 ## Goal Intake
@@ -101,6 +105,12 @@ without rewriting history, and retry the same commit at the next stable
 delivery opportunity.  Do not manufacture a second closeout commit.  The
 local commit and first bounded push attempt must precede later scientific
 work; remote success itself is not a scientific gate.
+
+A sponsor-authorized historical KPI adoption is one coherent local-main
+milestone, not one rewritten commit per old Study.  Require the typed
+`study_kpi_backfilled` event, unchanged scientific state and counts, the exact
+backfill trailer and state revision, then make the same immediate non-force
+push attempt.
 
 ## Repair
 

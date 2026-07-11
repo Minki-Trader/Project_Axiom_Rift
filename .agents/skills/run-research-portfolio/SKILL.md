@@ -89,6 +89,14 @@ budget, an explicit early stop, or the final bound non-scientific failure.
 Never pass caller-authored KPI numbers or unavailable prose, and never pick a
 retrospective best result merely to populate the row.
 
+A sponsor-authorized one-time historical adoption may project only the
+complete pre-activation `study_closed` set in original authority order.  Use
+each original close time and outcome plus its final disposition-driving
+completion.  A final engineering failure may retain its exact declared
+Executable while every KPI remains `-`; source-only and stopped-early rows
+also remain `-`.  Never rewrite the old close events, reinterpret a verdict,
+or select a better historical Executable.
+
 The writer must create exactly one immutable `study-kpi` record and materialize
 exactly one corresponding row in `records/STUDY_KPI.md`.  The row sequence is
 global and monotonic, its time comes from the `study_closed` Journal event, its

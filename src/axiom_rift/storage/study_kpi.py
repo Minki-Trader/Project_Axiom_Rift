@@ -118,8 +118,8 @@ def _integer(value: int | None) -> str:
     return "-" if value is None else f"{value:,}"
 
 
-def _compact_decimal(value: Decimal) -> str:
-    rendered = format(value, "f")
+def _compact_decimal(value: Decimal, *, grouping: bool = False) -> str:
+    rendered = format(value, ",f" if grouping else "f")
     return rendered.rstrip("0").rstrip(".") if "." in rendered else rendered
 
 
@@ -132,7 +132,9 @@ def _profit_factor(value: int | None) -> str:
 def _drawdown_share(value: int | None) -> str:
     if value is None:
         return "-"
-    return f"{_compact_decimal(Decimal(value) / Decimal(10000))}%"
+    return (
+        f"{_compact_decimal(Decimal(value) / Decimal(10000), grouping=True)}%"
+    )
 
 
 def render_study_kpi(rows: Iterable[StudyKpiProjectionRow]) -> bytes:
@@ -154,8 +156,8 @@ def render_study_kpi(rows: Iterable[StudyKpiProjectionRow]) -> bytes:
         "# Study KPI Ledger",
         "",
         "This file is a non-authoritative Git projection of immutable `study-kpi`",
-        "Journal records. Rows are prospective from checkpoint activation; no",
-        "historical KPI or representative Executable is inferred.",
+        "Journal records. Historical rows, when present, are a one-time",
+        "evidence-bound projection; no retrospective best result is selected.",
         "",
         "`Executable` is a stable collision-checked display prefix assigned in the",
         "Journal record. The full immutable identity remains there. Missing KPI is `-`.",

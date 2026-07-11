@@ -82,6 +82,24 @@ study_kpi_projection:
   scientific_authority: false
   prospective_from_activation: true
   retroactive_kpi_inference_allowed: false
+  historical_backfill:
+    sponsor_authorized_once: true
+    activation_operation_id: study-close-kpi-main-delivery-authority-v1
+    source: complete_pre_activation_immutable_study_close_set
+    original_authority_order_required: true
+    original_close_time_and_outcome_required: true
+    final_disposition_completion_required_when_present: true
+    retrospective_best_selection_allowed: false
+    old_close_event_rewrite_allowed: false
+    engineering_failure_executable_source: exact_final_failed_job_evidence_subject
+    engineering_failure_metrics: null_display
+    source_or_unavailable_metrics: null_display
+    single_writer_event: study_kpi_backfilled
+    scientific_claim_delta: 0
+    trial_delta: 0
+    holdout_delta: 0
+    next_action_change_allowed: false
+    future_sequence_continues_after_backfill: true
   one_row_per_real_study_close: true
   sequence:
     source: global_study_kpi_event_stream
@@ -92,6 +110,7 @@ study_kpi_projection:
   representative_executable:
     final_validator_source: final_batch_disposition_driving_validator_stop_batch_completion
     no_final_validator_completion_source: writer_verified_disposed_batch_basis
+    historical_engineering_failure_source: exact_final_failed_job_declaration
     non_performance_validator_completion_dash_allowed: true
     full_immutable_identity_in_record: true
     collision_checked_display_prefix: true

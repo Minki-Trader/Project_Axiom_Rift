@@ -132,6 +132,77 @@ class StudyKpiWriterTests(unittest.TestCase):
                 )
             )
 
+    def _put_historical_close(
+        self,
+        *,
+        outcome: str,
+        batch_outcome: str,
+        revision: int = 10,
+    ) -> IndexRecord:
+        event_id = digest(
+            "historical-close-event",
+            {"study_id": self.study_id, "revision": revision},
+        )
+        close_id = digest(
+            "historical-study-close",
+            {"study_id": self.study_id, "outcome": outcome},
+        )
+        close = IndexRecord(
+            kind="study-close",
+            record_id=close_id,
+            subject=f"Study:{self.study_id}",
+            status=outcome,
+            fingerprint=close_id,
+            payload={"outcome": outcome},
+            authority_sequence=revision,
+            authority_event_id=event_id,
+            authority_offset=revision,
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            index.put(
+                IndexRecord(
+                    kind="study-open",
+                    record_id=self.study_id,
+                    subject=f"Study:{self.study_id}",
+                    status="open",
+                    fingerprint="f" * 64,
+                    payload={},
+                )
+            )
+            index.put(
+                IndexRecord(
+                    kind="batch-close",
+                    record_id=digest(
+                        "historical-batch-close",
+                        {"batch_id": self.batch_id, "outcome": batch_outcome},
+                    ),
+                    subject=f"Batch:{self.batch_id}",
+                    status=batch_outcome,
+                    fingerprint="e" * 64,
+                    payload={"outcome": batch_outcome},
+                )
+            )
+            index.put(
+                IndexRecord(
+                    kind="journal-event",
+                    record_id=event_id,
+                    subject="Study:active",
+                    status="study_closed",
+                    fingerprint=event_id,
+                    payload={
+                        "occurred_at_utc": "2026-07-11T12:34:56Z",
+                        "operation_id": "historical-study-close",
+                    },
+                    event_stream="control",
+                    event_sequence=revision,
+                    authority_sequence=revision,
+                    authority_event_id=event_id,
+                    authority_offset=revision,
+                )
+            )
+            index.put(close)
+        return close
+
     def test_writer_derives_metrics_from_bound_measurement(self) -> None:
         self._put_decision("stop_batch")
         with LocalIndex(self.writer.index_path) as index:
@@ -150,6 +221,125 @@ class StudyKpiWriterTests(unittest.TestCase):
                 "monthly_realized_exit_drawdown_share_of_gross_profit_ppm": 72_000,
             },
         )
+
+    def test_historical_payload_uses_final_completion_and_original_close(self) -> None:
+        self._put_decision("stop_batch")
+        close = self._put_historical_close(
+            outcome="not_supported",
+            batch_outcome="completed",
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            payload = self.writer._historical_study_kpi_payload(
+                index=index,
+                close_record=close,
+                sequence=1,
+                reserved_display_owners={},
+            )
+        self.assertEqual(payload["provenance"], "historical_backfill")
+        self.assertEqual(payload["historical_study_close_revision"], 10)
+        self.assertEqual(payload["executable_id"], self.executable_id)
+        self.assertEqual(payload["executable_display_id"], "EXE-" + "3" * 12)
+        self.assertEqual(payload["metrics"]["net_profit_micropoints"], 1_248_300)
+
+    def test_historical_engineering_failure_keeps_executable_and_dash_metrics(
+        self,
+    ) -> None:
+        job_id = "job:" + "9" * 64
+        job_hash = "a" * 64
+        executable_id = "executable:" + "b" * 64
+        completion_id = digest("completion", {"engineering": True})
+        with LocalIndex(self.writer.index_path) as index:
+            index.put(
+                IndexRecord(
+                    kind="job-declared",
+                    record_id=job_id,
+                    subject=f"Job:{job_id}",
+                    status="declared",
+                    fingerprint=job_hash,
+                    payload={
+                        "batch_id": self.batch_id,
+                        "spec": {
+                            "evidence_subject": {
+                                "id": executable_id,
+                                "kind": "Executable",
+                            }
+                        },
+                        "study_id": self.study_id,
+                    },
+                )
+            )
+            index.put(
+                IndexRecord(
+                    kind="job-completed",
+                    record_id=completion_id,
+                    subject=f"Job:{job_id}",
+                    status="failed",
+                    fingerprint=job_hash,
+                    payload={
+                        "failure": {"failure_kind": "engineering"},
+                        "job_id": job_id,
+                    },
+                )
+            )
+            index.put(
+                IndexRecord(
+                    kind="job-evidence-decision",
+                    record_id=digest("decision", {"engineering": True}),
+                    subject=f"Job:{job_id}",
+                    status="stop_batch",
+                    fingerprint=job_hash,
+                    payload={"completion_record_id": completion_id},
+                )
+            )
+        close = self._put_historical_close(
+            outcome="evidence_gap",
+            batch_outcome="engineering_failure",
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            payload = self.writer._historical_study_kpi_payload(
+                index=index,
+                close_record=close,
+                sequence=1,
+                reserved_display_owners={},
+            )
+        self.assertEqual(
+            payload["source"],
+            "historical_writer_verified_unavailable",
+        )
+        self.assertEqual(payload["executable_id"], executable_id)
+        self.assertTrue(
+            all(value is None for value in payload["metrics"].values())
+        )
+
+    def test_prospective_sequence_continues_after_historical_backfill(self) -> None:
+        self._put_decision("stop_batch")
+        with LocalIndex(self.writer.index_path) as index:
+            index.put(
+                IndexRecord(
+                    kind="study-kpi",
+                    record_id="STU-HISTORICAL",
+                    subject="Study:STU-HISTORICAL",
+                    status="not_supported",
+                    fingerprint="c" * 64,
+                    payload={
+                        "executable_display_id": None,
+                        "executable_id": None,
+                    },
+                    event_stream="study-kpi",
+                    event_sequence=21,
+                )
+            )
+            payload = self.writer._study_kpi_payload(
+                index=index,
+                study_id=self.study_id,
+                outcome="not_supported",
+                completion_record_id=self.completion_id,
+                closed_at_utc="2026-07-12T00:00:00Z",
+            )
+        assert payload is not None
+        self.assertEqual(payload["sequence"], 22)
+        self.assertEqual(payload["provenance"], "prospective_close")
+        self.assertIsNone(payload["historical_study_close_event_id"])
 
     def test_intermediate_continue_batch_completion_is_rejected(self) -> None:
         self._put_decision("continue_batch")
@@ -401,6 +591,13 @@ class StudyKpiWriterTests(unittest.TestCase):
             )
         )
         self.assertEqual(science["study_kpi_projection"]["path"], LEDGER_RELATIVE_PATH)
+        historical = science["study_kpi_projection"]["historical_backfill"]
+        self.assertTrue(historical["sponsor_authorized_once"])
+        self.assertFalse(historical["retrospective_best_selection_allowed"])
+        self.assertEqual(
+            historical["single_writer_event"],
+            "study_kpi_backfilled",
+        )
         checkpoint = operations["git"]["study_close_checkpoint"]
         self.assertEqual(checkpoint["trigger_event"], "study_closed")
         self.assertEqual(checkpoint["local_ref"], "main")
@@ -441,6 +638,15 @@ class StudyKpiWriterTests(unittest.TestCase):
             checkpoint["push_failure"][
                 "retry_at_next_stable_delivery_opportunity"
             ]
+        )
+        backfill = operations["git"][
+            "study_kpi_historical_backfill_checkpoint"
+        ]
+        self.assertTrue(backfill["one_commit_for_complete_history"])
+        self.assertFalse(backfill["per_historical_study_commit_allowed"])
+        self.assertEqual(
+            backfill["commit_trailers"],
+            ["Axiom-Study-KPI-Backfill", "Axiom-State-Revision"],
         )
         (REPO_ROOT / LEDGER_RELATIVE_PATH).read_text(encoding="ascii")
 

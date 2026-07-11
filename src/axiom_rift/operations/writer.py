@@ -115,6 +115,10 @@ _STUDY_KPI_METRICS = (
     "trade_count",
     "monthly_realized_exit_drawdown_share_of_gross_profit_ppm",
 )
+_STUDY_KPI_ACTIVATION_OPERATION_ID = (
+    "study-close-kpi-main-delivery-authority-v1"
+)
+_STUDY_KPI_BACKFILL_OPERATION_ID = "study-kpi-historical-backfill-v1"
 _BATCH_OUTCOMES = frozenset(
     {"completed", "budget_exhausted", "stopped_early", "not_evaluable", "engineering_failure"}
 )
@@ -3230,6 +3234,7 @@ class StateWriter:
     def _study_kpi_display_id(
         index: LocalIndex,
         executable_id: str | None,
+        reserved_display_owners: Mapping[str, str] | None = None,
     ) -> str | None:
         if executable_id is None:
             return None
@@ -3245,6 +3250,17 @@ class StateWriter:
             owner = used.get(prior_display)
             if owner is not None and owner != prior_identity:
                 raise TransitionError("Existing Study KPI display id is not unique")
+            used[prior_display] = prior_identity
+            if prior_identity == executable_id:
+                existing_for_identity.add(prior_display)
+        for prior_display, prior_identity in dict(
+            reserved_display_owners or {}
+        ).items():
+            if type(prior_display) is not str or type(prior_identity) is not str:
+                raise TransitionError("Reserved Study KPI display binding is invalid")
+            owner = used.get(prior_display)
+            if owner is not None and owner != prior_identity:
+                raise TransitionError("Reserved Study KPI display id is not unique")
             used[prior_display] = prior_identity
             if prior_identity == executable_id:
                 existing_for_identity.add(prior_display)
@@ -3457,7 +3473,11 @@ class StateWriter:
         sequence = 1 if head is None else head.sequence + 1
         payload = {
             **source,
+            "historical_study_close_event_id": None,
+            "historical_study_close_record_id": None,
+            "historical_study_close_revision": None,
             "outcome": outcome,
+            "provenance": "prospective_close",
             "sequence": sequence,
             "study_id": study_id,
         }
@@ -3484,6 +3504,392 @@ class StateWriter:
             raise TransitionError("Study KPI row is not renderable") from exc
         return payload
 
+    @staticmethod
+    def _study_batch_close_record(
+        index: LocalIndex,
+        batch_id: str,
+    ) -> IndexRecord:
+        close_records = tuple(
+            record
+            for status in _BATCH_OUTCOMES
+            for record in index.records_by_subject_status(
+                f"Batch:{batch_id}",
+                status,
+            )
+            if record.kind == "batch-close"
+        )
+        if len(close_records) != 1:
+            raise TransitionError("Historical Study Batch close is ambiguous")
+        return close_records[0]
+
+    def _historical_engineering_unavailable_source(
+        self,
+        *,
+        index: LocalIndex,
+        study_id: str,
+        batch_id: str,
+        completion_record_id: str,
+    ) -> dict[str, Any]:
+        completion = index.get("job-completed", completion_record_id)
+        job_id = None if completion is None else completion.payload.get("job_id")
+        declaration = (
+            None
+            if not isinstance(job_id, str)
+            else index.get("job-declared", job_id)
+        )
+        decisions = (
+            ()
+            if completion is None
+            else tuple(
+                record
+                for record in index.records_by_fingerprint(completion.fingerprint)
+                if record.kind == "job-evidence-decision"
+                and record.payload.get("completion_record_id")
+                == completion_record_id
+            )
+        )
+        failure = None if completion is None else completion.payload.get("failure")
+        spec = None if declaration is None else declaration.payload.get("spec")
+        evidence_subject = (
+            None if not isinstance(spec, Mapping) else spec.get("evidence_subject")
+        )
+        executable_id = (
+            evidence_subject.get("id")
+            if isinstance(evidence_subject, Mapping)
+            and evidence_subject.get("kind") == "Executable"
+            and type(evidence_subject.get("id")) is str
+            else None
+        )
+        batch_close = self._study_batch_close_record(index, batch_id)
+        if (
+            completion is None
+            or completion.status != "failed"
+            or not isinstance(job_id, str)
+            or declaration is None
+            or declaration.payload.get("study_id") != study_id
+            or declaration.payload.get("batch_id") != batch_id
+            or len(decisions) != 1
+            or decisions[0].subject != f"Job:{job_id}"
+            or decisions[0].status != "stop_batch"
+            or not isinstance(failure, Mapping)
+            or failure.get("failure_kind") != "engineering"
+            or executable_id is None
+            or isinstance(completion.payload.get("scientific"), Mapping)
+            or isinstance(completion.payload.get("source"), Mapping)
+            or isinstance(completion.payload.get("external"), Mapping)
+            or batch_close.status != "engineering_failure"
+        ):
+            raise TransitionError(
+                "Historical Study KPI lacks an exact engineering-failure basis"
+            )
+        return {
+            "completion_record_id": completion_record_id,
+            "executable_id": executable_id,
+            "executable_display_id": None,
+            "metrics": {name: None for name in _STUDY_KPI_METRICS},
+            "source": "historical_writer_verified_unavailable",
+            "unavailable_reason": (
+                "historical_final_non_scientific_engineering_failure"
+            ),
+        }
+
+    def _historical_study_kpi_payload(
+        self,
+        *,
+        index: LocalIndex,
+        close_record: IndexRecord,
+        sequence: int,
+        reserved_display_owners: Mapping[str, str],
+    ) -> dict[str, Any]:
+        study_id = close_record.subject.removeprefix("Study:")
+        close_event = index.get(
+            "journal-event",
+            close_record.authority_event_id or "",
+        )
+        study_open = index.get("study-open", study_id)
+        batch_head = index.event_head(f"study-batches:{study_id}")
+        if (
+            close_record.kind != "study-close"
+            or close_record.subject != f"Study:{study_id}"
+            or close_record.status not in _STUDY_OUTCOMES
+            or close_record.authority_sequence is None
+            or close_event is None
+            or close_event.status != "study_closed"
+            or close_event.authority_sequence != close_record.authority_sequence
+            or close_event.authority_event_id != close_record.authority_event_id
+            or study_open is None
+            or batch_head is None
+        ):
+            raise TransitionError("Historical Study close provenance is invalid")
+        batch_id = batch_head.record_id
+        completion_ids = self._batch_stop_completion_ids(index, batch_id)
+        if len(completion_ids) > 1:
+            raise TransitionError("Historical Study has multiple final completions")
+        if completion_ids:
+            completion_record_id = completion_ids[0]
+            try:
+                source = self._study_kpi_from_completion(
+                    index=index,
+                    study_id=study_id,
+                    completion_record_id=completion_record_id,
+                )
+            except TransitionError:
+                source = self._historical_engineering_unavailable_source(
+                    index=index,
+                    study_id=study_id,
+                    batch_id=batch_id,
+                    completion_record_id=completion_record_id,
+                )
+        else:
+            batch_close = self._study_batch_close_record(index, batch_id)
+            unavailable_reason = self._batch_unavailable_reason(
+                index,
+                batch_id,
+                batch_close.status,
+            )
+            source = {
+                "completion_record_id": None,
+                "executable_id": None,
+                "executable_display_id": None,
+                "metrics": {name: None for name in _STUDY_KPI_METRICS},
+                "source": "writer_derived_unavailable",
+                "unavailable_reason": unavailable_reason,
+            }
+        if (
+            source["source"]
+            in {
+                "validator_derived_source_completion",
+                "validator_derived_external_completion",
+            }
+            and close_record.status
+            not in {"preserved", "pruned", "evidence_gap", "not_evaluable"}
+        ):
+            raise TransitionError(
+                "Historical non-performance completion is incompatible with its outcome"
+            )
+        if (
+            source["source"]
+            in {
+                "writer_derived_unavailable",
+                "historical_writer_verified_unavailable",
+            }
+            and close_record.status
+            not in {"evidence_gap", "not_evaluable", "pruned"}
+        ):
+            raise TransitionError(
+                "Historical unavailable KPI is incompatible with its outcome"
+            )
+        source["executable_display_id"] = self._study_kpi_display_id(
+            index,
+            source["executable_id"],
+            reserved_display_owners,
+        )
+        payload = {
+            **source,
+            "historical_study_close_event_id": close_record.authority_event_id,
+            "historical_study_close_record_id": close_record.record_id,
+            "historical_study_close_revision": close_record.authority_sequence,
+            "outcome": close_record.status,
+            "provenance": "historical_backfill",
+            "sequence": sequence,
+            "study_id": study_id,
+        }
+        try:
+            StudyKpiProjectionRow(
+                sequence=sequence,
+                closed_at_utc=close_event.payload["occurred_at_utc"],
+                study_id=study_id,
+                executable_id=payload["executable_id"],
+                executable_display_id=payload["executable_display_id"],
+                net_profit_micropoints=payload["metrics"][
+                    "net_profit_micropoints"
+                ],
+                median_fold_profit_factor_milli=payload["metrics"][
+                    "median_fold_profit_factor_milli"
+                ],
+                trade_count=payload["metrics"]["trade_count"],
+                monthly_realized_exit_drawdown_share_of_gross_profit_ppm=payload[
+                    "metrics"
+                ]["monthly_realized_exit_drawdown_share_of_gross_profit_ppm"],
+                outcome=close_record.status,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise TransitionError(
+                "Historical Study KPI row is not renderable"
+            ) from exc
+        return payload
+
+    def backfill_historical_study_kpis(
+        self,
+        *,
+        operation_id: str = _STUDY_KPI_BACKFILL_OPERATION_ID,
+    ) -> TransitionResult:
+        """Project pre-activation Study closes into one evidence-bound ledger."""
+
+        if self.engineering_fixture:
+            raise TransitionError("engineering fixtures cannot backfill real Study KPIs")
+        _require_ascii("operation_id", operation_id)
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            body = self._body(current)
+            science = body["scientific"]
+            if (
+                science["active_mission"] is not None
+                or any(
+                    science[name] is not None
+                    for name in (
+                        "active_initiative",
+                        "active_study",
+                        "active_batch",
+                        "active_job",
+                        "active_repair",
+                        "active_lineage",
+                        "active_executable",
+                        "active_release",
+                        "active_holdout_evaluation",
+                    )
+                )
+                or body.get("next_action", {}).get("kind") != "await_root_goal"
+            ):
+                raise TransitionError(
+                    "Historical Study KPI backfill requires the Mission-admission boundary"
+                )
+            activation = index.get(
+                "operation",
+                _STUDY_KPI_ACTIVATION_OPERATION_ID,
+            )
+            activation_event = (
+                None
+                if activation is None or activation.authority_event_id is None
+                else index.get("journal-event", activation.authority_event_id)
+            )
+            if (
+                activation is None
+                or activation.authority_sequence is None
+                or activation_event is None
+                or activation_event.status != "authority_migrated"
+                or activation.payload.get("event_kind") != "authority_migrated"
+            ):
+                raise TransitionError("Study KPI activation authority is unavailable")
+            existing_kpis = index.records_by_kind("study-kpi")
+            if existing_kpis:
+                raise TransitionError("Historical Study KPI backfill is already populated")
+            all_closes = tuple(index.records_by_kind("study-close"))
+            historical_closes = tuple(
+                sorted(
+                    (
+                        record
+                        for record in all_closes
+                        if record.authority_sequence is not None
+                        and record.authority_sequence
+                        < activation.authority_sequence
+                    ),
+                    key=lambda record: record.authority_sequence or 0,
+                )
+            )
+            historical_open_ids = {
+                record.record_id
+                for record in index.records_by_kind("study-open")
+                if record.authority_sequence is not None
+                and record.authority_sequence < activation.authority_sequence
+            }
+            historical_close_ids = {
+                record.subject.removeprefix("Study:")
+                for record in historical_closes
+            }
+            if (
+                not historical_closes
+                or len(historical_close_ids) != len(historical_closes)
+                or historical_open_ids != historical_close_ids
+                or index.event_head("study-kpi") is not None
+            ):
+                raise TransitionError("Historical Study close set is incomplete")
+            if any(
+                record.authority_sequence is not None
+                and record.authority_sequence >= activation.authority_sequence
+                for record in all_closes
+            ):
+                raise TransitionError(
+                    "A prospective Study close is missing its mandatory KPI record"
+                )
+            reserved_display_owners: dict[str, str] = {}
+            row_records: list[IndexRecord] = []
+            row_fingerprints: list[str] = []
+            for sequence, close_record in enumerate(historical_closes, start=1):
+                payload = self._historical_study_kpi_payload(
+                    index=index,
+                    close_record=close_record,
+                    sequence=sequence,
+                    reserved_display_owners=reserved_display_owners,
+                )
+                display_id = payload["executable_display_id"]
+                executable_id = payload["executable_id"]
+                if display_id is not None and executable_id is not None:
+                    reserved_display_owners[display_id] = executable_id
+                fingerprint = _digest(payload, domain="study-kpi")
+                row_fingerprints.append(fingerprint)
+                row_records.append(
+                    _record(
+                        kind="study-kpi",
+                        record_id=payload["study_id"],
+                        subject=f"Study:{payload['study_id']}",
+                        status=payload["outcome"],
+                        fingerprint=fingerprint,
+                        payload=payload,
+                        event_stream="study-kpi",
+                        event_sequence=sequence,
+                    )
+                )
+            manifest_payload = {
+                "activation_event_id": activation.authority_event_id,
+                "activation_operation_id": _STUDY_KPI_ACTIVATION_OPERATION_ID,
+                "activation_revision": activation.authority_sequence,
+                "cutoff_revision": activation.authority_sequence - 1,
+                "holdout_delta": 0,
+                "row_fingerprints": row_fingerprints,
+                "row_count": len(row_records),
+                "schema": "study_kpi_historical_backfill.v1",
+                "scientific_claim": "none",
+                "sequence_end": len(row_records),
+                "sequence_start": 1,
+                "source_study_close_record_ids": [
+                    record.record_id for record in historical_closes
+                ],
+                "trial_delta": 0,
+            }
+            backfill_record_id = _digest(
+                manifest_payload,
+                domain="study-kpi-backfill",
+            )
+            backfill_record = _record(
+                kind="study-kpi-backfill",
+                record_id=backfill_record_id,
+                subject="StudyKpi:historical",
+                status="complete",
+                fingerprint=backfill_record_id,
+                payload=manifest_payload,
+            )
+            return body, [backfill_record, *row_records], {
+                "backfill_record_id": backfill_record_id,
+                "row_count": len(row_records),
+                "sequence_end": len(row_records),
+                "sequence_start": 1,
+            }
+
+        transition = self._commit(
+            event_kind="study_kpi_backfilled",
+            operation_id=operation_id,
+            subject="StudyKpi:historical",
+            payload={
+                "activation_operation_id": _STUDY_KPI_ACTIVATION_OPERATION_ID,
+            },
+            prepare=prepare,
+        )
+        self.rebuild_study_kpi_projection()
+        return transition
+
     def rebuild_study_kpi_projection(self) -> bool:
         """Materialize the tracked Markdown view from Journal-bound records."""
 
@@ -3497,8 +3903,12 @@ class StateWriter:
                         "completion_record_id",
                         "executable_id",
                         "executable_display_id",
+                        "historical_study_close_event_id",
+                        "historical_study_close_record_id",
+                        "historical_study_close_revision",
                         "metrics",
                         "outcome",
+                        "provenance",
                         "sequence",
                         "source",
                         "study_id",
@@ -3508,6 +3918,7 @@ class StateWriter:
                     sequence = payload.get("sequence")
                     study_id = payload.get("study_id")
                     outcome = payload.get("outcome")
+                    provenance = payload.get("provenance")
                     if (
                         set(payload) != expected_fields
                         or not isinstance(metrics, Mapping)
@@ -3527,6 +3938,15 @@ class StateWriter:
                     executable_id = payload.get("executable_id")
                     executable_display_id = payload.get("executable_display_id")
                     unavailable_reason = payload.get("unavailable_reason")
+                    historical_close_event_id = payload.get(
+                        "historical_study_close_event_id"
+                    )
+                    historical_close_record_id = payload.get(
+                        "historical_study_close_record_id"
+                    )
+                    historical_close_revision = payload.get(
+                        "historical_study_close_revision"
+                    )
                     if source == "scientific_job_completion":
                         if (
                             type(completion_record_id) is not str
@@ -3612,10 +4032,108 @@ class StateWriter:
                             raise TransitionError(
                                 "Study KPI Writer-derived unavailable source is invalid"
                             )
+                    elif source == "historical_writer_verified_unavailable":
+                        batch_head = index.event_head(
+                            f"study-batches:{study_id}"
+                        )
+                        derived_source = (
+                            None
+                            if batch_head is None
+                            or type(completion_record_id) is not str
+                            else self._historical_engineering_unavailable_source(
+                                index=index,
+                                study_id=study_id,
+                                batch_id=batch_head.record_id,
+                                completion_record_id=completion_record_id,
+                            )
+                        )
+                        if (
+                            provenance != "historical_backfill"
+                            or type(executable_id) is not str
+                            or type(executable_display_id) is not str
+                            or any(value is not None for value in metrics.values())
+                            or unavailable_reason
+                            != "historical_final_non_scientific_engineering_failure"
+                            or derived_source is None
+                            or derived_source["executable_id"] != executable_id
+                            or derived_source["unavailable_reason"]
+                            != unavailable_reason
+                        ):
+                            raise TransitionError(
+                                "Historical Study KPI unavailable source is invalid"
+                            )
                     else:
                         raise TransitionError("Study KPI source is not typed")
-                    event = index.get("journal-event", record.authority_event_id)
-                    if event is None or event.status != "study_closed":
+                    authority_event = index.get(
+                        "journal-event",
+                        record.authority_event_id,
+                    )
+                    if provenance == "prospective_close":
+                        if (
+                            historical_close_event_id is not None
+                            or historical_close_record_id is not None
+                            or historical_close_revision is not None
+                            or authority_event is None
+                            or authority_event.status != "study_closed"
+                        ):
+                            raise TransitionError(
+                                "Prospective Study KPI close provenance is invalid"
+                            )
+                        event = authority_event
+                    elif provenance == "historical_backfill":
+                        event = (
+                            None
+                            if type(historical_close_event_id) is not str
+                            else index.get(
+                                "journal-event",
+                                historical_close_event_id,
+                            )
+                        )
+                        source_close = (
+                            None
+                            if type(historical_close_record_id) is not str
+                            else index.get(
+                                "study-close",
+                                historical_close_record_id,
+                            )
+                        )
+                        backfill_records = tuple(
+                            item
+                            for item in index.records_by_kind(
+                                "study-kpi-backfill"
+                            )
+                            if item.authority_event_id
+                            == record.authority_event_id
+                        )
+                        if (
+                            authority_event is None
+                            or authority_event.status != "study_kpi_backfilled"
+                            or isinstance(historical_close_revision, bool)
+                            or not isinstance(historical_close_revision, int)
+                            or event is None
+                            or event.status != "study_closed"
+                            or event.authority_sequence
+                            != historical_close_revision
+                            or source_close is None
+                            or source_close.authority_event_id
+                            != historical_close_event_id
+                            or source_close.authority_sequence
+                            != historical_close_revision
+                            or source_close.subject != f"Study:{study_id}"
+                            or source_close.status != outcome
+                            or len(backfill_records) != 1
+                            or record.fingerprint
+                            not in backfill_records[0].payload.get(
+                                "row_fingerprints",
+                                [],
+                            )
+                        ):
+                            raise TransitionError(
+                                "Historical Study KPI close provenance is invalid"
+                            )
+                    else:
+                        raise TransitionError("Study KPI provenance is not typed")
+                    if event is None:
                         raise TransitionError(
                             "Study KPI record is not bound to a Study close event"
                         )

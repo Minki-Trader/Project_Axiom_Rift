@@ -749,6 +749,13 @@ runtime_eligible; semantic change requires a new source contract.
   failure preserves the scientific close and local commit, permits no history
   rewrite or duplicate closeout, retains same-commit delivery debt for retry
   at the next stable opportunity, and does not block otherwise valid science.
+- [MUST] OD-REC-016 A sponsor-authorized one-time historical Study KPI adoption
+  may project the complete pre-activation immutable Study-close set in original
+  authority order. It uses only each original close, final disposition-driving
+  evidence, and exact failed-Job Executable identity; unavailable performance
+  remains missing. It changes no verdict, claim, trial, holdout, or next action
+  and is delivered as one current backfill checkpoint, never fictional past
+  commits or rewritten history.
 
 ## 20. Foundation Initiative Boundary
 
