@@ -318,6 +318,7 @@ def _trend_evaluation(
         not in {
             "composite_consensus_evaluation.v1",
             "composite_router_evaluation.v1",
+            "cross_asset_relative_strength_evaluation.v1",
             "reversion_discovery_evaluation.v1",
             "reversion_regime_followup_evaluation.v1",
             "session_inventory_discovery_evaluation.v1",
@@ -454,6 +455,7 @@ def _trend_evaluation(
     expected_total_exposures = {
         "composite_consensus_evaluation.v1": 222,
         "composite_router_evaluation.v1": 210,
+        "cross_asset_relative_strength_evaluation.v1": 234,
         "reversion_discovery_evaluation.v1": 54,
         "reversion_regime_followup_evaluation.v1": 186,
         "session_inventory_discovery_evaluation.v1": 114,

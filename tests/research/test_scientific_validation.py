@@ -111,6 +111,8 @@ class ScientificValidationTests(unittest.TestCase):
         plan_updates: dict[str, object] | None = None,
         validation_plan_hash: str | None = None,
         include_auxiliary: bool = False,
+        evaluation_schema: str = "trend_discovery_evaluation.v3",
+        selection_total_exposures: int = 42,
     ) -> tuple[EvidenceValidationRequest, tuple[ValidationArtifact, ...]]:
         plan = build_validation_plan(
             mission_id=MISSION_ID,
@@ -191,7 +193,7 @@ class ScientificValidationTests(unittest.TestCase):
                 {"regime": name, "trade_count": 1}
                 for name in ("low", "middle", "high")
             ],
-            "schema": "trend_discovery_evaluation.v3",
+            "schema": evaluation_schema,
             "selection_context": selection_context,
             "selection_method": {
                 "bootstrap_samples": 41999,
@@ -209,7 +211,7 @@ class ScientificValidationTests(unittest.TestCase):
                 "seed_derivation": (
                     "sha256_base_seed_label_block_length_first_u64"
                 ),
-                "total_exposures": 42,
+                "total_exposures": selection_total_exposures,
             },
             "session_metrics": [
                 {"session": name, "trade_count": 1}
@@ -331,6 +333,18 @@ class ScientificValidationTests(unittest.TestCase):
         self.assertEqual(trace.declared_artifact_count, 5)
         self.assertEqual(trace.opened_artifact_count, 5)
         self.assertTrue(all(artifact.was_read for artifact in artifacts))
+
+    def test_cross_asset_relative_strength_schema_binds_234_exposures(self) -> None:
+        request, _ = self._request(
+            evaluation_schema="cross_asset_relative_strength_evaluation.v1",
+            selection_total_exposures=234,
+        )
+
+        validated, _ = self._validate(request)
+
+        self.assertEqual(validated.verdict, "passed")
+        self.assertTrue(validated.scientific_eligible)
+        self.assertFalse(validated.candidate_eligible)
 
     def test_failed_and_not_evaluable_are_independently_derived(self) -> None:
         cases = {
