@@ -1,18 +1,16 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=75"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "axiom-rift"
 version = "0.1.0"
-description = "Developer-style campaign workspace for FPMarkets US100 M5 research"
+description = "Local operating kernel for FPMarkets US100 M5 research"
 requires-python = ">=3.11"
-dependencies = ["PyYAML>=6.0", "numpy>=2.0", "scikit-learn>=1.4"]
+dependencies = ["PyYAML>=6.0"]
 
 [project.scripts]
-axiom-rift = "axiom_rift.v2.cli:main"
-axiom-rift-v2 = "axiom_rift.v2.cli:main"
-axiom-rift-v1-legacy = "axiom_rift.cli:main"
+axiom = "axiom_rift.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

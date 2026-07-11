@@ -1,0 +1,437 @@
+"""Frozen adaptive Batches and forest-preserving Portfolio decisions."""
+
+from __future__ import annotations
+
+from dataclasses import InitVar, dataclass, field
+from enum import Enum
+
+from axiom_rift.core.canonical import CanonicalValue, canonical_bytes, parse_canonical
+from axiom_rift.core.identity import canonical_digest
+
+
+class BatchSpecError(ValueError):
+    """Raised when a Batch is not bounded and fully frozen."""
+
+
+class PortfolioDecisionError(ValueError):
+    """Raised when a Portfolio decision violates allocation boundaries."""
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PortfolioAxis:
+    axis_id: str
+    causal_question: str
+    mechanism_family: str
+    status: str = "open"
+    identity: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        _ascii("axis_id", self.axis_id)
+        _ascii("causal_question", self.causal_question)
+        _ascii("mechanism_family", self.mechanism_family)
+        if self.status not in {"open", "preserved", "deferred", "pruned"}:
+            raise PortfolioDecisionError("Portfolio axis status is not typed")
+        object.__setattr__(
+            self,
+            "identity",
+            "axis:"
+            + canonical_digest(
+                domain="portfolio-axis",
+                payload={
+                    "axis_id": self.axis_id,
+                    "causal_question": self.causal_question,
+                    "mechanism_family": self.mechanism_family,
+                    "schema": "portfolio_axis.v1",
+                },
+            ),
+        )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PortfolioSnapshot:
+    mission_id: str
+    axes: tuple[PortfolioAxis, ...]
+    opportunity_cost_basis: str
+    exhaustion_standard: InitVar[object] = None
+    _exhaustion_standard_bytes: bytes = field(init=False, repr=False, compare=False)
+    identity: str = field(init=False)
+
+    def __post_init__(self, exhaustion_standard: object) -> None:
+        _ascii("mission_id", self.mission_id)
+        _ascii("opportunity_cost_basis", self.opportunity_cost_basis)
+        if type(self.axes) is not tuple or len(self.axes) < 2:
+            raise PortfolioDecisionError(
+                "Portfolio snapshot requires at least two structural axes"
+            )
+        axes = tuple(sorted(self.axes, key=lambda axis: axis.axis_id))
+        object.__setattr__(self, "axes", axes)
+        axis_ids = [axis.axis_id for axis in axes]
+        if len(set(axis_ids)) != len(axis_ids):
+            raise PortfolioDecisionError("Portfolio axis identities must be unique")
+        declared_families = {axis.mechanism_family for axis in axes}
+        if len(declared_families) < 2:
+            raise PortfolioDecisionError(
+                "Portfolio snapshot must preserve unrelated mechanism families"
+            )
+        if exhaustion_standard is not None:
+            if type(exhaustion_standard) is not dict or set(exhaustion_standard) != {
+                "minimum_axes",
+                "minimum_distinct_studies_per_axis",
+                "minimum_mechanism_families",
+                "minimum_negative_executables_per_family",
+                "required_evidence_modes",
+                "stop_basis",
+            }:
+                raise PortfolioDecisionError("exhaustion standard schema is invalid")
+            for name in (
+                "minimum_axes",
+                "minimum_distinct_studies_per_axis",
+                "minimum_mechanism_families",
+                "minimum_negative_executables_per_family",
+            ):
+                value = exhaustion_standard[name]
+                if type(value) is not int or value <= 0:
+                    raise PortfolioDecisionError(
+                        "exhaustion standard bounds must be positive integers"
+                    )
+            if (
+                exhaustion_standard["minimum_axes"]
+                < exhaustion_standard["minimum_mechanism_families"]
+                or exhaustion_standard["minimum_mechanism_families"] < 3
+                or exhaustion_standard["minimum_distinct_studies_per_axis"] < 2
+                or exhaustion_standard["minimum_negative_executables_per_family"] < 2
+            ):
+                raise PortfolioDecisionError(
+                    "exhaustion standard is too shallow for a scientific terminal"
+                )
+            modes = exhaustion_standard["required_evidence_modes"]
+            allowed_modes = {
+                "ablation",
+                "causal_contrast",
+                "cost_and_execution",
+                "extreme_or_boundary",
+                "neighborhood",
+                "regime_stability",
+                "sensitivity_or_stress",
+                "temporal_stability",
+            }
+            required_core = {
+                "causal_contrast",
+                "cost_and_execution",
+                "sensitivity_or_stress",
+            }
+            if (
+                not isinstance(modes, list)
+                or len(set(modes)) != len(modes)
+                or not required_core.issubset(modes)
+                or not set(modes).issubset(allowed_modes)
+            ):
+                raise PortfolioDecisionError(
+                    "exhaustion standard lacks diverse typed evidence modes"
+                )
+            _ascii("exhaustion stop_basis", exhaustion_standard["stop_basis"])
+            exhaustion_standard = {
+                **exhaustion_standard,
+                "required_evidence_modes": sorted(modes),
+            }
+        standard_bytes = canonical_bytes(exhaustion_standard)
+        object.__setattr__(
+            self, "_exhaustion_standard_bytes", standard_bytes
+        )
+        identity = canonical_digest(
+            domain="portfolio-snapshot", payload=self.to_identity_payload()
+        )
+        object.__setattr__(self, "identity", f"portfolio:{identity}")
+
+    def to_identity_payload(self) -> dict[str, CanonicalValue]:
+        return {
+            "axes": [
+                {
+                    "axis_id": axis.axis_id,
+                    "axis_identity": axis.identity,
+                    "causal_question": axis.causal_question,
+                    "mechanism_family": axis.mechanism_family,
+                    "status": axis.status,
+                }
+                for axis in self.axes
+            ],
+            "exhaustion_standard": self.exhaustion_standard_value(),
+            "mission_id": self.mission_id,
+            "opportunity_cost_basis": self.opportunity_cost_basis,
+            "schema": "portfolio_snapshot.v1",
+        }
+
+    def exhaustion_standard_value(self) -> CanonicalValue:
+        return parse_canonical(self._exhaustion_standard_bytes)
+
+
+class PortfolioAction(str, Enum):
+    PRESERVE = "preserve"
+    PRUNE = "prune"
+    DEEPEN = "deepen"
+    CONTRAST = "contrast"
+    ROTATE = "rotate"
+    NEW_MECHANISM = "new_mechanism"
+    COMPLEMENTARY_SLEEVE = "complementary_sleeve"
+    RECOMBINE = "recombine"
+    SYNTHESIZE = "synthesize"
+
+
+_DIVERSIFYING_ACTIONS = frozenset(
+    {
+        PortfolioAction.ROTATE,
+        PortfolioAction.CONTRAST,
+        PortfolioAction.NEW_MECHANISM,
+        PortfolioAction.COMPLEMENTARY_SLEEVE,
+        PortfolioAction.RECOMBINE,
+        PortfolioAction.SYNTHESIZE,
+    }
+)
+
+
+_ADAPTIVE_BASIS_FIELDS = frozenset(
+    {
+        "uncertainty",
+        "causal_complexity",
+        "surface_curvature",
+        "compute_cost",
+        "expected_information_value",
+        "portfolio_opportunity_cost",
+    }
+)
+
+
+def _ascii(name: str, value: object) -> str:
+    if type(value) is not str:
+        raise TypeError(f"{name} must be str")
+    if not value:
+        raise ValueError(f"{name} must not be empty")
+    if not value.isascii():
+        raise ValueError(f"{name} must be ASCII")
+    return value
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class BatchSpec:
+    """One immutable, operator-selected adaptive Batch bound.
+
+    The type enforces a positive finite bound but deliberately imposes no
+    project-wide small maximum on trials or compute.
+    """
+
+    batch_id: str = field(compare=False)
+    study_id: str = field(compare=False)
+    study_hash: str = field(compare=False)
+    display_name: str = field(compare=False)
+    max_trials: int = field(compare=False)
+    max_compute_seconds: int = field(compare=False)
+    max_wall_seconds: int = field(compare=False)
+    stop_rule: str = field(compare=False)
+    source_contract_ids: tuple[str, ...] = field(default=(), compare=False)
+    acceptance_profile: InitVar[object]
+    adaptive_basis: InitVar[object]
+    _acceptance_bytes: bytes = field(init=False, repr=False, compare=False)
+    _basis_bytes: bytes = field(init=False, repr=False, compare=False)
+    identity: str = field(init=False)
+
+    def __post_init__(
+        self,
+        acceptance_profile: object,
+        adaptive_basis: object,
+    ) -> None:
+        _ascii("batch_id", self.batch_id)
+        _ascii("study_id", self.study_id)
+        study_hash = _ascii("study_hash", self.study_hash)
+        if len(study_hash) != 64 or any(
+            character not in "0123456789abcdef" for character in study_hash
+        ):
+            raise BatchSpecError("study_hash must be a lowercase SHA-256 digest")
+        _ascii("display_name", self.display_name)
+        _ascii("stop_rule", self.stop_rule)
+        sources = tuple(sorted(_ascii("source_contract_id", item) for item in self.source_contract_ids))
+        if len(set(sources)) != len(sources):
+            raise BatchSpecError("source_contract_ids must be unique")
+        object.__setattr__(self, "source_contract_ids", sources)
+        for name in ("max_trials", "max_compute_seconds", "max_wall_seconds"):
+            value = getattr(self, name)
+            if type(value) is not int or value <= 0:
+                raise BatchSpecError(f"{name} must be a positive int")
+
+        if type(adaptive_basis) is not dict:
+            raise BatchSpecError("adaptive_basis must be a canonical object")
+        missing = _ADAPTIVE_BASIS_FIELDS.difference(adaptive_basis)
+        if missing:
+            raise BatchSpecError(
+                "adaptive_basis is missing: " + ", ".join(sorted(missing))
+            )
+        if type(acceptance_profile) is not dict or not acceptance_profile:
+            raise BatchSpecError("acceptance_profile must be a non-empty object")
+
+        acceptance_bytes = canonical_bytes(acceptance_profile)
+        basis_bytes = canonical_bytes(adaptive_basis)
+        object.__setattr__(self, "_acceptance_bytes", acceptance_bytes)
+        object.__setattr__(self, "_basis_bytes", basis_bytes)
+        batch_digest = canonical_digest(
+            domain="batch-spec",
+            payload=self.to_identity_payload(),
+        )
+        object.__setattr__(self, "identity", f"batch:{batch_digest}")
+
+    def acceptance(self) -> CanonicalValue:
+        return parse_canonical(self._acceptance_bytes)
+
+    def basis(self) -> CanonicalValue:
+        return parse_canonical(self._basis_bytes)
+
+    def to_identity_payload(self) -> dict[str, CanonicalValue]:
+        return {
+            "acceptance_profile": self.acceptance(),
+            "adaptive_basis": self.basis(),
+            "max_compute_seconds": self.max_compute_seconds,
+            "max_trials": self.max_trials,
+            "max_wall_seconds": self.max_wall_seconds,
+            "schema": "batch_spec.v1",
+            "source_contract_ids": list(self.source_contract_ids),
+            "stop_rule": self.stop_rule,
+            "study_hash": self.study_hash,
+        }
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class DecisionOption:
+    option_id: str
+    action: PortfolioAction
+    target_id: str
+    expected_information_value: str
+    opportunity_cost: str
+    omission_reason: str | None = None
+
+    def __post_init__(self) -> None:
+        _ascii("option_id", self.option_id)
+        _ascii("target_id", self.target_id)
+        _ascii("expected_information_value", self.expected_information_value)
+        _ascii("opportunity_cost", self.opportunity_cost)
+        if not isinstance(self.action, PortfolioAction):
+            raise TypeError("action must be PortfolioAction")
+        if self.omission_reason is not None:
+            _ascii("omission_reason", self.omission_reason)
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PortfolioDecision:
+    """One bounded decision that cannot lock the forest after a recent win."""
+
+    decision_id: str
+    chosen_option_id: str
+    options: tuple[DecisionOption, ...]
+    rationale: str
+    commitment_batches: int | None
+    recent_positive_lineage_id: str | None = None
+    locks_future_portfolio: bool = False
+    identity: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        _ascii("decision_id", self.decision_id)
+        _ascii("chosen_option_id", self.chosen_option_id)
+        _ascii("rationale", self.rationale)
+        if type(self.options) is not tuple:
+            raise PortfolioDecisionError("options must be a frozen tuple")
+        if not self.options:
+            raise PortfolioDecisionError("a decision requires at least one option")
+        options = tuple(sorted(self.options, key=lambda option: option.option_id))
+        object.__setattr__(self, "options", options)
+        option_ids = tuple(option.option_id for option in options)
+        if len(set(option_ids)) != len(option_ids):
+            raise PortfolioDecisionError("option_id values must be unique")
+        if self.chosen_option_id not in option_ids:
+            raise PortfolioDecisionError("chosen_option_id is not present")
+        if type(self.commitment_batches) is not int or self.commitment_batches <= 0:
+            raise PortfolioDecisionError(
+                "commitment_batches must be a positive finite int"
+            )
+        if self.locks_future_portfolio:
+            raise PortfolioDecisionError("a decision cannot lock the future Portfolio")
+        if len(self.options) < 2:
+            raise PortfolioDecisionError(
+                "a material Portfolio decision must compare at least two alternatives"
+            )
+        if not any(
+            option.action in _DIVERSIFYING_ACTIONS for option in self.options
+        ):
+            raise PortfolioDecisionError(
+                "a material Portfolio decision must retain a structurally "
+                "diversifying action"
+            )
+        if self.recent_positive_lineage_id is not None:
+            _ascii("recent_positive_lineage_id", self.recent_positive_lineage_id)
+            if len(self.options) < 2:
+                raise PortfolioDecisionError(
+                    "recent-positive work must compare a non-monopoly alternative"
+                )
+            if not any(
+                option.action in _DIVERSIFYING_ACTIONS for option in self.options
+            ):
+                raise PortfolioDecisionError(
+                    "recent-positive work must retain a diversifying alternative"
+                )
+
+        for option in self.options:
+            if (
+                option.option_id != self.chosen_option_id
+                and option.omission_reason is None
+            ):
+                raise PortfolioDecisionError(
+                    f"unchosen option {option.option_id} needs an omission reason"
+                )
+
+        decision_digest = canonical_digest(
+            domain="portfolio-decision",
+            payload=self.to_identity_payload(),
+        )
+        object.__setattr__(self, "identity", f"decision:{decision_digest}")
+
+    @property
+    def chosen(self) -> DecisionOption:
+        return next(
+            option
+            for option in self.options
+            if option.option_id == self.chosen_option_id
+        )
+
+    def to_identity_payload(self) -> dict[str, CanonicalValue]:
+        return {
+            "chosen_option_id": self.chosen_option_id,
+            "commitment_batches": self.commitment_batches,
+            "decision_id": self.decision_id,
+            "locks_future_portfolio": self.locks_future_portfolio,
+            "options": [
+                {
+                    "action": option.action.value,
+                    "expected_information_value": option.expected_information_value,
+                    "omission_reason": option.omission_reason,
+                    "opportunity_cost": option.opportunity_cost,
+                    "option_id": option.option_id,
+                    "target_id": option.target_id,
+                }
+                for option in self.options
+            ],
+            "rationale": self.rationale,
+            "recent_positive_lineage_id": self.recent_positive_lineage_id,
+            "schema": "portfolio_decision.v1",
+        }
+
+
+DecisionKind = PortfolioAction
+
+
+__all__ = [
+    "BatchSpec",
+    "BatchSpecError",
+    "DecisionKind",
+    "DecisionOption",
+    "PortfolioAction",
+    "PortfolioAxis",
+    "PortfolioDecision",
+    "PortfolioDecisionError",
+    "PortfolioSnapshot",
+]

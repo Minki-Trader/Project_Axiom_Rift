@@ -1,0 +1,4 @@
+interface:
+  display_name: "Axiom Mission Operator"
+  short_description: "Operate goals, state transitions, repairs, and terminals"
+  default_prompt: "Use $operate-axiom-mission to continue the active Axiom goal from repository state."

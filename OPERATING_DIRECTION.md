@@ -1,10 +1,10 @@
 # Axiom Operating Direction
 
-status: prepared_build_input
-binding_for_foundation_goal: true_when_invoked
+status: active
+binding_for_foundation_goal: satisfied
 canonical_after_ready_boundary: true
-active_project_authority_before_cutover: false
-activation_condition: completed_ready_boundary
+active_project_authority: true
+activation_condition: satisfied_completed_ready_boundary
 encoding: ascii_only
 audience: codex
 

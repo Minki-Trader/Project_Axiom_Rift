@@ -2,8 +2,8 @@ schema: data_exposure_foundation
 status: binding_prior_exposure
 identity_profile: axiom_cjson_v1
 observed_development_material:
-  identity: 55bcb9d6dc466c22cb9c0bc4a6588a5818674539b69d848ca0b75410a75f9115
-  identity_domain: axiom:development-material:v1
+  identity: 36caaaeef95d4bfeac4e3df7b2108702a4e64632c94e88d46528ac0cccbd2065
+  identity_domain: development-material
   identity_inputs:
     dataset_sha256: fb02fe8754b8b9643a346982367813238d11475ca39de46f1cd8d4d0e33a2aa5
     split_artifact_sha256: 21830ac109c810cf2b463106127090d586d90de96472c3d043990246d75aa606

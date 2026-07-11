@@ -1,4 +1,0 @@
-interface:
-  display_name: "Axiom MT5 Guardrails"
-  short_description: "Mandatory MT5 parity and KPI rules."
-  default_prompt: "Use this skill for Project Axiom Rift MT5 EA, MQH, tester, KPI parser, parity, execution-divergence, or no-scout-cut run validation work."

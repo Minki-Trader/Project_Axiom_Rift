@@ -1,5 +1,5 @@
-registries/v2/scientific/index.yaml text eol=lf
-registries/v2/scientific/research_map.yaml text eol=lf
-campaigns/v2/*_scientific_root/** text eol=lf
-# V2S0002 predates the LF-safe writer. Preserve its immutable receipt-bound bytes.
-campaigns/v2/V2G0002_scientific_root/evidence/V2S0002/** -text -eol
+* text=auto eol=lf
+*.csv binary
+*.onnx binary
+*.png binary
+*.sqlite binary

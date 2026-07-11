@@ -1,0 +1,56 @@
+schema: evidence_contract
+status: active
+depths:
+  - discovery
+  - confirmation
+  - execution_proof
+  - materialization
+  - release
+depth_is_per_executable: true
+outputs:
+  durable_evidence:
+    content_addressed: true
+    durable_manifest_required: true
+  reproducible_cache:
+    claim_authority: false
+    eviction_allowed: true
+  transient:
+    delete_at_job_close: true
+    allowed_root: local/jobs
+  local_output_hash_verified_before_close: true
+claims:
+  subject_bound: true
+  candidate_and_release_require_candidate_bound_evidence: true
+  missing_invalid_or_censored_kpi_auto_pass: false
+  dimensions_are_non_compensatory: true
+  release_artifact_must_be_referenced_job_durable_output: true
+  release_coverage_is_writer_derived_from_runtime_job_completions: true
+validators:
+  current_surface_only: true
+  may_build_data: false
+  may_train: false
+  may_compile: false
+  may_export_onnx: false
+  may_run_mt5: false
+  may_download_inputs: false
+  routine_full_history_scan: false
+  routine_full_test_suite_required: false
+  unchanged_success_reused: true
+  unchanged_failure_blind_retry: false
+  production_registry_default_empty: true
+  identity_binds_protocol_domains_and_implementation_hash: true
+  canonical_request_is_deeply_immutable: true
+  every_declared_durable_artifact_must_be_read: true
+  result_manifest_is_a_declared_validator_artifact: true
+  artifact_hash_rechecked_after_validator_returns: true
+  scientific_evidence_modes_are_validator_derived: true
+  caller_verdict_or_facts_are_authority: false
+  scientific_source_runtime_and_external_domains_are_typed: true
+engineering_fixture:
+  scientific_eligible: false
+  scheduler_eligible: false
+  candidate_eligible: false
+  trial_delta: 0
+  holdout_delta: 0
+  scientific_claim: none
+  real_git_worktree_target_allowed: false

@@ -1,4 +1,5 @@
-# Data
+# Local Data
 
-Data is intentionally empty at restart. Add or link raw sources only after
-a source decision is recorded in an active campaign or registry entry.
+Raw broker exports, processed datasets, coverage audits, and runtime snapshots
+remain local. Their identities and access roles are bound in `foundation/` and
+future dataset receipts. Never recursively clean this directory.

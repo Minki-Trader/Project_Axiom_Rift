@@ -1,0 +1,4 @@
+interface:
+  display_name: "Axiom Research Portfolio"
+  short_description: "Design bounded studies and maintain the research forest"
+  default_prompt: "Use $run-research-portfolio to design and execute the next bounded research decision."

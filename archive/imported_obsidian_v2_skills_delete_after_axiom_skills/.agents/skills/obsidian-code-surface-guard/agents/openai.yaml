@@ -1,6 +1,0 @@
-interface:
-  display_name: "Obsidian Code Surface Guard"
-  short_description: "Auto gate for code writing(코드 작성), owner module(소유 모듈), caller(호출자), contract(계약), artifact(산출물), EA variant boundary(EA 실행 변형 경계), monolith(일체형 파일) risk, and reference_scout_pairing(레퍼런스 탐색 연결)"
-  default_prompt: "Use $obsidian-code-surface-guard before Python(파이썬), MQL5, MT5 EA, pipeline(파이프라인), stage script(단계 스크립트), test(테스트), model builder(모델 빌더), runtime helper(런타임 도구), or report materializer(보고서 물질화 도구) code writing(코드 작성); name owner module(소유 모듈), caller(호출자), input/output contract(입출력 계약), artifact(산출물) relation, monolith(일체형 파일) risk, and reference_scout_pairing(레퍼런스 탐색 연결). For EA/.mq5/.mqh/.set/tester work, first classify ea_variant_boundary(EA 실행 변형 경계) as parameter_only(파라미터만), module_change(모듈 변경), entrypoint_change(진입점 변경), or new_runner_required(새 실행기 필요); do not copy broad .mq5 files per run by default."
-policy:
-  allow_implicit_invocation: true

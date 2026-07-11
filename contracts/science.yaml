@@ -1,0 +1,153 @@
+schema: science_contract
+status: active
+identity_profile: axiom_cjson_v1
+market_target: FPMarkets_US100_M5
+discovery_sizing: fixed_lot
+taxonomy:
+  - Mission
+  - Initiative
+  - Portfolio
+  - Study
+  - Batch
+  - Job
+  - Executable
+  - Lineage
+  - Decision
+  - Repair
+  - Release
+component_protocols:
+  - feature
+  - label
+  - model
+  - calibration
+  - selector
+  - trade
+  - lifecycle
+  - risk
+  - regime
+  - macro
+  - external_source
+  - execution
+  - synthesis
+library_population_before_scientific_mission_allowed: false
+portfolio:
+  broad_before_deep: true
+  recent_positive_monopoly_allowed: false
+  fixed_global_allocation_ratio: null
+  material_decision_requires_structurally_diversifying_action: true
+  axis_semantics_immutable_within_mission: true
+  axis_and_option_order_is_not_identity: true
+  active_study_or_batch_blocks_portfolio_mutation: true
+  decision_batch_commitment_is_enforced_at_each_batch_open: true
+  initial_snapshot_requires_active_initiative: true
+  mission_preregisters_exhaustion_standard: true
+  exhaustion_standard_is_immutable: true
+  minimum_terminal_evidence_modes:
+    - causal_contrast
+    - sensitivity_or_stress
+    - cost_and_execution
+  terminal_evidence_modes_are_validator_demonstrated_not_question_declared: true
+  decisions:
+    - preserve
+    - prune
+    - deepen
+    - rotate
+    - contrast
+    - new_mechanism
+    - complementary_sleeve
+    - recombine
+    - synthesize
+batch:
+  operator_selects_adaptive_bound: true
+  frozen_before_evidence: true
+  global_tiny_cap: null
+  unique_executable_is_trial: true
+  successful_identity_cache_hit_is_trial: false
+  identical_failed_retry_without_change_allowed: false
+  identity_binds_study_semantic_hash_not_display_handles: true
+  study_binds_portfolio_snapshot_decision_action_and_axis_identity: true
+executable_identity_binds:
+  - ordered_component_identities
+  - parameters
+  - data_identity
+  - split_identity
+  - clock_identity
+  - cost_identity
+  - engine_identity
+  - external_source_semantic_contracts
+data:
+  decision_uses_completed_bar: true
+  feature_available_by_decision_required: true
+  external_available_by_decision_required: true
+  fold_isolation_required: true
+  sequential_decisions_required: true
+  observed_development_manifest: foundation/data_exposure.yaml
+  prior_memory_manifest: foundation/prior_scientific_memory.yaml
+  unregistered_material_alias_allowed: false
+  current_registered_development_material_only: true
+  post_holdout_material_requires_typed_same_mission_registration: true
+  post_holdout_material_binds_verified_content_time_split_and_successor: true
+  dynamic_material_must_match_current_required_successor: true
+  display_or_caller_digest_cannot_reset_multiplicity: true
+negative_memory:
+  evidence_must_be_validator_derived_scientific_falsification: true
+  stores_validator_demonstrated_evidence_modes: true
+  mission_study_snapshot_and_axis_identity_bound: true
+  evidence_reference_order_is_not_identity: true
+  caller_equivalence_object_is_authority: false
+restricted_confirmation:
+  redesign_reclassifies_to_development: true
+  reused_as_untouched_after_redesign: false
+holdout:
+  sealed_ingestion_may_expose_values: false
+  one_time_permit_required_for_scientific_read: true
+  reveal_replay_allowed: false
+  retuning_after_reveal_allowed: false
+  one_global_semantic_chain: true
+  duplicate_root_allowed: false
+  successor_must_be_later_and_name_disposed_predecessor: true
+  post_reveal_work_latched_until_disposition: true
+  dataset_identity_is_artifact_hash: true
+  row_identity_is_artifact_and_size_derived: true
+  split_identity_is_rows_time_and_predecessor_derived: true
+  failed_evaluation_negative_memory_uses_original_trial_lineage: true
+  failed_or_not_evaluable_candidate_cannot_refreeze_from_pre_reveal_evidence: true
+  post_holdout_development_receipt_required_before_refreeze: true
+  registration_runs_only_at_exact_successor_next_action: true
+  successor_values_remain_sealed_during_development_registration: true
+  candidate_trial_material_and_evidence_must_postdate_registration: true
+  passed_holdout_candidate_disposition_requires_later_successor: true
+external_source_states:
+  context_only:
+    performance_allowed: false
+    scheduler_allowed: false
+  historical_audited:
+    performance_allowed: false
+    scheduler_allowed: false
+  runtime_eligible:
+    source_permit_allowed: true
+  suspended:
+    new_source_permit_allowed: false
+    dependent_sleeve_action: fail_closed
+source_semantic_change_creates_new_identity: true
+same_semantics_recertification_changes_trial: false
+source_eligibility_receipt:
+  typed_and_content_addressed: true
+  historical_audit_fields_required: true
+  local_runtime_retrieval_proof_required: true
+  current_state_rechecked_at_batch_and_runtime_entry: true
+  arbitrary_receipt_labels_allowed: false
+terminals:
+  completed_pre_live_handoff:
+    candidate_bound_release_required: true
+  closed_no_candidate:
+    credible_diverse_frontier_exhaustion_required: true
+    final_snapshot_all_axes_pruned: true
+    stale_axis_meaning_reuse_allowed: false
+    unresolved_candidate_eligible_evidence_allowed: false
+    candidate_disposition_must_postdate_and_include_positive_completion: true
+    preregistered_axis_study_family_and_evidence_mode_bounds_required: true
+    evidence_mode_bounds_use_negative_memory_executed_modes: true
+  blocked_external:
+    operations_contract_required: true
+live_ready_allowed: false

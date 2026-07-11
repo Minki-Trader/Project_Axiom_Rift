@@ -1,0 +1,120 @@
+schema: operations_contract
+status: active
+authority:
+  operating_direction: OPERATING_DIRECTION.md
+  mutable_control: state/control.json
+  durable_journal: records/journal.jsonl
+  local_projection: local/index.sqlite
+  single_writer: axiom_rift.operations.writer.StateWriter
+transaction:
+  order:
+    - finalize_content_addressed_evidence
+    - append_fsync_idempotent_journal_event
+    - atomic_cursor_compare_and_swap
+    - advance_local_index_projection
+  journal_is_authority: true
+  index_is_reconstructible: true
+  reject_future_cursor_or_index: true
+  recover_trailing_cursor_or_index: true
+  projection_guard_binds_exact_record_digest_chain: true
+active_state:
+  historical_arrays_allowed: false
+  one_exact_next_action: true
+  one_active_parent_job: true
+  active_job_workers_require_disjoint_claims: true
+  post_holdout_successor_registration_is_latched: true
+job:
+  required:
+    - immutable_job_identity
+    - command_or_callable_identity
+    - implementation_content_identity
+    - input_hashes
+    - frozen_budget
+    - expected_outputs
+    - output_classes
+    - log_path
+    - timeout_or_stop_rule
+    - resume_action
+    - evidence_subject
+  resume_existing_before_new: true
+  identity_and_attempt_stream_are_mission_bound: true
+  success_cache_binds_expected_outputs_and_storage_classes: true
+  success_cache_reuse_reverifies_every_output_hash_and_availability: true
+  reproducible_cache_reuse_requires_present_exact_bytes: true
+  transient_output_success_is_not_reusable: true
+  repeated_success_cache_observation_creates_no_duplicate_record: true
+  success_cache_observation_is_read_only_and_preserves_next_action: true
+  every_implementation_identity_is_canonical_content_addressed_evidence: true
+  implementation_evidence_binds_callable_protocol_and_artifact_hashes: true
+  implementation_artifact_hashes_are_sorted_and_unique: true
+  failed_attempt_equivalence_ignores_budget_and_timeout_changes: true
+  failed_retry_requires_a_different_implementation_artifact_set: true
+  one_shot_job_permit_consumed_at_start: true
+  runtime_bound:
+    preregister_action_depth_and_claim_surfaces: true
+    executable_subject_required: true
+    durable_evidence_output_required: true
+    job_and_runtime_permits_revalidated_together: true
+    runtime_permit_binds_job_candidate_activation_and_depth: true
+repair:
+  scientific_identity_frozen: true
+  scientific_trial_delta: 0
+  scientific_failure_delta: 0
+  required:
+    - cause
+    - minimum_reproduction
+    - changed_cause_proof
+    - interrupted_action
+    - exact_resume_action
+  semantic_change_becomes_new_executable: true
+permit_matrix:
+  source: [Study, Executable]
+  study: [Initiative]
+  batch: [Study]
+  job: [Job]
+  repair: [Job]
+  runtime: [Executable]
+  holdout: [Executable]
+  release: [Release]
+  engine_revalidation_required: true
+  revoke_path_required: true
+job_failure:
+  writer_computes_failure_signature: true
+  minimum_reproduction_evidence_required: true
+  root_cause_required: true
+  interrupted_action_required: true
+  exact_declared_resume_action_required: true
+  changed_cause_manifest:
+    prior_failure_signature_required: true
+    changed_dimension: implementation
+    previous_and_new_implementation_identity_required: true
+    new_implementation_identity_is_canonical_manifest_hash: true
+    implementation_manifest_binds_callable_protocol_and_artifact_hashes: true
+    every_referenced_implementation_artifact_is_content_addressed: true
+    arbitrary_or_reused_blob_allowed: false
+terminal_basis:
+  completed_pre_live_handoff: frozen_candidate_bound_release
+  frozen_positive_basis_withdrawal: release_disposed_invalidated_only
+  closed_no_candidate: accepted_diverse_frontier_exhaustion_audit
+  blocked_external: complete_external_blocker_record
+blocker:
+  external_cause_required: true
+  safe_substitute_absent_required: true
+  recovery_paths_exhausted_required: true
+  exact_external_change_required: true
+  exact_resume_action_required: true
+  registered_external_validator_required: true
+  caller_failure_manifest_is_authority: false
+  validator_derived_indispensability_required: true
+  validator_derived_no_contract_valid_next_action_required: true
+  blocked_mission_capability_required: true
+git:
+  scientific_authority: false
+  coherent_milestones_only: true
+  final_delivery_requires_origin_main_same_tree: true
+  prohibited:
+    - force_push
+    - hard_reset
+    - history_rewrite
+    - unrelated_staging
+    - cleanup_outside_verified_allowlist

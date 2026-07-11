@@ -1,6 +1,0 @@
-interface:
-  display_name: "Obsidian Task Force"
-  short_description: "Route active review work through the Codex Task Force."
-  default_prompt: "Use $obsidian-task-force-review to route this Obsidian Prime work through permanent Codex Task Force custom agents; prefer micro_consult(소형 상담) 1-2 agents unless a formal review claim requires escalation."
-policy:
-  allow_implicit_invocation: true

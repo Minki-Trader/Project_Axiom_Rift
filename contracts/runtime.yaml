@@ -1,34 +1,82 @@
-schema: axiom_rift_runtime_contract_v1
-status: draft_runtime_config_baseline
-encoding: ascii_only
-
-surface:
-  symbol: US100
-  timeframe: M5
-  tester_model: real_ticks
-  logic_parity_model: 2
-  tick_execution_model: 4
-  deposit: 500
-  deposit_currency: USD
-  leverage: 100
-  terminal_mode: headless
-  execution_mode: 0
-  default_lot: 0.01
-  closed_bar_signal_generation: true
-  tick_execution_management: true
-
-authority:
-  active_runtime_config_complete: true
-  runtime_probe_completed: false
-  economics_pass: false
-  materialization_ready: false
-  runtime_authority: false
-  live_ready: false
-
-runtime_claim_requires:
-  - active_runtime_config
-  - deterministic_or_full_period_sparse_decision_surface
-  - completed_validation_report
-  - completed_oos_report
-  - artifact_identity_hashes
-  - mismatch_policy
+schema: runtime_contract
+status: active_interface
+implementation: late_bound_to_frozen_candidate
+entry:
+  runtime_permit_required: true
+  candidate_bound_evidence_required: true
+  eligible_evidence_depth:
+    - execution_proof
+    - materialization
+  writer_revalidates_actual_permit: true
+  caller_boolean_authority_allowed: false
+  current_candidate_and_source_state_rechecked: true
+  runtime_permit_depth_scope_required: true
+  release_depth_uses_release_permit_not_runtime_permit: true
+  durable_runtime_engine_entry_attestation_required: true
+freeze_requires:
+  - executable_identity
+  - component_identities
+  - data_and_split_identity
+  - feature_order_and_preprocessing
+  - model_and_selector
+  - trade_risk_and_lifecycle
+  - cost_clock_and_engine
+  - external_source_bindings
+parity_chain:
+  - raw_input
+  - python_feature_vs_mql_feature
+  - python_model_vs_onnx_runtime
+  - onnx_runtime_vs_ea_inference
+  - python_decision_vs_ea_decision_and_intent
+  - entry_exit_and_position_lifecycle
+  - native_completed_bar_logic
+  - native_real_tick_economics
+exact_parity:
+  - timestamp
+  - direction
+numeric_tolerance_preregistered: true
+materialization_cases:
+  - cold_start
+  - warmup
+  - duplicate_bar
+  - restart
+  - source_interruption
+  - stale_or_missing_input
+  - model_load_failure
+  - clock_and_dst
+  - symbol_mapping
+  - feature_order_mismatch
+  - missing_kpi
+implementation_boundary:
+  thin_ea: true
+  reusable_mql_include_modules: true
+  python_owns_training_hashing_parsing_records: true
+release:
+  release_permit_required: true
+  local_hashed_bundle_required: true
+  successful_runtime_job_completion_references_required: true
+  caller_claim_summary_is_authority: false
+  execution_proof_parity_coverage_derived_by_writer: true
+  materialization_case_coverage_derived_by_writer: true
+  mission_executable_candidate_activation_rechecked_at_declare_and_freeze: true
+  one_active_release_per_candidate: true
+  abandon_or_invalidate_path_required: true
+  frozen_release_pending_terminal_may_only_be_invalidated_by_release_disposed: true
+  exact_artifact_roles:
+    - frozen_executable_manifest
+    - feature_preprocessing_contract
+    - onnx_model_and_io_contract
+    - ea_source
+    - mql_runtime_modules
+    - compile_report
+    - native_execution_report
+    - parity_report
+    - materialization_report
+    - local_handoff_manifest
+  local_handoff_manifest_binds_every_other_role_and_authority: true
+  live_ready_allowed: false
+claim_guards:
+  onnx_file_is_onnx_readiness: false
+  compile_success_is_runtime_evidence: false
+  schedule_replay_is_native_inference_proof: false
+  aggregate_profit_is_robustness: false

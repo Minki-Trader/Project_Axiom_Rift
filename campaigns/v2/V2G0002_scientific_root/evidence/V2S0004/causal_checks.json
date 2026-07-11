@@ -1,9 +1,0 @@
-{
-  "all_role_checks_passed": true,
-  "all_validation_selection_source_only": true,
-  "development_paths_frozen_before_evaluation": true,
-  "development_variant_selection": false,
-  "hard_profile_passed": false,
-  "kpi_route": "evidence_gap",
-  "one_development_path_per_fold": true
-}

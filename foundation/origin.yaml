@@ -29,3 +29,15 @@ principle: broad_hypothesis_space_narrow_evidence_path_light_operating_surface
 prior_exposure_path: foundation/data_exposure.yaml
 prior_memory_path: foundation/prior_scientific_memory.yaml
 claim: none
+previous_authority:
+  disposition: superseded_nonterminal
+  clean_anchor: 152f8b7945f4d878ea6a3e876440f9cee77fc0f0
+  forensic_intake_commit: 972e0423fa12daf1ae0dbadc1341ac1c97d90fff
+  active_evidence_job: null
+  candidate: null
+  holdout_reveals: 0
+  scientific_terminal: null
+  unfinished_engineering_mutation:
+    disposition: superseded
+    scientific_failure_delta: 0
+    scientific_trial_delta: 0

@@ -1,7 +1,0 @@
-interface:
-  display_name: "Obsidian Grok Archive(옵시디언 그록 보관)"
-  short_description: "Read historical Grok records only; no new Grok calls."
-  default_prompt: "Use $obsidian-grok-collaboration to inspect historical Grok archive records without making any new Grok call."
-
-policy:
-  allow_implicit_invocation: true

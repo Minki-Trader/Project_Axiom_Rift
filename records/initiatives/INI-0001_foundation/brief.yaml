@@ -1,0 +1,32 @@
+schema: foundation_initiative_brief
+initiative_id: INI-0001
+status: closed
+outcome: completed_ready_boundary
+objective: Build and commission only the local operating kernel, then close at completed_ready_boundary.
+bounds:
+  scientific_mission_allowed: false
+  scientific_trial_delta: 0
+  candidate_allowed: false
+  holdout_delta: 0
+  onnx_ea_mt5_execution_allowed: false
+  external_blocker_only_stop: true
+authority:
+  operating_direction: OPERATING_DIRECTION.md
+  build_checklist: records/initiatives/INI-0001_foundation/closeout.md
+protected_data_manifest: foundation/data.yaml
+prior_exposure_manifest: foundation/data_exposure.yaml
+prior_memory_manifest: foundation/prior_scientific_memory.yaml
+delivery:
+  branch: codex/foundation-build
+  rollback_tag: pre-foundation-build-20260711-152f8b79
+  final_target: origin/main
+acceptance:
+  record: records/initiatives/INI-0001_foundation/acceptance.json
+  focused_tests_passed: 81
+  operating_direction_coverage: 266
+  durable_skill_count: 3
+  engineering_repair_count: 23
+claim:
+  scientific: none
+  runtime: none
+  live_ready: false

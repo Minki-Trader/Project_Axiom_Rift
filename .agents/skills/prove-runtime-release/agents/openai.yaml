@@ -1,0 +1,4 @@
+interface:
+  display_name: "Axiom Runtime Proof"
+  short_description: "Prove ONNX, MQL5, EA, MT5, parity, and release claims"
+  default_prompt: "Use $prove-runtime-release to plan candidate-bound runtime proof and release evidence."

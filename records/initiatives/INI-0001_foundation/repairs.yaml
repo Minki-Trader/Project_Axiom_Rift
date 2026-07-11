@@ -1,0 +1,143 @@
+schema: foundation_engineering_repairs
+initiative_id: INI-0001
+scientific_trial_delta: 0
+scientific_failure_delta: 0
+repairs:
+  - id: REPAIR-FOUNDATION-001
+    failure_signature: python_import_path_absent
+    minimum_reproduction: python_m_unittest_without_src_on_module_path
+    root_cause: The clean src layout was not installed and PYTHONPATH was not declared.
+    changed_cause_proof: Focused tests pass with the documented local src module path.
+    retained_guard: README local command bootstrap.
+  - id: REPAIR-FOUNDATION-002
+    failure_signature: windows_legacy_residue_long_path
+    minimum_reproduction: Exact verified legacy residue exceeded the first native traversal path.
+    root_cause: A removed generated tree contained Windows paths beyond the first traversal surface.
+    changed_cause_proof: Exact allowlisted targets were removed and all protected data hashes remained equal.
+    retained_guard: records/initiatives/INI-0001_foundation/replacement_allowlist.yaml
+  - id: REPAIR-FOUNDATION-003
+    failure_signature: commissioning_noncanonical_tuple_and_short_fixture_key
+    minimum_reproduction: Initial isolated report used a short permit key and tuple query shapes.
+    root_cause: The fixture violated the same key and canonical-value profiles enforced by the kernel.
+    changed_cause_proof: The isolated report now uses a 32-byte fixture key and canonical lists.
+    retained_guard: focused commissioning acceptance
+  - id: REPAIR-FOUNDATION-004
+    failure_signature: fabricated_source_eligibility
+    minimum_reproduction: Empty source semantics plus arbitrary receipt labels reached SourcePermit issuance.
+    root_cause: Source semantics and transition receipts were structurally unbound.
+    changed_cause_proof: Empty contracts, arbitrary receipts, stale post-suspension permits, and illegal edges are rejected.
+    retained_guard: tests/operations/test_writer.py and tests/research/test_research_boundaries.py
+  - id: REPAIR-FOUNDATION-005
+    failure_signature: same_head_projection_forgery
+    minimum_reproduction: A resealed same-head control or projection-only frozen Release could appear current.
+    root_cause: Stability checks compared heads without exact journal-derived control and O(1) projection count equality.
+    changed_cause_proof: Both adversarial mutations raise RecoveryRequired and explicit recovery restores authority.
+    retained_guard: tests/operations/test_writer.py
+  - id: REPAIR-FOUNDATION-006
+    failure_signature: same_count_source_projection_privilege_escalation
+    minimum_reproduction: In-place source status and event-head rollback issued SourcePermit without a new journal edge.
+    root_cause: Current claim rows were count-checked but not digest, max-head, typed receipt, or predecessor-chain checked.
+    changed_cause_proof: Row tamper, head rollback, forged receipt, and missing predecessor attacks fail closed; recovery rebuilds from Journal.
+    retained_guard: src/axiom_rift/storage/index.py and centralized runtime source validation
+  - id: REPAIR-FOUNDATION-007
+    failure_signature: caller_selected_runtime_depth_and_holdout_read_bypass
+    minimum_reproduction: A generic RuntimePermit entered Release depth and EvidenceStore exposed an ungated value-read method.
+    root_cause: Evidence depth was a caller argument instead of permit scope, and sealed storage owned a read API.
+    changed_cause_proof: Runtime depth is permit-bound to execution proof or materialization, and only StateWriter returns values after HoldoutPermit consumption.
+    retained_guard: tests/operations/test_writer.py
+  - id: REPAIR-FOUNDATION-008
+    failure_signature: handle_reset_and_adjacent_portfolio_monopoly
+    minimum_reproduction: Batch handle rename changed budget identity, candidate refreeze collided, and two adjacent DEEPEN options passed diversity checks.
+    root_cause: Display handles entered Batch identity, candidate activation sequence was fixed, and target-name difference counted as diversification.
+    changed_cause_proof: Study semantic hash binds Batch identity, candidate activation advances and stales permits, and material decisions retain a structural alternative.
+    retained_guard: tests/research/test_research_boundaries.py and tests/operations/test_writer.py
+  - id: REPAIR-FOUNDATION-009
+    failure_signature: caller_fabricated_release_coverage
+    minimum_reproduction: Caller parity and case sets plus any stored artifact could form a Release declaration.
+    root_cause: Release evidence did not reverse-link RuntimePermit, Job, Mission, candidate activation, depth, and durable outputs.
+    changed_cause_proof: The writer now derives every Release surface and artifact only from successful runtime-bound Job completions and rechecks the chain at freeze.
+    retained_guard: isolated runtime Release provenance fixture
+  - id: REPAIR-FOUNDATION-010
+    failure_signature: declared_not_measured_validation_bound
+    minimum_reproduction: Query plans were checked but returned rows, full keyed predicates, and current manifest path counts were not traced.
+    root_cause: Validation scaling assertions were disconnected from actual named lookups and content-addressed paths.
+    changed_cause_proof: Four-row and 4096-row histories produce the same keyed access trace with one logical row and exact manifest paths.
+    retained_guard: bounded_current_validation commissioning evidence
+  - id: REPAIR-FOUNDATION-011
+    failure_signature: projection_count_preserved_row_substitution
+    minimum_reproduction: Delete one projected authority row and insert a forged replacement while preserving the row count.
+    root_cause: Count and current-head equality did not bind the exact immutable projection members.
+    changed_cause_proof: Every projected member advances a journal-bound digest chain; mutation invalidates the guard and recovery rebuilds the exact projection.
+    retained_guard: tests/storage/test_index.py and tests/operations/test_writer.py
+  - id: REPAIR-FOUNDATION-012
+    failure_signature: caller_or_validator_mutated_evidence_claim
+    minimum_reproduction: A registered adapter could return facts without reading every artifact or mutate request state and an artifact after precheck.
+    root_cause: Validator identity, input immutability, actual reads, and post-return artifact state were not one checked boundary.
+    changed_cause_proof: Validator identity binds implementation bytes, canonical requests are deeply immutable, every declared artifact is read, and source hashes are rechecked after return.
+    retained_guard: tests/operations/test_validation.py
+  - id: REPAIR-FOUNDATION-013
+    failure_signature: job_cache_collision_output_gap_and_opaque_retry
+    minimum_reproduction: Repeated success reuse collided, a changed output contract reused old success, and any different blob reopened a failed attempt.
+    root_cause: Success observation and failed-work equivalence shared one underspecified fingerprint and changed-cause proof had no typed prior binding.
+    changed_cause_proof: Mission-scoped attempts, implementation-and-output-contract success cache, record-free repeated reuse, and a prior-signature plus previous/new implementation manifest bound to new implementation bytes are enforced.
+    retained_guard: tests/operations/test_writer.py
+  - id: REPAIR-FOUNDATION-014
+    failure_signature: portfolio_axis_commitment_and_terminal_drift
+    minimum_reproduction: Active Batch work could be overwritten by Portfolio mutation, axis meanings could reuse IDs, commitments were inert, and exhaustion synthesized an empty unresolved list.
+    root_cause: Portfolio records were descriptive instead of exact lifecycle capabilities.
+    changed_cause_proof: Immutable axis identities, Initiative and active-work guards, Decision-bound Studies, consumed Batch commitments, an immutable Mission-selected exhaustion standard, exact negative lineage, closed snapshots, and completion-ordered positive residual checks now gate transitions.
+    retained_guard: tests/operations/test_writer.py and tests/research/test_research_boundaries.py
+  - id: REPAIR-FOUNDATION-015
+    failure_signature: caller_material_alias_reset_trial_floor
+    minimum_reproduction: An arbitrary material digest opened a Study with zero prior multiplicity.
+    root_cause: MaterialReference accepted caller identity without Foundation registration.
+    changed_cause_proof: Study entry accepts only the canonical Foundation development material; labels and caller digests cannot reset exposure.
+    retained_guard: tests/research/test_research_boundaries.py
+  - id: REPAIR-FOUNDATION-016
+    failure_signature: holdout_parallel_root_and_post_reveal_drift
+    minimum_reproduction: More than one root seal or unrelated work after reveal could fragment the one-time confirmation chain.
+    root_cause: Seal identity and reveal count were not a single global semantic lifecycle.
+    changed_cause_proof: Artifact-derived dataset/row/split identities, one root, later predecessor-bound successors, replay rejection, all three evaluation dispositions, and original-trial lineage for failed holdout memory are writer-enforced.
+    retained_guard: tests/operations/test_writer.py
+  - id: REPAIR-FOUNDATION-017
+    failure_signature: caller_fabricated_external_unavailability
+    minimum_reproduction: Structured failure prose could count as an external recovery attempt without observing the dependency.
+    root_cause: Blocker accounting trusted Job failure fields instead of domain validation.
+    changed_cause_proof: External Jobs require a registered validator and canonical result plus measurement artifacts; a blocker additionally requires derived indispensability, no safe substitute, no contract-valid next action, and three distinct recovery kinds.
+    retained_guard: tests/operations/test_writer.py and contracts/operations.yaml
+  - id: REPAIR-FOUNDATION-018
+    failure_signature: event_head_projection_guard_omission
+    minimum_reproduction: Delete, replace, or alter one event head without changing projection row count, then append to that stream.
+    root_cause: The projection guard covered record members but not the event-head acceleration table.
+    changed_cause_proof: Event-head mutation invalidates the projection guard, later writes cannot reseal it, and Journal recovery rebuilds the exact heads.
+    retained_guard: tests/storage/test_index.py
+  - id: REPAIR-FOUNDATION-019
+    failure_signature: declared_modes_credited_as_executed_science
+    minimum_reproduction: Declare every required evidence mode in a Study while a validator observes only a narrower measurement.
+    root_cause: Exhaustion read Study intent instead of validator-demonstrated evidence retained by negative memory.
+    changed_cause_proof: Scientific Jobs bind a Study-authorized mode subset, validators return the executed modes, negative memory retains them, and exhaustion reads only that durable set.
+    retained_guard: tests/operations/test_writer.py and contracts/science.yaml
+  - id: REPAIR-FOUNDATION-020
+    failure_signature: post_holdout_candidate_and_portfolio_reentry_drift
+    minimum_reproduction: Seal a successor after failed holdout, refreeze old evidence, or dispose a candidate with no active Initiative into an unusable Decision boundary.
+    root_cause: A successor identity was mistaken for new development authority and candidate disposition ignored Initiative ownership.
+    changed_cause_proof: Refreeze requires a successor-bound post-holdout development receipt and later evidence; candidate disposition selects open_initiative or an exact current-snapshot Decision.
+    retained_guard: tests/operations/test_writer.py
+  - id: REPAIR-FOUNDATION-021
+    failure_signature: unbound_implementation_and_evicted_success_reuse
+    minimum_reproduction: Use an arbitrary digest as the first implementation, reuse a deleted local output, or mutate a result manifest outside validator post-checks.
+    root_cause: Implementation proof was retry-only, cache reuse trusted historical output hashes, and the result manifest was excluded from validator artifacts.
+    changed_cause_proof: Every Job resolves a callable-bound implementation manifest and bytes, reusable outputs are reverified, and the result manifest is read and rehashed by the registered validator.
+    retained_guard: tests/operations/test_writer.py and tests/operations/test_validation.py
+  - id: REPAIR-FOUNDATION-022
+    failure_signature: budget_reset_retry_and_cache_observation_growth
+    minimum_reproduction: Change only a failed Job budget or timeout, relabel an unchanged implementation manifest, or observe one reusable success under multiple operation IDs.
+    root_cause: Failed-attempt equivalence included execution bounds, changed-cause proof did not compare actual implementation artifact sets, and cache observation used the mutation transaction path.
+    changed_cause_proof: Budget and timeout no longer reset failed-attempt identity; implementation hashes are sorted, unique, and materially different on retry; cache observations preserve control, next action, Journal, index, and operation count.
+    retained_guard: tests/operations/test_writer.py and contracts/operations.yaml
+  - id: REPAIR-FOUNDATION-023
+    failure_signature: post_holdout_reentry_and_frozen_release_terminal_deadlock
+    minimum_reproduction: Seal a later successor with no registrable development authority, dispose a passed-holdout candidate, or invalidate a frozen Release while its positive terminal basis is pending.
+    root_cause: Post-holdout freeze expected a record no transition could create, candidate disposition lost the revealed predecessor, and the pending-terminal guard blocked the frozen Release invalidation path it claimed to support.
+    changed_cause_proof: The exact successor action registers verified content-bound development material without reading successor values; a new Study, Batch, trial, and later evidence can freeze while old material cannot; passed-holdout disposition requires a successor; and only exact frozen Release invalidation may withdraw a pending positive basis.
+    retained_guard: tests/operations/test_writer.py, contracts/science.yaml, contracts/runtime.yaml, and contracts/operations.yaml

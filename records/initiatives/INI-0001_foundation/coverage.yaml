@@ -1,0 +1,1074 @@
+schema: operating_direction_coverage_v1
+status: complete
+initiative_id: INI-0001
+operating_direction_identifier_count: 266
+classifications:
+  - preserved_fact
+  - guard_proven
+  - interface_bound
+  - future_obligation_bound
+entries:
+  - id: OD-DOC-001
+    classification: interface_bound
+    authority_surface: OPERATING_DIRECTION.md_and_AGENTS.md
+    acceptance_reference: authority_graph_and_ascii_commissioning
+  - id: OD-DOC-002
+    classification: interface_bound
+    authority_surface: OPERATING_DIRECTION.md_and_AGENTS.md
+    acceptance_reference: authority_graph_and_ascii_commissioning
+  - id: OD-DOC-003
+    classification: interface_bound
+    authority_surface: OPERATING_DIRECTION.md_and_AGENTS.md
+    acceptance_reference: authority_graph_and_ascii_commissioning
+  - id: OD-DOC-004
+    classification: interface_bound
+    authority_surface: OPERATING_DIRECTION.md_and_AGENTS.md
+    acceptance_reference: authority_graph_and_ascii_commissioning
+  - id: OD-DOC-005
+    classification: interface_bound
+    authority_surface: OPERATING_DIRECTION.md_and_AGENTS.md
+    acceptance_reference: authority_graph_and_ascii_commissioning
+  - id: OD-DOC-006
+    classification: interface_bound
+    authority_surface: OPERATING_DIRECTION.md_and_AGENTS.md
+    acceptance_reference: authority_graph_and_ascii_commissioning
+  - id: OD-DOC-007
+    classification: interface_bound
+    authority_surface: OPERATING_DIRECTION.md_and_AGENTS.md
+    acceptance_reference: authority_graph_and_ascii_commissioning
+  - id: OD-DOC-008
+    classification: interface_bound
+    authority_surface: OPERATING_DIRECTION.md_and_AGENTS.md
+    acceptance_reference: authority_graph_and_ascii_commissioning
+  - id: OD-DOC-009
+    classification: interface_bound
+    authority_surface: OPERATING_DIRECTION.md_and_AGENTS.md
+    acceptance_reference: authority_graph_and_ascii_commissioning
+  - id: OD-DOC-010
+    classification: interface_bound
+    authority_surface: OPERATING_DIRECTION.md_and_AGENTS.md
+    acceptance_reference: authority_graph_and_ascii_commissioning
+  - id: OD-MIS-001
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_runtime.yaml_and_foundation/market.yaml
+    acceptance_reference: future_scientific_obligation_routed_without_execution
+  - id: OD-MIS-002
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_runtime.yaml_and_foundation/market.yaml
+    acceptance_reference: future_scientific_obligation_routed_without_execution
+  - id: OD-MIS-003
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_runtime.yaml_and_foundation/market.yaml
+    acceptance_reference: future_scientific_obligation_routed_without_execution
+  - id: OD-MIS-004
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_runtime.yaml_and_foundation/market.yaml
+    acceptance_reference: future_scientific_obligation_routed_without_execution
+  - id: OD-MIS-005
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_runtime.yaml_and_foundation/market.yaml
+    acceptance_reference: future_scientific_obligation_routed_without_execution
+  - id: OD-MIS-006
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_runtime.yaml_and_foundation/market.yaml
+    acceptance_reference: future_scientific_obligation_routed_without_execution
+  - id: OD-MIS-007
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_runtime.yaml_and_foundation/market.yaml
+    acceptance_reference: future_scientific_obligation_routed_without_execution
+  - id: OD-MIS-008
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_runtime.yaml_and_foundation/market.yaml
+    acceptance_reference: future_scientific_obligation_routed_without_execution
+  - id: OD-MIS-009
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_runtime.yaml_and_foundation/market.yaml
+    acceptance_reference: future_scientific_obligation_routed_without_execution
+  - id: OD-MIS-010
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_runtime.yaml_and_foundation/market.yaml
+    acceptance_reference: future_scientific_obligation_routed_without_execution
+  - id: OD-MIS-011
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_runtime.yaml_and_foundation/market.yaml
+    acceptance_reference: future_scientific_obligation_routed_without_execution
+  - id: OD-MIS-012
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_runtime.yaml_and_foundation/market.yaml
+    acceptance_reference: future_scientific_obligation_routed_without_execution
+  - id: OD-AUT-001
+    classification: interface_bound
+    authority_surface: contracts/operations.yaml_and_operate-axiom-mission
+    acceptance_reference: mission_lifecycle_and_single_writer_focused_tests
+  - id: OD-AUT-002
+    classification: interface_bound
+    authority_surface: contracts/operations.yaml_and_operate-axiom-mission
+    acceptance_reference: mission_lifecycle_and_single_writer_focused_tests
+  - id: OD-AUT-003
+    classification: interface_bound
+    authority_surface: contracts/operations.yaml_and_operate-axiom-mission
+    acceptance_reference: mission_lifecycle_and_single_writer_focused_tests
+  - id: OD-AUT-004
+    classification: interface_bound
+    authority_surface: contracts/operations.yaml_and_operate-axiom-mission
+    acceptance_reference: mission_lifecycle_and_single_writer_focused_tests
+  - id: OD-AUT-005
+    classification: interface_bound
+    authority_surface: contracts/operations.yaml_and_operate-axiom-mission
+    acceptance_reference: mission_lifecycle_and_single_writer_focused_tests
+  - id: OD-AUT-006
+    classification: interface_bound
+    authority_surface: contracts/operations.yaml_and_operate-axiom-mission
+    acceptance_reference: mission_lifecycle_and_single_writer_focused_tests
+  - id: OD-AUT-007
+    classification: interface_bound
+    authority_surface: contracts/operations.yaml_and_operate-axiom-mission
+    acceptance_reference: mission_lifecycle_and_single_writer_focused_tests
+  - id: OD-AUT-008
+    classification: interface_bound
+    authority_surface: contracts/operations.yaml_and_operate-axiom-mission
+    acceptance_reference: mission_lifecycle_and_single_writer_focused_tests
+  - id: OD-AUT-009
+    classification: interface_bound
+    authority_surface: contracts/operations.yaml_and_operate-axiom-mission
+    acceptance_reference: mission_lifecycle_and_single_writer_focused_tests
+  - id: OD-AUT-010
+    classification: interface_bound
+    authority_surface: contracts/operations.yaml_and_operate-axiom-mission
+    acceptance_reference: mission_lifecycle_and_single_writer_focused_tests
+  - id: OD-AUT-011
+    classification: interface_bound
+    authority_surface: contracts/operations.yaml_and_operate-axiom-mission
+    acceptance_reference: mission_lifecycle_and_single_writer_focused_tests
+  - id: OD-TF-001
+    classification: future_obligation_bound
+    authority_surface: OPERATING_DIRECTION.md_and_domain_skills
+    acceptance_reference: future_task_force_operation_routed_without_role_ceremony
+  - id: OD-TF-002
+    classification: future_obligation_bound
+    authority_surface: OPERATING_DIRECTION.md_and_domain_skills
+    acceptance_reference: future_task_force_operation_routed_without_role_ceremony
+  - id: OD-TF-003
+    classification: future_obligation_bound
+    authority_surface: OPERATING_DIRECTION.md_and_domain_skills
+    acceptance_reference: future_task_force_operation_routed_without_role_ceremony
+  - id: OD-TF-004
+    classification: future_obligation_bound
+    authority_surface: OPERATING_DIRECTION.md_and_domain_skills
+    acceptance_reference: future_task_force_operation_routed_without_role_ceremony
+  - id: OD-TF-005
+    classification: future_obligation_bound
+    authority_surface: OPERATING_DIRECTION.md_and_domain_skills
+    acceptance_reference: future_task_force_operation_routed_without_role_ceremony
+  - id: OD-TF-006
+    classification: future_obligation_bound
+    authority_surface: OPERATING_DIRECTION.md_and_domain_skills
+    acceptance_reference: future_task_force_operation_routed_without_role_ceremony
+  - id: OD-TAX-001
+    classification: interface_bound
+    authority_surface: contracts/science.yaml_and_StateWriter
+    acceptance_reference: typed_lifecycle_interface_tests
+  - id: OD-TAX-002
+    classification: interface_bound
+    authority_surface: contracts/science.yaml_and_StateWriter
+    acceptance_reference: typed_lifecycle_interface_tests
+  - id: OD-TAX-003
+    classification: interface_bound
+    authority_surface: contracts/science.yaml_and_StateWriter
+    acceptance_reference: typed_lifecycle_interface_tests
+  - id: OD-TAX-004
+    classification: interface_bound
+    authority_surface: contracts/science.yaml_and_StateWriter
+    acceptance_reference: typed_lifecycle_interface_tests
+  - id: OD-TAX-005
+    classification: interface_bound
+    authority_surface: contracts/science.yaml_and_StateWriter
+    acceptance_reference: typed_lifecycle_interface_tests
+  - id: OD-TAX-006
+    classification: interface_bound
+    authority_surface: contracts/science.yaml_and_StateWriter
+    acceptance_reference: typed_lifecycle_interface_tests
+  - id: OD-TAX-007
+    classification: interface_bound
+    authority_surface: contracts/science.yaml_and_StateWriter
+    acceptance_reference: typed_lifecycle_interface_tests
+  - id: OD-TAX-008
+    classification: interface_bound
+    authority_surface: contracts/science.yaml_and_StateWriter
+    acceptance_reference: typed_lifecycle_interface_tests
+  - id: OD-TAX-009
+    classification: interface_bound
+    authority_surface: contracts/science.yaml_and_StateWriter
+    acceptance_reference: typed_lifecycle_interface_tests
+  - id: OD-SCI-001
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_run-research-portfolio
+    acceptance_reference: future_research_freedom_routed_with_claim_none
+  - id: OD-SCI-002
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_run-research-portfolio
+    acceptance_reference: future_research_freedom_routed_with_claim_none
+  - id: OD-SCI-003
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_run-research-portfolio
+    acceptance_reference: future_research_freedom_routed_with_claim_none
+  - id: OD-SCI-004
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_run-research-portfolio
+    acceptance_reference: future_research_freedom_routed_with_claim_none
+  - id: OD-SCI-005
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_run-research-portfolio
+    acceptance_reference: future_research_freedom_routed_with_claim_none
+  - id: OD-SCI-006
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_run-research-portfolio
+    acceptance_reference: future_research_freedom_routed_with_claim_none
+  - id: OD-SCI-007
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_run-research-portfolio
+    acceptance_reference: future_research_freedom_routed_with_claim_none
+  - id: OD-SCI-008
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_run-research-portfolio
+    acceptance_reference: future_research_freedom_routed_with_claim_none
+  - id: OD-POR-001
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_research/portfolio.py
+    acceptance_reference: portfolio_identity_commitment_and_drift_tests
+  - id: OD-POR-002
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_research/portfolio.py
+    acceptance_reference: portfolio_identity_commitment_and_drift_tests
+  - id: OD-POR-003
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_research/portfolio.py
+    acceptance_reference: portfolio_identity_commitment_and_drift_tests
+  - id: OD-POR-004
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_research/portfolio.py
+    acceptance_reference: portfolio_identity_commitment_and_drift_tests
+  - id: OD-POR-005
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_research/portfolio.py
+    acceptance_reference: portfolio_identity_commitment_and_drift_tests
+  - id: OD-POR-006
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_research/portfolio.py
+    acceptance_reference: portfolio_identity_commitment_and_drift_tests
+  - id: OD-POR-007
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_research/portfolio.py
+    acceptance_reference: portfolio_identity_commitment_and_drift_tests
+  - id: OD-POR-008
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_research/portfolio.py
+    acceptance_reference: portfolio_identity_commitment_and_drift_tests
+  - id: OD-POR-009
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_research/portfolio.py
+    acceptance_reference: portfolio_identity_commitment_and_drift_tests
+  - id: OD-POR-010
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_research/portfolio.py
+    acceptance_reference: portfolio_identity_commitment_and_drift_tests
+  - id: OD-POR-011
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_research/portfolio.py
+    acceptance_reference: portfolio_identity_commitment_and_drift_tests
+  - id: OD-BUD-001
+    classification: interface_bound
+    authority_surface: research/portfolio.py_and_operations/writer.py
+    acceptance_reference: batch_budget_trial_cache_and_retry_tests
+  - id: OD-BUD-002
+    classification: interface_bound
+    authority_surface: research/portfolio.py_and_operations/writer.py
+    acceptance_reference: batch_budget_trial_cache_and_retry_tests
+  - id: OD-BUD-003
+    classification: interface_bound
+    authority_surface: research/portfolio.py_and_operations/writer.py
+    acceptance_reference: batch_budget_trial_cache_and_retry_tests
+  - id: OD-BUD-004
+    classification: interface_bound
+    authority_surface: research/portfolio.py_and_operations/writer.py
+    acceptance_reference: batch_budget_trial_cache_and_retry_tests
+  - id: OD-BUD-005
+    classification: interface_bound
+    authority_surface: research/portfolio.py_and_operations/writer.py
+    acceptance_reference: batch_budget_trial_cache_and_retry_tests
+  - id: OD-BUD-006
+    classification: interface_bound
+    authority_surface: research/portfolio.py_and_operations/writer.py
+    acceptance_reference: batch_budget_trial_cache_and_retry_tests
+  - id: OD-BUD-007
+    classification: interface_bound
+    authority_surface: research/portfolio.py_and_operations/writer.py
+    acceptance_reference: batch_budget_trial_cache_and_retry_tests
+  - id: OD-BUD-008
+    classification: interface_bound
+    authority_surface: research/portfolio.py_and_operations/writer.py
+    acceptance_reference: batch_budget_trial_cache_and_retry_tests
+  - id: OD-BUD-009
+    classification: interface_bound
+    authority_surface: research/portfolio.py_and_operations/writer.py
+    acceptance_reference: batch_budget_trial_cache_and_retry_tests
+  - id: OD-BUD-010
+    classification: interface_bound
+    authority_surface: research/portfolio.py_and_operations/writer.py
+    acceptance_reference: batch_budget_trial_cache_and_retry_tests
+  - id: OD-DAT-001
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-DAT-002
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-DAT-003
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-DAT-004
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-DAT-005
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-DAT-006
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-DAT-007
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-DAT-008
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-DAT-009
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-DAT-010
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-DAT-011
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-DAT-012
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-DAT-013
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-DAT-014
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-DAT-015
+    classification: future_obligation_bound
+    authority_surface: foundation/data_exposure.yaml_and_research/trials.py
+    acceptance_reference: foundation_exposure_material_and_holdout_guards
+  - id: OD-SNP-001
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-002
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-003
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-004
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-005
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-006
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-007
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-008
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-009
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-010
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-011
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-012
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-013
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-014
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-015
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-016
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-017
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-018
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-019
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-020
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-021
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-022
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-SNP-023
+    classification: preserved_fact
+    authority_surface: foundation/data.yaml_and_environment.yaml_and_data_exposure.yaml
+    acceptance_reference: protected_foundation_hash_and_snapshot_verification
+  - id: OD-EXT-001
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-002
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-003
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-004
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-005
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-006
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-007
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-008
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-009
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-010
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-011
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-012
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-013
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-014
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-015
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-016
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-017
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-018
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-019
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-020
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-021
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-022
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-023
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-024
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-025
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-026
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-027
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EXT-028
+    classification: future_obligation_bound
+    authority_surface: research/sources.py_and_operations/writer.py
+    acceptance_reference: source_state_permit_and_fail_closed_tests
+  - id: OD-EVL-001
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_evidence.yaml
+    acceptance_reference: future_evaluation_obligation_bound_without_claim
+  - id: OD-EVL-002
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_evidence.yaml
+    acceptance_reference: future_evaluation_obligation_bound_without_claim
+  - id: OD-EVL-003
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_evidence.yaml
+    acceptance_reference: future_evaluation_obligation_bound_without_claim
+  - id: OD-EVL-004
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_evidence.yaml
+    acceptance_reference: future_evaluation_obligation_bound_without_claim
+  - id: OD-EVL-005
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_evidence.yaml
+    acceptance_reference: future_evaluation_obligation_bound_without_claim
+  - id: OD-EVL-006
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_evidence.yaml
+    acceptance_reference: future_evaluation_obligation_bound_without_claim
+  - id: OD-EVL-007
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_evidence.yaml
+    acceptance_reference: future_evaluation_obligation_bound_without_claim
+  - id: OD-EVL-008
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_evidence.yaml
+    acceptance_reference: future_evaluation_obligation_bound_without_claim
+  - id: OD-EVL-009
+    classification: future_obligation_bound
+    authority_surface: contracts/science.yaml_and_evidence.yaml
+    acceptance_reference: future_evaluation_obligation_bound_without_claim
+  - id: OD-EVD-001
+    classification: interface_bound
+    authority_surface: contracts/evidence.yaml_and_runtime.yaml_and_operations/writer.py
+    acceptance_reference: runtime_release_and_validator_boundary_tests
+  - id: OD-EVD-002
+    classification: interface_bound
+    authority_surface: contracts/evidence.yaml_and_runtime.yaml_and_operations/writer.py
+    acceptance_reference: runtime_release_and_validator_boundary_tests
+  - id: OD-EVD-003
+    classification: interface_bound
+    authority_surface: contracts/evidence.yaml_and_runtime.yaml_and_operations/writer.py
+    acceptance_reference: runtime_release_and_validator_boundary_tests
+  - id: OD-EVD-004
+    classification: interface_bound
+    authority_surface: contracts/evidence.yaml_and_runtime.yaml_and_operations/writer.py
+    acceptance_reference: runtime_release_and_validator_boundary_tests
+  - id: OD-EVD-005
+    classification: interface_bound
+    authority_surface: contracts/evidence.yaml_and_runtime.yaml_and_operations/writer.py
+    acceptance_reference: runtime_release_and_validator_boundary_tests
+  - id: OD-EVD-006
+    classification: interface_bound
+    authority_surface: contracts/evidence.yaml_and_runtime.yaml_and_operations/writer.py
+    acceptance_reference: runtime_release_and_validator_boundary_tests
+  - id: OD-EVD-007
+    classification: interface_bound
+    authority_surface: contracts/evidence.yaml_and_runtime.yaml_and_operations/writer.py
+    acceptance_reference: runtime_release_and_validator_boundary_tests
+  - id: OD-EVD-008
+    classification: interface_bound
+    authority_surface: contracts/evidence.yaml_and_runtime.yaml_and_operations/writer.py
+    acceptance_reference: runtime_release_and_validator_boundary_tests
+  - id: OD-EVD-009
+    classification: interface_bound
+    authority_surface: contracts/evidence.yaml_and_runtime.yaml_and_operations/writer.py
+    acceptance_reference: runtime_release_and_validator_boundary_tests
+  - id: OD-EVD-010
+    classification: interface_bound
+    authority_surface: contracts/evidence.yaml_and_runtime.yaml_and_operations/writer.py
+    acceptance_reference: runtime_release_and_validator_boundary_tests
+  - id: OD-EVD-011
+    classification: interface_bound
+    authority_surface: contracts/evidence.yaml_and_runtime.yaml_and_operations/writer.py
+    acceptance_reference: runtime_release_and_validator_boundary_tests
+  - id: OD-EVD-012
+    classification: interface_bound
+    authority_surface: contracts/evidence.yaml_and_runtime.yaml_and_operations/writer.py
+    acceptance_reference: runtime_release_and_validator_boundary_tests
+  - id: OD-EVD-013
+    classification: interface_bound
+    authority_surface: contracts/evidence.yaml_and_runtime.yaml_and_operations/writer.py
+    acceptance_reference: runtime_release_and_validator_boundary_tests
+  - id: OD-EVD-014
+    classification: interface_bound
+    authority_surface: contracts/evidence.yaml_and_runtime.yaml_and_operations/writer.py
+    acceptance_reference: runtime_release_and_validator_boundary_tests
+  - id: OD-REP-001
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_operations/writer.py_and_repairs.yaml
+    acceptance_reference: repair_resume_and_changed_cause_tests
+  - id: OD-REP-002
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_operations/writer.py_and_repairs.yaml
+    acceptance_reference: repair_resume_and_changed_cause_tests
+  - id: OD-REP-003
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_operations/writer.py_and_repairs.yaml
+    acceptance_reference: repair_resume_and_changed_cause_tests
+  - id: OD-REP-004
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_operations/writer.py_and_repairs.yaml
+    acceptance_reference: repair_resume_and_changed_cause_tests
+  - id: OD-REP-005
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_operations/writer.py_and_repairs.yaml
+    acceptance_reference: repair_resume_and_changed_cause_tests
+  - id: OD-REP-006
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_operations/writer.py_and_repairs.yaml
+    acceptance_reference: repair_resume_and_changed_cause_tests
+  - id: OD-REP-007
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_operations/writer.py_and_repairs.yaml
+    acceptance_reference: repair_resume_and_changed_cause_tests
+  - id: OD-REP-008
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_operations/writer.py_and_repairs.yaml
+    acceptance_reference: repair_resume_and_changed_cause_tests
+  - id: OD-REP-009
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_operations/writer.py_and_repairs.yaml
+    acceptance_reference: repair_resume_and_changed_cause_tests
+  - id: OD-ARC-001
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-002
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-003
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-004
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-005
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-006
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-007
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-008
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-009
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-010
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-011
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-012
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-013
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-014
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-015
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-016
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-017
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-018
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-019
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-ARC-020
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_storage_modules
+    acceptance_reference: journal_control_projection_crash_and_query_tests
+  - id: OD-SKL-001
+    classification: guard_proven
+    authority_surface: AGENTS.md_and_.agents/skills
+    acceptance_reference: three_skill_quick_validate_and_trigger_router
+  - id: OD-SKL-002
+    classification: guard_proven
+    authority_surface: AGENTS.md_and_.agents/skills
+    acceptance_reference: three_skill_quick_validate_and_trigger_router
+  - id: OD-SKL-003
+    classification: guard_proven
+    authority_surface: AGENTS.md_and_.agents/skills
+    acceptance_reference: three_skill_quick_validate_and_trigger_router
+  - id: OD-SKL-004
+    classification: guard_proven
+    authority_surface: AGENTS.md_and_.agents/skills
+    acceptance_reference: three_skill_quick_validate_and_trigger_router
+  - id: OD-SKL-005
+    classification: guard_proven
+    authority_surface: AGENTS.md_and_.agents/skills
+    acceptance_reference: three_skill_quick_validate_and_trigger_router
+  - id: OD-SKL-006
+    classification: guard_proven
+    authority_surface: AGENTS.md_and_.agents/skills
+    acceptance_reference: three_skill_quick_validate_and_trigger_router
+  - id: OD-SKL-007
+    classification: guard_proven
+    authority_surface: AGENTS.md_and_.agents/skills
+    acceptance_reference: three_skill_quick_validate_and_trigger_router
+  - id: OD-SKL-008
+    classification: guard_proven
+    authority_surface: AGENTS.md_and_.agents/skills
+    acceptance_reference: three_skill_quick_validate_and_trigger_router
+  - id: OD-SKL-009
+    classification: guard_proven
+    authority_surface: AGENTS.md_and_.agents/skills
+    acceptance_reference: three_skill_quick_validate_and_trigger_router
+  - id: OD-SKL-010
+    classification: guard_proven
+    authority_surface: AGENTS.md_and_.agents/skills
+    acceptance_reference: three_skill_quick_validate_and_trigger_router
+  - id: OD-SKL-011
+    classification: guard_proven
+    authority_surface: AGENTS.md_and_.agents/skills
+    acceptance_reference: three_skill_quick_validate_and_trigger_router
+  - id: OD-SKL-012
+    classification: guard_proven
+    authority_surface: AGENTS.md_and_.agents/skills
+    acceptance_reference: three_skill_quick_validate_and_trigger_router
+  - id: OD-SKL-013
+    classification: guard_proven
+    authority_surface: AGENTS.md_and_.agents/skills
+    acceptance_reference: three_skill_quick_validate_and_trigger_router
+  - id: OD-SKL-014
+    classification: guard_proven
+    authority_surface: AGENTS.md_and_.agents/skills
+    acceptance_reference: three_skill_quick_validate_and_trigger_router
+  - id: OD-VAL-001
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-002
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-003
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-004
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-005
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-006
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-007
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-008
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-009
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-017
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-010
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-011
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-012
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-013
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-014
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-015
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-VAL-016
+    classification: guard_proven
+    authority_surface: contracts/evidence.yaml_and_storage/index.py_and_focused_tests
+    acceptance_reference: bounded_4_vs_4096_access_and_validator_tests
+  - id: OD-SRC-001
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/source_decisions.yaml
+    acceptance_reference: bounded_external_source_decision_record
+  - id: OD-SRC-002
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/source_decisions.yaml
+    acceptance_reference: bounded_external_source_decision_record
+  - id: OD-SRC-003
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/source_decisions.yaml
+    acceptance_reference: bounded_external_source_decision_record
+  - id: OD-SRC-004
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/source_decisions.yaml
+    acceptance_reference: bounded_external_source_decision_record
+  - id: OD-SRC-005
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/source_decisions.yaml
+    acceptance_reference: bounded_external_source_decision_record
+  - id: OD-SRC-006
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/source_decisions.yaml
+    acceptance_reference: bounded_external_source_decision_record
+  - id: OD-SRC-007
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/source_decisions.yaml
+    acceptance_reference: bounded_external_source_decision_record
+  - id: OD-SRC-008
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/source_decisions.yaml
+    acceptance_reference: bounded_external_source_decision_record
+  - id: OD-REC-001
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_records/initiatives/INI-0001_foundation
+    acceptance_reference: coherent_git_and_durable_record_closeout
+  - id: OD-REC-002
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_records/initiatives/INI-0001_foundation
+    acceptance_reference: coherent_git_and_durable_record_closeout
+  - id: OD-REC-003
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_records/initiatives/INI-0001_foundation
+    acceptance_reference: coherent_git_and_durable_record_closeout
+  - id: OD-REC-004
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_records/initiatives/INI-0001_foundation
+    acceptance_reference: coherent_git_and_durable_record_closeout
+  - id: OD-REC-005
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_records/initiatives/INI-0001_foundation
+    acceptance_reference: coherent_git_and_durable_record_closeout
+  - id: OD-REC-006
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_records/initiatives/INI-0001_foundation
+    acceptance_reference: coherent_git_and_durable_record_closeout
+  - id: OD-REC-007
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_records/initiatives/INI-0001_foundation
+    acceptance_reference: coherent_git_and_durable_record_closeout
+  - id: OD-REC-008
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_records/initiatives/INI-0001_foundation
+    acceptance_reference: coherent_git_and_durable_record_closeout
+  - id: OD-REC-009
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_records/initiatives/INI-0001_foundation
+    acceptance_reference: coherent_git_and_durable_record_closeout
+  - id: OD-REC-010
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_records/initiatives/INI-0001_foundation
+    acceptance_reference: coherent_git_and_durable_record_closeout
+  - id: OD-REC-011
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_records/initiatives/INI-0001_foundation
+    acceptance_reference: coherent_git_and_durable_record_closeout
+  - id: OD-REC-012
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_records/initiatives/INI-0001_foundation
+    acceptance_reference: coherent_git_and_durable_record_closeout
+  - id: OD-REC-013
+    classification: guard_proven
+    authority_surface: contracts/operations.yaml_and_records/initiatives/INI-0001_foundation
+    acceptance_reference: coherent_git_and_durable_record_closeout
+  - id: OD-FND-001
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/closeout.md_and_acceptance.json
+    acceptance_reference: foundation_commissioning_acceptance
+  - id: OD-FND-002
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/closeout.md_and_acceptance.json
+    acceptance_reference: foundation_commissioning_acceptance
+  - id: OD-FND-003
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/closeout.md_and_acceptance.json
+    acceptance_reference: foundation_commissioning_acceptance
+  - id: OD-FND-004
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/closeout.md_and_acceptance.json
+    acceptance_reference: foundation_commissioning_acceptance
+  - id: OD-FND-005
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/closeout.md_and_acceptance.json
+    acceptance_reference: foundation_commissioning_acceptance
+  - id: OD-FND-006
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/closeout.md_and_acceptance.json
+    acceptance_reference: foundation_commissioning_acceptance
+  - id: OD-FND-007
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/closeout.md_and_acceptance.json
+    acceptance_reference: foundation_commissioning_acceptance
+  - id: OD-FND-008
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/closeout.md_and_acceptance.json
+    acceptance_reference: foundation_commissioning_acceptance
+  - id: OD-FND-009
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/closeout.md_and_acceptance.json
+    acceptance_reference: foundation_commissioning_acceptance
+  - id: OD-FND-010
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/closeout.md_and_acceptance.json
+    acceptance_reference: foundation_commissioning_acceptance
+  - id: OD-FND-011
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/closeout.md_and_acceptance.json
+    acceptance_reference: foundation_commissioning_acceptance
+  - id: OD-FND-012
+    classification: guard_proven
+    authority_surface: records/initiatives/INI-0001_foundation/closeout.md_and_acceptance.json
+    acceptance_reference: foundation_commissioning_acceptance
+  - id: OD-NXT-001
+    classification: future_obligation_bound
+    authority_surface: foundation/origin.yaml_and_durable_skills
+    acceptance_reference: await_root_goal_ready_boundary
+  - id: OD-NXT-002
+    classification: future_obligation_bound
+    authority_surface: foundation/origin.yaml_and_durable_skills
+    acceptance_reference: await_root_goal_ready_boundary
+  - id: OD-NXT-003
+    classification: future_obligation_bound
+    authority_surface: foundation/origin.yaml_and_durable_skills
+    acceptance_reference: await_root_goal_ready_boundary
+  - id: OD-NXT-004
+    classification: future_obligation_bound
+    authority_surface: foundation/origin.yaml_and_durable_skills
+    acceptance_reference: await_root_goal_ready_boundary
+  - id: OD-NXT-005
+    classification: future_obligation_bound
+    authority_surface: foundation/origin.yaml_and_durable_skills
+    acceptance_reference: await_root_goal_ready_boundary
+  - id: OD-NXT-006
+    classification: future_obligation_bound
+    authority_surface: foundation/origin.yaml_and_durable_skills
+    acceptance_reference: await_root_goal_ready_boundary
+  - id: OD-PRN-001
+    classification: future_obligation_bound
+    authority_surface: OPERATING_DIRECTION.md
+    acceptance_reference: governing_principle_preserved
