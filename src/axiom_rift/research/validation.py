@@ -335,6 +335,7 @@ def _trend_evaluation(
             "candle_geometry_evaluation.v1",
             "candle_geometry_evaluation.v2",
             "liquidity_supply_evaluation.v1",
+            "liquidity_supply_evaluation.v2",
             "reversion_discovery_evaluation.v1",
             "reversion_regime_followup_evaluation.v1",
             "session_inventory_discovery_evaluation.v1",
@@ -442,6 +443,7 @@ def _trend_evaluation(
         "candle_geometry_evaluation.v1": 6,
         "candle_geometry_evaluation.v2": 6,
         "liquidity_supply_evaluation.v1": 4,
+        "liquidity_supply_evaluation.v2": 4,
     }.get(schema, 12)
     if not isinstance(context, list) or len(context) != expected_context_count:
         raise EvidenceValidationError("scientific selection context count is invalid")
@@ -498,6 +500,7 @@ def _trend_evaluation(
         "candle_geometry_evaluation.v1": 374,
         "candle_geometry_evaluation.v2": 380,
         "liquidity_supply_evaluation.v1": 384,
+        "liquidity_supply_evaluation.v2": 388,
         "reversion_discovery_evaluation.v1": 54,
         "reversion_regime_followup_evaluation.v1": 186,
         "session_inventory_discovery_evaluation.v1": 114,
