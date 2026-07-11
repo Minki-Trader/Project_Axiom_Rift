@@ -724,6 +724,9 @@ def _evaluate_configuration(
     ],
     time: pd.Series,
     executable_id: str | None = None,
+    fold_features: Mapping[
+        str, tuple[np.ndarray, np.ndarray, np.ndarray]
+    ] | None = None,
 ) -> _ConfigurationResult:
     score, volatility, run = features
     simulations: list[SimulationResult] = []
@@ -735,11 +738,14 @@ def _evaluate_configuration(
         test = fold["test_oos"]
         fold_id = str(fold["fold_id"])
         threshold, cutoffs, prefix_threshold = calibrations[fold_id]
+        fold_score, fold_volatility, fold_run = (
+            features if fold_features is None else fold_features[fold_id]
+        )
         simulation = simulate_fixed_hold(
             frame=frame,
-            score=score,
-            volatility=volatility,
-            run=run,
+            score=fold_score,
+            volatility=fold_volatility,
+            run=fold_run,
             threshold=threshold,
             configuration=configuration,
             test_start=pd.Timestamp(test["start"]),
@@ -780,7 +786,7 @@ def _evaluate_configuration(
         prefix_mismatches += int(
             (~np.isclose(
                 prefix_score,
-                score[:prefix_end],
+                fold_score[:prefix_end],
                 rtol=0.0,
                 atol=0.0,
                 equal_nan=True,

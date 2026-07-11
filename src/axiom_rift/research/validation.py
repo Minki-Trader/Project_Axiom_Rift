@@ -338,6 +338,7 @@ def _trend_evaluation(
             "liquidity_supply_evaluation.v2",
             "long_horizon_drift_evaluation.v1",
             "long_horizon_drift_evaluation.v2",
+            "learned_state_evaluation.v1",
             "reversion_discovery_evaluation.v1",
             "reversion_regime_followup_evaluation.v1",
             "session_inventory_discovery_evaluation.v1",
@@ -448,6 +449,7 @@ def _trend_evaluation(
         "liquidity_supply_evaluation.v2": 4,
         "long_horizon_drift_evaluation.v1": 6,
         "long_horizon_drift_evaluation.v2": 6,
+        "learned_state_evaluation.v1": 4,
     }.get(schema, 12)
     if not isinstance(context, list) or len(context) != expected_context_count:
         raise EvidenceValidationError("scientific selection context count is invalid")
@@ -507,6 +509,7 @@ def _trend_evaluation(
         "liquidity_supply_evaluation.v2": 388,
         "long_horizon_drift_evaluation.v1": 394,
         "long_horizon_drift_evaluation.v2": 400,
+        "learned_state_evaluation.v1": 404,
         "reversion_discovery_evaluation.v1": 54,
         "reversion_regime_followup_evaluation.v1": 186,
         "session_inventory_discovery_evaluation.v1": 114,
