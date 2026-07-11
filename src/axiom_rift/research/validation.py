@@ -325,6 +325,7 @@ def _trend_evaluation(
             "volume_price_discovery_evaluation.v1",
             "volume_price_followup_evaluation.v1",
             "volatility_discovery_evaluation.v1",
+            "volatility_regime_followup_evaluation.v1",
         }
     ):
         raise EvidenceValidationError("trend evaluation schema is invalid")
@@ -458,6 +459,7 @@ def _trend_evaluation(
         "volume_price_discovery_evaluation.v1": 78,
         "volume_price_followup_evaluation.v1": 126,
         "volatility_discovery_evaluation.v1": 66,
+        "volatility_regime_followup_evaluation.v1": 198,
     }[schema]
     if selection_method != {
         "bootstrap_samples": 41999,
