@@ -1,4 +1,4 @@
 interface:
-  display_name: "Axiom Mission Operator"
-  short_description: "Operate goals, state transitions, repairs, and terminals"
-  default_prompt: "Use $operate-axiom-mission to continue the active Axiom goal from repository state."
+  display_name: "Axiom Project Goal Operator"
+  short_description: "Persist the Project Goal through terminal-bounded Missions"
+  default_prompt: "Use $operate-axiom-mission to continue the persistent Axiom Project Goal from repository state until its valid terminal outcome."

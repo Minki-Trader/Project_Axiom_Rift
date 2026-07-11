@@ -15,6 +15,11 @@ discovery_economics:
   broker_commission: "0"
   synthetic_commission_allowed: false
   zero_spread_semantics: unknown_cost
-positive_terminal: completed_pre_live_handoff
-negative_terminal: closed_no_candidate
+project_goal_completion: completed_pre_live_handoff
+mission_negative_terminal: closed_no_candidate
+broker_reported_session_context:
+  timezone: broker_server_time
+  quote_weekdays: 01:00_to_24:00
+  trade_weekdays: 01:01_to_23:59
+  runtime_authority: false
 live_trading_authority: false

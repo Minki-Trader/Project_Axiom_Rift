@@ -10,6 +10,7 @@ transaction:
   order:
     - finalize_content_addressed_evidence
     - append_fsync_idempotent_journal_event
+    - materialize_staged_authority_files_if_migration
     - atomic_cursor_compare_and_swap
     - advance_local_index_projection
   journal_is_authority: true
@@ -17,12 +18,32 @@ transaction:
   reject_future_cursor_or_index: true
   recover_trailing_cursor_or_index: true
   projection_guard_binds_exact_record_digest_chain: true
+authority_migration:
+  journal_first: true
+  content_addressed_replacement_bytes_required: true
+  exact_bound_paths_and_old_new_hashes_required: true
+  crash_recovery_materializes_pending_files_before_control: true
+  scientific_trial_holdout_and_claim_delta: 0
+goal_ingress:
+  persistent_project_goal_authority: OPERATING_DIRECTION.md
+  bare_or_one_line_goal_allowed: true
+  user_structured_manifest_required: false
+  active_mission_action: resume
+  bare_boundary_action: open_first_mission
+  bare_boundary_requires_absent_mission_history: true
+  negative_terminal_boundary_action: open_exact_predecessor_bound_successor
+  predecessor_link_derived_and_verified_by_writer: true
+  at_most_one_active_mission: true
+  project_goal_completion_terminal: completed_pre_live_handoff
 active_state:
   historical_arrays_allowed: false
   one_exact_next_action: true
   one_active_parent_job: true
   active_job_workers_require_disjoint_claims: true
   post_holdout_successor_registration_is_latched: true
+  negative_terminal_carries_exact_successor_boundary: true
+  project_goal_history_is_not_control_array_state: true
+  completed_project_goal_is_an_exact_latched_terminal_boundary: true
 job:
   required:
     - immutable_job_identity
@@ -97,6 +118,11 @@ terminal_basis:
   frozen_positive_basis_withdrawal: release_disposed_invalidated_only
   closed_no_candidate: accepted_diverse_frontier_exhaustion_audit
   blocked_external: complete_external_blocker_record
+terminal_scope:
+  completed_pre_live_handoff_completes_project_goal: true
+  closed_no_candidate_closes_only_current_mission: true
+  closed_no_candidate_requires_exact_successor_admission: true
+  blocked_external_keeps_project_goal_active_and_waits: true
 blocker:
   external_cause_required: true
   safe_substitute_absent_required: true

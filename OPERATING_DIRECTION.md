@@ -19,8 +19,8 @@ the future duty is routed and guarded; it does not claim that future scientific
 or runtime evidence has already been produced. This document is direction, not
 scientific evidence.
 
-- [MUST] OD-DOC-001 A short user goal can rely on this document without restating
-  its contents.
+- [MUST] OD-DOC-001 A bare /goal or one-line user goal can rely on the
+  persistent Project Goal in this document without restating its contents.
 - [MUST] OD-DOC-002 Repository state, contracts, skills, and code may implement or
   refine this direction but may not silently weaken it.
 - [MUST] OD-DOC-003 Detailed rules have one smallest authoritative home and are not
@@ -44,7 +44,7 @@ scientific evidence.
   external code may remain in one compact provenance record. Attribution is not
   active authority, naming, or scientific evidence.
 
-## 2. Root Mission And Project Boundary
+## 2. Project Goal, Mission, And Project Boundary
 
 - [MUST] OD-MIS-001 The market target is FPMarkets US100 M5.
 - [MUST] OD-MIS-002 The desired product is a professional composite trading system,
@@ -57,10 +57,12 @@ scientific evidence.
   profitability after native spread and realistic slippage.
 - [MUST] OD-MIS-006 Discovery uses fixed-lot economics. Dynamic or equity-based
   sizing is later evidence and may not rescue weak fixed-lot signal quality.
-- [MUST] OD-MIS-007 A positive terminal is a scientifically frozen, reproducible
-  local pre-live ONNX and EA handoff for this PC and environment.
+- [MUST] OD-MIS-007 The only Project Goal completion terminal,
+  completed_pre_live_handoff, is a scientifically frozen, reproducible local
+  pre-live ONNX and EA handoff for this PC and environment.
 - [MUST] OD-MIS-008 A candidate is never forced. A credible frontier and exhaustion
-  audit may close the root as closed_no_candidate.
+  audit closes one Mission as closed_no_candidate and admits an exact successor;
+  it does not complete the Project Goal.
 - [MUST] OD-MIS-009 A few failed studies, a small budget exhaustion, or a single
   empty Initiative is not scientific frontier exhaustion.
 - [MUST] OD-MIS-010 Live trading, capital deployment, VPS operation, live
@@ -78,14 +80,18 @@ scientific evidence.
 - [MUST] OD-AUT-002 Codex is the principal operator and owns all in-scope quant,
   ML, macro, data, runtime, software, and operational decisions after a goal
   starts.
-- [MUST] OD-AUT-003 One short scientific goal opens one persistent root Mission.
-  Internal Initiatives, Studies, Batches, Jobs, Decisions, Repairs, evidence
-  depth changes, and Releases require no additional user prompt.
+- [MUST] OD-AUT-003 One bare /goal or short scientific goal activates the
+  persistent Project Goal. It contains sequential terminal-bounded Missions and
+  at most one active Mission. A Mission-admission boundary may temporarily have
+  none. Internal Initiatives, Studies, Batches, Jobs, Decisions, Repairs,
+  evidence depth changes, and Releases require no additional user prompt.
 - [MUST] OD-AUT-004 The operator does not ask the user to choose routine features,
   labels, models, thresholds, budgets, research axes, validation tools, or
   runtime timing.
-- [MUST] OD-AUT-005 The root continues until completed_pre_live_handoff,
-  closed_no_candidate, or a genuine external blocker.
+- [MUST] OD-AUT-005 Each Mission continues until a valid Mission terminal.
+  completed_pre_live_handoff completes the Project Goal; closed_no_candidate
+  closes only that Mission and requires an exact successor; a genuine external
+  blocker keeps the Project Goal active and waits for its exact resume condition.
 - [MUST] OD-AUT-006 A genuine external blocker requires an indispensable external
   dependency, no safe in-scope substitute, exhausted recovery paths, no
   contract-valid next action, and an exact resume condition.
@@ -100,8 +106,16 @@ scientific evidence.
   scientific philosophy and removes more risk than complexity.
 - [MUST] OD-AUT-010 User convenience is secondary to a compact, precise,
   Codex-operable system. The user observes coherent Git milestones.
-- [MUST] OD-AUT-011 Initiative close, model handoff, task compaction, and operator
-  change preserve the same root Mission unless the root has a valid terminal.
+- [MUST] OD-AUT-011 Initiative close, model handoff, task compaction, operator
+  change, and closed_no_candidate preserve the same Project Goal. Only
+  completed_pre_live_handoff completes it.
+- [MUST] OD-AUT-012 A user never has to construct IDs, hashes, predecessor links,
+  terminal fields, scope arrays, or a structured manifest for /goal. The operator
+  derives and verifies them from repository authority.
+- [MUST] OD-AUT-013 A successor Mission binds the exact predecessor negative
+  terminal and a changed-information continuation basis. Mission succession does
+  not reset duplicate, trial, exposure, negative-memory, or holdout history and
+  does not promote a prior candidate, claim, Release, or exhaustion credit.
 
 ## 4. Professional Task Force Standard
 
@@ -127,7 +141,8 @@ scientific evidence.
 
 The durable work vocabulary is:
 
-- Mission: one persistent top-level objective from one user goal.
+- Project Goal: the persistent top-level objective authorized by this document.
+- Mission: one terminal-bounded scientific campaign under the Project Goal.
 - Initiative: one bounded coherent objective with explicit done conditions.
 - Portfolio: the current set of open questions, alternatives, and lineages.
 - Study: one causal question or materially distinct structural axis.
@@ -172,7 +187,8 @@ The durable work vocabulary is:
 - [MUST] OD-SCI-005 Work follows an organic arc: question -> design -> execution ->
   evidence -> judgment -> Portfolio and library update -> exact next action.
 - [MUST] OD-SCI-006 A result may redirect research when causally justified, but may
-  not fragment, silently replace, or prematurely terminate the root Mission.
+  not fragment, silently replace, or prematurely terminate the Project Goal or
+  its active Mission.
 - [MUST] OD-SCI-007 Every semantic executable change creates a new Executable.
   A new Study is required only when the causal question changes, and a new
   Lineage branch only when the mechanism relationship branches. Code and
@@ -227,8 +243,8 @@ The durable work vocabulary is:
 - [MUST] OD-BUD-005 An identical successful cache hit is not another trial.
 - [MUST] OD-BUD-006 An identical failed retry is rejected unless the cause, input,
   implementation, or information state has materially changed.
-- [MUST] OD-BUD-007 Family, Study, and naming changes do not reset global duplicate
-  or trial history.
+- [MUST] OD-BUD-007 Mission, family, Study, and naming changes do not reset
+  Project Goal duplicate, trial, exposure, negative-memory, or holdout history.
 - [MUST] OD-BUD-008 Structural changes to horizon, hold, stop, target, lifecycle,
   entry, or execution semantics create a distinct executable identity.
 - [MUST] OD-BUD-009 If information value remains, the operator continues through
@@ -506,6 +522,16 @@ runtime_eligible; semantic change requires a new source contract.
   protection, restart recovery, stale and missing inputs, model-load failure,
   clock and DST, symbol mapping, feature-order mismatch, and missing KPI.
 - [MUST] OD-EVD-014 Live-ready authority cannot be created inside Axiom.
+- [MUST] OD-EVD-015 Candidate-bound MT5 runtime queries the current broker quote
+  and trade sessions dynamically. New entries require both sessions to be open;
+  query failure or closure fails new entries closed without replacing broker
+  authority with hardcoded clock hours.
+- [MUST] OD-EVD-016 Existing positions continue under the frozen lifecycle even
+  when the entry session is closed. Session state is rechecked on startup and on
+  relevant date, symbol, terminal-build, or session changes.
+- [MUST] OD-EVD-017 Broker-reported weekday quote context of 01:00 through 24:00
+  and trade context of 01:01 through 23:59 is descriptive server-time context,
+  not runtime authority. These prospective rules do not rewrite prior evidence.
 
 ## 14. Engineering Repair And Drift Control
 
@@ -588,9 +614,9 @@ runtime_eligible; semantic change requires a new source contract.
   manual.
 - [MUST] OD-SKL-002 The final repository contains only durable task skills needed
   for root operation, research Portfolio work, and runtime proof.
-- [MUST] OD-SKL-003 The root Mission skill owns goals, continuation, Initiatives,
-  Portfolio allocation, Jobs, Repair and resume, blocker, terminal, and Git
-  observation checkpoints.
+- [MUST] OD-SKL-003 The Project Goal skill owns /goal intake, Mission succession,
+  continuation, Initiatives, Portfolio allocation, Jobs, Repair and resume,
+  blocker, terminal, and Git observation checkpoints.
 - [MUST] OD-SKL-004 The research Portfolio skill owns data, time, splits, external
   sources, components, Studies, Batches, trials, Lineages, Decisions, synthesis,
   candidate library, and negative memory.
@@ -746,29 +772,31 @@ runtime_eligible; semantic change requires a new source contract.
 - [MUST] OD-FND-010 Foundation close leaves one active authority, no active Mission,
   Initiative, Study, Batch, Job, Repair, Lineage, candidate, or Release; an
   empty scientific ledger; zero holdout reveals; no scientific claim; and the
-  exact next action await_root_goal.
+  exact Mission-admission action await_root_goal under the persistent Project Goal.
 - [MUST] OD-FND-011 Foundation close is completed_ready_boundary, not a scientific
   positive or negative terminal.
 - [MUST] OD-FND-012 The final working tree is clean, the coherent closeout is on
   local main, and origin observes the same final tree for the user.
 
-## 21. Future Scientific Root
+## 21. Persistent Scientific Project Goal
 
-- [MUST] OD-NXT-001 The next user goal opens a fresh scientific Mission with no
-  preselected Study, candidate, model, feature, label, or trade family.
-- [MUST] OD-NXT-002 The next Mission builds a broad Portfolio, runs bounded
-  evidence, preserves negative memory, and continues autonomously across
-  multiple Initiatives and operator handoffs.
+- [MUST] OD-NXT-001 At bare or one-line /goal intake, the operator resumes the
+  active Mission or opens the exact first or predecessor-bound successor Mission
+  with no preselected Study, candidate, model, feature, label, or trade family.
+- [MUST] OD-NXT-002 Each Mission builds a broad Portfolio, runs bounded evidence,
+  preserves Project Goal history, and continues autonomously across multiple
+  Initiatives and operator handoffs.
 - [MUST] OD-NXT-003 A failed Study does not end the Mission. The operator chooses
   the next highest-information-value axis.
 - [MUST] OD-NXT-004 A promising Executable receives deep evidence when justified
   but cannot capture the entire Portfolio by recency alone.
-- [MUST] OD-NXT-005 If a candidate survives, the same Mission continues through
+- [MUST] OD-NXT-005 If a candidate survives, the active Mission continues through
   candidate-bound ONNX, EA, MT5, logic, intent, lifecycle, cost, and Release
   evidence until completed_pre_live_handoff or a genuine external blocker.
 - [MUST] OD-NXT-006 If a credible diverse frontier is exhausted without a
   candidate, the Mission closes closed_no_candidate with durable negative
-  knowledge and an exhaustion audit.
+  knowledge and an exhaustion audit. The Project Goal continues through the
+  exact predecessor-bound successor without resetting its history.
 
 ## 22. Governing Principle
 

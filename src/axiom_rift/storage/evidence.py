@@ -81,6 +81,23 @@ class EvidenceStore:
             raise RuntimeError(f"bound evidence hash mismatch: {identity}")
         return EvidenceArtifact(identity, len(content), relative.as_posix())
 
+    def read_verified(self, identity: str) -> bytes:
+        """Read one declared artifact after verifying its content identity."""
+
+        if (
+            type(identity) is not str
+            or len(identity) != 64
+            or any(character not in "0123456789abcdef" for character in identity)
+        ):
+            raise ValueError("evidence identity must be a lowercase SHA-256 digest")
+        target = self._root / "sha256" / identity[:2] / identity
+        if not target.is_file():
+            raise FileNotFoundError(f"bound evidence is absent: {identity}")
+        content = target.read_bytes()
+        if sha256(content).hexdigest() != identity:
+            raise RuntimeError(f"bound evidence hash mismatch: {identity}")
+        return content
+
     def verify_manifest(
         self, identities: tuple[str, ...]
     ) -> tuple[tuple[EvidenceArtifact, ...], EvidenceManifestTrace]:

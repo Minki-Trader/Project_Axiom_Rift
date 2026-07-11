@@ -26,6 +26,24 @@ _THREAD_LOCKS_GUARD = Lock()
 _THREAD_LOCKS: dict[str, Lock] = {}
 
 
+def _is_ascii_text(value: Any) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        value.encode("ascii")
+    except UnicodeEncodeError:
+        return False
+    return True
+
+
+def _is_digest(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
 def _thread_lock(path: Path) -> Lock:
     key = str(path.resolve()).casefold()
     with _THREAD_LOCKS_GUARD:
@@ -120,8 +138,47 @@ def validate_control(control: Mapping[str, Any]) -> None:
     engineering = control.get("engineering")
     scientific = control.get("scientific")
     next_action = control.get("next_action")
-    if not isinstance(authority, dict) or authority.get("graph_count") != 1:
+    expected_authority_keys = {
+        "contracts",
+        "foundation_inputs",
+        "graph_count",
+        "manifest_digest",
+        "operating_direction",
+    }
+    if (
+        not isinstance(authority, dict)
+        or set(authority) != expected_authority_keys
+        or authority.get("graph_count") != 1
+    ):
         raise ControlStateError("control must bind one authority graph")
+    contracts = authority.get("contracts")
+    foundation_inputs = authority.get("foundation_inputs")
+    operating_direction = authority.get("operating_direction")
+    manifest_digest = authority.get("manifest_digest")
+    if (
+        not isinstance(contracts, list)
+        or not contracts
+        or not isinstance(foundation_inputs, list)
+        or not foundation_inputs
+        or not isinstance(operating_direction, str)
+        or not operating_direction
+        or not isinstance(manifest_digest, str)
+        or len(manifest_digest) != 64
+        or any(character not in "0123456789abcdef" for character in manifest_digest)
+    ):
+        raise ControlStateError("authority manifest shape is invalid")
+    authority_paths = [operating_direction, *contracts, *foundation_inputs]
+    if (
+        any(not _is_ascii_text(value) for value in authority_paths)
+        or len(set(authority_paths)) != len(authority_paths)
+        or any(
+            Path(value).is_absolute()
+            or value in {".", "./"}
+            or ".." in Path(value).parts
+            for value in authority_paths
+        )
+    ):
+        raise ControlStateError("authority paths are invalid")
     if (
         not isinstance(engineering, dict)
         or engineering.get("mutable_control_state_count") != 1
@@ -148,6 +205,63 @@ def validate_control(control: Mapping[str, Any]) -> None:
         raise ControlStateError("scientific control surface is not exact")
     if not isinstance(next_action, dict) or not isinstance(next_action.get("kind"), str):
         raise ControlStateError("one structured next action is required")
+    successor_boundary_keys = {
+        "kind",
+        "predecessor_basis_record_id",
+        "predecessor_mission_close_record_id",
+        "predecessor_mission_id",
+        "predecessor_outcome",
+    }
+    successor_boundary = (
+        next_action.get("kind") == "await_root_goal"
+        and set(next_action) == successor_boundary_keys
+    )
+    if next_action.get("kind") == "await_root_goal" and set(next_action) not in (
+        {"kind"},
+        successor_boundary_keys,
+    ):
+        raise ControlStateError("root-goal boundary is malformed")
+    if successor_boundary:
+        if next_action.get("predecessor_outcome") != "closed_no_candidate":
+            raise ControlStateError("successor boundary requires a negative terminal")
+        for name in (
+            "predecessor_basis_record_id",
+            "predecessor_mission_close_record_id",
+        ):
+            if not _is_digest(next_action.get(name)):
+                raise ControlStateError("successor predecessor identity is invalid")
+        if not _is_ascii_text(next_action.get("predecessor_mission_id")):
+            raise ControlStateError("successor predecessor Mission is invalid")
+    if next_action.get("kind") == "await_external_change":
+        expected_external_keys = {
+            "basis_record_id",
+            "kind",
+            "predecessor_mission_close_record_id",
+            "predecessor_mission_id",
+            "required_external_change",
+        }
+        if (
+            set(next_action) != expected_external_keys
+            or not _is_digest(next_action.get("basis_record_id"))
+            or not _is_digest(next_action.get("predecessor_mission_close_record_id"))
+            or not _is_ascii_text(next_action.get("predecessor_mission_id"))
+            or not _is_ascii_text(next_action.get("required_external_change"))
+        ):
+            raise ControlStateError("external-change boundary is malformed")
+    project_goal_complete_boundary = next_action.get("kind") == "project_goal_complete"
+    if project_goal_complete_boundary:
+        expected_complete_keys = {
+            "kind",
+            "mission_close_record_id",
+            "outcome",
+        }
+        close_record_id = next_action.get("mission_close_record_id")
+        if (
+            set(next_action) != expected_complete_keys
+            or next_action.get("outcome") != "completed_pre_live_handoff"
+            or not _is_digest(close_record_id)
+        ):
+            raise ControlStateError("Project Goal completion boundary is malformed")
     heads = control.get("heads")
     if not isinstance(heads, dict) or set(heads) != {"journal", "index"}:
         raise ControlStateError("control must bind exact journal and index heads")
@@ -206,10 +320,23 @@ def validate_control(control: Mapping[str, Any]) -> None:
     if (
         scientific.get("required_future_holdout_id") is not None
         and scientific.get("active_mission") is None
+        and not successor_boundary
+        and next_action.get("kind") != "await_external_change"
     ):
         raise ControlStateError("a future holdout requirement needs an active Mission")
     if scientific.get("active_initiative") is not None and scientific.get("active_mission") is None:
         raise ControlStateError("an Initiative requires an active Mission")
+    disposed_boundary = next_action.get("kind") in {
+        "await_root_goal",
+        "await_external_change",
+        "project_goal_complete",
+    }
+    if disposed_boundary and any(
+        scientific.get(name) is not None
+        for name in expected_scientific_keys
+        if name.startswith("active_")
+    ):
+        raise ControlStateError("a disposed Mission boundary retains active work")
     if scientific.get("active_study") is not None and scientific.get("active_initiative") is None:
         raise ControlStateError("a Study requires an active Initiative")
     if scientific.get("active_batch") is not None and scientific.get("active_study") is None:

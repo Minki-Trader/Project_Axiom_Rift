@@ -51,6 +51,16 @@ implementation_boundary:
   thin_ea: true
   reusable_mql_include_modules: true
   python_owns_training_hashing_parsing_records: true
+broker_session_gate:
+  broker_reported_hours_are_context_only: true
+  hardcoded_clock_hours_are_runtime_authority: false
+  query_quote_session_with: SymbolInfoSessionQuote
+  query_trade_session_with: SymbolInfoSessionTrade
+  new_entry_requires_quote_and_trade_open: true
+  query_failure_or_closed_session_action: fail_closed_for_new_entries
+  existing_position_management_follows_frozen_lifecycle: true
+  requery_on_startup_date_symbol_build_or_session_change: true
+  prospective_contract_does_not_rewrite_prior_evidence: true
 release:
   release_permit_required: true
   local_hashed_bundle_required: true

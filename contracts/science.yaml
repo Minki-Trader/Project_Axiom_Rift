@@ -4,6 +4,7 @@ identity_profile: axiom_cjson_v1
 market_target: FPMarkets_US100_M5
 discovery_sizing: fixed_lot
 taxonomy:
+  - ProjectGoal
   - Mission
   - Initiative
   - Portfolio
@@ -30,6 +31,14 @@ component_protocols:
   - execution
   - synthesis
 library_population_before_scientific_mission_allowed: false
+project_goal:
+  authority: OPERATING_DIRECTION.md
+  at_most_one_active_terminal_bounded_mission: true
+  completion_outcome: completed_pre_live_handoff
+  negative_terminal_requires_exact_successor: true
+  blocker_waits_for_exact_external_change: true
+  duplicate_trial_exposure_negative_memory_and_holdout_history_persist: true
+  predecessor_candidate_claim_release_or_exhaustion_auto_promotion: false
 portfolio:
   broad_before_deep: true
   recent_positive_monopoly_allowed: false
@@ -85,11 +94,12 @@ data:
   prior_memory_manifest: foundation/prior_scientific_memory.yaml
   unregistered_material_alias_allowed: false
   current_registered_development_material_only: true
-  post_holdout_material_requires_typed_same_mission_registration: true
+  post_holdout_material_requires_typed_project_goal_registration: true
   post_holdout_material_binds_verified_content_time_split_and_successor: true
   dynamic_material_must_match_current_required_successor: true
   display_or_caller_digest_cannot_reset_multiplicity: true
 negative_memory:
+  persists_across_successor_missions: true
   evidence_must_be_validator_derived_scientific_falsification: true
   stores_validator_demonstrated_evidence_modes: true
   mission_study_snapshot_and_axis_identity_bound: true
@@ -117,6 +127,7 @@ holdout:
   successor_values_remain_sealed_during_development_registration: true
   candidate_trial_material_and_evidence_must_postdate_registration: true
   passed_holdout_candidate_disposition_requires_later_successor: true
+  reveal_count_and_future_holdout_latch_persist_across_missions: true
 external_source_states:
   context_only:
     performance_allowed: false
@@ -140,7 +151,10 @@ source_eligibility_receipt:
 terminals:
   completed_pre_live_handoff:
     candidate_bound_release_required: true
+    completes_project_goal: true
   closed_no_candidate:
+    closes_only_current_mission: true
+    exact_predecessor_bound_successor_required: true
     credible_diverse_frontier_exhaustion_required: true
     final_snapshot_all_axes_pruned: true
     stale_axis_meaning_reuse_allowed: false
@@ -150,4 +164,5 @@ terminals:
     evidence_mode_bounds_use_negative_memory_executed_modes: true
   blocked_external:
     operations_contract_required: true
+    project_goal_remains_active: true
 live_ready_allowed: false

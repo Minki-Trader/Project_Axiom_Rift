@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
+import os
+import tempfile
 import yaml
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
@@ -222,6 +224,68 @@ def _require_manifest(
     if missing:
         raise TransitionError(f"{name} is missing fields: {sorted(missing)!r}")
     return _copy(value)
+
+
+def _require_successor_basis(value: Mapping[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(value, Mapping) or set(value) != {
+        "continuation_reason",
+        "predecessor_mission_close_record_id",
+    }:
+        raise TransitionError("successor basis schema is invalid")
+    result = _copy(value)
+    _require_ascii("continuation reason", result["continuation_reason"])
+    _require_digest(
+        "predecessor Mission close record",
+        result["predecessor_mission_close_record_id"],
+    )
+    return result
+
+
+def _require_authority_document_bytes(
+    *, relative: str, current: bytes, replacement: bytes
+) -> None:
+    """Validate one bound authority document before it can enter the Journal."""
+
+    try:
+        current_text = current.decode("ascii")
+        replacement_text = replacement.decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise TransitionError("authority documents must remain ASCII") from exc
+    if (
+        not replacement_text.endswith("\n")
+        or any(
+            ord(character) < 32 and character not in {"\t", "\n", "\r"}
+            for character in replacement_text
+        )
+    ):
+        raise TransitionError("authority document text is malformed")
+    if relative == "OPERATING_DIRECTION.md":
+        required_markers = (
+            "# Axiom Operating Direction\n",
+            "status: active\n",
+            "active_project_authority: true\n",
+            "encoding: ascii_only\n",
+            "- [MUST] ",
+        )
+        if any(marker not in replacement_text for marker in required_markers):
+            raise TransitionError("operating direction structure is invalid")
+        return
+    if not relative.endswith(".yaml"):
+        raise TransitionError("bound authority document type is unsupported")
+    try:
+        current_value = yaml.safe_load(current_text)
+        replacement_value = yaml.safe_load(replacement_text)
+    except yaml.YAMLError as exc:
+        raise TransitionError("authority YAML is invalid") from exc
+    if not isinstance(current_value, dict) or not isinstance(replacement_value, dict):
+        raise TransitionError("authority YAML must contain one top-level mapping")
+    if (
+        type(current_value.get("schema")) is not str
+        or type(current_value.get("status")) is not str
+        or replacement_value.get("schema") != current_value["schema"]
+        or replacement_value.get("status") != current_value["status"]
+    ):
+        raise TransitionError("authority YAML schema or status changed unexpectedly")
 
 
 def _require_study_evidence_modes(question: Mapping[str, Any]) -> tuple[str, ...]:
@@ -980,6 +1044,7 @@ class StateWriter:
         payload: Mapping[str, Any],
         prepare: Prepare,
         evidence_blobs: Sequence[bytes] = (),
+        authority_replacements: Sequence[Mapping[str, Any]] = (),
         crash_after: str | None = None,
         allow_empty: bool = False,
         read_only_when_unchanged: bool = False,
@@ -987,6 +1052,10 @@ class StateWriter:
         _require_ascii("event_kind", event_kind)
         _require_ascii("operation_id", operation_id)
         _require_ascii("subject", subject)
+        if bool(authority_replacements) != (event_kind == "authority_migrated"):
+            raise TransitionError(
+                "authority replacements and the typed migration event are inseparable"
+            )
         evidence = [self.evidence.finalize(blob).manifest() for blob in evidence_blobs]
         committed_payload = {**dict(payload), "evidence": evidence}
         operation_fingerprint = _digest(
@@ -1002,10 +1071,16 @@ class StateWriter:
                 if existing is not None:
                     if existing.fingerprint != operation_fingerprint:
                         raise TransitionError("idempotency key reused with different input")
-                    head = self.journal.tail()[0]
+                    if (
+                        existing.authority_sequence is None
+                        or existing.authority_event_id is None
+                    ):
+                        raise IndexIntegrityError(
+                            "idempotent operation lacks Journal authority"
+                        )
                     return TransitionResult(
-                        event_id=head.event_id or "",
-                        revision=head.sequence,
+                        event_id=existing.authority_event_id,
+                        revision=existing.authority_sequence,
                         reused=True,
                         result=existing.payload.get("result", {}),
                     )
@@ -1093,6 +1168,50 @@ class StateWriter:
                             "successor holdout requires its typed future-development registration"
                         )
                 next_body, records, result = prepare(current, index)
+                if not isinstance(next_body, dict):
+                    raise TransitionError("transition control body must be a mapping")
+                if current is not None:
+                    current_authority = current["authority"]
+                    next_authority = next_body.get("authority")
+                    if event_kind == "authority_migrated":
+                        expected_authority = _copy(current_authority)
+                        if isinstance(next_authority, dict):
+                            expected_authority["manifest_digest"] = next_authority.get(
+                                "manifest_digest"
+                            )
+                        if (
+                            not isinstance(next_authority, dict)
+                            or next_authority != expected_authority
+                            or next_authority.get("manifest_digest")
+                            == current_authority.get("manifest_digest")
+                        ):
+                            raise TransitionError(
+                                "authority migration may change only the manifest digest"
+                            )
+                    elif next_authority != current_authority:
+                        raise TransitionError(
+                            "only a typed authority migration may change authority"
+                        )
+                preview = _copy(next_body)
+                if current is None:
+                    preview["revision"] = 1
+                    preview["heads"] = {
+                        "journal": {"sequence": 1, "event_id": "0" * 64},
+                        "index": {
+                            "required_sequence": 1,
+                            "required_record_count": 1,
+                            "required_projection_digest": "0" * 64,
+                        },
+                    }
+                else:
+                    preview["revision"] = current["revision"]
+                    preview["heads"] = _copy(current["heads"])
+                try:
+                    seal_control(preview)
+                except ControlStateError as exc:
+                    raise TransitionError(
+                        "transition produced an invalid control body"
+                    ) from exc
                 if read_only_when_unchanged and not records:
                     if current is None or next_body != self._body(current):
                         raise TransitionError(
@@ -1146,6 +1265,16 @@ class StateWriter:
                 )
                 if crash_after == "after_journal":
                     raise InjectedCrash("after_journal")
+                if authority_replacements:
+                    self._apply_authority_replacements(
+                        authority=next_body["authority"],
+                        replacements=authority_replacements,
+                        expected_manifest_digest=next_body["authority"][
+                            "manifest_digest"
+                        ],
+                    )
+                if crash_after == "after_authority_files":
+                    raise InjectedCrash("after_authority_files")
                 replacement = self._assemble(event)
                 self.control.compare_and_swap(
                     expected_revision=-1 if current is None else current["revision"],
@@ -1187,12 +1316,15 @@ class StateWriter:
                 return {"journal_sequence": 0, "control_repaired": False, "index_rebuilt": False}
             last = events[-1]
             desired = self._assemble(last)
-            control_repaired = control is None or control != seal_control(desired)
-            if control_repaired:
-                self.control.replace(desired)
-            records: list[IndexRecord] = []
-            for event in events:
-                records.extend(self._event_records(event))
+            try:
+                sealed_desired = seal_control(desired)
+            except ControlStateError as exc:
+                raise JournalIntegrityError(
+                    "latest Journal control body is invalid"
+                ) from exc
+            applied_sequence = (
+                0 if control is None else control["heads"]["journal"]["sequence"]
+            )
             with LocalIndex(self.index_path) as index:
                 projection_corrupt = False
                 try:
@@ -1206,6 +1338,24 @@ class StateWriter:
                         raise JournalIntegrityError("index claims a future journal head")
                     if events[head.sequence - 1]["event_id"] != head.fingerprint:
                         raise JournalIntegrityError("index claims a foreign journal head")
+                self._apply_pending_authority_migrations(
+                    events=events,
+                    applied_sequence=applied_sequence,
+                    final_authority=desired["authority"],
+                )
+                if (
+                    self._authority_manifest_digest(desired["authority"])
+                    != desired["authority"]["manifest_digest"]
+                ):
+                    raise RecoveryRequired(
+                        "journal authority manifest is not materialized"
+                    )
+                control_repaired = control is None or control != sealed_desired
+                if control_repaired:
+                    self.control.replace(desired)
+                records: list[IndexRecord] = []
+                for event in events:
+                    records.extend(self._event_records(event))
                 needs_rebuild = (
                     projection_corrupt
                     or head is None
@@ -1284,14 +1434,26 @@ class StateWriter:
             allow_empty=True,
         )
 
-    def _authority_manifest_digest(self, authority: Mapping[str, Any]) -> str:
-        relative_paths = (
+    @staticmethod
+    def _authority_relative_paths(authority: Mapping[str, Any]) -> tuple[str, ...]:
+        relative_paths = tuple(
             [authority["operating_direction"]]
             + list(authority["contracts"])
             + list(authority["foundation_inputs"])
         )
+        if len(set(relative_paths)) != len(relative_paths):
+            raise RecoveryRequired("authority manifest paths are not unique")
+        return relative_paths
+
+    @staticmethod
+    def _authority_digest_from_hashes(hashes: Mapping[str, str]) -> str:
+        return _digest(dict(sorted(hashes.items())), domain="authority-manifest")
+
+    def _authority_path_hashes(
+        self, authority: Mapping[str, Any]
+    ) -> dict[str, str]:
         hashes: dict[str, str] = {}
-        for relative in relative_paths:
+        for relative in self._authority_relative_paths(authority):
             _require_ascii("authority path", relative)
             path = (self.foundation_root / relative).resolve()
             root = self.foundation_root.resolve()
@@ -1300,7 +1462,588 @@ class StateWriter:
             if not path.is_file():
                 raise RecoveryRequired(f"authority input is absent: {relative}")
             hashes[relative] = sha256(path.read_bytes()).hexdigest()
-        return _digest(hashes, domain="authority-manifest")
+        return hashes
+
+    def _authority_manifest_digest(self, authority: Mapping[str, Any]) -> str:
+        return self._authority_digest_from_hashes(
+            self._authority_path_hashes(authority)
+        )
+
+    def _replace_authority_file(self, relative: str, content: bytes) -> None:
+        target = (self.foundation_root / relative).resolve()
+        root = self.foundation_root.resolve()
+        if root != target and root not in target.parents:
+            raise RecoveryRequired("authority migration target escapes Foundation root")
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{target.name}.", suffix=".authority.tmp", dir=target.parent
+        )
+        temporary = Path(temporary_name)
+        try:
+            with os.fdopen(descriptor, "wb") as handle:
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, target)
+        finally:
+            if temporary.exists():
+                temporary.unlink()
+
+    def _apply_authority_replacements(
+        self,
+        *,
+        authority: Mapping[str, Any],
+        replacements: Sequence[Mapping[str, Any]],
+        expected_manifest_digest: str,
+    ) -> None:
+        rows = self._validated_authority_replacement_rows(
+            authority=authority,
+            replacements=replacements,
+        )
+        targets = {
+            row["path"]: {
+                "allowed_current_hashes": {row["old_sha256"]},
+                "artifact_sha256": row["artifact_sha256"],
+                "new_sha256": row["new_sha256"],
+            }
+            for row in rows
+        }
+        self._materialize_authority_targets(
+            authority=authority,
+            targets=targets,
+            expected_manifest_digest=expected_manifest_digest,
+        )
+
+    def _validated_authority_replacement_rows(
+        self,
+        *,
+        authority: Mapping[str, Any],
+        replacements: Sequence[Mapping[str, Any]],
+    ) -> tuple[dict[str, str], ...]:
+        bound_paths = set(self._authority_relative_paths(authority))
+        observed_paths: set[str] = set()
+        rows: list[dict[str, str]] = []
+        if not replacements:
+            raise JournalIntegrityError("authority migration has no replacements")
+        for replacement in replacements:
+            if set(replacement) != {
+                "artifact_sha256",
+                "new_sha256",
+                "old_sha256",
+                "path",
+            }:
+                raise JournalIntegrityError(
+                    "authority replacement schema is invalid"
+                )
+            relative = _require_ascii("authority replacement path", replacement["path"])
+            if relative not in bound_paths or relative in observed_paths:
+                raise JournalIntegrityError(
+                    "authority replacement path is unbound or duplicated"
+                )
+            observed_paths.add(relative)
+            old_hash = _require_digest(
+                "authority old hash", replacement["old_sha256"]
+            )
+            new_hash = _require_digest(
+                "authority new hash", replacement["new_sha256"]
+            )
+            artifact_hash = _require_digest(
+                "authority artifact hash", replacement["artifact_sha256"]
+            )
+            if artifact_hash != new_hash or old_hash == new_hash:
+                raise JournalIntegrityError(
+                    "authority replacement identities are invalid"
+                )
+            rows.append(
+                {
+                    "artifact_sha256": artifact_hash,
+                    "new_sha256": new_hash,
+                    "old_sha256": old_hash,
+                    "path": relative,
+                }
+            )
+        return tuple(rows)
+
+    def _materialize_authority_targets(
+        self,
+        *,
+        authority: Mapping[str, Any],
+        targets: Mapping[str, Mapping[str, Any]],
+        expected_manifest_digest: str,
+    ) -> None:
+        current_hashes = self._authority_path_hashes(authority)
+        to_write: list[tuple[str, bytes, str]] = []
+        for relative in sorted(targets):
+            target = targets[relative]
+            if relative not in current_hashes or set(target) != {
+                "allowed_current_hashes",
+                "artifact_sha256",
+                "new_sha256",
+            }:
+                raise JournalIntegrityError("authority target schema is invalid")
+            allowed_current_hashes = target["allowed_current_hashes"]
+            artifact_hash = _require_digest(
+                "authority target artifact hash", target["artifact_sha256"]
+            )
+            new_hash = _require_digest(
+                "authority target new hash", target["new_sha256"]
+            )
+            if (
+                not isinstance(allowed_current_hashes, set)
+                or not allowed_current_hashes
+                or any(
+                    type(value) is not str
+                    or len(value) != 64
+                    or any(character not in "0123456789abcdef" for character in value)
+                    for value in allowed_current_hashes
+                )
+                or artifact_hash != new_hash
+            ):
+                raise JournalIntegrityError("authority target identities are invalid")
+            current_hash = current_hashes[relative]
+            if current_hash != new_hash:
+                if current_hash not in allowed_current_hashes:
+                    raise RecoveryRequired(
+                        f"authority replacement source drifted: {relative}"
+                    )
+                content = self.evidence.read_verified(artifact_hash)
+                to_write.append((relative, content, new_hash))
+            current_hashes[relative] = new_hash
+        if (
+            self._authority_digest_from_hashes(current_hashes)
+            != expected_manifest_digest
+        ):
+            raise RecoveryRequired(
+                "authority replacement set does not produce the bound manifest"
+            )
+        for relative, content, new_hash in to_write:
+            self._replace_authority_file(relative, content)
+            target_path = (self.foundation_root / relative).resolve()
+            if sha256(target_path.read_bytes()).hexdigest() != new_hash:
+                raise RecoveryRequired(
+                    f"authority replacement verification failed: {relative}"
+                )
+        if self._authority_manifest_digest(authority) != expected_manifest_digest:
+            raise RecoveryRequired("authority migration manifest does not materialize")
+
+    def _apply_pending_authority_migrations(
+        self,
+        *,
+        events: Sequence[Mapping[str, Any]],
+        applied_sequence: int,
+        final_authority: Mapping[str, Any],
+    ) -> None:
+        targets: dict[str, dict[str, Any]] = {}
+        for event in events[applied_sequence:]:
+            if event.get("event_kind") != "authority_migrated":
+                continue
+            payload = event.get("payload")
+            control = event.get("control")
+            if not isinstance(payload, dict) or not isinstance(control, dict):
+                raise JournalIntegrityError("authority migration event is malformed")
+            replacements = payload.get("replacements")
+            authority = control.get("authority")
+            if not isinstance(replacements, list) or not isinstance(authority, dict):
+                raise JournalIntegrityError("authority migration payload is malformed")
+            sequence = event.get("sequence")
+            if type(sequence) is not int or sequence <= 1 or sequence > len(events):
+                raise JournalIntegrityError("authority migration sequence is invalid")
+            previous_control = events[sequence - 2].get("control")
+            previous_authority = (
+                None
+                if not isinstance(previous_control, dict)
+                else previous_control.get("authority")
+            )
+            if not isinstance(previous_authority, dict):
+                raise JournalIntegrityError(
+                    "authority migration predecessor is malformed"
+                )
+            expected_authority = _copy(previous_authority)
+            expected_authority["manifest_digest"] = authority.get("manifest_digest")
+            if (
+                authority != expected_authority
+                or payload.get("schema") != "authority_manifest_migration.v1"
+                or payload.get("old_manifest_digest")
+                != previous_authority.get("manifest_digest")
+                or payload.get("new_manifest_digest")
+                != authority.get("manifest_digest")
+            ):
+                raise JournalIntegrityError("authority migration chain is invalid")
+            rows = self._validated_authority_replacement_rows(
+                authority=authority,
+                replacements=replacements,
+            )
+            for row in rows:
+                relative = row["path"]
+                existing = targets.get(relative)
+                if existing is None:
+                    targets[relative] = {
+                        "allowed_current_hashes": {
+                            row["old_sha256"],
+                            row["new_sha256"],
+                        },
+                        "artifact_sha256": row["artifact_sha256"],
+                        "new_sha256": row["new_sha256"],
+                    }
+                    continue
+                if existing["new_sha256"] != row["old_sha256"]:
+                    raise JournalIntegrityError(
+                        "authority replacement hash chain is discontinuous"
+                    )
+                existing["allowed_current_hashes"].add(row["new_sha256"])
+                existing["artifact_sha256"] = row["artifact_sha256"]
+                existing["new_sha256"] = row["new_sha256"]
+        if targets:
+            self._materialize_authority_targets(
+                authority=final_authority,
+                targets=targets,
+                expected_manifest_digest=final_authority["manifest_digest"],
+            )
+
+    def migrate_authority(
+        self,
+        *,
+        replacements: Mapping[str, bytes],
+        reason: str,
+        operation_id: str,
+        crash_after: str | None = None,
+    ) -> TransitionResult:
+        """Activate exact staged authority bytes without rewriting prior state."""
+
+        _require_ascii("authority migration reason", reason)
+        _require_ascii("operation_id", operation_id)
+        if not isinstance(replacements, Mapping) or not replacements:
+            raise TransitionError("authority migration requires replacement bytes")
+        if any(type(relative) is not str for relative in replacements):
+            raise TransitionError("authority replacement paths must be strings")
+        requested_paths = tuple(sorted(replacements))
+        for content in replacements.values():
+            if type(content) is not bytes:
+                raise TransitionError("authority replacement content must be bytes")
+        authority: dict[str, Any] | None = None
+        old_hashes: dict[str, str] | None = None
+        current_contents: dict[str, bytes] | None = None
+        with WriterLock(self.lock_path):
+            with self._open_authoritative_index() as index:
+                stable = self._require_stable_locked(index)
+                if stable is None:
+                    raise TransitionError(
+                        "authority migration requires initialized control"
+                    )
+                existing = index.get("operation", operation_id)
+                if existing is None:
+                    authority = _copy(stable["authority"])
+                    bound_paths = set(self._authority_relative_paths(authority))
+                    if any(path not in bound_paths for path in requested_paths):
+                        raise TransitionError(
+                            "authority migration names an unbound path"
+                        )
+                    old_hashes = self._authority_path_hashes(authority)
+                    if (
+                        self._authority_digest_from_hashes(old_hashes)
+                        != authority.get("manifest_digest")
+                    ):
+                        raise RecoveryRequired(
+                            "authority drift precedes the migration"
+                        )
+                    current_contents = {
+                        relative: (self.foundation_root / relative).read_bytes()
+                        for relative in requested_paths
+                    }
+        if existing is not None:
+            if (
+                existing.status != "success"
+                or existing.payload.get("event_kind") != "authority_migrated"
+                or existing.authority_sequence is None
+                or existing.authority_event_id is None
+                or existing.authority_offset is None
+            ):
+                raise TransitionError("existing authority migration operation is invalid")
+            event = self.journal.read_event_at(
+                offset=existing.authority_offset,
+                expected_sequence=existing.authority_sequence,
+                expected_event_id=existing.authority_event_id,
+            )
+            event_payload = event.get("payload")
+            if (
+                event.get("operation_id") != operation_id
+                or event.get("event_kind") != "authority_migrated"
+                or not isinstance(event_payload, dict)
+            ):
+                raise TransitionError("existing authority migration payload is absent")
+            rows = event_payload.get("replacements")
+            observed = (
+                {}
+                if not isinstance(rows, list)
+                else {row.get("path"): row.get("new_sha256") for row in rows}
+            )
+            requested = {
+                relative: sha256(replacements[relative]).hexdigest()
+                for relative in requested_paths
+            }
+            if event_payload.get("reason") != reason or observed != requested:
+                raise TransitionError("idempotency key reused with different input")
+            base_payload = {
+                key: value for key, value in event_payload.items() if key != "evidence"
+            }
+
+            def unreachable(_current, _index):
+                raise TransitionError("existing migration unexpectedly prepared again")
+
+            return self._commit(
+                event_kind="authority_migrated",
+                operation_id=operation_id,
+                subject="Authority:active",
+                payload=base_payload,
+                prepare=unreachable,
+                evidence_blobs=tuple(
+                    replacements[relative] for relative in requested_paths
+                ),
+                authority_replacements=tuple(rows),
+                crash_after=crash_after,
+            )
+        assert authority is not None
+        assert old_hashes is not None
+        assert current_contents is not None
+        old_manifest_digest = self._authority_digest_from_hashes(old_hashes)
+        replacement_rows: list[dict[str, str]] = []
+        replacement_blobs: list[bytes] = []
+        new_hashes = dict(old_hashes)
+        for relative in requested_paths:
+            content = replacements[relative]
+            _require_authority_document_bytes(
+                relative=relative,
+                current=current_contents[relative],
+                replacement=content,
+            )
+            artifact = self.evidence.finalize(content)
+            if artifact.sha256 == old_hashes[relative]:
+                raise TransitionError("authority replacement does not change content")
+            replacement_blobs.append(content)
+            new_hashes[relative] = artifact.sha256
+            replacement_rows.append(
+                {
+                    "artifact_sha256": artifact.sha256,
+                    "new_sha256": artifact.sha256,
+                    "old_sha256": old_hashes[relative],
+                    "path": relative,
+                }
+            )
+        new_manifest_digest = self._authority_digest_from_hashes(new_hashes)
+        migration_payload = {
+            "holdout_delta": 0,
+            "new_manifest_digest": new_manifest_digest,
+            "old_manifest_digest": old_manifest_digest,
+            "reason": reason,
+            "replacements": replacement_rows,
+            "schema": "authority_manifest_migration.v1",
+            "scientific_claim": "none",
+            "trial_delta": 0,
+        }
+        migration_id = canonical_digest(
+            domain="authority-manifest-migration", payload=migration_payload
+        )
+
+        def prepare(current: dict[str, Any] | None, _index: LocalIndex):
+            if current is None:
+                raise TransitionError("authority migration requires control")
+            science = current["scientific"]
+            if (
+                current["authority"].get("manifest_digest")
+                != old_manifest_digest
+                or self._authority_path_hashes(current["authority"]) != old_hashes
+            ):
+                raise RecoveryRequired("authority changed before migration commit")
+            if (
+                current["next_action"].get("kind") != "await_root_goal"
+                or any(
+                    science.get(name) is not None
+                    for name in (
+                        "active_mission",
+                        "active_initiative",
+                        "active_study",
+                        "active_batch",
+                        "active_job",
+                        "active_repair",
+                        "active_executable",
+                        "active_lineage",
+                        "active_release",
+                        "active_holdout_evaluation",
+                    )
+                )
+                or current.get("authorizations") != {}
+                or science.get("claim") != "none"
+            ):
+                raise TransitionError(
+                    "authority migration requires the disposed root boundary"
+                )
+            body = self._body(current)
+            body["authority"]["manifest_digest"] = new_manifest_digest
+            record = _record(
+                kind="authority-migration",
+                record_id=migration_id,
+                subject="Authority:active",
+                status="activated",
+                fingerprint=migration_id,
+                payload=migration_payload,
+            )
+            return body, [record], {
+                "migration_id": migration_id,
+                "new_manifest_digest": new_manifest_digest,
+            }
+
+        return self._commit(
+            event_kind="authority_migrated",
+            operation_id=operation_id,
+            subject="Authority:active",
+            payload=migration_payload,
+            prepare=prepare,
+            evidence_blobs=tuple(replacement_blobs),
+            authority_replacements=tuple(replacement_rows),
+            crash_after=crash_after,
+        )
+
+    def activate_project_goal_continuation(
+        self,
+        *,
+        predecessor_mission_id: str,
+        predecessor_mission_close_record_id: str,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Adopt one legacy negative terminal as the successor boundary."""
+
+        _require_ascii("predecessor Mission id", predecessor_mission_id)
+        _require_digest(
+            "predecessor Mission close record",
+            predecessor_mission_close_record_id,
+        )
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("Project Goal activation requires control")
+            science = current["scientific"]
+            if (
+                current["next_action"] != {"kind": "await_root_goal"}
+                or any(
+                    science.get(name) is not None
+                    for name in (
+                        "active_mission",
+                        "active_initiative",
+                        "active_study",
+                        "active_batch",
+                        "active_job",
+                        "active_repair",
+                        "active_executable",
+                        "active_lineage",
+                        "active_release",
+                        "active_holdout_evaluation",
+                    )
+                )
+                or current["authorizations"] != {}
+            ):
+                raise TransitionError(
+                    "Project Goal activation requires the bare root boundary"
+                )
+            if index.event_head("project-goal:OPERATING_DIRECTION.md") is not None:
+                raise TransitionError("Project Goal continuation is already activated")
+            close_record = index.get(
+                "mission-close", predecessor_mission_close_record_id
+            )
+            mission_open = index.get("mission-open", predecessor_mission_id)
+            mission_closes = index.records_by_kind("mission-close")
+            latest_close = (
+                None
+                if not mission_closes
+                else max(
+                    mission_closes,
+                    key=lambda record: (
+                        -1
+                        if record.authority_sequence is None
+                        else record.authority_sequence,
+                        -1
+                        if record.authority_offset is None
+                        else record.authority_offset,
+                    ),
+                )
+            )
+            basis_id = (
+                None
+                if close_record is None
+                else close_record.payload.get("basis_record_id")
+            )
+            basis = (
+                None
+                if not isinstance(basis_id, str)
+                else index.get("exhaustion-audit", basis_id)
+            )
+            if (
+                close_record is None
+                or close_record.subject != f"Mission:{predecessor_mission_id}"
+                or close_record.status != "closed_no_candidate"
+                or mission_open is None
+                or mission_open.subject != f"Mission:{predecessor_mission_id}"
+                or mission_open.status != "open"
+                or basis is None
+                or basis.status != "accepted"
+                or basis.subject != f"Mission:{predecessor_mission_id}"
+                or latest_close is None
+                or latest_close.record_id != predecessor_mission_close_record_id
+            ):
+                raise TransitionError(
+                    "legacy predecessor is not an accepted negative terminal"
+                )
+            body = self._body(current)
+            body["next_action"] = {
+                "kind": "await_root_goal",
+                "predecessor_basis_record_id": basis_id,
+                "predecessor_mission_close_record_id": (
+                    predecessor_mission_close_record_id
+                ),
+                "predecessor_mission_id": predecessor_mission_id,
+                "predecessor_outcome": "closed_no_candidate",
+            }
+            adoption_payload = {
+                "adopted_mission_close_record_id": (
+                    predecessor_mission_close_record_id
+                ),
+                "basis_record_id": basis_id,
+                "mission_id": predecessor_mission_id,
+                "no_retroactive_authorization": True,
+                "project_goal_authority": current["authority"][
+                    "operating_direction"
+                ],
+                "schema": "project_goal_continuation_adoption.v1",
+            }
+            adoption_id = canonical_digest(
+                domain="project-goal-continuation-adoption",
+                payload=adoption_payload,
+            )
+            record = _record(
+                kind="project-goal-adoption",
+                record_id=adoption_id,
+                subject="ProjectGoal:OPERATING_DIRECTION.md",
+                status="active",
+                fingerprint=adoption_id,
+                payload=adoption_payload,
+                event_stream="project-goal:OPERATING_DIRECTION.md",
+                event_sequence=1,
+            )
+            return body, [record], {
+                "adoption_id": adoption_id,
+                "next_mission_ordinal": 2,
+            }
+
+        return self._commit(
+            event_kind="project_goal_continuation_activated",
+            operation_id=operation_id,
+            subject="ProjectGoal:OPERATING_DIRECTION.md",
+            payload={
+                "predecessor_mission_close_record_id": (
+                    predecessor_mission_close_record_id
+                ),
+                "predecessor_mission_id": predecessor_mission_id,
+            },
+            prepare=prepare,
+        )
 
     @staticmethod
     def _authorization(
@@ -1367,6 +2110,7 @@ class StateWriter:
         *,
         mission_id: str,
         goal: Mapping[str, Any],
+        successor_basis: Mapping[str, Any] | None = None,
         operation_id: str,
     ) -> TransitionResult:
         _require_ascii("mission_id", mission_id)
@@ -1376,6 +2120,11 @@ class StateWriter:
             required={"objective", "scope", "terminal_contract"},
         )
         goal_hash = _digest(goal_manifest, domain="mission-goal")
+        supplied_successor = (
+            None
+            if successor_basis is None
+            else _require_successor_basis(successor_basis)
+        )
 
         def prepare(current: dict[str, Any] | None, index: LocalIndex):
             if current is None:
@@ -1384,15 +2133,90 @@ class StateWriter:
             science = body["scientific"]
             if science["active_mission"] is not None:
                 raise TransitionError("a root Mission is already active")
-            if body["next_action"]["kind"] != "await_root_goal":
+            if index.get("mission-open", mission_id) is not None:
+                raise TransitionError("Mission identity is already durable")
+            boundary = body["next_action"]
+            if boundary["kind"] != "await_root_goal":
                 raise TransitionError("control is not at the root-goal boundary")
             if science.get("active_release") is not None:
                 raise TransitionError("ready boundary contains an active Release")
             if science.get("active_holdout_evaluation") is not None:
                 raise TransitionError("ready boundary contains an active holdout")
+            predecessor_keys = {
+                "kind",
+                "predecessor_basis_record_id",
+                "predecessor_mission_close_record_id",
+                "predecessor_mission_id",
+                "predecessor_outcome",
+            }
+            predecessor: dict[str, Any] | None = None
+            if set(boundary) == {"kind"}:
+                if supplied_successor is not None:
+                    raise TransitionError(
+                        "the first Mission cannot declare a successor basis"
+                    )
+                if index.records_by_kind("mission-close"):
+                    raise TransitionError(
+                        "a bare boundary with Mission history requires typed adoption"
+                    )
+                mission_ordinal = 1
+                science["holdout_reveals"] = 0
+                science["required_future_holdout_id"] = None
+            elif set(boundary) == predecessor_keys:
+                if boundary["predecessor_outcome"] != "closed_no_candidate":
+                    raise TransitionError(
+                        "only a negative Mission terminal admits a successor"
+                    )
+                if (
+                    supplied_successor is None
+                    or supplied_successor["predecessor_mission_close_record_id"]
+                    != boundary["predecessor_mission_close_record_id"]
+                ):
+                    raise TransitionError(
+                        "successor basis does not bind the exact predecessor"
+                    )
+                close_record = index.get(
+                    "mission-close",
+                    boundary["predecessor_mission_close_record_id"],
+                )
+                if (
+                    close_record is None
+                    or close_record.subject
+                    != f"Mission:{boundary['predecessor_mission_id']}"
+                    or close_record.status != boundary["predecessor_outcome"]
+                    or close_record.payload.get("basis_record_id")
+                    != boundary["predecessor_basis_record_id"]
+                ):
+                    raise TransitionError(
+                        "successor predecessor is absent or stale"
+                    )
+                predecessor_open = index.get(
+                    "mission-open", boundary["predecessor_mission_id"]
+                )
+                if predecessor_open is None:
+                    raise TransitionError("predecessor Mission open record is absent")
+                prior_ordinal = predecessor_open.payload.get("mission_ordinal", 1)
+                if type(prior_ordinal) is not int or prior_ordinal < 1:
+                    raise TransitionError("predecessor Mission ordinal is invalid")
+                mission_ordinal = prior_ordinal + 1
+                predecessor = {
+                    "continuation_reason": supplied_successor[
+                        "continuation_reason"
+                    ],
+                    "predecessor_basis_record_id": boundary[
+                        "predecessor_basis_record_id"
+                    ],
+                    "predecessor_mission_close_record_id": boundary[
+                        "predecessor_mission_close_record_id"
+                    ],
+                    "predecessor_mission_id": boundary[
+                        "predecessor_mission_id"
+                    ],
+                    "predecessor_outcome": boundary["predecessor_outcome"],
+                }
+            else:
+                raise TransitionError("root-goal predecessor boundary is malformed")
             science["active_mission"] = mission_id
-            science["holdout_reveals"] = 0
-            science["required_future_holdout_id"] = None
             body["next_action"] = {"kind": "open_initiative", "mission_id": mission_id}
             authorization = self._authorization(
                 kind=SubjectKind.MISSION,
@@ -1400,15 +2224,32 @@ class StateWriter:
                 semantic_hash=goal_hash,
             )
             self._bind_authorization(body, authorization)
+            project_stream = "project-goal:OPERATING_DIRECTION.md"
+            project_head = index.event_head(project_stream)
+            project_sequence = 1 if project_head is None else project_head.sequence + 1
             record = _record(
                 kind="mission-open",
                 record_id=mission_id,
                 subject=f"Mission:{mission_id}",
                 status="open",
                 fingerprint=goal_hash,
-                payload={"goal_hash": goal_hash, "goal": goal_manifest},
+                payload={
+                    "goal_hash": goal_hash,
+                    "goal": goal_manifest,
+                    "mission_ordinal": mission_ordinal,
+                    "project_goal_authority": body["authority"][
+                        "operating_direction"
+                    ],
+                    "successor_basis": predecessor,
+                },
+                event_stream=project_stream,
+                event_sequence=project_sequence,
             )
-            return body, [record], {"mission_id": mission_id}
+            return body, [record], {
+                "mission_id": mission_id,
+                "mission_ordinal": mission_ordinal,
+                "project_goal_complete": False,
+            }
 
         return self._commit(
             event_kind="mission_opened",
@@ -1418,6 +2259,7 @@ class StateWriter:
                 "mission_id": mission_id,
                 "goal_hash": goal_hash,
                 "goal": goal_manifest,
+                "successor_basis": supplied_successor,
             },
             prepare=prepare,
         )
@@ -7684,24 +8526,76 @@ class StateWriter:
             expected_authorizations = {f"Mission:{mission_id}"}
             if set(body["authorizations"]) != expected_authorizations:
                 raise TransitionError("Mission terminal has stale subject authorization")
+            mission_open = index.get("mission-open", mission_id)
+            if mission_open is None:
+                raise TransitionError("Mission open record is absent")
+            mission_ordinal = mission_open.payload.get("mission_ordinal", 1)
+            if type(mission_ordinal) is not int or mission_ordinal < 1:
+                raise TransitionError("Mission ordinal is invalid")
+            project_goal_authority = mission_open.payload.get(
+                "project_goal_authority",
+                body["authority"]["operating_direction"],
+            )
+            project_goal_complete = outcome == "completed_pre_live_handoff"
             science["active_holdout_evaluation"] = None
-            science["required_future_holdout_id"] = None
+            if project_goal_complete:
+                science["required_future_holdout_id"] = None
             science["active_mission"] = None
             self._drop_authorization(body, SubjectKind.MISSION, mission_id)
-            body["next_action"] = {"kind": "await_root_goal"}
             record_id = canonical_digest(
                 domain="mission-close",
                 payload={"mission_id": mission_id, "outcome": outcome, "basis": basis_record_id},
             )
+            if outcome == "closed_no_candidate":
+                body["next_action"] = {
+                    "kind": "await_root_goal",
+                    "predecessor_basis_record_id": basis_record_id,
+                    "predecessor_mission_close_record_id": record_id,
+                    "predecessor_mission_id": mission_id,
+                    "predecessor_outcome": outcome,
+                }
+            elif outcome == "blocked_external":
+                body["next_action"] = {
+                    "basis_record_id": basis_record_id,
+                    "kind": "await_external_change",
+                    "predecessor_mission_close_record_id": record_id,
+                    "predecessor_mission_id": mission_id,
+                    "required_external_change": basis.payload.get(
+                        "required_external_change",
+                        basis.payload.get("cause", {}).get(
+                            "required_external_change"
+                        ),
+                    ),
+                }
+            else:
+                body["next_action"] = {
+                    "kind": "project_goal_complete",
+                    "mission_close_record_id": record_id,
+                    "outcome": outcome,
+                }
+            project_stream = "project-goal:OPERATING_DIRECTION.md"
+            project_head = index.event_head(project_stream)
+            project_sequence = 1 if project_head is None else project_head.sequence + 1
             record = _record(
                 kind="mission-close",
                 record_id=record_id,
                 subject=f"Mission:{mission_id}",
                 status=outcome,
                 fingerprint=record_id,
-                payload={"basis_record_id": basis_record_id},
+                payload={
+                    "basis_record_id": basis_record_id,
+                    "mission_ordinal": mission_ordinal,
+                    "project_goal_authority": project_goal_authority,
+                    "project_goal_complete": project_goal_complete,
+                },
+                event_stream=project_stream,
+                event_sequence=project_sequence,
             )
-            return body, [record], {"mission_id": mission_id, "outcome": outcome}
+            return body, [record], {
+                "mission_id": mission_id,
+                "outcome": outcome,
+                "project_goal_complete": project_goal_complete,
+            }
 
         return self._commit(
             event_kind="mission_closed",

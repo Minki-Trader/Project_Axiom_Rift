@@ -3,10 +3,15 @@
 Axiom is a local operating kernel for professional FPMarkets US100 M5
 quantitative research and candidate-bound ONNX, EA, and MT5 proof.
 
-The repository starts at a clean ready boundary. It contains no active
-scientific Mission, preselected model, feature, label, trade family, candidate,
-or external source. A short user goal opens one persistent Mission and the
-operator continues autonomously to a contract-valid terminal.
+`OPERATING_DIRECTION.md` is the persistent Project Goal. A bare `/goal` or a
+one-line `/goal` directive is sufficient intake. At most one first or successor
+Mission is active; an active Mission resumes, while a successor is admitted
+only through its exact predecessor terminal.
+
+Only `completed_pre_live_handoff` completes and latches the persistent API
+Goal. A valid `closed_no_candidate` terminal closes one Mission and continues
+through its bound successor. A genuine external blocker waits for its exact
+resume condition without manufacturing completion or new scientific evidence.
 
 ## Structure
 
