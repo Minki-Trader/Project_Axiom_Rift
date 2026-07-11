@@ -331,6 +331,7 @@ def _trend_evaluation(
             "cyclical_phase_evaluation.v1",
             "cyclical_harmonic_evaluation.v1",
             "distribution_asymmetry_evaluation.v1",
+            "distribution_asymmetry_evaluation.v2",
             "reversion_discovery_evaluation.v1",
             "reversion_regime_followup_evaluation.v1",
             "session_inventory_discovery_evaluation.v1",
@@ -434,6 +435,7 @@ def _trend_evaluation(
         "cyclical_phase_evaluation.v1": 6,
         "cyclical_harmonic_evaluation.v1": 4,
         "distribution_asymmetry_evaluation.v1": 12,
+        "distribution_asymmetry_evaluation.v2": 12,
     }.get(schema, 12)
     if not isinstance(context, list) or len(context) != expected_context_count:
         raise EvidenceValidationError("scientific selection context count is invalid")
@@ -486,6 +488,7 @@ def _trend_evaluation(
         "cyclical_phase_evaluation.v1": 340,
         "cyclical_harmonic_evaluation.v1": 344,
         "distribution_asymmetry_evaluation.v1": 356,
+        "distribution_asymmetry_evaluation.v2": 368,
         "reversion_discovery_evaluation.v1": 54,
         "reversion_regime_followup_evaluation.v1": 186,
         "session_inventory_discovery_evaluation.v1": 114,
