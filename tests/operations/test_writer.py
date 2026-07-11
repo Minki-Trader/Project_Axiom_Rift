@@ -12,6 +12,7 @@ from axiom_rift.operations.writer import (
     IdenticalFailedRetryError,
     InjectedCrash,
     RecoveryRequired,
+    RunningJobExecution,
     StateWriter,
     TransitionError,
 )
@@ -443,7 +444,34 @@ class WriterTests(unittest.TestCase):
             one_shot=True,
             operation_id="active-job-permit",
         )
-        self.writer.start_job(permit=permit, operation_id="active-job-start")
+        started = self.writer.start_job(
+            permit=permit, operation_id="active-job-start"
+        )
+        execution = RunningJobExecution.from_mapping(started.result["execution"])
+        self.writer.verify_running_job_execution(
+            execution,
+            expected_callable_identity="fixture.callable",
+            expected_evidence_subject={
+                "kind": "Mission",
+                "id": "MIS-ACTIVE-JOB",
+            },
+            required_input_hashes=(digest("input", {"fixture": 1}),),
+        )
+        forged = RunningJobExecution(
+            job_id=execution.job_id,
+            job_hash=execution.job_hash,
+            start_record_id="0" * 64,
+            job_permit_id=execution.job_permit_id,
+        )
+        with self.assertRaises(PermitError):
+            self.writer.verify_running_job_execution(
+                forged,
+                expected_callable_identity="fixture.callable",
+                expected_evidence_subject={
+                    "kind": "Mission",
+                    "id": "MIS-ACTIVE-JOB",
+                },
+            )
         before = self.writer.read_control()
         with self.assertRaises(TransitionError):
             self.writer.open_initiative(
@@ -1121,7 +1149,7 @@ class WriterTests(unittest.TestCase):
         transient = self.root / "local" / "jobs" / "fixture" / "fixture.json"
         transient.parent.mkdir(parents=True, exist_ok=True)
         transient.write_bytes(b"fixture output")
-        self.writer.complete_job(
+        completion = self.writer.complete_job(
             outcome="success",
             output_manifest={
                 "local/jobs/fixture/fixture.json": sha256(b"fixture output").hexdigest()
@@ -1140,6 +1168,12 @@ class WriterTests(unittest.TestCase):
         )
         self.assertEqual(first.result["trial_delta"], 0)
         self.assertEqual(cached.result["trial_delta"], 0)
+
+        self.writer.judge_job_evidence(
+            completion_record_id=completion.result["completion_record_id"],
+            disposition="stop_batch",
+            operation_id="judge-completed-job",
+        )
 
         self.writer.dispose_batch(
             outcome="engineering_fixture_complete", operation_id="dispose-batch"
@@ -2808,7 +2842,7 @@ class ScientificLifecycleTests(unittest.TestCase):
             canonical_bytes({"schema": "scientific_boundary_plan.v1"})
         )
         completions = []
-        for depth in ("discovery", "confirmation"):
+        for ordinal, depth in enumerate(("discovery", "confirmation"), start=1):
             tag = f"holdout-life-{depth}"
             claim = f"{depth}-claim"
             spec, declared = self._declare_and_start_scientific_job(
@@ -2819,17 +2853,21 @@ class ScientificLifecycleTests(unittest.TestCase):
                 claim_id=claim,
                 tag=tag,
             )
-            completions.append(
-                self._complete_scientific_job(
-                    writer=writer,
-                    spec=spec,
-                    declared=declared,
-                    executable_id=executable.identity,
-                    depth=depth,
-                    claim_id=claim,
-                    verdict="passed",
-                    tag=tag,
-                )
+            completion = self._complete_scientific_job(
+                writer=writer,
+                spec=spec,
+                declared=declared,
+                executable_id=executable.identity,
+                depth=depth,
+                claim_id=claim,
+                verdict="passed",
+                tag=tag,
+            )
+            completions.append(completion)
+            writer.judge_job_evidence(
+                completion_record_id=completion.result["completion_record_id"],
+                disposition=("continue_batch" if ordinal == 1 else "stop_batch"),
+                operation_id=f"{tag}-judge",
             )
         writer.dispose_batch(
             outcome="completed", operation_id="holdout-life-batch-close"
@@ -3044,7 +3082,7 @@ class ScientificLifecycleTests(unittest.TestCase):
         )
         self.assertEqual(counted.result["trial_delta"], 1)
         completions = []
-        for depth in ("discovery", "confirmation"):
+        for ordinal, depth in enumerate(("discovery", "confirmation"), start=1):
             tag = f"failed-post-holdout-{depth}"
             claim = f"post-holdout-{depth}-claim"
             spec, declared = self._declare_and_start_scientific_job(
@@ -3055,17 +3093,21 @@ class ScientificLifecycleTests(unittest.TestCase):
                 claim_id=claim,
                 tag=tag,
             )
-            completions.append(
-                self._complete_scientific_job(
-                    writer=writer,
-                    spec=spec,
-                    declared=declared,
-                    executable_id=new_executable.identity,
-                    depth=depth,
-                    claim_id=claim,
-                    verdict="passed",
-                    tag=tag,
-                )
+            completion = self._complete_scientific_job(
+                writer=writer,
+                spec=spec,
+                declared=declared,
+                executable_id=new_executable.identity,
+                depth=depth,
+                claim_id=claim,
+                verdict="passed",
+                tag=tag,
+            )
+            completions.append(completion)
+            writer.judge_job_evidence(
+                completion_record_id=completion.result["completion_record_id"],
+                disposition=("continue_batch" if ordinal == 1 else "stop_batch"),
+                operation_id=f"{tag}-judge",
             )
         writer.dispose_batch(
             outcome="completed",

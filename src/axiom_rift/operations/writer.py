@@ -115,6 +115,55 @@ class TransitionResult:
     result: Mapping[str, Any]
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RunningJobExecution:
+    """Immutable identity of one writer-authorized running Job execution."""
+
+    job_id: str
+    job_hash: str
+    start_record_id: str
+    job_permit_id: str
+
+    def __post_init__(self) -> None:
+        job_id = _require_ascii("running Job id", self.job_id)
+        if not job_id.startswith("job:") or len(job_id) != 68:
+            raise TransitionError("running Job id is invalid")
+        _require_digest("running Job hash", self.job_hash)
+        _require_digest("running Job start record", self.start_record_id)
+        _require_digest("running Job permit", self.job_permit_id)
+
+    def payload(self) -> dict[str, str]:
+        return {
+            "job_hash": self.job_hash,
+            "job_id": self.job_id,
+            "job_permit_id": self.job_permit_id,
+            "start_record_id": self.start_record_id,
+        }
+
+    @property
+    def identity(self) -> str:
+        return canonical_digest(
+            domain="running-job-execution",
+            payload=self.payload(),
+        )
+
+    @classmethod
+    def from_mapping(cls, value: Mapping[str, Any]) -> "RunningJobExecution":
+        if not isinstance(value, Mapping) or set(value) != {
+            "job_hash",
+            "job_id",
+            "job_permit_id",
+            "start_record_id",
+        }:
+            raise TransitionError("running Job execution context is invalid")
+        return cls(
+            job_hash=value["job_hash"],
+            job_id=value["job_id"],
+            job_permit_id=value["job_permit_id"],
+            start_record_id=value["start_record_id"],
+        )
+
+
 Prepare = Callable[
     [dict[str, Any] | None, LocalIndex],
     tuple[dict[str, Any], list[IndexRecord], Mapping[str, Any]],
@@ -640,6 +689,277 @@ class StateWriter:
 
     def read_control(self) -> dict[str, Any] | None:
         return self.control.read()
+
+    def verify_running_job_execution(
+        self,
+        execution: RunningJobExecution,
+        *,
+        expected_callable_identity: str,
+        expected_evidence_subject: Mapping[str, str] | None = None,
+        required_input_hashes: Sequence[str] = (),
+    ) -> dict[str, Any]:
+        """Reconstruct a non-runtime engine capability from Journal authority."""
+
+        if not isinstance(execution, RunningJobExecution):
+            raise PermitError("engine entry requires a running Job execution context")
+        _require_ascii("expected callable identity", expected_callable_identity)
+        expected_subject: dict[str, str] | None = None
+        if expected_evidence_subject is not None:
+            if (
+                not isinstance(expected_evidence_subject, Mapping)
+                or set(expected_evidence_subject) != {"kind", "id"}
+            ):
+                raise TransitionError("expected evidence subject is invalid")
+            expected_subject = {
+                "kind": _require_ascii(
+                    "expected evidence subject kind",
+                    expected_evidence_subject["kind"],
+                ),
+                "id": _require_ascii(
+                    "expected evidence subject id",
+                    expected_evidence_subject["id"],
+                ),
+            }
+        required = tuple(required_input_hashes)
+        for item in required:
+            _require_digest("required Job input", item)
+        if len(set(required)) != len(required):
+            raise TransitionError("required Job inputs contain duplicates")
+
+        with WriterLock(self.lock_path):
+            with self._open_authoritative_index() as index:
+                current = self._require_stable_locked(index)
+                assert current is not None
+                job = current["scientific"]["active_job"]
+                if (
+                    not isinstance(job, dict)
+                    or job.get("status") != "running"
+                    or job.get("id") != execution.job_id
+                    or job.get("hash") != execution.job_hash
+                    or job.get("start_record_id") != execution.start_record_id
+                ):
+                    raise PermitError("running Job execution context is stale")
+                declaration = index.get("job-declared", execution.job_id)
+                start = index.get("job-started", execution.start_record_id)
+                if (
+                    declaration is None
+                    or declaration.fingerprint != execution.job_hash
+                    or start is None
+                    or start.status != "running"
+                    or start.subject != f"Job:{execution.job_id}"
+                    or start.fingerprint != execution.job_hash
+                    or start.payload.get("job_permit_id")
+                    != execution.job_permit_id
+                ):
+                    raise PermitError("running Job provenance is unavailable")
+                spec = declaration.payload.get("spec")
+                if (
+                    not isinstance(spec, dict)
+                    or spec.get("runtime_binding") is not None
+                    or spec.get("callable_identity") != expected_callable_identity
+                    or (
+                        expected_subject is not None
+                        and spec.get("evidence_subject") != expected_subject
+                    )
+                    or not set(required).issubset(spec.get("input_hashes", []))
+                ):
+                    raise PermitError("running Job capability differs from engine entry")
+                stream = f"permit:{execution.job_permit_id}"
+                issued = index.event_record(stream, 1)
+                consumed = index.event_record(stream, 2)
+                if issued is None or consumed is None:
+                    raise PermitError("running Job permit provenance is incomplete")
+                engine_entry_id = job.get("engine_entry_record_id")
+                engine_entry = (
+                    None
+                    if not isinstance(engine_entry_id, str)
+                    else index.get("job-engine-entry", engine_entry_id)
+                )
+                try:
+                    issued_permit = Permit.from_mapping(issued.payload)
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise PermitError("running Job issued permit is invalid") from exc
+                if (
+                    issued.kind != "permit-issued"
+                    or issued.status != "issued"
+                    or issued.fingerprint != execution.job_permit_id
+                    or issued_permit.permit_id != execution.job_permit_id
+                    or issued_permit.kind is not PermitKind.JOB
+                    or issued_permit.subject.kind is not SubjectKind.JOB
+                    or issued_permit.subject.subject_id != execution.job_id
+                    or issued_permit.input_hash != execution.job_hash
+                    or issued_permit.actions != ("start_job",)
+                    or not issued_permit.one_shot
+                    or consumed.kind != "permit-consumed"
+                    or consumed.status != "consumed"
+                    or consumed.fingerprint != execution.job_permit_id
+                    or consumed.payload
+                    != {
+                        "one_shot": True,
+                        "permit_id": execution.job_permit_id,
+                    }
+                    or consumed.authority_event_id != start.authority_event_id
+                    or consumed.authority_sequence != start.authority_sequence
+                    or engine_entry is None
+                    or engine_entry.status != "validated"
+                    or engine_entry.subject != f"Job:{execution.job_id}"
+                    or engine_entry.fingerprint != execution.job_hash
+                    or engine_entry.payload
+                    != {
+                        "execution": execution.payload(),
+                        "permit_consumption_record_id": consumed.record_id,
+                    }
+                    or engine_entry.authority_event_id != start.authority_event_id
+                    or engine_entry.authority_sequence != start.authority_sequence
+                ):
+                    raise PermitError("running Job permit and start provenance diverge")
+                return {
+                    "batch_id": declaration.payload.get("batch_id"),
+                    "execution": execution.payload(),
+                    "initiative_id": declaration.payload.get("initiative_id"),
+                    "mission_id": declaration.payload.get("mission_id"),
+                    "spec": _copy(spec),
+                    "study_id": declaration.payload.get("study_id"),
+                }
+
+    def verify_reproducible_cache_producer(
+        self,
+        producer: RunningJobExecution,
+        *,
+        cache_output_name: str,
+        cache_hash: str,
+        expected_callable_identity: str,
+        expected_evidence_subject: Mapping[str, str],
+        expected_output_classes: Mapping[str, str],
+        expected_study_id: str,
+        manifest_output_name: str,
+        manifest_hash: str,
+    ) -> None:
+        """Require cache bytes to come from a completed validated Job."""
+
+        if not isinstance(producer, RunningJobExecution):
+            raise TransitionError("cache producer execution is invalid")
+        for name, value in (
+            ("cache output name", cache_output_name),
+            ("manifest output name", manifest_output_name),
+        ):
+            _require_ascii(name, value)
+        _require_digest("cache hash", cache_hash)
+        _require_digest("cache manifest hash", manifest_hash)
+        _require_ascii("expected cache callable", expected_callable_identity)
+        _require_ascii("expected cache Study", expected_study_id)
+        if (
+            not isinstance(expected_evidence_subject, Mapping)
+            or set(expected_evidence_subject) != {"kind", "id"}
+        ):
+            raise TransitionError("expected cache evidence subject is invalid")
+        expected_subject = dict(expected_evidence_subject)
+        if any(
+            type(value) is not str or not value or not value.isascii()
+            for value in expected_subject.values()
+        ):
+            raise TransitionError("expected cache evidence subject is invalid")
+        expected_classes = dict(expected_output_classes)
+        if not expected_classes or any(
+            type(name) is not str
+            or not name
+            or not name.isascii()
+            or storage_class
+            not in {"durable_evidence", "reproducible_cache", "transient"}
+            for name, storage_class in expected_classes.items()
+        ):
+            raise TransitionError("expected cache output classes are invalid")
+        with WriterLock(self.lock_path):
+            with self._open_authoritative_index() as index:
+                current = self._require_stable_locked(index)
+                assert current is not None
+                declaration = index.get("job-declared", producer.job_id)
+                declared_spec = (
+                    None if declaration is None else declaration.payload.get("spec")
+                )
+                if (
+                    declaration is None
+                    or declaration.fingerprint != producer.job_hash
+                    or declaration.payload.get("mission_id")
+                    != current["scientific"]["active_mission"]
+                    or declaration.payload.get("study_id") != expected_study_id
+                    or not isinstance(declared_spec, dict)
+                    or declared_spec.get("callable_identity")
+                    != expected_callable_identity
+                    or declared_spec.get("evidence_subject") != expected_subject
+                    or set(declared_spec.get("expected_outputs", []))
+                    != set(expected_classes)
+                    or declared_spec.get("output_classes") != expected_classes
+                ):
+                    raise TransitionError("cache producer declaration is unavailable")
+                work_fingerprint = declaration.payload.get("work_fingerprint")
+                head = (
+                    None
+                    if not isinstance(work_fingerprint, str)
+                    else index.event_head(f"job-attempt:{work_fingerprint}")
+                )
+                completion = (
+                    None
+                    if head is None
+                    else index.get(head.record_kind, head.record_id)
+                )
+                scientific = (
+                    None if completion is None else completion.payload.get("scientific")
+                )
+                failure = (
+                    None if completion is None else completion.payload.get("failure")
+                )
+                expected_verdict = {
+                    "success": "passed",
+                    "failed": "failed",
+                    "not_evaluable": "not_evaluable",
+                }.get(None if completion is None else completion.status)
+                if (
+                    completion is None
+                    or completion.kind != "job-completed"
+                    or completion.payload.get("job_id") != producer.job_id
+                    or completion.payload.get("start_record_id")
+                    != producer.start_record_id
+                    or set(completion.payload.get("outputs", {}))
+                    != set(expected_classes)
+                    or completion.payload.get("output_classes")
+                    != expected_classes
+                    or completion.payload.get("outputs", {}).get(cache_output_name)
+                    != cache_hash
+                    or completion.payload.get("outputs", {}).get(
+                        manifest_output_name
+                    )
+                    != manifest_hash
+                    or completion.payload.get("output_classes", {}).get(
+                        cache_output_name
+                    )
+                    != "reproducible_cache"
+                    or completion.payload.get("output_classes", {}).get(
+                        manifest_output_name
+                    )
+                    != "durable_evidence"
+                    or not isinstance(scientific, dict)
+                    or scientific.get("verdict") != expected_verdict
+                    or scientific.get("scientific_eligible") is not True
+                    or (
+                        completion.status == "failed"
+                        and (
+                            not isinstance(failure, dict)
+                            or failure.get("failure_kind")
+                            != "scientific_falsification"
+                        )
+                    )
+                    or (
+                        completion.status == "not_evaluable"
+                        and (
+                            not isinstance(failure, dict)
+                            or failure.get("failure_kind") != "not_evaluable"
+                        )
+                    )
+                ):
+                    raise TransitionError(
+                        "cache producer completion is not validator-derived"
+                    )
 
     def _commit(
         self,
@@ -1789,6 +2109,25 @@ class StateWriter:
             batch = science["active_batch"]
             if not isinstance(batch, dict):
                 raise TransitionError("no active Batch")
+            if not self.engineering_fixture:
+                next_action = body.get("next_action")
+                exact_dispose = {
+                    "kind": "dispose_batch",
+                    "batch_id": batch["id"],
+                }
+                exact_unstarted = {
+                    "kind": "declare_job",
+                    "batch_id": batch["id"],
+                }
+                unstarted = _index.event_head(
+                    f"batch-budget:{batch['id']}"
+                ) is None
+                if next_action != exact_dispose and not (
+                    next_action == exact_unstarted and unstarted
+                ):
+                    raise TransitionError(
+                        "Batch disposition is not the exact next action"
+                    )
             if science["active_job"] is not None or science["active_repair"] is not None:
                 raise TransitionError("cannot dispose Batch with active Job or Repair")
             science["active_batch"] = None
@@ -2375,6 +2714,14 @@ class StateWriter:
                 raise TransitionError("Job requires an active Mission")
             if science["active_job"] is not None:
                 raise TransitionError("another parent Job is active")
+            if not self.engineering_fixture:
+                next_action = current.get("next_action")
+                active_batch = science.get("active_batch")
+                if isinstance(active_batch, dict) and next_action != {
+                    "kind": "declare_job",
+                    "batch_id": active_batch["id"],
+                }:
+                    raise TransitionError("Job declaration is not the exact next action")
             mission_id = science["active_mission"]
             implementation_manifest = self._require_job_implementation_evidence(spec)
             job_hash = _digest(
@@ -4693,7 +5040,36 @@ class StateWriter:
                     "runtime": runtime_provenance,
                 },
             )
-            return body, [consumption, record], {"job_id": job["id"]}
+            execution = RunningJobExecution(
+                job_id=job["id"],
+                job_hash=job["hash"],
+                start_record_id=start_id,
+                job_permit_id=permit.permit_id,
+            )
+            engine_records: list[IndexRecord] = []
+            if runtime_binding is None:
+                engine_entry_id = canonical_digest(
+                    domain="job-engine-entry",
+                    payload=execution.payload(),
+                )
+                job["engine_entry_record_id"] = engine_entry_id
+                engine_records.append(
+                    _record(
+                        kind="job-engine-entry",
+                        record_id=engine_entry_id,
+                        subject=f"Job:{job['id']}",
+                        status="validated",
+                        fingerprint=job["hash"],
+                        payload={
+                            "execution": execution.payload(),
+                            "permit_consumption_record_id": consumption.record_id,
+                        },
+                    )
+                )
+            return body, [consumption, record, *engine_records], {
+                "execution": execution.payload(),
+                "job_id": job["id"],
+            }
 
         return self._commit(
             event_kind="job_started",
@@ -5330,6 +5706,48 @@ class StateWriter:
             if runtime_binding is None:
                 if start_record.payload.get("runtime") is not None:
                     raise TransitionError("generic Job cannot produce runtime evidence")
+                engine_entry_id = job.get("engine_entry_record_id")
+                engine_entry = (
+                    None
+                    if not isinstance(engine_entry_id, str)
+                    else _index.get("job-engine-entry", engine_entry_id)
+                )
+                job_permit_id = start_record.payload.get("job_permit_id")
+                permit_stream = (
+                    ""
+                    if not isinstance(job_permit_id, str)
+                    else f"permit:{job_permit_id}"
+                )
+                consumed = (
+                    None
+                    if not permit_stream
+                    else _index.event_record(permit_stream, 2)
+                )
+                expected_execution = RunningJobExecution(
+                    job_id=job_id,
+                    job_hash=job["hash"],
+                    start_record_id=start_record_id,
+                    job_permit_id=job_permit_id,
+                )
+                if (
+                    engine_entry is None
+                    or engine_entry.status != "validated"
+                    or engine_entry.subject != f"Job:{job_id}"
+                    or engine_entry.fingerprint != job["hash"]
+                    or consumed is None
+                    or engine_entry.payload
+                    != {
+                        "execution": expected_execution.payload(),
+                        "permit_consumption_record_id": consumed.record_id,
+                    }
+                    or engine_entry.authority_event_id
+                    != start_record.authority_event_id
+                    or engine_entry.authority_sequence
+                    != start_record.authority_sequence
+                ):
+                    raise TransitionError(
+                        "Job completion lacks its exact engine-entry attestation"
+                    )
             else:
                 provenance = start_record.payload.get("runtime")
                 if not isinstance(provenance, dict):
@@ -5403,8 +5821,7 @@ class StateWriter:
                     and failure_manifest["failure_kind"] == "scientific_falsification"
                 )
                 or (
-                    declared_spec.get("holdout_binding") is not None
-                    and outcome == "not_evaluable"
+                    outcome == "not_evaluable"
                     and failure_manifest is not None
                     and failure_manifest["failure_kind"] == "not_evaluable"
                 )
@@ -5597,6 +6014,127 @@ class StateWriter:
             elif target.exists():
                 raise TransitionError("transient output path is not a file")
         return result
+
+    def judge_job_evidence(
+        self,
+        *,
+        completion_record_id: str,
+        disposition: str,
+        negative_memory_id: str | None = None,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Consume a completed Job judgement before more Batch work."""
+
+        _require_digest("completion_record_id", completion_record_id)
+        if disposition not in {"continue_batch", "stop_batch"}:
+            raise TransitionError("Job evidence disposition is not typed")
+        if negative_memory_id is not None:
+            if not negative_memory_id.startswith("negative-memory:"):
+                raise TransitionError("negative_memory_id is invalid")
+            _require_digest(
+                "negative_memory_id",
+                negative_memory_id.removeprefix("negative-memory:"),
+            )
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            body = self._body(current)
+            science = body["scientific"]
+            if science["active_job"] is not None or science["active_repair"] is not None:
+                raise TransitionError("Job judgement requires a stable completion")
+            next_action = body.get("next_action")
+            completion = index.get("job-completed", completion_record_id)
+            if (
+                completion is None
+                or not isinstance(next_action, dict)
+                or next_action.get("kind") != "judge_job_evidence"
+                or next_action.get("job_id") != completion.payload.get("job_id")
+            ):
+                raise TransitionError("Job judgement is not the exact next action")
+            job_id = completion.payload["job_id"]
+            declaration = index.get("job-declared", job_id)
+            if (
+                declaration is None
+                or declaration.payload.get("mission_id")
+                != science["active_mission"]
+            ):
+                raise TransitionError("Job judgement lacks Mission provenance")
+            scientific = completion.payload.get("scientific")
+            failure = completion.payload.get("failure")
+            needs_negative_memory = (
+                completion.status == "failed"
+                and isinstance(failure, dict)
+                and failure.get("failure_kind") == "scientific_falsification"
+                and isinstance(scientific, dict)
+                and scientific.get("verdict") == "failed"
+                and scientific.get("scientific_eligible") is True
+            )
+            if needs_negative_memory:
+                memory = (
+                    None
+                    if negative_memory_id is None
+                    else index.get("negative-memory", negative_memory_id)
+                )
+                if (
+                    memory is None
+                    or completion_record_id
+                    not in memory.payload.get("evidence_references", [])
+                    or memory.subject
+                    != f"Executable:{scientific.get('executable_id')}"
+                ):
+                    raise TransitionError(
+                        "scientific falsification requires its exact negative memory"
+                    )
+            elif negative_memory_id is not None:
+                raise TransitionError("Job judgement carries unrelated negative memory")
+            batch = science.get("active_batch")
+            declared_batch_id = declaration.payload.get("batch_id")
+            if (
+                not isinstance(batch, dict)
+                or declared_batch_id != batch.get("id")
+            ):
+                raise TransitionError("Job judgement is outside the active Batch")
+            body["next_action"] = (
+                {"kind": "declare_job", "batch_id": batch["id"]}
+                if disposition == "continue_batch"
+                else {"kind": "dispose_batch", "batch_id": batch["id"]}
+            )
+            record_id = canonical_digest(
+                domain="job-evidence-decision",
+                payload={
+                    "completion_record_id": completion_record_id,
+                    "disposition": disposition,
+                    "negative_memory_id": negative_memory_id,
+                },
+            )
+            record = _record(
+                kind="job-evidence-decision",
+                record_id=record_id,
+                subject=f"Job:{job_id}",
+                status=disposition,
+                fingerprint=completion.fingerprint,
+                payload={
+                    "completion_record_id": completion_record_id,
+                    "negative_memory_id": negative_memory_id,
+                },
+            )
+            return body, [record], {
+                "disposition": disposition,
+                "job_id": job_id,
+            }
+
+        return self._commit(
+            event_kind="job_evidence_judged",
+            operation_id=operation_id,
+            subject="Job:completed",
+            payload={
+                "completion_record_id": completion_record_id,
+                "disposition": disposition,
+                "negative_memory_id": negative_memory_id,
+            },
+            prepare=prepare,
+        )
 
     def open_repair(
         self,
