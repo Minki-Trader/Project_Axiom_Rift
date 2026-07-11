@@ -318,6 +318,7 @@ def _trend_evaluation(
         not in {
             "reversion_discovery_evaluation.v1",
             "trend_discovery_evaluation.v3",
+            "volatility_discovery_evaluation.v1",
         }
     ):
         raise EvidenceValidationError("trend evaluation schema is invalid")
@@ -441,9 +442,11 @@ def _trend_evaluation(
     if subject_rows != 1:
         raise EvidenceValidationError("trend subject is absent from selection context")
     selection_method = value.get("selection_method")
-    expected_total_exposures = (
-        54 if schema == "reversion_discovery_evaluation.v1" else 42
-    )
+    expected_total_exposures = {
+        "reversion_discovery_evaluation.v1": 54,
+        "trend_discovery_evaluation.v3": 42,
+        "volatility_discovery_evaluation.v1": 66,
+    }[schema]
     if selection_method != {
         "bootstrap_samples": 41999,
         "block_days": [5, 10, 20],
