@@ -15,7 +15,7 @@ from axiom_rift.research.session_inventory_followup_discovery import (
     session_inventory_followup_executable_configuration_map,
     trend_dependency_sha256,
 )
-from axiom_rift.research.session_inventory_followup_study import (
+from axiom_rift.research.session_inventory_followup_final_study import (
     CALLABLE_IDENTITY,
     EVALUATION_SCHEMA,
     EVIDENCE_MODES,
@@ -72,7 +72,7 @@ def evaluation(*, evaluable: bool = True, net: int = 1_000_000) -> dict[str, obj
     }
 
 
-class SessionInventoryFollowupStudyPlanTests(unittest.TestCase):
+class SessionInventoryFollowupFinalStudyPlanTests(unittest.TestCase):
     def setUp(self) -> None:
         configuration_map = session_inventory_followup_executable_configuration_map()
         executable_ids = sorted(configuration_map)
@@ -84,6 +84,14 @@ class SessionInventoryFollowupStudyPlanTests(unittest.TestCase):
                 "broker_08_inventory_48",
                 "broker_15_inventory_72",
             },
+        )
+        self.assertEqual(
+            {configuration.holding_bars for configuration in configuration_map.values()},
+            {24, 72},
+        )
+        self.assertEqual(
+            {configuration.signal_sign for configuration in configuration_map.values()},
+            {-1, 1},
         )
         self.executable_id = executable_ids[0]
         self.plan = build_session_inventory_followup_validation_plan(self.executable_id)
@@ -102,20 +110,20 @@ class SessionInventoryFollowupStudyPlanTests(unittest.TestCase):
         self.assertNotIn("daily_entries_p162_milli", evaluation()["metrics"])
         self.assertEqual(
             CALLABLE_IDENTITY,
-            "axiom_rift.research.session_inventory_followup_study."
+            "axiom_rift.research.session_inventory_followup_final_study."
             "execute_session_inventory_followup_job.v1",
         )
         self.assertTrue(
             all(
-                name.startswith("scientific/STU-0010/")
+                name.startswith("scientific/STU-0011/")
                 for name in output_names(self.executable_id).values()
             )
         )
         self.assertTrue(
-            surface_cache_output_name().startswith("local/cache/STU-0010/")
+            surface_cache_output_name().startswith("local/cache/STU-0011/")
         )
         self.assertTrue(
-            surface_manifest_output_name().startswith("scientific/STU-0010/")
+            surface_manifest_output_name().startswith("scientific/STU-0011/")
         )
         self.assertEqual(tuple(self.plan["evidence_modes"]), EVIDENCE_MODES)
         self.assertEqual(
@@ -220,16 +228,16 @@ class SessionInventoryFollowupStudyPlanTests(unittest.TestCase):
             "initiative_id": "INI-0002",
             "mission_id": "MIS-0001",
             "spec": spec,
-            "study_id": "STU-0010",
+            "study_id": "STU-0011",
         }
         with TemporaryDirectory() as temporary, patch(
-            "axiom_rift.research.session_inventory_followup_study.StateWriter.verify_running_job_execution",
+            "axiom_rift.research.session_inventory_followup_final_study.StateWriter.verify_running_job_execution",
             return_value=binding,
         ), patch(
-            "axiom_rift.research.session_inventory_followup_study._compute_registered_session_inventory_followup_surface",
+            "axiom_rift.research.session_inventory_followup_final_study._compute_registered_session_inventory_followup_surface",
             return_value={"schema": SURFACE_SCHEMA},
         ), patch(
-            "axiom_rift.research.session_inventory_followup_study.project_session_inventory_followup_evaluation",
+            "axiom_rift.research.session_inventory_followup_final_study.project_session_inventory_followup_evaluation",
             return_value=evaluation(),
         ):
             packet = execute_session_inventory_followup_job(
@@ -297,13 +305,13 @@ class SessionInventoryFollowupStudyPlanTests(unittest.TestCase):
                     (consumer_execution, consumer_binding, consumer_names)
                 )
             with patch(
-                "axiom_rift.research.session_inventory_followup_study.StateWriter.verify_running_job_execution",
+                "axiom_rift.research.session_inventory_followup_final_study.StateWriter.verify_running_job_execution",
                 side_effect=[case[1] for case in consumer_cases],
             ), patch(
-                "axiom_rift.research.session_inventory_followup_study.StateWriter.verify_reproducible_cache_producer",
+                "axiom_rift.research.session_inventory_followup_final_study.StateWriter.verify_reproducible_cache_producer",
                 return_value=None,
             ) as verify_producer, patch(
-                "axiom_rift.research.session_inventory_followup_study._compute_registered_session_inventory_followup_surface",
+                "axiom_rift.research.session_inventory_followup_final_study._compute_registered_session_inventory_followup_surface",
                 side_effect=AssertionError("consumer recomputed the surface"),
             ) as recompute:
                 consumer_packets = [
@@ -348,4 +356,5 @@ class SessionInventoryFollowupStudyPlanTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
 

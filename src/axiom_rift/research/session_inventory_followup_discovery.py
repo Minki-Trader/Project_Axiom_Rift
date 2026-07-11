@@ -50,16 +50,16 @@ from axiom_rift.research.discovery import (
 SELECTOR_QUANTILE_BP = 5_000
 SELECTION_BOOTSTRAP_SAMPLES = 41_999
 SELECTION_BLOCK_LENGTHS = (5, 10, 20)
-SELECTION_TOTAL_EXPOSURES = 150
+SELECTION_TOTAL_EXPOSURES = 162
 SELECTION_SEED = 612_337_279
 SELECTION_MONTE_CARLO_CONFIDENCE_PPM = 990_000
 
 _PROFILE_SPECS: dict[str, dict[str, int | str]] = {
-    "broker_02_inventory_11": {
-        "decision_hour": 1,
+    "broker_20_inventory_48": {
+        "decision_hour": 19,
         "decision_minute": 55,
-        "lookback_bars": 11,
-        "target_open_hour": 2,
+        "lookback_bars": 48,
+        "target_open_hour": 20,
     },
     "broker_08_inventory_48": {
         "decision_hour": 7,
@@ -156,7 +156,7 @@ def session_inventory_followup_configurations() -> tuple[SessionInventoryFollowu
     return tuple(
         SessionInventoryFollowupConfiguration(profile, signal_sign, holding_bars)
         for profile in (
-            "broker_02_inventory_11",
+            "broker_20_inventory_48",
             "broker_08_inventory_48",
             "broker_15_inventory_72",
         )

@@ -43,10 +43,10 @@ class SessionInventoryFollowupDiscoveryTests(unittest.TestCase):
         self.assertEqual(
             [item.configuration_id for item in configurations[:4]],
             [
-                "broker_02_inventory_11-fade-h24",
-                "broker_02_inventory_11-fade-h72",
-                "broker_02_inventory_11-follow-h24",
-                "broker_02_inventory_11-follow-h72",
+                "broker_20_inventory_48-fade-h24",
+                "broker_20_inventory_48-fade-h72",
+                "broker_20_inventory_48-follow-h24",
+                "broker_20_inventory_48-follow-h72",
             ],
         )
         for executable in executables:
@@ -60,12 +60,12 @@ class SessionInventoryFollowupDiscoveryTests(unittest.TestCase):
             self.assertIn(
                 followup.loader_implementation_sha256(), executable.engine_contract
             )
-            self.assertIn("bonferroni_150", executable.engine_contract)
+            self.assertIn("bonferroni_162", executable.engine_contract)
 
     def test_feature_is_prefix_invariant_and_rewarms_after_gap(self) -> None:
         frame = synthetic_frame()
         opportunities = {
-            "broker_02_inventory_11": (1, 55),
+            "broker_20_inventory_48": (19, 55),
             "broker_08_inventory_48": (7, 55),
             "broker_15_inventory_72": (14, 55),
         }
@@ -105,7 +105,7 @@ class SessionInventoryFollowupDiscoveryTests(unittest.TestCase):
         frame["time"] = frame["time"].dt.tz_localize("UTC")
         with self.assertRaisesRegex(ValueError, "timezone-naive broker clock"):
             followup.compute_session_inventory_followup_score(
-                frame, "broker_02_inventory_11"
+                frame, "broker_20_inventory_48"
             )
 
     def test_selector_is_fold_only_opportunity_median(self) -> None:
@@ -127,7 +127,7 @@ class SessionInventoryFollowupDiscoveryTests(unittest.TestCase):
     def test_registered_control_metrics_are_pairwise_noncompensatory(self) -> None:
         days = pd.date_range("2025-01-01", periods=40, freq="D")
         profile_net = {
-            "broker_02_inventory_11": 100,
+            "broker_20_inventory_48": 100,
             "broker_08_inventory_48": 80,
             "broker_15_inventory_72": 60,
         }
@@ -155,7 +155,7 @@ class SessionInventoryFollowupDiscoveryTests(unittest.TestCase):
         subject = next(
             item for item in results
             if item.configuration.configuration_id
-            == "broker_02_inventory_11-follow-h24"
+            == "broker_20_inventory_48-follow-h24"
         )
         self.assertEqual(
             subject.metrics["feature_control_worst_delta_net_profit_micropoints"], 20

@@ -1,4 +1,4 @@
-"""Follow-up runner for the registered session-inventory contrast Study."""
+"""Final follow-up runner for the registered session-inventory Study."""
 
 from __future__ import annotations
 
@@ -38,8 +38,8 @@ from axiom_rift.research.validation import (
 
 
 MISSION_ID = "MIS-0001"
-STUDY_ID = "STU-0010"
-CALLABLE_IDENTITY = "axiom_rift.research.session_inventory_followup_study.execute_session_inventory_followup_job.v1"
+STUDY_ID = "STU-0011"
+CALLABLE_IDENTITY = "axiom_rift.research.session_inventory_followup_final_study.execute_session_inventory_followup_job.v1"
 SURFACE_SCHEMA = "session_inventory_followup_surface.v1"
 EVALUATION_SCHEMA = "session_inventory_followup_evaluation.v1"
 EVIDENCE_DEPTH = "discovery"
@@ -901,5 +901,7 @@ __all__ = [
     "surface_manifest_output_name",
     "SessionInventoryFollowupJobPacket",
 ]
+
+
 
 
