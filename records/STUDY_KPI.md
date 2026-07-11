@@ -49,3 +49,4 @@ Journal record. The full immutable identity remains there. Missing KPI is `-`.
 | 000038 | 2026-07-12 07:10 | STU-0038 | EXE-822ae1a3beaa | 0 | 0 | 0 | 0% | not_supported |
 | 000039 | 2026-07-12 07:14 | STU-0039 | EXE-f9e36f480b40 | 0 | 0 | 0 | 0% | not_supported |
 | 000040 | 2026-07-12 07:20 | STU-0040 | EXE-15c951e6866c | -3,270,750,000 | 0.799 | 266 | 2,385.0412% | not_supported |
+| 000041 | 2026-07-12 07:25 | STU-0041 | EXE-6f9c26b4a111 | 0 | 0 | 0 | 0% | not_supported |
