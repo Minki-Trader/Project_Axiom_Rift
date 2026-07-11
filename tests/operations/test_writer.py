@@ -279,6 +279,7 @@ def batch_spec(
     study_id: str = "STU-FIXTURE",
     study_hash: str = "a" * 64,
     max_trials: int = 20,
+    max_compute_seconds: int = 60,
     stop_rule: str = "stop at frozen bound or accepted decision",
 ) -> BatchSpec:
     return BatchSpec(
@@ -287,7 +288,7 @@ def batch_spec(
         study_hash=study_hash,
         display_name="bounded adaptive fixture",
         max_trials=max_trials,
-        max_compute_seconds=60,
+        max_compute_seconds=max_compute_seconds,
         max_wall_seconds=90,
         stop_rule=stop_rule,
         source_contract_ids=source_contract_ids,
@@ -971,7 +972,7 @@ class WriterTests(unittest.TestCase):
                 operation_id="commitment-first-open",
             )
             writer.dispose_batch(
-                outcome="completed", operation_id="commitment-first-close"
+                outcome="not_evaluable", operation_id="commitment-first-close"
             )
             second = batch_spec(
                 batch_id="BAT-COMMITMENT-2",
@@ -2817,6 +2818,7 @@ class ScientificLifecycleTests(unittest.TestCase):
             batch_id="BAT-HOLDOUT-LIFECYCLE",
             study_id="STU-HOLDOUT-LIFECYCLE",
             study_hash=opened.result["study_hash"],
+            max_compute_seconds=90,
         )
         batch_permit = writer.issue_permit(
             kind=PermitKind.BATCH,
@@ -2834,6 +2836,64 @@ class ScientificLifecycleTests(unittest.TestCase):
             permit=batch_permit,
             operation_id="holdout-life-batch-open",
         )
+        generic_spec = job_spec(
+            writer,
+            {"kind": "Study", "id": "STU-HOLDOUT-LIFECYCLE"},
+        )
+        generic = writer.declare_job(
+            spec=generic_spec,
+            operation_id="holdout-life-generic-declare",
+        )
+        generic_permit = writer.issue_permit(
+            kind=PermitKind.JOB,
+            subject_kind=SubjectKind.JOB,
+            subject_id=generic.result["job_id"],
+            input_hash=generic.result["job_hash"],
+            actions=("start_job",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="holdout-life-generic-permit",
+        )
+        writer.start_job(
+            permit=generic_permit,
+            operation_id="holdout-life-generic-start",
+        )
+        generic_output = writer.root / "local" / "jobs" / "fixture" / "fixture.json"
+        generic_output.parent.mkdir(parents=True, exist_ok=True)
+        generic_output.write_bytes(b"generic engineering output")
+        generic_completion = writer.complete_job(
+            outcome="success",
+            output_manifest={
+                "local/jobs/fixture/fixture.json": sha256(
+                    b"generic engineering output"
+                ).hexdigest()
+            },
+            operation_id="holdout-life-generic-complete",
+        )
+        with self.assertRaisesRegex(TransitionError, "validator-derived"):
+            writer.judge_job_evidence(
+                completion_record_id=generic_completion.result[
+                    "completion_record_id"
+                ],
+                disposition="stop_batch",
+                operation_id="holdout-life-reject-generic-stop",
+            )
+        writer.judge_job_evidence(
+            completion_record_id=generic_completion.result["completion_record_id"],
+            disposition="continue_batch",
+            operation_id="holdout-life-continue-generic",
+        )
+        with self.assertRaisesRegex(TransitionError, "budget is not exhausted"):
+            writer.dispose_batch(
+                outcome="budget_exhausted",
+                operation_id="holdout-life-reject-false-budget-end",
+            )
+        with self.assertRaisesRegex(TransitionError, "failure basis"):
+            writer.dispose_batch(
+                outcome="engineering_failure",
+                operation_id="holdout-life-reject-false-engineering-failure",
+            )
         executable = scientific_executable_spec("holdout-lifecycle")
         writer.register_trial(
             executable=executable, operation_id="holdout-life-trial"
@@ -2872,8 +2932,48 @@ class ScientificLifecycleTests(unittest.TestCase):
         writer.dispose_batch(
             outcome="completed", operation_id="holdout-life-batch-close"
         )
-        writer.close_study(
-            outcome="supported", operation_id="holdout-life-study-close"
+        with self.assertRaisesRegex(TransitionError, "validator completion"):
+            writer.close_study(
+                outcome="supported",
+                operation_id="holdout-life-study-close-missing-kpi",
+            )
+        original_rebuild = writer.rebuild_study_kpi_projection
+        rebuild_attempts = 0
+
+        def fail_first_rebuild() -> bool:
+            nonlocal rebuild_attempts
+            rebuild_attempts += 1
+            if rebuild_attempts == 1:
+                raise TransitionError("injected Study KPI projection failure")
+            return original_rebuild()
+
+        writer.rebuild_study_kpi_projection = fail_first_rebuild  # type: ignore[method-assign]
+        close_arguments = {
+            "outcome": "supported",
+            "operation_id": "holdout-life-study-close",
+            "kpi_completion_record_id": completions[-1].result[
+                "completion_record_id"
+            ],
+        }
+        with self.assertRaisesRegex(TransitionError, "injected Study KPI"):
+            writer.close_study(**close_arguments)
+        reused_close = writer.close_study(**close_arguments)
+        self.assertTrue(reused_close.reused)
+        writer.rebuild_study_kpi_projection = original_rebuild  # type: ignore[method-assign]
+        kpi_ledger = (writer.root / "records" / "STUDY_KPI.md").read_text(
+            encoding="ascii"
+        )
+        self.assertIn("| 000001 |", kpi_ledger)
+        self.assertIn("STU-HOLDOUT-LIFECYCLE", kpi_ledger)
+        self.assertIn("| supported |", kpi_ledger)
+        with LocalIndex(writer.index_path) as index:
+            kpi_record = index.get("study-kpi", "STU-HOLDOUT-LIFECYCLE")
+        assert kpi_record is not None
+        self.assertEqual(kpi_record.event_stream, "study-kpi")
+        self.assertEqual(kpi_record.event_sequence, 1)
+        self.assertEqual(
+            kpi_record.payload["completion_record_id"],
+            completions[-1].result["completion_record_id"],
         )
         writer.close_initiative(
             outcome="completed", operation_id="holdout-life-initiative-close"
@@ -2887,6 +2987,340 @@ class ScientificLifecycleTests(unittest.TestCase):
             operation_id="holdout-life-candidate",
         )
         return writer, executable, candidate, plan
+
+    def test_unstarted_real_batch_closes_with_writer_derived_dash_kpi(self) -> None:
+        with TemporaryDirectory() as temporary:
+            writer = StateWriter(
+                temporary,
+                permit_authority=PermitAuthority(b"u" * 32),
+                clock=lambda: FIXED_NOW,
+                foundation_root=REPO_ROOT,
+            )
+            writer.initialize_ready()
+            writer.open_mission(
+                mission_id="MIS-UNSTARTED",
+                goal=mission_goal("unstarted Batch closeout"),
+                operation_id="unstarted-mission",
+            )
+            writer.open_initiative(
+                initiative_id="INI-UNSTARTED",
+                objective=initiative_objective("unstarted Batch closeout"),
+                operation_id="unstarted-initiative",
+            )
+            axes = tuple(
+                PortfolioAxis(
+                    axis_id=f"unstarted-axis-{letter}",
+                    causal_question=f"Does unstarted axis {letter} carry information?",
+                    mechanism_family=f"unstarted-family-{letter}",
+                )
+                for letter in ("a", "b", "c")
+            )
+            snapshot = PortfolioSnapshot(
+                mission_id="MIS-UNSTARTED",
+                axes=axes,
+                opportunity_cost_basis="retain independent unstarted axes",
+                exhaustion_standard=exhaustion_standard(),
+            )
+            writer.record_portfolio_snapshot(
+                snapshot=snapshot,
+                operation_id="unstarted-snapshot",
+            )
+            decision = PortfolioDecision(
+                decision_id="DEC-UNSTARTED",
+                chosen_option_id="choose-a",
+                options=(
+                    DecisionOption(
+                        option_id="choose-a",
+                        action=PortfolioAction.DEEPEN,
+                        target_id=axes[0].axis_id,
+                        expected_information_value="positive",
+                        opportunity_cost="bounded",
+                    ),
+                    DecisionOption(
+                        option_id="retain-b",
+                        action=PortfolioAction.CONTRAST,
+                        target_id=axes[1].axis_id,
+                        expected_information_value="positive",
+                        opportunity_cost="one Batch",
+                        omission_reason="axis A receives the bounded commitment",
+                    ),
+                ),
+                rationale="exercise a Writer-derived unavailable closeout",
+                commitment_batches=1,
+            )
+            writer.record_portfolio_decision(
+                decision=decision,
+                operation_id="unstarted-decision",
+            )
+            question = study_question("unstarted Batch closeout")
+            proposal = {"mechanism": "unstarted Batch closeout"}
+            study_hash = writer.study_input_hash(
+                question=question,
+                material_identity=OBSERVED_MATERIAL_ID,
+                semantic_proposal=proposal,
+                portfolio_axis_id=axes[0].axis_id,
+                portfolio_axis_identity=axes[0].identity,
+                portfolio_decision_id=decision.identity,
+            )
+            study_permit = writer.issue_permit(
+                kind=PermitKind.STUDY,
+                subject_kind=SubjectKind.INITIATIVE,
+                subject_id="INI-UNSTARTED",
+                input_hash=study_hash,
+                actions=("open_study",),
+                scope=("study",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="unstarted-study-permit",
+            )
+            opened = writer.open_study(
+                study_id="STU-UNSTARTED",
+                question=question,
+                material_identity=OBSERVED_MATERIAL_ID,
+                material_display_name="foundation observed material",
+                semantic_proposal=proposal,
+                portfolio_axis_id=axes[0].axis_id,
+                portfolio_axis_identity=axes[0].identity,
+                portfolio_decision_id=decision.identity,
+                permit=study_permit,
+                operation_id="unstarted-study-open",
+            )
+            with self.assertRaisesRegex(TransitionError, "exact next action"):
+                writer.close_study(
+                    outcome="not_evaluable",
+                    operation_id="unstarted-reject-no-batch",
+                )
+            batch = batch_spec(
+                batch_id="BAT-UNSTARTED",
+                study_id="STU-UNSTARTED",
+                study_hash=opened.result["study_hash"],
+            )
+            batch_permit = writer.issue_permit(
+                kind=PermitKind.BATCH,
+                subject_kind=SubjectKind.STUDY,
+                subject_id="STU-UNSTARTED",
+                input_hash=batch.identity.removeprefix("batch:"),
+                actions=("open_batch",),
+                scope=("batch",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="unstarted-batch-permit",
+            )
+            writer.open_batch(
+                batch_spec=batch,
+                permit=batch_permit,
+                operation_id="unstarted-batch-open",
+            )
+            with self.assertRaisesRegex(TransitionError, "unavailable disposition"):
+                writer.dispose_batch(
+                    outcome="completed",
+                    operation_id="unstarted-reject-completed",
+                )
+            writer.dispose_batch(
+                outcome="not_evaluable",
+                operation_id="unstarted-batch-close",
+            )
+            closed = writer.close_study(
+                outcome="not_evaluable",
+                operation_id="unstarted-study-close",
+            )
+            self.assertEqual(closed.result["study_kpi_sequence"], 1)
+            ledger = (writer.root / "records" / "STUDY_KPI.md").read_text(
+                encoding="ascii"
+            )
+            self.assertIn(
+                "| 000001 | 2026-07-11 09:00 | STU-UNSTARTED | - | - | - | - | - | not_evaluable |",
+                ledger,
+            )
+            with LocalIndex(writer.index_path) as index:
+                kpi_record = index.get("study-kpi", "STU-UNSTARTED")
+            assert kpi_record is not None
+            self.assertEqual(
+                kpi_record.payload["source"],
+                "writer_derived_unavailable",
+            )
+            self.assertEqual(
+                kpi_record.payload["unavailable_reason"],
+                "unstarted_batch_not_evaluable_without_final_validator_completion",
+            )
+            self.assertFalse(writer.rebuild_study_kpi_projection())
+
+            budget_decision = PortfolioDecision(
+                decision_id="DEC-BUDGET-END",
+                chosen_option_id="choose-c",
+                options=(
+                    DecisionOption(
+                        option_id="choose-c",
+                        action=PortfolioAction.DEEPEN,
+                        target_id=axes[2].axis_id,
+                        expected_information_value="positive",
+                        opportunity_cost="bounded",
+                    ),
+                    DecisionOption(
+                        option_id="retain-b",
+                        action=PortfolioAction.CONTRAST,
+                        target_id=axes[1].axis_id,
+                        expected_information_value="positive",
+                        opportunity_cost="one Batch",
+                        omission_reason="axis C receives the bounded commitment",
+                    ),
+                ),
+                rationale="exercise an exhausted non-validator Job budget",
+                commitment_batches=1,
+            )
+            writer.record_portfolio_decision(
+                decision=budget_decision,
+                operation_id="budget-end-decision",
+            )
+            budget_question = study_question("exhausted non-validator Job budget")
+            budget_proposal = {"mechanism": "budget exhaustion closeout"}
+            budget_study_hash = writer.study_input_hash(
+                question=budget_question,
+                material_identity=OBSERVED_MATERIAL_ID,
+                semantic_proposal=budget_proposal,
+                portfolio_axis_id=axes[2].axis_id,
+                portfolio_axis_identity=axes[2].identity,
+                portfolio_decision_id=budget_decision.identity,
+            )
+            budget_study_permit = writer.issue_permit(
+                kind=PermitKind.STUDY,
+                subject_kind=SubjectKind.INITIATIVE,
+                subject_id="INI-UNSTARTED",
+                input_hash=budget_study_hash,
+                actions=("open_study",),
+                scope=("study",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="budget-end-study-permit",
+            )
+            budget_study = writer.open_study(
+                study_id="STU-BUDGET-END",
+                question=budget_question,
+                material_identity=OBSERVED_MATERIAL_ID,
+                material_display_name="foundation observed material",
+                semantic_proposal=budget_proposal,
+                portfolio_axis_id=axes[2].axis_id,
+                portfolio_axis_identity=axes[2].identity,
+                portfolio_decision_id=budget_decision.identity,
+                permit=budget_study_permit,
+                operation_id="budget-end-study-open",
+            )
+            budget_batch = batch_spec(
+                batch_id="BAT-BUDGET-END",
+                study_id="STU-BUDGET-END",
+                study_hash=budget_study.result["study_hash"],
+                max_compute_seconds=30,
+            )
+            budget_batch_permit = writer.issue_permit(
+                kind=PermitKind.BATCH,
+                subject_kind=SubjectKind.STUDY,
+                subject_id="STU-BUDGET-END",
+                input_hash=budget_batch.identity.removeprefix("batch:"),
+                actions=("open_batch",),
+                scope=("batch",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="budget-end-batch-permit",
+            )
+            writer.open_batch(
+                batch_spec=budget_batch,
+                permit=budget_batch_permit,
+                operation_id="budget-end-batch-open",
+            )
+            generic_spec = job_spec(
+                writer,
+                {"kind": "Study", "id": "STU-BUDGET-END"},
+            )
+            generic = writer.declare_job(
+                spec=generic_spec,
+                operation_id="budget-end-generic-declare",
+            )
+            generic_permit = writer.issue_permit(
+                kind=PermitKind.JOB,
+                subject_kind=SubjectKind.JOB,
+                subject_id=generic.result["job_id"],
+                input_hash=generic.result["job_hash"],
+                actions=("start_job",),
+                scope=("job",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="budget-end-generic-permit",
+            )
+            writer.start_job(
+                permit=generic_permit,
+                operation_id="budget-end-generic-start",
+            )
+            generic_output = (
+                writer.root / "local" / "jobs" / "fixture" / "fixture.json"
+            )
+            generic_output.parent.mkdir(parents=True, exist_ok=True)
+            generic_output.write_bytes(b"full budget generic output")
+            generic_completion = writer.complete_job(
+                outcome="success",
+                output_manifest={
+                    "local/jobs/fixture/fixture.json": sha256(
+                        b"full budget generic output"
+                    ).hexdigest()
+                },
+                operation_id="budget-end-generic-complete",
+            )
+            with self.assertRaisesRegex(TransitionError, "validator-derived"):
+                writer.judge_job_evidence(
+                    completion_record_id=generic_completion.result[
+                        "completion_record_id"
+                    ],
+                    disposition="stop_batch",
+                    operation_id="budget-end-reject-generic-stop",
+                )
+            writer.judge_job_evidence(
+                completion_record_id=generic_completion.result[
+                    "completion_record_id"
+                ],
+                disposition="continue_batch",
+                operation_id="budget-end-continue-generic",
+            )
+            over_budget_spec = job_spec(
+                writer,
+                {"kind": "Study", "id": "STU-BUDGET-END"},
+            )
+            over_budget_spec["input_hashes"] = [
+                *over_budget_spec["input_hashes"],
+                digest("input", {"over_budget": True}),
+            ]
+            over_budget_spec["budget"] = {
+                "compute_seconds": 1,
+                "wall_seconds": 1,
+                "trials": 1,
+            }
+            with self.assertRaisesRegex(TransitionError, "exceeds the frozen Batch"):
+                writer.declare_job(
+                    spec=over_budget_spec,
+                    operation_id="budget-end-reject-next-job",
+                )
+            writer.dispose_batch(
+                outcome="budget_exhausted",
+                operation_id="budget-end-batch-close",
+            )
+            budget_closed = writer.close_study(
+                outcome="evidence_gap",
+                operation_id="budget-end-study-close",
+            )
+            self.assertEqual(budget_closed.result["study_kpi_sequence"], 2)
+            ledger = (writer.root / "records" / "STUDY_KPI.md").read_text(
+                encoding="ascii"
+            )
+            self.assertIn(
+                "| 000002 | 2026-07-11 09:00 | STU-BUDGET-END | - | - | - | - | - | evidence_gap |",
+                ledger,
+            )
+            with LocalIndex(writer.index_path) as index:
+                budget_kpi = index.get("study-kpi", "STU-BUDGET-END")
+            assert budget_kpi is not None
+            self.assertEqual(
+                budget_kpi.payload["unavailable_reason"],
+                "started_batch_budget_exhausted_without_final_validator_completion",
+            )
+            self.assertFalse(writer.rebuild_study_kpi_projection())
 
     def _exercise_future_development_reentry(
         self,
@@ -3116,6 +3550,9 @@ class ScientificLifecycleTests(unittest.TestCase):
         writer.close_study(
             outcome="supported",
             operation_id="failed-post-holdout-study-close",
+            kpi_completion_record_id=completions[-1].result[
+                "completion_record_id"
+            ],
         )
         writer.close_initiative(
             outcome="completed",

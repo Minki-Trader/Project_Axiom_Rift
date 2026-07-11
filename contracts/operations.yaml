@@ -138,6 +138,48 @@ git:
   scientific_authority: false
   coherent_milestones_only: true
   final_delivery_requires_origin_main_same_tree: true
+  study_close_checkpoint:
+    trigger_event: study_closed
+    applies_to_engineering_fixture: false
+    classification: coherent_milestone
+    kpi_record_kind: study-kpi
+    kpi_projection: records/STUDY_KPI.md
+    local_commit_and_initial_push_attempt_required_before_later_scientific_work: true
+    remote_equality_required_before_later_scientific_work: false
+    required_same_commit_paths:
+      - state/control.json
+      - records/journal.jsonl
+      - records/STUDY_KPI.md
+    local_ref: main
+    remote_ref: origin/main
+    one_commit_per_study_close: true
+    separate_batch_job_fold_or_kpi_commit_allowed: false
+    exact_path_staging_required: true
+    unrelated_staging_allowed: false
+    commit_trailers:
+      - Axiom-Study-Close
+      - Axiom-State-Revision
+    boot_delivery_audit:
+      basis: prospective_study_kpi_records_and_exact_commit_trailers
+      exact_unique_trailer_commit_reachable_from_local_ref: true
+      commit_changes_all_required_same_commit_paths: true
+      commit_snapshot_journal_tail_matches_event: true
+      commit_snapshot_control_head_matches_event_and_revision: true
+      commit_snapshot_kpi_projection_equals_deterministic_journal_render: true
+      local_commit_absence_requires_resume_before_state_or_science_action: true
+      refresh_remote_tracking_ref_before_observation: true
+      remote_relation: closeout_commit_ancestor_of_remote_ref
+      remote_absence_requires_immediate_push_attempt: true
+    push_mode: non_force
+    remote_tree_equality_observed_read_only: true
+    push_failure:
+      rolls_back_scientific_close: false
+      changes_claim_or_next_action: false
+      external_blocker_by_itself: false
+      valid_science_may_continue_after_failed_attempt: true
+      retry_same_commit: true
+      retry_at_next_stable_delivery_opportunity: true
+      duplicate_closeout_commit_allowed: false
   prohibited:
     - force_push
     - hard_reset

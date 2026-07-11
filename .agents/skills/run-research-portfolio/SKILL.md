@@ -77,3 +77,30 @@ verified content bytes, a post-predecessor/pre-successor time surface, split,
 Mission, and current untouched successor without reading successor values.
 Open later Studies only on the current registered material, and require a new
 trial plus discovery and confirmation evidence after registration before freeze.
+
+## Mandatory Study KPI Closeout
+
+Closing a real Study strongly triggers one KPI checkpoint.  Pass
+`StateWriter.close_study` the final Batch's disposition-driving,
+validator-derived `stop_batch` completion whenever one exists.  If the final
+Batch has no such completion, pass no completion: only the Writer may derive
+an unavailable basis from an unstarted Batch, an exactly exhausted frozen
+budget, an explicit early stop, or the final bound non-scientific failure.
+Never pass caller-authored KPI numbers or unavailable prose, and never pick a
+retrospective best result merely to populate the row.
+
+The writer must create exactly one immutable `study-kpi` record and materialize
+exactly one corresponding row in `records/STUDY_KPI.md`.  The row sequence is
+global and monotonic, its time comes from the `study_closed` Journal event, its
+Executable is subject-bound, and missing, invalid, censored, or inapplicable
+metrics render as `-`, never zero or a pass.  The typed Study outcome is shown
+without a display alias.  A stable collision-checked Executable display prefix
+is assigned inside the immutable record while its full identity remains there;
+the Markdown file is a Git observation projection rather than scientific
+authority.
+
+After closeout, return immediately to `$operate-axiom-mission` for the mandatory
+local-main commit and immediate non-force `origin/main` push attempt.  Observe
+remote equality when successful; retain same-commit delivery debt after a
+bounded failure.  Do not continue directly to the next Portfolio action,
+Study, Batch, or Job before the local checkpoint and first push attempt.

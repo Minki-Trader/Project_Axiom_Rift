@@ -21,6 +21,7 @@ resume condition without manufacturing completion or new scientific evidence.
 - `contracts/`: lifecycle, science, evidence, and runtime rules
 - `state/control.json`: the only mutable control projection
 - `records/`: append-only durable authority and coherent closeouts
+- `records/STUDY_KPI.md`: one-row-per-Study KPI observation projection
 - `src/axiom_rift/core/`: domain identity and canonical value primitives
 - `src/axiom_rift/operations/`: the sole writer and typed capabilities
 - `src/axiom_rift/research/`: Portfolio, trial, and external-source semantics

@@ -14,7 +14,18 @@ Use the repository as authority. Do not depend on chat history.
 3. Read the active record named by control state. At a Mission-admission
    boundary, read its exact predecessor terminal instead.
 4. Read only the contracts required by the classified action.
-5. If an active Job or Repair exists, resume or dispose it before opening work.
+5. Audit every prospective real `study-kpi` record against Git.  Its exact
+   `study_closed` event ID and revision must identify exactly one commit
+   reachable from local `main` through the required trailers.  That commit
+   must change all three required projection paths; its snapshot must end the
+   Journal and control head at that exact event/revision, and its KPI file
+   bytes must equal the deterministic render of all Journal `study-kpi`
+   records in that snapshot.  If this authenticated commit is absent, resume the
+   closeout delivery before any state or science action.  Refresh the
+   `origin/main` observation, require the closeout commit to be its ancestor,
+   and otherwise make the immediate non-force push attempt before new science
+   while retaining same-commit delivery debt after a bounded failed attempt.
+6. If an active Job or Repair exists, resume or dispose it before opening work.
 
 ## Goal Intake
 
@@ -65,6 +76,31 @@ Use the repository as authority. Do not depend on chat history.
   equivalence, and an implementation retry must change the actual artifact set.
   Input or scientific semantic changes use a distinct Job or Executable identity.
 - Treat Git as recovery and delivery observation, never as state-transition authority.
+
+## Mandatory Study Close Delivery
+
+Every real `study_closed` event is one coherent Git milestone and an immediate
+delivery trigger.  Before any later Portfolio action, Study, Batch, or Job:
+
+1. Require the writer-created `study-kpi` record and the matching row in
+   `records/STUDY_KPI.md`.
+2. Run focused checks for the closed Study and the KPI projection.
+3. On local `main`, stage only the exact Study milestone paths.  They include
+   `state/control.json`, `records/journal.jsonl`, `records/STUDY_KPI.md`, and
+   the Study-scoped code, tests, or compact records that belong to the same
+   closeout.  Reject unrelated staged paths; never use blanket staging.
+4. Create one commit with `Axiom-Study-Close: <event_id>` and
+   `Axiom-State-Revision: <revision>` trailers, then immediately attempt a
+   non-force push of `main` to `origin/main`.  Observe remote tree equality
+   read-only when delivery succeeds.
+
+A push, authentication, network, protection, or divergence failure never
+rolls back the scientific close and never becomes scientific evidence or a
+Mission blocker by itself.  Preserve the local commit, resolve delivery
+without rewriting history, and retry the same commit at the next stable
+delivery opportunity.  Do not manufacture a second closeout commit.  The
+local commit and first bounded push attempt must precede later scientific
+work; remote success itself is not a scientific gate.
 
 ## Repair
 

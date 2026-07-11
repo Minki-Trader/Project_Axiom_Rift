@@ -739,6 +739,16 @@ runtime_eligible; semantic change requires a new source contract.
   separate Git ceremony.
 - [MUST] OD-REC-013 Force-push, hard reset, history rewrite, unrelated staging, and
   destructive cleanup outside a verified allowlist are forbidden.
+- [MUST] OD-REC-014 Every real Study close is one coherent user-observation
+  checkpoint. It appends exactly one subject-bound summary row derived from
+  the final validator completion or a Writer-verified disposed-Batch basis
+  with no applicable final validator completion, creates one local-main
+  closeout commit, and immediately attempts non-force delivery to origin/main
+  before later scientific work.
+- [MUST] OD-REC-015 Study-close Git delivery remains non-authoritative. Push
+  failure preserves the scientific close and local commit, permits no history
+  rewrite or duplicate closeout, retains same-commit delivery debt for retry
+  at the next stable opportunity, and does not block otherwise valid science.
 
 ## 20. Foundation Initiative Boundary
 

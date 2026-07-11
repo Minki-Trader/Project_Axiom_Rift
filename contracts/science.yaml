@@ -75,6 +75,62 @@ batch:
   identical_failed_retry_without_change_allowed: false
   identity_binds_study_semantic_hash_not_display_handles: true
   study_binds_portfolio_snapshot_decision_action_and_axis_identity: true
+study_kpi_projection:
+  path: records/STUDY_KPI.md
+  source_record_kind: study-kpi
+  source_event: study_closed
+  scientific_authority: false
+  prospective_from_activation: true
+  retroactive_kpi_inference_allowed: false
+  one_row_per_real_study_close: true
+  sequence:
+    source: global_study_kpi_event_stream
+    format: zero_padded_decimal_6
+  close_time:
+    source: journal_event_occurred_at_utc
+    display_timezone: Asia/Seoul
+  representative_executable:
+    final_validator_source: final_batch_disposition_driving_validator_stop_batch_completion
+    no_final_validator_completion_source: writer_verified_disposed_batch_basis
+    non_performance_validator_completion_dash_allowed: true
+    full_immutable_identity_in_record: true
+    collision_checked_display_prefix: true
+    display_prefix_initial_hex_length: 12
+    display_prefix_extension_hex_step: 4
+    existing_display_id_rewrite_allowed: false
+    caller_metric_input_allowed: false
+    caller_unavailable_reason_allowed: false
+    retrospective_best_fill_allowed: false
+    completed_batch_requires_kpi_eligible_final_stop_completion: true
+    generic_runtime_or_engineering_completion_can_stop_batch: false
+    no_final_validator_completion:
+      completed_batch_allowed: false
+      study_outcomes:
+        - evidence_gap
+        - not_evaluable
+        - pruned
+      unstarted_batch_outcomes:
+        - not_evaluable
+        - stopped_early
+      started_batch_outcomes:
+        budget_exhausted: exact_frozen_compute_wall_or_trial_bound
+        stopped_early: explicit_typed_disposition
+        not_evaluable: final_non_scientific_not_evaluable_failure
+        engineering_failure: final_non_scientific_engineering_failure
+    kpi_bearing_measurement_exact_bindings:
+      - executable_id
+      - job_id
+      - job_hash
+  metrics:
+    net_profit: net_profit_micropoints
+    profit_factor: median_fold_profit_factor_milli
+    trades: trade_count
+    drawdown_share: monthly_realized_exit_drawdown_share_of_gross_profit_ppm
+  missing_invalid_censored_or_inapplicable_display: "-"
+  missing_value_becomes_zero_or_pass: false
+  outcome_source: typed_study_close_outcome
+  outcome_display_alias_allowed: false
+  candidate_or_winner_claim: false
 executable_identity_binds:
   - ordered_component_identities
   - parameters

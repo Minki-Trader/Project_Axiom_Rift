@@ -43,6 +43,12 @@ from axiom_rift.storage.journal import (
     JournalIntegrityError,
     _issue_journal_write_capability,
 )
+from axiom_rift.storage.study_kpi import (
+    LEDGER_RELATIVE_PATH,
+    StudyKpiProjectionRow,
+    materialize_study_kpi,
+    validate_study_id,
+)
 from axiom_rift.storage.state import ControlStateError, ControlStore, WriterLock, seal_control
 
 
@@ -102,6 +108,12 @@ _INITIATIVE_OUTCOMES = frozenset(
 )
 _STUDY_OUTCOMES = frozenset(
     {"supported", "not_supported", "not_evaluable", "evidence_gap", "pruned", "preserved"}
+)
+_STUDY_KPI_METRICS = (
+    "net_profit_micropoints",
+    "median_fold_profit_factor_milli",
+    "trade_count",
+    "monthly_realized_exit_drawdown_share_of_gross_profit_ppm",
 )
 _BATCH_OUTCOMES = frozenset(
     {"completed", "budget_exhausted", "stopped_early", "not_evaluable", "engineering_failure"}
@@ -1250,13 +1262,15 @@ class StateWriter:
                     )
                 )
                 projected_digest = index.projected_digest(all_records)
+                event_occurred_at_utc = self.clock()
+                _parse_utc("event occurred_at_utc", event_occurred_at_utc)
                 event = self.journal._append_authorized(
                     capability=self._journal_write_capability,
                     expected_head=current_head,
                     event_kind=event_kind,
                     operation_id=operation_id,
                     subject=subject,
-                    occurred_at_utc=self.clock(),
+                    occurred_at_utc=event_occurred_at_utc,
                     payload=committed_payload,
                     control=next_body,
                     index_records=[self._index_mapping(item) for item in all_records],
@@ -1384,11 +1398,15 @@ class StateWriter:
                     raise JournalIntegrityError(
                         "rebuilt index digest differs from journal authority"
                     )
-            return {
+            report = {
                 "journal_sequence": last["sequence"],
                 "control_repaired": control_repaired,
                 "index_rebuilt": needs_rebuild,
             }
+        report["study_kpi_projection_changed"] = (
+            self.rebuild_study_kpi_projection()
+        )
+        return report
 
     def initialize_ready(
         self,
@@ -2442,7 +2460,10 @@ class StateWriter:
         portfolio_axis_identity: str | None = None,
         portfolio_decision_id: str | None = None,
     ) -> TransitionResult:
-        _require_ascii("study_id", study_id)
+        try:
+            validate_study_id(study_id)
+        except ValueError as exc:
+            raise TransitionError("study_id is invalid") from exc
         question_manifest = _require_manifest(
             "question",
             question,
@@ -2971,12 +2992,13 @@ class StateWriter:
                     "kind": "declare_job",
                     "batch_id": batch["id"],
                 }
-                unstarted = _index.event_head(
-                    f"batch-budget:{batch['id']}"
-                ) is None
-                if next_action != exact_dispose and not (
-                    next_action == exact_unstarted and unstarted
-                ):
+                if next_action == exact_unstarted:
+                    self._batch_unavailable_reason(
+                        _index,
+                        batch["id"],
+                        outcome,
+                    )
+                elif next_action != exact_dispose:
                     raise TransitionError(
                         "Batch disposition is not the exact next action"
                     )
@@ -3005,14 +3027,646 @@ class StateWriter:
             prepare=prepare,
         )
 
-    def close_study(self, *, outcome: str, operation_id: str) -> TransitionResult:
+    @staticmethod
+    def _contains_study_kpi_metric(
+        value: Mapping[str, Any],
+        name: str,
+    ) -> bool:
+        return any(
+            key == name
+            or (
+                isinstance(item, Mapping)
+                and StateWriter._contains_study_kpi_metric(item, name)
+            )
+            for key, item in value.items()
+        )
+
+    @staticmethod
+    def _collect_study_kpi_metric(
+        measurements: Sequence[Mapping[str, Any]],
+        name: str,
+    ) -> int | None:
+        observed: list[int | None] = []
+
+        def visit(value: Mapping[str, Any]) -> None:
+            for key, item in value.items():
+                if key == name:
+                    if item is not None and (
+                        isinstance(item, bool) or not isinstance(item, int)
+                    ):
+                        raise TransitionError(
+                            f"Study KPI metric {name} is not an integer or null"
+                        )
+                    observed.append(item)
+                elif isinstance(item, Mapping):
+                    visit(item)
+
+        for measurement in measurements:
+            metrics = measurement.get("metrics")
+            if isinstance(metrics, Mapping):
+                visit(metrics)
+        values = set(observed)
+        if not values:
+            return None
+        if len(values) != 1:
+            raise TransitionError(f"Study KPI metric {name} is ambiguous")
+        return values.pop()
+
+    def _study_kpi_from_completion(
+        self,
+        *,
+        index: LocalIndex,
+        study_id: str,
+        completion_record_id: str,
+        require_stop_decision: bool = True,
+    ) -> dict[str, Any]:
+        _require_digest("Study KPI completion record", completion_record_id)
+        completion = index.get("job-completed", completion_record_id)
+        if completion is None:
+            raise TransitionError("Study KPI completion record is unavailable")
+        job_id = completion.payload.get("job_id")
+        if type(job_id) is not str:
+            raise TransitionError("Study KPI completion has no Job identity")
+        declaration = index.get("job-declared", job_id)
+        if (
+            declaration is None
+            or declaration.payload.get("study_id") != study_id
+        ):
+            raise TransitionError("Study KPI completion belongs to another Study")
+        batch_head = index.event_head(f"study-batches:{study_id}")
+        if (
+            batch_head is None
+            or declaration.payload.get("batch_id") != batch_head.record_id
+        ):
+            raise TransitionError(
+                "Study KPI completion does not belong to the final Study Batch"
+            )
+        decisions = tuple(
+            record
+            for record in index.records_by_fingerprint(completion.fingerprint)
+            if record.kind == "job-evidence-decision"
+            and record.payload.get("completion_record_id") == completion_record_id
+        )
+        if require_stop_decision and (
+            len(decisions) != 1
+            or decisions[0].subject != f"Job:{job_id}"
+            or decisions[0].status != "stop_batch"
+        ):
+            raise TransitionError(
+                "Study KPI completion is not the disposition-driving stop_batch evidence"
+            )
+        scientific = completion.payload.get("scientific")
+        if (
+            not isinstance(scientific, Mapping)
+            or scientific.get("scientific_eligible") is not True
+        ):
+            nonperformance = tuple(
+                (domain, evidence)
+                for domain, evidence in (
+                    ("source", completion.payload.get("source")),
+                    ("external", completion.payload.get("external")),
+                )
+                if isinstance(evidence, Mapping)
+            )
+            if len(nonperformance) != 1:
+                raise TransitionError(
+                    "Study KPI completion is not validator-derived evidence"
+                )
+            domain, evidence = nonperformance[0]
+            if (
+                type(evidence.get("validator_id")) is not str
+                or not isinstance(evidence.get("validation_trace"), Mapping)
+                or type(evidence.get("result_manifest_hash")) is not str
+            ):
+                raise TransitionError(
+                    "Study KPI non-performance completion lacks validator provenance"
+                )
+            _require_digest(
+                "Study KPI non-performance result",
+                evidence["result_manifest_hash"],
+            )
+            spec = declaration.payload.get("spec")
+            subject = None if not isinstance(spec, Mapping) else spec.get(
+                "evidence_subject"
+            )
+            executable_id = (
+                subject.get("id")
+                if isinstance(subject, Mapping)
+                and subject.get("kind") == "Executable"
+                and type(subject.get("id")) is str
+                else None
+            )
+            return {
+                "completion_record_id": completion_record_id,
+                "executable_id": executable_id,
+                "metrics": {name: None for name in _STUDY_KPI_METRICS},
+                "source": f"validator_derived_{domain}_completion",
+                "unavailable_reason": "non_performance_study",
+            }
+        executable_id = scientific.get("executable_id")
+        if type(executable_id) is not str:
+            raise TransitionError("Study KPI completion has no Executable identity")
+        measurement_hashes = scientific.get("measurement_artifact_hashes")
+        if (
+            not isinstance(measurement_hashes, list)
+            or not measurement_hashes
+            or len(set(measurement_hashes)) != len(measurement_hashes)
+        ):
+            raise TransitionError("Study KPI completion has invalid measurements")
+        measurements: list[Mapping[str, Any]] = []
+        for measurement_hash in measurement_hashes:
+            _require_digest("Study KPI measurement artifact", measurement_hash)
+            try:
+                measurement = parse_canonical(
+                    self.evidence.read_verified(measurement_hash)
+                )
+            except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+                raise TransitionError(
+                    "Study KPI measurement artifact is unavailable or invalid"
+                ) from exc
+            if not isinstance(measurement, Mapping):
+                raise TransitionError(
+                    "Study KPI measurement belongs to another Job or Executable"
+                )
+            metric_payload = measurement.get("metrics")
+            has_kpi = isinstance(metric_payload, Mapping) and any(
+                self._contains_study_kpi_metric(metric_payload, name)
+                for name in _STUDY_KPI_METRICS
+            )
+            binding_mismatch = any(
+                field in measurement and measurement.get(field) != expected
+                for field, expected in (
+                    ("executable_id", executable_id),
+                    ("job_id", job_id),
+                    ("job_hash", declaration.fingerprint),
+                )
+            )
+            binding_absent_for_kpi = has_kpi and any(
+                measurement.get(field) != expected
+                for field, expected in (
+                    ("executable_id", executable_id),
+                    ("job_id", job_id),
+                    ("job_hash", declaration.fingerprint),
+                )
+            )
+            if binding_mismatch or binding_absent_for_kpi:
+                raise TransitionError(
+                    "Study KPI measurement belongs to another Job or Executable"
+                )
+            measurements.append(measurement)
+        metrics = {
+            name: self._collect_study_kpi_metric(measurements, name)
+            for name in _STUDY_KPI_METRICS
+        }
+        return {
+            "completion_record_id": completion_record_id,
+            "executable_id": executable_id,
+            "metrics": metrics,
+            "source": "scientific_job_completion",
+            "unavailable_reason": None,
+        }
+
+    @staticmethod
+    def _study_kpi_display_id(
+        index: LocalIndex,
+        executable_id: str | None,
+    ) -> str | None:
+        if executable_id is None:
+            return None
+        used: dict[str, str] = {}
+        existing_for_identity: set[str] = set()
+        for record in index.records_by_kind("study-kpi"):
+            prior_identity = record.payload.get("executable_id")
+            prior_display = record.payload.get("executable_display_id")
+            if prior_identity is None and prior_display is None:
+                continue
+            if type(prior_identity) is not str or type(prior_display) is not str:
+                raise TransitionError("Existing Study KPI display binding is invalid")
+            owner = used.get(prior_display)
+            if owner is not None and owner != prior_identity:
+                raise TransitionError("Existing Study KPI display id is not unique")
+            used[prior_display] = prior_identity
+            if prior_identity == executable_id:
+                existing_for_identity.add(prior_display)
+        if len(existing_for_identity) > 1:
+            raise TransitionError("Executable has inconsistent Study KPI display ids")
+        if existing_for_identity:
+            return next(iter(existing_for_identity))
+        digest = executable_id.removeprefix("executable:")
+        for length in range(12, 65, 4):
+            display = f"EXE-{digest[:length]}"
+            if display not in used:
+                return display
+        raise TransitionError("Executable has no unique Study KPI display id")
+
+    @staticmethod
+    def _batch_stop_completion_ids(
+        index: LocalIndex,
+        batch_id: str,
+    ) -> tuple[str, ...]:
+        completion_ids: set[str] = set()
+        for decision in index.records_by_kind("job-evidence-decision"):
+            if decision.status != "stop_batch":
+                continue
+            job_id = decision.subject.removeprefix("Job:")
+            declaration = index.get("job-declared", job_id)
+            completion_id = decision.payload.get("completion_record_id")
+            if (
+                declaration is not None
+                and declaration.payload.get("batch_id") == batch_id
+            ):
+                if type(completion_id) is not str:
+                    raise TransitionError(
+                        "Batch stop decision lacks its completion identity"
+                    )
+                completion_ids.add(completion_id)
+        return tuple(sorted(completion_ids))
+
+    @staticmethod
+    def _batch_unavailable_reason(
+        index: LocalIndex,
+        batch_id: str,
+        outcome: str,
+    ) -> str:
+        budget_head = index.event_head(f"batch-budget:{batch_id}")
+        trial_head = index.event_head(f"batch-trials:{batch_id}")
+        started = budget_head is not None or trial_head is not None
+        if not started:
+            if outcome not in {"not_evaluable", "stopped_early"}:
+                raise TransitionError(
+                    "Unstarted Batch requires a typed unavailable disposition"
+                )
+        elif outcome == "budget_exhausted":
+            batch_record = index.get("batch-open", batch_id)
+            budget_record = index.get(
+                budget_head.record_kind,
+                budget_head.record_id,
+            ) if budget_head is not None else None
+            spec = None if batch_record is None else batch_record.payload.get("spec")
+            budget = None if budget_record is None else budget_record.payload
+            trial_count = 0 if trial_head is None else trial_head.sequence
+            if (
+                not isinstance(spec, Mapping)
+                or (
+                    (
+                        not isinstance(budget, Mapping)
+                        or (
+                            budget.get("compute_seconds")
+                            != spec.get("max_compute_seconds")
+                            and budget.get("wall_seconds")
+                            != spec.get("max_wall_seconds")
+                        )
+                    )
+                    and trial_count != spec.get("max_trials")
+                )
+            ):
+                raise TransitionError("Batch budget is not exhausted")
+        elif outcome in {"engineering_failure", "not_evaluable"}:
+            decisions: list[IndexRecord] = []
+            for decision in index.records_by_kind("job-evidence-decision"):
+                if decision.status != "continue_batch":
+                    continue
+                job_id = decision.subject.removeprefix("Job:")
+                declaration = index.get("job-declared", job_id)
+                if (
+                    declaration is not None
+                    and declaration.payload.get("batch_id") == batch_id
+                ):
+                    decisions.append(decision)
+            latest = (
+                None
+                if not decisions
+                else max(
+                    decisions,
+                    key=lambda item: (
+                        -1
+                        if item.authority_sequence is None
+                        else item.authority_sequence
+                    ),
+                )
+            )
+            completion_id = (
+                None
+                if latest is None
+                else latest.payload.get("completion_record_id")
+            )
+            completion = (
+                None
+                if not isinstance(completion_id, str)
+                else index.get("job-completed", completion_id)
+            )
+            failure = None if completion is None else completion.payload.get("failure")
+            expected_status = "failed" if outcome == "engineering_failure" else "not_evaluable"
+            expected_failure = "engineering" if outcome == "engineering_failure" else "not_evaluable"
+            if (
+                completion is None
+                or completion.status != expected_status
+                or not isinstance(failure, Mapping)
+                or failure.get("failure_kind") != expected_failure
+                or isinstance(completion.payload.get("scientific"), Mapping)
+                or isinstance(completion.payload.get("source"), Mapping)
+                or isinstance(completion.payload.get("external"), Mapping)
+            ):
+                raise TransitionError(
+                    f"Batch {outcome} lacks its final non-scientific failure basis"
+                )
+        elif outcome != "stopped_early":
+            raise TransitionError(
+                "Started Batch without a final stop completion requires a typed "
+                "unavailable disposition"
+            )
+        return (
+            f"{'started' if started else 'unstarted'}_batch_{outcome}_"
+            "without_final_validator_completion"
+        )
+
+    def _study_kpi_payload(
+        self,
+        *,
+        index: LocalIndex,
+        study_id: str,
+        outcome: str,
+        completion_record_id: str | None,
+        closed_at_utc: str,
+    ) -> dict[str, Any] | None:
+        if self.engineering_fixture:
+            return None
+        if completion_record_id is None:
+            batch_head = index.event_head(f"study-batches:{study_id}")
+            if batch_head is None:
+                raise TransitionError(
+                    "Real Study close requires a disposed Batch"
+                )
+            batch_id = batch_head.record_id
+            if self._batch_stop_completion_ids(index, batch_id):
+                raise TransitionError(
+                    "Study with a final stop decision requires its validator completion"
+                )
+            close_records = tuple(
+                record
+                for status in _BATCH_OUTCOMES
+                for record in index.records_by_subject_status(
+                    f"Batch:{batch_id}", status
+                )
+                if record.kind == "batch-close"
+            )
+            close_status = None if len(close_records) != 1 else close_records[0].status
+            if (
+                close_status is None
+                or outcome not in {"evidence_gap", "not_evaluable", "pruned"}
+            ):
+                raise TransitionError(
+                    "Study KPI unavailable state is not writer-derived"
+                )
+            unavailable_reason = self._batch_unavailable_reason(
+                index,
+                batch_id,
+                close_status,
+            )
+            source = {
+                "completion_record_id": None,
+                "executable_id": None,
+                "executable_display_id": None,
+                "metrics": {name: None for name in _STUDY_KPI_METRICS},
+                "source": "writer_derived_unavailable",
+                "unavailable_reason": unavailable_reason,
+            }
+        else:
+            source = self._study_kpi_from_completion(
+                index=index,
+                study_id=study_id,
+                completion_record_id=completion_record_id,
+            )
+            if (
+                source["source"]
+                in {
+                    "validator_derived_source_completion",
+                    "validator_derived_external_completion",
+                }
+                and outcome
+                not in {"preserved", "pruned", "evidence_gap", "not_evaluable"}
+            ):
+                raise TransitionError(
+                    "Non-performance Study KPI completion is incompatible with the outcome"
+                )
+            source["executable_display_id"] = self._study_kpi_display_id(
+                index,
+                source["executable_id"],
+            )
+        head = index.event_head("study-kpi")
+        sequence = 1 if head is None else head.sequence + 1
+        payload = {
+            **source,
+            "outcome": outcome,
+            "sequence": sequence,
+            "study_id": study_id,
+        }
+        try:
+            StudyKpiProjectionRow(
+                sequence=sequence,
+                closed_at_utc=closed_at_utc,
+                study_id=study_id,
+                executable_id=payload["executable_id"],
+                executable_display_id=payload["executable_display_id"],
+                net_profit_micropoints=payload["metrics"][
+                    "net_profit_micropoints"
+                ],
+                median_fold_profit_factor_milli=payload["metrics"][
+                    "median_fold_profit_factor_milli"
+                ],
+                trade_count=payload["metrics"]["trade_count"],
+                monthly_realized_exit_drawdown_share_of_gross_profit_ppm=payload[
+                    "metrics"
+                ]["monthly_realized_exit_drawdown_share_of_gross_profit_ppm"],
+                outcome=outcome,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise TransitionError("Study KPI row is not renderable") from exc
+        return payload
+
+    def rebuild_study_kpi_projection(self) -> bool:
+        """Materialize the tracked Markdown view from Journal-bound records."""
+
+        rows: list[StudyKpiProjectionRow] = []
+        with WriterLock(self.lock_path):
+            with self._open_authoritative_index() as index:
+                self._require_stable_locked(index)
+                for record in index.records_by_kind("study-kpi"):
+                    payload = record.payload
+                    expected_fields = {
+                        "completion_record_id",
+                        "executable_id",
+                        "executable_display_id",
+                        "metrics",
+                        "outcome",
+                        "sequence",
+                        "source",
+                        "study_id",
+                        "unavailable_reason",
+                    }
+                    metrics = payload.get("metrics")
+                    sequence = payload.get("sequence")
+                    study_id = payload.get("study_id")
+                    outcome = payload.get("outcome")
+                    if (
+                        set(payload) != expected_fields
+                        or not isinstance(metrics, Mapping)
+                        or set(metrics) != set(_STUDY_KPI_METRICS)
+                        or isinstance(sequence, bool)
+                        or not isinstance(sequence, int)
+                        or record.record_id != study_id
+                        or record.subject != f"Study:{study_id}"
+                        or record.status != outcome
+                        or record.event_stream != "study-kpi"
+                        or record.event_sequence != sequence
+                        or record.authority_event_id is None
+                    ):
+                        raise TransitionError("Study KPI record projection is invalid")
+                    source = payload.get("source")
+                    completion_record_id = payload.get("completion_record_id")
+                    executable_id = payload.get("executable_id")
+                    executable_display_id = payload.get("executable_display_id")
+                    unavailable_reason = payload.get("unavailable_reason")
+                    if source == "scientific_job_completion":
+                        if (
+                            type(completion_record_id) is not str
+                            or type(executable_id) is not str
+                            or type(executable_display_id) is not str
+                            or unavailable_reason is not None
+                        ):
+                            raise TransitionError("Study KPI evidence source is invalid")
+                    elif source in {
+                        "validator_derived_source_completion",
+                        "validator_derived_external_completion",
+                    }:
+                        if (
+                            type(completion_record_id) is not str
+                            or (
+                                executable_id is not None
+                                and type(executable_id) is not str
+                            )
+                            or (
+                                executable_id is None
+                                and executable_display_id is not None
+                            )
+                            or (
+                                executable_id is not None
+                                and type(executable_display_id) is not str
+                            )
+                            or unavailable_reason != "non_performance_study"
+                            or any(value is not None for value in metrics.values())
+                        ):
+                            raise TransitionError(
+                                "Study KPI non-performance source is invalid"
+                            )
+                    elif source == "writer_derived_unavailable":
+                        allowed_reasons = {
+                            "unstarted_batch_not_evaluable_without_final_validator_completion": "not_evaluable",
+                            "unstarted_batch_stopped_early_without_final_validator_completion": "stopped_early",
+                            "started_batch_budget_exhausted_without_final_validator_completion": "budget_exhausted",
+                            "started_batch_stopped_early_without_final_validator_completion": "stopped_early",
+                            "started_batch_not_evaluable_without_final_validator_completion": "not_evaluable",
+                            "started_batch_engineering_failure_without_final_validator_completion": "engineering_failure",
+                        }
+                        batch_head = index.event_head(
+                            f"study-batches:{study_id}"
+                        )
+                        reason_status = allowed_reasons.get(unavailable_reason)
+                        close_records = (
+                            ()
+                            if batch_head is None or reason_status is None
+                            else tuple(
+                                item
+                                for item in index.records_by_subject_status(
+                                    f"Batch:{batch_head.record_id}",
+                                    reason_status,
+                                )
+                                if item.kind == "batch-close"
+                            )
+                        )
+                        derived_reason = (
+                            None
+                            if batch_head is None or reason_status is None
+                            else self._batch_unavailable_reason(
+                                index,
+                                batch_head.record_id,
+                                reason_status,
+                            )
+                        )
+                        if (
+                            completion_record_id is not None
+                            or executable_id is not None
+                            or executable_display_id is not None
+                            or any(value is not None for value in metrics.values())
+                            or reason_status is None
+                            or outcome
+                            not in {"evidence_gap", "not_evaluable", "pruned"}
+                            or batch_head is None
+                            or derived_reason != unavailable_reason
+                            or self._batch_stop_completion_ids(
+                                index,
+                                batch_head.record_id,
+                            )
+                            or len(close_records) != 1
+                        ):
+                            raise TransitionError(
+                                "Study KPI Writer-derived unavailable source is invalid"
+                            )
+                    else:
+                        raise TransitionError("Study KPI source is not typed")
+                    event = index.get("journal-event", record.authority_event_id)
+                    if event is None or event.status != "study_closed":
+                        raise TransitionError(
+                            "Study KPI record is not bound to a Study close event"
+                        )
+                    try:
+                        rows.append(
+                            StudyKpiProjectionRow(
+                                sequence=sequence,
+                                closed_at_utc=event.payload["occurred_at_utc"],
+                                study_id=study_id,
+                                executable_id=executable_id,
+                                executable_display_id=executable_display_id,
+                                net_profit_micropoints=metrics[
+                                    "net_profit_micropoints"
+                                ],
+                                median_fold_profit_factor_milli=metrics[
+                                    "median_fold_profit_factor_milli"
+                                ],
+                                trade_count=metrics["trade_count"],
+                                monthly_realized_exit_drawdown_share_of_gross_profit_ppm=metrics[
+                                    "monthly_realized_exit_drawdown_share_of_gross_profit_ppm"
+                                ],
+                                outcome=outcome,
+                            )
+                        )
+                    except (KeyError, TypeError, ValueError) as exc:
+                        raise TransitionError(
+                            "Study KPI record cannot be rendered"
+                        ) from exc
+                try:
+                    return materialize_study_kpi(
+                        self.root / LEDGER_RELATIVE_PATH,
+                        rows,
+                    )
+                except (OSError, ValueError) as exc:
+                    raise TransitionError(
+                        "Study KPI projection materialization failed"
+                    ) from exc
+
+    def close_study(
+        self,
+        *,
+        outcome: str,
+        operation_id: str,
+        kpi_completion_record_id: str | None = None,
+    ) -> TransitionResult:
         _require_ascii("outcome", outcome)
         allowed = set(_STUDY_OUTCOMES)
         if self.engineering_fixture:
             allowed.add(_ENGINEERING_FIXTURE_OUTCOME)
         if outcome not in allowed:
             raise TransitionError("Study outcome is not typed")
-
         def prepare(current: dict[str, Any] | None, _index: LocalIndex):
             if current is None:
                 raise TransitionError("control is absent")
@@ -3026,6 +3680,20 @@ class StateWriter:
             study_record = _index.get("study-open", study_id)
             if study_record is None:
                 raise TransitionError("Study declaration is unavailable")
+            batch_head = _index.event_head(f"study-batches:{study_id}")
+            if (
+                batch_head is None
+                or body.get("next_action")
+                != {"kind": "judge_study", "study_id": study_id}
+            ):
+                raise TransitionError("Study close is not the exact next action")
+            kpi_payload = self._study_kpi_payload(
+                index=_index,
+                study_id=study_id,
+                outcome=outcome,
+                completion_record_id=kpi_completion_record_id,
+                closed_at_utc="1970-01-01T00:00:00Z",
+            )
             science["active_study"] = None
             self._drop_authorization(body, SubjectKind.STUDY, study_id)
             body["next_action"] = {
@@ -3034,9 +3702,10 @@ class StateWriter:
                     "portfolio_snapshot_id"
                 ),
             }
-            fingerprint = _digest(
-                {"study_id": study_id, "outcome": outcome}, domain="study-close"
-            )
+            fingerprint_payload = {"study_id": study_id, "outcome": outcome}
+            if kpi_payload is not None:
+                fingerprint_payload["study_kpi"] = kpi_payload
+            fingerprint = _digest(fingerprint_payload, domain="study-close")
             record = _record(
                 kind="study-close",
                 record_id=fingerprint,
@@ -3054,17 +3723,48 @@ class StateWriter:
                     "portfolio_snapshot_id": study_record.payload.get(
                         "portfolio_snapshot_id"
                     ),
+                    "study_kpi_record_id": (
+                        None if kpi_payload is None else study_id
+                    ),
                 },
             )
-            return body, [record], {"study_id": study_id, "outcome": outcome}
+            records = [record]
+            if kpi_payload is not None:
+                kpi_fingerprint = _digest(kpi_payload, domain="study-kpi")
+                records.append(
+                    _record(
+                        kind="study-kpi",
+                        record_id=study_id,
+                        subject=f"Study:{study_id}",
+                        status=outcome,
+                        fingerprint=kpi_fingerprint,
+                        payload=kpi_payload,
+                        event_stream="study-kpi",
+                        event_sequence=kpi_payload["sequence"],
+                    )
+                )
+            return body, records, {
+                "study_id": study_id,
+                "outcome": outcome,
+                "study_kpi_record_id": None if kpi_payload is None else study_id,
+                "study_kpi_sequence": (
+                    None if kpi_payload is None else kpi_payload["sequence"]
+                ),
+            }
 
-        return self._commit(
+        transition = self._commit(
             event_kind="study_closed",
             operation_id=operation_id,
             subject="Study:active",
-            payload={"outcome": outcome},
+            payload={
+                "kpi_completion_record_id": kpi_completion_record_id,
+                "outcome": outcome,
+            },
             prepare=prepare,
         )
+        if not self.engineering_fixture:
+            self.rebuild_study_kpi_projection()
+        return transition
 
     @staticmethod
     def _normalize_job_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
@@ -6947,6 +7647,18 @@ class StateWriter:
                 or declared_batch_id != batch.get("id")
             ):
                 raise TransitionError("Job judgement is outside the active Batch")
+            if disposition == "stop_batch" and not self.engineering_fixture:
+                study_id = science.get("active_study")
+                if not isinstance(study_id, str):
+                    raise TransitionError(
+                        "Real Batch stop requires its active Study"
+                    )
+                self._study_kpi_from_completion(
+                    index=index,
+                    study_id=study_id,
+                    completion_record_id=completion_record_id,
+                    require_stop_decision=False,
+                )
             body["next_action"] = (
                 {"kind": "declare_job", "batch_id": batch["id"]}
                 if disposition == "continue_batch"
