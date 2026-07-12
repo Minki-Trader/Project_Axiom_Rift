@@ -157,6 +157,7 @@ _SCIENTIFIC_EVALUATION_PROFILES = {
     "high_vol_dense_regime_evaluation.v1": (2, 544),
     "regime_direction_router_evaluation.v1": (2, 546),
     "monthly_loss_lock_risk_evaluation.v1": (2, 548),
+    "three_way_regime_router_evaluation.v1": (2, 550),
     "complementary_sleeve_evaluation.v1": (4, 512),
     "probability_calibration_evaluation.v1": (4, 516),
     "rank_bin_calibration_evaluation.v1": (4, 520),
