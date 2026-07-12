@@ -15,6 +15,12 @@ Read the exact Journal/index head and reconstruct the research forest from:
 6. Executable component protocols and common architecture.
 7. Mission terminals and exhaustion bases.
 
+Use the tracked history-audit script. It must reject an index row whose digest
+or Journal membership is invalid. Treat `domain_alignment=mismatch` as an
+explicit audit finding, not as authority to rewrite the old Study. Treat
+`question_unclassified` and `legacy_unclassified` as limitations rather than
+negative evidence.
+
 Produce a coverage map with these columns:
 
 `Study | causal question | primary layer | architecture family | changed | controlled | outcome | evidence state | reopen condition`
@@ -65,6 +71,11 @@ Admit an axis only when all are explicit:
 - acceptance, falsification, stop, and reopen conditions;
 - relation to prior negative memory and semantic warnings.
 
+Encode changed and controlled variables with exact `ResearchLayer` names as the
+top-level keys or list values. Keep concrete parameter or component details
+under those domain labels. The history audit must be able to compare the Study
+question with the axis declaration without guessing.
+
 Layer diversity is not calendar rotation. Prefer the bottleneck with the
 highest expected information value, while keeping the initial Portfolio and
 Mission exhaustion claim structurally credible.
@@ -89,8 +100,10 @@ Choose the narrowest state supported by the final bound evidence:
 
 Never diagnose `model_capacity` merely because a larger model is available.
 Never diagnose `target_mismatch` merely because another label might score
-better. The evidence must identify that bottleneck or the diagnosis confidence
-must remain low with a decisive counterfactual.
+better. The evidence must identify that bottleneck. A low-confidence reading
+must remain `not_identifiable` and state one decisive counterfactual; it cannot
+open a specific research-layer branch. Writer-grounded `engineering_gap` or
+passed evidence should normally use high confidence.
 
 The writer, not the operator, derives allowed follow-up actions and layers.
 
