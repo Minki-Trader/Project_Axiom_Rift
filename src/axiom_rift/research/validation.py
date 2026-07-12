@@ -367,6 +367,7 @@ def _trend_evaluation(
             "complementary_sleeve_evaluation.v1",
             "probability_calibration_evaluation.v1",
             "rank_bin_calibration_evaluation.v1",
+            "cost_utility_objective_evaluation.v1",
             "reversion_discovery_evaluation.v1",
             "reversion_regime_followup_evaluation.v1",
             "session_inventory_discovery_evaluation.v1",
@@ -506,6 +507,7 @@ def _trend_evaluation(
         "complementary_sleeve_evaluation.v1": 4,
         "probability_calibration_evaluation.v1": 4,
         "rank_bin_calibration_evaluation.v1": 4,
+        "cost_utility_objective_evaluation.v1": 4,
     }.get(schema, 12)
     if not isinstance(context, list) or len(context) != expected_context_count:
         raise EvidenceValidationError("scientific selection context count is invalid")
@@ -594,6 +596,7 @@ def _trend_evaluation(
         "complementary_sleeve_evaluation.v1": 512,
         "probability_calibration_evaluation.v1": 516,
         "rank_bin_calibration_evaluation.v1": 520,
+        "cost_utility_objective_evaluation.v1": 524,
         "reversion_discovery_evaluation.v1": 54,
         "reversion_regime_followup_evaluation.v1": 186,
         "session_inventory_discovery_evaluation.v1": 114,
