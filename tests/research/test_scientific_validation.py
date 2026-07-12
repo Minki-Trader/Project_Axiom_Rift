@@ -385,6 +385,25 @@ class ScientificValidationTests(unittest.TestCase):
         with self.assertRaises(EvidenceValidationError):
             self._validate(stale_request)
 
+    def test_equity_premium_trade_schema_binds_two_rows_and_538_exposures(self) -> None:
+        request, _ = self._request(
+            evaluation_schema="equity_premium_trade_evaluation.v1",
+            selection_total_exposures=538,
+            selection_context_count=2,
+        )
+
+        validated, _ = self._validate(request)
+
+        self.assertEqual(validated.verdict, "passed")
+        self.assertTrue(validated.scientific_eligible)
+        stale_request, _ = self._request(
+            evaluation_schema="equity_premium_trade_evaluation.v1",
+            selection_total_exposures=536,
+            selection_context_count=2,
+        )
+        with self.assertRaises(EvidenceValidationError):
+            self._validate(stale_request)
+
     def test_failed_and_not_evaluable_are_independently_derived(self) -> None:
         cases = {
             "failed": {
