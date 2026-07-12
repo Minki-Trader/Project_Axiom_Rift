@@ -17,11 +17,49 @@ REQUIRED_PATHS = (
     "records/journal.jsonl",
     "records/STUDY_KPI.md",
 )
+COMMIT_MSG_HOOK_PATH = ".githooks/commit-msg"
+COMMIT_MSG_HOOK = (
+    b'#!/bin/sh\nexec python scripts/validate_study_close_commit.py "$1"\n'
+)
 _DIGEST = r"[0-9a-f]{64}"
 
 
 class StudyCloseDeliveryError(RuntimeError):
     """A Study-close Git checkpoint is absent or malformed."""
+
+
+def require_study_close_guard_ready(repository_root: str | Path) -> None:
+    """Fail closed unless the tracked Study-close commit trigger is active."""
+
+    root = Path(repository_root).resolve()
+    if not (root / ".git").exists():
+        return
+    try:
+        hooks_path = str(_git(root, "config", "--get", "core.hooksPath"))
+    except subprocess.CalledProcessError:
+        hooks_path = ""
+    if hooks_path != ".githooks":
+        raise StudyCloseDeliveryError(
+            "Study-close commit guard requires core.hooksPath=.githooks"
+        )
+    hook = root / COMMIT_MSG_HOOK_PATH
+    try:
+        hook_bytes = hook.read_bytes().replace(b"\r\n", b"\n")
+    except OSError as exc:
+        raise StudyCloseDeliveryError(
+            "tracked Study-close commit-msg hook is unavailable"
+        ) from exc
+    if hook_bytes != COMMIT_MSG_HOOK:
+        raise StudyCloseDeliveryError(
+            "tracked Study-close commit-msg hook differs"
+        )
+    staged_entry = str(
+        _git(root, "ls-files", "--stage", "--", COMMIT_MSG_HOOK_PATH)
+    )
+    if not staged_entry.startswith("100755 "):
+        raise StudyCloseDeliveryError(
+            "Study-close commit-msg hook is not tracked executable"
+        )
 
 
 def _git(root: Path, *arguments: str, binary: bool = False) -> bytes | str:
@@ -298,5 +336,6 @@ def require_all_study_close_deliveries(repository_root: str | Path) -> None:
 __all__ = [
     "StudyCloseDeliveryError",
     "require_all_study_close_deliveries",
+    "require_study_close_guard_ready",
     "validate_commit_message",
 ]

@@ -772,10 +772,12 @@ runtime_eligible; semantic change requires a new source contract.
   The tracked commit-msg hook reads the staged Journal, control, and KPI bytes,
   requires all three paths in one commit, deterministically rerenders the KPI,
   and accepts only one contiguous final trailer block bound to the exact close
-  event and revision. Bypassing the hook is prohibited. Before a later
-  Portfolio Decision, the StateWriter independently audits every prospective
-  closeout or exact authorized repair on local main. A missing or malformed
-  checkpoint blocks later scientific state mutation.
+  event and revision. Bypassing the hook is prohibited. The StateWriter verifies
+  that the exact tracked executable hook is active and independently audits
+  every prospective closeout or exact authorized repair on local main before a
+  later Portfolio snapshot or Decision, Study, Batch, or Job declaration. A
+  missing, disabled, modified, or malformed checkpoint guard blocks those later
+  scientific state mutations.
 
 ## 20. Foundation Initiative Boundary
 

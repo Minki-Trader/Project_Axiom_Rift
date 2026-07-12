@@ -11,6 +11,7 @@ from axiom_rift.operations.study_close_git import (
     StudyCloseDeliveryError,
     render_projection,
     require_all_study_close_deliveries,
+    require_study_close_guard_ready,
     validate_commit_message,
 )
 from axiom_rift.operations.writer import StateWriter,TransitionError
@@ -62,6 +63,14 @@ class StudyCloseGitTests(unittest.TestCase):
         run(self.root, "git", "config", "user.name", "Axiom Test")
         (self.root / "state").mkdir()
         (self.root / "records").mkdir()
+        (self.root / ".githooks").mkdir()
+        hook = self.root / ".githooks" / "commit-msg"
+        hook.write_text(
+            '#!/bin/sh\nexec python scripts/validate_study_close_commit.py "$1"\n',
+            encoding="ascii",
+        )
+        run(self.root, "git", "add", "--chmod=+x", ".githooks/commit-msg")
+        run(self.root, "git", "config", "core.hooksPath", ".githooks")
         event = close_event()
         events = [event]
         (self.root / "records" / "journal.jsonl").write_text(
@@ -100,6 +109,19 @@ class StudyCloseGitTests(unittest.TestCase):
         with self.assertRaisesRegex(StudyCloseDeliveryError, "exact"):
             validate_commit_message(self.root, self.message(valid=False))
 
+    def test_tracked_commit_trigger_is_required(self) -> None:
+        require_study_close_guard_ready(self.root)
+        run(self.root, "git", "config", "--unset", "core.hooksPath")
+        with self.assertRaisesRegex(StudyCloseDeliveryError, "hooksPath"):
+            require_study_close_guard_ready(self.root)
+
+    def test_modified_commit_trigger_is_rejected(self) -> None:
+        (self.root / ".githooks" / "commit-msg").write_text(
+            "#!/bin/sh\nexit 0\n", encoding="ascii"
+        )
+        with self.assertRaisesRegex(StudyCloseDeliveryError, "differs"):
+            require_study_close_guard_ready(self.root)
+
     def test_partial_projection_staging_is_rejected(self) -> None:
         run(self.root, "git", "reset")
         run(self.root, "git", "add", "records/journal.jsonl")
@@ -108,15 +130,59 @@ class StudyCloseGitTests(unittest.TestCase):
 
     def test_committed_checkpoint_passes_full_audit(self) -> None:
         message = self.message(valid=True)
-        run(self.root, "git", "commit", "-F", str(message))
+        run(
+            self.root,
+            "git",
+            "-c",
+            "core.hooksPath=.git/hooks",
+            "commit",
+            "-F",
+            str(message),
+        )
         require_all_study_close_deliveries(self.root)
 
     def test_writer_guard_calls_delivery_audit_in_a_real_git_root(self) -> None:
         writer=object.__new__(StateWriter);writer.root=self.root;writer.engineering_fixture=False
-        with patch("axiom_rift.operations.study_close_git.require_all_study_close_deliveries") as audit:
-            writer._require_study_close_delivery_guard();audit.assert_called_once_with(self.root)
+        with patch("axiom_rift.operations.study_close_git.require_study_close_guard_ready") as ready,patch("axiom_rift.operations.study_close_git.require_all_study_close_deliveries") as audit:
+            writer._require_study_close_delivery_guard();ready.assert_called_once_with(self.root);audit.assert_called_once_with(self.root)
 
     def test_writer_guard_converts_delivery_failure_to_transition_error(self)->None:
         writer=object.__new__(StateWriter);writer.root=self.root;writer.engineering_fixture=False
         with patch("axiom_rift.operations.study_close_git.require_all_study_close_deliveries",side_effect=StudyCloseDeliveryError("missing")):
             with self.assertRaisesRegex(TransitionError,"blocked"):writer._require_study_close_delivery_guard()
+
+    def test_writer_guards_every_post_close_scientific_entry_boundary(self) -> None:
+        writer = object.__new__(StateWriter)
+        calls = {
+            "Study": lambda: writer.open_study(
+                study_id="STU-TEST",
+                question={},
+                material_identity="material",
+                material_display_name="material",
+                semantic_proposal={},
+                permit=None,  # type: ignore[arg-type]
+                operation_id="open-study",
+            ),
+            "Batch": lambda: writer.open_batch(
+                batch_spec=None,  # type: ignore[arg-type]
+                permit=None,  # type: ignore[arg-type]
+                operation_id="open-batch",
+            ),
+            "Job": lambda: writer.declare_job(spec={}, operation_id="declare-job"),
+            "Portfolio snapshot": lambda: writer.record_portfolio_snapshot(
+                snapshot=None,  # type: ignore[arg-type]
+                operation_id="record-snapshot",
+            ),
+            "Portfolio decision": lambda: writer.record_portfolio_decision(
+                decision=None,  # type: ignore[arg-type]
+                operation_id="record-decision",
+            ),
+        }
+        for boundary, invoke in calls.items():
+            with self.subTest(boundary=boundary), patch.object(
+                writer,
+                "_require_study_close_delivery_guard",
+                side_effect=TransitionError("guard blocked boundary"),
+            ):
+                with self.assertRaisesRegex(TransitionError, "guard blocked"):
+                    invoke()

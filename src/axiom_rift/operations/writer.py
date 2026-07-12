@@ -2509,6 +2509,7 @@ class StateWriter:
         portfolio_axis_identity: str | None = None,
         portfolio_decision_id: str | None = None,
     ) -> TransitionResult:
+        self._require_study_close_delivery_guard()
         try:
             validate_study_id(study_id)
         except ValueError as exc:
@@ -2902,6 +2903,7 @@ class StateWriter:
     ) -> TransitionResult:
         from axiom_rift.research.portfolio import BatchSpec
 
+        self._require_study_close_delivery_guard()
         if not isinstance(batch_spec, BatchSpec):
             raise TransitionError("batch_spec must be a frozen BatchSpec")
         batch_id = batch_spec.identity
@@ -4805,6 +4807,7 @@ class StateWriter:
     def declare_job(
         self, *, spec: Mapping[str, Any], operation_id: str
     ) -> TransitionResult:
+        self._require_study_close_delivery_guard()
         spec = self._normalize_job_spec(spec)
         self._validate_job_spec(spec)
         work_basis = {
@@ -6424,6 +6427,7 @@ class StateWriter:
     ) -> TransitionResult:
         from axiom_rift.research.portfolio import PortfolioSnapshot
 
+        self._require_study_close_delivery_guard()
         if not isinstance(snapshot, PortfolioSnapshot):
             raise TransitionError("snapshot must be a PortfolioSnapshot")
 
@@ -6690,13 +6694,15 @@ class StateWriter:
         from axiom_rift.operations.study_close_git import (
             StudyCloseDeliveryError,
             require_all_study_close_deliveries,
+            require_study_close_guard_ready,
         )
 
         try:
+            require_study_close_guard_ready(self.root)
             require_all_study_close_deliveries(self.root)
         except (OSError, RuntimeError, StudyCloseDeliveryError) as exc:
             raise TransitionError(
-                "Portfolio Decision is blocked by Study-close Git delivery"
+                "Scientific transition is blocked by the Study-close Git guard"
             ) from exc
 
     def record_negative_memory(
