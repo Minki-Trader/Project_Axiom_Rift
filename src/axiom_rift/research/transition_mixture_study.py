@@ -43,9 +43,9 @@ from axiom_rift.research.validation import (
 
 
 MISSION_ID = "MIS-0004"
-STUDY_ID = "STU-0052"
+STUDY_ID = "STU-0053"
 CALLABLE_IDENTITY = (
-    "axiom_rift.research.transition_mixture_study.execute_transition_mixture_job.v1"
+    "axiom_rift.research.transition_mixture_study.execute_transition_mixture_job.v2"
 )
 EVIDENCE_DEPTH = "discovery"
 
@@ -188,11 +188,11 @@ def _load_surface(
         except (FileNotFoundError, OSError, RuntimeError, ValueError):
             continue
         if isinstance(value, dict) and value.get("schema") == (
-            "transition_mixture_surface.v1"
+            "transition_mixture_surface.v2"
         ):
             surface = (value, artifact_hash)
         if isinstance(value, dict) and value.get("schema") == (
-            "transition_mixture_surface_manifest.v1"
+            "transition_mixture_surface_manifest.v2"
         ):
             manifest = (value, artifact_hash)
     if (
@@ -248,7 +248,7 @@ def execute_transition_mixture_job(
         surface_manifest_hash = writer.evidence.finalize(
             canonical_bytes(
                 {
-                    "schema": "transition_mixture_surface_manifest.v1",
+                    "schema": "transition_mixture_surface_manifest.v2",
                     "surface_artifact_hash": surface_hash,
                     "surface_implementation_sha256": (
                         transition_mixture_implementation_sha256()

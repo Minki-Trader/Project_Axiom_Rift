@@ -29,13 +29,13 @@ class TransitionMixtureTests(unittest.TestCase):
         end = time.iloc[5000]
         full = fit_fold_transition(
             frame.iloc[:8000].copy(),
-            "joint_return_volatility_transition",
+            "joint_drawdown_volatility_transition",
             start,
             end,
         )
         prefix = fit_fold_transition(
             frame.iloc[:7000].copy(),
-            "joint_return_volatility_transition",
+            "joint_drawdown_volatility_transition",
             start,
             end,
         )

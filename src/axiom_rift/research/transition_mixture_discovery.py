@@ -1,4 +1,4 @@
-"""Fold-trained discrete return-volatility transition-mixture discovery."""
+"""Fold-trained discrete drawdown-volatility transition-mixture discovery."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -38,12 +38,12 @@ from axiom_rift.research.discovery import (
 )
 
 
-SELECTION_TOTAL_EXPOSURES = 456
+SELECTION_TOTAL_EXPOSURES = 460
 SELECTOR_QUANTILE_BP = 8_500
-RETURN_WINDOW = 24
+PEAK_WINDOW = 576
 VOLATILITY_WINDOW = 96
-HORIZON = 12
-_PROFILES = ("joint_return_volatility_transition", "return_transition_control")
+HORIZON = 24
+_PROFILES = ("joint_drawdown_volatility_transition", "drawdown_transition_control")
 _THIS_FILE = Path(__file__).resolve()
 
 
@@ -78,7 +78,7 @@ class TransitionMixtureConfiguration:
         return {
             "holding_bars": HORIZON,
             "profile": self.profile,
-            "return_window": RETURN_WINDOW,
+            "peak_window": PEAK_WINDOW,
             "selector_quantile_bp": SELECTOR_QUANTILE_BP,
             "signal_sign": self.signal_sign,
             "volatility_window": VOLATILITY_WINDOW,
@@ -116,8 +116,8 @@ def transition_mixture_components() -> tuple[ComponentSpec, ...]:
             spec={
                 "availability": "train_is_only",
                 "horizon_bars": HORIZON,
-                "joint_states": ["return_direction_24", "volatility_level_96"],
-                "control_state": "return_direction_24_only",
+                "joint_states": ["drawdown_depth_576", "volatility_level_96"],
+                "control_state": "drawdown_depth_576_only",
                 "parameter_fields": ["profile"],
                 "target_labels_must_end_inside_train": True,
             },
@@ -185,7 +185,7 @@ def transition_mixture_executable(
             "cost:bid_bar_spread_point_0_01_causal_zero_repair_half_spread_stress_v2"
         ),
         engine_contract=(
-            f"engine:transition_mixture_v1:python"
+            f"engine:transition_mixture_v2:python"
             f"{'.'.join(str(v) for v in sys.version_info[:3])}:numpy{np.__version__}:"
             f"pandas{pd.__version__}:scipy{scipy.__version__}:"
             f"implementation_{transition_mixture_implementation_sha256()}:"
@@ -208,15 +208,24 @@ def _raw_states(
     frame: pd.DataFrame,
     profile: str,
     volatility_threshold: float,
+    drawdown_threshold: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     if profile not in _PROFILES:
         raise ValueError("transition-mixture profile invalid")
     close = frame["close"].to_numpy(float)
     log_close = np.log(close)
-    return_change = np.full(len(close), np.nan)
-    return_change[RETURN_WINDOW:] = (
-        log_close[RETURN_WINDOW:] - log_close[:-RETURN_WINDOW]
+    peak = (
+        pd.Series(close)
+        .rolling(PEAK_WINDOW, min_periods=PEAK_WINDOW)
+        .max()
+        .to_numpy(float)
     )
+    drawdown = np.divide(
+        close,
+        peak,
+        out=np.full(len(close), np.nan),
+        where=np.isfinite(peak) & (peak > 0),
+    ) - 1
     one_bar = np.full(len(close), np.nan)
     one_bar[1:] = np.diff(log_close)
     volatility = (
@@ -225,15 +234,17 @@ def _raw_states(
         .std(ddof=1)
         .to_numpy(float)
     )
-    return_state = np.where(return_change >= 0, 1, 0).astype(np.int64)
-    if profile == "joint_return_volatility_transition":
+    drawdown_state = np.where(drawdown >= drawdown_threshold, 1, 0).astype(
+        np.int64
+    )
+    if profile == "joint_drawdown_volatility_transition":
         volatility_state = np.where(volatility >= volatility_threshold, 1, 0)
-        state = return_state * 2 + volatility_state
+        state = drawdown_state * 2 + volatility_state
         state_count = 4
     else:
-        state = return_state
+        state = drawdown_state
         state_count = 2
-    valid = np.isfinite(return_change) & np.isfinite(volatility)
+    valid = np.isfinite(drawdown) & np.isfinite(volatility)
     state = np.where(valid, state, -1)
     transition = np.full(len(close), -1, dtype=np.int64)
     transition[1:] = np.where(
@@ -267,8 +278,26 @@ def fit_fold_transition(
     volatility_threshold = float(
         np.quantile(train_volatility, 0.5, method="higher")
     )
+    peak = (
+        pd.Series(np.exp(close))
+        .rolling(PEAK_WINDOW, min_periods=PEAK_WINDOW)
+        .max()
+        .to_numpy(float)
+    )
+    drawdown = np.divide(
+        np.exp(close),
+        peak,
+        out=np.full(len(close), np.nan),
+        where=np.isfinite(peak) & (peak > 0),
+    ) - 1
+    train_drawdown = drawdown[train_mask & np.isfinite(drawdown)]
+    if len(train_drawdown) < 1000:
+        raise DiscoveryBoundaryError("transition drawdown train too small")
+    drawdown_threshold = float(
+        np.quantile(train_drawdown, 0.5, method="higher")
+    )
     transition, volatility, run = _raw_states(
-        frame, profile, volatility_threshold
+        frame, profile, volatility_threshold, drawdown_threshold
     )
     target = np.full(len(close), np.nan)
     target[:-HORIZON] = close[HORIZON:] - close[:-HORIZON]
@@ -289,7 +318,7 @@ def fit_fold_transition(
     score = np.full(len(close), np.nan)
     for key, value in table.items():
         score[transition == key] = value
-    score[run < VOLATILITY_WINDOW + 1] = np.nan
+    score[run < max(PEAK_WINDOW, VOLATILITY_WINDOW) + 1] = np.nan
     return score, volatility, run
 
 
@@ -430,7 +459,7 @@ def compute_registered_transition_mixture_surface(
         "claim_limits": _claim_limits()
         + [
             "transition_tables_are_fold_train_only",
-            "return_volatility_joint_state_only",
+            "drawdown_volatility_joint_state_only",
             "four_trial_surface",
         ],
         "dataset_sha256": DATASET_SHA256,
@@ -464,7 +493,7 @@ def compute_registered_transition_mixture_surface(
         ],
         "loader_implementation_sha256": loader_implementation_sha256(),
         "material_identity": OBSERVED_MATERIAL_ID,
-        "schema": "transition_mixture_surface.v1",
+        "schema": "transition_mixture_surface.v2",
         "selection_context": [
             {
                 "configuration_id": result.configuration.configuration_id,
@@ -498,7 +527,7 @@ def project_transition_mixture_evaluation(
     value = dict(surface)
     if (
         sha256(canonical_bytes(value)).hexdigest() != surface_artifact_hash
-        or value.get("schema") != "transition_mixture_surface.v1"
+        or value.get("schema") != "transition_mixture_surface.v2"
     ):
         raise DiscoveryBoundaryError("transition-mixture surface invalid")
     expected = executable_configuration_map()
@@ -519,7 +548,7 @@ def project_transition_mixture_evaluation(
         **dict(by_identity[subject_executable_id]),
         "claim_limits": value["claim_limits"],
         "job_execution": dict(job_execution),
-        "schema": "transition_mixture_evaluation.v1",
+        "schema": "transition_mixture_evaluation.v2",
         "selection_context": value["selection_context"],
         "selection_method": value["selection_method"],
         "session_semantics": value["session_semantics"],
