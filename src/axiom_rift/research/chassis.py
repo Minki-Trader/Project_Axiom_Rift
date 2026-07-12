@@ -291,6 +291,17 @@ def _validate_executable_consumption(
         domain: tuple(sorted(component_ids))
         for domain, component_ids in grouped.items()
     }
+    source_components: dict[str, tuple[str, ...]] = {}
+    for component_id in by_domain.get(ResearchLayer.DATA_SOURCE, ()):
+        dependencies = registry[component_id].get("semantic_dependencies")
+        if not isinstance(dependencies, list):
+            raise ChassisIdentityError("component semantic dependencies are malformed")
+        for dependency in dependencies:
+            if isinstance(dependency, str) and dependency.startswith("source:"):
+                source_components.setdefault(dependency, ())
+                source_components[dependency] = tuple(
+                    sorted((*source_components[dependency], component_id))
+                )
     edges: dict[str, set[str]] = {component_id: set() for component_id in registry}
     consumed: set[str] = set()
     for component_id, manifest in registry.items():
@@ -323,7 +334,12 @@ def _validate_executable_consumption(
                         "component role dependency has no current direct component"
                     )
             elif dependency.startswith("source:"):
-                continue
+                if (
+                    _component_domain_from_manifest(manifest)
+                    is ResearchLayer.DATA_SOURCE
+                ):
+                    continue
+                targets = source_components.get(dependency, ())
             else:
                 # Other typed external semantic identities remain part of the
                 # ComponentSpec surface but do not name an in-Executable node.
@@ -1204,20 +1220,33 @@ def validate_controlled_executable(
     for required_domain in (
         ResearchLayer.FEATURE,
         ResearchLayer.LABEL,
-        ResearchLayer.MODEL,
     ):
         if not direct_by_domain.get(required_domain):
             raise ChassisIdentityError(
                 f"trial omits an explicit {required_domain.value} component"
             )
-    direct_model_ids = tuple(sorted(direct_by_domain[ResearchLayer.MODEL]))
+    direct_decision_ids = tuple(
+        sorted(
+            component_id
+            for domain in (
+                ResearchLayer.MODEL,
+                ResearchLayer.CALIBRATION,
+                ResearchLayer.SELECTOR,
+            )
+            for component_id in direct_by_domain.get(domain, ())
+        )
+    )
+    if not direct_decision_ids:
+        raise ChassisIdentityError(
+            "trial omits an explicit model, calibration, or selector decision component"
+        )
     consumed_feature_ids: set[str] = set()
     consumed_label_ids: set[str] = set()
-    for model_id in direct_model_ids:
-        model_manifest = current_registry[model_id]
-        dependencies = model_manifest.get("semantic_dependencies")
+    for decision_id in direct_decision_ids:
+        decision_manifest = current_registry[decision_id]
+        dependencies = decision_manifest.get("semantic_dependencies")
         if not isinstance(dependencies, list):
-            raise ChassisIdentityError("model semantic dependencies are malformed")
+            raise ChassisIdentityError("decision semantic dependencies are malformed")
         dependency_domains = _semantic_component_domains(
             root_ids=tuple(
                 _component_identity(value)
@@ -1226,13 +1255,6 @@ def validate_controlled_executable(
             ),
             registry=current_registry,
         )
-        if not {
-            ResearchLayer.FEATURE,
-            ResearchLayer.LABEL,
-        }.issubset(dependency_domains):
-            raise ChassisIdentityError(
-                "model must bind explicit feature and label semantic dependencies"
-            )
         consumed_feature_ids.update(
             dependency_domains.get(ResearchLayer.FEATURE, ())
         )
@@ -1244,7 +1266,7 @@ def validate_controlled_executable(
         or consumed_label_ids != direct_by_domain[ResearchLayer.LABEL]
     ):
         raise ChassisIdentityError(
-            "model semantic dependencies must exactly bind current direct feature and label components"
+            "decision semantic dependencies must exactly bind current direct feature and label components"
         )
     replacements = _control_payload_replacements(control_payload)
     try:
@@ -1298,7 +1320,10 @@ def validate_controlled_executable(
             raise ChassisIdentityError("changed domain is not typed") from exc
         baseline_surfaces = baseline_direct_by_domain.get(domain, set())
         current_surfaces = current_direct_surfaces.get(domain, set())
-        if not baseline_surfaces or not current_surfaces:
+        if (
+            domain is not ResearchLayer.DATA_SOURCE
+            and (not baseline_surfaces or not current_surfaces)
+        ) or (domain is ResearchLayer.DATA_SOURCE and not current_surfaces):
             raise ChassisIdentityError(
                 f"changed domain {domain.value} requires direct component manifests"
             )
