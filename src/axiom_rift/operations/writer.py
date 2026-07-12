@@ -6583,6 +6583,8 @@ class StateWriter:
     ) -> TransitionResult:
         from axiom_rift.research.portfolio import PortfolioAction, PortfolioDecision
 
+        self._require_study_close_delivery_guard()
+
         if not isinstance(decision, PortfolioDecision):
             raise TransitionError("decision must be a PortfolioDecision")
         decision_hash = decision.identity.removeprefix("decision:")
@@ -6681,6 +6683,21 @@ class StateWriter:
             payload={"decision_id": decision.identity},
             prepare=prepare,
         )
+
+    def _require_study_close_delivery_guard(self) -> None:
+        if self.engineering_fixture or not (self.root / ".git").exists():
+            return
+        from axiom_rift.operations.study_close_git import (
+            StudyCloseDeliveryError,
+            require_all_study_close_deliveries,
+        )
+
+        try:
+            require_all_study_close_deliveries(self.root)
+        except (OSError, RuntimeError, StudyCloseDeliveryError) as exc:
+            raise TransitionError(
+                "Portfolio Decision is blocked by Study-close Git delivery"
+            ) from exc
 
     def record_negative_memory(
         self,

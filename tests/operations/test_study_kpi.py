@@ -639,6 +639,18 @@ class StudyKpiWriterTests(unittest.TestCase):
                 "retry_at_next_stable_delivery_opportunity"
             ]
         )
+        enforcement = checkpoint["automated_enforcement"]
+        self.assertEqual(
+            enforcement["tracked_commit_msg_hook"], ".githooks/commit-msg"
+        )
+        self.assertEqual(enforcement["required_core_hooks_path"], ".githooks")
+        self.assertTrue(
+            enforcement["exact_contiguous_final_trailer_block_required"]
+        )
+        self.assertFalse(enforcement["hook_bypass_allowed"])
+        self.assertTrue(
+            enforcement["next_portfolio_decision_writer_guard_required"]
+        )
         repair = operations["git"][
             "study_close_delivery_repair_checkpoint"
         ]

@@ -159,6 +159,17 @@ git:
     commit_trailers:
       - Axiom-Study-Close
       - Axiom-State-Revision
+    automated_enforcement:
+      tracked_commit_msg_hook: .githooks/commit-msg
+      required_core_hooks_path: .githooks
+      validator: scripts/validate_study_close_commit.py
+      full_audit: scripts/audit_all_study_close_deliveries.py
+      staged_state_journal_and_kpi_required_together: true
+      deterministic_staged_kpi_rerender_required: true
+      exact_contiguous_final_trailer_block_required: true
+      hook_bypass_allowed: false
+      next_portfolio_decision_writer_guard_required: true
+      missing_or_malformed_delivery_blocks_later_scientific_mutation: true
     boot_delivery_audit:
       basis: prospective_study_kpi_records_and_exact_commit_trailers
       exact_unique_trailer_commit_reachable_from_local_ref: true

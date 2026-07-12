@@ -1,0 +1,2 @@
+#!/bin/sh
+exec python scripts/validate_study_close_commit.py "$1"

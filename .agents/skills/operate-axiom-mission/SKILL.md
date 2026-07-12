@@ -36,6 +36,10 @@ Use the repository as authority. Do not depend on chat history.
    attestation checkpoint to be reachable from local `main` and ancestors of
    `origin/main`. The repair cannot replace missing or incorrect scientific or
    projection content and cannot create another Study-close snapshot.
+   Require `git config --get core.hooksPath` to equal `.githooks`; run
+   `scripts/install_git_hooks.py` when absent or different. Run
+   `scripts/audit_all_study_close_deliveries.py` before a later Portfolio
+   Decision. The Writer repeats this audit at that state boundary.
 6. If an active Job or Repair exists, resume or dispose it before opening work.
 
 ## Goal Intake
@@ -100,9 +104,12 @@ delivery trigger.  Before any later Portfolio action, Study, Batch, or Job:
    `state/control.json`, `records/journal.jsonl`, `records/STUDY_KPI.md`, and
    the Study-scoped code, tests, or compact records that belong to the same
    closeout.  Reject unrelated staged paths; never use blanket staging.
-4. Create one commit with `Axiom-Study-Close: <event_id>` and
-   `Axiom-State-Revision: <revision>` trailers, then immediately attempt a
-   non-force push of `main` to `origin/main`.  Observe remote tree equality
+4. Create one commit whose final paragraph is exactly two contiguous lines:
+   `Axiom-Study-Close: <event_id>` followed immediately by
+   `Axiom-State-Revision: <revision>`. The tracked commit-msg hook must validate
+   the staged Journal, control, deterministic KPI bytes, co-staged paths, and
+   exact trailer block. Never use `--no-verify`. Then immediately attempt a
+   non-force push of `main` to `origin/main`. Observe remote tree equality
    read-only when delivery succeeds.
 
 A push, authentication, network, protection, or divergence failure never

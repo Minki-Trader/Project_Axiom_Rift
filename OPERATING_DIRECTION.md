@@ -768,6 +768,15 @@ runtime_eligible; semantic change requires a new source contract.
   holdout, KPI, or next action; and applies once only to its exact listed set.
   It cannot repair missing or incorrect scientific or projection content.
 
+- [MUST] OD-REC-018 Prospective Study-close delivery is mechanically enforced.
+  The tracked commit-msg hook reads the staged Journal, control, and KPI bytes,
+  requires all three paths in one commit, deterministically rerenders the KPI,
+  and accepts only one contiguous final trailer block bound to the exact close
+  event and revision. Bypassing the hook is prohibited. Before a later
+  Portfolio Decision, the StateWriter independently audits every prospective
+  closeout or exact authorized repair on local main. A missing or malformed
+  checkpoint blocks later scientific state mutation.
+
 ## 20. Foundation Initiative Boundary
 
 - [MUST] OD-FND-001 The Foundation Initiative builds and commissions the operating
