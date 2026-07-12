@@ -363,6 +363,7 @@ def _trend_evaluation(
             "analog_state_evaluation.v2",
             "adaptive_lifecycle_evaluation.v1",
             "adaptive_lifecycle_evaluation.v2",
+            "event_label_evaluation.v1",
             "reversion_discovery_evaluation.v1",
             "reversion_regime_followup_evaluation.v1",
             "session_inventory_discovery_evaluation.v1",
@@ -498,6 +499,7 @@ def _trend_evaluation(
         "analog_state_evaluation.v2": 4,
         "adaptive_lifecycle_evaluation.v1": 4,
         "adaptive_lifecycle_evaluation.v2": 4,
+        "event_label_evaluation.v1": 4,
     }.get(schema, 12)
     if not isinstance(context, list) or len(context) != expected_context_count:
         raise EvidenceValidationError("scientific selection context count is invalid")
@@ -582,6 +584,7 @@ def _trend_evaluation(
         "analog_state_evaluation.v2": 496,
         "adaptive_lifecycle_evaluation.v1": 500,
         "adaptive_lifecycle_evaluation.v2": 504,
+        "event_label_evaluation.v1": 508,
         "reversion_discovery_evaluation.v1": 54,
         "reversion_regime_followup_evaluation.v1": 186,
         "session_inventory_discovery_evaluation.v1": 114,
