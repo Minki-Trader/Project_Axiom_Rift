@@ -5063,6 +5063,13 @@ class ResearchDirectionFlowTests(unittest.TestCase):
                 LegacyIndex(controlled=True, anchored=True), baseline
             )
         )
+        self.assertIsNone(
+            StateWriter._prior_scientific_baseline(
+                LegacyIndex(controlled=True),
+                baseline,
+                portfolio_axis_identity=self.axes[1].identity,
+            )
+        )
 
     def _decision(
         self,

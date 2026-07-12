@@ -2813,7 +2813,16 @@ class StateWriter:
             raise TransitionError(
                 "controlled chassis baseline differs from its accepted Decision"
             )
-        prior = self._prior_scientific_baseline(index, baseline)
+        target_axis_identity = decision.payload.get("target_axis_identity")
+        prior = self._prior_scientific_baseline(
+            index,
+            baseline,
+            portfolio_axis_identity=(
+                target_axis_identity
+                if isinstance(target_axis_identity, str)
+                else None
+            ),
+        )
         if provenance.get("kind") == "trial":
             if prior is None or provenance.get("record_id") != prior.record_id:
                 raise TransitionError(
@@ -2833,7 +2842,10 @@ class StateWriter:
                 or anchor.payload.get("baseline_executable") != baseline_payload
                 or not isinstance(anchor.payload.get("baseline_provenance"), dict)
                 or anchor.payload["baseline_provenance"].get("kind")
-                != "first_controlled_chassis_bootstrap"
+                not in {
+                    "first_controlled_chassis_bootstrap",
+                    "first_axis_controlled_chassis_bootstrap",
+                }
             ):
                 raise TransitionError(
                     "controlled chassis bootstrap anchor reuse is invalid"
@@ -2861,18 +2873,39 @@ class StateWriter:
                 ].get("data_contract")
                 == baseline.data_contract
             ]
-            expected_bootstrap = {
-                "data_contract": baseline.data_contract,
-                "kind": (
-                    "first_controlled_chassis_bootstrap"
-                    if relevant_trials
-                    else "first_data_contract_bootstrap"
-                ),
-            }
+            axis_controlled_history = [
+                record
+                for record in controlled_history
+                if record.payload.get("portfolio_axis_identity")
+                == target_axis_identity
+            ]
+            expected_bootstrap = (
+                {
+                    "data_contract": baseline.data_contract,
+                    "kind": "first_axis_controlled_chassis_bootstrap",
+                    "portfolio_axis_identity": target_axis_identity,
+                }
+                if relevant_trials
+                and controlled_history
+                and not axis_controlled_history
+                else {
+                    "data_contract": baseline.data_contract,
+                    "kind": (
+                        "first_controlled_chassis_bootstrap"
+                        if relevant_trials
+                        else "first_data_contract_bootstrap"
+                    ),
+                }
+            )
             if (
                 provenance != expected_bootstrap
                 or prior is not None
-                or (relevant_trials and controlled_history)
+                or (
+                    relevant_trials
+                    and axis_controlled_history
+                    and provenance.get("kind")
+                    != "controlled_chassis_anchor_reuse"
+                )
             ):
                 raise TransitionError(
                     "controlled chassis baseline bootstrap is no longer valid"
@@ -2895,6 +2928,7 @@ class StateWriter:
     def _prior_scientific_baseline(
         index: LocalIndex,
         baseline: Any,
+        portfolio_axis_identity: str | None = None,
     ) -> IndexRecord | None:
         baseline_payload = baseline.to_identity_payload()
         relevant = [
@@ -2915,7 +2949,15 @@ class StateWriter:
                 and record.payload.get("baseline_executable") == baseline_payload
                 and isinstance(record.payload.get("baseline_provenance"), dict)
                 and record.payload["baseline_provenance"].get("kind")
-                == "first_controlled_chassis_bootstrap"
+                in {
+                    "first_controlled_chassis_bootstrap",
+                    "first_axis_controlled_chassis_bootstrap",
+                }
+                and (
+                    portfolio_axis_identity is None
+                    or record.payload.get("target_axis_identity")
+                    == portfolio_axis_identity
+                )
             ]
             controlled_history = [
                 record
@@ -2931,6 +2973,11 @@ class StateWriter:
                     "baseline_executable"
                 ].get("data_contract")
                 == baseline.data_contract
+                and (
+                    portfolio_axis_identity is None
+                    or record.payload.get("portfolio_axis_identity")
+                    == portfolio_axis_identity
+                )
             ]
             if not controlled_history or accepted_bootstrap_anchors:
                 return None
@@ -8651,7 +8698,16 @@ class StateWriter:
                         "scientific Study lacks a controlled component chassis"
                     )
                 try:
-                    validate_controlled_executable(controlled_chassis, executable)
+                    is_exact_baseline_control = (
+                        controlled_chassis.get("baseline_executable_id")
+                        == executable_id
+                        and controlled_chassis.get("baseline_executable")
+                        == executable.to_identity_payload()
+                    )
+                    if not is_exact_baseline_control:
+                        validate_controlled_executable(
+                            controlled_chassis, executable
+                        )
                     surface_identity = executable_semantic_surface_identity(executable)
                 except ChassisIdentityError as exc:
                     raise TransitionError(str(exc)) from exc
@@ -9277,7 +9333,11 @@ class StateWriter:
                     raise TransitionError(
                         "legacy Portfolio axis cannot change its prospective chassis anchor"
                     )
-                prior_baseline = self._prior_scientific_baseline(_index, baseline)
+                prior_baseline = self._prior_scientific_baseline(
+                    _index,
+                    baseline,
+                    portfolio_axis_identity=target_axis["axis_identity"],
+                )
                 bootstrap_anchors = [
                     record
                     for record in _index.records_by_kind("portfolio-decision")
@@ -9286,7 +9346,12 @@ class StateWriter:
                     == baseline.to_identity_payload()
                     and isinstance(record.payload.get("baseline_provenance"), dict)
                     and record.payload["baseline_provenance"].get("kind")
-                    == "first_controlled_chassis_bootstrap"
+                    in {
+                        "first_controlled_chassis_bootstrap",
+                        "first_axis_controlled_chassis_bootstrap",
+                    }
+                    and record.payload.get("target_axis_identity")
+                    == target_axis["axis_identity"]
                 ]
                 if len(bootstrap_anchors) > 1:
                     raise RecoveryRequired(
@@ -9297,6 +9362,16 @@ class StateWriter:
                     and record.payload["executable"].get("data_contract")
                     == baseline.data_contract
                     for record in _index.records_by_kind("trial")
+                )
+                axis_has_controlled_history = any(
+                    isinstance(record.payload.get("controlled_chassis"), dict)
+                    and record.payload.get("portfolio_axis_identity")
+                    == target_axis["axis_identity"]
+                    for record in _index.records_by_kind("study-open")
+                )
+                has_any_controlled_history = any(
+                    isinstance(record.payload.get("controlled_chassis"), dict)
+                    for record in _index.records_by_kind("study-open")
                 )
                 baseline_provenance = (
                     {
@@ -9311,10 +9386,23 @@ class StateWriter:
                     if bootstrap_anchors
                     else {
                         "data_contract": baseline.data_contract,
-                        "kind": (
-                            "first_controlled_chassis_bootstrap"
+                        **(
+                            {
+                                "kind": "first_axis_controlled_chassis_bootstrap",
+                                "portfolio_axis_identity": target_axis[
+                                    "axis_identity"
+                                ],
+                            }
                             if has_data_contract_trials
-                            else "first_data_contract_bootstrap"
+                            and has_any_controlled_history
+                            and not axis_has_controlled_history
+                            else {
+                                "kind": (
+                                    "first_controlled_chassis_bootstrap"
+                                    if has_data_contract_trials
+                                    else "first_data_contract_bootstrap"
+                                )
+                            }
                         ),
                     }
                 )

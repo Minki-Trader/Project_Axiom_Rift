@@ -486,6 +486,21 @@ class ControlledStudyChassisTests(unittest.TestCase):
         for domain in set(DOMAINS) - {"calibration"}:
             self.assertEqual(baseline_ids[domain], candidate_ids[domain])
 
+    def test_declared_parameter_change_is_a_semantic_domain_change(self) -> None:
+        baseline = baseline_executable()
+        candidate = executable(
+            baseline.components,
+            parameter_overrides={"calibration_profile": 1},
+        )
+        chassis = ControlledStudyChassis(
+            baseline_executable=baseline,
+            changed_domains=(ResearchLayer.CALIBRATION,),
+            controlled_domains=controlled_domains(),
+            architecture=architecture(baseline),
+        )
+
+        validate_controlled_executable(chassis.to_identity_payload(), candidate)
+
     def test_protocol_only_controlled_component_bump_is_rejected(self) -> None:
         baseline = baseline_executable()
         old_model = next(

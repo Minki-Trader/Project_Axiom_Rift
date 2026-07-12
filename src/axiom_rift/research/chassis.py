@@ -1306,7 +1306,31 @@ def validate_controlled_executable(
             raise ChassisIdentityError(
                 f"changed domain {domain.value} requires direct component manifests"
             )
-        if current_surfaces == baseline_surfaces:
+        parameter_fields: set[str] = set()
+        for manifest in (*baseline_manifests, *current_manifests):
+            if _component_domain_from_manifest(manifest) != domain:
+                continue
+            specification = manifest.get("spec")
+            raw_fields = (
+                []
+                if not isinstance(specification, dict)
+                else specification.get("parameter_fields", [])
+            )
+            if not isinstance(raw_fields, list) or any(
+                type(field_name) is not str or not field_name.isascii()
+                for field_name in raw_fields
+            ):
+                raise ChassisIdentityError(
+                    "changed component parameter_fields are malformed"
+                )
+            parameter_fields.update(raw_fields)
+        parameter_changed = any(
+            field_name in baseline_parameters
+            and field_name in current_parameters
+            and baseline_parameters[field_name] != current_parameters[field_name]
+            for field_name in parameter_fields
+        )
+        if current_surfaces == baseline_surfaces and not parameter_changed:
             raise ChassisIdentityError(
                 f"trial does not semantically change its declared domain {domain.value}"
             )
