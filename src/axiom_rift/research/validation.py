@@ -165,6 +165,7 @@ _SCIENTIFIC_EVALUATION_PROFILES = {
     "session_dense_positive_sleeve_evaluation.v1": (2, 581),
     "low_vol_abstention_evaluation.v1": (2, 583),
     "high_vol_target_reversal_evaluation.v1": (2, 585),
+    "fold_train_target_role_evaluation.v1": (2, 587),
     "complementary_sleeve_evaluation.v1": (4, 512),
     "probability_calibration_evaluation.v1": (4, 516),
     "rank_bin_calibration_evaluation.v1": (4, 520),
