@@ -359,6 +359,7 @@ def _trend_evaluation(
             "auction_location_evaluation.v2",
             "higher_order_volatility_evaluation.v1",
             "higher_order_volatility_evaluation.v2",
+            "analog_state_evaluation.v1",
             "reversion_discovery_evaluation.v1",
             "reversion_regime_followup_evaluation.v1",
             "session_inventory_discovery_evaluation.v1",
@@ -490,6 +491,7 @@ def _trend_evaluation(
         "auction_location_evaluation.v2": 4,
         "higher_order_volatility_evaluation.v1": 4,
         "higher_order_volatility_evaluation.v2": 4,
+        "analog_state_evaluation.v1": 4,
     }.get(schema, 12)
     if not isinstance(context, list) or len(context) != expected_context_count:
         raise EvidenceValidationError("scientific selection context count is invalid")
@@ -570,6 +572,7 @@ def _trend_evaluation(
         "auction_location_evaluation.v2": 480,
         "higher_order_volatility_evaluation.v1": 484,
         "higher_order_volatility_evaluation.v2": 488,
+        "analog_state_evaluation.v1": 492,
         "reversion_discovery_evaluation.v1": 54,
         "reversion_regime_followup_evaluation.v1": 186,
         "session_inventory_discovery_evaluation.v1": 114,
