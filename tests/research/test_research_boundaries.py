@@ -8,9 +8,10 @@ from pathlib import Path
 
 import yaml
 
-from axiom_rift.core.identity import canonical_digest
+from axiom_rift.core.identity import ComponentSpec, ExecutableSpec, canonical_digest
 from axiom_rift.research import (
     BatchSpec,
+    ArchitectureChassisSpec,
     CandidateBinding,
     DecisionOption,
     InferenceDependency,
@@ -66,26 +67,68 @@ def PortfolioAxis(
             ResearchLayer.FEATURE,
             ResearchLayer.LABEL,
             ResearchLayer.MODEL,
+            ResearchLayer.CALIBRATION,
+            ResearchLayer.SELECTOR,
             ResearchLayer.TRADE,
             ResearchLayer.LIFECYCLE,
+            ResearchLayer.RISK,
             ResearchLayer.EXECUTION,
         )
         if candidate != layer
     )
+    components: list[ComponentSpec] = []
+    by_domain: dict[str, ComponentSpec] = {}
+    for domain in (
+        "feature",
+        "label",
+        "model",
+        "calibration",
+        "selector",
+        "trade",
+        "lifecycle",
+        "risk",
+        "execution",
+    ):
+        dependencies: tuple[str, ...] = ()
+        if domain == "model":
+            dependencies = (
+                by_domain["feature"].identity,
+                by_domain["label"].identity,
+            )
+        elif components:
+            dependencies = (components[-1].identity,)
+        variant = "alternate" if slot == 2 and domain == "execution" else "common"
+        value = ComponentSpec(
+            display_name=f"{domain} architecture fixture",
+            protocol=f"{domain}.architecture_fixture.v1",
+            implementation=f"fixture.{domain}.{variant}",
+            spec={"architecture_semantics": variant, "parameter_fields": []},
+            semantic_dependencies=dependencies,
+        )
+        components.append(value)
+        by_domain[domain] = value
+    baseline = ExecutableSpec(
+        display_name="Portfolio architecture fixture",
+        components=tuple(components),
+        parameters={},
+        data_contract="data:fixture",
+        split_contract="split:fixture",
+        clock_contract="clock:fixture",
+        cost_contract="cost:fixture",
+        engine_contract="engine:fixture",
+    )
+    chassis = ArchitectureChassisSpec.from_executable(baseline)
     return _PortfolioAxis(
         axis_id=axis_id,
         causal_question=causal_question,
         mechanism_family=mechanism_family,
         primary_research_layer=layer,
-        system_architecture_family=(
-            "architecture-family:fixture-baseline"
-            if slot < 2
-            else "architecture-family:fixture-alternate"
-        ),
+        system_architecture_family=chassis.identity,
         changed_domains=(layer,),
         controlled_domains=controlled,
         why_now="fixture requires a causally distinct research axis",
         stop_or_reopen_condition="stop at the frozen fixture evidence boundary",
+        architecture_chassis=chassis,
         status=status,
     )
 
@@ -436,6 +479,28 @@ class PortfolioBoundaryTests(unittest.TestCase):
                 controlled_domains=(ResearchLayer.MODEL,),
                 why_now="test one-layer enforcement",
                 stop_or_reopen_condition="stop when construction rejects",
+            )
+
+        canonical_axis = PortfolioAxis(
+            axis_id="axis-canonical-a",
+            causal_question="Does canonical chassis resist label renaming?",
+            mechanism_family="canonical-family",
+        )
+        assert canonical_axis.architecture_chassis is not None
+        with self.assertRaisesRegex(
+            PortfolioDecisionError, "canonical chassis identity"
+        ):
+            _PortfolioAxis(
+                axis_id="axis-renamed-family",
+                causal_question="Can a renamed family evade architecture review?",
+                mechanism_family="renamed-family",
+                primary_research_layer=canonical_axis.primary_research_layer,
+                system_architecture_family="architecture-family:renamed-label",
+                changed_domains=canonical_axis.changed_domains,
+                controlled_domains=canonical_axis.controlled_domains,
+                why_now="test canonical architecture binding",
+                stop_or_reopen_condition="stop when the rename is rejected",
+                architecture_chassis=canonical_axis.architecture_chassis,
             )
 
     def test_batch_is_frozen_and_has_no_global_tiny_cap(self) -> None:

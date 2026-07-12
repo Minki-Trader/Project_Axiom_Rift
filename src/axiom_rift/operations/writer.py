@@ -8,7 +8,9 @@ from datetime import datetime, timezone
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
+import ast
 import os
+import re
 import tempfile
 import yaml
 
@@ -123,6 +125,7 @@ _BATCH_OUTCOMES = frozenset(
     {"completed", "budget_exhausted", "stopped_early", "not_evaluable", "engineering_failure"}
 )
 _ENGINEERING_FIXTURE_OUTCOME = "engineering_fixture_complete"
+_STUDY_BOUND_IMPLEMENTATION_PATTERN = re.compile(r"\b(?:MIS|STU)-[0-9]{4}\b")
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,6 +218,71 @@ def _require_digest(name: str, value: str) -> str:
     if len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
         raise TransitionError(f"{name} must be a lowercase SHA-256 digest")
     return value
+
+
+def _static_string(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, str):
+            return node.value
+        if isinstance(node.value, bytes):
+            try:
+                return node.value.decode("ascii")
+            except UnicodeDecodeError:
+                return None
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _static_string(node.left)
+        right = _static_string(node.right)
+        return None if left is None or right is None else left + right
+    if isinstance(node, ast.JoinedStr):
+        parts: list[str] = []
+        for value in node.values:
+            if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+                return None
+            parts.append(value.value)
+        return "".join(parts)
+    return None
+
+
+def _hardcoded_control_ids(source: bytes) -> tuple[str, ...]:
+    """Find static Mission/Study IDs in Python or conservatively in other code."""
+
+    try:
+        text = source.decode("utf-8")
+    except UnicodeDecodeError:
+        return tuple(
+            sorted(
+                set(
+                    _STUDY_BOUND_IMPLEMENTATION_PATTERN.findall(
+                        source.decode("ascii", errors="ignore")
+                    )
+                )
+            )
+        )
+    try:
+        tree = ast.parse(text)
+    except SyntaxError:
+        return tuple(
+            sorted(set(_STUDY_BOUND_IMPLEMENTATION_PATTERN.findall(text)))
+        )
+    docstrings: set[int] = set()
+    for owner in ast.walk(tree):
+        body = getattr(owner, "body", None)
+        if (
+            isinstance(body, list)
+            and body
+            and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)
+        ):
+            docstrings.add(id(body[0].value))
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if id(node) in docstrings:
+            continue
+        value = _static_string(node)
+        if value is not None:
+            found.update(_STUDY_BOUND_IMPLEMENTATION_PATTERN.findall(value))
+    return tuple(sorted(found))
 
 
 def _parse_utc(name: str, value: str) -> datetime:
@@ -2687,11 +2755,743 @@ class StateWriter:
         )
 
     @staticmethod
+    def _axis_architecture_anchor(
+        index: LocalIndex,
+        axis: Mapping[str, Any],
+    ) -> dict[str, Any] | None:
+        typed_identity = axis.get("architecture_chassis_identity")
+        typed_payload = axis.get("architecture_chassis")
+        if isinstance(typed_identity, str):
+            if not isinstance(typed_payload, dict):
+                raise RecoveryRequired("typed Portfolio axis chassis is malformed")
+            return {
+                "architecture_chassis": dict(typed_payload),
+                "architecture_chassis_identity": typed_identity,
+                "baseline_executable": None,
+                "baseline_executable_id": None,
+            }
+        axis_identity = axis.get("axis_identity")
+        anchors: dict[tuple[str, str], dict[str, Any]] = {}
+        for record in index.records_by_kind("portfolio-decision"):
+            payload = record.payload
+            architecture_identity = payload.get("architecture_chassis_identity")
+            baseline_id = payload.get("baseline_executable_id")
+            if (
+                payload.get("target_axis_identity") != axis_identity
+                or not isinstance(architecture_identity, str)
+                or not isinstance(baseline_id, str)
+            ):
+                continue
+            anchor = {
+                "architecture_chassis": payload.get("architecture_chassis"),
+                "architecture_chassis_identity": architecture_identity,
+                "baseline_executable": payload.get("baseline_executable"),
+                "baseline_executable_id": baseline_id,
+            }
+            anchors[(architecture_identity, baseline_id)] = anchor
+        if len(anchors) > 1:
+            raise RecoveryRequired(
+                "legacy Portfolio axis has conflicting prospective chassis anchors"
+            )
+        return None if not anchors else next(iter(anchors.values()))
+
+    def _require_registered_chassis_baseline(
+        self,
+        *,
+        index: LocalIndex,
+        controlled_chassis: Any,
+        decision: IndexRecord,
+    ) -> None:
+        baseline = controlled_chassis.baseline_executable
+        baseline_payload = baseline.to_identity_payload()
+        provenance = decision.payload.get("baseline_provenance")
+        if (
+            decision.payload.get("baseline_executable_id") != baseline.identity
+            or decision.payload.get("baseline_executable") != baseline_payload
+            or not isinstance(provenance, dict)
+        ):
+            raise TransitionError(
+                "controlled chassis baseline differs from its accepted Decision"
+            )
+        prior = self._prior_scientific_baseline(index, baseline)
+        if provenance.get("kind") == "trial":
+            if prior is None or provenance.get("record_id") != prior.record_id:
+                raise TransitionError(
+                    "controlled chassis baseline lost its prior scientific trial"
+                )
+        elif provenance != {
+            "data_contract": baseline.data_contract,
+            "kind": "first_data_contract_bootstrap",
+        } or prior is not None:
+            raise TransitionError(
+                "controlled chassis baseline bootstrap is no longer valid"
+            )
+        for component, component_id in zip(
+            baseline.components, baseline.component_identities, strict=True
+        ):
+            expected = self._component_manifest_record(
+                component_id=component_id,
+                manifest=component.to_identity_payload(),
+            )
+            existing = index.get("component-manifest", component_id)
+            if existing is None:
+                raise TransitionError(
+                    "controlled chassis baseline component is not registered"
+                )
+            self._require_component_manifest_projection(index, expected)
+
+    @staticmethod
+    def _prior_scientific_baseline(
+        index: LocalIndex,
+        baseline: Any,
+    ) -> IndexRecord | None:
+        baseline_payload = baseline.to_identity_payload()
+        relevant = [
+            record
+            for record in index.records_by_kind("trial")
+            if isinstance(record.payload.get("executable"), dict)
+            and record.payload["executable"].get("data_contract")
+            == baseline.data_contract
+        ]
+        exact = index.get("trial", baseline.identity)
+        if not relevant:
+            return None
+        study_id = None if exact is None else exact.payload.get("study_id")
+        study = (
+            None
+            if not isinstance(study_id, str)
+            else index.get("study-open", study_id)
+        )
+        if (
+            exact is None
+            or exact.status != "evaluated"
+            or exact.fingerprint != baseline.identity.removeprefix("executable:")
+            or exact.payload.get("scientific_eligible") is not True
+            or exact.payload.get("engineering_fixture") is not False
+            or exact.payload.get("executable") != baseline_payload
+            or study is None
+            or exact.payload.get("mission_id") != study.payload.get("mission_id")
+        ):
+            raise TransitionError(
+                "Portfolio Decision baseline must reuse a prior scientific Executable"
+            )
+        return exact
+
+    def _require_component_parity_payload(
+        self,
+        *,
+        index: LocalIndex,
+        equivalence: Mapping[str, Any],
+        mission_id: str,
+        portfolio_decision_id: str | None,
+    ) -> None:
+        completion_id = equivalence.get("completion_record_id")
+        parity_manifest_hash = equivalence.get("parity_manifest_hash")
+        try:
+            _require_digest("component parity completion", completion_id)
+            _require_digest("component parity manifest", parity_manifest_hash)
+        except (TypeError, ValueError) as exc:
+            raise TransitionError("component parity authority is malformed") from exc
+        completion = index.get("job-completed", completion_id)
+        if completion is None or completion.status != "success":
+            raise TransitionError(
+                "component parity requires a successful registered-validator Job completion"
+            )
+        job_id = completion.payload.get("job_id")
+        declaration = (
+            None
+            if not isinstance(job_id, str)
+            else index.get("job-declared", job_id)
+        )
+        binding = (
+            None
+            if declaration is None
+            else declaration.payload.get("spec", {}).get("component_parity_binding")
+        )
+        parity = completion.payload.get("component_parity")
+        expected = {
+            "canonical_component_id": equivalence.get("canonical_component_id"),
+            "canonical_component_manifest": equivalence.get(
+                "canonical_component_manifest"
+            ),
+            "dimensions": equivalence.get("dimensions"),
+            "equivalent_component_id": equivalence.get("equivalent_component_id"),
+            "equivalent_component_manifest": equivalence.get(
+                "equivalent_component_manifest"
+            ),
+        }
+        if (
+            declaration is None
+            or declaration.fingerprint != completion.fingerprint
+            or declaration.payload.get("mission_id") != mission_id
+            or not isinstance(binding, dict)
+            or (
+                portfolio_decision_id is not None
+                and binding.get("portfolio_decision_id") != portfolio_decision_id
+            )
+            or any(binding.get(name) != value for name, value in expected.items())
+            or not isinstance(parity, dict)
+            or parity.get("equivalent") is not True
+            or parity.get("result_manifest_hash") != parity_manifest_hash
+            or any(parity.get(name) != value for name, value in expected.items())
+        ):
+            raise TransitionError(
+                "component parity completion differs from its typed endpoints"
+            )
+        trace = parity.get("validation_trace")
+        measurement_hashes = parity.get("measurement_artifact_hashes")
+        if (
+            not isinstance(trace, dict)
+            or trace.get("validator_id") != binding.get("validator_id")
+            or type(trace.get("declared_artifact_count")) is not int
+            or trace.get("declared_artifact_count", 0) <= 0
+            or trace.get("declared_artifact_count")
+            != trace.get("opened_artifact_count")
+            or not isinstance(measurement_hashes, list)
+            or not measurement_hashes
+        ):
+            raise TransitionError(
+                "component parity lacks a complete registered-validator trace"
+            )
+        decisions = index.records_by_subject_status(
+            subject=f"Job:{job_id}", status="accept_component_parity"
+        )
+        if not any(
+            record.payload.get("completion_record_id") == completion_id
+            for record in decisions
+        ):
+            raise TransitionError("component parity Job has not been accepted by Writer")
+        for artifact_hash in [parity_manifest_hash, *measurement_hashes]:
+            try:
+                self.evidence.verify(artifact_hash)
+            except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+                raise TransitionError(
+                    "component parity evidence bytes are unavailable"
+                ) from exc
+
+    def _require_component_parity_evidence(
+        self,
+        *,
+        index: LocalIndex,
+        controlled_chassis: Any,
+        mission_id: str,
+        portfolio_decision_id: str,
+    ) -> None:
+        """Verify every equivalence through Writer-accepted validator completions."""
+
+        from axiom_rift.research.chassis import ControlledStudyChassis
+
+        if not isinstance(controlled_chassis, ControlledStudyChassis):
+            raise TransitionError("controlled component chassis is not typed")
+        for equivalence in controlled_chassis.equivalences:
+            self._require_component_parity_payload(
+                index=index,
+                equivalence=equivalence.to_identity_payload(),
+                mission_id=mission_id,
+                portfolio_decision_id=portfolio_decision_id,
+            )
+
+    @staticmethod
+    def _component_parity_member_records(
+        *,
+        equivalence: Mapping[str, Any],
+        mission_id: str,
+        portfolio_decision_id: str,
+    ) -> list[IndexRecord]:
+        from axiom_rift.research.chassis import (
+            ChassisIdentityError,
+            architecture_component_semantic_surface_identity,
+            component_semantic_surface_identity,
+        )
+
+        canonical_id = equivalence.get("canonical_component_id")
+        equivalent_id = equivalence.get("equivalent_component_id")
+        if not isinstance(canonical_id, str) or not isinstance(equivalent_id, str):
+            raise TransitionError("component parity endpoints are malformed")
+        edge_id = canonical_digest(
+            domain="component-parity-edge",
+            payload={
+                "component_ids": sorted((canonical_id, equivalent_id)),
+                "schema": "component_parity_edge.v1",
+            },
+        )
+        records: list[IndexRecord] = []
+        for endpoint, peer, prefix in (
+            (canonical_id, equivalent_id, "canonical"),
+            (equivalent_id, canonical_id, "equivalent"),
+        ):
+            manifest = equivalence.get(f"{prefix}_component_manifest")
+            if not isinstance(manifest, Mapping):
+                raise TransitionError("component parity endpoint manifest is malformed")
+            try:
+                surface = architecture_component_semantic_surface_identity(manifest)
+            except ChassisIdentityError as exc:
+                if "outside the prediction-to-position" not in str(exc):
+                    raise TransitionError(str(exc)) from exc
+                surface = component_semantic_surface_identity(manifest)
+            record_id = canonical_digest(
+                domain="component-parity-member",
+                payload={
+                    "completion_record_id": equivalence.get(
+                        "completion_record_id"
+                    ),
+                    "edge_id": edge_id,
+                    "endpoint_id": endpoint,
+                    "schema": "component_parity_member.v1",
+                },
+            )
+            records.append(
+                _record(
+                    kind="component-parity-member",
+                    record_id=record_id,
+                    subject=f"Component:{endpoint}",
+                    status="equivalent",
+                    fingerprint=surface,
+                    payload={
+                        "edge_id": edge_id,
+                        "endpoint_id": endpoint,
+                        "equivalence": dict(equivalence),
+                        "mission_id": mission_id,
+                        "peer_component_id": peer,
+                        "portfolio_decision_id": portfolio_decision_id,
+                        "schema": "component_parity_member_projection.v1",
+                    },
+                )
+            )
+        return records
+
+    def _verified_component_parity_edges(
+        self,
+        index: LocalIndex,
+        *,
+        surface_seeds: tuple[str, ...] = (),
+        component_seeds: tuple[str, ...] = (),
+    ) -> tuple[dict[str, Any], ...]:
+        """Re-verify every durable Writer-accepted parity edge from exact bytes."""
+
+        edges: dict[tuple[str, str], dict[str, Any]] = {}
+        if surface_seeds or component_seeds:
+            members_by_id: dict[str, IndexRecord] = {}
+            pending_surfaces = list(dict.fromkeys(surface_seeds))
+            pending_components = list(dict.fromkeys(component_seeds))
+            seen_surfaces: set[str] = set()
+            seen_components: set[str] = set()
+            while pending_surfaces or pending_components:
+                if pending_surfaces:
+                    surface = pending_surfaces.pop()
+                    if surface in seen_surfaces:
+                        continue
+                    seen_surfaces.add(surface)
+                    candidates = index.records_by_fingerprint(surface)
+                else:
+                    component_id = pending_components.pop()
+                    if component_id in seen_components:
+                        continue
+                    seen_components.add(component_id)
+                    candidates = index.records_by_subject_status(
+                        subject=f"Component:{component_id}",
+                        status="equivalent",
+                    )
+                for candidate in candidates:
+                    if candidate.kind != "component-parity-member":
+                        continue
+                    members_by_id[candidate.record_id] = candidate
+                    equivalence = candidate.payload.get("equivalence")
+                    if not isinstance(equivalence, dict):
+                        raise RecoveryRequired(
+                            "accepted component parity member is malformed"
+                        )
+                    for name in (
+                        "canonical_component_id",
+                        "equivalent_component_id",
+                    ):
+                        value = equivalence.get(name)
+                        if isinstance(value, str) and value not in seen_components:
+                            pending_components.append(value)
+            members = tuple(members_by_id.values())
+        else:
+            members = index.records_by_kind("component-parity-member")
+        for member in members:
+            equivalence = member.payload.get("equivalence")
+            mission_id = member.payload.get("mission_id")
+            portfolio_decision_id = member.payload.get("portfolio_decision_id")
+            if (
+                member.status != "equivalent"
+                or member.payload.get("schema")
+                != "component_parity_member_projection.v1"
+                or not isinstance(equivalence, dict)
+                or not isinstance(mission_id, str)
+                or not isinstance(portfolio_decision_id, str)
+            ):
+                raise RecoveryRequired("accepted component parity member is malformed")
+            self._require_component_parity_payload(
+                index=index,
+                equivalence=equivalence,
+                mission_id=mission_id,
+                portfolio_decision_id=portfolio_decision_id,
+            )
+            endpoints = (
+                equivalence["canonical_component_id"],
+                equivalence["equivalent_component_id"],
+            )
+            if any(not isinstance(value, str) for value in endpoints):
+                raise RecoveryRequired("accepted component parity endpoints are malformed")
+            key = tuple(sorted(endpoints))
+            prior = edges.get(key)
+            if prior is not None and (
+                prior["canonical_component_manifest"]
+                != equivalence["canonical_component_manifest"]
+                or prior["equivalent_component_manifest"]
+                != equivalence["equivalent_component_manifest"]
+            ):
+                prior_by_id = {
+                    prior["canonical_component_id"]: prior[
+                        "canonical_component_manifest"
+                    ],
+                    prior["equivalent_component_id"]: prior[
+                        "equivalent_component_manifest"
+                    ],
+                }
+                current_by_id = {
+                    equivalence["canonical_component_id"]: equivalence[
+                        "canonical_component_manifest"
+                    ],
+                    equivalence["equivalent_component_id"]: equivalence[
+                        "equivalent_component_manifest"
+                    ],
+                }
+                if prior_by_id != current_by_id:
+                    raise RecoveryRequired(
+                        "accepted component parity endpoints conflict"
+                    )
+            edges[key] = equivalence
+        return tuple(edges[key] for key in sorted(edges))
+
+    @staticmethod
+    def _architecture_parity_surface_replacements(
+        equivalences: tuple[Mapping[str, Any], ...],
+    ) -> dict[str, str]:
+        from axiom_rift.research.chassis import (
+            ChassisIdentityError,
+            architecture_component_semantic_surface_identity,
+        )
+
+        parents: dict[str, str] = {}
+        manifests: dict[str, Mapping[str, Any]] = {}
+
+        def find(component_id: str) -> str:
+            parent = parents.setdefault(component_id, component_id)
+            if parent != component_id:
+                parents[component_id] = find(parent)
+            return parents[component_id]
+
+        def union(left_id: str, right_id: str) -> None:
+            left_root = find(left_id)
+            right_root = find(right_id)
+            if left_root == right_root:
+                return
+            low, high = sorted((left_root, right_root))
+            parents[high] = low
+
+        for equivalence in equivalences:
+            endpoint_values = []
+            for prefix in ("canonical", "equivalent"):
+                component_id = equivalence.get(f"{prefix}_component_id")
+                manifest = equivalence.get(f"{prefix}_component_manifest")
+                if not isinstance(component_id, str) or not isinstance(manifest, Mapping):
+                    raise RecoveryRequired("accepted parity endpoint is malformed")
+                expected_id = "component:" + canonical_digest(
+                    domain="component", payload=dict(manifest)
+                )
+                if component_id != expected_id:
+                    raise RecoveryRequired(
+                        "accepted parity endpoint differs from its manifest"
+                    )
+                prior = manifests.get(component_id)
+                if prior is not None and dict(prior) != dict(manifest):
+                    raise RecoveryRequired("accepted parity manifest collision")
+                manifests[component_id] = manifest
+                endpoint_values.append(component_id)
+            union(endpoint_values[0], endpoint_values[1])
+
+        surface_owners: dict[str, str] = {}
+        for component_id, manifest in manifests.items():
+            try:
+                surface = architecture_component_semantic_surface_identity(
+                    manifest
+                )
+            except ChassisIdentityError as exc:
+                if "outside the prediction-to-position" in str(exc):
+                    continue
+                raise RecoveryRequired(str(exc)) from exc
+            owner = surface_owners.get(surface)
+            if owner is None:
+                surface_owners[surface] = component_id
+            else:
+                union(owner, component_id)
+
+        classes: dict[str, list[str]] = {}
+        for component_id in parents:
+            classes.setdefault(find(component_id), []).append(component_id)
+        replacements: dict[str, str] = {}
+        for members in classes.values():
+            normalized_members = sorted(members)
+            class_surface = "architecture-equivalence-class:" + canonical_digest(
+                domain="architecture-equivalence-class",
+                payload={
+                    "component_ids": normalized_members,
+                    "schema": "architecture_equivalence_class.v1",
+                },
+            )
+            for component_id in normalized_members:
+                try:
+                    surface = architecture_component_semantic_surface_identity(
+                        manifests[component_id]
+                    )
+                except ChassisIdentityError as exc:
+                    if "outside the prediction-to-position" in str(exc):
+                        continue
+                    raise RecoveryRequired(str(exc)) from exc
+                prior = replacements.get(surface)
+                if prior is not None and prior != class_surface:
+                    raise RecoveryRequired(
+                        "accepted parity architecture classes conflict"
+                    )
+                replacements[surface] = class_surface
+        return replacements
+
+    def _resolved_architecture_family(
+        self,
+        *,
+        index: LocalIndex,
+        architecture_payload: Mapping[str, Any],
+        extra_equivalences: tuple[Mapping[str, Any], ...] = (),
+    ) -> str:
+        from axiom_rift.research.chassis import (
+            ChassisIdentityError,
+            architecture_family_identity,
+        )
+
+        roles = architecture_payload.get("roles")
+        if not isinstance(roles, Mapping):
+            raise TransitionError("architecture chassis roles are malformed")
+        surface_seeds = tuple(
+            sorted(
+                {
+                    surface
+                    for role in roles.values()
+                    if isinstance(role, Mapping)
+                    for surface in role.get("component_semantic_surfaces", [])
+                    if isinstance(surface, str)
+                }
+            )
+        )
+        cache = getattr(index, "_axiom_verified_parity_cache", None)
+        if cache is None:
+            cache = {}
+            setattr(index, "_axiom_verified_parity_cache", cache)
+        verified = cache.get(surface_seeds)
+        if verified is None:
+            verified = self._verified_component_parity_edges(
+                index,
+                surface_seeds=surface_seeds,
+            )
+            cache[surface_seeds] = verified
+        equivalences = (
+            *verified,
+            *extra_equivalences,
+        )
+        replacements = self._architecture_parity_surface_replacements(
+            tuple(equivalences)
+        )
+        try:
+            return architecture_family_identity(
+                architecture_payload,
+                surface_replacements=replacements,
+            )
+        except ChassisIdentityError as exc:
+            raise TransitionError(str(exc)) from exc
+
+    def _study_resolved_architecture_family(
+        self,
+        *,
+        index: LocalIndex,
+        study: IndexRecord,
+        extra_equivalences: tuple[Mapping[str, Any], ...] = (),
+    ) -> str:
+        controlled = study.payload.get("controlled_chassis")
+        architecture = (
+            None if not isinstance(controlled, dict) else controlled.get("architecture")
+        )
+        if isinstance(architecture, dict):
+            return self._resolved_architecture_family(
+                index=index,
+                architecture_payload=architecture,
+                extra_equivalences=extra_equivalences,
+            )
+        legacy = study.payload.get("system_architecture_family")
+        if not isinstance(legacy, str):
+            raise TransitionError("Study lacks a system architecture family")
+        return legacy
+
+    def _review_resolved_architecture_family(
+        self,
+        *,
+        index: LocalIndex,
+        review: IndexRecord,
+        extra_equivalences: tuple[Mapping[str, Any], ...] = (),
+    ) -> str:
+        families: set[str] = set()
+        for diagnosis_id in review.payload.get("covered_diagnosis_ids", []):
+            if not isinstance(diagnosis_id, str):
+                raise RecoveryRequired("architecture review diagnosis binding is malformed")
+            diagnosis = index.get("study-diagnosis", diagnosis_id)
+            study_id = None if diagnosis is None else diagnosis.payload.get("study_id")
+            study = (
+                None
+                if not isinstance(study_id, str)
+                else index.get("study-open", study_id)
+            )
+            if study is None:
+                raise RecoveryRequired(
+                    "architecture review lost a covered Study diagnosis"
+                )
+            controlled = study.payload.get("controlled_chassis")
+            architecture = (
+                None
+                if not isinstance(controlled, dict)
+                else controlled.get("architecture")
+            )
+            if isinstance(architecture, dict):
+                families.add(
+                    self._resolved_architecture_family(
+                        index=index,
+                        architecture_payload=architecture,
+                        extra_equivalences=extra_equivalences,
+                    )
+                )
+            else:
+                legacy = study.payload.get("system_architecture_family")
+                if not isinstance(legacy, str):
+                    raise RecoveryRequired(
+                        "architecture review Study family is unavailable"
+                    )
+                families.add(legacy)
+        if len(families) > 1:
+            raise RecoveryRequired(
+                "architecture review covered Studies no longer share one family"
+            )
+        if families:
+            return next(iter(families))
+        stored = review.payload.get("system_architecture_family")
+        if not isinstance(stored, str):
+            raise RecoveryRequired("architecture review family is unavailable")
+        return stored
+
+    def _pending_architecture_review_trigger(
+        self,
+        *,
+        index: LocalIndex,
+        mission_id: str,
+        portfolio_snapshot_id: str,
+        architecture_family: str,
+        extra_equivalences: tuple[Mapping[str, Any], ...] = (),
+    ) -> IndexRecord | None:
+        snapshot = index.get("portfolio-snapshot", portfolio_snapshot_id)
+        standard = (
+            None if snapshot is None else snapshot.payload.get("exhaustion_standard")
+        )
+        if not isinstance(standard, dict):
+            return None
+        minimum_studies = standard.get("architecture_review_minimum_studies")
+        minimum_axes = standard.get("architecture_review_minimum_axes")
+        if type(minimum_studies) is not int or type(minimum_axes) is not int:
+            raise RecoveryRequired("architecture review threshold is malformed")
+        reviewed_ids: set[str] = set()
+        for review in index.records_by_kind("architecture-review"):
+            if review.payload.get("mission_id") == mission_id:
+                reviewed_ids.update(
+                    value
+                    for value in review.payload.get("covered_diagnosis_ids", [])
+                    if isinstance(value, str)
+                )
+        diagnoses: list[IndexRecord] = []
+        for diagnosis in index.records_by_kind("study-diagnosis"):
+            if (
+                diagnosis.payload.get("mission_id") != mission_id
+                or diagnosis.record_id in reviewed_ids
+                or diagnosis.payload.get("evidence_state")
+                in {"engineering_gap", "supported_requires_confirmation"}
+            ):
+                continue
+            study_id = diagnosis.payload.get("study_id")
+            study = (
+                None
+                if not isinstance(study_id, str)
+                else index.get("study-open", study_id)
+            )
+            if study is None:
+                raise RecoveryRequired(
+                    "architecture review diagnosis lost its Study"
+                )
+            if (
+                self._study_resolved_architecture_family(
+                    index=index,
+                    study=study,
+                    extra_equivalences=extra_equivalences,
+                )
+                == architecture_family
+            ):
+                diagnoses.append(diagnosis)
+        axis_ids = {
+            diagnosis.payload.get("portfolio_axis_id") for diagnosis in diagnoses
+        }
+        if (
+            len(diagnoses) < minimum_studies
+            or len(axis_ids) < minimum_axes
+            or None in axis_ids
+        ):
+            return None
+        trigger_payload = {
+            "diagnosis_ids": sorted(
+                diagnosis.record_id for diagnosis in diagnoses
+            ),
+            "mission_id": mission_id,
+            "portfolio_axis_ids": sorted(axis_ids),
+            "portfolio_snapshot_id": portfolio_snapshot_id,
+            "primary_research_layers": sorted(
+                {
+                    diagnosis.payload["primary_research_layer"]
+                    for diagnosis in diagnoses
+                }
+            ),
+            "schema": "architecture_review_trigger.v1",
+            "system_architecture_family": architecture_family,
+            "threshold": {
+                "minimum_distinct_axes": minimum_axes,
+                "minimum_studies": minimum_studies,
+            },
+        }
+        trigger_id = canonical_digest(
+            domain="architecture-review-trigger",
+            payload=trigger_payload,
+        )
+        return _record(
+            kind="architecture-review-trigger",
+            record_id=trigger_id,
+            subject=f"Mission:{mission_id}",
+            status="required",
+            fingerprint=trigger_id,
+            payload=trigger_payload,
+        )
+
+    @staticmethod
     def study_input_hash(
         *,
         question: Mapping[str, Any],
         material_identity: str,
         semantic_proposal: Mapping[str, Any],
+        controlled_chassis: Any | None = None,
         portfolio_axis_id: str | None = None,
         portfolio_axis_identity: str | None = None,
         portfolio_decision_id: str | None = None,
@@ -2712,8 +3512,19 @@ class StateWriter:
         )
         question_hash = _digest(question_manifest, domain="study-question")
         _require_ascii("material_identity", material_identity)
+        from axiom_rift.research.chassis import ControlledStudyChassis
+
+        if controlled_chassis is not None and not isinstance(
+            controlled_chassis, ControlledStudyChassis
+        ):
+            raise TransitionError("controlled_chassis must be a ControlledStudyChassis")
         return _digest(
             {
+                "controlled_chassis": (
+                    None
+                    if controlled_chassis is None
+                    else controlled_chassis.to_identity_payload()
+                ),
                 "question_hash": question_hash,
                 "material_identity": material_identity,
                 "portfolio_axis_id": portfolio_axis_id,
@@ -2732,6 +3543,7 @@ class StateWriter:
         material_identity: str,
         material_display_name: str,
         semantic_proposal: Mapping[str, Any],
+        controlled_chassis: Any | None = None,
         permit: Permit,
         operation_id: str,
         portfolio_axis_id: str | None = None,
@@ -2765,6 +3577,16 @@ class StateWriter:
             StudyTrialContext,
             TrialAccountant,
         )
+        from axiom_rift.research.chassis import ControlledStudyChassis
+
+        if controlled_chassis is not None and not isinstance(
+            controlled_chassis, ControlledStudyChassis
+        ):
+            raise TransitionError("controlled_chassis must be a ControlledStudyChassis")
+        if not self.engineering_fixture and controlled_chassis is None:
+            raise TransitionError(
+                "scientific Study requires a typed controlled component chassis"
+            )
 
         trial_accountant = TrialAccountant.from_foundation(self.foundation_root)
         material_reference = MaterialReference(
@@ -2775,6 +3597,7 @@ class StateWriter:
             question=question_manifest,
             material_identity=material_identity,
             semantic_proposal=semantic_proposal,
+            controlled_chassis=controlled_chassis,
             portfolio_axis_id=portfolio_axis_id,
             portfolio_axis_identity=portfolio_axis_identity,
             portfolio_decision_id=portfolio_decision_id,
@@ -2871,6 +3694,89 @@ class StateWriter:
                 controlled_domains = list(axis["controlled_domains"])
                 portfolio_action = chosen["action"]
                 commitment_batches = decision.payload["commitment_batches"]
+                assert controlled_chassis is not None
+                if [domain.value for domain in controlled_chassis.changed_domains] != sorted(
+                    changed_domains
+                ):
+                    raise TransitionError(
+                        "Study changed component domains differ from its Portfolio axis"
+                    )
+                if [domain.value for domain in controlled_chassis.controlled_domains] != sorted(
+                    controlled_domains
+                ):
+                    raise TransitionError(
+                        "Study controlled component domains differ from its Portfolio axis"
+                    )
+                typed_axis_chassis = axis.get("architecture_chassis_identity")
+                typed_axis_payload = axis.get("architecture_chassis")
+                accepted_architecture = next_action.get(
+                    "architecture_chassis_identity"
+                )
+                accepted_resolved_family = next_action.get(
+                    "resolved_architecture_family"
+                )
+                accepted_baseline = next_action.get("baseline_executable_id")
+                resolved_controlled_family = self._resolved_architecture_family(
+                    index=_index,
+                    architecture_payload=controlled_chassis.architecture.to_identity_payload(),
+                )
+                resolved_axis_family = (
+                    None
+                    if not isinstance(typed_axis_chassis, str)
+                    else self._resolved_architecture_family(
+                        index=_index,
+                        architecture_payload=typed_axis_payload,
+                    )
+                    if isinstance(typed_axis_payload, dict)
+                    else None
+                )
+                if (
+                    not isinstance(accepted_architecture, str)
+                    or not isinstance(accepted_resolved_family, str)
+                    or not isinstance(accepted_baseline, str)
+                    or accepted_architecture
+                    != decision.payload.get("architecture_chassis_identity")
+                    or decision.payload.get("architecture_chassis")
+                    != controlled_chassis.architecture.to_identity_payload()
+                    or accepted_baseline
+                    != decision.payload.get("baseline_executable_id")
+                    or accepted_architecture
+                    != controlled_chassis.architecture.identity
+                    or accepted_baseline
+                    != controlled_chassis.baseline_executable.identity
+                    or accepted_resolved_family != resolved_controlled_family
+                    or (
+                        isinstance(typed_axis_chassis, str)
+                        and resolved_axis_family != resolved_controlled_family
+                    )
+                ):
+                    raise TransitionError(
+                        "Study chassis differs from its accepted Portfolio Decision anchor"
+                    )
+                self._require_registered_chassis_baseline(
+                    index=_index,
+                    controlled_chassis=controlled_chassis,
+                    decision=decision,
+                )
+                self._require_component_parity_evidence(
+                    index=_index,
+                    controlled_chassis=controlled_chassis,
+                    mission_id=science["active_mission"],
+                    portfolio_decision_id=portfolio_decision_id,
+                )
+                required_study_scope = {
+                    "study",
+                    f"decision:{portfolio_decision_id}",
+                    f"axis:{portfolio_axis_identity}",
+                    f"baseline:{accepted_baseline}",
+                    f"chassis:{accepted_architecture}",
+                    f"snapshot:{portfolio_snapshot_id}",
+                }
+                if not required_study_scope.issubset(permit.scope):
+                    raise TransitionError(
+                        "StudyPermit does not bind the accepted Portfolio Decision"
+                    )
+                system_architecture_family = resolved_controlled_family
             if material_identity == trial_accountant.observed_material_identity:
                 trial_context = trial_accountant.open_study(
                     material=material_reference,
@@ -2947,6 +3853,19 @@ class StateWriter:
                     "mission_id": science["active_mission"],
                     "primary_research_layer": primary_research_layer,
                     "system_architecture_family": system_architecture_family,
+                    "portfolio_architecture_family": axis[
+                        "system_architecture_family"
+                    ] if not self.engineering_fixture else None,
+                    "controlled_chassis": (
+                        None
+                        if controlled_chassis is None
+                        else controlled_chassis.to_identity_payload()
+                    ),
+                    "controlled_chassis_identity": (
+                        None
+                        if controlled_chassis is None
+                        else controlled_chassis.controlled_chassis_identity
+                    ),
                     "changed_domains": changed_domains,
                     "controlled_domains": controlled_domains,
                     "portfolio_action": portfolio_action,
@@ -2966,6 +3885,11 @@ class StateWriter:
             return body, [consumption, record], {
                 "study_id": study_id,
                 "study_hash": study_hash,
+                "controlled_chassis_identity": (
+                    None
+                    if controlled_chassis is None
+                    else controlled_chassis.controlled_chassis_identity
+                ),
                 "prior_global_multiplicity": prior_global_multiplicity,
                 "semantic_warning_count": len(trial_context.semantic_warnings),
             }
@@ -2986,6 +3910,123 @@ class StateWriter:
             },
             prepare=prepare,
         )
+
+    def study_chassis_combination_identity(
+        self,
+        *,
+        left_study_id: str,
+        right_study_id: str,
+        shared_domains: tuple[Any, ...],
+    ) -> str:
+        """Prove cross-Study chassis compatibility from stored Writer authority."""
+
+        validate_study_id(left_study_id)
+        validate_study_id(right_study_id)
+        from axiom_rift.research.chassis import (
+            ChassisIdentityError,
+            combine_control_payloads,
+        )
+        from axiom_rift.research.governance import ResearchLayer
+
+        if type(shared_domains) is not tuple or not shared_domains or any(
+            not isinstance(domain, ResearchLayer) for domain in shared_domains
+        ):
+            raise TransitionError("shared chassis domains are not typed")
+        with WriterLock(self.lock_path):
+            with self._open_authoritative_index() as index:
+                self._require_stable_locked(index)
+                studies = [
+                    index.get("study-open", study_id)
+                    for study_id in (left_study_id, right_study_id)
+                ]
+                if any(study is None for study in studies):
+                    raise TransitionError(
+                        "cross-Study chassis proof requires registered Studies"
+                    )
+                payloads: list[Mapping[str, Any]] = []
+                for study in studies:
+                    assert study is not None
+                    payload = study.payload.get("controlled_chassis")
+                    mission_id = study.payload.get("mission_id")
+                    decision_id = study.payload.get("portfolio_decision_id")
+                    if (
+                        not isinstance(payload, dict)
+                        or not isinstance(mission_id, str)
+                        or not isinstance(decision_id, str)
+                    ):
+                        raise TransitionError(
+                            "Study lacks a Writer-bound controlled chassis"
+                        )
+                    equivalences = payload.get("equivalences")
+                    if not isinstance(equivalences, list):
+                        raise TransitionError(
+                            "Study component equivalences are malformed"
+                        )
+                    for equivalence in equivalences:
+                        if not isinstance(equivalence, dict):
+                            raise TransitionError(
+                                "Study component equivalence is malformed"
+                            )
+                        self._require_component_parity_payload(
+                            index=index,
+                            equivalence=equivalence,
+                            mission_id=mission_id,
+                            portfolio_decision_id=decision_id,
+                        )
+                    payloads.append(payload)
+                surface_seeds: set[str] = set()
+                component_seeds: set[str] = set()
+                for payload in payloads:
+                    architecture = payload.get("architecture")
+                    roles = (
+                        None
+                        if not isinstance(architecture, dict)
+                        else architecture.get("roles")
+                    )
+                    if not isinstance(roles, dict):
+                        raise TransitionError(
+                            "Study architecture roles are malformed"
+                        )
+                    for role in roles.values():
+                        surfaces = (
+                            None
+                            if not isinstance(role, dict)
+                            else role.get("component_semantic_surfaces")
+                        )
+                        if not isinstance(surfaces, list):
+                            raise TransitionError(
+                                "Study architecture surfaces are malformed"
+                            )
+                        surface_seeds.update(
+                            value for value in surfaces if isinstance(value, str)
+                        )
+                    components = payload.get("controlled_component_identities")
+                    if not isinstance(components, dict):
+                        raise TransitionError(
+                            "Study controlled component identities are malformed"
+                        )
+                    for domain in shared_domains:
+                        values = components.get(domain.value)
+                        if not isinstance(values, list):
+                            raise TransitionError(
+                                "Study shared controlled domain is malformed"
+                            )
+                        component_seeds.update(
+                            value for value in values if isinstance(value, str)
+                        )
+                try:
+                    return combine_control_payloads(
+                        payloads[0],
+                        payloads[1],
+                        shared_domains=shared_domains,
+                        verified_equivalences=self._verified_component_parity_edges(
+                            index,
+                            surface_seeds=tuple(sorted(surface_seeds)),
+                            component_seeds=tuple(sorted(component_seeds)),
+                        ),
+                    )
+                except ChassisIdentityError as exc:
+                    raise TransitionError(str(exc)) from exc
 
     def record_source_eligibility(
         self,
@@ -4737,11 +5778,10 @@ class StateWriter:
                 raise TransitionError(
                     "Study diagnosis lacks a typed primary research layer"
                 ) from exc
-            architecture = study.payload.get("system_architecture_family")
-            if not isinstance(architecture, str):
-                raise TransitionError(
-                    "Study diagnosis lacks a system architecture family"
-                )
+            architecture = self._study_resolved_architecture_family(
+                index=index,
+                study=study,
+            )
             allowed_actions, allowed_layers = diagnosis_branch(
                 diagnosis.evidence_state,
                 primary_layer=primary_layer,
@@ -4768,24 +5808,35 @@ class StateWriter:
                 "study_outcome": outcome,
                 "system_architecture_family": architecture,
             }
-            prior_diagnoses = [
-                record
-                for record in index.records_by_kind("study-diagnosis")
-                if record.payload.get("mission_id") == science["active_mission"]
-                and record.payload.get("system_architecture_family") == architecture
-                and record.payload.get("evidence_state")
-                not in {
-                    EvidenceState.ENGINEERING_GAP.value,
-                    EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION.value,
-                }
-            ]
-            reviewed_ids: set[str] = set()
-            for review in index.records_by_kind("architecture-review"):
+            prior_diagnoses: list[IndexRecord] = []
+            for record in index.records_by_kind("study-diagnosis"):
                 if (
-                    review.payload.get("mission_id") == science["active_mission"]
-                    and review.payload.get("system_architecture_family")
+                    record.payload.get("mission_id") != science["active_mission"]
+                    or record.payload.get("evidence_state")
+                    in {
+                        EvidenceState.ENGINEERING_GAP.value,
+                        EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION.value,
+                    }
+                ):
+                    continue
+                prior_study_id = record.payload.get("study_id")
+                prior_study = (
+                    None
+                    if not isinstance(prior_study_id, str)
+                    else index.get("study-open", prior_study_id)
+                )
+                if (
+                    prior_study is not None
+                    and self._study_resolved_architecture_family(
+                        index=index,
+                        study=prior_study,
+                    )
                     == architecture
                 ):
+                    prior_diagnoses.append(record)
+            reviewed_ids: set[str] = set()
+            for review in index.records_by_kind("architecture-review"):
+                if review.payload.get("mission_id") == science["active_mission"]:
                     reviewed_ids.update(
                         value
                         for value in review.payload.get(
@@ -5023,7 +6074,11 @@ class StateWriter:
                     claim.get("worker_id", "") if isinstance(claim, dict) else ""
                 ),
             )
-        for binding_name in ("runtime_binding", "scientific_binding"):
+        for binding_name in (
+            "component_parity_binding",
+            "runtime_binding",
+            "scientific_binding",
+        ):
             binding = value.get(binding_name)
             if isinstance(binding, dict):
                 for name in (
@@ -5031,6 +6086,7 @@ class StateWriter:
                     "planned_claims",
                     "planned_parity_surfaces",
                     "planned_materialization_cases",
+                    "dimensions",
                 ):
                     if isinstance(binding.get(name), list):
                         binding[name] = sorted(binding[name])
@@ -5061,6 +6117,7 @@ class StateWriter:
             "runtime_binding",
             "scientific_binding",
             "source_binding",
+            "component_parity_binding",
         }
         if unexpected:
             raise TransitionError(f"Job spec has unknown fields: {sorted(unexpected)!r}")
@@ -5148,9 +6205,17 @@ class StateWriter:
         runtime_binding = spec.get("runtime_binding")
         scientific_binding = spec.get("scientific_binding")
         source_binding = spec.get("source_binding")
+        component_parity_binding = spec.get("component_parity_binding")
+        external_binding = spec.get("external_dependency_binding")
         if sum(
             binding is not None
-            for binding in (runtime_binding, scientific_binding, source_binding)
+            for binding in (
+                component_parity_binding,
+                runtime_binding,
+                scientific_binding,
+                source_binding,
+                external_binding,
+            )
         ) > 1:
             raise TransitionError("Job cannot mix evidence-domain bindings")
         holdout_binding = spec.get("holdout_binding")
@@ -5174,7 +6239,6 @@ class StateWriter:
                 raise TransitionError("holdout_binding identity is invalid")
             if holdout_id.removeprefix("holdout:") not in input_hashes:
                 raise TransitionError("holdout identity must be a bound Job input")
-        external_binding = spec.get("external_dependency_binding")
         if external_binding is not None:
             if not isinstance(external_binding, dict) or set(external_binding) != {
                 "blocked_mission_capability",
@@ -5302,6 +6366,100 @@ class StateWriter:
                 )
             if evidence_subject["kind"] != "Executable":
                 raise TransitionError("scientific Job must bind an Executable")
+        if component_parity_binding is not None:
+            required_parity_fields = {
+                "architecture_chassis_identity",
+                "canonical_component_id",
+                "canonical_component_manifest",
+                "dimensions",
+                "equivalent_component_id",
+                "equivalent_component_manifest",
+                "portfolio_axis_identity",
+                "portfolio_decision_id",
+                "portfolio_snapshot_id",
+                "result_manifest_output",
+                "validation_plan_hash",
+                "validator_id",
+            }
+            if (
+                not isinstance(component_parity_binding, dict)
+                or set(component_parity_binding) != required_parity_fields
+            ):
+                raise TransitionError("component parity binding schema is invalid")
+            validate_validator_binding(component_parity_binding)
+            from axiom_rift.research.chassis import (
+                ComponentParityDimension,
+                component_semantic_surface_identity,
+            )
+
+            expected_dimensions = sorted(
+                value.value for value in ComponentParityDimension
+            )
+            if component_parity_binding["dimensions"] != expected_dimensions:
+                raise TransitionError(
+                    "component parity must preregister every typed dimension"
+                )
+            manifests: list[dict[str, Any]] = []
+            component_ids: list[str] = []
+            for prefix in ("canonical", "equivalent"):
+                component_id = component_parity_binding[f"{prefix}_component_id"]
+                manifest = component_parity_binding[
+                    f"{prefix}_component_manifest"
+                ]
+                if not isinstance(manifest, dict):
+                    raise TransitionError("component parity manifest is malformed")
+                expected_id = "component:" + canonical_digest(
+                    domain="component", payload=manifest
+                )
+                if component_id != expected_id:
+                    raise TransitionError(
+                        "component parity endpoint differs from its exact manifest"
+                    )
+                component_ids.append(component_id)
+                manifests.append(manifest)
+            if component_ids[0] == component_ids[1]:
+                raise TransitionError("component parity endpoints must be distinct")
+            protocols = [manifest.get("protocol") for manifest in manifests]
+            if any(not isinstance(value, str) for value in protocols) or (
+                protocols[0].split(".", 1)[0]
+                != protocols[1].split(".", 1)[0]
+            ):
+                raise TransitionError("component parity cannot cross protocol domains")
+            if (
+                protocols[0] != protocols[1]
+                and component_semantic_surface_identity(manifests[0])
+                == component_semantic_surface_identity(manifests[1])
+            ):
+                raise TransitionError(
+                    "protocol-only component identity bumps cannot receive parity"
+                )
+            for component_id in component_ids:
+                component_digest = component_id.removeprefix("component:")
+                _require_digest("component parity input", component_digest)
+                if component_digest not in input_hashes:
+                    raise TransitionError(
+                        "component parity endpoints must be content-bound Job inputs"
+                    )
+            for name in (
+                "architecture_chassis_identity",
+                "portfolio_axis_identity",
+                "portfolio_decision_id",
+                "portfolio_snapshot_id",
+            ):
+                _require_ascii(name, component_parity_binding[name])
+            result_output = component_parity_binding["result_manifest_output"]
+            if output_classes.get(result_output) != "durable_evidence":
+                raise TransitionError(
+                    "component parity result manifest must be durable"
+                )
+            if sum(
+                value == "durable_evidence" for value in output_classes.values()
+            ) < 2:
+                raise TransitionError(
+                    "component parity requires result and measurement artifacts"
+                )
+            if evidence_subject["kind"] != "Mission":
+                raise TransitionError("component parity Job must bind the Mission")
         if runtime_binding is not None:
             from axiom_rift.runtime.guards import (
                 EvidenceDepth,
@@ -5432,7 +6590,17 @@ class StateWriter:
         for source_hash in implementation_manifest["artifact_hashes"]:
             try:
                 _require_digest("implementation artifact", source_hash)
-                self.evidence.verify(source_hash)
+                source_artifact = self.evidence.verify(source_hash)
+                source_bytes = (
+                    self.evidence._root / source_artifact.relative_path
+                ).read_bytes()
+                if _hardcoded_control_ids(source_bytes):
+                    raise TransitionError(
+                        "Job implementation hardcodes a Mission or Study identity; "
+                        "use a reusable mechanism with declarative runtime binding"
+                    )
+            except TransitionError:
+                raise
             except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
                 raise TransitionError(
                     "Job implementation artifact bytes are unavailable"
@@ -5485,6 +6653,7 @@ class StateWriter:
         self._validate_job_spec(spec)
         work_basis = {
             "callable_identity": spec["callable_identity"],
+            "component_parity_binding": spec.get("component_parity_binding"),
             "evidence_subject": spec["evidence_subject"],
             "external_dependency_binding": spec.get(
                 "external_dependency_binding"
@@ -5508,11 +6677,82 @@ class StateWriter:
             if not self.engineering_fixture:
                 next_action = current.get("next_action")
                 active_batch = science.get("active_batch")
-                if isinstance(active_batch, dict) and next_action != {
+                parity_binding = spec.get("component_parity_binding")
+                parity_at_accepted_decision = (
+                    isinstance(next_action, dict)
+                    and next_action.get("kind") == "execute_portfolio_decision"
+                    and isinstance(parity_binding, dict)
+                    and parity_binding.get("portfolio_decision_id")
+                    == next_action.get("decision_id")
+                    and parity_binding.get("portfolio_snapshot_id")
+                    == next_action.get("portfolio_snapshot_id")
+                    and parity_binding.get("portfolio_axis_identity")
+                    == next_action.get("target_axis_identity")
+                    and parity_binding.get("architecture_chassis_identity")
+                    == next_action.get("architecture_chassis_identity")
+                )
+                if isinstance(parity_binding, dict) and not parity_at_accepted_decision:
+                    raise TransitionError(
+                        "component parity Job must bind the exact accepted Portfolio Decision"
+                    )
+                batch_allowed = isinstance(active_batch, dict) and next_action == {
                     "kind": "declare_job",
                     "batch_id": active_batch["id"],
-                }:
-                    raise TransitionError("Job declaration is not the exact next action")
+                }
+                active_executable = science.get("active_executable")
+                candidate_allowed = (
+                    isinstance(active_executable, str)
+                    and isinstance(next_action, dict)
+                    and next_action.get("kind") == "plan_candidate_bound_evidence"
+                    and spec["evidence_subject"]
+                    == {"kind": "Executable", "id": active_executable}
+                    and any(
+                        isinstance(spec.get(name), dict)
+                        for name in ("runtime_binding", "scientific_binding")
+                    )
+                )
+                source_allowed = (
+                    isinstance(science.get("active_study"), str)
+                    and isinstance(spec.get("source_binding"), dict)
+                )
+                external_allowed = isinstance(
+                    spec.get("external_dependency_binding"), dict
+                )
+                if not any(
+                    (
+                        batch_allowed,
+                        candidate_allowed,
+                        external_allowed,
+                        parity_at_accepted_decision,
+                        source_allowed,
+                    )
+                ):
+                    raise TransitionError(
+                        "Job declaration cannot preempt research direction and is outside every exact authorized work boundary"
+                    )
+                if parity_at_accepted_decision:
+                    if active_batch is not None or science.get("active_study") is not None:
+                        raise TransitionError(
+                            "pre-Study component parity requires no active Study or Batch"
+                        )
+                    decision = _index.get(
+                        "portfolio-decision", parity_binding["portfolio_decision_id"]
+                    )
+                    baseline = None if decision is None else decision.payload.get(
+                        "baseline_executable"
+                    )
+                    canonical_id = parity_binding["canonical_component_id"]
+                    if (
+                        decision is None
+                        or not isinstance(baseline, dict)
+                        or canonical_id
+                        not in baseline.get("component_identities", [])
+                        or spec["evidence_subject"]
+                        != {"kind": "Mission", "id": science["active_mission"]}
+                    ):
+                        raise TransitionError(
+                            "component parity canonical endpoint is outside the accepted baseline"
+                        )
             mission_id = science["active_mission"]
             implementation_manifest = self._require_job_implementation_evidence(spec)
             job_hash = _digest(
@@ -5871,6 +7111,45 @@ class StateWriter:
             if current is None:
                 raise TransitionError("control is absent")
             subject = self._current_subject(current, subject_kind, subject_id)
+            if kind is PermitKind.STUDY and not self.engineering_fixture:
+                next_action = current.get("next_action", {})
+                decision_id = next_action.get("decision_id")
+                snapshot_id = next_action.get("portfolio_snapshot_id")
+                axis_identity = next_action.get("target_axis_identity")
+                architecture_identity = next_action.get(
+                    "architecture_chassis_identity"
+                )
+                baseline_id = next_action.get("baseline_executable_id")
+                decision = (
+                    None
+                    if not isinstance(decision_id, str)
+                    else _index.get("portfolio-decision", decision_id)
+                )
+                snapshot = (
+                    None
+                    if not isinstance(snapshot_id, str)
+                    else _index.get("portfolio-snapshot", snapshot_id)
+                )
+                required_scope = {
+                    "study",
+                    f"decision:{decision_id}",
+                    f"axis:{axis_identity}",
+                    f"baseline:{baseline_id}",
+                    f"chassis:{architecture_identity}",
+                    f"snapshot:{snapshot_id}",
+                }
+                if (
+                    next_action.get("kind") != "execute_portfolio_decision"
+                    or not isinstance(architecture_identity, str)
+                    or not isinstance(baseline_id, str)
+                    or decision is None
+                    or snapshot is None
+                    or decision.payload.get("portfolio_snapshot_id") != snapshot_id
+                    or not required_scope.issubset(scope)
+                ):
+                    raise PermitError(
+                        "StudyPermit requires an accepted current Portfolio Decision"
+                    )
             if kind in {PermitKind.RUNTIME, PermitKind.HOLDOUT}:
                 if subject_kind is not SubjectKind.EXECUTABLE:
                     raise PermitError("runtime and holdout permits must bind an Executable")
@@ -6896,6 +8175,350 @@ class StateWriter:
             prepare=prepare,
         )
 
+    @staticmethod
+    def _component_manifest_record(
+        *,
+        component_id: str,
+        manifest: Mapping[str, Any],
+    ) -> IndexRecord:
+        from axiom_rift.research.chassis import (
+            component_semantic_surface_identity,
+        )
+
+        expected_id = "component:" + canonical_digest(
+            domain="component", payload=dict(manifest)
+        )
+        if component_id != expected_id:
+            raise TransitionError("component identity differs from its exact manifest")
+        protocol = manifest.get("protocol")
+        if not isinstance(protocol, str) or not protocol or not protocol.isascii():
+            raise TransitionError("component protocol is invalid")
+        domain = protocol.split(".", 1)[0]
+        surface_identity = component_semantic_surface_identity(manifest)
+        return _record(
+            kind="component-manifest",
+            record_id=component_id,
+            subject=f"Component:{component_id}",
+            status="registered",
+            fingerprint=surface_identity,
+            payload={
+                "component_id": component_id,
+                "manifest": dict(manifest),
+                "protocol_domain": domain,
+                "schema": "component_manifest_projection.v1",
+                "semantic_surface_identity": surface_identity,
+            },
+        )
+
+    @staticmethod
+    def _require_component_manifest_projection(
+        index: LocalIndex,
+        record: IndexRecord,
+    ) -> IndexRecord | None:
+        existing = index.get(record.kind, record.record_id)
+        if existing is None:
+            return record
+        if (
+            existing.subject != record.subject
+            or existing.status != record.status
+            or existing.fingerprint != record.fingerprint
+            or dict(existing.payload) != dict(record.payload)
+        ):
+            raise RecordCollisionError("component manifest projection collision")
+        return None
+
+    @staticmethod
+    def _component_protocol_neutral_surface(
+        manifest: Mapping[str, Any],
+    ) -> str:
+        if not all(
+            name in manifest
+            for name in ("implementation", "semantic_dependencies", "spec")
+        ):
+            raise TransitionError("component manifest semantic surface is incomplete")
+        return "component-protocol-neutral:" + canonical_digest(
+            domain="component-protocol-neutral-surface",
+            payload={
+                "implementation": manifest["implementation"],
+                "schema": "component_protocol_neutral_surface.v1",
+                "semantic_dependencies": manifest["semantic_dependencies"],
+                "spec": manifest["spec"],
+            },
+        )
+
+    def _project_executable_components(
+        self,
+        index: LocalIndex,
+        executable: Any,
+    ) -> list[IndexRecord]:
+        """Project exact components and reject only genuinely new surface aliases."""
+
+        from axiom_rift.core.identity import ExecutableSpec
+
+        if not isinstance(executable, ExecutableSpec):
+            raise TransitionError("component projection requires an ExecutableSpec")
+        records: list[IndexRecord] = []
+        seen_surfaces: set[str] = set()
+        seen_protocol_neutral_surfaces: set[str] = set()
+        for component, component_id in zip(
+            executable.components,
+            executable.component_identities,
+            strict=True,
+        ):
+            candidate = self._component_manifest_record(
+                component_id=component_id,
+                manifest=component.to_identity_payload(),
+            )
+            if candidate.fingerprint in seen_surfaces:
+                raise TransitionError(
+                    "one Executable cannot contain duplicate protocol-neutral component surfaces"
+                )
+            seen_surfaces.add(candidate.fingerprint)
+            protocol_neutral_surface = self._component_protocol_neutral_surface(
+                component.to_identity_payload()
+            )
+            if protocol_neutral_surface in seen_protocol_neutral_surfaces:
+                raise TransitionError(
+                    "one Executable cannot relabel the same component semantics across protocol domains"
+                )
+            seen_protocol_neutral_surfaces.add(protocol_neutral_surface)
+            exact = index.get("component-manifest", component_id)
+            if exact is not None:
+                self._require_component_manifest_projection(index, candidate)
+                continue
+            variants = tuple(
+                record
+                for record in index.records_by_fingerprint(candidate.fingerprint)
+                if record.kind == "component-manifest"
+            )
+            if variants:
+                raise TransitionError(
+                    "new component protocol/name drift duplicates an existing semantic surface"
+                )
+            cross_domain_variants = tuple(
+                record
+                for record in index.records_by_kind("component-manifest")
+                if isinstance(record.payload.get("manifest"), dict)
+                and self._component_protocol_neutral_surface(
+                    record.payload["manifest"]
+                )
+                == protocol_neutral_surface
+            )
+            if cross_domain_variants:
+                raise TransitionError(
+                    "new component protocol/domain drift duplicates existing semantics"
+                )
+            records.append(candidate)
+        return records
+
+    def backfill_component_manifests(
+        self,
+        *,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Project exact legacy trial components without changing scientific credit."""
+
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            science = current["scientific"]
+            if any(
+                science[name] is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_holdout_evaluation",
+                    "active_job",
+                    "active_release",
+                    "active_repair",
+                    "active_study",
+                )
+            ):
+                raise TransitionError(
+                    "component manifest backfill requires a stable scientific boundary"
+                )
+            projected: dict[str, IndexRecord] = {}
+            for trial in index.records_by_kind("trial"):
+                executable = trial.payload.get("executable")
+                if not isinstance(executable, dict):
+                    raise TransitionError("legacy trial executable manifest is absent")
+                component_ids = executable.get("component_identities")
+                manifests = executable.get("component_manifests")
+                if (
+                    not isinstance(component_ids, list)
+                    or not isinstance(manifests, list)
+                    or len(component_ids) != len(manifests)
+                ):
+                    raise TransitionError("legacy trial component manifests are malformed")
+                for component_id, manifest in zip(component_ids, manifests, strict=True):
+                    if not isinstance(component_id, str) or not isinstance(manifest, dict):
+                        raise TransitionError(
+                            "legacy trial component identity binding is malformed"
+                        )
+                    record = self._component_manifest_record(
+                        component_id=component_id,
+                        manifest=manifest,
+                    )
+                    prior = projected.get(component_id)
+                    if prior is not None and dict(prior.payload) != dict(record.payload):
+                        raise RecordCollisionError(
+                            "legacy component identity has conflicting manifests"
+                        )
+                    projected[component_id] = record
+            records: list[IndexRecord] = []
+            for component_id in sorted(projected):
+                record = self._require_component_manifest_projection(
+                    index, projected[component_id]
+                )
+                if record is not None:
+                    records.append(record)
+            return self._body(current), records, {
+                "claim": science["claim"],
+                "component_manifest_count": len(projected),
+                "holdout_delta": 0,
+                "projected_record_count": len(records),
+                "trial_delta": 0,
+            }
+
+        return self._commit(
+            event_kind="component_manifests_backfilled",
+            operation_id=operation_id,
+            subject="ProjectGoal:OPERATING_DIRECTION.md",
+            payload={
+                "claim_delta": "none",
+                "holdout_delta": 0,
+                "trial_delta": 0,
+            },
+            prepare=prepare,
+        )
+
+    @staticmethod
+    def _executable_surface_record(
+        *,
+        surface_identity: str,
+        executable_ids: tuple[str, ...],
+    ) -> IndexRecord:
+        if (
+            not surface_identity.startswith("executable-surface:")
+            or len(surface_identity) != 83
+        ):
+            raise TransitionError("Executable semantic surface identity is invalid")
+        normalized_ids = tuple(sorted(set(executable_ids)))
+        if len(normalized_ids) != len(executable_ids) or not normalized_ids:
+            raise TransitionError("Executable semantic surface members are invalid")
+        for executable_id in normalized_ids:
+            if (
+                not executable_id.startswith("executable:")
+                or len(executable_id) != 75
+            ):
+                raise TransitionError("Executable semantic surface member is invalid")
+        return _record(
+            kind="executable-surface",
+            record_id=surface_identity,
+            subject=f"ExecutableSurface:{surface_identity}",
+            status="registered",
+            fingerprint=surface_identity,
+            payload={
+                "exact_executable_ids": list(normalized_ids),
+                "schema": "executable_semantic_surface_projection.v1",
+                "surface_identity": surface_identity,
+            },
+        )
+
+    @staticmethod
+    def _require_executable_surface_projection(
+        index: LocalIndex,
+        record: IndexRecord,
+    ) -> IndexRecord | None:
+        existing = index.get(record.kind, record.record_id)
+        if existing is None:
+            return record
+        if (
+            existing.subject != record.subject
+            or existing.status != record.status
+            or existing.fingerprint != record.fingerprint
+            or dict(existing.payload) != dict(record.payload)
+        ):
+            raise RecordCollisionError("Executable semantic surface projection collision")
+        return None
+
+    def backfill_executable_semantic_surfaces(
+        self,
+        *,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Index legacy trials by protocol-neutral Executable surface, without credit."""
+
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            science = current["scientific"]
+            if any(
+                science[name] is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_holdout_evaluation",
+                    "active_job",
+                    "active_release",
+                    "active_repair",
+                    "active_study",
+                )
+            ):
+                raise TransitionError(
+                    "Executable semantic surface backfill requires a stable scientific boundary"
+                )
+            from axiom_rift.research.chassis import (
+                ChassisIdentityError,
+                executable_semantic_surface_identity,
+            )
+
+            grouped: dict[str, set[str]] = {}
+            for trial in index.records_by_kind("trial"):
+                executable_payload = trial.payload.get("executable")
+                if not isinstance(executable_payload, dict):
+                    raise TransitionError("legacy trial executable manifest is absent")
+                try:
+                    surface_identity = executable_semantic_surface_identity(
+                        executable_payload
+                    )
+                except ChassisIdentityError as exc:
+                    raise TransitionError(str(exc)) from exc
+                grouped.setdefault(surface_identity, set()).add(trial.record_id)
+            records: list[IndexRecord] = []
+            for surface_identity in sorted(grouped):
+                projected = self._executable_surface_record(
+                    surface_identity=surface_identity,
+                    executable_ids=tuple(sorted(grouped[surface_identity])),
+                )
+                record = self._require_executable_surface_projection(index, projected)
+                if record is not None:
+                    records.append(record)
+            return self._body(current), records, {
+                "claim": science["claim"],
+                "exact_executable_count": sum(len(values) for values in grouped.values()),
+                "holdout_delta": 0,
+                "projected_record_count": len(records),
+                "surface_count": len(grouped),
+                "trial_delta": 0,
+            }
+
+        return self._commit(
+            event_kind="executable_semantic_surfaces_backfilled",
+            operation_id=operation_id,
+            subject="ProjectGoal:OPERATING_DIRECTION.md",
+            payload={
+                "claim_delta": "none",
+                "holdout_delta": 0,
+                "trial_delta": 0,
+            },
+            prepare=prepare,
+        )
+
     def register_trial(
         self,
         *,
@@ -6930,22 +8553,87 @@ class StateWriter:
             for source_id in executable_sources:
                 self._require_runtime_source(index, source_id)
             record_kind = "engineering-evaluation-fixture" if self.engineering_fixture else "trial"
+            study_id = current["scientific"]["active_study"]
+            study_record = index.get("study-open", study_id)
+            if study_record is None:
+                raise TransitionError("active Study declaration is unavailable")
+            material_identity = study_record.payload["material_identity"]
+            component_records: list[IndexRecord] = []
+            executable_surface_record: IndexRecord | None = None
+            if not self.engineering_fixture:
+                from axiom_rift.research.chassis import (
+                    ChassisIdentityError,
+                    executable_semantic_surface_identity,
+                    validate_controlled_executable,
+                )
+
+                controlled_chassis = study_record.payload.get("controlled_chassis")
+                if not isinstance(controlled_chassis, dict):
+                    raise TransitionError(
+                        "scientific Study lacks a controlled component chassis"
+                    )
+                try:
+                    validate_controlled_executable(controlled_chassis, executable)
+                    surface_identity = executable_semantic_surface_identity(executable)
+                except ChassisIdentityError as exc:
+                    raise TransitionError(str(exc)) from exc
+                surface_projection = index.get(
+                    "executable-surface", surface_identity
+                )
+                if surface_projection is not None:
+                    exact_ids = surface_projection.payload.get(
+                        "exact_executable_ids"
+                    )
+                    if (
+                        surface_projection.status != "registered"
+                        or surface_projection.fingerprint != surface_identity
+                        or surface_projection.payload.get("schema")
+                        != "executable_semantic_surface_projection.v1"
+                        or not isinstance(exact_ids, list)
+                        or any(not isinstance(value, str) for value in exact_ids)
+                    ):
+                        raise RecoveryRequired(
+                            "Executable semantic surface projection is malformed"
+                        )
+                    if executable_id not in exact_ids:
+                        raise TransitionError(
+                            "protocol-neutral Executable duplicate already has scientific history; "
+                            "reuse its exact historical identity"
+                        )
             existing = index.get(record_kind, executable_id)
             if existing is not None:
                 if existing.fingerprint != executable_hash:
                     raise RecordCollisionError("Executable identity collision")
+                if (
+                    not self.engineering_fixture
+                    and index.get("executable-surface", surface_identity) is None
+                ):
+                    raise RecoveryRequired(
+                        "counted Executable lacks its semantic surface projection"
+                    )
                 return self._body(current), [], {"trial_delta": 0, "cache_hit": True}
+            if not self.engineering_fixture:
+                component_records.extend(
+                    self._project_executable_components(index, executable)
+                )
+                executable_surface_record = self._executable_surface_record(
+                    surface_identity=surface_identity,
+                    executable_ids=(executable_id,),
+                )
+                projection = self._require_executable_surface_projection(
+                    index, executable_surface_record
+                )
+                if projection is None:
+                    raise RecoveryRequired(
+                        "new Executable collides with an existing semantic surface"
+                    )
+                executable_surface_record = projection
             status = "engineering_only" if self.engineering_fixture else "evaluated"
             trial_head = index.event_head(f"batch-trials:{batch['id']}")
             evaluated_count = 0 if trial_head is None else trial_head.sequence
             max_trials = batch_record.payload["spec"]["max_trials"]
             if evaluated_count >= max_trials:
                 raise TransitionError("frozen Batch trial budget is exhausted")
-            study_id = current["scientific"]["active_study"]
-            study_record = index.get("study-open", study_id)
-            if study_record is None:
-                raise TransitionError("active Study declaration is unavailable")
-            material_identity = study_record.payload["material_identity"]
             if (
                 not self.engineering_fixture
                 and executable.data_contract != f"data:{material_identity}"
@@ -6982,7 +8670,15 @@ class StateWriter:
                 event_stream=f"batch-trials:{batch['id']}",
                 event_sequence=evaluated_count + 1,
             )
-            records = [record]
+            records = [
+                *component_records,
+                *(
+                    []
+                    if executable_surface_record is None
+                    else [executable_surface_record]
+                ),
+                record,
+            ]
             global_multiplicity: int | None = None
             if not self.engineering_fixture:
                 material_head = index.event_head(
@@ -7143,12 +8839,20 @@ class StateWriter:
                         "scientific Portfolio requires a preregistered exhaustion standard"
                     )
                 if isinstance(standard, dict):
+                    if not self.engineering_fixture and any(
+                        axis.architecture_chassis is None for axis in snapshot.axes
+                    ):
+                        raise TransitionError(
+                            "scientific Portfolio axes require canonical architecture chassis"
+                        )
                     families = {axis.mechanism_family for axis in snapshot.axes}
                     research_layers = {
                         axis.primary_research_layer.value for axis in snapshot.axes
                     }
                     architecture_families = {
-                        axis.system_architecture_family for axis in snapshot.axes
+                        axis.architecture_chassis.identity
+                        for axis in snapshot.axes
+                        if axis.architecture_chassis is not None
                     }
                     if (
                         len(snapshot.axes) < standard["minimum_axes"]
@@ -7222,6 +8926,14 @@ class StateWriter:
                     )
                 if not set(old_axes).issubset(new_axes):
                     raise TransitionError("Portfolio axes cannot be silently removed")
+                added_axis_ids = set(new_axes) - set(old_axes)
+                if not self.engineering_fixture and any(
+                    new_axes[axis_id].get("architecture_chassis_identity") is None
+                    for axis_id in added_axis_ids
+                ):
+                    raise TransitionError(
+                        "new scientific Portfolio axes require canonical architecture chassis"
+                    )
                 for axis_id, old_axis in old_axes.items():
                     if new_axes[axis_id]["axis_identity"] != old_axis["axis_identity"]:
                         raise TransitionError(
@@ -7289,8 +9001,18 @@ class StateWriter:
                             not in excluded_layers
                             and (
                                 not isinstance(excluded_architecture, str)
-                                or new_axes[axis_id]["system_architecture_family"]
-                                != excluded_architecture
+                                or (
+                                    isinstance(
+                                        new_axes[axis_id].get(
+                                            "architecture_chassis_identity"
+                                        ),
+                                        str,
+                                    )
+                                    and new_axes[axis_id][
+                                        "architecture_chassis_identity"
+                                    ]
+                                    != excluded_architecture
+                                )
                             )
                         )
                         if not required_target_axis_ids:
@@ -7419,6 +9141,99 @@ class StateWriter:
             ):
                 raise TransitionError("recent-positive reference is not durable")
             target_axis = axes_by_id[decision.chosen.target_id]
+            work_actions = {
+                PortfolioAction.COMPLEMENTARY_SLEEVE,
+                PortfolioAction.CONTRAST,
+                PortfolioAction.DEEPEN,
+                PortfolioAction.RECOMBINE,
+                PortfolioAction.ROTATE,
+                PortfolioAction.SYNTHESIZE,
+            }
+            baseline = decision.baseline_executable
+            architecture = decision.architecture_chassis
+            component_records: list[IndexRecord] = []
+            baseline_provenance: dict[str, Any] | None = None
+            resolved_architecture_family: str | None = None
+            if not self.engineering_fixture and decision.chosen.action in work_actions:
+                if baseline is None or architecture is None:
+                    raise TransitionError(
+                        "scientific Portfolio Decision must bind a baseline Executable chassis"
+                    )
+                typed_axis_identity = target_axis.get(
+                    "architecture_chassis_identity"
+                )
+                typed_axis_payload = target_axis.get("architecture_chassis")
+                prior_anchor = self._axis_architecture_anchor(_index, target_axis)
+                resolved_architecture_family = self._resolved_architecture_family(
+                    index=_index,
+                    architecture_payload=architecture.to_identity_payload(),
+                )
+                if isinstance(typed_axis_identity, str):
+                    if not isinstance(typed_axis_payload, dict):
+                        raise RecoveryRequired(
+                            "typed Portfolio axis chassis payload is malformed"
+                        )
+                    typed_axis_family = self._resolved_architecture_family(
+                        index=_index,
+                        architecture_payload=typed_axis_payload,
+                    )
+                    if typed_axis_family != resolved_architecture_family:
+                        raise TransitionError(
+                            "Portfolio Decision baseline differs from its typed axis chassis"
+                        )
+                if not isinstance(typed_axis_identity, str) and prior_anchor is not None and (
+                    (
+                        self._resolved_architecture_family(
+                            index=_index,
+                            architecture_payload=prior_anchor[
+                                "architecture_chassis"
+                            ],
+                        )
+                        if isinstance(
+                            prior_anchor.get("architecture_chassis"), dict
+                        )
+                        else prior_anchor["architecture_chassis_identity"]
+                    )
+                    != resolved_architecture_family
+                ):
+                    raise TransitionError(
+                        "legacy Portfolio axis cannot change its prospective chassis anchor"
+                    )
+                prior_baseline = self._prior_scientific_baseline(_index, baseline)
+                baseline_provenance = (
+                    {
+                        "kind": "trial",
+                        "record_id": prior_baseline.record_id,
+                    }
+                    if prior_baseline is not None
+                    else {
+                        "data_contract": baseline.data_contract,
+                        "kind": "first_data_contract_bootstrap",
+                    }
+                )
+                component_records = self._project_executable_components(
+                    _index, baseline
+                )
+            elif (
+                not self.engineering_fixture
+                and (baseline is not None or architecture is not None)
+            ):
+                raise TransitionError(
+                    "structural Portfolio Decision cannot pre-register a Study baseline"
+                )
+            target_architecture_identity = resolved_architecture_family
+            if target_architecture_identity is None:
+                target_anchor = self._axis_architecture_anchor(_index, target_axis)
+                if target_anchor is not None:
+                    target_payload = target_anchor.get("architecture_chassis")
+                    target_architecture_identity = (
+                        self._resolved_architecture_family(
+                            index=_index,
+                            architecture_payload=target_payload,
+                        )
+                        if isinstance(target_payload, dict)
+                        else target_anchor["architecture_chassis_identity"]
+                    )
             diagnosis_id = next_action.get("study_diagnosis_id")
             diagnosis = (
                 None
@@ -7470,8 +9285,11 @@ class StateWriter:
                     and (
                         target_axis["primary_research_layer"]
                         != source_axis["primary_research_layer"]
-                        or target_axis["system_architecture_family"]
-                        != source_axis["system_architecture_family"]
+                        or (
+                            isinstance(target_architecture_identity, str)
+                            and target_architecture_identity
+                            != diagnosis.payload.get("system_architecture_family")
+                        )
                     )
                 )
                 if not (same_axis_disposition or branch_match or forest_diversion):
@@ -7501,11 +9319,12 @@ class StateWriter:
             if architecture_review is not None:
                 conclusion = architecture_review.payload.get("conclusion")
                 if conclusion == "rotate_architecture":
+                    reviewed_family = self._review_resolved_architecture_family(
+                        index=_index,
+                        review=architecture_review,
+                    )
                     if (
-                        excluded_architecture
-                        != architecture_review.payload.get(
-                            "system_architecture_family"
-                        )
+                        excluded_architecture != reviewed_family
                         or excluded_layers
                     ):
                         raise TransitionError(
@@ -7531,8 +9350,14 @@ class StateWriter:
             if decision.chosen.action != PortfolioAction.NEW_MECHANISM:
                 if (
                     isinstance(excluded_architecture, str)
-                    and target_axis["system_architecture_family"]
-                    == excluded_architecture
+                    and not isinstance(target_architecture_identity, str)
+                ):
+                    raise TransitionError(
+                        "Portfolio Decision cannot prove architecture rotation from a legacy name"
+                    )
+                if (
+                    isinstance(excluded_architecture, str)
+                    and target_architecture_identity == excluded_architecture
                 ):
                     raise TransitionError(
                         "Portfolio Decision did not rotate the reviewed architecture"
@@ -7560,6 +9385,15 @@ class StateWriter:
                 "target_axis_identity": target_axis["axis_identity"],
                 "portfolio_snapshot_id": snapshot.record_id,
             }
+            if next_kind == "execute_portfolio_decision" and not self.engineering_fixture:
+                assert baseline is not None and architecture is not None
+                body["next_action"].update(
+                    {
+                        "architecture_chassis_identity": architecture.identity,
+                        "resolved_architecture_family": resolved_architecture_family,
+                        "baseline_executable_id": baseline.identity,
+                    }
+                )
             if next_kind == "record_portfolio_snapshot" and (
                 decision.chosen.action == PortfolioAction.NEW_MECHANISM
             ):
@@ -7598,12 +9432,16 @@ class StateWriter:
                 payload={
                     **decision.to_identity_payload(),
                     "architecture_review_id": architecture_review_id,
+                    "baseline_provenance": baseline_provenance,
                     "portfolio_snapshot_id": snapshot.record_id,
                     "study_diagnosis_id": diagnosis_id,
                     "target_axis_identity": target_axis["axis_identity"],
+                    "resolved_architecture_family": resolved_architecture_family,
                 },
             )
-            return body, [record], {"decision_id": decision.identity}
+            return body, [*component_records, record], {
+                "decision_id": decision.identity
+            }
 
         return self._commit(
             event_kind="portfolio_decision_recorded",
@@ -7997,6 +9835,7 @@ class StateWriter:
             declared_spec = declaration.payload["spec"]
             runtime_binding = declared_spec.get("runtime_binding")
             for domain, binding_name in (
+                ("scientific", "component_parity_binding"),
                 ("external", "external_dependency_binding"),
                 ("scientific", "scientific_binding"),
                 ("source", "source_binding"),
@@ -8663,6 +10502,132 @@ class StateWriter:
             "verdict": validated.verdict,
         }
 
+    def _derive_component_parity_job_evidence(
+        self,
+        *,
+        job_id: str,
+        job_hash: str,
+        mission_id: str,
+        evidence_subject: Mapping[str, str],
+        binding: Mapping[str, Any],
+        output_manifest: Mapping[str, Any],
+        output_classes: Mapping[str, Any],
+    ) -> dict[str, Any]:
+        result_name = binding["result_manifest_output"]
+        result_hash = output_manifest.get(result_name)
+        if not isinstance(result_hash, str):
+            raise TransitionError("component parity result manifest is absent")
+        artifact = self.evidence.verify(result_hash)
+        try:
+            value = parse_canonical(
+                (self.evidence._root / artifact.relative_path).read_bytes()
+            )
+        except ValueError as exc:
+            raise TransitionError(
+                "component parity result manifest is not canonical"
+            ) from exc
+        required = {
+            "architecture_chassis_identity",
+            "artifact_hashes",
+            "canonical_component_id",
+            "dimensions",
+            "equivalent_component_id",
+            "job_hash",
+            "job_id",
+            "mission_id",
+            "portfolio_axis_identity",
+            "portfolio_decision_id",
+            "portfolio_snapshot_id",
+            "schema",
+            "verdict",
+        }
+        if not isinstance(value, dict) or set(value) != required:
+            raise TransitionError("component parity result schema is invalid")
+        expected = {
+            "architecture_chassis_identity": binding[
+                "architecture_chassis_identity"
+            ],
+            "canonical_component_id": binding["canonical_component_id"],
+            "dimensions": binding["dimensions"],
+            "equivalent_component_id": binding["equivalent_component_id"],
+            "job_hash": job_hash,
+            "job_id": job_id,
+            "mission_id": mission_id,
+            "portfolio_axis_identity": binding["portfolio_axis_identity"],
+            "portfolio_decision_id": binding["portfolio_decision_id"],
+            "portfolio_snapshot_id": binding["portfolio_snapshot_id"],
+            "schema": "component_parity_result.v2",
+        }
+        if any(value.get(name) != expected_value for name, expected_value in expected.items()):
+            raise TransitionError(
+                "component parity result differs from its Decision-bound Job"
+            )
+        if value["verdict"] not in {"equivalent", "not_equivalent"}:
+            raise TransitionError("component parity verdict is not typed")
+        measurement_hashes = {
+            output_hash
+            for output_name, output_hash in output_manifest.items()
+            if output_classes.get(output_name) == "durable_evidence"
+            and output_name != result_name
+        }
+        if (
+            not measurement_hashes
+            or value["artifact_hashes"] != sorted(measurement_hashes)
+        ):
+            raise TransitionError(
+                "component parity result does not bind every measurement artifact"
+            )
+        validated, validation_trace = self._run_registered_validator(
+            domain="scientific",
+            job_id=job_id,
+            job_hash=job_hash,
+            mission_id=mission_id,
+            evidence_subject=evidence_subject,
+            binding=binding,
+            result_manifest=value,
+            output_manifest=output_manifest,
+            output_classes=output_classes,
+            result_name=result_name,
+        )
+        equivalent = value["verdict"] == "equivalent"
+        expected_facts = {
+            "canonical_component_id": binding["canonical_component_id"],
+            "dimensions": binding["dimensions"],
+            "equivalent": equivalent,
+            "equivalent_component_id": binding["equivalent_component_id"],
+        }
+        expected_verdict = "passed" if equivalent else "failed"
+        if (
+            validated.verdict != expected_verdict
+            or validated.claims
+            or validated.scientific_eligible
+            or validated.candidate_eligible
+            or validated.release_eligible
+            or set(validated.measurement_artifact_hashes) != measurement_hashes
+            or dict(validated.facts) != expected_facts
+        ):
+            raise TransitionError(
+                "component equivalence was not derived by the registered validator"
+            )
+        return {
+            "canonical_component_id": binding["canonical_component_id"],
+            "canonical_component_manifest": binding[
+                "canonical_component_manifest"
+            ],
+            "dimensions": list(binding["dimensions"]),
+            "equivalent": equivalent,
+            "equivalent_component_id": binding["equivalent_component_id"],
+            "equivalent_component_manifest": binding[
+                "equivalent_component_manifest"
+            ],
+            "measurement_artifact_hashes": sorted(measurement_hashes),
+            "result_manifest_hash": result_hash,
+            "validation_plan_hash": binding["validation_plan_hash"],
+            "validation_trace": validation_trace,
+            "validator_id": binding["validator_id"],
+            "verdict": validated.verdict,
+        }
+
     def complete_job(
         self,
         *,
@@ -8758,6 +10723,10 @@ class StateWriter:
             source_manifest: dict[str, Any] | None = None
             external_binding = declared_spec.get("external_dependency_binding")
             external_manifest: dict[str, Any] | None = None
+            component_parity_binding = declared_spec.get(
+                "component_parity_binding"
+            )
+            component_parity_manifest: dict[str, Any] | None = None
             start_record_id = job.get("start_record_id")
             start_record = (
                 None
@@ -8903,6 +10872,22 @@ class StateWriter:
                     output_classes=output_classes,
                     expected_outcome=outcome,
                 )
+            if component_parity_binding is not None and outcome == "success":
+                if set(output_manifest) != set(expected_outputs):
+                    raise TransitionError(
+                        "component parity disposition requires every declared output"
+                    )
+                component_parity_manifest = (
+                    self._derive_component_parity_job_evidence(
+                        job_id=job_id,
+                        job_hash=job["hash"],
+                        mission_id=declaration.payload["mission_id"],
+                        evidence_subject=declared_spec["evidence_subject"],
+                        binding=component_parity_binding,
+                        output_manifest=output_manifest,
+                        output_classes=output_classes,
+                    )
+                )
             if isinstance(external_binding, dict) and (
                 outcome == "success"
                 or (
@@ -8939,35 +10924,43 @@ class StateWriter:
                     raise TransitionError(
                         "external failure differs from its preregistered dependency"
                     )
+            completion_identity_payload = {
+                "job_id": job_id,
+                "outcome": outcome,
+                "outputs": dict(output_manifest),
+                "external": external_manifest,
+                "runtime": runtime_manifest,
+                "scientific": scientific_manifest,
+                "source": source_manifest,
+            }
+            if component_parity_manifest is not None:
+                completion_identity_payload["component_parity"] = (
+                    component_parity_manifest
+                )
             record_id = canonical_digest(
                 domain="job-completion",
-                payload={
-                    "job_id": job_id,
-                    "outcome": outcome,
-                    "outputs": dict(output_manifest),
-                    "external": external_manifest,
-                    "runtime": runtime_manifest,
-                    "scientific": scientific_manifest,
-                    "source": source_manifest,
-                },
+                payload=completion_identity_payload,
             )
+            completion_payload = {
+                "job_id": job_id,
+                "outputs": dict(output_manifest),
+                "output_classes": dict(output_classes),
+                "failure": failure_manifest,
+                "external": external_manifest,
+                "start_record_id": start_record_id,
+                "runtime": runtime_manifest,
+                "scientific": scientific_manifest,
+                "source": source_manifest,
+            }
+            if component_parity_manifest is not None:
+                completion_payload["component_parity"] = component_parity_manifest
             record = _record(
                 kind="job-completed",
                 record_id=record_id,
                 subject=f"Job:{job_id}",
                 status=outcome,
                 fingerprint=job["hash"],
-                payload={
-                    "job_id": job_id,
-                    "outputs": dict(output_manifest),
-                    "output_classes": dict(output_classes),
-                    "failure": failure_manifest,
-                    "external": external_manifest,
-                    "start_record_id": start_record_id,
-                    "runtime": runtime_manifest,
-                    "scientific": scientific_manifest,
-                    "source": source_manifest,
-                },
+                payload=completion_payload,
                 event_stream=f"job-attempt:{declaration.payload['work_fingerprint']}",
                 event_sequence=(
                     _index.event_head(
@@ -9089,7 +11082,12 @@ class StateWriter:
         """Consume a completed Job judgement before more Batch work."""
 
         _require_digest("completion_record_id", completion_record_id)
-        if disposition not in {"continue_batch", "stop_batch"}:
+        if disposition not in {
+            "accept_component_parity",
+            "continue_batch",
+            "reject_component_parity",
+            "stop_batch",
+        }:
             raise TransitionError("Job evidence disposition is not typed")
         if negative_memory_id is not None:
             if not negative_memory_id.startswith("negative-memory:"):
@@ -9124,6 +11122,7 @@ class StateWriter:
             ):
                 raise TransitionError("Job judgement lacks Mission provenance")
             scientific = completion.payload.get("scientific")
+            component_parity = completion.payload.get("component_parity")
             failure = completion.payload.get("failure")
             needs_negative_memory = (
                 completion.status == "failed"
@@ -9151,30 +11150,275 @@ class StateWriter:
                     )
             elif negative_memory_id is not None:
                 raise TransitionError("Job judgement carries unrelated negative memory")
+            parity_binding = declaration.payload.get("spec", {}).get(
+                "component_parity_binding"
+            )
+            parity_disposition = disposition in {
+                "accept_component_parity",
+                "reject_component_parity",
+            }
+            parity_member_records: list[IndexRecord] = []
+            parity_trigger_records: list[IndexRecord] = []
+            if parity_disposition:
+                if not isinstance(parity_binding, dict):
+                    raise TransitionError(
+                        "component parity disposition requires its typed Job binding"
+                    )
+                if disposition == "accept_component_parity" and (
+                    completion.status != "success"
+                    or not isinstance(component_parity, dict)
+                    or component_parity.get("equivalent") is not True
+                    or component_parity.get("verdict") != "passed"
+                ):
+                    raise TransitionError(
+                        "Writer cannot accept component parity without validator equivalence"
+                    )
+                decision = index.get(
+                    "portfolio-decision",
+                    parity_binding["portfolio_decision_id"],
+                )
+                if decision is None:
+                    raise TransitionError(
+                        "component parity disposition lost its Portfolio Decision"
+                    )
+                options = {
+                    option["option_id"]: option
+                    for option in decision.payload.get("options", [])
+                    if isinstance(option, dict)
+                }
+                chosen = options.get(decision.payload.get("chosen_option_id"))
+                if not isinstance(chosen, dict):
+                    raise TransitionError(
+                        "component parity Portfolio Decision is malformed"
+                    )
+                decision_architecture = decision.payload.get(
+                    "architecture_chassis"
+                )
+                if not isinstance(decision_architecture, dict):
+                    raise TransitionError(
+                        "component parity Decision lacks its architecture chassis"
+                    )
+                extra_equivalences: tuple[Mapping[str, Any], ...] = ()
+                if disposition == "accept_component_parity":
+                    assert isinstance(component_parity, dict)
+                    extra_equivalences = (
+                        {
+                            "canonical_component_id": component_parity.get(
+                                "canonical_component_id"
+                            ),
+                            "canonical_component_manifest": component_parity.get(
+                                "canonical_component_manifest"
+                            ),
+                            "completion_record_id": completion_record_id,
+                            "dimensions": component_parity.get("dimensions"),
+                            "equivalent_component_id": component_parity.get(
+                                "equivalent_component_id"
+                            ),
+                            "equivalent_component_manifest": component_parity.get(
+                                "equivalent_component_manifest"
+                            ),
+                            "parity_manifest_hash": component_parity.get(
+                                "result_manifest_hash"
+                            ),
+                            "schema": "component_parity_evidence.v1",
+                        },
+                    )
+                    parity_member_records = self._component_parity_member_records(
+                        equivalence=extra_equivalences[0],
+                        mission_id=science["active_mission"],
+                        portfolio_decision_id=decision.record_id,
+                    )
+                resolved_family = self._resolved_architecture_family(
+                    index=index,
+                    architecture_payload=decision_architecture,
+                    extra_equivalences=extra_equivalences,
+                )
+                execute_action = {
+                    "action": chosen["action"],
+                    "architecture_chassis_identity": parity_binding[
+                        "architecture_chassis_identity"
+                    ],
+                    "baseline_executable_id": decision.payload[
+                        "baseline_executable_id"
+                    ],
+                    "decision_id": decision.record_id,
+                    "kind": "execute_portfolio_decision",
+                    "portfolio_snapshot_id": parity_binding[
+                        "portfolio_snapshot_id"
+                    ],
+                    "resolved_architecture_family": resolved_family,
+                    "target_axis_identity": parity_binding[
+                        "portfolio_axis_identity"
+                    ],
+                    "target_id": chosen["target_id"],
+                }
+                reroute_action: dict[str, Any] | None = None
+                if disposition == "accept_component_parity":
+                    review_id = decision.payload.get("architecture_review_id")
+                    review = (
+                        None
+                        if not isinstance(review_id, str)
+                        else index.get("architecture-review", review_id)
+                    )
+                    if review is not None and review.payload.get(
+                        "conclusion"
+                    ) == "rotate_architecture":
+                        reviewed_family = self._review_resolved_architecture_family(
+                            index=index,
+                            review=review,
+                            extra_equivalences=extra_equivalences,
+                        )
+                        if resolved_family == reviewed_family:
+                            reroute_action = {
+                                "architecture_review_id": review.record_id,
+                                "excluded_architecture_family": reviewed_family,
+                                "kind": "portfolio_decision",
+                                "portfolio_snapshot_id": parity_binding[
+                                    "portfolio_snapshot_id"
+                                ],
+                            }
+                    diagnosis_id = decision.payload.get("study_diagnosis_id")
+                    diagnosis = (
+                        None
+                        if not isinstance(diagnosis_id, str)
+                        else index.get("study-diagnosis", diagnosis_id)
+                    )
+                    if reroute_action is None and diagnosis is not None:
+                        snapshot = index.get(
+                            "portfolio-snapshot",
+                            parity_binding["portfolio_snapshot_id"],
+                        )
+                        if snapshot is None:
+                            raise RecoveryRequired(
+                                "component parity lost its Portfolio snapshot"
+                            )
+                        axes = {
+                            axis["axis_id"]: axis
+                            for axis in snapshot.payload.get("axes", [])
+                            if isinstance(axis, dict)
+                            and isinstance(axis.get("axis_id"), str)
+                        }
+                        target_axis = axes.get(chosen["target_id"])
+                        source_axis = axes.get(
+                            diagnosis.payload.get("portfolio_axis_id")
+                        )
+                        if target_axis is None or source_axis is None:
+                            raise RecoveryRequired(
+                                "component parity diagnosis axes are unavailable"
+                            )
+                        allowed_actions = set(
+                            diagnosis.payload.get("allowed_actions", [])
+                        )
+                        allowed_layers = set(
+                            diagnosis.payload.get("allowed_research_layers", [])
+                        )
+                        chosen_action = chosen["action"]
+                        branch_match = (
+                            chosen_action not in {"preserve", "prune"}
+                            and chosen_action in allowed_actions
+                            and (
+                                target_axis["primary_research_layer"]
+                                in allowed_layers
+                                or chosen_action == "new_mechanism"
+                            )
+                        )
+                        source_study_id = diagnosis.payload.get("study_id")
+                        source_study = (
+                            None
+                            if not isinstance(source_study_id, str)
+                            else index.get("study-open", source_study_id)
+                        )
+                        if source_study is None:
+                            raise RecoveryRequired(
+                                "component parity diagnosis Study is unavailable"
+                            )
+                        controlled = source_study.payload.get(
+                            "controlled_chassis"
+                        )
+                        source_architecture = (
+                            None
+                            if not isinstance(controlled, dict)
+                            else controlled.get("architecture")
+                        )
+                        source_family = (
+                            self._resolved_architecture_family(
+                                index=index,
+                                architecture_payload=source_architecture,
+                                extra_equivalences=extra_equivalences,
+                            )
+                            if isinstance(source_architecture, dict)
+                            else source_study.payload.get(
+                                "system_architecture_family"
+                            )
+                        )
+                        forest_diversion = (
+                            chosen["target_id"]
+                            != diagnosis.payload.get("portfolio_axis_id")
+                            and chosen_action
+                            in {
+                                "complementary_sleeve",
+                                "contrast",
+                                "recombine",
+                                "rotate",
+                                "synthesize",
+                            }
+                            and (
+                                target_axis["primary_research_layer"]
+                                != source_axis["primary_research_layer"]
+                                or resolved_family != source_family
+                            )
+                        )
+                        if not (branch_match or forest_diversion):
+                            reroute_action = {
+                                "kind": "portfolio_decision",
+                                "portfolio_snapshot_id": parity_binding[
+                                    "portfolio_snapshot_id"
+                                ],
+                                "study_diagnosis_id": diagnosis.record_id,
+                            }
+                    trigger = self._pending_architecture_review_trigger(
+                        index=index,
+                        mission_id=science["active_mission"],
+                        portfolio_snapshot_id=parity_binding[
+                            "portfolio_snapshot_id"
+                        ],
+                        architecture_family=resolved_family,
+                        extra_equivalences=extra_equivalences,
+                    )
+                    if trigger is not None:
+                        parity_trigger_records = [trigger]
+                        reroute_action = {
+                            "kind": "review_architecture",
+                            "trigger_record_id": trigger.record_id,
+                        }
+                body["next_action"] = (
+                    execute_action if reroute_action is None else reroute_action
+                )
             batch = science.get("active_batch")
             declared_batch_id = declaration.payload.get("batch_id")
-            if (
-                not isinstance(batch, dict)
-                or declared_batch_id != batch.get("id")
-            ):
-                raise TransitionError("Job judgement is outside the active Batch")
-            if disposition == "stop_batch" and not self.engineering_fixture:
-                study_id = science.get("active_study")
-                if not isinstance(study_id, str):
-                    raise TransitionError(
-                        "Real Batch stop requires its active Study"
+            if not parity_disposition:
+                if (
+                    not isinstance(batch, dict)
+                    or declared_batch_id != batch.get("id")
+                ):
+                    raise TransitionError("Job judgement is outside the active Batch")
+                if disposition == "stop_batch" and not self.engineering_fixture:
+                    study_id = science.get("active_study")
+                    if not isinstance(study_id, str):
+                        raise TransitionError(
+                            "Real Batch stop requires its active Study"
+                        )
+                    self._study_kpi_from_completion(
+                        index=index,
+                        study_id=study_id,
+                        completion_record_id=completion_record_id,
+                        require_stop_decision=False,
                     )
-                self._study_kpi_from_completion(
-                    index=index,
-                    study_id=study_id,
-                    completion_record_id=completion_record_id,
-                    require_stop_decision=False,
+                body["next_action"] = (
+                    {"kind": "declare_job", "batch_id": batch["id"]}
+                    if disposition == "continue_batch"
+                    else {"kind": "dispose_batch", "batch_id": batch["id"]}
                 )
-            body["next_action"] = (
-                {"kind": "declare_job", "batch_id": batch["id"]}
-                if disposition == "continue_batch"
-                else {"kind": "dispose_batch", "batch_id": batch["id"]}
-            )
             record_id = canonical_digest(
                 domain="job-evidence-decision",
                 payload={
@@ -9194,7 +11438,11 @@ class StateWriter:
                     "negative_memory_id": negative_memory_id,
                 },
             )
-            return body, [record], {
+            return body, [
+                record,
+                *parity_member_records,
+                *parity_trigger_records,
+            ], {
                 "disposition": disposition,
                 "job_id": job_id,
             }
@@ -10211,8 +12459,21 @@ class StateWriter:
             research_layers = {
                 axis.get("primary_research_layer") for axis in axes.values()
             }
+            resolved_architectures = [
+                self._axis_architecture_anchor(index, axis)
+                for axis in axes.values()
+            ]
             architecture_families = {
-                axis.get("system_architecture_family") for axis in axes.values()
+                (
+                    self._resolved_architecture_family(
+                        index=index,
+                        architecture_payload=anchor["architecture_chassis"],
+                    )
+                    if isinstance(anchor.get("architecture_chassis"), dict)
+                    else anchor["architecture_chassis_identity"]
+                )
+                for anchor in resolved_architectures
+                if anchor is not None
             }
             standard = snapshot.payload.get("exhaustion_standard")
             if not isinstance(standard, dict):
@@ -10227,8 +12488,13 @@ class StateWriter:
                 < standard["minimum_primary_research_layers"]
                 or len(architecture_families)
                 < standard["minimum_system_architecture_families"]
+                or any(
+                    anchor is None and axis["status"] != "pruned"
+                    for axis, anchor in zip(
+                        axes.values(), resolved_architectures, strict=True
+                    )
+                )
                 or None in research_layers
-                or None in architecture_families
             ):
                 raise TransitionError(
                     "exhaustion does not cover its preregistered axes and families"

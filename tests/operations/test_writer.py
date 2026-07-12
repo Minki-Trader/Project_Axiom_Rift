@@ -22,6 +22,7 @@ from axiom_rift.operations.validation import (
     EvidenceValidatorRegistry,
 )
 from tests.operations.fixture_validators import (
+    ComponentParityFixtureValidator,
     ExternalFixtureValidator,
     ScientificFixtureValidator,
 )
@@ -52,6 +53,12 @@ from axiom_rift.research.governance import (
     ResearchLayer,
     StudyDiagnosis,
 )
+from axiom_rift.research.chassis import (
+    ArchitectureChassisSpec,
+    ComponentParityDimension,
+    ComponentParityEvidence,
+    ControlledStudyChassis,
+)
 from axiom_rift.research.trials import NegativeMemory
 from axiom_rift.storage.journal import JournalIntegrityError, TornJournalError
 from axiom_rift.storage.index import IndexRecord, LocalIndex
@@ -71,6 +78,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 OBSERVED_MATERIAL_ID = "36caaaeef95d4bfeac4e3df7b2108702a4e64632c94e88d46528ac0cccbd2065"
 
 
+def architecture_chassis(tag: str) -> ArchitectureChassisSpec:
+    variant = "alternate" if "alternate" in tag else "common"
+    baseline = scientific_executable_spec(
+        f"architecture-{variant}", architecture_variant=variant
+    )
+    return ArchitectureChassisSpec.from_executable(baseline)
+
+
 def PortfolioAxis(
     *,
     axis_id: str,
@@ -83,7 +98,7 @@ def PortfolioAxis(
         token, 0
     )
     layer = (
-        ResearchLayer.FEATURE,
+        ResearchLayer.CALIBRATION,
         ResearchLayer.LABEL,
         ResearchLayer.LIFECYCLE,
     )[slot]
@@ -93,27 +108,36 @@ def PortfolioAxis(
             ResearchLayer.FEATURE,
             ResearchLayer.LABEL,
             ResearchLayer.MODEL,
+            ResearchLayer.CALIBRATION,
+            ResearchLayer.SELECTOR,
             ResearchLayer.TRADE,
             ResearchLayer.LIFECYCLE,
+            ResearchLayer.RISK,
             ResearchLayer.EXECUTION,
         )
         if candidate != layer
     )
+    chassis = architecture_chassis("fixture-baseline" if slot < 2 else "fixture-alternate")
     return _PortfolioAxis(
         axis_id=axis_id,
         causal_question=causal_question,
         mechanism_family=mechanism_family,
         primary_research_layer=layer,
-        system_architecture_family=(
-            "architecture-family:fixture-baseline"
-            if slot < 2
-            else "architecture-family:fixture-alternate"
-        ),
+        system_architecture_family=chassis.identity,
         changed_domains=(layer,),
         controlled_domains=controlled,
         why_now="fixture requires a causally distinct research axis",
         stop_or_reopen_condition="stop at the frozen fixture evidence boundary",
+        architecture_chassis=chassis,
         status=status,
+    )
+
+
+def portfolio_axis_baseline(axis: _PortfolioAxis) -> ExecutableSpec:
+    token = axis.axis_id.rsplit("-", 1)[-1]
+    variant = "alternate" if token in {"c", "2"} else "common"
+    return scientific_executable_spec(
+        f"architecture-{variant}", architecture_variant=variant
     )
 
 
@@ -445,22 +469,95 @@ def executable_spec(tag: str) -> ExecutableSpec:
     )
 
 
-def scientific_executable_spec(tag: str) -> ExecutableSpec:
-    component = ComponentSpec(
-        display_name=f"{tag} scientific component",
-        protocol="feature.scientific_boundary_fixture.v1",
-        implementation="fixture.scientific.component",
-        spec={"tag": tag},
-    )
+def scientific_executable_spec(
+    tag: str,
+    *,
+    data_identity: str = OBSERVED_MATERIAL_ID,
+    split_contract: str = "split:foundation-observed-development",
+    architecture_variant: str = "common",
+) -> ExecutableSpec:
+    components: list[ComponentSpec] = []
+    by_domain: dict[str, ComponentSpec] = {}
+    for domain in (
+        "feature",
+        "label",
+        "model",
+        "calibration",
+        "selector",
+        "trade",
+        "lifecycle",
+        "risk",
+        "execution",
+    ):
+        dependencies: tuple[str, ...] = ()
+        if domain == "model":
+            dependencies = (
+                by_domain["feature"].identity,
+                by_domain["label"].identity,
+            )
+        elif components:
+            dependencies = (f"role:{components[-1].protocol.split('.', 1)[0]}",)
+        variant = (
+            architecture_variant
+            if domain == "execution"
+            else "common"
+        )
+        value = ComponentSpec(
+            display_name=f"{tag} {domain} scientific component",
+            protocol=f"{domain}.scientific_boundary_fixture.v1",
+            implementation=f"fixture.scientific.{domain}.{variant}",
+            spec={
+                "architecture_variant": variant,
+                "fixture_semantics": domain,
+                "parameter_fields": [],
+            },
+            semantic_dependencies=dependencies,
+        )
+        components.append(value)
+        by_domain[domain] = value
     return ExecutableSpec(
         display_name=f"{tag} scientific executable",
-        components=(component,),
+        components=tuple(components),
         parameters={"tag": tag},
-        data_contract=f"data:{OBSERVED_MATERIAL_ID}",
-        split_contract="split:foundation-observed-development",
+        data_contract=f"data:{data_identity}",
+        split_contract=split_contract,
         clock_contract="clock:completed-m5-bar",
         cost_contract="cost:fixed-lot-boundary-fixture",
         engine_contract="engine:python-boundary-fixture",
+    )
+
+
+def changed_domain_executable(
+    baseline: ExecutableSpec,
+    *,
+    domain: str,
+    change_tag: str,
+) -> ExecutableSpec:
+    original = next(
+        component
+        for component in baseline.components
+        if component.protocol.startswith(f"{domain}.")
+    )
+    changed = ComponentSpec(
+        display_name=f"{domain} changed fixture",
+        protocol=original.protocol,
+        implementation=f"{original.implementation}.changed.{change_tag}",
+        spec={**original.specification(), "scientific_change": change_tag},
+        semantic_dependencies=original.semantic_dependencies,
+    )
+    return ExecutableSpec(
+        display_name=f"{change_tag} changed {domain} executable",
+        components=tuple(
+            changed if component is original else component
+            for component in baseline.components
+        ),
+        parameters=baseline.parameter_values(),
+        data_contract=baseline.data_contract,
+        split_contract=baseline.split_contract,
+        clock_contract=baseline.clock_contract,
+        cost_contract=baseline.cost_contract,
+        engine_contract=baseline.engine_contract,
+        source_contracts=baseline.source_contracts,
     )
 
 
@@ -493,6 +590,421 @@ class WriterTests(unittest.TestCase):
     def test_engineering_fixture_cannot_target_the_real_worktree(self) -> None:
         with self.assertRaises(TransitionError):
             StateWriter(REPO_ROOT, engineering_fixture=True)
+
+    def test_job_implementation_rejects_hardcoded_study_identity(self) -> None:
+        callable_identity = "fixture.generic.runner"
+        source = self.writer.evidence.finalize(
+            b'"""Example mentions STU-0001 without binding it."""\n'
+            b'# Historical note: STU-0002\n'
+            b'STUDY_ID = "STU-" + "9999"\n'
+        )
+        manifest = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "artifact_hashes": [source.sha256],
+                    "callable_identity": callable_identity,
+                    "protocol": "python.source.fixture.v1",
+                    "schema": "job_implementation_evidence.v1",
+                }
+            )
+        )
+        spec = job_spec(self.writer)
+        spec["callable_identity"] = callable_identity
+        spec["implementation_identity"] = manifest.sha256
+        with self.assertRaisesRegex(TransitionError, "hardcodes"):
+            self.writer._require_job_implementation_evidence(spec)
+
+        non_python_source = self.writer.evidence.finalize(
+            b'input string StudyId = "STU-9998"; // MQL5 fixture\n'
+        )
+        non_python_manifest = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "artifact_hashes": [non_python_source.sha256],
+                    "callable_identity": callable_identity,
+                    "protocol": "mql5.source.fixture.v1",
+                    "schema": "job_implementation_evidence.v1",
+                }
+            )
+        )
+        spec["implementation_identity"] = non_python_manifest.sha256
+        with self.assertRaisesRegex(TransitionError, "hardcodes"):
+            self.writer._require_job_implementation_evidence(spec)
+
+    def test_job_evidence_domain_bindings_are_mutually_exclusive(self) -> None:
+        spec = job_spec(self.writer)
+        spec["component_parity_binding"] = {}
+        spec["external_dependency_binding"] = {}
+        with self.assertRaisesRegex(TransitionError, "cannot mix"):
+            self.writer._validate_job_spec(spec)
+
+    def test_component_manifest_backfill_is_zero_credit_and_idempotent(self) -> None:
+        legacy = executable_spec("legacy-component-projection")
+
+        def seed(current, _index):
+            assert current is not None
+            record = IndexRecord(
+                kind="trial",
+                record_id=legacy.identity,
+                subject="Batch:legacy",
+                status="evaluated",
+                fingerprint=legacy.identity.removeprefix("executable:"),
+                payload={"executable": legacy.to_identity_payload()},
+            )
+            return self.writer._body(current), [record], {"seeded": True}
+
+        before = self.writer.read_control()
+        assert before is not None
+        self.writer._commit(
+            event_kind="legacy_trial_fixture_seeded",
+            operation_id="legacy-trial-fixture-seed",
+            subject="Executable:legacy",
+            payload={"trial_delta": 0},
+            prepare=seed,
+        )
+        result = self.writer.backfill_component_manifests(
+            operation_id="component-manifest-backfill-fixture"
+        )
+        self.assertEqual(result.result["trial_delta"], 0)
+        self.assertEqual(result.result["holdout_delta"], 0)
+        self.assertEqual(result.result["claim"], "none")
+        self.assertEqual(result.result["component_manifest_count"], 1)
+        with LocalIndex(self.writer.index_path) as index:
+            component_record = index.get(
+                "component-manifest", legacy.component_identities[0]
+            )
+        self.assertIsNotNone(component_record)
+        after = self.writer.read_control()
+        assert after is not None
+        self.assertEqual(after["next_action"], before["next_action"])
+        self.assertEqual(after["scientific"], before["scientific"])
+        reused = self.writer.backfill_component_manifests(
+            operation_id="component-manifest-backfill-fixture"
+        )
+        self.assertTrue(reused.reused)
+
+    def test_executable_surface_backfill_is_zero_credit_and_idempotent(self) -> None:
+        legacy = executable_spec("legacy-executable-surface")
+        legacy_component = legacy.components[0]
+        alias_component = ComponentSpec(
+            display_name="legacy protocol alias",
+            protocol="feature.engineering_fixture.v7",
+            implementation=legacy_component.implementation,
+            spec=legacy_component.specification(),
+            semantic_dependencies=legacy_component.semantic_dependencies,
+        )
+        alias = ExecutableSpec(
+            display_name="legacy executable protocol alias",
+            components=(alias_component,),
+            parameters=legacy.parameter_values(),
+            data_contract=legacy.data_contract,
+            split_contract=legacy.split_contract,
+            clock_contract=legacy.clock_contract,
+            cost_contract=legacy.cost_contract,
+            engine_contract=legacy.engine_contract,
+        )
+
+        def seed(current, _index):
+            assert current is not None
+            records = [
+                IndexRecord(
+                    kind="trial",
+                    record_id=value.identity,
+                    subject="Batch:legacy",
+                    status="evaluated",
+                    fingerprint=value.identity.removeprefix("executable:"),
+                    payload={"executable": value.to_identity_payload()},
+                )
+                for value in (legacy, alias)
+            ]
+            return self.writer._body(current), records, {"seeded": True}
+
+        before = self.writer.read_control()
+        assert before is not None
+        self.writer._commit(
+            event_kind="legacy_surface_trial_fixture_seeded",
+            operation_id="legacy-surface-trial-fixture-seed",
+            subject="Executable:legacy",
+            payload={"trial_delta": 0},
+            prepare=seed,
+        )
+        result = self.writer.backfill_executable_semantic_surfaces(
+            operation_id="executable-surface-backfill-fixture"
+        )
+        self.assertEqual(result.result["trial_delta"], 0)
+        self.assertEqual(result.result["holdout_delta"], 0)
+        self.assertEqual(result.result["claim"], "none")
+        self.assertEqual(result.result["exact_executable_count"], 2)
+        self.assertEqual(result.result["surface_count"], 1)
+        from axiom_rift.research.chassis import (
+            executable_semantic_surface_identity,
+        )
+
+        surface_id = executable_semantic_surface_identity(legacy)
+        with LocalIndex(self.writer.index_path) as index:
+            surface = index.get("executable-surface", surface_id)
+        self.assertIsNotNone(surface)
+        assert surface is not None
+        self.assertEqual(
+            surface.payload["exact_executable_ids"],
+            sorted((legacy.identity, alias.identity)),
+        )
+        after = self.writer.read_control()
+        assert after is not None
+        self.assertEqual(after["next_action"], before["next_action"])
+        self.assertEqual(after["scientific"], before["scientific"])
+        reused = self.writer.backfill_executable_semantic_surfaces(
+            operation_id="executable-surface-backfill-fixture"
+        )
+        self.assertTrue(reused.reused)
+
+    def test_legacy_surface_collision_allows_exact_reuse_only(self) -> None:
+        original = ComponentSpec(
+            display_name="legacy feature v1",
+            protocol="feature.legacy_control.v1",
+            implementation="fixture.legacy.control",
+            spec={"meaning": "fixed", "parameter_fields": []},
+        )
+        legacy_alias = ComponentSpec(
+            display_name="legacy feature v2",
+            protocol="feature.legacy_control.v2",
+            implementation=original.implementation,
+            spec=original.specification(),
+        )
+        exact = ExecutableSpec(
+            display_name="exact legacy reuse",
+            components=(legacy_alias,),
+            parameters={},
+            data_contract="data:fixture",
+            split_contract="split:fixture",
+            clock_contract="clock:fixture",
+            cost_contract="cost:fixture",
+            engine_contract="engine:fixture",
+        )
+        new_alias = ComponentSpec(
+            display_name="legacy feature v3",
+            protocol="feature.legacy_control.v3",
+            implementation=original.implementation,
+            spec=original.specification(),
+        )
+        drifted = ExecutableSpec(
+            display_name="new legacy alias",
+            components=(new_alias,),
+            parameters={},
+            data_contract=exact.data_contract,
+            split_contract=exact.split_contract,
+            clock_contract=exact.clock_contract,
+            cost_contract=exact.cost_contract,
+            engine_contract=exact.engine_contract,
+        )
+        duplicate_surface = ExecutableSpec(
+            display_name="two aliases in one Executable",
+            components=(original, legacy_alias),
+            parameters={},
+            data_contract=exact.data_contract,
+            split_contract=exact.split_contract,
+            clock_contract=exact.clock_contract,
+            cost_contract=exact.cost_contract,
+            engine_contract=exact.engine_contract,
+        )
+        meaning_change = ComponentSpec(
+            display_name="meaningful feature change",
+            protocol=original.protocol,
+            implementation=original.implementation,
+            spec={"meaning": "changed", "parameter_fields": []},
+        )
+        changed = ExecutableSpec(
+            display_name="meaningful changed component",
+            components=(meaning_change,),
+            parameters={},
+            data_contract=exact.data_contract,
+            split_contract=exact.split_contract,
+            clock_contract=exact.clock_contract,
+            cost_contract=exact.cost_contract,
+            engine_contract=exact.engine_contract,
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            index.put(
+                self.writer._component_manifest_record(
+                    component_id=original.identity,
+                    manifest=original.to_identity_payload(),
+                )
+            )
+            index.put(
+                self.writer._component_manifest_record(
+                    component_id=legacy_alias.identity,
+                    manifest=legacy_alias.to_identity_payload(),
+                )
+            )
+            self.assertEqual(
+                self.writer._project_executable_components(index, exact), []
+            )
+            with self.assertRaisesRegex(TransitionError, "protocol/name drift"):
+                self.writer._project_executable_components(index, drifted)
+            with self.assertRaisesRegex(TransitionError, "duplicate protocol-neutral"):
+                self.writer._project_executable_components(
+                    index, duplicate_surface
+                )
+            projected = self.writer._project_executable_components(index, changed)
+            self.assertEqual(
+                [record.record_id for record in projected],
+                [meaning_change.identity],
+            )
+
+    def test_architecture_parity_unifies_legacy_protocol_alias_endpoints(self) -> None:
+        from axiom_rift.research.chassis import (
+            architecture_component_semantic_surface_identity,
+        )
+
+        first_alias = ComponentSpec(
+            display_name="legacy model v1",
+            protocol="model.legacy_alias.v1",
+            implementation="fixture.legacy.model",
+            spec={"meaning": "same"},
+        )
+        second_alias = ComponentSpec(
+            display_name="legacy model v7",
+            protocol="model.legacy_alias.v7",
+            implementation=first_alias.implementation,
+            spec=first_alias.specification(),
+        )
+        first_refactor = ComponentSpec(
+            display_name="first model refactor",
+            protocol=first_alias.protocol,
+            implementation="fixture.refactor.model.first",
+            spec=first_alias.specification(),
+        )
+        second_refactor = ComponentSpec(
+            display_name="second model refactor",
+            protocol=second_alias.protocol,
+            implementation="fixture.refactor.model.second",
+            spec=second_alias.specification(),
+        )
+        edges = (
+            ComponentParityEvidence(
+                canonical_component=first_alias,
+                equivalent_component=first_refactor,
+                dimensions=tuple(ComponentParityDimension),
+                parity_manifest_hash="a" * 64,
+                completion_record_id="1" * 64,
+            ).to_identity_payload(),
+            ComponentParityEvidence(
+                canonical_component=second_alias,
+                equivalent_component=second_refactor,
+                dimensions=tuple(ComponentParityDimension),
+                parity_manifest_hash="b" * 64,
+                completion_record_id="2" * 64,
+            ).to_identity_payload(),
+        )
+        replacements = self.writer._architecture_parity_surface_replacements(edges)
+        surfaces = {
+            replacements[
+                architecture_component_semantic_surface_identity(component)
+            ]
+            for component in (
+                first_alias,
+                second_alias,
+                first_refactor,
+                second_refactor,
+            )
+        }
+        self.assertEqual(len(surfaces), 1)
+
+    def test_seeded_parity_resolution_does_not_scan_unrelated_history(self) -> None:
+        with LocalIndex(self.writer.index_path) as index:
+            index.records_by_kind = lambda _kind: (_ for _ in ()).throw(  # type: ignore[method-assign]
+                AssertionError("seeded parity resolution used a full history scan")
+            )
+            resolved = self.writer._verified_component_parity_edges(
+                index,
+                surface_seeds=("architecture-component-surface:" + "a" * 64,),
+            )
+        self.assertEqual(resolved, ())
+
+    def test_legacy_axis_prospective_anchor_cannot_split_by_name(self) -> None:
+        legacy_axis = {
+            "architecture_chassis": None,
+            "architecture_chassis_identity": None,
+            "axis_identity": "axis:legacy-fixture",
+        }
+        first_payload = {
+            "architecture_chassis": {"schema": "architecture_chassis.v1"},
+            "architecture_chassis_identity": "architecture-family:" + "a" * 64,
+            "baseline_executable": {"schema": "executable_spec.v1"},
+            "baseline_executable_id": "executable:" + "b" * 64,
+            "target_axis_identity": legacy_axis["axis_identity"],
+        }
+        second_payload = {
+            **first_payload,
+            "architecture_chassis_identity": "architecture-family:" + "c" * 64,
+        }
+        with LocalIndex(self.writer.index_path) as index:
+            index.put(
+                IndexRecord(
+                    kind="portfolio-decision",
+                    record_id="decision:" + "1" * 64,
+                    subject="Mission:MIS-LEGACY",
+                    status="deepen",
+                    fingerprint="1" * 64,
+                    payload=first_payload,
+                )
+            )
+            anchor = self.writer._axis_architecture_anchor(index, legacy_axis)
+            assert anchor is not None
+            self.assertEqual(
+                anchor["architecture_chassis_identity"],
+                first_payload["architecture_chassis_identity"],
+            )
+            index.put(
+                IndexRecord(
+                    kind="portfolio-decision",
+                    record_id="decision:" + "2" * 64,
+                    subject="Mission:MIS-LEGACY",
+                    status="deepen",
+                    fingerprint="2" * 64,
+                    payload=second_payload,
+                )
+            )
+            with self.assertRaisesRegex(RecoveryRequired, "conflicting"):
+                self.writer._axis_architecture_anchor(index, legacy_axis)
+
+    def test_existing_data_contract_requires_prior_trial_baseline(self) -> None:
+        baseline = scientific_executable_spec("prior-baseline")
+        invented = scientific_executable_spec("invented-baseline")
+        self.assertNotEqual(baseline.identity, invented.identity)
+        with LocalIndex(self.writer.index_path) as index:
+            index.put(
+                IndexRecord(
+                    kind="study-open",
+                    record_id="STU-7000",
+                    subject="Study:STU-7000",
+                    status="open",
+                    fingerprint="7" * 64,
+                    payload={"mission_id": "MIS-PRIOR"},
+                )
+            )
+            index.put(
+                IndexRecord(
+                    kind="trial",
+                    record_id=baseline.identity,
+                    subject="Batch:BAT-PRIOR",
+                    status="evaluated",
+                    fingerprint=baseline.identity.removeprefix("executable:"),
+                    payload={
+                        "engineering_fixture": False,
+                        "executable": baseline.to_identity_payload(),
+                        "mission_id": "MIS-PRIOR",
+                        "scientific_eligible": True,
+                        "study_id": "STU-7000",
+                    },
+                )
+            )
+            self.assertEqual(
+                self.writer._prior_scientific_baseline(index, baseline).record_id,
+                baseline.identity,
+            )
+            with self.assertRaisesRegex(TransitionError, "prior scientific"):
+                self.writer._prior_scientific_baseline(index, invented)
 
     def open_fixture_study(
         self,
@@ -782,6 +1294,33 @@ class WriterTests(unittest.TestCase):
                 "MIS-EMPTY",
             )
 
+    def test_pre_intake_generic_job_cannot_guess_a_future_study(self) -> None:
+        with TemporaryDirectory() as root:
+            writer = StateWriter(
+                root,
+                permit_authority=PermitAuthority(b"g" * 32),
+                clock=lambda: FIXED_NOW,
+                foundation_root=REPO_ROOT,
+            )
+            writer.initialize_ready()
+            writer.open_mission(
+                mission_id="MIS-PRE-INTAKE-JOB",
+                goal=mission_goal("pre-intake Job rejection"),
+                operation_id="pre-intake-job-mission",
+            )
+            self.assertEqual(
+                writer.read_control()["next_action"]["kind"],  # type: ignore[index]
+                "record_research_intake",
+            )
+            with self.assertRaisesRegex(TransitionError, "cannot bypass pending research intake"):
+                writer.declare_job(
+                    spec=job_spec(
+                        writer,
+                        {"kind": "Mission", "id": "MIS-PRE-INTAKE-JOB"},
+                    ),
+                    operation_id="reject-pre-intake-guessed-study-job",
+                )
+
     def test_portfolio_decision_requires_a_current_declared_target(self) -> None:
         self.open_mission_and_initiative()
         snapshot = PortfolioSnapshot(
@@ -1046,16 +1585,25 @@ class WriterTests(unittest.TestCase):
                 ),
                 rationale="bind exactly one Batch",
                 commitment_batches=1,
+                baseline_executable=portfolio_axis_baseline(axis_a),
             )
             writer.record_portfolio_decision(
                 decision=decision, operation_id="commitment-decision"
             )
             question = study_question("mechanical commitment")
             proposal = {"mechanism": "commitment enforcement"}
+            assert axis_a.architecture_chassis is not None
+            controlled_chassis = ControlledStudyChassis(
+                baseline_executable=decision.baseline_executable,
+                changed_domains=axis_a.changed_domains,
+                controlled_domains=axis_a.controlled_domains,
+                architecture=axis_a.architecture_chassis,
+            )
             study_hash = writer.study_input_hash(
                 question=question,
                 material_identity=OBSERVED_MATERIAL_ID,
                 semantic_proposal=proposal,
+                controlled_chassis=controlled_chassis,
                 portfolio_axis_id=axis_a.axis_id,
                 portfolio_axis_identity=axis_a.identity,
                 portfolio_decision_id=decision.identity,
@@ -1066,7 +1614,14 @@ class WriterTests(unittest.TestCase):
                 subject_id="INI-COMMITMENT",
                 input_hash=study_hash,
                 actions=("open_study",),
-                scope=("study",),
+                scope=(
+                    "study",
+                    f"decision:{decision.identity}",
+                    f"axis:{axis_a.identity}",
+                    f"baseline:{decision.baseline_executable.identity}",
+                    f"chassis:{decision.architecture_chassis.identity}",
+                    f"snapshot:{snapshot.identity}",
+                ),
                 expires_at_utc=FIXED_EXPIRY,
                 one_shot=True,
                 operation_id="commitment-study-permit",
@@ -1077,6 +1632,7 @@ class WriterTests(unittest.TestCase):
                 material_identity=OBSERVED_MATERIAL_ID,
                 material_display_name="foundation development material",
                 semantic_proposal=proposal,
+                controlled_chassis=controlled_chassis,
                 portfolio_axis_id=axis_a.axis_id,
                 portfolio_axis_identity=axis_a.identity,
                 portfolio_decision_id=decision.identity,
@@ -2916,16 +3472,25 @@ class ScientificLifecycleTests(unittest.TestCase):
             ),
             rationale="build one frozen candidate while retaining alternatives",
             commitment_batches=1,
+            baseline_executable=portfolio_axis_baseline(axes[0]),
         )
         writer.record_portfolio_decision(
             decision=decision, operation_id="holdout-life-decision"
         )
         question = study_question("holdout candidate evidence")
         proposal = {"mechanism": "holdout lifecycle boundary"}
+        assert axes[0].architecture_chassis is not None
+        controlled_chassis = ControlledStudyChassis(
+            baseline_executable=decision.baseline_executable,
+            changed_domains=axes[0].changed_domains,
+            controlled_domains=axes[0].controlled_domains,
+            architecture=axes[0].architecture_chassis,
+        )
         study_hash = writer.study_input_hash(
             question=question,
             material_identity=OBSERVED_MATERIAL_ID,
             semantic_proposal=proposal,
+            controlled_chassis=controlled_chassis,
             portfolio_axis_id=axes[0].axis_id,
             portfolio_axis_identity=axes[0].identity,
             portfolio_decision_id=decision.identity,
@@ -2936,7 +3501,14 @@ class ScientificLifecycleTests(unittest.TestCase):
             subject_id="INI-HOLDOUT-LIFECYCLE",
             input_hash=study_hash,
             actions=("open_study",),
-            scope=("study",),
+            scope=(
+                "study",
+                f"decision:{decision.identity}",
+                f"axis:{axes[0].identity}",
+                f"baseline:{decision.baseline_executable.identity}",
+                f"chassis:{decision.architecture_chassis.identity}",
+                f"snapshot:{snapshot.identity}",
+            ),
             expires_at_utc=FIXED_EXPIRY,
             one_shot=True,
             operation_id="holdout-life-study-permit",
@@ -2947,6 +3519,7 @@ class ScientificLifecycleTests(unittest.TestCase):
             material_identity=OBSERVED_MATERIAL_ID,
             material_display_name="foundation observed material",
             semantic_proposal=proposal,
+            controlled_chassis=controlled_chassis,
             portfolio_axis_id=axes[0].axis_id,
             portfolio_axis_identity=axes[0].identity,
             portfolio_decision_id=decision.identity,
@@ -3033,7 +3606,12 @@ class ScientificLifecycleTests(unittest.TestCase):
                 outcome="engineering_failure",
                 operation_id="holdout-life-reject-false-engineering-failure",
             )
-        executable = scientific_executable_spec("holdout-lifecycle")
+        assert decision.baseline_executable is not None
+        executable = changed_domain_executable(
+            decision.baseline_executable,
+            domain="calibration",
+            change_tag="holdout-lifecycle",
+        )
         writer.register_trial(
             executable=executable, operation_id="holdout-life-trial"
         )
@@ -3198,6 +3776,7 @@ class ScientificLifecycleTests(unittest.TestCase):
                 ),
                 rationale="exercise a Writer-derived unavailable closeout",
                 commitment_batches=1,
+                baseline_executable=portfolio_axis_baseline(axes[0]),
             )
             writer.record_portfolio_decision(
                 decision=decision,
@@ -3205,10 +3784,18 @@ class ScientificLifecycleTests(unittest.TestCase):
             )
             question = study_question("unstarted Batch closeout")
             proposal = {"mechanism": "unstarted Batch closeout"}
+            assert axes[0].architecture_chassis is not None
+            controlled_chassis = ControlledStudyChassis(
+                baseline_executable=decision.baseline_executable,
+                changed_domains=axes[0].changed_domains,
+                controlled_domains=axes[0].controlled_domains,
+                architecture=axes[0].architecture_chassis,
+            )
             study_hash = writer.study_input_hash(
                 question=question,
                 material_identity=OBSERVED_MATERIAL_ID,
                 semantic_proposal=proposal,
+                controlled_chassis=controlled_chassis,
                 portfolio_axis_id=axes[0].axis_id,
                 portfolio_axis_identity=axes[0].identity,
                 portfolio_decision_id=decision.identity,
@@ -3219,7 +3806,14 @@ class ScientificLifecycleTests(unittest.TestCase):
                 subject_id="INI-UNSTARTED",
                 input_hash=study_hash,
                 actions=("open_study",),
-                scope=("study",),
+                scope=(
+                    "study",
+                    f"decision:{decision.identity}",
+                    f"axis:{axes[0].identity}",
+                    f"baseline:{decision.baseline_executable.identity}",
+                    f"chassis:{decision.architecture_chassis.identity}",
+                    f"snapshot:{snapshot.identity}",
+                ),
                 expires_at_utc=FIXED_EXPIRY,
                 one_shot=True,
                 operation_id="unstarted-study-permit",
@@ -3230,6 +3824,7 @@ class ScientificLifecycleTests(unittest.TestCase):
                 material_identity=OBSERVED_MATERIAL_ID,
                 material_display_name="foundation observed material",
                 semantic_proposal=proposal,
+                controlled_chassis=controlled_chassis,
                 portfolio_axis_id=axes[0].axis_id,
                 portfolio_axis_identity=axes[0].identity,
                 portfolio_decision_id=decision.identity,
@@ -3325,6 +3920,7 @@ class ScientificLifecycleTests(unittest.TestCase):
                 ),
                 rationale="exercise an exhausted non-validator Job budget",
                 commitment_batches=1,
+                baseline_executable=portfolio_axis_baseline(axes[2]),
             )
             writer.record_portfolio_decision(
                 decision=budget_decision,
@@ -3332,10 +3928,18 @@ class ScientificLifecycleTests(unittest.TestCase):
             )
             budget_question = study_question("exhausted non-validator Job budget")
             budget_proposal = {"mechanism": "budget exhaustion closeout"}
+            assert axes[2].architecture_chassis is not None
+            budget_controlled_chassis = ControlledStudyChassis(
+                baseline_executable=budget_decision.baseline_executable,
+                changed_domains=axes[2].changed_domains,
+                controlled_domains=axes[2].controlled_domains,
+                architecture=axes[2].architecture_chassis,
+            )
             budget_study_hash = writer.study_input_hash(
                 question=budget_question,
                 material_identity=OBSERVED_MATERIAL_ID,
                 semantic_proposal=budget_proposal,
+                controlled_chassis=budget_controlled_chassis,
                 portfolio_axis_id=axes[2].axis_id,
                 portfolio_axis_identity=axes[2].identity,
                 portfolio_decision_id=budget_decision.identity,
@@ -3346,7 +3950,14 @@ class ScientificLifecycleTests(unittest.TestCase):
                 subject_id="INI-UNSTARTED",
                 input_hash=budget_study_hash,
                 actions=("open_study",),
-                scope=("study",),
+                scope=(
+                    "study",
+                    f"decision:{budget_decision.identity}",
+                    f"axis:{axes[2].identity}",
+                    f"baseline:{budget_decision.baseline_executable.identity}",
+                    f"chassis:{budget_decision.architecture_chassis.identity}",
+                    f"snapshot:{snapshot.identity}",
+                ),
                 expires_at_utc=FIXED_EXPIRY,
                 one_shot=True,
                 operation_id="budget-end-study-permit",
@@ -3357,6 +3968,7 @@ class ScientificLifecycleTests(unittest.TestCase):
                 material_identity=OBSERVED_MATERIAL_ID,
                 material_display_name="foundation observed material",
                 semantic_proposal=budget_proposal,
+                controlled_chassis=budget_controlled_chassis,
                 portfolio_axis_id=axes[2].axis_id,
                 portfolio_axis_identity=axes[2].identity,
                 portfolio_decision_id=budget_decision.identity,
@@ -3577,6 +4189,11 @@ class ScientificLifecycleTests(unittest.TestCase):
             snapshot = index.get(portfolio_head.record_kind, portfolio_head.record_id)
         assert snapshot is not None
         axes = snapshot.payload["axes"]
+        new_executable = scientific_executable_spec(
+            "post-holdout",
+            data_identity=material_identity,
+            split_contract=f"split:{split_identity}",
+        )
         decision = PortfolioDecision(
             decision_id="DEC-POST-HOLDOUT-DEVELOPMENT",
             chosen_option_id="develop-a",
@@ -3599,6 +4216,7 @@ class ScientificLifecycleTests(unittest.TestCase):
             ),
             rationale="reenter the existing broad Portfolio on genuinely later material",
             commitment_batches=1,
+            baseline_executable=new_executable,
         )
         writer.record_portfolio_decision(
             decision=decision,
@@ -3606,10 +4224,26 @@ class ScientificLifecycleTests(unittest.TestCase):
         )
         question = study_question("post-holdout development material")
         proposal = {"mechanism": "post-holdout structural reentry"}
+        post_holdout_architecture = architecture_chassis("fixture-baseline")
+        self.assertEqual(
+            post_holdout_architecture.identity,
+            axes[0]["architecture_chassis_identity"],
+        )
+        controlled_chassis = ControlledStudyChassis(
+            baseline_executable=decision.baseline_executable,
+            changed_domains=tuple(
+                ResearchLayer(value) for value in axes[0]["changed_domains"]
+            ),
+            controlled_domains=tuple(
+                ResearchLayer(value) for value in axes[0]["controlled_domains"]
+            ),
+            architecture=post_holdout_architecture,
+        )
         study_hash = writer.study_input_hash(
             question=question,
             material_identity=material_identity,
             semantic_proposal=proposal,
+            controlled_chassis=controlled_chassis,
             portfolio_axis_id=axes[0]["axis_id"],
             portfolio_axis_identity=axes[0]["axis_identity"],
             portfolio_decision_id=decision.identity,
@@ -3620,7 +4254,14 @@ class ScientificLifecycleTests(unittest.TestCase):
             subject_id="INI-POST-HOLDOUT-DEVELOPMENT",
             input_hash=study_hash,
             actions=("open_study",),
-            scope=("study",),
+            scope=(
+                "study",
+                f"decision:{decision.identity}",
+                f"axis:{axes[0]['axis_identity']}",
+                f"baseline:{decision.baseline_executable.identity}",
+                f"chassis:{decision.architecture_chassis.identity}",
+                f"snapshot:{snapshot.record_id}",
+            ),
             expires_at_utc=FIXED_EXPIRY,
             one_shot=True,
             operation_id="failed-post-holdout-study-permit",
@@ -3631,6 +4272,7 @@ class ScientificLifecycleTests(unittest.TestCase):
             material_identity=material_identity,
             material_display_name="registered later development material",
             semantic_proposal=proposal,
+            controlled_chassis=controlled_chassis,
             permit=study_permit,
             operation_id="failed-post-holdout-study-open",
             portfolio_axis_id=axes[0]["axis_id"],
@@ -3658,21 +4300,10 @@ class ScientificLifecycleTests(unittest.TestCase):
             permit=batch_permit,
             operation_id="failed-post-holdout-batch-open",
         )
-        component = ComponentSpec(
-            display_name="post-holdout scientific component",
-            protocol="feature.post_holdout_boundary_fixture.v1",
-            implementation="fixture.post_holdout.component",
-            spec={"material_identity": material_identity},
-        )
-        new_executable = ExecutableSpec(
-            display_name="post-holdout scientific executable",
-            components=(component,),
-            parameters={"material_identity": material_identity},
-            data_contract=f"data:{material_identity}",
-            split_contract=f"split:{split_identity}",
-            clock_contract="clock:completed-m5-bar",
-            cost_contract="cost:fixed-lot-boundary-fixture",
-            engine_contract="engine:python-boundary-fixture",
+        new_executable = changed_domain_executable(
+            decision.baseline_executable,
+            domain="calibration",
+            change_tag="post-holdout-development",
         )
         counted = writer.register_trial(
             executable=new_executable,
@@ -4314,6 +4945,9 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             permit_authority=PermitAuthority(b"q" * 32),
             clock=lambda: FIXED_NOW,
             foundation_root=REPO_ROOT,
+            validation_registry=EvidenceValidatorRegistry(
+                (ComponentParityFixtureValidator(),)
+            ),
         )
         self.writer.initialize_ready()
         self.writer.open_mission(
@@ -4398,8 +5032,637 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             ),
             rationale="follow the typed diagnosis while preserving the forest",
             commitment_batches=1,
+            baseline_executable=portfolio_axis_baseline(self.axes[target_index]),
         )
         return decision
+
+    def _accept_component_parity_for_decision(
+        self,
+        *,
+        decision: PortfolioDecision,
+        canonical_component: ComponentSpec,
+        equivalent_component: ComponentSpec,
+        tag: str,
+    ) -> None:
+        assert decision.architecture_chassis is not None
+        dimensions = sorted(
+            dimension.value for dimension in ComponentParityDimension
+        )
+        plan = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "schema": "component_parity_validation_plan.v1",
+                    "tag": tag,
+                }
+            )
+        )
+        spec = job_spec(
+            self.writer,
+            {"kind": "Mission", "id": "MIS-DIRECTION"},
+        )
+        result_name = f"evidence/{tag}-parity-result"
+        measurement_name = f"evidence/{tag}-parity-measurement"
+        spec["input_hashes"] = [
+            *spec["input_hashes"],
+            plan.sha256,
+            canonical_component.identity.removeprefix("component:"),
+            equivalent_component.identity.removeprefix("component:"),
+        ]
+        spec["expected_outputs"] = [result_name, measurement_name]
+        spec["output_classes"] = {
+            result_name: "durable_evidence",
+            measurement_name: "durable_evidence",
+        }
+        spec["resume_action"] = "execute_portfolio_decision"
+        spec["component_parity_binding"] = {
+            "architecture_chassis_identity": decision.architecture_chassis.identity,
+            "canonical_component_id": canonical_component.identity,
+            "canonical_component_manifest": canonical_component.to_identity_payload(),
+            "dimensions": dimensions,
+            "equivalent_component_id": equivalent_component.identity,
+            "equivalent_component_manifest": equivalent_component.to_identity_payload(),
+            "portfolio_axis_identity": next(
+                axis.identity
+                for axis in self.axes
+                if axis.axis_id == decision.chosen.target_id
+            ),
+            "portfolio_decision_id": decision.identity,
+            "portfolio_snapshot_id": self.snapshot.identity,
+            "result_manifest_output": result_name,
+            "validation_plan_hash": plan.sha256,
+            "validator_id": ComponentParityFixtureValidator.validator_id,
+        }
+        declared = self.writer.declare_job(
+            spec=spec,
+            operation_id=f"{tag}-parity-job-declare",
+        )
+        permit = self.writer.issue_permit(
+            kind=PermitKind.JOB,
+            subject_kind=SubjectKind.JOB,
+            subject_id=declared.result["job_id"],
+            input_hash=declared.result["job_hash"],
+            actions=("start_job",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id=f"{tag}-parity-job-permit",
+        )
+        self.writer.start_job(
+            permit=permit,
+            operation_id=f"{tag}-parity-job-start",
+        )
+        measurement = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "canonical_component_id": canonical_component.identity,
+                    "dimensions": dimensions,
+                    "equivalent": True,
+                    "equivalent_component_id": equivalent_component.identity,
+                    "schema": "component_parity_measurement.v1",
+                }
+            )
+        )
+        parity_manifest = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "architecture_chassis_identity": decision.architecture_chassis.identity,
+                    "artifact_hashes": [measurement.sha256],
+                    "canonical_component_id": canonical_component.identity,
+                    "dimensions": dimensions,
+                    "equivalent_component_id": equivalent_component.identity,
+                    "job_hash": declared.result["job_hash"],
+                    "job_id": declared.result["job_id"],
+                    "mission_id": "MIS-DIRECTION",
+                    "portfolio_axis_identity": spec["component_parity_binding"][
+                        "portfolio_axis_identity"
+                    ],
+                    "portfolio_decision_id": decision.identity,
+                    "portfolio_snapshot_id": self.snapshot.identity,
+                    "schema": "component_parity_result.v2",
+                    "verdict": "equivalent",
+                }
+            )
+        )
+        completed = self.writer.complete_job(
+            outcome="success",
+            output_manifest={
+                result_name: parity_manifest.sha256,
+                measurement_name: measurement.sha256,
+            },
+            operation_id=f"{tag}-parity-job-complete",
+        )
+        self.writer.judge_job_evidence(
+            completion_record_id=completed.result["completion_record_id"],
+            disposition="accept_component_parity",
+            operation_id=f"{tag}-parity-job-accept",
+        )
+
+    def test_predecision_study_permit_and_job_registration_are_blocked(self) -> None:
+        with self.assertRaisesRegex(PermitError, "accepted current Portfolio Decision"):
+            self.writer.issue_permit(
+                kind=PermitKind.STUDY,
+                subject_kind=SubjectKind.INITIATIVE,
+                subject_id="INI-DIRECTION",
+                input_hash="a" * 64,
+                actions=("open_study",),
+                scope=(
+                    "study",
+                    "decision:future",
+                    "axis:future",
+                    f"snapshot:{self.snapshot.identity}",
+                ),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="reject-predecision-study-permit",
+            )
+        with self.assertRaisesRegex(TransitionError, "cannot preempt"):
+            self.writer.declare_job(
+                spec=job_spec(
+                    self.writer,
+                    {"kind": "Initiative", "id": "INI-DIRECTION"},
+                ),
+                operation_id="reject-predecision-job-registration",
+            )
+        control = self.writer.read_control()
+        assert control is not None
+        self.assertEqual(control["next_action"]["kind"], "portfolio_decision")
+
+    def test_writer_accepts_typed_parity_and_rejects_protocol_surface_drift(self) -> None:
+        axis = self.axes[0]
+        decision = self._decision(
+            tag="CONTROLLED-IDENTITY",
+            target_index=0,
+            action=PortfolioAction.DEEPEN,
+        )
+        self.writer.record_portfolio_decision(
+            decision=decision,
+            operation_id="controlled-identity-decision",
+        )
+        baseline = decision.baseline_executable
+        assert baseline is not None and decision.architecture_chassis is not None
+        unregistered_baseline = scientific_executable_spec(
+            "caller-invented-baseline"
+        )
+        self.assertNotEqual(unregistered_baseline.identity, baseline.identity)
+        unregistered_chassis = ControlledStudyChassis(
+            baseline_executable=unregistered_baseline,
+            changed_domains=axis.changed_domains,
+            controlled_domains=axis.controlled_domains,
+            architecture=decision.architecture_chassis,
+        )
+        unregistered_question = study_question("unregistered baseline")
+        unregistered_proposal = {"mechanism": "unregistered baseline"}
+        unregistered_hash = self.writer.study_input_hash(
+            question=unregistered_question,
+            material_identity=OBSERVED_MATERIAL_ID,
+            semantic_proposal=unregistered_proposal,
+            controlled_chassis=unregistered_chassis,
+            portfolio_axis_id=axis.axis_id,
+            portfolio_axis_identity=axis.identity,
+            portfolio_decision_id=decision.identity,
+        )
+        unregistered_permit = self.writer.issue_permit(
+            kind=PermitKind.STUDY,
+            subject_kind=SubjectKind.INITIATIVE,
+            subject_id="INI-DIRECTION",
+            input_hash=unregistered_hash,
+            actions=("open_study",),
+            scope=(
+                "study",
+                f"decision:{decision.identity}",
+                f"axis:{axis.identity}",
+                f"baseline:{baseline.identity}",
+                f"chassis:{decision.architecture_chassis.identity}",
+                f"snapshot:{self.snapshot.identity}",
+            ),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="unregistered-baseline-study-permit",
+        )
+        with self.assertRaisesRegex(TransitionError, "Decision anchor"):
+            self.writer.open_study(
+                study_id="STU-9018",
+                question=unregistered_question,
+                material_identity=OBSERVED_MATERIAL_ID,
+                material_display_name="foundation observed material",
+                semantic_proposal=unregistered_proposal,
+                controlled_chassis=unregistered_chassis,
+                portfolio_axis_id=axis.axis_id,
+                portfolio_axis_identity=axis.identity,
+                portfolio_decision_id=decision.identity,
+                permit=unregistered_permit,
+                operation_id="reject-unregistered-baseline-study-open",
+            )
+        old_model = next(
+            component
+            for component in baseline.components
+            if component.protocol.startswith("model.")
+        )
+        equivalent_model = ComponentSpec(
+            display_name="controlled refactored model",
+            protocol=old_model.protocol,
+            implementation="fixture.scientific.model.refactored",
+            spec=old_model.specification(),
+            semantic_dependencies=old_model.semantic_dependencies,
+        )
+        dimensions = sorted(
+            dimension.value for dimension in ComponentParityDimension
+        )
+        fake_manifest = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "artifact_hashes": ["a" * 64],
+                    "canonical_component_id": old_model.identity,
+                    "dimensions": dimensions,
+                    "equivalent_component_id": equivalent_model.identity,
+                    "schema": "component_parity_result.v2",
+                    "verdict": "equivalent",
+                }
+            )
+        )
+        fake_parity = ComponentParityEvidence(
+            canonical_component=old_model,
+            equivalent_component=equivalent_model,
+            dimensions=tuple(ComponentParityDimension),
+            parity_manifest_hash=fake_manifest.sha256,
+            completion_record_id="f" * 64,
+        )
+        fake_chassis = ControlledStudyChassis(
+            baseline_executable=baseline,
+            changed_domains=axis.changed_domains,
+            controlled_domains=axis.controlled_domains,
+            architecture=decision.architecture_chassis,
+            equivalences=(fake_parity,),
+        )
+        fake_question = study_question("unvalidated component parity")
+        fake_proposal = {"mechanism": "unvalidated component parity"}
+        fake_hash = self.writer.study_input_hash(
+            question=fake_question,
+            material_identity=OBSERVED_MATERIAL_ID,
+            semantic_proposal=fake_proposal,
+            controlled_chassis=fake_chassis,
+            portfolio_axis_id=axis.axis_id,
+            portfolio_axis_identity=axis.identity,
+            portfolio_decision_id=decision.identity,
+        )
+        fake_permit = self.writer.issue_permit(
+            kind=PermitKind.STUDY,
+            subject_kind=SubjectKind.INITIATIVE,
+            subject_id="INI-DIRECTION",
+            input_hash=fake_hash,
+            actions=("open_study",),
+            scope=(
+                "study",
+                f"decision:{decision.identity}",
+                f"axis:{axis.identity}",
+                f"baseline:{baseline.identity}",
+                f"chassis:{decision.architecture_chassis.identity}",
+                f"snapshot:{self.snapshot.identity}",
+            ),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="unvalidated-parity-study-permit",
+        )
+        with self.assertRaisesRegex(TransitionError, "registered-validator"):
+            self.writer.open_study(
+                study_id="STU-9019",
+                question=fake_question,
+                material_identity=OBSERVED_MATERIAL_ID,
+                material_display_name="foundation observed material",
+                semantic_proposal=fake_proposal,
+                controlled_chassis=fake_chassis,
+                portfolio_axis_id=axis.axis_id,
+                portfolio_axis_identity=axis.identity,
+                portfolio_decision_id=decision.identity,
+                permit=fake_permit,
+                operation_id="reject-unvalidated-parity-study-open",
+            )
+
+        plan = self.writer.evidence.finalize(
+            canonical_bytes({"schema": "component_parity_validation_plan.v1"})
+        )
+        parity_spec = job_spec(
+            self.writer,
+            {"kind": "Mission", "id": "MIS-DIRECTION"},
+        )
+        result_name = "evidence/component-parity-result"
+        measurement_name = "evidence/component-parity-measurement"
+        parity_spec["input_hashes"] = [
+            *parity_spec["input_hashes"],
+            plan.sha256,
+            old_model.identity.removeprefix("component:"),
+            equivalent_model.identity.removeprefix("component:"),
+        ]
+        parity_spec["expected_outputs"] = [result_name, measurement_name]
+        parity_spec["output_classes"] = {
+            result_name: "durable_evidence",
+            measurement_name: "durable_evidence",
+        }
+        parity_spec["resume_action"] = "execute_portfolio_decision"
+        parity_spec["component_parity_binding"] = {
+            "architecture_chassis_identity": decision.architecture_chassis.identity,
+            "canonical_component_id": old_model.identity,
+            "canonical_component_manifest": old_model.to_identity_payload(),
+            "dimensions": dimensions,
+            "equivalent_component_id": equivalent_model.identity,
+            "equivalent_component_manifest": equivalent_model.to_identity_payload(),
+            "portfolio_axis_identity": axis.identity,
+            "portfolio_decision_id": decision.identity,
+            "portfolio_snapshot_id": self.snapshot.identity,
+            "result_manifest_output": result_name,
+            "validation_plan_hash": plan.sha256,
+            "validator_id": ComponentParityFixtureValidator.validator_id,
+        }
+        unrelated_model = ComponentSpec(
+            display_name="unrelated parity endpoint",
+            protocol=old_model.protocol,
+            implementation="fixture.scientific.model.unrelated",
+            spec=old_model.specification(),
+            semantic_dependencies=old_model.semantic_dependencies,
+        )
+        unrelated_spec = parse_canonical(canonical_bytes(parity_spec))
+        assert isinstance(unrelated_spec, dict)
+        unrelated_spec["input_hashes"] = [
+            unrelated_model.identity.removeprefix("component:")
+            if value == old_model.identity.removeprefix("component:")
+            else value
+            for value in unrelated_spec["input_hashes"]
+        ]
+        unrelated_binding = unrelated_spec["component_parity_binding"]
+        assert isinstance(unrelated_binding, dict)
+        unrelated_binding["canonical_component_id"] = unrelated_model.identity
+        unrelated_binding[
+            "canonical_component_manifest"
+        ] = unrelated_model.to_identity_payload()
+        with self.assertRaisesRegex(TransitionError, "outside the accepted baseline"):
+            self.writer.declare_job(
+                spec=unrelated_spec,
+                operation_id="reject-unrelated-component-parity-endpoint",
+            )
+        declared = self.writer.declare_job(
+            spec=parity_spec,
+            operation_id="component-parity-job-declare",
+        )
+        job_permit = self.writer.issue_permit(
+            kind=PermitKind.JOB,
+            subject_kind=SubjectKind.JOB,
+            subject_id=declared.result["job_id"],
+            input_hash=declared.result["job_hash"],
+            actions=("start_job",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="component-parity-job-permit",
+        )
+        self.writer.start_job(
+            permit=job_permit,
+            operation_id="component-parity-job-start",
+        )
+        measurement = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "canonical_component_id": old_model.identity,
+                    "dimensions": dimensions,
+                    "equivalent": True,
+                    "equivalent_component_id": equivalent_model.identity,
+                    "schema": "component_parity_measurement.v1",
+                }
+            )
+        )
+        parity_manifest = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "architecture_chassis_identity": decision.architecture_chassis.identity,
+                    "artifact_hashes": [measurement.sha256],
+                    "canonical_component_id": old_model.identity,
+                    "dimensions": dimensions,
+                    "equivalent_component_id": equivalent_model.identity,
+                    "job_hash": declared.result["job_hash"],
+                    "job_id": declared.result["job_id"],
+                    "mission_id": "MIS-DIRECTION",
+                    "portfolio_axis_identity": axis.identity,
+                    "portfolio_decision_id": decision.identity,
+                    "portfolio_snapshot_id": self.snapshot.identity,
+                    "schema": "component_parity_result.v2",
+                    "verdict": "equivalent",
+                }
+            )
+        )
+        completed = self.writer.complete_job(
+            outcome="success",
+            output_manifest={
+                result_name: parity_manifest.sha256,
+                measurement_name: measurement.sha256,
+            },
+            operation_id="component-parity-job-complete",
+        )
+        self.writer.judge_job_evidence(
+            completion_record_id=completed.result["completion_record_id"],
+            disposition="accept_component_parity",
+            operation_id="component-parity-job-accept",
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            parity_members = index.records_by_kind("component-parity-member")
+        self.assertEqual(len(parity_members), 2)
+        self.assertEqual(
+            {record.subject for record in parity_members},
+            {
+                f"Component:{old_model.identity}",
+                f"Component:{equivalent_model.identity}",
+            },
+        )
+        refactored_baseline = ExecutableSpec(
+            display_name="parity successor baseline",
+            components=tuple(
+                equivalent_model if component is old_model else component
+                for component in baseline.components
+            ),
+            parameters=baseline.parameter_values(),
+            data_contract=baseline.data_contract,
+            split_contract=baseline.split_contract,
+            clock_contract=baseline.clock_contract,
+            cost_contract=baseline.cost_contract,
+            engine_contract=baseline.engine_contract,
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            original_family = self.writer._resolved_architecture_family(
+                index=index,
+                architecture_payload=ArchitectureChassisSpec.from_executable(
+                    baseline
+                ).to_identity_payload(),
+            )
+            successor_family = self.writer._resolved_architecture_family(
+                index=index,
+                architecture_payload=ArchitectureChassisSpec.from_executable(
+                    refactored_baseline
+                ).to_identity_payload(),
+            )
+        self.assertEqual(original_family, successor_family)
+        parity = ComponentParityEvidence(
+            canonical_component=old_model,
+            equivalent_component=equivalent_model,
+            dimensions=tuple(ComponentParityDimension),
+            parity_manifest_hash=parity_manifest.sha256,
+            completion_record_id=completed.result["completion_record_id"],
+        )
+        assert axis.architecture_chassis is not None
+        controlled_chassis = ControlledStudyChassis(
+            baseline_executable=decision.baseline_executable,
+            changed_domains=axis.changed_domains,
+            controlled_domains=axis.controlled_domains,
+            architecture=decision.architecture_chassis,
+            equivalences=(parity,),
+        )
+        question = study_question("controlled identity parity")
+        proposal = {"mechanism": "controlled identity parity"}
+        study_hash = self.writer.study_input_hash(
+            question=question,
+            material_identity=OBSERVED_MATERIAL_ID,
+            semantic_proposal=proposal,
+            controlled_chassis=controlled_chassis,
+            portfolio_axis_id=axis.axis_id,
+            portfolio_axis_identity=axis.identity,
+            portfolio_decision_id=decision.identity,
+        )
+        permit = self.writer.issue_permit(
+            kind=PermitKind.STUDY,
+            subject_kind=SubjectKind.INITIATIVE,
+            subject_id="INI-DIRECTION",
+            input_hash=study_hash,
+            actions=("open_study",),
+            scope=(
+                "study",
+                f"decision:{decision.identity}",
+                f"axis:{axis.identity}",
+                f"baseline:{baseline.identity}",
+                f"chassis:{decision.architecture_chassis.identity}",
+                f"snapshot:{self.snapshot.identity}",
+            ),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="controlled-identity-study-permit",
+        )
+        opened = self.writer.open_study(
+            study_id="STU-9020",
+            question=question,
+            material_identity=OBSERVED_MATERIAL_ID,
+            material_display_name="foundation observed material",
+            semantic_proposal=proposal,
+            controlled_chassis=controlled_chassis,
+            portfolio_axis_id=axis.axis_id,
+            portfolio_axis_identity=axis.identity,
+            portfolio_decision_id=decision.identity,
+            permit=permit,
+            operation_id="controlled-identity-study-open",
+        )
+        batch = batch_spec(
+            batch_id="BAT-CONTROLLED-IDENTITY",
+            study_id="STU-9020",
+            study_hash=opened.result["study_hash"],
+        )
+        batch_permit = self.writer.issue_permit(
+            kind=PermitKind.BATCH,
+            subject_kind=SubjectKind.STUDY,
+            subject_id="STU-9020",
+            input_hash=batch.identity.removeprefix("batch:"),
+            actions=("open_batch",),
+            scope=("batch",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="controlled-identity-batch-permit",
+        )
+        self.writer.open_batch(
+            batch_spec=batch,
+            permit=batch_permit,
+            operation_id="controlled-identity-batch-open",
+        )
+        baseline_calibration = next(
+            component
+            for component in baseline.components
+            if component.protocol.startswith("calibration.")
+        )
+        changed_calibration = ComponentSpec(
+            display_name="meaningfully changed calibration",
+            protocol=baseline_calibration.protocol,
+            implementation="fixture.scientific.calibration.changed",
+            spec={
+                **baseline_calibration.specification(),
+                "scientific_change": "controlled-identity-test",
+            },
+            semantic_dependencies=baseline_calibration.semantic_dependencies,
+        )
+        candidate_components = tuple(
+            equivalent_model
+            if component is old_model
+            else changed_calibration
+            if component is baseline_calibration
+            else component
+            for component in baseline.components
+        )
+        candidate = ExecutableSpec(
+            display_name="controlled parity candidate",
+            components=candidate_components,
+            parameters=baseline.parameter_values(),
+            data_contract=baseline.data_contract,
+            split_contract=baseline.split_contract,
+            clock_contract=baseline.clock_contract,
+            cost_contract=baseline.cost_contract,
+            engine_contract=baseline.engine_contract,
+        )
+        counted = self.writer.register_trial(
+            executable=candidate,
+            operation_id="controlled-identity-trial",
+        )
+        self.assertEqual(counted.result["trial_delta"], 1)
+        combination = self.writer.study_chassis_combination_identity(
+            left_study_id="STU-9020",
+            right_study_id="STU-9020",
+            shared_domains=(ResearchLayer.MODEL,),
+        )
+        self.assertTrue(combination.startswith("chassis-combination:"))
+
+        old_feature = next(
+            component
+            for component in candidate.components
+            if component.protocol.startswith("calibration.")
+        )
+        bumped_feature = ComponentSpec(
+            display_name="protocol-only bumped feature",
+            protocol="calibration.scientific_boundary_fixture.v2",
+            implementation=old_feature.implementation,
+            spec=old_feature.specification(),
+            semantic_dependencies=old_feature.semantic_dependencies,
+        )
+        drifted = ExecutableSpec(
+            display_name="protocol drift candidate",
+            components=tuple(
+                bumped_feature if component is old_feature else component
+                for component in candidate.components
+            ),
+            parameters=candidate.parameter_values(),
+            data_contract=candidate.data_contract,
+            split_contract=candidate.split_contract,
+            clock_contract=candidate.clock_contract,
+            cost_contract=candidate.cost_contract,
+            engine_contract=candidate.engine_contract,
+        )
+        with self.assertRaisesRegex(
+            TransitionError, "protocol-neutral Executable duplicate"
+        ):
+            self.writer.register_trial(
+                executable=drifted,
+                operation_id="reject-controlled-protocol-drift",
+            )
+        measurement_artifact = self.writer.evidence.verify(measurement.sha256)
+        (
+            self.writer.evidence._root / measurement_artifact.relative_path
+        ).unlink()
+        with self.assertRaisesRegex(TransitionError, "bytes are unavailable"):
+            self.writer.study_chassis_combination_identity(
+                left_study_id="STU-9020",
+                right_study_id="STU-9020",
+                shared_domains=(ResearchLayer.MODEL,),
+            )
 
     def _run_unavailable_study(
         self,
@@ -4416,10 +5679,18 @@ class ResearchDirectionFlowTests(unittest.TestCase):
         question = study_question(f"{tag} diagnosis")
         proposal = {"mechanism": f"{tag} unavailable contrast"}
         axis = self.axes[target_index]
+        assert axis.architecture_chassis is not None
+        controlled_chassis = ControlledStudyChassis(
+            baseline_executable=decision.baseline_executable,
+            changed_domains=axis.changed_domains,
+            controlled_domains=axis.controlled_domains,
+            architecture=axis.architecture_chassis,
+        )
         study_hash = self.writer.study_input_hash(
             question=question,
             material_identity=OBSERVED_MATERIAL_ID,
             semantic_proposal=proposal,
+            controlled_chassis=controlled_chassis,
             portfolio_axis_id=axis.axis_id,
             portfolio_axis_identity=axis.identity,
             portfolio_decision_id=decision.identity,
@@ -4430,7 +5701,14 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             subject_id="INI-DIRECTION",
             input_hash=study_hash,
             actions=("open_study",),
-            scope=("study",),
+            scope=(
+                "study",
+                f"decision:{decision.identity}",
+                f"axis:{axis.identity}",
+                f"baseline:{decision.baseline_executable.identity}",
+                f"chassis:{decision.architecture_chassis.identity}",
+                f"snapshot:{self.snapshot.identity}",
+            ),
             expires_at_utc=FIXED_EXPIRY,
             one_shot=True,
             operation_id=f"{tag}-study-permit",
@@ -4441,6 +5719,7 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             material_identity=OBSERVED_MATERIAL_ID,
             material_display_name="foundation observed material",
             semantic_proposal=proposal,
+            controlled_chassis=controlled_chassis,
             portfolio_axis_id=axis.axis_id,
             portfolio_axis_identity=axis.identity,
             portfolio_decision_id=decision.identity,
@@ -4501,6 +5780,14 @@ class ResearchDirectionFlowTests(unittest.TestCase):
         )
 
     def test_repeated_architecture_gap_forces_review_and_rotation(self) -> None:
+        self.assertNotEqual(self.axes[0].axis_id, self.axes[1].axis_id)
+        self.assertNotEqual(
+            self.axes[0].mechanism_family, self.axes[1].mechanism_family
+        )
+        self.assertEqual(
+            self.axes[0].system_architecture_family,
+            self.axes[1].system_architecture_family,
+        )
         first = self._decision(
             tag="FIRST",
             target_index=0,
@@ -4523,6 +5810,12 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             target_index=1,
             decision=second,
         )
+        exact_combination = self.writer.study_chassis_combination_identity(
+            left_study_id="STU-9001",
+            right_study_id="STU-9002",
+            shared_domains=(ResearchLayer.MODEL, ResearchLayer.EXECUTION),
+        )
+        self.assertTrue(exact_combination.startswith("chassis-combination:"))
         third = self._decision(
             tag="THIRD",
             target_index=0,
@@ -4540,7 +5833,7 @@ class ResearchDirectionFlowTests(unittest.TestCase):
         review = ArchitectureReview(
             mission_id="MIS-DIRECTION",
             trigger_record_id=control["next_action"]["trigger_record_id"],
-            system_architecture_family="architecture-family:fixture-baseline",
+            system_architecture_family=self.axes[0].system_architecture_family,
             conclusion=ArchitectureReviewConclusion.ROTATE_ARCHITECTURE,
             rationale="three gaps across two axes make another same-chassis pass low value",
             stop_or_reopen_condition="reopen only after changed architecture evidence",
@@ -4548,7 +5841,7 @@ class ResearchDirectionFlowTests(unittest.TestCase):
         stale_review = ArchitectureReview(
             mission_id="MIS-DIRECTION",
             trigger_record_id="0" * 64,
-            system_architecture_family="architecture-family:fixture-baseline",
+            system_architecture_family=self.axes[0].system_architecture_family,
             conclusion=ArchitectureReviewConclusion.ROTATE_ARCHITECTURE,
             rationale="three gaps across two axes make another same-chassis pass low value",
             stop_or_reopen_condition="reopen only after changed architecture evidence",
@@ -4586,6 +5879,92 @@ class ResearchDirectionFlowTests(unittest.TestCase):
         assert control is not None
         self.assertEqual(control["next_action"]["kind"], "execute_portfolio_decision")
         self.assertEqual(control["next_action"]["target_id"], self.axes[2].axis_id)
+        assert valid.baseline_executable is not None
+        reviewed_baseline = portfolio_axis_baseline(self.axes[0])
+        canonical_execution = next(
+            component
+            for component in valid.baseline_executable.components
+            if component.protocol.startswith("execution.")
+        )
+        reviewed_execution = next(
+            component
+            for component in reviewed_baseline.components
+            if component.protocol.startswith("execution.")
+        )
+        self._accept_component_parity_for_decision(
+            decision=valid,
+            canonical_component=canonical_execution,
+            equivalent_component=reviewed_execution,
+            tag="review-collapse",
+        )
+        control = self.writer.read_control()
+        assert control is not None
+        self.assertEqual(control["next_action"]["kind"], "portfolio_decision")
+        self.assertEqual(
+            control["next_action"]["architecture_review_id"], review.identity
+        )
+        self.assertIn("excluded_architecture_family", control["next_action"])
+
+    def test_parity_collapse_rechecks_architecture_review_threshold(self) -> None:
+        studies = (
+            ("collapse-first", "STU-9031", 0, PortfolioAction.DEEPEN),
+            ("collapse-second", "STU-9032", 2, PortfolioAction.ROTATE),
+            ("collapse-third", "STU-9033", 0, PortfolioAction.CONTRAST),
+        )
+        for tag, study_id, target_index, action in studies:
+            self._run_unavailable_study(
+                tag=tag,
+                study_id=study_id,
+                target_index=target_index,
+                decision=self._decision(
+                    tag=tag.upper(),
+                    target_index=target_index,
+                    action=action,
+                ),
+            )
+            control = self.writer.read_control()
+            assert control is not None
+            self.assertEqual(control["next_action"]["kind"], "portfolio_decision")
+
+        decision = self._decision(
+            tag="COLLAPSE-PARITY",
+            target_index=2,
+            action=PortfolioAction.ROTATE,
+        )
+        self.writer.record_portfolio_decision(
+            decision=decision,
+            operation_id="collapse-parity-decision",
+        )
+        assert decision.baseline_executable is not None
+        common_baseline = portfolio_axis_baseline(self.axes[0])
+        canonical_execution = next(
+            component
+            for component in decision.baseline_executable.components
+            if component.protocol.startswith("execution.")
+        )
+        common_execution = next(
+            component
+            for component in common_baseline.components
+            if component.protocol.startswith("execution.")
+        )
+        self._accept_component_parity_for_decision(
+            decision=decision,
+            canonical_component=canonical_execution,
+            equivalent_component=common_execution,
+            tag="threshold-collapse",
+        )
+        control = self.writer.read_control()
+        assert control is not None
+        self.assertEqual(control["next_action"]["kind"], "review_architecture")
+        with LocalIndex(self.writer.index_path) as index:
+            trigger = index.get(
+                "architecture-review-trigger",
+                control["next_action"]["trigger_record_id"],
+            )
+        self.assertIsNotNone(trigger)
+        assert trigger is not None
+        self.assertEqual(len(trigger.payload["diagnosis_ids"]), 3)
+        self.assertEqual(len(trigger.payload["portfolio_axis_ids"]), 2)
 
     def test_diagnosis_constrains_new_axis_and_forces_its_first_decision(self) -> None:
         first = self._decision(
@@ -4628,12 +6007,13 @@ class ResearchDirectionFlowTests(unittest.TestCase):
         )
 
         def new_axis(axis_id: str, layer: ResearchLayer) -> _PortfolioAxis:
+            chassis = architecture_chassis(f"{layer.value}-followup")
             return _PortfolioAxis(
                 axis_id=axis_id,
                 causal_question=f"Does the {layer.value} contrast resolve identifiability?",
                 mechanism_family=f"direction-{layer.value}-followup",
                 primary_research_layer=layer,
-                system_architecture_family=f"architecture-family:{layer.value}-followup",
+                system_architecture_family=chassis.identity,
                 changed_domains=(layer,),
                 controlled_domains=tuple(
                     candidate
@@ -4649,6 +6029,7 @@ class ResearchDirectionFlowTests(unittest.TestCase):
                 ),
                 why_now="the prior diagnosis identified a bounded follow-up layer",
                 stop_or_reopen_condition="stop if the causal contrast remains unidentified",
+                architecture_chassis=chassis,
             )
 
         invalid_axis = new_axis("direction-axis-model-followup", ResearchLayer.MODEL)
@@ -4709,6 +6090,7 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             ),
             rationale="execute the exact newly admitted diagnosis branch",
             commitment_batches=1,
+            baseline_executable=portfolio_axis_baseline(label_axis),
         )
         self.writer.record_portfolio_decision(
             decision=execute_label,

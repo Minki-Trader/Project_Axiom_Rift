@@ -12,6 +12,23 @@ from .governance import (
     StudyDiagnosis,
     diagnosis_branch,
 )
+from .chassis import (
+    ArchitectureChassisSpec,
+    ArchitectureRole,
+    ArchitectureRoleSpec,
+    ChassisIdentityError,
+    ComponentParityDimension,
+    ComponentParityEvidence,
+    ControlledStudyChassis,
+    architecture_component_semantic_surface_identity,
+    architecture_family_identity,
+    component_domain,
+    component_semantic_surface_identity,
+    executable_semantic_surface_identity,
+    normalize_architecture_payload,
+    require_combinable_chassis,
+    validate_controlled_executable,
+)
 
 from .portfolio import (
     BatchSpec,
@@ -62,12 +79,19 @@ from .trials import (
 )
 
 __all__ = [
+    "ArchitectureChassisSpec",
     "ArchitectureReview",
     "ArchitectureReviewConclusion",
+    "ArchitectureRole",
+    "ArchitectureRoleSpec",
     "BatchSpec",
     "BatchSpecError",
     "CandidateBinding",
     "CandidateSourceBinding",
+    "ChassisIdentityError",
+    "ComponentParityDimension",
+    "ComponentParityEvidence",
+    "ControlledStudyChassis",
     "DecisionKind",
     "DecisionOption",
     "DiagnosisConfidence",
@@ -109,8 +133,16 @@ __all__ = [
     "TrialAccountingError",
     "TrialDecision",
     "assess_observation",
+    "architecture_component_semantic_surface_identity",
+    "architecture_family_identity",
     "bind_candidate_source",
+    "component_domain",
+    "component_semantic_surface_identity",
     "diagnosis_branch",
     "evaluate_sleeves",
+    "executable_semantic_surface_identity",
+    "normalize_architecture_payload",
     "recertify_source",
+    "require_combinable_chassis",
+    "validate_controlled_executable",
 ]

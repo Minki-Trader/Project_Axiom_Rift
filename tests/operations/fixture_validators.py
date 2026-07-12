@@ -129,7 +129,64 @@ class ExternalFixtureValidator:
         )
 
 
+class ComponentParityFixtureValidator:
+    domains = frozenset({"scientific"})
+    implementation_path = IMPLEMENTATION_PATH
+    protocol = "component_parity_fixture.v1"
+    validator_id = validator_identity(
+        protocol=protocol,
+        domains=domains,
+        implementation_sha256=IMPLEMENTATION_HASH,
+    )
+
+    def validate(self, request: EvidenceValidationRequest) -> ValidatedEvidence:
+        measurements: list[tuple[object, object]] = []
+        for artifact in request.artifacts:
+            content = artifact.read_bytes()
+            if artifact.output_name == request.binding.get("result_manifest_output"):
+                continue
+            measurements.append((artifact, parse_canonical(content)))
+        if len(measurements) != 1:
+            raise EvidenceValidationError(
+                "component parity fixture requires one measurement"
+            )
+        artifact, value = measurements[0]
+        if (
+            not isinstance(value, dict)
+            or set(value)
+            != {
+                "canonical_component_id",
+                "dimensions",
+                "equivalent",
+                "equivalent_component_id",
+                "schema",
+            }
+            or value["schema"] != "component_parity_measurement.v1"
+            or type(value["equivalent"]) is not bool
+            or value["canonical_component_id"]
+            != request.binding.get("canonical_component_id")
+            or value["equivalent_component_id"]
+            != request.binding.get("equivalent_component_id")
+            or list(value["dimensions"])
+            != list(request.binding.get("dimensions", ()))
+        ):
+            raise EvidenceValidationError(
+                "component parity fixture measurement is invalid"
+            )
+        return ValidatedEvidence(
+            verdict="passed" if value["equivalent"] else "failed",
+            measurement_artifact_hashes=(artifact.sha256,),
+            facts={
+                "canonical_component_id": value["canonical_component_id"],
+                "dimensions": list(value["dimensions"]),
+                "equivalent": value["equivalent"],
+                "equivalent_component_id": value["equivalent_component_id"],
+            },
+        )
+
+
 __all__ = [
+    "ComponentParityFixtureValidator",
     "ExternalFixtureValidator",
     "ScientificFixtureValidator",
 ]

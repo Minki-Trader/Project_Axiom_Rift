@@ -6,7 +6,8 @@ from dataclasses import InitVar, dataclass, field
 from enum import Enum
 
 from axiom_rift.core.canonical import CanonicalValue, canonical_bytes, parse_canonical
-from axiom_rift.core.identity import canonical_digest
+from axiom_rift.core.identity import ExecutableSpec, canonical_digest
+from axiom_rift.research.chassis import ArchitectureChassisSpec
 from axiom_rift.research.governance import (
     ResearchGovernanceError,
     ResearchLayer,
@@ -33,6 +34,7 @@ class PortfolioAxis:
     controlled_domains: tuple[ResearchLayer, ...]
     why_now: str
     stop_or_reopen_condition: str
+    architecture_chassis: ArchitectureChassisSpec | None = None
     status: str = "open"
     identity: str = field(init=False)
 
@@ -48,6 +50,15 @@ class PortfolioAxis:
             raise PortfolioDecisionError(
                 "Portfolio axis system architecture family is invalid"
             ) from exc
+        if self.architecture_chassis is not None:
+            if not isinstance(self.architecture_chassis, ArchitectureChassisSpec):
+                raise PortfolioDecisionError(
+                    "Portfolio axis architecture chassis is not typed"
+                )
+            if self.system_architecture_family != self.architecture_chassis.identity:
+                raise PortfolioDecisionError(
+                    "Portfolio axis family must equal its canonical chassis identity"
+                )
         if type(self.changed_domains) is not tuple or not self.changed_domains:
             raise PortfolioDecisionError("Portfolio axis changed_domains are absent")
         if type(self.controlled_domains) is not tuple or not self.controlled_domains:
@@ -98,7 +109,16 @@ class PortfolioAxis:
                     "controlled_domains": [layer.value for layer in controlled],
                     "mechanism_family": self.mechanism_family,
                     "primary_research_layer": self.primary_research_layer.value,
-                    "schema": "portfolio_axis.v2",
+                    "architecture_chassis": (
+                        None
+                        if self.architecture_chassis is None
+                        else self.architecture_chassis.to_identity_payload()
+                    ),
+                    "schema": (
+                        "portfolio_axis.v2"
+                        if self.architecture_chassis is None
+                        else "portfolio_axis.v3"
+                    ),
                     "stop_or_reopen_condition": self.stop_or_reopen_condition,
                     "system_architecture_family": self.system_architecture_family,
                     "why_now": self.why_now,
@@ -232,6 +252,16 @@ class PortfolioSnapshot:
                 {
                     "axis_id": axis.axis_id,
                     "axis_identity": axis.identity,
+                    "architecture_chassis": (
+                        None
+                        if axis.architecture_chassis is None
+                        else axis.architecture_chassis.to_identity_payload()
+                    ),
+                    "architecture_chassis_identity": (
+                        None
+                        if axis.architecture_chassis is None
+                        else axis.architecture_chassis.identity
+                    ),
                     "causal_question": axis.causal_question,
                     "changed_domains": [
                         layer.value for layer in axis.changed_domains
@@ -252,7 +282,7 @@ class PortfolioSnapshot:
             "mission_id": self.mission_id,
             "opportunity_cost_basis": self.opportunity_cost_basis,
             "research_intake_id": self.research_intake_id,
-            "schema": "portfolio_snapshot.v2",
+            "schema": "portfolio_snapshot.v3",
         }
 
     def exhaustion_standard_value(self) -> CanonicalValue:
@@ -420,8 +450,10 @@ class PortfolioDecision:
     options: tuple[DecisionOption, ...]
     rationale: str
     commitment_batches: int | None
+    baseline_executable: ExecutableSpec | None = field(default=None, repr=False)
     recent_positive_lineage_id: str | None = None
     locks_future_portfolio: bool = False
+    architecture_chassis: ArchitectureChassisSpec | None = field(init=False, repr=False)
     identity: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -469,6 +501,19 @@ class PortfolioDecision:
                     "recent-positive work must retain a diversifying alternative"
                 )
 
+        if self.baseline_executable is not None and not isinstance(
+            self.baseline_executable, ExecutableSpec
+        ):
+            raise PortfolioDecisionError(
+                "Portfolio Decision baseline must be an ExecutableSpec"
+            )
+        architecture = (
+            None
+            if self.baseline_executable is None
+            else ArchitectureChassisSpec.from_executable(self.baseline_executable)
+        )
+        object.__setattr__(self, "architecture_chassis", architecture)
+
         for option in self.options:
             if (
                 option.option_id != self.chosen_option_id
@@ -494,6 +539,26 @@ class PortfolioDecision:
 
     def to_identity_payload(self) -> dict[str, CanonicalValue]:
         return {
+            "architecture_chassis": (
+                None
+                if self.architecture_chassis is None
+                else self.architecture_chassis.to_identity_payload()
+            ),
+            "architecture_chassis_identity": (
+                None
+                if self.architecture_chassis is None
+                else self.architecture_chassis.identity
+            ),
+            "baseline_executable": (
+                None
+                if self.baseline_executable is None
+                else self.baseline_executable.to_identity_payload()
+            ),
+            "baseline_executable_id": (
+                None
+                if self.baseline_executable is None
+                else self.baseline_executable.identity
+            ),
             "chosen_option_id": self.chosen_option_id,
             "commitment_batches": self.commitment_batches,
             "decision_id": self.decision_id,
@@ -511,7 +576,11 @@ class PortfolioDecision:
             ],
             "rationale": self.rationale,
             "recent_positive_lineage_id": self.recent_positive_lineage_id,
-            "schema": "portfolio_decision.v1",
+            "schema": (
+                "portfolio_decision.v1"
+                if self.baseline_executable is None
+                else "portfolio_decision.v2"
+            ),
         }
 
 
