@@ -94,6 +94,81 @@ _SCIENTIFIC_BINDING_FIELDS = {
     "validation_plan_hash",
     "validator_id",
 }
+_SCIENTIFIC_PREFLIGHT_BINDING_FIELDS = _SCIENTIFIC_BINDING_FIELDS | {
+    "evaluation_schema"
+}
+_SCIENTIFIC_EVALUATION_PROFILES = {
+    "composite_consensus_evaluation.v1": (12, 222),
+    "composite_router_evaluation.v1": (12, 210),
+    "cross_asset_downside_spillover_evaluation.v1": (12, 246),
+    "cross_asset_relative_strength_evaluation.v1": (12, 234),
+    "price_level_interaction_evaluation.v1": (12, 258),
+    "post_break_interaction_evaluation.v1": (12, 270),
+    "path_efficiency_evaluation.v1": (12, 282),
+    "path_roughness_evaluation.v1": (12, 294),
+    "shock_aftereffect_evaluation.v1": (12, 306),
+    "shock_cluster_evaluation.v1": (12, 318),
+    "nonlinear_interaction_evaluation.v1": (12, 330),
+    "shock_level_interaction_evaluation.v1": (4, 334),
+    "cyclical_phase_evaluation.v1": (6, 340),
+    "cyclical_harmonic_evaluation.v1": (4, 344),
+    "distribution_asymmetry_evaluation.v1": (12, 356),
+    "distribution_asymmetry_evaluation.v2": (12, 368),
+    "candle_geometry_evaluation.v1": (6, 374),
+    "candle_geometry_evaluation.v2": (6, 380),
+    "liquidity_supply_evaluation.v1": (4, 384),
+    "liquidity_supply_evaluation.v2": (4, 388),
+    "long_horizon_drift_evaluation.v1": (6, 394),
+    "long_horizon_drift_evaluation.v2": (6, 400),
+    "learned_state_evaluation.v1": (4, 404),
+    "learned_state_evaluation.v2": (4, 408),
+    "ordinal_transition_evaluation.v1": (6, 414),
+    "ordinal_transition_evaluation.v2": (6, 420),
+    "gap_recovery_evaluation.v1": (4, 424),
+    "gap_recovery_evaluation.v2": (4, 428),
+    "gap_recovery_evaluation.v3": (4, 432),
+    "gap_recovery_evaluation.v4": (4, 436),
+    "drawdown_state_evaluation.v1": (4, 440),
+    "drawdown_state_evaluation.v2": (4, 444),
+    "volatility_duration_evaluation.v1": (4, 448),
+    "volatility_duration_evaluation.v2": (4, 452),
+    "transition_mixture_evaluation.v1": (4, 456),
+    "transition_mixture_evaluation.v2": (4, 460),
+    "transition_mixture_evaluation.v3": (4, 464),
+    "structural_break_evaluation.v1": (4, 468),
+    "structural_break_evaluation.v2": (4, 472),
+    "auction_location_evaluation.v1": (4, 476),
+    "auction_location_evaluation.v2": (4, 480),
+    "higher_order_volatility_evaluation.v1": (4, 484),
+    "higher_order_volatility_evaluation.v2": (4, 488),
+    "analog_state_evaluation.v1": (4, 492),
+    "analog_state_evaluation.v2": (4, 496),
+    "adaptive_lifecycle_evaluation.v1": (4, 500),
+    "adaptive_lifecycle_evaluation.v2": (4, 504),
+    "event_label_evaluation.v1": (4, 508),
+    "path_occupancy_label_evaluation.v1": (2, 528),
+    "fold_interaction_model_evaluation.v1": (2, 530),
+    "volatility_clock_label_evaluation.v1": (2, 532),
+    "volatility_stop_risk_evaluation.v1": (2, 534),
+    "shadow_slot_lifecycle_evaluation.v1": (2, 536),
+    "equity_premium_trade_evaluation.v1": (2, 538),
+    "trend_regime_evaluation.v1": (2, 540),
+    "complementary_sleeve_evaluation.v1": (4, 512),
+    "probability_calibration_evaluation.v1": (4, 516),
+    "rank_bin_calibration_evaluation.v1": (4, 520),
+    "cost_utility_objective_evaluation.v1": (4, 524),
+    "cost_aware_execution_evaluation.v1": (2, 530),
+    "reversion_discovery_evaluation.v1": (12, 54),
+    "reversion_regime_followup_evaluation.v1": (12, 186),
+    "session_inventory_discovery_evaluation.v1": (12, 114),
+    "session_inventory_followup_evaluation.v1": (12, 162),
+    "trend_discovery_evaluation.v3": (12, 42),
+    "trend_null_followup_evaluation.v1": (12, 174),
+    "volume_price_discovery_evaluation.v1": (12, 78),
+    "volume_price_followup_evaluation.v1": (12, 126),
+    "volatility_discovery_evaluation.v1": (12, 66),
+    "volatility_regime_followup_evaluation.v1": (12, 198),
+}
 
 
 def _ascii(name: str, value: object) -> str:
@@ -107,6 +182,24 @@ def _digest(name: str, value: object) -> str:
     if len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
         raise EvidenceValidationError(f"{name} must be a lowercase SHA-256 digest")
     return text
+
+
+def _evaluation_profile(value: object) -> tuple[str, int, int]:
+    schema = _ascii("scientific evaluation schema", value)
+    profile = _SCIENTIFIC_EVALUATION_PROFILES.get(schema)
+    if profile is None:
+        raise EvidenceValidationError(
+            "scientific evaluation schema is not registered"
+        )
+    context_count, total_exposures = profile
+    return schema, context_count, total_exposures
+
+
+def require_supported_evaluation_schema(value: object) -> str:
+    """Require a complete validator profile before scientific engine work."""
+
+    schema, _, _ = _evaluation_profile(value)
+    return schema
 
 
 def _sorted_ascii_list(name: str, value: object) -> tuple[str, ...]:
@@ -310,83 +403,12 @@ def _trend_evaluation(
     job_id: str,
     job_hash: str,
 ) -> dict[str, Any]:
-    schema = value.get("schema") if isinstance(value, dict) else None
+    schema, expected_context_count, expected_total_exposures = _evaluation_profile(
+        value.get("schema") if isinstance(value, dict) else None
+    )
     if (
         not isinstance(value, dict)
         or set(value) != _TREND_EVALUATION_FIELDS
-        or schema
-        not in {
-            "composite_consensus_evaluation.v1",
-            "composite_router_evaluation.v1",
-            "cross_asset_downside_spillover_evaluation.v1",
-            "cross_asset_relative_strength_evaluation.v1",
-            "price_level_interaction_evaluation.v1",
-            "post_break_interaction_evaluation.v1",
-            "path_efficiency_evaluation.v1",
-            "path_roughness_evaluation.v1",
-            "shock_aftereffect_evaluation.v1",
-            "shock_cluster_evaluation.v1",
-            "nonlinear_interaction_evaluation.v1",
-            "shock_level_interaction_evaluation.v1",
-            "cyclical_phase_evaluation.v1",
-            "cyclical_harmonic_evaluation.v1",
-            "distribution_asymmetry_evaluation.v1",
-            "distribution_asymmetry_evaluation.v2",
-            "candle_geometry_evaluation.v1",
-            "candle_geometry_evaluation.v2",
-            "liquidity_supply_evaluation.v1",
-            "liquidity_supply_evaluation.v2",
-            "long_horizon_drift_evaluation.v1",
-            "long_horizon_drift_evaluation.v2",
-            "learned_state_evaluation.v1",
-            "learned_state_evaluation.v2",
-            "ordinal_transition_evaluation.v1",
-            "ordinal_transition_evaluation.v2",
-            "gap_recovery_evaluation.v1",
-            "gap_recovery_evaluation.v2",
-            "gap_recovery_evaluation.v3",
-            "gap_recovery_evaluation.v4",
-            "drawdown_state_evaluation.v1",
-            "drawdown_state_evaluation.v2",
-            "volatility_duration_evaluation.v1",
-            "volatility_duration_evaluation.v2",
-            "transition_mixture_evaluation.v1",
-            "transition_mixture_evaluation.v2",
-            "transition_mixture_evaluation.v3",
-            "structural_break_evaluation.v1",
-            "structural_break_evaluation.v2",
-            "auction_location_evaluation.v1",
-            "auction_location_evaluation.v2",
-            "higher_order_volatility_evaluation.v1",
-            "higher_order_volatility_evaluation.v2",
-            "analog_state_evaluation.v1",
-            "analog_state_evaluation.v2",
-            "adaptive_lifecycle_evaluation.v1",
-            "adaptive_lifecycle_evaluation.v2",
-            "event_label_evaluation.v1",
-            "path_occupancy_label_evaluation.v1",
-            "fold_interaction_model_evaluation.v1",
-            "volatility_clock_label_evaluation.v1",
-            "volatility_stop_risk_evaluation.v1",
-            "shadow_slot_lifecycle_evaluation.v1",
-            "equity_premium_trade_evaluation.v1",
-            "trend_regime_evaluation.v1",
-            "complementary_sleeve_evaluation.v1",
-            "probability_calibration_evaluation.v1",
-            "rank_bin_calibration_evaluation.v1",
-            "cost_utility_objective_evaluation.v1",
-            "cost_aware_execution_evaluation.v1",
-            "reversion_discovery_evaluation.v1",
-            "reversion_regime_followup_evaluation.v1",
-            "session_inventory_discovery_evaluation.v1",
-            "session_inventory_followup_evaluation.v1",
-            "trend_discovery_evaluation.v3",
-            "trend_null_followup_evaluation.v1",
-            "volume_price_discovery_evaluation.v1",
-            "volume_price_followup_evaluation.v1",
-            "volatility_discovery_evaluation.v1",
-            "volatility_regime_followup_evaluation.v1",
-        }
     ):
         raise EvidenceValidationError("trend evaluation schema is invalid")
     if value.get("subject_executable_id") != executable_id:
@@ -474,57 +496,6 @@ def _trend_evaluation(
         ):
             raise EvidenceValidationError(f"trend {name} values are invalid")
     context = value.get("selection_context")
-    expected_context_count = {
-        "shock_level_interaction_evaluation.v1": 4,
-        "cyclical_phase_evaluation.v1": 6,
-        "cyclical_harmonic_evaluation.v1": 4,
-        "distribution_asymmetry_evaluation.v1": 12,
-        "distribution_asymmetry_evaluation.v2": 12,
-        "candle_geometry_evaluation.v1": 6,
-        "candle_geometry_evaluation.v2": 6,
-        "liquidity_supply_evaluation.v1": 4,
-        "liquidity_supply_evaluation.v2": 4,
-        "long_horizon_drift_evaluation.v1": 6,
-        "long_horizon_drift_evaluation.v2": 6,
-        "learned_state_evaluation.v1": 4,
-        "learned_state_evaluation.v2": 4,
-        "ordinal_transition_evaluation.v1": 6,
-        "ordinal_transition_evaluation.v2": 6,
-        "gap_recovery_evaluation.v1": 4,
-        "gap_recovery_evaluation.v2": 4,
-        "gap_recovery_evaluation.v3": 4,
-        "gap_recovery_evaluation.v4": 4,
-        "drawdown_state_evaluation.v1": 4,
-        "drawdown_state_evaluation.v2": 4,
-        "volatility_duration_evaluation.v1": 4,
-        "volatility_duration_evaluation.v2": 4,
-        "transition_mixture_evaluation.v1": 4,
-        "transition_mixture_evaluation.v2": 4,
-        "transition_mixture_evaluation.v3": 4,
-        "structural_break_evaluation.v1": 4,
-        "structural_break_evaluation.v2": 4,
-        "auction_location_evaluation.v1": 4,
-        "auction_location_evaluation.v2": 4,
-        "higher_order_volatility_evaluation.v1": 4,
-        "higher_order_volatility_evaluation.v2": 4,
-        "analog_state_evaluation.v1": 4,
-        "analog_state_evaluation.v2": 4,
-        "adaptive_lifecycle_evaluation.v1": 4,
-        "adaptive_lifecycle_evaluation.v2": 4,
-        "event_label_evaluation.v1": 4,
-        "path_occupancy_label_evaluation.v1": 2,
-        "fold_interaction_model_evaluation.v1": 2,
-        "volatility_clock_label_evaluation.v1": 2,
-        "volatility_stop_risk_evaluation.v1": 2,
-        "shadow_slot_lifecycle_evaluation.v1": 2,
-        "equity_premium_trade_evaluation.v1": 2,
-        "trend_regime_evaluation.v1": 2,
-        "complementary_sleeve_evaluation.v1": 4,
-        "probability_calibration_evaluation.v1": 4,
-        "rank_bin_calibration_evaluation.v1": 4,
-        "cost_utility_objective_evaluation.v1": 4,
-        "cost_aware_execution_evaluation.v1": 2,
-    }.get(schema, 12)
     if not isinstance(context, list) or len(context) != expected_context_count:
         raise EvidenceValidationError("scientific selection context count is invalid")
     identities: set[str] = set()
@@ -560,78 +531,6 @@ def _trend_evaluation(
     if subject_rows != 1:
         raise EvidenceValidationError("trend subject is absent from selection context")
     selection_method = value.get("selection_method")
-    expected_total_exposures = {
-        "composite_consensus_evaluation.v1": 222,
-        "composite_router_evaluation.v1": 210,
-        "cross_asset_downside_spillover_evaluation.v1": 246,
-        "cross_asset_relative_strength_evaluation.v1": 234,
-        "price_level_interaction_evaluation.v1": 258,
-        "post_break_interaction_evaluation.v1": 270,
-        "path_efficiency_evaluation.v1": 282,
-        "path_roughness_evaluation.v1": 294,
-        "shock_aftereffect_evaluation.v1": 306,
-        "shock_cluster_evaluation.v1": 318,
-        "nonlinear_interaction_evaluation.v1": 330,
-        "shock_level_interaction_evaluation.v1": 334,
-        "cyclical_phase_evaluation.v1": 340,
-        "cyclical_harmonic_evaluation.v1": 344,
-        "distribution_asymmetry_evaluation.v1": 356,
-        "distribution_asymmetry_evaluation.v2": 368,
-        "candle_geometry_evaluation.v1": 374,
-        "candle_geometry_evaluation.v2": 380,
-        "liquidity_supply_evaluation.v1": 384,
-        "liquidity_supply_evaluation.v2": 388,
-        "long_horizon_drift_evaluation.v1": 394,
-        "long_horizon_drift_evaluation.v2": 400,
-        "learned_state_evaluation.v1": 404,
-        "learned_state_evaluation.v2": 408,
-        "ordinal_transition_evaluation.v1": 414,
-        "ordinal_transition_evaluation.v2": 420,
-        "gap_recovery_evaluation.v1": 424,
-        "gap_recovery_evaluation.v2": 428,
-        "gap_recovery_evaluation.v3": 432,
-        "gap_recovery_evaluation.v4": 436,
-        "drawdown_state_evaluation.v1": 440,
-        "drawdown_state_evaluation.v2": 444,
-        "volatility_duration_evaluation.v1": 448,
-        "volatility_duration_evaluation.v2": 452,
-        "transition_mixture_evaluation.v1": 456,
-        "transition_mixture_evaluation.v2": 460,
-        "transition_mixture_evaluation.v3": 464,
-        "structural_break_evaluation.v1": 468,
-        "structural_break_evaluation.v2": 472,
-        "auction_location_evaluation.v1": 476,
-        "auction_location_evaluation.v2": 480,
-        "higher_order_volatility_evaluation.v1": 484,
-        "higher_order_volatility_evaluation.v2": 488,
-        "analog_state_evaluation.v1": 492,
-        "analog_state_evaluation.v2": 496,
-        "adaptive_lifecycle_evaluation.v1": 500,
-        "adaptive_lifecycle_evaluation.v2": 504,
-        "event_label_evaluation.v1": 508,
-        "path_occupancy_label_evaluation.v1": 528,
-        "fold_interaction_model_evaluation.v1": 530,
-        "volatility_clock_label_evaluation.v1": 532,
-        "volatility_stop_risk_evaluation.v1": 534,
-        "shadow_slot_lifecycle_evaluation.v1": 536,
-        "equity_premium_trade_evaluation.v1": 538,
-        "trend_regime_evaluation.v1": 540,
-        "complementary_sleeve_evaluation.v1": 512,
-        "probability_calibration_evaluation.v1": 516,
-        "rank_bin_calibration_evaluation.v1": 520,
-        "cost_utility_objective_evaluation.v1": 524,
-        "cost_aware_execution_evaluation.v1": 530,
-        "reversion_discovery_evaluation.v1": 54,
-        "reversion_regime_followup_evaluation.v1": 186,
-        "session_inventory_discovery_evaluation.v1": 114,
-        "session_inventory_followup_evaluation.v1": 162,
-        "trend_discovery_evaluation.v3": 42,
-        "trend_null_followup_evaluation.v1": 174,
-        "volume_price_discovery_evaluation.v1": 78,
-        "volume_price_followup_evaluation.v1": 126,
-        "volatility_discovery_evaluation.v1": 66,
-        "volatility_regime_followup_evaluation.v1": 198,
-    }[schema]
     if selection_method != {
         "bootstrap_samples": 41999,
         "block_days": [5, 10, 20],
@@ -708,6 +607,28 @@ class ScientificDiscoveryValidator:
     implementation_path = _THIS_IMPLEMENTATION
     protocol = SCIENTIFIC_VALIDATION_PROTOCOL
 
+    def preflight_binding(
+        self, *, domain: str, binding: Mapping[str, Any]
+    ) -> None:
+        value = _plain(binding)
+        if (
+            domain != "scientific"
+            or not isinstance(value, dict)
+            or value.get("validator_id") != self.validator_id
+        ):
+            raise EvidenceValidationError(
+                "scientific validator preflight binding is invalid"
+            )
+        if set(value) == _SCIENTIFIC_BINDING_FIELDS:
+            raise EvidenceValidationError(
+                "scientific evaluation schema must be declared before Job execution"
+            )
+        if set(value) != _SCIENTIFIC_PREFLIGHT_BINDING_FIELDS:
+            raise EvidenceValidationError(
+                "scientific validator preflight binding is invalid"
+            )
+        require_supported_evaluation_schema(value["evaluation_schema"])
+
     def validate(self, request: EvidenceValidationRequest) -> ValidatedEvidence:
         if (
             request.domain != "scientific"
@@ -754,7 +675,14 @@ class ScientificDiscoveryValidator:
         if plan_artifact.sha256 != request.validation_plan_hash:
             raise EvidenceValidationError("scientific plan hash differs from request")
         binding = _plain(request.binding)
-        if not isinstance(binding, dict) or set(binding) != _SCIENTIFIC_BINDING_FIELDS:
+        if (
+            not isinstance(binding, dict)
+            or frozenset(binding)
+            not in {
+                frozenset(_SCIENTIFIC_BINDING_FIELDS),
+                frozenset(_SCIENTIFIC_PREFLIGHT_BINDING_FIELDS),
+            }
+        ):
             raise EvidenceValidationError("scientific validator binding schema is invalid")
         if (
             binding["validator_id"] != self.validator_id
@@ -802,6 +730,14 @@ class ScientificDiscoveryValidator:
             for item in (plan_artifact, measurement_artifact, result_artifact)
         ):
             raise EvidenceValidationError("scientific evaluation artifact role is invalid")
+        declared_evaluation_schema = binding.get("evaluation_schema")
+        if declared_evaluation_schema is not None and (
+            require_supported_evaluation_schema(declared_evaluation_schema)
+            != evaluation_value.get("schema")
+        ):
+            raise EvidenceValidationError(
+                "scientific evaluation schema differs from Job binding"
+            )
         evaluation = _trend_evaluation(
             evaluation_value,
             executable_id=executable_id,
@@ -897,4 +833,5 @@ __all__ = [
     "SCIENTIFIC_VALIDATION_PROTOCOL",
     "ScientificDiscoveryValidator",
     "build_validation_plan",
+    "require_supported_evaluation_schema",
 ]

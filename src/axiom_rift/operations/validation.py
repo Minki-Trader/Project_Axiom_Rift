@@ -226,6 +226,24 @@ class EvidenceValidatorRegistry:
                 "no registered validator authorizes this evidence domain"
             )
 
+    def preflight_binding(
+        self,
+        *,
+        validator_id: str,
+        domain: str,
+        binding: Mapping[str, Any],
+    ) -> None:
+        """Fail before engine work when a validator rejects its frozen binding."""
+
+        self.require_registered(validator_id=validator_id, domain=domain)
+        validator = self._validators[validator_id]
+        preflight = getattr(validator, "preflight_binding", None)
+        if preflight is None:
+            return
+        if not callable(preflight):
+            raise EvidenceValidationError("validator binding preflight is invalid")
+        preflight(domain=domain, binding=_freeze_canonical(binding))
+
 
 ENGINEERING_RUNTIME_PLAN = {
     "schema": "engineering_runtime_validation_plan.v1",
@@ -239,7 +257,14 @@ ENGINEERING_RUNTIME_PLAN_HASH = canonical_digest(
 def _freeze_canonical(value: object) -> Any:
     """Canonical-copy caller state, then expose only immutable containers."""
 
-    copied = parse_canonical(canonical_bytes(value))
+    def thaw(item: Any) -> Any:
+        if isinstance(item, Mapping):
+            return {key: thaw(child) for key, child in item.items()}
+        if isinstance(item, (list, tuple)):
+            return [thaw(child) for child in item]
+        return item
+
+    copied = parse_canonical(canonical_bytes(thaw(value)))
 
     def freeze(item: Any) -> Any:
         if type(item) is dict:

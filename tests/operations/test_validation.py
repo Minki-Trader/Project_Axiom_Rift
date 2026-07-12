@@ -31,6 +31,14 @@ class ImmutableRequestValidator:
 
     def __init__(self) -> None:
         self.mutation_rejected = False
+        self.preflight_mutation_rejected = False
+
+    def preflight_binding(self, *, domain: str, binding: object) -> None:
+        self.asserted_domain = domain
+        try:
+            binding["forged"] = True  # type: ignore[index]
+        except TypeError:
+            self.preflight_mutation_rejected = True
 
     def validate(self, request: EvidenceValidationRequest) -> ValidatedEvidence:
         try:
@@ -101,6 +109,19 @@ def request_for(
 
 
 class ValidatorBoundaryTests(unittest.TestCase):
+    def test_binding_preflight_is_dispatched_with_an_immutable_copy(self) -> None:
+        validator = ImmutableRequestValidator()
+        registry = EvidenceValidatorRegistry((validator,))
+
+        registry.preflight_binding(
+            validator_id=validator.validator_id,
+            domain="scientific",
+            binding={"planned_claims": ["claim-a"]},
+        )
+
+        self.assertEqual(validator.asserted_domain, "scientific")
+        self.assertTrue(validator.preflight_mutation_rejected)
+
     def test_request_is_deeply_immutable_to_registered_validator(self) -> None:
         with TemporaryDirectory() as root:
             source = Path(root) / "artifact.bin"

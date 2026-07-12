@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -291,6 +292,7 @@ class ScientificValidationTests(unittest.TestCase):
             binding={
                 "evidence_depth": depth,
                 "evidence_modes": list(MODES),
+                "evaluation_schema": evaluation_schema,
                 "planned_claims": [CLAIM_ID],
                 "result_manifest_output": "evidence/result",
                 "validation_plan_hash": plan_hash,
@@ -317,6 +319,53 @@ class ScientificValidationTests(unittest.TestCase):
             ),
         )
         EvidenceValidatorRegistry((validator,))
+
+    def test_schema_preflight_rejects_missing_or_unregistered_profiles(self) -> None:
+        request, _ = self._request()
+        registry = EvidenceValidatorRegistry((ScientificDiscoveryValidator(),))
+        binding = dict(request.binding)
+
+        registry.preflight_binding(
+            validator_id=SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
+            domain="scientific",
+            binding=binding,
+        )
+
+        missing = dict(binding)
+        missing.pop("evaluation_schema")
+        with self.assertRaisesRegex(
+            EvidenceValidationError, "evaluation schema must be declared"
+        ):
+            registry.preflight_binding(
+                validator_id=SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
+                domain="scientific",
+                binding=missing,
+            )
+
+        unknown = {**binding, "evaluation_schema": "unknown_evaluation.v1"}
+        with self.assertRaises(EvidenceValidationError):
+            registry.preflight_binding(
+                validator_id=SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
+                domain="scientific",
+                binding=unknown,
+            )
+
+    def test_declared_schema_is_bound_but_legacy_evidence_remains_valid(self) -> None:
+        request, _ = self._request()
+        mismatched = replace(
+            request,
+            binding={
+                **dict(request.binding),
+                "evaluation_schema": "trend_null_followup_evaluation.v1",
+            },
+        )
+        with self.assertRaises(EvidenceValidationError):
+            self._validate(mismatched)
+
+        legacy_binding = dict(request.binding)
+        legacy_binding.pop("evaluation_schema")
+        validated, _ = self._validate(replace(request, binding=legacy_binding))
+        self.assertEqual(validated.verdict, "passed")
 
     def test_pass_is_derived_and_every_durable_artifact_is_read(self) -> None:
         request, artifacts = self._request(include_auxiliary=True)

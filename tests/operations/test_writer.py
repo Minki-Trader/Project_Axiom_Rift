@@ -20,6 +20,7 @@ from axiom_rift.operations.writer import (
 from axiom_rift.operations.validation import (
     ENGINEERING_RUNTIME_PLAN_HASH,
     ENGINEERING_VALIDATOR_ID,
+    EvidenceValidationError,
     EvidenceValidatorRegistry,
 )
 from tests.operations.fixture_validators import (
@@ -638,6 +639,56 @@ class WriterTests(unittest.TestCase):
         spec["external_dependency_binding"] = {}
         with self.assertRaisesRegex(TransitionError, "cannot mix"):
             self.writer._validate_job_spec(spec)
+
+    def test_scientific_schema_preflight_runs_before_job_declaration(self) -> None:
+        validator_id = "validator:" + "a" * 64
+        plan_hash = "b" * 64
+        result_name = "evidence/preflight-result"
+        measurement_name = "evidence/preflight-measurement"
+        spec = job_spec(
+            self.writer,
+            {"kind": "Executable", "id": "executable:" + "c" * 64},
+        )
+        spec["input_hashes"] = [*spec["input_hashes"], plan_hash]
+        spec["expected_outputs"] = [measurement_name, result_name]
+        spec["output_classes"] = {
+            measurement_name: "durable_evidence",
+            result_name: "durable_evidence",
+        }
+        spec["scientific_binding"] = {
+            "evidence_depth": "discovery",
+            "evidence_modes": [
+                "causal_contrast",
+                "cost_and_execution",
+                "sensitivity_or_stress",
+            ],
+            "evaluation_schema": "unregistered_evaluation.v1",
+            "planned_claims": ["claim-a"],
+            "result_manifest_output": result_name,
+            "validation_plan_hash": plan_hash,
+            "validator_id": validator_id,
+        }
+        calls: list[dict[str, object]] = []
+
+        def reject_preflight(**kwargs: object) -> None:
+            calls.append(dict(kwargs))
+            raise EvidenceValidationError("evaluation schema is not registered")
+
+        self.writer.validation_registry = SimpleNamespace(
+            preflight_binding=reject_preflight
+        )
+        before = self.writer.read_control()
+
+        with self.assertRaisesRegex(
+            TransitionError, "scientific validation preflight failed"
+        ):
+            self.writer.declare_job(
+                spec=spec, operation_id="reject-unregistered-evaluation-schema"
+            )
+
+        self.assertEqual(self.writer.read_control(), before)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["domain"], "scientific")
 
     def test_component_manifest_backfill_is_zero_credit_and_idempotent(self) -> None:
         legacy = executable_spec("legacy-component-projection")

@@ -6455,16 +6455,29 @@ class StateWriter:
             if sum(value == "durable_evidence" for value in output_classes.values()) < 2:
                 raise TransitionError("source Job requires result and measurement artifacts")
         if scientific_binding is not None:
-            if not isinstance(scientific_binding, dict) or set(scientific_binding) != {
+            required_scientific_fields = {
                 "evidence_depth",
                 "evidence_modes",
                 "planned_claims",
                 "result_manifest_output",
                 "validation_plan_hash",
                 "validator_id",
-            }:
+            }
+            allowed_scientific_fields = required_scientific_fields | {
+                "evaluation_schema"
+            }
+            if (
+                not isinstance(scientific_binding, dict)
+                or not required_scientific_fields.issubset(scientific_binding)
+                or not set(scientific_binding).issubset(allowed_scientific_fields)
+            ):
                 raise TransitionError("scientific_binding has an invalid schema")
             validate_validator_binding(scientific_binding)
+            if "evaluation_schema" in scientific_binding:
+                _require_ascii(
+                    "scientific evaluation schema",
+                    scientific_binding["evaluation_schema"],
+                )
             if scientific_binding["evidence_depth"] not in {
                 "discovery",
                 "confirmation",
@@ -6770,12 +6783,28 @@ class StateWriter:
                     "successful Job cache output is unavailable or corrupt"
                 ) from exc
 
+    def _preflight_scientific_binding(self, spec: Mapping[str, Any]) -> None:
+        binding = spec.get("scientific_binding")
+        if not isinstance(binding, Mapping):
+            return
+        try:
+            self.validation_registry.preflight_binding(
+                validator_id=binding["validator_id"],
+                domain="scientific",
+                binding=binding,
+            )
+        except EvidenceValidationError as exc:
+            raise TransitionError(
+                f"scientific validation preflight failed: {exc}"
+            ) from exc
+
     def declare_job(
         self, *, spec: Mapping[str, Any], operation_id: str
     ) -> TransitionResult:
         self._require_study_close_delivery_guard()
         spec = self._normalize_job_spec(spec)
         self._validate_job_spec(spec)
+        self._preflight_scientific_binding(spec)
         work_basis = {
             "callable_identity": spec["callable_identity"],
             "component_parity_binding": spec.get("component_parity_binding"),
@@ -10072,8 +10101,10 @@ class StateWriter:
                 binding = declared_spec.get(binding_name)
                 if isinstance(binding, dict):
                     try:
-                        self.validation_registry.require_registered(
-                            validator_id=binding["validator_id"], domain=domain
+                        self.validation_registry.preflight_binding(
+                            validator_id=binding["validator_id"],
+                            domain=domain,
+                            binding=binding,
                         )
                     except EvidenceValidationError as exc:
                         raise TransitionError(str(exc)) from exc
