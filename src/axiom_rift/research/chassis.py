@@ -980,10 +980,6 @@ class ControlledStudyChassis:
             raise ChassisIdentityError("baseline parameters must be an object")
         for domain in domains:
             identities = by_domain.get(domain, ())
-            if not identities:
-                raise ChassisIdentityError(
-                    f"baseline executable omits controlled domain {domain.value}"
-                )
             controlled.append(
                 (
                     domain.value,
@@ -1372,11 +1368,22 @@ def validate_controlled_executable(
         except (TypeError, ValueError) as exc:
             raise ChassisIdentityError("controlled domain is not typed") from exc
         expected_ids = expected.get(domain_value)
-        if not isinstance(expected_ids, list) or not expected_ids:
+        if not isinstance(expected_ids, list):
             raise ChassisIdentityError(
-                f"controlled domain {domain_value} has no baseline components"
+                f"controlled domain {domain_value} has malformed baseline components"
             )
         current_ids = current_by_domain.get(domain, ())
+        if not expected_ids:
+            if current_ids:
+                raise ChassisIdentityError(
+                    f"trial populates controlled absent domain {domain_value}"
+                )
+            frozen_bindings = controlled_parameter_bindings.get(domain_value)
+            if frozen_bindings != {}:
+                raise ChassisIdentityError(
+                    f"controlled absent domain {domain_value} has parameter bindings"
+                )
+            continue
         if not current_ids:
             raise ChassisIdentityError(
                 f"trial omits controlled domain {domain_value}; declare exact semantic dependencies"

@@ -116,6 +116,18 @@ def controlled_domains() -> tuple[ResearchLayer, ...]:
 
 
 class ControlledStudyChassisTests(unittest.TestCase):
+    def test_controlled_absence_is_frozen(self) -> None:
+        baseline = baseline_executable()
+        chassis = ControlledStudyChassis(
+            baseline_executable=baseline,
+            changed_domains=(ResearchLayer.CALIBRATION,),
+            controlled_domains=(*controlled_domains(), ResearchLayer.REGIME),
+            architecture=architecture(baseline),
+        )
+        payload = chassis.to_identity_payload()
+        self.assertEqual(payload["controlled_component_identities"]["regime"], [])
+        self.assertEqual(payload["controlled_parameter_bindings"]["regime"], {})
+
     def test_changed_component_must_be_consumed_by_current_composition(self) -> None:
         baseline = baseline_executable()
         old_calibration = next(
