@@ -354,6 +354,7 @@ def _trend_evaluation(
             "transition_mixture_evaluation.v2",
             "transition_mixture_evaluation.v3",
             "structural_break_evaluation.v1",
+            "structural_break_evaluation.v2",
             "reversion_discovery_evaluation.v1",
             "reversion_regime_followup_evaluation.v1",
             "session_inventory_discovery_evaluation.v1",
@@ -480,6 +481,7 @@ def _trend_evaluation(
         "transition_mixture_evaluation.v2": 4,
         "transition_mixture_evaluation.v3": 4,
         "structural_break_evaluation.v1": 4,
+        "structural_break_evaluation.v2": 4,
     }.get(schema, 12)
     if not isinstance(context, list) or len(context) != expected_context_count:
         raise EvidenceValidationError("scientific selection context count is invalid")
@@ -555,6 +557,7 @@ def _trend_evaluation(
         "transition_mixture_evaluation.v2": 460,
         "transition_mixture_evaluation.v3": 464,
         "structural_break_evaluation.v1": 468,
+        "structural_break_evaluation.v2": 472,
         "reversion_discovery_evaluation.v1": 54,
         "reversion_regime_followup_evaluation.v1": 186,
         "session_inventory_discovery_evaluation.v1": 114,

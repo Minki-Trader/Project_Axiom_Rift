@@ -15,7 +15,7 @@ from axiom_rift.research.discovery import DATASET_SHA256,OBSERVED_MATERIAL_ID,RO
 from axiom_rift.research.structural_break_discovery import compute_registered_structural_break_surface,executable_configuration_map,loader_implementation_sha256,project_structural_break_evaluation,structural_break_implementation_sha256
 from axiom_rift.research.trend_study import CRITERIA,EVIDENCE_MODES,PLANNED_CLAIMS,_claim_metrics,planned_verdict
 from axiom_rift.research.validation import SCIENTIFIC_DISCOVERY_VALIDATOR_ID,SCIENTIFIC_MEASUREMENT_SCHEMA,SCIENTIFIC_RESULT_SCHEMA,build_validation_plan
-MISSION_ID="MIS-0005";STUDY_ID="STU-0055";CALLABLE_IDENTITY="axiom_rift.research.structural_break_study.execute_structural_break_job.v1";EVIDENCE_DEPTH="discovery"
+MISSION_ID="MIS-0005";STUDY_ID="STU-0056";CALLABLE_IDENTITY="axiom_rift.research.structural_break_study.execute_structural_break_job.v2";EVIDENCE_DEPTH="discovery"
 def build_structural_break_validation_plan(eid:str)->dict[str,object]:return build_validation_plan(mission_id=MISSION_ID,executable_id=eid,evidence_depth=EVIDENCE_DEPTH,planned_claims=PLANNED_CLAIMS,evidence_modes=EVIDENCE_MODES,criteria=CRITERIA,candidate_eligible_on_pass=False)
 def output_names(eid:str)->dict[str,str]:
     p=f"scientific/{STUDY_ID}/{eid.removeprefix('executable:')[:16]}";return {"context":f"{p}/evaluation.json","environment":f"{p}/environment.json","measurement":f"{p}/measurement.json","plan":f"{p}/validation-plan.json","result":f"{p}/result.json"}
@@ -36,8 +36,8 @@ def _load(w:StateWriter,hashes:tuple[str,...])->tuple[dict[str,Any],str,str]:
     for h in hashes:
         try:a=w.evidence.verify(h);v=parse_canonical((w.evidence._root/a.relative_path).read_bytes())
         except (FileNotFoundError,OSError,RuntimeError,ValueError):continue
-        if isinstance(v,dict) and v.get("schema")=="structural_break_surface.v1":surface=(v,h)
-        if isinstance(v,dict) and v.get("schema")=="structural_break_surface_manifest.v1":manifest=(v,h)
+        if isinstance(v,dict) and v.get("schema")=="structural_break_surface.v2":surface=(v,h)
+        if isinstance(v,dict) and v.get("schema")=="structural_break_surface_manifest.v2":manifest=(v,h)
     if surface is None or manifest is None or manifest[0].get("surface_artifact_hash")!=surface[1]:raise ValueError("structural-break surface missing")
     return surface[0],surface[1],manifest[1]
 def execute_structural_break_job(*,repository_root:str|Path,execution:RunningJobExecution)->StructuralBreakJobPacket:
@@ -47,7 +47,7 @@ def execute_structural_break_job(*,repository_root:str|Path,execution:RunningJob
     if not required.issubset(inputs):raise ValueError("inputs missing")
     expected=set(spec["expected_outputs"]);produces=surface_output_name() in expected
     if produces:
-        surface=compute_registered_structural_break_surface(root);sh=w.evidence.finalize(canonical_bytes(surface)).sha256;mh=w.evidence.finalize(canonical_bytes({"schema":"structural_break_surface_manifest.v1","surface_artifact_hash":sh,"surface_implementation_sha256":structural_break_implementation_sha256()})).sha256
+        surface=compute_registered_structural_break_surface(root);sh=w.evidence.finalize(canonical_bytes(surface)).sha256;mh=w.evidence.finalize(canonical_bytes({"schema":"structural_break_surface_manifest.v2","surface_artifact_hash":sh,"surface_implementation_sha256":structural_break_implementation_sha256()})).sha256
     else:surface,sh,mh=_load(w,inputs)
     evaluation=project_structural_break_evaluation(surface,job_execution={**execution.payload(),"identity":execution.identity},subject_executable_id=eid,surface_artifact_hash=sh,surface_manifest_hash=mh);eh=w.evidence.finalize(canonical_bytes(evaluation)).sha256;measurement=build_measurement(executable_id=eid,job_id=execution.job_id,job_hash=execution.job_hash,evaluation_artifact_hash=eh,evaluation=evaluation);meash=w.evidence.finalize(canonical_bytes(measurement)).sha256;result=build_result_manifest(executable_id=eid,job_id=execution.job_id,job_hash=execution.job_hash,measurement_artifact_hash=meash);outputs={names["context"]:eh,names["environment"]:w.evidence.finalize(canonical_bytes(env)).sha256,names["measurement"]:meash,names["plan"]:w.evidence.finalize(canonical_bytes(plan)).sha256,names["result"]:w.evidence.finalize(canonical_bytes(result)).sha256}
     if produces:outputs[surface_output_name()]=sh;outputs[surface_manifest_output_name()]=mh
