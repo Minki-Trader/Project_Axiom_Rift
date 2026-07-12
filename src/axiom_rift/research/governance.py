@@ -208,6 +208,13 @@ class StudyDiagnosis:
             raise ResearchGovernanceError("evidence_state is not typed")
         if not isinstance(self.confidence, DiagnosisConfidence):
             raise ResearchGovernanceError("diagnosis confidence is not typed")
+        if (
+            self.confidence is DiagnosisConfidence.LOW
+            and self.evidence_state is not EvidenceState.NOT_IDENTIFIABLE
+        ):
+            raise ResearchGovernanceError(
+                "low-confidence diagnosis must remain not_identifiable"
+            )
         for name in ("rationale", "counterfactual", "reopen_condition"):
             _ascii(name, getattr(self, name))
         object.__setattr__(
