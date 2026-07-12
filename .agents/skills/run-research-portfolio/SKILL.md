@@ -42,7 +42,8 @@ Before the first Initiative of every real Mission:
 2. Run
    `.agents/skills/run-research-portfolio/scripts/audit_research_history.py`
    with `--root . --summary-only`, then use `--study-id` or the full output for
-   the material surfaces. Its output is a read-only map, not authority.
+   the material surfaces. The script verifies every reported row against its
+   Journal authority; its output remains a read-only map, not authority.
 3. Review Study KPI, Study questions, validator evidence, negative memory,
    Portfolio Decisions, Executable components, and Mission terminals.
 4. Treat `records/STUDY_KPI.md` as a navigation projection, never scientific
@@ -50,6 +51,7 @@ Before the first Initiative of every real Mission:
 5. Map prior work by causal question, primary research layer, architecture
    family, changed and controlled domains, outcome, evidence state, and reopen
    condition. Mark legacy work honestly when typed classification is absent.
+   Investigate any reported domain mismatch; do not silently reinterpret it.
 6. State at least two competing bottleneck hypotheses, underexplored layers,
    architecture findings, and one Mission thesis.
 
@@ -81,6 +83,9 @@ boundary tests, and stress when they identify a mechanism or surface.
 ## Register Before Evidence
 
 - Define one causal question and explicit changed and controlled variables.
+  Use `ResearchLayer` names as the top-level keys or exact list values, and make
+  them agree with the selected Portfolio axis; keep the concrete variable
+  details below those domain keys.
 - Bind the Study to the current intake, Portfolio snapshot, axis identity,
   Decision, and immutable development material.
 - Build Executable identity from ordered components, parameters, data, split,
@@ -122,6 +127,12 @@ completion when present, and negative memory when present. Classify the
 evidence state, confidence, counterfactual, and reopen condition. KPI magnitude
 alone cannot choose the state. Engineering failure is `engineering_gap`, not
 scientific falsification.
+
+A low-confidence interpretation must remain `not_identifiable`; it cannot open
+a specific model, label, entry, lifecycle, execution, or stability branch.
+Use medium or high confidence for a specific bottleneck only when the bound
+evidence discriminates it from the competing explanations. Writer-grounded
+`engineering_gap` or passed evidence should normally be high confidence.
 
 The writer derives allowed local actions and research-layer branches from the
 typed evidence state. The next Decision must either follow that branch,
