@@ -485,6 +485,22 @@ class ScientificValidationTests(unittest.TestCase):
         with self.assertRaises(EvidenceValidationError):
             self._validate(stale_request)
 
+    def test_high_vol_dense_regime_schema_binds_two_rows_and_544_exposures(self) -> None:
+        request, _ = self._request(
+            evaluation_schema="high_vol_dense_regime_evaluation.v1",
+            selection_total_exposures=544,
+            selection_context_count=2,
+        )
+        validated, _ = self._validate(request)
+        self.assertEqual(validated.verdict, "passed")
+        stale_request, _ = self._request(
+            evaluation_schema="high_vol_dense_regime_evaluation.v1",
+            selection_total_exposures=542,
+            selection_context_count=2,
+        )
+        with self.assertRaises(EvidenceValidationError):
+            self._validate(stale_request)
+
     def test_failed_and_not_evaluable_are_independently_derived(self) -> None:
         cases = {
             "failed": {

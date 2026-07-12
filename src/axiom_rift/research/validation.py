@@ -154,6 +154,7 @@ _SCIENTIFIC_EVALUATION_PROFILES = {
     "equity_premium_trade_evaluation.v1": (2, 538),
     "trend_regime_evaluation.v1": (2, 540),
     "dense_short_synthesis_evaluation.v1": (2, 542),
+    "high_vol_dense_regime_evaluation.v1": (2, 544),
     "complementary_sleeve_evaluation.v1": (4, 512),
     "probability_calibration_evaluation.v1": (4, 516),
     "rank_bin_calibration_evaluation.v1": (4, 520),
