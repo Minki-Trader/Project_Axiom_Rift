@@ -2819,13 +2819,45 @@ class StateWriter:
                 raise TransitionError(
                     "controlled chassis baseline lost its prior scientific trial"
                 )
-        elif provenance != {
-            "data_contract": baseline.data_contract,
-            "kind": "first_data_contract_bootstrap",
-        } or prior is not None:
-            raise TransitionError(
-                "controlled chassis baseline bootstrap is no longer valid"
-            )
+        else:
+            relevant_trials = [
+                record
+                for record in index.records_by_kind("trial")
+                if isinstance(record.payload.get("executable"), dict)
+                and record.payload["executable"].get("data_contract")
+                == baseline.data_contract
+            ]
+            controlled_history = [
+                record
+                for record in index.records_by_kind("study-open")
+                if isinstance(record.payload.get("controlled_chassis"), dict)
+                and isinstance(
+                    record.payload["controlled_chassis"].get(
+                        "baseline_executable"
+                    ),
+                    dict,
+                )
+                and record.payload["controlled_chassis"][
+                    "baseline_executable"
+                ].get("data_contract")
+                == baseline.data_contract
+            ]
+            expected_bootstrap = {
+                "data_contract": baseline.data_contract,
+                "kind": (
+                    "first_controlled_chassis_bootstrap"
+                    if relevant_trials
+                    else "first_data_contract_bootstrap"
+                ),
+            }
+            if (
+                provenance != expected_bootstrap
+                or prior is not None
+                or (relevant_trials and controlled_history)
+            ):
+                raise TransitionError(
+                    "controlled chassis baseline bootstrap is no longer valid"
+                )
         for component, component_id in zip(
             baseline.components, baseline.component_identities, strict=True
         ):
@@ -2856,6 +2888,24 @@ class StateWriter:
         exact = index.get("trial", baseline.identity)
         if not relevant:
             return None
+        if exact is None:
+            controlled_history = [
+                record
+                for record in index.records_by_kind("study-open")
+                if isinstance(record.payload.get("controlled_chassis"), dict)
+                and isinstance(
+                    record.payload["controlled_chassis"].get(
+                        "baseline_executable"
+                    ),
+                    dict,
+                )
+                and record.payload["controlled_chassis"][
+                    "baseline_executable"
+                ].get("data_contract")
+                == baseline.data_contract
+            ]
+            if not controlled_history:
+                return None
         study_id = None if exact is None else exact.payload.get("study_id")
         study = (
             None
@@ -9200,6 +9250,12 @@ class StateWriter:
                         "legacy Portfolio axis cannot change its prospective chassis anchor"
                     )
                 prior_baseline = self._prior_scientific_baseline(_index, baseline)
+                has_data_contract_trials = any(
+                    isinstance(record.payload.get("executable"), dict)
+                    and record.payload["executable"].get("data_contract")
+                    == baseline.data_contract
+                    for record in _index.records_by_kind("trial")
+                )
                 baseline_provenance = (
                     {
                         "kind": "trial",
@@ -9208,7 +9264,11 @@ class StateWriter:
                     if prior_baseline is not None
                     else {
                         "data_contract": baseline.data_contract,
-                        "kind": "first_data_contract_bootstrap",
+                        "kind": (
+                            "first_controlled_chassis_bootstrap"
+                            if has_data_contract_trials
+                            else "first_data_contract_bootstrap"
+                        ),
                     }
                 )
                 component_records = self._project_executable_components(

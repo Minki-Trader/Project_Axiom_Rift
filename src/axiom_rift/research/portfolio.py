@@ -96,33 +96,33 @@ class PortfolioAxis:
         _ascii("stop_or_reopen_condition", self.stop_or_reopen_condition)
         if self.status not in {"open", "preserved", "deferred", "pruned"}:
             raise PortfolioDecisionError("Portfolio axis status is not typed")
+        identity_payload: dict[str, CanonicalValue] = {
+            "axis_id": self.axis_id,
+            "causal_question": self.causal_question,
+            "changed_domains": [layer.value for layer in changed],
+            "controlled_domains": [layer.value for layer in controlled],
+            "mechanism_family": self.mechanism_family,
+            "primary_research_layer": self.primary_research_layer.value,
+            "schema": (
+                "portfolio_axis.v2"
+                if self.architecture_chassis is None
+                else "portfolio_axis.v3"
+            ),
+            "stop_or_reopen_condition": self.stop_or_reopen_condition,
+            "system_architecture_family": self.system_architecture_family,
+            "why_now": self.why_now,
+        }
+        if self.architecture_chassis is not None:
+            identity_payload["architecture_chassis"] = (
+                self.architecture_chassis.to_identity_payload()
+            )
         object.__setattr__(
             self,
             "identity",
             "axis:"
             + canonical_digest(
                 domain="portfolio-axis",
-                payload={
-                    "axis_id": self.axis_id,
-                    "causal_question": self.causal_question,
-                    "changed_domains": [layer.value for layer in changed],
-                    "controlled_domains": [layer.value for layer in controlled],
-                    "mechanism_family": self.mechanism_family,
-                    "primary_research_layer": self.primary_research_layer.value,
-                    "architecture_chassis": (
-                        None
-                        if self.architecture_chassis is None
-                        else self.architecture_chassis.to_identity_payload()
-                    ),
-                    "schema": (
-                        "portfolio_axis.v2"
-                        if self.architecture_chassis is None
-                        else "portfolio_axis.v3"
-                    ),
-                    "stop_or_reopen_condition": self.stop_or_reopen_condition,
-                    "system_architecture_family": self.system_architecture_family,
-                    "why_now": self.why_now,
-                },
+                payload=identity_payload,
             ),
         )
 

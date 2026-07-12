@@ -503,6 +503,35 @@ class PortfolioBoundaryTests(unittest.TestCase):
                 architecture_chassis=canonical_axis.architecture_chassis,
             )
 
+    def test_legacy_typed_axis_identity_survives_chassis_upgrade(self) -> None:
+        axis = _PortfolioAxis(
+            axis_id="axis-legacy-typed",
+            causal_question="Does the legacy typed axis preserve its identity?",
+            mechanism_family="legacy-typed-family",
+            primary_research_layer=ResearchLayer.FEATURE,
+            system_architecture_family="architecture-family:legacy-typed",
+            changed_domains=(ResearchLayer.FEATURE,),
+            controlled_domains=(ResearchLayer.MODEL,),
+            why_now="verify semantic-preserving chassis migration",
+            stop_or_reopen_condition="stop when identity stability is proved",
+        )
+        expected = "axis:" + canonical_digest(
+            domain="portfolio-axis",
+            payload={
+                "axis_id": axis.axis_id,
+                "causal_question": axis.causal_question,
+                "changed_domains": ["feature"],
+                "controlled_domains": ["model"],
+                "mechanism_family": axis.mechanism_family,
+                "primary_research_layer": "feature",
+                "schema": "portfolio_axis.v2",
+                "stop_or_reopen_condition": axis.stop_or_reopen_condition,
+                "system_architecture_family": axis.system_architecture_family,
+                "why_now": axis.why_now,
+            },
+        )
+        self.assertEqual(axis.identity, expected)
+
     def test_batch_is_frozen_and_has_no_global_tiny_cap(self) -> None:
         batch = make_batch()
         self.assertEqual(batch.max_trials, 1_000_000)

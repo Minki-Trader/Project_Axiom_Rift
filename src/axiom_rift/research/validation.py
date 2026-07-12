@@ -368,6 +368,7 @@ def _trend_evaluation(
             "probability_calibration_evaluation.v1",
             "rank_bin_calibration_evaluation.v1",
             "cost_utility_objective_evaluation.v1",
+            "cost_aware_execution_evaluation.v1",
             "reversion_discovery_evaluation.v1",
             "reversion_regime_followup_evaluation.v1",
             "session_inventory_discovery_evaluation.v1",
@@ -508,6 +509,7 @@ def _trend_evaluation(
         "probability_calibration_evaluation.v1": 4,
         "rank_bin_calibration_evaluation.v1": 4,
         "cost_utility_objective_evaluation.v1": 4,
+        "cost_aware_execution_evaluation.v1": 2,
     }.get(schema, 12)
     if not isinstance(context, list) or len(context) != expected_context_count:
         raise EvidenceValidationError("scientific selection context count is invalid")

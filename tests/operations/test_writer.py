@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from hashlib import sha256
+from types import SimpleNamespace
 import unittest
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
@@ -5001,6 +5002,48 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             snapshot=self.snapshot,
             operation_id="direction-snapshot",
         )
+
+    def test_legacy_trials_allow_one_controlled_chassis_bootstrap(self) -> None:
+        baseline = portfolio_axis_baseline(self.axes[0])
+        legacy_trial = SimpleNamespace(
+            payload={"executable": {"data_contract": baseline.data_contract}}
+        )
+
+        class LegacyIndex:
+            def __init__(self, *, controlled: bool) -> None:
+                self.controlled = controlled
+
+            def get(self, kind: str, record_id: str):
+                return None
+
+            def records_by_kind(self, kind: str):
+                if kind == "trial":
+                    return [legacy_trial]
+                if kind == "study-open" and self.controlled:
+                    return [
+                        SimpleNamespace(
+                            payload={
+                                "controlled_chassis": {
+                                    "baseline_executable": {
+                                        "data_contract": baseline.data_contract
+                                    }
+                                }
+                            }
+                        )
+                    ]
+                return []
+
+        self.assertIsNone(
+            StateWriter._prior_scientific_baseline(
+                LegacyIndex(controlled=False), baseline
+            )
+        )
+        with self.assertRaisesRegex(
+            TransitionError, "must reuse a prior scientific Executable"
+        ):
+            StateWriter._prior_scientific_baseline(
+                LegacyIndex(controlled=True), baseline
+            )
 
     def _decision(
         self,
