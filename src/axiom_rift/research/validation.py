@@ -155,6 +155,7 @@ _SCIENTIFIC_EVALUATION_PROFILES = {
     "trend_regime_evaluation.v1": (2, 540),
     "dense_short_synthesis_evaluation.v1": (2, 542),
     "high_vol_dense_regime_evaluation.v1": (2, 544),
+    "regime_direction_router_evaluation.v1": (2, 546),
     "complementary_sleeve_evaluation.v1": (4, 512),
     "probability_calibration_evaluation.v1": (4, 516),
     "rank_bin_calibration_evaluation.v1": (4, 520),
