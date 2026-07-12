@@ -1020,9 +1020,10 @@ class WriterTests(unittest.TestCase):
             with self.assertRaisesRegex(RecoveryRequired, "conflicting"):
                 self.writer._axis_architecture_anchor(index, legacy_axis)
 
-    def test_existing_data_contract_requires_prior_trial_baseline(self) -> None:
+    def test_existing_axis_chassis_requires_prior_trial_baseline(self) -> None:
         baseline = scientific_executable_spec("prior-baseline")
         invented = scientific_executable_spec("invented-baseline")
+        axis_identity = "axis:" + "7" * 64
         self.assertNotEqual(baseline.identity, invented.identity)
         with LocalIndex(self.writer.index_path) as index:
             index.put(
@@ -1032,7 +1033,13 @@ class WriterTests(unittest.TestCase):
                     subject="Study:STU-7000",
                     status="open",
                     fingerprint="7" * 64,
-                    payload={"mission_id": "MIS-PRIOR"},
+                    payload={
+                        "controlled_chassis": {
+                            "baseline_executable": baseline.to_identity_payload(),
+                        },
+                        "mission_id": "MIS-PRIOR",
+                        "portfolio_axis_identity": axis_identity,
+                    },
                 )
             )
             index.put(
@@ -1052,11 +1059,15 @@ class WriterTests(unittest.TestCase):
                 )
             )
             self.assertEqual(
-                self.writer._prior_scientific_baseline(index, baseline).record_id,
+                self.writer._prior_scientific_baseline(
+                    index, baseline, axis_identity
+                ).record_id,
                 baseline.identity,
             )
             with self.assertRaisesRegex(TransitionError, "prior scientific"):
-                self.writer._prior_scientific_baseline(index, invented)
+                self.writer._prior_scientific_baseline(
+                    index, invented, axis_identity
+                )
 
     def open_fixture_study(
         self,
