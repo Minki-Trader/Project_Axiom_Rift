@@ -5009,9 +5009,21 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             payload={"executable": {"data_contract": baseline.data_contract}}
         )
 
+        bootstrap_decision = SimpleNamespace(
+            payload={
+                "baseline_executable_id": baseline.identity,
+                "baseline_executable": baseline.to_identity_payload(),
+                "baseline_provenance": {
+                    "data_contract": baseline.data_contract,
+                    "kind": "first_controlled_chassis_bootstrap",
+                },
+            }
+        )
+
         class LegacyIndex:
-            def __init__(self, *, controlled: bool) -> None:
+            def __init__(self, *, controlled: bool, anchored: bool = False) -> None:
                 self.controlled = controlled
+                self.anchored = anchored
 
             def get(self, kind: str, record_id: str):
                 return None
@@ -5019,6 +5031,8 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             def records_by_kind(self, kind: str):
                 if kind == "trial":
                     return [legacy_trial]
+                if kind == "portfolio-decision" and self.anchored:
+                    return [bootstrap_decision]
                 if kind == "study-open" and self.controlled:
                     return [
                         SimpleNamespace(
@@ -5044,6 +5058,11 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             StateWriter._prior_scientific_baseline(
                 LegacyIndex(controlled=True), baseline
             )
+        self.assertIsNone(
+            StateWriter._prior_scientific_baseline(
+                LegacyIndex(controlled=True, anchored=True), baseline
+            )
+        )
 
     def _decision(
         self,

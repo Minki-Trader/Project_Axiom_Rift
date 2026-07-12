@@ -2819,6 +2819,25 @@ class StateWriter:
                 raise TransitionError(
                     "controlled chassis baseline lost its prior scientific trial"
                 )
+        elif provenance.get("kind") == "controlled_chassis_anchor_reuse":
+            anchor_id = provenance.get("record_id")
+            anchor = (
+                None
+                if not isinstance(anchor_id, str)
+                else index.get("portfolio-decision", anchor_id)
+            )
+            if (
+                prior is not None
+                or anchor is None
+                or anchor.payload.get("baseline_executable_id") != baseline.identity
+                or anchor.payload.get("baseline_executable") != baseline_payload
+                or not isinstance(anchor.payload.get("baseline_provenance"), dict)
+                or anchor.payload["baseline_provenance"].get("kind")
+                != "first_controlled_chassis_bootstrap"
+            ):
+                raise TransitionError(
+                    "controlled chassis bootstrap anchor reuse is invalid"
+                )
         else:
             relevant_trials = [
                 record
@@ -2889,6 +2908,15 @@ class StateWriter:
         if not relevant:
             return None
         if exact is None:
+            accepted_bootstrap_anchors = [
+                record
+                for record in index.records_by_kind("portfolio-decision")
+                if record.payload.get("baseline_executable_id") == baseline.identity
+                and record.payload.get("baseline_executable") == baseline_payload
+                and isinstance(record.payload.get("baseline_provenance"), dict)
+                and record.payload["baseline_provenance"].get("kind")
+                == "first_controlled_chassis_bootstrap"
+            ]
             controlled_history = [
                 record
                 for record in index.records_by_kind("study-open")
@@ -2904,7 +2932,7 @@ class StateWriter:
                 ].get("data_contract")
                 == baseline.data_contract
             ]
-            if not controlled_history:
+            if not controlled_history or accepted_bootstrap_anchors:
                 return None
         study_id = None if exact is None else exact.payload.get("study_id")
         study = (
@@ -9250,6 +9278,20 @@ class StateWriter:
                         "legacy Portfolio axis cannot change its prospective chassis anchor"
                     )
                 prior_baseline = self._prior_scientific_baseline(_index, baseline)
+                bootstrap_anchors = [
+                    record
+                    for record in _index.records_by_kind("portfolio-decision")
+                    if record.payload.get("baseline_executable_id") == baseline.identity
+                    and record.payload.get("baseline_executable")
+                    == baseline.to_identity_payload()
+                    and isinstance(record.payload.get("baseline_provenance"), dict)
+                    and record.payload["baseline_provenance"].get("kind")
+                    == "first_controlled_chassis_bootstrap"
+                ]
+                if len(bootstrap_anchors) > 1:
+                    raise RecoveryRequired(
+                        "controlled chassis has conflicting bootstrap anchors"
+                    )
                 has_data_contract_trials = any(
                     isinstance(record.payload.get("executable"), dict)
                     and record.payload["executable"].get("data_contract")
@@ -9262,6 +9304,11 @@ class StateWriter:
                         "record_id": prior_baseline.record_id,
                     }
                     if prior_baseline is not None
+                    else {
+                        "kind": "controlled_chassis_anchor_reuse",
+                        "record_id": bootstrap_anchors[0].record_id,
+                    }
+                    if bootstrap_anchors
                     else {
                         "data_contract": baseline.data_contract,
                         "kind": (
@@ -9564,6 +9611,7 @@ class StateWriter:
                 raise TransitionError("negative memory trial Portfolio lineage is incomplete")
             holdout_context_id: str | None = None
             executed_evidence_modes: set[str] = set()
+            evidence_study_ids: set[str] = set()
             for reference in memory.evidence_references:
                 evidence = index.get("job-completed", reference)
                 failure = None if evidence is None else evidence.payload.get("failure")
@@ -9604,9 +9652,24 @@ class StateWriter:
                         "candidate", active_holdout.get("candidate_id", "")
                     )
                 )
+                evidence_study_id = (
+                    None
+                    if declaration is None
+                    else declaration.payload.get("study_id")
+                )
+                evidence_study = (
+                    None
+                    if not isinstance(evidence_study_id, str)
+                    else index.get("study-open", evidence_study_id)
+                )
                 same_study_context = (
                     declaration is not None
-                    and declaration.payload.get("study_id") == trial_study_id
+                    and evidence_study is not None
+                    and evidence_study.payload.get("mission_id") == mission_id
+                    and evidence_study.payload.get("material_identity")
+                    == trial.payload.get("material_identity")
+                    and evidence_study.payload.get("portfolio_axis_identity")
+                    == trial.payload.get("portfolio_axis_identity")
                 )
                 holdout_context = (
                     declaration is not None
@@ -9632,6 +9695,21 @@ class StateWriter:
                     raise TransitionError("negative evidence is not Executable/Mission bound")
                 if holdout_context:
                     holdout_context_id = active_holdout["holdout_id"]
+                if same_study_context:
+                    assert isinstance(evidence_study_id, str)
+                    evidence_study_ids.add(evidence_study_id)
+            if len(evidence_study_ids) > 1:
+                raise TransitionError(
+                    "negative memory evidence spans multiple Study contexts"
+                )
+            memory_study_id = (
+                next(iter(evidence_study_ids))
+                if evidence_study_ids
+                else trial_study_id
+            )
+            memory_study = index.get("study-open", memory_study_id)
+            if memory_study is None:
+                raise TransitionError("negative memory Study context is unavailable")
             record = _record(
                 kind="negative-memory",
                 record_id=memory.identity,
@@ -9645,14 +9723,16 @@ class StateWriter:
                     "reason": memory.reason,
                     "reopen_condition": memory.reopen_condition,
                     "mission_id": mission_id,
-                    "portfolio_axis_id": trial.payload.get("portfolio_axis_id"),
-                    "portfolio_axis_identity": trial.payload.get(
+                    "portfolio_axis_id": memory_study.payload.get(
+                        "portfolio_axis_id"
+                    ),
+                    "portfolio_axis_identity": memory_study.payload.get(
                         "portfolio_axis_identity"
                     ),
-                    "portfolio_snapshot_id": trial.payload.get(
+                    "portfolio_snapshot_id": memory_study.payload.get(
                         "portfolio_snapshot_id"
                     ),
-                    "study_id": trial_study_id,
+                    "study_id": memory_study_id,
                     "holdout_id": holdout_context_id,
                 },
             )

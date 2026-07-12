@@ -599,6 +599,7 @@ def _trend_evaluation(
         "probability_calibration_evaluation.v1": 516,
         "rank_bin_calibration_evaluation.v1": 520,
         "cost_utility_objective_evaluation.v1": 524,
+        "cost_aware_execution_evaluation.v1": 530,
         "reversion_discovery_evaluation.v1": 54,
         "reversion_regime_followup_evaluation.v1": 186,
         "session_inventory_discovery_evaluation.v1": 114,
