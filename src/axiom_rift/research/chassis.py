@@ -1345,6 +1345,12 @@ def validate_controlled_executable(
                     "changed component parameter_fields are malformed"
                 )
             parameter_fields.update(raw_fields)
+        if (
+            domain is ResearchLayer.FEATURE
+            and "score_profile" in baseline_parameters
+            and "score_profile" in current_parameters
+        ):
+            parameter_fields.add("score_profile")
         parameter_changed = any(
             field_name in baseline_parameters
             and field_name in current_parameters

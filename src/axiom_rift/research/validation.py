@@ -159,6 +159,7 @@ _SCIENTIFIC_EVALUATION_PROFILES = {
     "monthly_loss_lock_risk_evaluation.v1": (2, 548),
     "three_way_regime_router_evaluation.v1": (2, 550),
     "us30_sector_rotation_evaluation.v1": (12, 562),
+    "us30_downside_spillover_evaluation.v1": (12, 574),
     "complementary_sleeve_evaluation.v1": (4, 512),
     "probability_calibration_evaluation.v1": (4, 516),
     "rank_bin_calibration_evaluation.v1": (4, 520),
