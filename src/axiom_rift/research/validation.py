@@ -163,6 +163,7 @@ _SCIENTIFIC_EVALUATION_PROFILES = {
     "independent_sleeve_portfolio_evaluation.v1": (3, 577),
     "positive_direction_sleeve_evaluation.v1": (2, 579),
     "session_dense_positive_sleeve_evaluation.v1": (2, 581),
+    "low_vol_abstention_evaluation.v1": (2, 583),
     "complementary_sleeve_evaluation.v1": (4, 512),
     "probability_calibration_evaluation.v1": (4, 516),
     "rank_bin_calibration_evaluation.v1": (4, 520),
