@@ -35,7 +35,6 @@ from axiom_rift.research.event_label_discovery import (
     HORIZON,
     _labels,
     _raw_features,
-    _score,
     calibrate_selector,
 )
 from axiom_rift.research.fold_interaction_model_chassis import (
@@ -55,6 +54,29 @@ _THIS_FILE = Path(__file__).resolve()
 
 def fold_interaction_model_discovery_implementation_sha256() -> str:
     return sha256(_THIS_FILE.read_bytes()).hexdigest()
+
+
+def deterministic_score(
+    features: np.ndarray,
+    model: tuple[np.ndarray, np.ndarray, np.ndarray, float],
+) -> np.ndarray:
+    """Project every row with one stable reduction order.
+
+    Matrix multiplication may select a different floating reduction kernel when
+    only the number of rows changes.  A row-wise multiply and sum keeps full and
+    prefix projections bit-identical without changing the fitted model.
+    """
+
+    mean, std, beta, intercept = model
+    result = np.full(len(features), np.nan)
+    valid = np.isfinite(features).all(axis=1)
+    standardized = (features[valid] - mean) / std
+    result[valid] = np.sum(
+        standardized * beta.reshape(1, -1),
+        axis=1,
+        dtype=np.float64,
+    ) + intercept
+    return result
 
 
 def _matched(results: list[Any], profile: str) -> Any:
@@ -135,11 +157,11 @@ def compute_registered_fold_interaction_model_surface(
                 train_mask=train_mask,
                 profile=profile,
             )
-            score = _score(full_design, model)
+            score = deterministic_score(full_design, model)
             fold_scores[profile][fold_id] = (score, full_volatility, full_run)
             raw = prefix_raw[fold_id]
             prefix_design = model_design(raw[0], profile)
-            prefix_score = _score(prefix_design, model)
+            prefix_score = deterministic_score(prefix_design, model)
             prefix_scores[profile][fold_id] = (prefix_score, raw[1], raw[2])
             prefix_time = pd.to_datetime(prefix_frames[fold_id]["time"], errors="raise")
             prefix_train = ((prefix_time >= start) & (prefix_time <= end)).to_numpy()
@@ -281,6 +303,7 @@ def project_fold_interaction_model_evaluation(
 
 __all__ = [
     "compute_registered_fold_interaction_model_surface",
+    "deterministic_score",
     "fold_interaction_model_discovery_implementation_sha256",
     "project_fold_interaction_model_evaluation",
 ]

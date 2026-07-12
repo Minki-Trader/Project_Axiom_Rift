@@ -11,6 +11,7 @@ from axiom_rift.research.fold_interaction_model_chassis import (
     fold_interaction_model_executable,
     model_design,
 )
+from axiom_rift.research.fold_interaction_model_discovery import deterministic_score
 from axiom_rift.research.governance import ResearchLayer
 
 
@@ -49,6 +50,18 @@ class FoldInteractionModelChassisTests(unittest.TestCase):
             {component.identity for component in baseline.components},
             {component.identity for component in subject.components},
         )
+
+    def test_score_projection_is_prefix_bit_stable(self) -> None:
+        values = np.arange(300, dtype=float).reshape(20, 15) / 17.0
+        model = (
+            np.linspace(-1.0, 1.0, 15),
+            np.linspace(0.5, 2.0, 15),
+            np.linspace(-0.3, 0.4, 15),
+            0.125,
+        )
+        full = deterministic_score(values, model)
+        prefix = deterministic_score(values[:11], model)
+        np.testing.assert_array_equal(full[:11], prefix)
 
 
 if __name__ == "__main__":
