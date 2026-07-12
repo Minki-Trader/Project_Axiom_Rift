@@ -29,6 +29,13 @@ Use the repository as authority. Do not depend on chat history.
    `study_kpi_backfilled` checkpoint instead of requiring fictional commits at
    each old close time; its commit snapshot must bind the complete original
    close set and exact deterministic ledger bytes.
+   A sponsor-authorized `study_close_delivery_repair` attestation may satisfy
+   this audit only for an exact listed prospective commit that already changed
+   all three required paths and whose tree, Journal tail, control head, and
+   deterministic KPI bytes are correct. Require the original commit and the
+   attestation checkpoint to be reachable from local `main` and ancestors of
+   `origin/main`. The repair cannot replace missing or incorrect scientific or
+   projection content and cannot create another Study-close snapshot.
 6. If an active Job or Repair exists, resume or dispose it before opening work.
 
 ## Goal Intake
@@ -111,6 +118,15 @@ milestone, not one rewritten commit per old Study.  Require the typed
 `study_kpi_backfilled` event, unchanged scientific state and counts, the exact
 backfill trailer and state revision, then make the same immediate non-force
 push attempt.
+
+A sponsor-authorized delivery repair is one Git attestation checkpoint for an
+exact list of already-delivered prospective closeout commits that omitted only
+their trailers. Verify and record each original commit, tree, close event,
+revision, and required-path blob IDs in
+`records/STUDY_CLOSE_DELIVERY_REPAIR.json`. The checkpoint uses
+`Axiom-Study-Close-Delivery-Repair` and `Axiom-State-Revision` trailers, changes
+no scientific state or KPI, does not rewrite history, and does not duplicate a
+Study-close snapshot.
 
 ## Repair
 

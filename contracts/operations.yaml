@@ -180,6 +180,37 @@ git:
       retry_same_commit: true
       retry_at_next_stable_delivery_opportunity: true
       duplicate_closeout_commit_allowed: false
+  study_close_delivery_repair_checkpoint:
+    sponsor_authorization_required: true
+    applies_to: prospective_study_close_commit_missing_only_required_trailers
+    applies_once_per_exact_listed_commit: true
+    original_commit_requirements:
+      reachable_from_local_main: true
+      ancestor_of_origin_main: true
+      changes_all_required_same_commit_paths: true
+      snapshot_journal_tail_matches_close_event_and_revision: true
+      snapshot_control_head_matches_close_event_and_revision: true
+      snapshot_kpi_projection_equals_deterministic_journal_render: true
+      scientific_or_projection_content_may_differ: false
+    attestation_manifest: records/STUDY_CLOSE_DELIVERY_REPAIR.json
+    manifest_binds:
+      - original_commit
+      - original_tree
+      - study_close_event_id
+      - state_revision
+      - control_blob
+      - journal_blob
+      - study_kpi_blob
+    scientific_state_delta: 0
+    verdict_claim_trial_holdout_kpi_or_next_action_delta: 0
+    history_rewrite_allowed: false
+    duplicate_study_close_snapshot_allowed: false
+    commit_trailers:
+      - Axiom-Study-Close-Delivery-Repair
+      - Axiom-State-Revision
+    boot_delivery_audit_accepts_valid_attested_original: true
+    push_mode: non_force
+    remote_tree_equality_observed_read_only: true
   study_kpi_historical_backfill_checkpoint:
     trigger_event: study_kpi_backfilled
     applies_once: true

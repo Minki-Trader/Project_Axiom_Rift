@@ -243,6 +243,41 @@ class AuthorityMigrationTests(unittest.TestCase):
         self.assert_completed_migration("authority-migration-one-event")
         self.assertEqual(self.writer.journal.read_all()[0], initial_event)
 
+    def test_active_stable_portfolio_boundary_can_migrate_when_explicit(self) -> None:
+        control = self.writer.read_control()
+        assert control is not None
+        control["scientific"]["active_mission"] = "MIS-ACTIVE"
+        control["scientific"]["active_initiative"] = "INI-ACTIVE"
+        control["next_action"] = {
+            "kind": "portfolio_decision",
+            "portfolio_snapshot_id": "portfolio:" + "1" * 64,
+        }
+        control["authorizations"] = {
+            "Mission:MIS-ACTIVE": {
+                "authorization_epoch": 1,
+                "authorization_hash": "2" * 64,
+                "kind": "Mission",
+                "subject_id": "MIS-ACTIVE",
+            },
+            "Initiative:INI-ACTIVE": {
+                "authorization_epoch": 1,
+                "authorization_hash": "3" * 64,
+                "kind": "Initiative",
+                "subject_id": "INI-ACTIVE",
+            },
+        }
+        self.assertEqual(
+            self.writer._authority_migration_boundary(
+                control, allow_active_stable_boundary=True
+            ),
+            "active_stable",
+        )
+        self.assertIsNone(
+            self.writer._authority_migration_boundary(
+                control, allow_active_stable_boundary=False
+            )
+        )
+
     def test_after_journal_crash_recovers_files_cursor_and_index(self) -> None:
         operation_id = "authority-migration-after-journal"
         with self.assertRaises(InjectedCrash):

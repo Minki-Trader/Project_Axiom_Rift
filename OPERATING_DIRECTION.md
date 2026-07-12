@@ -757,6 +757,17 @@ runtime_eligible; semantic change requires a new source contract.
   and is delivered as one current backfill checkpoint, never fictional past
   commits or rewritten history.
 
+- [MUST] OD-REC-017 If a prospective Study-close commit already exists on
+  local and origin main with the exact required state, Journal, and deterministic
+  KPI snapshot but omitted only its required trailers, one sponsor-authorized
+  delivery-repair attestation may authenticate the original commit without
+  rewriting history or creating another Study-close snapshot. The attestation
+  lists each affected original commit, close event, revision, tree, and required
+  path blobs; verifies the original commit changed all required paths and is an
+  ancestor of origin main; changes no scientific state, verdict, claim, trial,
+  holdout, KPI, or next action; and applies once only to its exact listed set.
+  It cannot repair missing or incorrect scientific or projection content.
+
 ## 20. Foundation Initiative Boundary
 
 - [MUST] OD-FND-001 The Foundation Initiative builds and commissions the operating

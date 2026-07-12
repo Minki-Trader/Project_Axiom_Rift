@@ -639,6 +639,19 @@ class StudyKpiWriterTests(unittest.TestCase):
                 "retry_at_next_stable_delivery_opportunity"
             ]
         )
+        repair = operations["git"][
+            "study_close_delivery_repair_checkpoint"
+        ]
+        self.assertTrue(repair["sponsor_authorization_required"])
+        self.assertTrue(
+            repair["boot_delivery_audit_accepts_valid_attested_original"]
+        )
+        self.assertFalse(repair["history_rewrite_allowed"])
+        self.assertFalse(repair["duplicate_study_close_snapshot_allowed"])
+        self.assertEqual(
+            repair["attestation_manifest"],
+            "records/STUDY_CLOSE_DELIVERY_REPAIR.json",
+        )
         backfill = operations["git"][
             "study_kpi_historical_backfill_checkpoint"
         ]

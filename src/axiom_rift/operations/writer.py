@@ -1721,18 +1721,62 @@ class StateWriter:
                 expected_manifest_digest=final_authority["manifest_digest"],
             )
 
+    @staticmethod
+    def _authority_migration_boundary(
+        current: Mapping[str, Any], *, allow_active_stable_boundary: bool
+    ) -> str | None:
+        science = current["scientific"]
+        inactive_names = (
+            "active_study",
+            "active_batch",
+            "active_job",
+            "active_repair",
+            "active_executable",
+            "active_lineage",
+            "active_release",
+            "active_holdout_evaluation",
+        )
+        disposed_root = (
+            current["next_action"].get("kind") == "await_root_goal"
+            and science.get("active_mission") is None
+            and science.get("active_initiative") is None
+            and all(science.get(name) is None for name in inactive_names)
+            and current.get("authorizations") == {}
+            and science.get("claim") == "none"
+        )
+        if disposed_root:
+            return "disposed_root"
+        active_authorizations = current.get("authorizations")
+        mission_id = science.get("active_mission")
+        initiative_id = science.get("active_initiative")
+        active_stable = (
+            allow_active_stable_boundary
+            and current["next_action"].get("kind") == "portfolio_decision"
+            and type(mission_id) is str
+            and type(initiative_id) is str
+            and all(science.get(name) is None for name in inactive_names)
+            and isinstance(active_authorizations, dict)
+            and set(active_authorizations)
+            == {f"Mission:{mission_id}", f"Initiative:{initiative_id}"}
+            and science.get("claim") == "none"
+        )
+        return "active_stable" if active_stable else None
+
     def migrate_authority(
         self,
         *,
         replacements: Mapping[str, bytes],
         reason: str,
         operation_id: str,
+        allow_active_stable_boundary: bool = False,
         crash_after: str | None = None,
     ) -> TransitionResult:
         """Activate exact staged authority bytes without rewriting prior state."""
 
         _require_ascii("authority migration reason", reason)
         _require_ascii("operation_id", operation_id)
+        if type(allow_active_stable_boundary) is not bool:
+            raise TransitionError("active stable authority boundary flag must be bool")
         if not isinstance(replacements, Mapping) or not replacements:
             raise TransitionError("authority migration requires replacement bytes")
         if any(type(relative) is not str for relative in replacements):
@@ -1802,7 +1846,16 @@ class StateWriter:
                 relative: sha256(replacements[relative]).hexdigest()
                 for relative in requested_paths
             }
-            if event_payload.get("reason") != reason or observed != requested:
+            requested_boundary = (
+                "active_stable"
+                if allow_active_stable_boundary
+                else "disposed_root"
+            )
+            if (
+                event_payload.get("reason") != reason
+                or event_payload.get("boundary") != requested_boundary
+                or observed != requested
+            ):
                 raise TransitionError("idempotency key reused with different input")
             base_payload = {
                 key: value for key, value in event_payload.items() if key != "evidence"
@@ -1852,6 +1905,11 @@ class StateWriter:
             )
         new_manifest_digest = self._authority_digest_from_hashes(new_hashes)
         migration_payload = {
+            "boundary": (
+                "active_stable"
+                if allow_active_stable_boundary
+                else "disposed_root"
+            ),
             "holdout_delta": 0,
             "new_manifest_digest": new_manifest_digest,
             "old_manifest_digest": old_manifest_digest,
@@ -1868,36 +1926,23 @@ class StateWriter:
         def prepare(current: dict[str, Any] | None, _index: LocalIndex):
             if current is None:
                 raise TransitionError("authority migration requires control")
-            science = current["scientific"]
             if (
                 current["authority"].get("manifest_digest")
                 != old_manifest_digest
                 or self._authority_path_hashes(current["authority"]) != old_hashes
             ):
                 raise RecoveryRequired("authority changed before migration commit")
-            if (
-                current["next_action"].get("kind") != "await_root_goal"
-                or any(
-                    science.get(name) is not None
-                    for name in (
-                        "active_mission",
-                        "active_initiative",
-                        "active_study",
-                        "active_batch",
-                        "active_job",
-                        "active_repair",
-                        "active_executable",
-                        "active_lineage",
-                        "active_release",
-                        "active_holdout_evaluation",
-                    )
-                )
-                or current.get("authorizations") != {}
-                or science.get("claim") != "none"
-            ):
+            boundary = self._authority_migration_boundary(
+                current,
+                allow_active_stable_boundary=allow_active_stable_boundary,
+            )
+            if boundary is None:
                 raise TransitionError(
-                    "authority migration requires the disposed root boundary"
+                    "authority migration requires a disposed root or authorized "
+                    "active Portfolio boundary"
                 )
+            if boundary != migration_payload["boundary"]:
+                raise TransitionError("authority migration boundary differs")
             body = self._body(current)
             body["authority"]["manifest_digest"] = new_manifest_digest
             record = _record(
