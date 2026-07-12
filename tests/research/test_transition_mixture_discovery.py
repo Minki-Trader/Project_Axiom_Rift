@@ -43,6 +43,8 @@ class TransitionMixtureTests(unittest.TestCase):
             np.testing.assert_allclose(
                 left[:7000], right, rtol=0, atol=0, equal_nan=True
             )
+        train_mask = ((time.iloc[:8000] >= start) & (time.iloc[:8000] <= end)).to_numpy()
+        self.assertGreater(int((train_mask & np.isfinite(full[0])).sum()), 1000)
 
     def test_plan_is_fourth_mission_bound(self) -> None:
         executable_id = next(iter(executable_configuration_map()))

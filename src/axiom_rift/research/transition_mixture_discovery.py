@@ -38,7 +38,7 @@ from axiom_rift.research.discovery import (
 )
 
 
-SELECTION_TOTAL_EXPOSURES = 460
+SELECTION_TOTAL_EXPOSURES = 464
 SELECTOR_QUANTILE_BP = 8_500
 PEAK_WINDOW = 576
 VOLATILITY_WINDOW = 96
@@ -185,7 +185,7 @@ def transition_mixture_executable(
             "cost:bid_bar_spread_point_0_01_causal_zero_repair_half_spread_stress_v2"
         ),
         engine_contract=(
-            f"engine:transition_mixture_v2:python"
+            f"engine:transition_mixture_v3:python"
             f"{'.'.join(str(v) for v in sys.version_info[:3])}:numpy{np.__version__}:"
             f"pandas{pd.__version__}:scipy{scipy.__version__}:"
             f"implementation_{transition_mixture_implementation_sha256()}:"
@@ -318,7 +318,7 @@ def fit_fold_transition(
     score = np.full(len(close), np.nan)
     for key, value in table.items():
         score[transition == key] = value
-    score[run < max(PEAK_WINDOW, VOLATILITY_WINDOW) + 1] = np.nan
+    score[run < VOLATILITY_WINDOW + 1] = np.nan
     return score, volatility, run
 
 
@@ -493,7 +493,7 @@ def compute_registered_transition_mixture_surface(
         ],
         "loader_implementation_sha256": loader_implementation_sha256(),
         "material_identity": OBSERVED_MATERIAL_ID,
-        "schema": "transition_mixture_surface.v2",
+        "schema": "transition_mixture_surface.v3",
         "selection_context": [
             {
                 "configuration_id": result.configuration.configuration_id,
@@ -527,7 +527,7 @@ def project_transition_mixture_evaluation(
     value = dict(surface)
     if (
         sha256(canonical_bytes(value)).hexdigest() != surface_artifact_hash
-        or value.get("schema") != "transition_mixture_surface.v2"
+        or value.get("schema") != "transition_mixture_surface.v3"
     ):
         raise DiscoveryBoundaryError("transition-mixture surface invalid")
     expected = executable_configuration_map()
@@ -548,7 +548,7 @@ def project_transition_mixture_evaluation(
         **dict(by_identity[subject_executable_id]),
         "claim_limits": value["claim_limits"],
         "job_execution": dict(job_execution),
-        "schema": "transition_mixture_evaluation.v2",
+        "schema": "transition_mixture_evaluation.v3",
         "selection_context": value["selection_context"],
         "selection_method": value["selection_method"],
         "session_semantics": value["session_semantics"],
