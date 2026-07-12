@@ -740,6 +740,7 @@ def _evaluate_configuration(
     fold_features: Mapping[
         str, tuple[np.ndarray, np.ndarray, np.ndarray]
     ] | None = None,
+    simulation_fn: Any = simulate_fixed_hold,
 ) -> _ConfigurationResult:
     score, volatility, run = features
     simulations: list[SimulationResult] = []
@@ -754,7 +755,7 @@ def _evaluate_configuration(
         fold_score, fold_volatility, fold_run = (
             features if fold_features is None else fold_features[fold_id]
         )
-        simulation = simulate_fixed_hold(
+        simulation = simulation_fn(
             frame=frame,
             score=fold_score,
             volatility=fold_volatility,
@@ -805,7 +806,7 @@ def _evaluate_configuration(
                 equal_nan=True,
             )).sum()
         )
-        prefix_simulation = simulate_fixed_hold(
+        prefix_simulation = simulation_fn(
             frame=prefix_frame,
             score=prefix_score,
             volatility=prefix_volatility,
