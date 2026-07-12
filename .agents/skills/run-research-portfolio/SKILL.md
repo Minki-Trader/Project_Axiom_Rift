@@ -1,114 +1,188 @@
 ---
 name: run-research-portfolio
-description: Design and operate Axiom data, source, Portfolio, Study, Batch, Executable, Lineage, trial, evidence, candidate-library, synthesis, and negative-memory work. Use for quantitative or ML research, features, labels, models, trade logic, macro or external symbols, splits, causal tests, adaptive search, pruning, recombination, or next scientific direction.
+description: Direct Axiom quantitative research from Mission intake through history audit, hypothesis-axis Portfolio design, baseline Study execution, evidence diagnosis, constrained follow-up, architecture saturation review, candidate synthesis, and negative memory. Use for record_research_intake, build_portfolio, portfolio_decision, execute_portfolio_decision, diagnose_study, review_architecture, or any data, source, feature, label, model, calibration, selector, trade, lifecycle, risk, execution, Study, Batch, Executable, Lineage, evidence, candidate, synthesis, or next-scientific-direction work.
 ---
 
 # Run Research Portfolio
 
-Read `contracts/science.yaml`, `contracts/evidence.yaml`, `foundation/data_exposure.yaml`, `foundation/prior_scientific_memory.yaml`, and the active Mission or Initiative record. Return evidence and a proposed Decision to the root operator; never edit canonical control state directly.
+Read `contracts/science.yaml`, `contracts/evidence.yaml`,
+`foundation/data_exposure.yaml`, `foundation/prior_scientific_memory.yaml`, and
+the active Mission or Initiative record. Return typed research records,
+evidence, and a proposed Decision to `$operate-axiom-mission`. Never edit
+canonical control state directly.
 
-## Design
+Read `references/research-direction.md` whenever the exact next action is
+`record_research_intake`, `build_portfolio`, `diagnose_study`, or
+`review_architecture`, or when selecting a result-driven follow-up.
 
-1. Maintain a broad Portfolio of unrelated questions and Lineages.
-2. Choose the next axis by expected information value, causal identifiability, uncertainty, compute cost, and opportunity cost.
-3. Do not select a default feature, label, model, objective, trade family, or external source.
-4. Do not let a recent positive monopolize the Portfolio or a failure become a universal ban.
-5. Use extremes, neighborhoods, ablations, boundary tests, and stresses when they clarify mechanism or surface shape.
+## Hierarchical Stage Router
+
+Treat `state/control.json.next_action` as the stage trigger. Prompt wording
+cannot skip a stage.
+
+| Exact trigger | Research role | Required output |
+| --- | --- | --- |
+| `record_research_intake` | research director | `MissionResearchIntake` |
+| `build_portfolio` | hypothesis portfolio lead | intake-bound `PortfolioSnapshot` |
+| `portfolio_decision` | research allocator | `PortfolioDecision` |
+| `execute_portfolio_decision` | Study lead | preregistered Study and Batch proposal |
+| `diagnose_study` | evidence diagnostician | `StudyDiagnosis` |
+| `review_architecture` | system research lead | `ArchitectureReview` |
+| candidate or synthesis action | portfolio and candidate lead | subject-bound candidate proposal |
+
+The research director owns sequencing and opportunity cost. Feature, label,
+model, calibration, trade, lifecycle, risk, execution, and portfolio lenses
+are specialists selected by diagnosed need, not calendar rotation.
+
+## Mission Research Intake
+
+Before the first Initiative of every real Mission:
+
+1. Bind the intake to the exact current Journal head.
+2. Run
+   `.agents/skills/run-research-portfolio/scripts/audit_research_history.py`
+   with `--root . --summary-only`, then use `--study-id` or the full output for
+   the material surfaces. Its output is a read-only map, not authority.
+3. Review Study KPI, Study questions, validator evidence, negative memory,
+   Portfolio Decisions, Executable components, and Mission terminals.
+4. Treat `records/STUDY_KPI.md` as a navigation projection, never scientific
+   authority or a retrospective winner table.
+5. Map prior work by causal question, primary research layer, architecture
+   family, changed and controlled domains, outcome, evidence state, and reopen
+   condition. Mark legacy work honestly when typed classification is absent.
+6. State at least two competing bottleneck hypotheses, underexplored layers,
+   architecture findings, and one Mission thesis.
+
+Do not open an Initiative or choose an axis before the writer accepts the
+intake. Do not invent historical counts; the writer derives the compact
+history summary from the durable index.
+
+## Portfolio And Axis Design
+
+Maintain unrelated causal axes and compare expected information value,
+identifiability, uncertainty, compute cost, and opportunity cost.
+
+Every axis declares one immutable primary `ResearchLayer`, one stable
+`system_architecture_family`, typed changed and controlled domains, `why_now`,
+and a stop or reopen condition. A non-synthesis axis changes exactly its one
+primary layer. Synthesis or Portfolio axes may change multiple domains but must
+say so explicitly.
+
+The initial intake-bound Portfolio preregisters immutable exhaustion and
+architecture-review thresholds. It must be diverse in mechanism family,
+primary research layer, and architecture family. This is a terminal-credibility
+standard, not a quota requiring periodic layer rotation.
+
+Do not select a default feature, label, model, objective, trade family, or
+external source. Do not let a recent positive monopolize the Portfolio or a
+failure become a universal ban. Use extremes, neighborhoods, ablations,
+boundary tests, and stress when they identify a mechanism or surface.
 
 ## Register Before Evidence
 
-- Define one causal question and the changed and controlled variables.
-- Build an immutable Executable identity from ordered components, parameters, data, split, clock, cost, engine, and source semantics.
-- Freeze an adaptive Batch bound, acceptance profile, compute/time limit, stop rule, and expected artifacts.
-- Bind each Study to the current Portfolio snapshot, Decision, work-producing
-  action, and immutable axis identity. Consume the Decision's finite Batch
-  commitment mechanically at Batch entry.
-- Bind Batch identity to the Study semantic hash and Batch semantics; display
-  handles and names cannot reset a frozen budget.
-- Count every unique evaluated Executable. Reuse identical success and reject unchanged failed retry.
-- Start the same observed development material with the prior multiplicity floor in `foundation/data_exposure.yaml`, regardless of display name.
-- Reject caller-invented material identities; display names or semantic aliases
-  cannot reset the Foundation multiplicity floor.
-- Query semantic prior warnings. Caller-created equivalence objects carry no
-  authority; negative reuse remains closed until durable validated equivalence exists.
+- Define one causal question and explicit changed and controlled variables.
+- Bind the Study to the current intake, Portfolio snapshot, axis identity,
+  Decision, and immutable development material.
+- Build Executable identity from ordered components, parameters, data, split,
+  clock, cost, engine, and source semantics.
+- Freeze an adaptive Batch bound, acceptance profile, compute and wall limits,
+  stop rule, expected artifacts, and evidence modes.
+- Consume the Decision's finite Batch commitment mechanically.
+- Count each unique Executable. Reuse identical success and reject unchanged
+  failed retry.
+- Query semantic warnings; a caller-created equivalence object is not authority.
+
+Prefer the smallest interpretable baseline contrast that can falsify the
+question. Hold the common chassis fixed and change the declared primary layer.
+Do not hide a multi-layer redesign inside a feature-named Study.
 
 ## Data And Sources
 
-- Use completed bars and enforce availability at decision time.
-- Keep fit, calibration, adaptive development, restricted confirmation, quarantine, and final forward evidence distinct.
-- Require a one-time HoldoutPermit for scientific value access; sealed engineering ingestion reveals no value.
-- Treat external data as executable input whenever it can change position intent.
-- Allow performance evidence only after runtime eligibility and a valid SourcePermit.
-- Persist each source edge through the writer with a typed, content-addressed
-  eligibility receipt; arbitrary labels or empty source semantics are invalid.
-- Bind every external-source Batch to its frozen `BatchSpec`, exact SourcePermit,
-  and current source state. Suspension invalidates entry even after issuance.
-- Fail a dependent sleeve closed on stale, missing, late, nonfinite, unsynchronized, or invalid mapping while independent sleeves remain operable.
+Use completed bars and enforce feature and external availability at decision
+time. Keep fit, calibration, development, restricted confirmation, quarantine,
+and final forward evidence distinct. Require one-time HoldoutPermit for value
+access; sealed ingestion exposes no values.
 
-## Disposition
+Treat every inference-time external dependency as executable input. Performance
+requires runtime eligibility, an exact SourcePermit, and current source state.
+Fail stale, missing, late, nonfinite, unsynchronized, or invalid mappings closed
+for the dependent sleeve without stopping independent sleeves.
 
-Interpret causality, density, cost, economics, risk, stability, concentration, and evidence completeness non-compensatorily. Every material comparison retains at least one structurally diversifying action; a differently named adjacent DEEPEN target is not diversification. Record preserve, prune, deepen, rotate, contrast, recombine, or synthesize with the evidence scope, trial accounting, negative-memory scope and reopen condition, library update, and exact proposed next action.
+After a holdout reveal, never retune or refreeze from pre-reveal evidence.
+Require a registered later development receipt and new post-registration
+discovery and confirmation evidence before another candidate freeze.
 
-Do not mutate a Portfolio while a Study or Batch is active. An axis ID cannot
-change causal question or mechanism family inside a Mission. A
-`closed_no_candidate` proposal requires a final snapshot with every declared
-axis pruned, exact negative lineage, diverse family coverage, and no unresolved
-candidate-eligible positive evidence.
+## Study Diagnosis And Follow-Up
 
-At the initial Portfolio, preregister an adaptive exhaustion standard chosen
-for that Mission. It must require at least three independent mechanism
-families, multiple Studies per axis, multiple negative Executables per family,
-and causal-contrast, sensitivity-or-stress, and cost-and-execution modes. A
-later snapshot cannot lower it. Exhaustion credits only modes demonstrated by
-the registered validator and retained in negative memory, never modes merely
-listed in a Study question. Candidate disposition resolves positive
-evidence only when it belongs to the same Mission, includes that completion,
-and occurs afterward.
+Every real Study close first completes its mandatory local-main checkpoint and
+push attempt. Then satisfy the exact `diagnose_study` action.
 
-Derive each holdout dataset identity from its sealed artifact hash, its row
-identity from artifact plus size, and its split identity from rows, time, and
-predecessor. The same sealed bytes cannot be relabelled as later rows. A failed
-holdout negative memory keeps the candidate's original trial Study and axis
-lineage while binding the final holdout completion. After a reveal, pre-reveal
-evidence cannot refreeze the invalidated Executable; wait for a durable future
-development receipt bound to the successor holdout and post-receipt evidence.
-Register that material only at the exact successor action. The receipt binds
-verified content bytes, a post-predecessor/pre-successor time surface, split,
-Mission, and current untouched successor without reading successor values.
-Open later Studies only on the current registered material, and require a new
-trial plus discovery and confirmation evidence after registration before freeze.
+Bind `StudyDiagnosis` to the exact close, final Batch, KPI basis, validator
+completion when present, and negative memory when present. Classify the
+evidence state, confidence, counterfactual, and reopen condition. KPI magnitude
+alone cannot choose the state. Engineering failure is `engineering_gap`, not
+scientific falsification.
 
-## Mandatory Study KPI Closeout
+The writer derives allowed local actions and research-layer branches from the
+typed evidence state. The next Decision must either follow that branch,
+dispose the diagnosed axis consistently, or make a genuinely structural forest
+exit to a different layer or architecture. Adjacent same-chassis tuning is not
+a structural exit.
 
-Closing a real Study strongly triggers one KPI checkpoint.  Pass
-`StateWriter.close_study` the final Batch's disposition-driving,
-validator-derived `stop_batch` completion whenever one exists.  If the final
-Batch has no such completion, pass no completion: only the Writer may derive
-an unavailable basis from an unstarted Batch, an exactly exhausted frozen
-budget, an explicit early stop, or the final bound non-scientific failure.
-Never pass caller-authored KPI numbers or unavailable prose, and never pick a
-retrospective best result merely to populate the row.
+## Architecture Review
 
-A sponsor-authorized one-time historical adoption may project only the
-complete pre-activation `study_closed` set in original authority order.  Use
-each original close time and outcome plus its final disposition-driving
-completion.  A final engineering failure may retain its exact declared
-Executable while every KPI remains `-`; source-only and stopped-early rows
-also remain `-`.  Never rewrite the old close events, reinterpret a verdict,
-or select a better historical Executable.
+When preregistered repeated gaps or negatives accumulate across enough Studies
+and distinct axes under one architecture family, the writer emits
+`review_architecture`. No Initiative close, Portfolio Decision, Study, Batch,
+or Job may bypass it.
 
-The writer must create exactly one immutable `study-kpi` record and materialize
-exactly one corresponding row in `records/STUDY_KPI.md`.  The row sequence is
-global and monotonic, its time comes from the `study_closed` Journal event, its
-Executable is subject-bound, and missing, invalid, censored, or inapplicable
-metrics render as `-`, never zero or a pass.  The typed Study outcome is shown
-without a display alias.  A stable collision-checked Executable display prefix
-is assigned inside the immutable record while its full identity remains there;
-the Markdown file is a Git observation projection rather than scientific
-authority.
+Bind `ArchitectureReview` to the exact `trigger_record_id`; this keeps repeated
+reviews of one architecture distinct and binds each conclusion to its covered
+diagnosis set.
 
-After closeout, return immediately to `$operate-axiom-mission` for the mandatory
-local-main commit and immediate non-force `origin/main` push attempt.  Observe
-remote equality when successful; retain same-commit delivery debt after a
-bounded failure.  Do not continue directly to the next Portfolio action,
-Study, Batch, or Job before the local checkpoint and first push attempt.
+Choose one typed conclusion:
+
+- `change_research_layer`: require the next selected or newly admitted axis to
+  leave the reviewed layers.
+- `rotate_architecture`: require the next selected or newly admitted axis to
+  leave the reviewed architecture family.
+
+The review is a scheduler and identifiability decision, not negative evidence.
+It consumes only its exact unreviewed diagnosis set, so later genuinely new
+evidence can trigger another bounded review.
+
+## Disposition And Terminal Scope
+
+Interpret causality, density, cost, economics, risk, stability, concentration,
+and completeness non-compensatorily. Material Decisions retain at least one
+structurally diversifying option and record omission reasons. Record preserve,
+prune, deepen, rotate, contrast, new mechanism, complementary sleeve,
+recombine, or synthesize with exact evidence scope and next action.
+
+Do not mutate a Portfolio while a Study or Batch is active. Axis meaning is
+immutable inside a Mission. A `closed_no_candidate` proposal requires every
+axis pruned, exact negative lineage, the preregistered mechanism, research-layer,
+architecture, Study, Executable, and validator-demonstrated evidence depth,
+plus no unresolved candidate-eligible positive evidence.
+
+## Mandatory Study KPI And User Report
+
+Pass `StateWriter.close_study` only the final disposition-driving validator
+`stop_batch` completion when one exists. Otherwise pass no completion and let
+the writer derive the typed unavailable basis. Never pass caller-authored KPI,
+unavailable prose, or a retrospective best result.
+
+The writer creates one immutable `study-kpi` record and one deterministic row
+in `records/STUDY_KPI.md`. Missing, invalid, censored, or inapplicable values
+render as `-`, never zero or pass.
+
+At each Study close, explain in Korean chat:
+
+- the causal hypothesis and primary research layer;
+- the architecture family and what stayed controlled;
+- the typed outcome and evidence-state interpretation;
+- net profit, profit factor, trades, and drawdown share, preserving `-`;
+- the exact follow-up or stop/reopen condition.
+
+Return to `$operate-axiom-mission` for the required Study-close commit and push
+before diagnosis or later scientific work.

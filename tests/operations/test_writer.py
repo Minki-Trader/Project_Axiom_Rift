@@ -38,9 +38,19 @@ from axiom_rift.research.portfolio import (
     BatchSpec,
     DecisionOption,
     PortfolioAction,
-    PortfolioAxis,
+    PortfolioAxis as _PortfolioAxis,
     PortfolioDecision,
     PortfolioSnapshot,
+)
+from axiom_rift.research.governance import (
+    ArchitectureReview,
+    ArchitectureReviewConclusion,
+    DiagnosisConfidence,
+    EvidenceState,
+    MissionResearchIntake,
+    REQUIRED_INTAKE_SURFACES,
+    ResearchLayer,
+    StudyDiagnosis,
 )
 from axiom_rift.research.trials import NegativeMemory
 from axiom_rift.storage.journal import JournalIntegrityError, TornJournalError
@@ -59,6 +69,114 @@ FIXED_NOW = "2026-07-11T00:00:00Z"
 FIXED_EXPIRY = "2026-07-12T00:00:00Z"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OBSERVED_MATERIAL_ID = "36caaaeef95d4bfeac4e3df7b2108702a4e64632c94e88d46528ac0cccbd2065"
+
+
+def PortfolioAxis(
+    *,
+    axis_id: str,
+    causal_question: str,
+    mechanism_family: str,
+    status: str = "open",
+) -> _PortfolioAxis:
+    token = axis_id.rsplit("-", 1)[-1]
+    slot = {"a": 0, "b": 1, "c": 2, "0": 0, "1": 1, "2": 2}.get(
+        token, 0
+    )
+    layer = (
+        ResearchLayer.FEATURE,
+        ResearchLayer.LABEL,
+        ResearchLayer.LIFECYCLE,
+    )[slot]
+    controlled = tuple(
+        candidate
+        for candidate in (
+            ResearchLayer.FEATURE,
+            ResearchLayer.LABEL,
+            ResearchLayer.MODEL,
+            ResearchLayer.TRADE,
+            ResearchLayer.LIFECYCLE,
+            ResearchLayer.EXECUTION,
+        )
+        if candidate != layer
+    )
+    return _PortfolioAxis(
+        axis_id=axis_id,
+        causal_question=causal_question,
+        mechanism_family=mechanism_family,
+        primary_research_layer=layer,
+        system_architecture_family=(
+            "architecture-family:fixture-baseline"
+            if slot < 2
+            else "architecture-family:fixture-alternate"
+        ),
+        changed_domains=(layer,),
+        controlled_domains=controlled,
+        why_now="fixture requires a causally distinct research axis",
+        stop_or_reopen_condition="stop at the frozen fixture evidence boundary",
+        status=status,
+    )
+
+
+def record_fixture_research_intake(
+    writer: StateWriter,
+    *,
+    mission_id: str,
+    operation_id: str,
+) -> MissionResearchIntake:
+    control = writer.read_control()
+    assert control is not None
+    intake = MissionResearchIntake(
+        mission_id=mission_id,
+        history_head_sequence=control["heads"]["journal"]["sequence"],
+        history_head_event_id=control["heads"]["journal"]["event_id"],
+        reviewed_surfaces=tuple(sorted(REQUIRED_INTAKE_SURFACES)),
+        mission_thesis="exercise the typed research-direction boundary",
+        architecture_findings=(
+            "no prior fixture science changes the broad baseline requirement",
+        ),
+        bottleneck_hypotheses=(
+            "the selected mechanism may contain no stable information",
+            "the common architecture may hide a distinct research-layer bottleneck",
+        ),
+        underexplored_layers=(
+            ResearchLayer.FEATURE,
+            ResearchLayer.LABEL,
+            ResearchLayer.MODEL,
+            ResearchLayer.TRADE,
+        ),
+        legacy_limitations="fixture history has no legacy classification authority",
+    )
+    writer.record_research_intake(
+        intake=intake,
+        operation_id=operation_id,
+    )
+    return intake
+
+
+def record_fixture_study_diagnosis(
+    writer: StateWriter,
+    *,
+    study_id: str,
+    evidence_state: EvidenceState,
+    operation_id: str,
+) -> StudyDiagnosis:
+    control = writer.read_control()
+    assert control is not None
+    close_record_id = control["next_action"]["study_close_record_id"]
+    diagnosis = StudyDiagnosis(
+        study_id=study_id,
+        study_close_record_id=close_record_id,
+        evidence_state=evidence_state,
+        confidence=DiagnosisConfidence.MEDIUM,
+        rationale="the exact disposition evidence isolates the typed fixture state",
+        counterfactual="a materially changed research layer would distinguish the cause",
+        reopen_condition="reopen only with the diagnosis-authorized changed information",
+    )
+    writer.record_study_diagnosis(
+        diagnosis=diagnosis,
+        operation_id=operation_id,
+    )
+    return diagnosis
 
 
 def digest(domain: str, value: object) -> str:
@@ -259,10 +377,14 @@ def study_question(tag: str) -> dict[str, object]:
 
 def exhaustion_standard() -> dict[str, object]:
     return {
+        "architecture_review_minimum_axes": 2,
+        "architecture_review_minimum_studies": 3,
         "minimum_axes": 3,
         "minimum_distinct_studies_per_axis": 2,
         "minimum_mechanism_families": 3,
         "minimum_negative_executables_per_family": 2,
+        "minimum_primary_research_layers": 3,
+        "minimum_system_architecture_families": 2,
         "required_evidence_modes": [
             "causal_contrast",
             "cost_and_execution",
@@ -567,6 +689,11 @@ class WriterTests(unittest.TestCase):
                 goal=mission_goal("external dependency validation"),
                 operation_id="external-validator-mission",
             )
+            record_fixture_research_intake(
+                writer,
+                mission_id="MIS-EXTERNAL-VALIDATOR",
+                operation_id="external-validator-intake",
+            )
             plan = writer.evidence.finalize(b"external validation plan fixture")
             spec = job_spec(
                 writer,
@@ -862,6 +989,11 @@ class WriterTests(unittest.TestCase):
                 goal=mission_goal("Portfolio Batch commitment"),
                 operation_id="commitment-mission",
             )
+            intake = record_fixture_research_intake(
+                writer,
+                mission_id="MIS-COMMITMENT",
+                operation_id="commitment-intake",
+            )
             writer.open_initiative(
                 initiative_id="INI-COMMITMENT",
                 objective=initiative_objective("Portfolio commitment"),
@@ -886,6 +1018,7 @@ class WriterTests(unittest.TestCase):
                 mission_id="MIS-COMMITMENT",
                 axes=(axis_a, axis_b, axis_c),
                 opportunity_cost_basis="one bounded Batch before reconsideration",
+                research_intake_id=intake.identity,
                 exhaustion_standard=exhaustion_standard(),
             )
             writer.record_portfolio_snapshot(
@@ -2733,6 +2866,11 @@ class ScientificLifecycleTests(unittest.TestCase):
             goal=mission_goal("holdout disposition lifecycle"),
             operation_id="holdout-life-mission",
         )
+        intake = record_fixture_research_intake(
+            writer,
+            mission_id="MIS-HOLDOUT-LIFECYCLE",
+            operation_id="holdout-life-intake",
+        )
         writer.open_initiative(
             initiative_id="INI-HOLDOUT-LIFECYCLE",
             objective=initiative_objective("holdout disposition lifecycle"),
@@ -2750,6 +2888,7 @@ class ScientificLifecycleTests(unittest.TestCase):
             mission_id="MIS-HOLDOUT-LIFECYCLE",
             axes=axes,
             opportunity_cost_basis="retain three independent holdout research axes",
+            research_intake_id=intake.identity,
             exhaustion_standard=exhaustion_standard(),
         )
         writer.record_portfolio_snapshot(
@@ -2975,6 +3114,12 @@ class ScientificLifecycleTests(unittest.TestCase):
             kpi_record.payload["completion_record_id"],
             completions[-1].result["completion_record_id"],
         )
+        record_fixture_study_diagnosis(
+            writer,
+            study_id="STU-HOLDOUT-LIFECYCLE",
+            evidence_state=EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION,
+            operation_id="holdout-life-study-diagnosis",
+        )
         writer.close_initiative(
             outcome="completed", operation_id="holdout-life-initiative-close"
         )
@@ -3002,6 +3147,11 @@ class ScientificLifecycleTests(unittest.TestCase):
                 goal=mission_goal("unstarted Batch closeout"),
                 operation_id="unstarted-mission",
             )
+            intake = record_fixture_research_intake(
+                writer,
+                mission_id="MIS-UNSTARTED",
+                operation_id="unstarted-intake",
+            )
             writer.open_initiative(
                 initiative_id="INI-UNSTARTED",
                 objective=initiative_objective("unstarted Batch closeout"),
@@ -3019,6 +3169,7 @@ class ScientificLifecycleTests(unittest.TestCase):
                 mission_id="MIS-UNSTARTED",
                 axes=axes,
                 opportunity_cost_basis="retain independent unstarted axes",
+                research_intake_id=intake.identity,
                 exhaustion_standard=exhaustion_standard(),
             )
             writer.record_portfolio_snapshot(
@@ -3145,13 +3296,20 @@ class ScientificLifecycleTests(unittest.TestCase):
             )
             self.assertFalse(writer.rebuild_study_kpi_projection())
 
+            record_fixture_study_diagnosis(
+                writer,
+                study_id="STU-UNSTARTED",
+                evidence_state=EvidenceState.NOT_IDENTIFIABLE,
+                operation_id="unstarted-study-diagnosis",
+            )
+
             budget_decision = PortfolioDecision(
                 decision_id="DEC-BUDGET-END",
                 chosen_option_id="choose-c",
                 options=(
                     DecisionOption(
                         option_id="choose-c",
-                        action=PortfolioAction.DEEPEN,
+                        action=PortfolioAction.ROTATE,
                         target_id=axes[2].axis_id,
                         expected_information_value="positive",
                         opportunity_cost="bounded",
@@ -3321,6 +3479,12 @@ class ScientificLifecycleTests(unittest.TestCase):
                 "started_batch_budget_exhausted_without_final_validator_completion",
             )
             self.assertFalse(writer.rebuild_study_kpi_projection())
+            record_fixture_study_diagnosis(
+                writer,
+                study_id="STU-BUDGET-END",
+                evidence_state=EvidenceState.NOT_IDENTIFIABLE,
+                operation_id="budget-end-study-diagnosis",
+            )
 
     def _exercise_future_development_reentry(
         self,
@@ -3553,6 +3717,12 @@ class ScientificLifecycleTests(unittest.TestCase):
             kpi_completion_record_id=completions[-1].result[
                 "completion_record_id"
             ],
+        )
+        record_fixture_study_diagnosis(
+            writer,
+            study_id="STU-POST-HOLDOUT-DEVELOPMENT",
+            evidence_state=EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION,
+            operation_id="failed-post-holdout-study-diagnosis",
         )
         writer.close_initiative(
             outcome="completed",
@@ -3930,6 +4100,11 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
             goal=mission_goal("validated genuine external blocker"),
             operation_id="external-blocker-mission",
         )
+        record_fixture_research_intake(
+            writer,
+            mission_id="MIS-EXTERNAL-BLOCKER",
+            operation_id="external-blocker-intake",
+        )
         plan = writer.evidence.finalize(
             canonical_bytes({"schema": "external_boundary_plan.v1"})
         )
@@ -4129,6 +4304,419 @@ class CrashRecoveryTests(unittest.TestCase):
                         "initiative-close", "INI-0001:completed_ready_boundary"
                     )
                 )
+
+class ResearchDirectionFlowTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.writer = StateWriter(
+            self.temporary.name,
+            permit_authority=PermitAuthority(b"q" * 32),
+            clock=lambda: FIXED_NOW,
+            foundation_root=REPO_ROOT,
+        )
+        self.writer.initialize_ready()
+        self.writer.open_mission(
+            mission_id="MIS-DIRECTION",
+            goal=mission_goal("research direction state machine"),
+            operation_id="direction-mission",
+        )
+        with self.assertRaisesRegex(TransitionError, "research intake"):
+            self.writer.open_initiative(
+                initiative_id="INI-DIRECTION",
+                objective=initiative_objective("research direction"),
+                operation_id="reject-direction-initiative-before-intake",
+            )
+        self.intake = record_fixture_research_intake(
+            self.writer,
+            mission_id="MIS-DIRECTION",
+            operation_id="direction-intake",
+        )
+        self.writer.open_initiative(
+            initiative_id="INI-DIRECTION",
+            objective=initiative_objective("research direction"),
+            operation_id="direction-initiative",
+        )
+        self.axes = tuple(
+            PortfolioAxis(
+                axis_id=f"direction-axis-{letter}",
+                causal_question=f"Does direction axis {letter} identify the bottleneck?",
+                mechanism_family=f"direction-family-{letter}",
+            )
+            for letter in ("a", "b", "c")
+        )
+        missing_intake_snapshot = PortfolioSnapshot(
+            mission_id="MIS-DIRECTION",
+            axes=self.axes,
+            opportunity_cost_basis="reject an unbound initial Portfolio",
+            exhaustion_standard=exhaustion_standard(),
+        )
+        with self.assertRaisesRegex(TransitionError, "exact Initiative action"):
+            self.writer.record_portfolio_snapshot(
+                snapshot=missing_intake_snapshot,
+                operation_id="reject-direction-snapshot-without-intake",
+            )
+        self.snapshot = PortfolioSnapshot(
+            mission_id="MIS-DIRECTION",
+            axes=self.axes,
+            opportunity_cost_basis="compare layer and architecture alternatives",
+            research_intake_id=self.intake.identity,
+            exhaustion_standard=exhaustion_standard(),
+        )
+        self.writer.record_portfolio_snapshot(
+            snapshot=self.snapshot,
+            operation_id="direction-snapshot",
+        )
+
+    def _decision(
+        self,
+        *,
+        tag: str,
+        target_index: int,
+        action: PortfolioAction,
+    ) -> PortfolioDecision:
+        alternative_index = (target_index + 1) % len(self.axes)
+        decision = PortfolioDecision(
+            decision_id=f"DEC-DIRECTION-{tag}",
+            chosen_option_id=f"choose-{tag}",
+            options=(
+                DecisionOption(
+                    option_id=f"choose-{tag}",
+                    action=action,
+                    target_id=self.axes[target_index].axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="one bounded Batch",
+                ),
+                DecisionOption(
+                    option_id=f"alternative-{tag}",
+                    action=PortfolioAction.ROTATE,
+                    target_id=self.axes[alternative_index].axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="deferred",
+                    omission_reason="the chosen branch is tested first",
+                ),
+            ),
+            rationale="follow the typed diagnosis while preserving the forest",
+            commitment_batches=1,
+        )
+        return decision
+
+    def _run_unavailable_study(
+        self,
+        *,
+        tag: str,
+        study_id: str,
+        target_index: int,
+        decision: PortfolioDecision,
+    ) -> None:
+        self.writer.record_portfolio_decision(
+            decision=decision,
+            operation_id=f"{tag}-decision",
+        )
+        question = study_question(f"{tag} diagnosis")
+        proposal = {"mechanism": f"{tag} unavailable contrast"}
+        axis = self.axes[target_index]
+        study_hash = self.writer.study_input_hash(
+            question=question,
+            material_identity=OBSERVED_MATERIAL_ID,
+            semantic_proposal=proposal,
+            portfolio_axis_id=axis.axis_id,
+            portfolio_axis_identity=axis.identity,
+            portfolio_decision_id=decision.identity,
+        )
+        study_permit = self.writer.issue_permit(
+            kind=PermitKind.STUDY,
+            subject_kind=SubjectKind.INITIATIVE,
+            subject_id="INI-DIRECTION",
+            input_hash=study_hash,
+            actions=("open_study",),
+            scope=("study",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id=f"{tag}-study-permit",
+        )
+        opened = self.writer.open_study(
+            study_id=study_id,
+            question=question,
+            material_identity=OBSERVED_MATERIAL_ID,
+            material_display_name="foundation observed material",
+            semantic_proposal=proposal,
+            portfolio_axis_id=axis.axis_id,
+            portfolio_axis_identity=axis.identity,
+            portfolio_decision_id=decision.identity,
+            permit=study_permit,
+            operation_id=f"{tag}-study-open",
+        )
+        batch = batch_spec(
+            batch_id=f"BAT-{tag}",
+            study_id=study_id,
+            study_hash=opened.result["study_hash"],
+        )
+        batch_permit = self.writer.issue_permit(
+            kind=PermitKind.BATCH,
+            subject_kind=SubjectKind.STUDY,
+            subject_id=study_id,
+            input_hash=batch.identity.removeprefix("batch:"),
+            actions=("open_batch",),
+            scope=("batch",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id=f"{tag}-batch-permit",
+        )
+        self.writer.open_batch(
+            batch_spec=batch,
+            permit=batch_permit,
+            operation_id=f"{tag}-batch-open",
+        )
+        self.writer.dispose_batch(
+            outcome="not_evaluable",
+            operation_id=f"{tag}-batch-close",
+        )
+        self.writer.close_study(
+            outcome="not_evaluable",
+            operation_id=f"{tag}-study-close",
+        )
+        with self.assertRaisesRegex(TransitionError, "cannot bypass"):
+            self.writer.close_initiative(
+                outcome="completed",
+                operation_id=f"{tag}-reject-initiative-close-before-diagnosis",
+            )
+        with self.assertRaisesRegex(TransitionError, "cannot bypass"):
+            self.writer.issue_permit(
+                kind=PermitKind.STUDY,
+                subject_kind=SubjectKind.INITIATIVE,
+                subject_id="INI-DIRECTION",
+                input_hash="f" * 64,
+                actions=("open_study",),
+                scope=("study",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id=f"{tag}-reject-permit-before-diagnosis",
+            )
+        record_fixture_study_diagnosis(
+            self.writer,
+            study_id=study_id,
+            evidence_state=EvidenceState.NOT_IDENTIFIABLE,
+            operation_id=f"{tag}-diagnosis",
+        )
+
+    def test_repeated_architecture_gap_forces_review_and_rotation(self) -> None:
+        first = self._decision(
+            tag="FIRST",
+            target_index=0,
+            action=PortfolioAction.DEEPEN,
+        )
+        self._run_unavailable_study(
+            tag="direction-first",
+            study_id="STU-9001",
+            target_index=0,
+            decision=first,
+        )
+        second = self._decision(
+            tag="SECOND",
+            target_index=1,
+            action=PortfolioAction.CONTRAST,
+        )
+        self._run_unavailable_study(
+            tag="direction-second",
+            study_id="STU-9002",
+            target_index=1,
+            decision=second,
+        )
+        third = self._decision(
+            tag="THIRD",
+            target_index=0,
+            action=PortfolioAction.ROTATE,
+        )
+        self._run_unavailable_study(
+            tag="direction-third",
+            study_id="STU-9003",
+            target_index=0,
+            decision=third,
+        )
+        control = self.writer.read_control()
+        assert control is not None
+        self.assertEqual(control["next_action"]["kind"], "review_architecture")
+        review = ArchitectureReview(
+            mission_id="MIS-DIRECTION",
+            trigger_record_id=control["next_action"]["trigger_record_id"],
+            system_architecture_family="architecture-family:fixture-baseline",
+            conclusion=ArchitectureReviewConclusion.ROTATE_ARCHITECTURE,
+            rationale="three gaps across two axes make another same-chassis pass low value",
+            stop_or_reopen_condition="reopen only after changed architecture evidence",
+        )
+        stale_review = ArchitectureReview(
+            mission_id="MIS-DIRECTION",
+            trigger_record_id="0" * 64,
+            system_architecture_family="architecture-family:fixture-baseline",
+            conclusion=ArchitectureReviewConclusion.ROTATE_ARCHITECTURE,
+            rationale="three gaps across two axes make another same-chassis pass low value",
+            stop_or_reopen_condition="reopen only after changed architecture evidence",
+        )
+        self.assertNotEqual(stale_review.identity, review.identity)
+        with self.assertRaisesRegex(TransitionError, "trigger is absent or stale"):
+            self.writer.record_architecture_review(
+                review=stale_review,
+                operation_id="reject-stale-architecture-review-trigger",
+            )
+        self.writer.record_architecture_review(
+            review=review,
+            operation_id="direction-architecture-review",
+        )
+        invalid = self._decision(
+            tag="INVALID-SAME-ARCH",
+            target_index=0,
+            action=PortfolioAction.ROTATE,
+        )
+        with self.assertRaisesRegex(TransitionError, "did not rotate"):
+            self.writer.record_portfolio_decision(
+                decision=invalid,
+                operation_id="reject-same-architecture-after-review",
+            )
+        valid = self._decision(
+            tag="VALID-NEW-ARCH",
+            target_index=2,
+            action=PortfolioAction.ROTATE,
+        )
+        self.writer.record_portfolio_decision(
+            decision=valid,
+            operation_id="accept-new-architecture-after-review",
+        )
+        control = self.writer.read_control()
+        assert control is not None
+        self.assertEqual(control["next_action"]["kind"], "execute_portfolio_decision")
+        self.assertEqual(control["next_action"]["target_id"], self.axes[2].axis_id)
+
+    def test_diagnosis_constrains_new_axis_and_forces_its_first_decision(self) -> None:
+        first = self._decision(
+            tag="NEW-AXIS-BASELINE",
+            target_index=0,
+            action=PortfolioAction.DEEPEN,
+        )
+        self._run_unavailable_study(
+            tag="direction-new-axis-baseline",
+            study_id="STU-9011",
+            target_index=0,
+            decision=first,
+        )
+        admit = PortfolioDecision(
+            decision_id="DEC-DIRECTION-ADMIT-LABEL",
+            chosen_option_id="admit-label",
+            options=(
+                DecisionOption(
+                    option_id="admit-label",
+                    action=PortfolioAction.NEW_MECHANISM,
+                    target_id=self.axes[0].axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="one bounded label contrast",
+                ),
+                DecisionOption(
+                    option_id="rotate-c",
+                    action=PortfolioAction.ROTATE,
+                    target_id=self.axes[2].axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="deferred",
+                    omission_reason="the diagnosis-authorized label contrast comes first",
+                ),
+            ),
+            rationale="admit the layer identified by the not-identifiable diagnosis",
+            commitment_batches=1,
+        )
+        self.writer.record_portfolio_decision(
+            decision=admit,
+            operation_id="direction-admit-label-decision",
+        )
+
+        def new_axis(axis_id: str, layer: ResearchLayer) -> _PortfolioAxis:
+            return _PortfolioAxis(
+                axis_id=axis_id,
+                causal_question=f"Does the {layer.value} contrast resolve identifiability?",
+                mechanism_family=f"direction-{layer.value}-followup",
+                primary_research_layer=layer,
+                system_architecture_family=f"architecture-family:{layer.value}-followup",
+                changed_domains=(layer,),
+                controlled_domains=tuple(
+                    candidate
+                    for candidate in (
+                        ResearchLayer.FEATURE,
+                        ResearchLayer.LABEL,
+                        ResearchLayer.MODEL,
+                        ResearchLayer.TRADE,
+                        ResearchLayer.LIFECYCLE,
+                        ResearchLayer.EXECUTION,
+                    )
+                    if candidate != layer
+                ),
+                why_now="the prior diagnosis identified a bounded follow-up layer",
+                stop_or_reopen_condition="stop if the causal contrast remains unidentified",
+            )
+
+        invalid_axis = new_axis("direction-axis-model-followup", ResearchLayer.MODEL)
+        invalid_snapshot = PortfolioSnapshot(
+            mission_id="MIS-DIRECTION",
+            axes=(*self.axes, invalid_axis),
+            opportunity_cost_basis="reject a layer outside the diagnosis branch",
+            research_intake_id=self.intake.identity,
+            exhaustion_standard=self.snapshot.exhaustion_standard_value(),
+        )
+        with self.assertRaisesRegex(TransitionError, "does not satisfy"):
+            self.writer.record_portfolio_snapshot(
+                snapshot=invalid_snapshot,
+                operation_id="reject-direction-model-followup",
+            )
+
+        label_axis = new_axis("direction-axis-label-followup", ResearchLayer.LABEL)
+        label_snapshot = PortfolioSnapshot(
+            mission_id="MIS-DIRECTION",
+            axes=(*self.axes, label_axis),
+            opportunity_cost_basis="admit the diagnosis-authorized label contrast",
+            research_intake_id=self.intake.identity,
+            exhaustion_standard=self.snapshot.exhaustion_standard_value(),
+        )
+        self.writer.record_portfolio_snapshot(
+            snapshot=label_snapshot,
+            operation_id="accept-direction-label-followup",
+        )
+        bypass = self._decision(
+            tag="BYPASS-ADMITTED-LABEL",
+            target_index=1,
+            action=PortfolioAction.CONTRAST,
+        )
+        with self.assertRaisesRegex(TransitionError, "admitted constrained axis"):
+            self.writer.record_portfolio_decision(
+                decision=bypass,
+                operation_id="reject-bypass-admitted-label",
+            )
+        execute_label = PortfolioDecision(
+            decision_id="DEC-DIRECTION-EXECUTE-LABEL",
+            chosen_option_id="execute-label",
+            options=(
+                DecisionOption(
+                    option_id="execute-label",
+                    action=PortfolioAction.CONTRAST,
+                    target_id=label_axis.axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="one bounded Batch",
+                ),
+                DecisionOption(
+                    option_id="retain-c",
+                    action=PortfolioAction.ROTATE,
+                    target_id=self.axes[2].axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="deferred",
+                    omission_reason="the newly admitted axis must receive its first test",
+                ),
+            ),
+            rationale="execute the exact newly admitted diagnosis branch",
+            commitment_batches=1,
+        )
+        self.writer.record_portfolio_decision(
+            decision=execute_label,
+            operation_id="execute-direction-label-followup",
+        )
+        control = self.writer.read_control()
+        assert control is not None
+        self.assertEqual(control["next_action"]["target_id"], label_axis.axis_id)
 
 
 if __name__ == "__main__":

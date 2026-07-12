@@ -35,6 +35,33 @@ goal_ingress:
   predecessor_link_derived_and_verified_by_writer: true
   at_most_one_active_mission: true
   project_goal_completion_terminal: completed_pre_live_handoff
+research_direction:
+  first_initiative_requires_mission_research_intake: true
+  intake_binds_exact_current_journal_head: true
+  intake_event: research_intake_recorded
+  intake_record_kind: research-intake
+  initial_portfolio_binds_intake: true
+  exact_stage_actions:
+    - record_research_intake
+    - build_portfolio
+    - portfolio_decision
+    - execute_portfolio_decision
+    - diagnose_study
+    - review_architecture
+  study_close_order:
+    - study_closed
+    - local_main_checkpoint_and_initial_push_attempt
+    - study_diagnosis_recorded
+    - optional_architecture_review_recorded
+    - portfolio_decision
+  pending_diagnosis_or_architecture_review_blocks_initiative_close: true
+  pending_direction_blocks_candidate_freeze_and_exhaustion: true
+  diagnosis_and_review_are_study_close_delivery_guarded: true
+  writer_derives_history_summary_and_followup_constraints: true
+  architecture_review_trigger:
+    threshold_preregistered_in_initial_portfolio: true
+    exact_unreviewed_diagnosis_set_bound: true
+    required_before_later_scientific_mutation: true
 active_state:
   historical_arrays_allowed: false
   one_exact_next_action: true

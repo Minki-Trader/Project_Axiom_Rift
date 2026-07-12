@@ -1,4 +1,4 @@
 interface:
-  display_name: "Axiom Research Portfolio"
-  short_description: "Design bounded studies and maintain the research forest"
-  default_prompt: "Use $run-research-portfolio to design and execute the next bounded research decision."
+  display_name: "Axiom Research Director"
+  short_description: "Direct Mission intake, diagnosis, and research direction"
+  default_prompt: "Use $run-research-portfolio to audit the current research state and produce the exact next typed decision."

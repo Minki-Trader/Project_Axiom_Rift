@@ -177,6 +177,19 @@ class StudyCloseGitTests(unittest.TestCase):
                 decision=None,  # type: ignore[arg-type]
                 operation_id="record-decision",
             ),
+            "Study diagnosis": lambda: writer.record_study_diagnosis(
+                diagnosis=None,  # type: ignore[arg-type]
+                operation_id="record-diagnosis",
+            ),
+            "Architecture review": lambda: writer.record_architecture_review(
+                review=None,  # type: ignore[arg-type]
+                operation_id="record-architecture-review",
+            ),
+            "Candidate freeze": lambda: writer.freeze_candidate(
+                executable=None,  # type: ignore[arg-type]
+                evidence_refs=(),
+                operation_id="freeze-candidate",
+            ),
         }
         for boundary, invoke in calls.items():
             with self.subTest(boundary=boundary), patch.object(

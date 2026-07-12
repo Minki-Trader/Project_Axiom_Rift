@@ -16,12 +16,16 @@ from axiom_rift.research import (
     InferenceDependency,
     InferenceDependencyKind,
     MaterialReference,
+    MissionResearchIntake,
     NegativeMemory,
     PortfolioAction,
-    PortfolioAxis,
+    PortfolioAxis as _PortfolioAxis,
     PortfolioDecision,
     PortfolioDecisionError,
     PortfolioSnapshot,
+    REQUIRED_INTAKE_SURFACES,
+    ResearchGovernanceError,
+    ResearchLayer,
     RuntimeObservation,
     RuntimeObservationState,
     SleeveDependencySpec,
@@ -38,6 +42,52 @@ from axiom_rift.research import (
     evaluate_sleeves,
     recertify_source,
 )
+
+
+def PortfolioAxis(
+    *,
+    axis_id: str,
+    causal_question: str,
+    mechanism_family: str,
+    status: str = "open",
+) -> _PortfolioAxis:
+    token = axis_id.rsplit("-", 1)[-1]
+    slot = {"a": 0, "b": 1, "c": 2, "0": 0, "1": 1, "2": 2}.get(
+        token, 0
+    )
+    layer = (
+        ResearchLayer.FEATURE,
+        ResearchLayer.LABEL,
+        ResearchLayer.LIFECYCLE,
+    )[slot]
+    controlled = tuple(
+        candidate
+        for candidate in (
+            ResearchLayer.FEATURE,
+            ResearchLayer.LABEL,
+            ResearchLayer.MODEL,
+            ResearchLayer.TRADE,
+            ResearchLayer.LIFECYCLE,
+            ResearchLayer.EXECUTION,
+        )
+        if candidate != layer
+    )
+    return _PortfolioAxis(
+        axis_id=axis_id,
+        causal_question=causal_question,
+        mechanism_family=mechanism_family,
+        primary_research_layer=layer,
+        system_architecture_family=(
+            "architecture-family:fixture-baseline"
+            if slot < 2
+            else "architecture-family:fixture-alternate"
+        ),
+        changed_domains=(layer,),
+        controlled_domains=controlled,
+        why_now="fixture requires a causally distinct research axis",
+        stop_or_reopen_condition="stop at the frozen fixture evidence boundary",
+        status=status,
+    )
 
 
 def make_contract(
@@ -324,6 +374,70 @@ class RuntimeDependencyTests(unittest.TestCase):
 
 
 class PortfolioBoundaryTests(unittest.TestCase):
+    def test_contract_routes_intake_diagnosis_and_architecture_review(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        operations = yaml.safe_load(
+            (root / "contracts" / "operations.yaml").read_text(encoding="ascii")
+        )
+        science = yaml.safe_load(
+            (root / "contracts" / "science.yaml").read_text(encoding="ascii")
+        )
+        evidence = yaml.safe_load(
+            (root / "contracts" / "evidence.yaml").read_text(encoding="ascii")
+        )
+        self.assertEqual(
+            operations["research_direction"]["study_close_order"],
+            [
+                "study_closed",
+                "local_main_checkpoint_and_initial_push_attempt",
+                "study_diagnosis_recorded",
+                "optional_architecture_review_recorded",
+                "portfolio_decision",
+            ],
+        )
+        self.assertTrue(
+            science["research_direction"]["mission_intake"][
+                "required_before_first_initiative"
+            ]
+        )
+        self.assertIn(
+            "system_architecture_family_diversity",
+            science["research_direction"]["exhaustion_requires"],
+        )
+        self.assertFalse(
+            evidence["research_interpretation"]["architecture_review"][
+                "scientific_evidence"
+            ]
+        )
+
+    def test_research_intake_and_axis_layers_are_typed(self) -> None:
+        with self.assertRaises(ResearchGovernanceError):
+            MissionResearchIntake(
+                mission_id="MIS-TYPED",
+                history_head_sequence=1,
+                history_head_event_id="a" * 64,
+                reviewed_surfaces=tuple(
+                    sorted(REQUIRED_INTAKE_SURFACES - {"validator_evidence"})
+                ),
+                mission_thesis="test typed intake",
+                architecture_findings=("one finding",),
+                bottleneck_hypotheses=("first hypothesis", "second hypothesis"),
+                underexplored_layers=(ResearchLayer.LABEL,),
+                legacy_limitations="none",
+            )
+        with self.assertRaises(PortfolioDecisionError):
+            _PortfolioAxis(
+                axis_id="axis-hidden-multi-layer",
+                causal_question="Does a hidden multi-layer change remain identifiable?",
+                mechanism_family="hidden-multi-layer",
+                primary_research_layer=ResearchLayer.FEATURE,
+                system_architecture_family="architecture-family:typed-fixture",
+                changed_domains=(ResearchLayer.FEATURE, ResearchLayer.LABEL),
+                controlled_domains=(ResearchLayer.MODEL,),
+                why_now="test one-layer enforcement",
+                stop_or_reopen_condition="stop when construction rejects",
+            )
+
     def test_batch_is_frozen_and_has_no_global_tiny_cap(self) -> None:
         batch = make_batch()
         self.assertEqual(batch.max_trials, 1_000_000)

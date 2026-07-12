@@ -31,8 +31,23 @@ state.
 - Use `.agents/skills/prove-runtime-release/SKILL.md` for ONNX, MQL5, MQH, EA,
   MT5, parity, execution proof, materialization, recertification, or Release.
 
-When triggers overlap, route through the Mission skill, then the domain skill,
-then back to the single state writer for the Decision and transition.
+State triggers take precedence over prompt wording:
+
+- `await_root_goal`, `open_initiative`, `choose_next_initiative_or_terminal`,
+  Job, Repair, blocker, terminal, and Git delivery actions route through the
+  Mission skill.
+- `record_research_intake`, `build_portfolio`, `portfolio_decision`,
+  `execute_portfolio_decision`, `diagnose_study`, and `review_architecture`
+  route through the Mission skill, then the research skill, then back to the
+  writer.
+- A real `study_closed` event routes first to the Mission skill for its exact
+  local-main checkpoint and push attempt. Only then route to the research skill
+  for the pending `diagnose_study` action.
+- Candidate-bound runtime actions route through the Mission skill, then the
+  research skill for candidate identity, then the runtime skill.
+
+When triggers overlap, use one chain only: root Mission route, one domain
+route, bounded evidence or typed proposal, then the single state writer.
 
 ## Mechanical Boundaries
 
@@ -48,6 +63,9 @@ then back to the single state writer for the Decision and transition.
   reconstructible projection.
 - Count trials and claims by immutable Executable identity, never display name.
 - Treat engineering failure as Repair evidence, not scientific evidence.
+- Do not bypass Mission research intake, Study diagnosis, or a triggered
+  architecture review. KPI is an observation projection, not decision
+  authority.
 - Never read quarantined or holdout values without the required permit.
 - Never create live or live-ready authority.
 - Only `completed_pre_live_handoff` completes the API Goal. A valid negative

@@ -7,6 +7,11 @@ from enum import Enum
 
 from axiom_rift.core.canonical import CanonicalValue, canonical_bytes, parse_canonical
 from axiom_rift.core.identity import canonical_digest
+from axiom_rift.research.governance import (
+    ResearchGovernanceError,
+    ResearchLayer,
+    require_architecture_family,
+)
 
 
 class BatchSpecError(ValueError):
@@ -22,6 +27,12 @@ class PortfolioAxis:
     axis_id: str
     causal_question: str
     mechanism_family: str
+    primary_research_layer: ResearchLayer
+    system_architecture_family: str
+    changed_domains: tuple[ResearchLayer, ...]
+    controlled_domains: tuple[ResearchLayer, ...]
+    why_now: str
+    stop_or_reopen_condition: str
     status: str = "open"
     identity: str = field(init=False)
 
@@ -29,6 +40,49 @@ class PortfolioAxis:
         _ascii("axis_id", self.axis_id)
         _ascii("causal_question", self.causal_question)
         _ascii("mechanism_family", self.mechanism_family)
+        if not isinstance(self.primary_research_layer, ResearchLayer):
+            raise PortfolioDecisionError("Portfolio axis research layer is not typed")
+        try:
+            require_architecture_family(self.system_architecture_family)
+        except ResearchGovernanceError as exc:
+            raise PortfolioDecisionError(
+                "Portfolio axis system architecture family is invalid"
+            ) from exc
+        if type(self.changed_domains) is not tuple or not self.changed_domains:
+            raise PortfolioDecisionError("Portfolio axis changed_domains are absent")
+        if type(self.controlled_domains) is not tuple or not self.controlled_domains:
+            raise PortfolioDecisionError("Portfolio axis controlled_domains are absent")
+        if any(
+            not isinstance(layer, ResearchLayer)
+            for layer in (*self.changed_domains, *self.controlled_domains)
+        ):
+            raise PortfolioDecisionError("Portfolio axis domains are not typed")
+        changed = tuple(sorted(self.changed_domains, key=lambda layer: layer.value))
+        controlled = tuple(
+            sorted(self.controlled_domains, key=lambda layer: layer.value)
+        )
+        if len(set(changed)) != len(changed) or len(set(controlled)) != len(controlled):
+            raise PortfolioDecisionError("Portfolio axis domains must be unique")
+        if set(changed).intersection(controlled):
+            raise PortfolioDecisionError("changed and controlled domains must be disjoint")
+        if self.primary_research_layer not in changed:
+            raise PortfolioDecisionError("primary research layer must be changed")
+        if self.primary_research_layer in {
+            ResearchLayer.SYNTHESIS,
+            ResearchLayer.PORTFOLIO,
+        }:
+            if len(changed) < 2:
+                raise PortfolioDecisionError(
+                    "synthesis or Portfolio axes require multiple changed domains"
+                )
+        elif changed != (self.primary_research_layer,):
+            raise PortfolioDecisionError(
+                "a non-synthesis axis must change one primary research layer"
+            )
+        object.__setattr__(self, "changed_domains", changed)
+        object.__setattr__(self, "controlled_domains", controlled)
+        _ascii("why_now", self.why_now)
+        _ascii("stop_or_reopen_condition", self.stop_or_reopen_condition)
         if self.status not in {"open", "preserved", "deferred", "pruned"}:
             raise PortfolioDecisionError("Portfolio axis status is not typed")
         object.__setattr__(
@@ -40,8 +94,14 @@ class PortfolioAxis:
                 payload={
                     "axis_id": self.axis_id,
                     "causal_question": self.causal_question,
+                    "changed_domains": [layer.value for layer in changed],
+                    "controlled_domains": [layer.value for layer in controlled],
                     "mechanism_family": self.mechanism_family,
-                    "schema": "portfolio_axis.v1",
+                    "primary_research_layer": self.primary_research_layer.value,
+                    "schema": "portfolio_axis.v2",
+                    "stop_or_reopen_condition": self.stop_or_reopen_condition,
+                    "system_architecture_family": self.system_architecture_family,
+                    "why_now": self.why_now,
                 },
             ),
         )
@@ -52,6 +112,7 @@ class PortfolioSnapshot:
     mission_id: str
     axes: tuple[PortfolioAxis, ...]
     opportunity_cost_basis: str
+    research_intake_id: str | None = None
     exhaustion_standard: InitVar[object] = None
     _exhaustion_standard_bytes: bytes = field(init=False, repr=False, compare=False)
     identity: str = field(init=False)
@@ -59,6 +120,13 @@ class PortfolioSnapshot:
     def __post_init__(self, exhaustion_standard: object) -> None:
         _ascii("mission_id", self.mission_id)
         _ascii("opportunity_cost_basis", self.opportunity_cost_basis)
+        if self.research_intake_id is not None:
+            _ascii("research_intake_id", self.research_intake_id)
+            if (
+                not self.research_intake_id.startswith("research-intake:")
+                or len(self.research_intake_id) != 80
+            ):
+                raise PortfolioDecisionError("research_intake_id is invalid")
         if type(self.axes) is not tuple or len(self.axes) < 2:
             raise PortfolioDecisionError(
                 "Portfolio snapshot requires at least two structural axes"
@@ -79,6 +147,10 @@ class PortfolioSnapshot:
                 "minimum_distinct_studies_per_axis",
                 "minimum_mechanism_families",
                 "minimum_negative_executables_per_family",
+                "minimum_primary_research_layers",
+                "minimum_system_architecture_families",
+                "architecture_review_minimum_studies",
+                "architecture_review_minimum_axes",
                 "required_evidence_modes",
                 "stop_basis",
             }:
@@ -88,6 +160,10 @@ class PortfolioSnapshot:
                 "minimum_distinct_studies_per_axis",
                 "minimum_mechanism_families",
                 "minimum_negative_executables_per_family",
+                "minimum_primary_research_layers",
+                "minimum_system_architecture_families",
+                "architecture_review_minimum_studies",
+                "architecture_review_minimum_axes",
             ):
                 value = exhaustion_standard[name]
                 if type(value) is not int or value <= 0:
@@ -100,6 +176,13 @@ class PortfolioSnapshot:
                 or exhaustion_standard["minimum_mechanism_families"] < 3
                 or exhaustion_standard["minimum_distinct_studies_per_axis"] < 2
                 or exhaustion_standard["minimum_negative_executables_per_family"] < 2
+                or exhaustion_standard["minimum_primary_research_layers"] < 3
+                or exhaustion_standard["minimum_system_architecture_families"] < 2
+                or exhaustion_standard["minimum_axes"]
+                < exhaustion_standard["minimum_primary_research_layers"]
+                or exhaustion_standard["architecture_review_minimum_axes"] < 2
+                or exhaustion_standard["architecture_review_minimum_studies"]
+                < exhaustion_standard["architecture_review_minimum_axes"]
             ):
                 raise PortfolioDecisionError(
                     "exhaustion standard is too shallow for a scientific terminal"
@@ -150,15 +233,26 @@ class PortfolioSnapshot:
                     "axis_id": axis.axis_id,
                     "axis_identity": axis.identity,
                     "causal_question": axis.causal_question,
+                    "changed_domains": [
+                        layer.value for layer in axis.changed_domains
+                    ],
+                    "controlled_domains": [
+                        layer.value for layer in axis.controlled_domains
+                    ],
                     "mechanism_family": axis.mechanism_family,
+                    "primary_research_layer": axis.primary_research_layer.value,
                     "status": axis.status,
+                    "stop_or_reopen_condition": axis.stop_or_reopen_condition,
+                    "system_architecture_family": axis.system_architecture_family,
+                    "why_now": axis.why_now,
                 }
                 for axis in self.axes
             ],
             "exhaustion_standard": self.exhaustion_standard_value(),
             "mission_id": self.mission_id,
             "opportunity_cost_basis": self.opportunity_cost_basis,
-            "schema": "portfolio_snapshot.v1",
+            "research_intake_id": self.research_intake_id,
+            "schema": "portfolio_snapshot.v2",
         }
 
     def exhaustion_standard_value(self) -> CanonicalValue:

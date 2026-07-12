@@ -39,6 +39,77 @@ project_goal:
   blocker_waits_for_exact_external_change: true
   duplicate_trial_exposure_negative_memory_and_holdout_history_persist: true
   predecessor_candidate_claim_release_or_exhaustion_auto_promotion: false
+research_direction:
+  layers:
+    - data_source
+    - feature
+    - label
+    - model
+    - objective
+    - calibration
+    - selector
+    - trade
+    - lifecycle
+    - risk
+    - regime
+    - execution
+    - synthesis
+    - portfolio
+  mission_intake:
+    required_before_first_initiative: true
+    exact_journal_head_bound: true
+    required_review_surfaces:
+      - executable_components
+      - mission_terminals
+      - negative_memory
+      - portfolio_decisions
+      - study_kpi
+      - study_questions
+      - validator_evidence
+    minimum_competing_bottleneck_hypotheses: 2
+    kpi_role: navigation_projection_only
+    legacy_missing_tags: legacy_unclassified
+    history_summary_source: writer_derived_durable_index
+  axis:
+    primary_research_layer_required: true
+    system_architecture_family_required: true
+    changed_and_controlled_domains_required: true
+    non_synthesis_changed_domain_count: 1
+    synthesis_or_portfolio_requires_multiple_changed_domains: true
+    why_now_and_stop_or_reopen_condition_required: true
+    identity_immutable_within_mission: true
+  study_diagnosis:
+    required_after_every_real_study_close: true
+    exact_close_batch_kpi_and_validator_basis_bound: true
+    evidence_states:
+      - absent_information
+      - target_mismatch
+      - model_capacity
+      - calibration_selection
+      - entry_policy
+      - lifecycle_risk
+      - execution_cost
+      - stability_concentration
+      - supported_requires_confirmation
+      - not_identifiable
+      - engineering_gap
+    kpi_alone_is_authority: false
+    engineering_gap_is_scientific_falsification: false
+    writer_derives_allowed_actions_and_layers: true
+    next_decision_must_follow_dispose_or_structurally_exit: true
+  architecture_review:
+    thresholds_preregistered_in_initial_portfolio: true
+    exact_unreviewed_diagnosis_set_only: true
+    conclusions:
+      - change_research_layer
+      - rotate_architecture
+    scientific_evidence: false
+    required_before_next_decision_when_triggered: true
+  exhaustion_requires:
+    - mechanism_family_diversity
+    - primary_research_layer_diversity
+    - system_architecture_family_diversity
+    - validator_demonstrated_negative_depth
 portfolio:
   broad_before_deep: true
   recent_positive_monopoly_allowed: false

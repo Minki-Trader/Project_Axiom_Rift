@@ -1,5 +1,18 @@
 """Research operating boundaries for the Axiom kernel."""
 
+from .governance import (
+    ArchitectureReview,
+    ArchitectureReviewConclusion,
+    DiagnosisConfidence,
+    EvidenceState,
+    MissionResearchIntake,
+    REQUIRED_INTAKE_SURFACES,
+    ResearchGovernanceError,
+    ResearchLayer,
+    StudyDiagnosis,
+    diagnosis_branch,
+)
+
 from .portfolio import (
     BatchSpec,
     BatchSpecError,
@@ -49,15 +62,20 @@ from .trials import (
 )
 
 __all__ = [
+    "ArchitectureReview",
+    "ArchitectureReviewConclusion",
     "BatchSpec",
     "BatchSpecError",
     "CandidateBinding",
     "CandidateSourceBinding",
     "DecisionKind",
     "DecisionOption",
+    "DiagnosisConfidence",
+    "EvidenceState",
     "InferenceDependency",
     "InferenceDependencyKind",
     "MaterialReference",
+    "MissionResearchIntake",
     "NegativeMemory",
     "ObservationAssessment",
     "PortfolioAction",
@@ -65,9 +83,12 @@ __all__ = [
     "PortfolioDecision",
     "PortfolioDecisionError",
     "PortfolioSnapshot",
+    "REQUIRED_INTAKE_SURFACES",
     "RecertificationResult",
     "RuntimeObservation",
     "RuntimeObservationState",
+    "ResearchGovernanceError",
+    "ResearchLayer",
     "SemanticWarning",
     "SleeveDependencySpec",
     "SleeveRuntimeDecision",
@@ -83,11 +104,13 @@ __all__ = [
     "SourceTransitionEvidence",
     "SourceType",
     "StudyTrialContext",
+    "StudyDiagnosis",
     "TrialAccountant",
     "TrialAccountingError",
     "TrialDecision",
     "assess_observation",
     "bind_candidate_source",
+    "diagnosis_branch",
     "evaluate_sleeves",
     "recertify_source",
 ]

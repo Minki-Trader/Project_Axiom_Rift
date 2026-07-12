@@ -1,6 +1,6 @@
 ---
 name: operate-axiom-mission
-description: Operate the persistent Axiom Project Goal through one active first or successor Mission, including bare or one-line /goal intake, continuation, Decisions, Repairs, blockers, Mission terminals, reentry, closeout, and Git observation. Use for /goal or any request that may change canonical control state.
+description: Operate the persistent Axiom Project Goal through one active first or successor Mission, including bare or one-line /goal intake, mandatory Mission research intake, Study-close delivery, diagnosis and architecture-review routing, continuation, Decisions, Repairs, blockers, Mission terminals, reentry, closeout, and Git observation. Use for /goal, exact next-action routing, or any request that may change canonical control state.
 ---
 
 # Operate Axiom Project Goal
@@ -52,6 +52,9 @@ Use the repository as authority. Do not depend on chat history.
 - At the Mission-admission boundary, derive a compact ASCII manifest and open
   the first Mission or the exact predecessor-bound successor authorized by
   state. Never accept a user-supplied or unverified predecessor link.
+- After a real Mission opens, route the exact `record_research_intake` action
+  through `$run-research-portfolio`. Do not open its first Initiative until the
+  writer accepts the head-bound intake record.
 - Preserve immutable terminal, identity, duplicate, exposure, holdout, and
   scoped negative-memory history across Missions, including the reveal count
   and any future-holdout latch. Do not promote a candidate, claim, Release, or
@@ -66,6 +69,12 @@ Use the repository as authority. Do not depend on chat history.
 4. Route ONNX, MQL5, MQH, EA, MT5, parity, materialization, and Release work through `$prove-runtime-release`.
 5. Require the domain skill to return bounded evidence and a proposed Decision.
 6. Let `axiom_rift.operations.writer.StateWriter` alone commit the Decision and next action.
+
+Exact research boundaries are mandatory: Mission intake precedes the first
+Initiative, `diagnose_study` follows every real Study close and Git checkpoint,
+and `review_architecture` precedes another Portfolio Decision when triggered.
+A pending diagnosis or architecture review blocks Initiative close and later
+scientific work.
 
 ## State And Capability Rules
 
@@ -119,6 +128,10 @@ without rewriting history, and retry the same commit at the next stable
 delivery opportunity.  Do not manufacture a second closeout commit.  The
 local commit and first bounded push attempt must precede later scientific
 work; remote success itself is not a scientific gate.
+
+After the checkpoint and first push attempt, route the writer-pending
+`diagnose_study` action through `$run-research-portfolio`. Diagnosis interprets
+the final bound evidence; it does not change the closed KPI or create evidence.
 
 A sponsor-authorized historical KPI adoption is one coherent local-main
 milestone, not one rewritten commit per old Study.  Require the typed

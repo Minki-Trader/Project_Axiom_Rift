@@ -25,6 +25,14 @@ claims:
   dimensions_are_non_compensatory: true
   release_artifact_must_be_referenced_job_durable_output: true
   release_coverage_is_writer_derived_from_runtime_job_completions: true
+research_interpretation:
+  study_diagnosis:
+    scientific_evidence: false
+    exact_writer_derived_evidence_basis_required: true
+    caller_kpi_or_failure_prose_is_authority: false
+  architecture_review:
+    scientific_evidence: false
+    scheduler_and_identifiability_decision_only: true
 validators:
   current_surface_only: true
   may_build_data: false

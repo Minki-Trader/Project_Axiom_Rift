@@ -1102,6 +1102,25 @@ class StateWriter:
                     )
                 if current is not None:
                     science = current["scientific"]
+                    pending_direction = current["next_action"].get("kind")
+                    required_direction_event = {
+                        "record_research_intake": "research_intake_recorded",
+                        "diagnose_study": "study_diagnosis_recorded",
+                        "review_architecture": "architecture_review_recorded",
+                    }.get(pending_direction)
+                    if (
+                        required_direction_event is not None
+                        and event_kind != required_direction_event
+                        and not event_kind.endswith("_fixture_seeded")
+                    ):
+                        direction_label = {
+                            "record_research_intake": "research intake",
+                            "diagnose_study": "Study diagnosis",
+                            "review_architecture": "architecture review",
+                        }[pending_direction]
+                        raise TransitionError(
+                            f"transition cannot bypass pending {direction_label}"
+                        )
                     active_job = science.get("active_job")
                     active_repair = science.get("active_repair")
                     if isinstance(active_job, dict):
@@ -2284,7 +2303,11 @@ class StateWriter:
             else:
                 raise TransitionError("root-goal predecessor boundary is malformed")
             science["active_mission"] = mission_id
-            body["next_action"] = {"kind": "open_initiative", "mission_id": mission_id}
+            body["next_action"] = (
+                {"kind": "open_initiative", "mission_id": mission_id}
+                if self.engineering_fixture
+                else {"kind": "record_research_intake", "mission_id": mission_id}
+            )
             authorization = self._authorization(
                 kind=SubjectKind.MISSION,
                 subject_id=mission_id,
@@ -2331,6 +2354,174 @@ class StateWriter:
             prepare=prepare,
         )
 
+    @staticmethod
+    def _derive_research_history_summary(index: LocalIndex) -> dict[str, Any]:
+        studies = index.records_by_kind("study-open")
+        closes = index.records_by_kind("study-close")
+        layer_counts: dict[str, int] = {}
+        architecture_counts: dict[str, int] = {}
+        component_domain_trial_counts: dict[str, int] = {}
+        classified_studies = 0
+        for study in studies:
+            layer = study.payload.get("primary_research_layer")
+            architecture = study.payload.get("system_architecture_family")
+            if isinstance(layer, str) and isinstance(architecture, str):
+                classified_studies += 1
+                layer_counts[layer] = layer_counts.get(layer, 0) + 1
+                architecture_counts[architecture] = (
+                    architecture_counts.get(architecture, 0) + 1
+                )
+        for trial in index.records_by_kind("trial"):
+            executable = trial.payload.get("executable")
+            manifests = (
+                None
+                if not isinstance(executable, dict)
+                else executable.get("component_manifests")
+            )
+            if not isinstance(manifests, list):
+                continue
+            seen_domains: set[str] = set()
+            for manifest in manifests:
+                protocol = (
+                    None
+                    if not isinstance(manifest, dict)
+                    else manifest.get("protocol")
+                )
+                if isinstance(protocol, str) and protocol:
+                    seen_domains.add(protocol.split(".", 1)[0])
+            for domain in seen_domains:
+                component_domain_trial_counts[domain] = (
+                    component_domain_trial_counts.get(domain, 0) + 1
+                )
+        outcome_counts: dict[str, int] = {}
+        for close in closes:
+            outcome_counts[close.status] = outcome_counts.get(close.status, 0) + 1
+        evidence_state_counts: dict[str, int] = {}
+        for diagnosis in index.records_by_kind("study-diagnosis"):
+            evidence_state_counts[diagnosis.status] = (
+                evidence_state_counts.get(diagnosis.status, 0) + 1
+            )
+        mission_outcomes: dict[str, int] = {}
+        for close in index.records_by_kind("mission-close"):
+            mission_outcomes[close.status] = mission_outcomes.get(close.status, 0) + 1
+        return {
+            "candidate_record_count": len(index.records_by_kind("candidate")),
+            "architecture_review_count": len(
+                index.records_by_kind("architecture-review")
+            ),
+            "classified_study_count": classified_studies,
+            "component_domain_trial_counts": dict(
+                sorted(component_domain_trial_counts.items())
+            ),
+            "legacy_unclassified_study_count": len(studies) - classified_studies,
+            "evidence_state_counts": dict(sorted(evidence_state_counts.items())),
+            "mission_outcome_counts": dict(sorted(mission_outcomes.items())),
+            "negative_memory_count": len(index.records_by_kind("negative-memory")),
+            "research_layer_study_counts": dict(sorted(layer_counts.items())),
+            "study_count": len(studies),
+            "study_kpi_count": len(index.records_by_kind("study-kpi")),
+            "study_outcome_counts": dict(sorted(outcome_counts.items())),
+            "system_architecture_study_counts": dict(
+                sorted(architecture_counts.items())
+            ),
+            "trial_count": len(index.records_by_kind("trial")),
+        }
+
+    def record_research_intake(
+        self,
+        *,
+        intake: Any,
+        operation_id: str,
+    ) -> TransitionResult:
+        from axiom_rift.research.governance import MissionResearchIntake
+
+        self._require_study_close_delivery_guard()
+        if self.engineering_fixture:
+            raise TransitionError("engineering fixtures do not create research intake")
+        if not isinstance(intake, MissionResearchIntake):
+            raise TransitionError("intake must be a MissionResearchIntake")
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            science = current["scientific"]
+            if (
+                science["active_mission"] != intake.mission_id
+                or science["active_initiative"] is not None
+                or any(
+                    science[name] is not None
+                    for name in (
+                        "active_batch",
+                        "active_executable",
+                        "active_job",
+                        "active_repair",
+                        "active_study",
+                    )
+                )
+            ):
+                raise TransitionError(
+                    "research intake requires one Mission and no subordinate work"
+                )
+            if current["next_action"] != {
+                "kind": "record_research_intake",
+                "mission_id": intake.mission_id,
+            }:
+                raise TransitionError("research intake is not the exact next action")
+            journal_head = current.get("heads", {}).get("journal", {})
+            if (
+                intake.history_head_sequence != current.get("revision")
+                or intake.history_head_sequence != journal_head.get("sequence")
+                or intake.history_head_event_id != journal_head.get("event_id")
+            ):
+                raise TransitionError("research intake history head is stale")
+            if index.event_head(f"research-intake:{intake.mission_id}") is not None:
+                raise TransitionError("Mission research intake already exists")
+            history_summary = self._derive_research_history_summary(index)
+            mission = index.get("mission-open", intake.mission_id)
+            if mission is None:
+                raise TransitionError("research intake Mission is unavailable")
+            mission_ordinal = mission.payload.get("mission_ordinal")
+            if (
+                type(mission_ordinal) is not int
+                or mission_ordinal < 1
+                or (mission_ordinal > 1 and history_summary["study_count"] < 1)
+            ):
+                raise TransitionError("successor intake lacks predecessor research history")
+            payload = {
+                **intake.to_identity_payload(),
+                "history_summary": history_summary,
+                "holdout_reveals": science["holdout_reveals"],
+                "mission_ordinal": mission_ordinal,
+            }
+            body = self._body(current)
+            body["next_action"] = {
+                "kind": "open_initiative",
+                "mission_id": intake.mission_id,
+                "research_intake_id": intake.identity,
+            }
+            record = _record(
+                kind="research-intake",
+                record_id=intake.identity,
+                subject=f"Mission:{intake.mission_id}",
+                status="accepted",
+                fingerprint=intake.identity.removeprefix("research-intake:"),
+                payload=payload,
+                event_stream=f"research-intake:{intake.mission_id}",
+                event_sequence=1,
+            )
+            return body, [record], {
+                "research_intake_id": intake.identity,
+                "history_summary": history_summary,
+            }
+
+        return self._commit(
+            event_kind="research_intake_recorded",
+            operation_id=operation_id,
+            subject=f"Mission:{intake.mission_id}",
+            payload={"research_intake_id": intake.identity},
+            prepare=prepare,
+        )
+
     def open_initiative(
         self,
         *,
@@ -2353,15 +2544,44 @@ class StateWriter:
             science = body["scientific"]
             if science["active_mission"] is None or science["active_initiative"] is not None:
                 raise TransitionError("Initiative open requires one active Mission and no Initiative")
-            science["active_initiative"] = initiative_id
             portfolio_head = index.event_head(
                 f"portfolio:{science['active_mission']}"
             )
+            research_intake_id: str | None = None
+            if not self.engineering_fixture:
+                next_action = current["next_action"]
+                if portfolio_head is None:
+                    research_intake_id = next_action.get("research_intake_id")
+                    intake = (
+                        None
+                        if not isinstance(research_intake_id, str)
+                        else index.get("research-intake", research_intake_id)
+                    )
+                    if (
+                        next_action.get("kind") != "open_initiative"
+                        or next_action.get("mission_id") != science["active_mission"]
+                        or intake is None
+                        or intake.subject != f"Mission:{science['active_mission']}"
+                        or intake.status != "accepted"
+                    ):
+                        raise TransitionError(
+                            "first Initiative requires the exact accepted research intake"
+                        )
+                elif next_action.get("kind") not in {
+                    "choose_next_initiative_or_terminal",
+                    "open_initiative",
+                } or next_action.get("mission_id") != science["active_mission"]:
+                    raise TransitionError(
+                        "successor Initiative is not the exact Mission boundary"
+                    )
+            science["active_initiative"] = initiative_id
             if portfolio_head is None:
                 body["next_action"] = {
                     "kind": "build_portfolio",
                     "initiative_id": initiative_id,
                 }
+                if research_intake_id is not None:
+                    body["next_action"]["research_intake_id"] = research_intake_id
             else:
                 snapshot = index.get(
                     portfolio_head.record_kind, portfolio_head.record_id
@@ -2387,6 +2607,7 @@ class StateWriter:
                 payload={
                     "objective_hash": objective_hash,
                     "objective": objective_manifest,
+                    "research_intake_id": research_intake_id,
                 },
             )
             return body, [record], {"initiative_id": initiative_id}
@@ -2429,6 +2650,14 @@ class StateWriter:
                 for key in ("active_study", "active_batch", "active_job", "active_repair")
             ):
                 raise TransitionError("Initiative close has undisposed active work")
+            if (
+                not self.engineering_fixture
+                and body["next_action"].get("kind")
+                in {"diagnose_study", "review_architecture"}
+            ):
+                raise TransitionError(
+                    "Initiative close cannot bypass research diagnosis or review"
+                )
             science["active_initiative"] = None
             self._drop_authorization(body, SubjectKind.INITIATIVE, initiative_id)
             body["next_action"] = {
@@ -2561,6 +2790,10 @@ class StateWriter:
             initiative_id = science["active_initiative"]
             portfolio_snapshot_id: str | None = None
             mechanism_family: str | None = None
+            primary_research_layer: str | None = None
+            system_architecture_family: str | None = None
+            changed_domains: list[str] | None = None
+            controlled_domains: list[str] | None = None
             portfolio_action: str | None = None
             commitment_batches: int | None = None
             if not self.engineering_fixture:
@@ -2632,6 +2865,10 @@ class StateWriter:
                 ):
                     raise TransitionError("Study Portfolio axis is absent or pruned")
                 mechanism_family = axis["mechanism_family"]
+                primary_research_layer = axis["primary_research_layer"]
+                system_architecture_family = axis["system_architecture_family"]
+                changed_domains = list(axis["changed_domains"])
+                controlled_domains = list(axis["controlled_domains"])
                 portfolio_action = chosen["action"]
                 commitment_batches = decision.payload["commitment_batches"]
             if material_identity == trial_accountant.observed_material_identity:
@@ -2708,6 +2945,10 @@ class StateWriter:
                     "material_identity": trial_context.material_identity,
                     "mechanism_family": mechanism_family,
                     "mission_id": science["active_mission"],
+                    "primary_research_layer": primary_research_layer,
+                    "system_architecture_family": system_architecture_family,
+                    "changed_domains": changed_domains,
+                    "controlled_domains": controlled_domains,
                     "portfolio_action": portfolio_action,
                     "portfolio_axis_id": portfolio_axis_id,
                     "portfolio_axis_identity": portfolio_axis_identity,
@@ -4261,16 +4502,27 @@ class StateWriter:
             )
             science["active_study"] = None
             self._drop_authorization(body, SubjectKind.STUDY, study_id)
-            body["next_action"] = {
-                "kind": "portfolio_decision",
-                "portfolio_snapshot_id": study_record.payload.get(
-                    "portfolio_snapshot_id"
-                ),
-            }
             fingerprint_payload = {"study_id": study_id, "outcome": outcome}
             if kpi_payload is not None:
                 fingerprint_payload["study_kpi"] = kpi_payload
             fingerprint = _digest(fingerprint_payload, domain="study-close")
+            body["next_action"] = (
+                {
+                    "kind": "portfolio_decision",
+                    "portfolio_snapshot_id": study_record.payload.get(
+                        "portfolio_snapshot_id"
+                    ),
+                }
+                if self.engineering_fixture
+                else {
+                    "kind": "diagnose_study",
+                    "study_id": study_id,
+                    "study_close_record_id": fingerprint,
+                    "portfolio_snapshot_id": study_record.payload.get(
+                        "portfolio_snapshot_id"
+                    ),
+                }
+            )
             record = _record(
                 kind="study-close",
                 record_id=fingerprint,
@@ -4287,6 +4539,12 @@ class StateWriter:
                     ),
                     "portfolio_snapshot_id": study_record.payload.get(
                         "portfolio_snapshot_id"
+                    ),
+                    "primary_research_layer": study_record.payload.get(
+                        "primary_research_layer"
+                    ),
+                    "system_architecture_family": study_record.payload.get(
+                        "system_architecture_family"
                     ),
                     "study_kpi_record_id": (
                         None if kpi_payload is None else study_id
@@ -4330,6 +4588,421 @@ class StateWriter:
         if not self.engineering_fixture:
             self.rebuild_study_kpi_projection()
         return transition
+
+    @staticmethod
+    def _study_diagnosis_evidence_basis(
+        index: LocalIndex,
+        *,
+        study_id: str,
+        close_record: IndexRecord,
+    ) -> list[dict[str, str]]:
+        references: set[tuple[str, str]] = {
+            ("study-close", close_record.record_id)
+        }
+        kpi_record_id = close_record.payload.get("study_kpi_record_id")
+        if isinstance(kpi_record_id, str):
+            kpi = index.get("study-kpi", kpi_record_id)
+            if kpi is None:
+                raise TransitionError("Study diagnosis KPI basis is unavailable")
+            references.add(("study-kpi", kpi.record_id))
+            completion_id = kpi.payload.get("completion_record_id")
+            if isinstance(completion_id, str):
+                if index.get("job-completed", completion_id) is None:
+                    raise TransitionError(
+                        "Study diagnosis completion basis is unavailable"
+                    )
+                references.add(("job-completed", completion_id))
+        batch_head = index.event_head(f"study-batches:{study_id}")
+        if batch_head is None:
+            raise TransitionError("Study diagnosis requires a final Batch")
+        references.add((batch_head.record_kind, batch_head.record_id))
+        batch_closes = tuple(
+            record
+            for status in _BATCH_OUTCOMES
+            for record in index.records_by_subject_status(
+                f"Batch:{batch_head.record_id}", status
+            )
+            if record.kind == "batch-close"
+        )
+        if len(batch_closes) != 1:
+            raise TransitionError("Study diagnosis final Batch close is ambiguous")
+        references.add(("batch-close", batch_closes[0].record_id))
+        for memory in index.records_by_kind("negative-memory"):
+            if memory.payload.get("study_id") == study_id:
+                references.add(("negative-memory", memory.record_id))
+        return [
+            {"kind": kind, "record_id": record_id}
+            for kind, record_id in sorted(references)
+        ]
+
+    def record_study_diagnosis(
+        self,
+        *,
+        diagnosis: Any,
+        operation_id: str,
+    ) -> TransitionResult:
+        from axiom_rift.research.governance import (
+            EvidenceState,
+            ResearchLayer,
+            StudyDiagnosis,
+            diagnosis_branch,
+        )
+
+        self._require_study_close_delivery_guard()
+        if self.engineering_fixture:
+            raise TransitionError("engineering fixtures do not create Study diagnosis")
+        if not isinstance(diagnosis, StudyDiagnosis):
+            raise TransitionError("diagnosis must be a StudyDiagnosis")
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None or current["scientific"]["active_mission"] is None:
+                raise TransitionError("Study diagnosis requires an active Mission")
+            science = current["scientific"]
+            if any(
+                science[name] is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_job",
+                    "active_repair",
+                    "active_study",
+                )
+            ):
+                raise TransitionError("Study diagnosis cannot bypass active work")
+            next_action = current["next_action"]
+            if next_action != {
+                "kind": "diagnose_study",
+                "study_id": diagnosis.study_id,
+                "study_close_record_id": diagnosis.study_close_record_id,
+                "portfolio_snapshot_id": next_action.get("portfolio_snapshot_id"),
+            }:
+                raise TransitionError("Study diagnosis is not the exact next action")
+            close_record = index.get(
+                "study-close", diagnosis.study_close_record_id
+            )
+            study = index.get("study-open", diagnosis.study_id)
+            if (
+                close_record is None
+                or close_record.subject != f"Study:{diagnosis.study_id}"
+                or study is None
+                or study.payload.get("mission_id") != science["active_mission"]
+                or close_record.payload.get("portfolio_axis_identity")
+                != study.payload.get("portfolio_axis_identity")
+            ):
+                raise TransitionError("Study diagnosis subject is unavailable or stale")
+            outcome = close_record.status
+            supported_states = {EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION}
+            unavailable_states = {
+                EvidenceState.ENGINEERING_GAP,
+                EvidenceState.NOT_IDENTIFIABLE,
+            }
+            negative_states = set(EvidenceState) - supported_states - {
+                EvidenceState.ENGINEERING_GAP,
+                EvidenceState.NOT_IDENTIFIABLE,
+            }
+            allowed_states = (
+                supported_states
+                if outcome in {"supported", "preserved"}
+                else unavailable_states
+                if outcome in {"evidence_gap", "not_evaluable"}
+                else negative_states
+                if outcome == "not_supported"
+                else negative_states | {EvidenceState.NOT_IDENTIFIABLE}
+                if outcome == "pruned"
+                else set()
+            )
+            if diagnosis.evidence_state not in allowed_states:
+                raise TransitionError(
+                    "Study diagnosis evidence state conflicts with its typed outcome"
+                )
+            kpi = index.get("study-kpi", diagnosis.study_id)
+            unavailable_reason = (
+                None if kpi is None else kpi.payload.get("unavailable_reason")
+            )
+            engineering_basis = (
+                isinstance(unavailable_reason, str)
+                and "engineering_failure" in unavailable_reason
+            )
+            if (
+                diagnosis.evidence_state == EvidenceState.ENGINEERING_GAP
+            ) != engineering_basis:
+                raise TransitionError(
+                    "engineering diagnosis must match the writer-derived Batch basis"
+                )
+            try:
+                primary_layer = ResearchLayer(
+                    study.payload["primary_research_layer"]
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise TransitionError(
+                    "Study diagnosis lacks a typed primary research layer"
+                ) from exc
+            architecture = study.payload.get("system_architecture_family")
+            if not isinstance(architecture, str):
+                raise TransitionError(
+                    "Study diagnosis lacks a system architecture family"
+                )
+            allowed_actions, allowed_layers = diagnosis_branch(
+                diagnosis.evidence_state,
+                primary_layer=primary_layer,
+            )
+            evidence_basis = self._study_diagnosis_evidence_basis(
+                index,
+                study_id=diagnosis.study_id,
+                close_record=close_record,
+            )
+            payload = {
+                **diagnosis.to_identity_payload(),
+                "allowed_actions": list(allowed_actions),
+                "allowed_research_layers": list(allowed_layers),
+                "evidence_basis": evidence_basis,
+                "mission_id": science["active_mission"],
+                "portfolio_axis_id": study.payload.get("portfolio_axis_id"),
+                "portfolio_axis_identity": study.payload.get(
+                    "portfolio_axis_identity"
+                ),
+                "portfolio_snapshot_id": study.payload.get(
+                    "portfolio_snapshot_id"
+                ),
+                "primary_research_layer": primary_layer.value,
+                "study_outcome": outcome,
+                "system_architecture_family": architecture,
+            }
+            prior_diagnoses = [
+                record
+                for record in index.records_by_kind("study-diagnosis")
+                if record.payload.get("mission_id") == science["active_mission"]
+                and record.payload.get("system_architecture_family") == architecture
+                and record.payload.get("evidence_state")
+                not in {
+                    EvidenceState.ENGINEERING_GAP.value,
+                    EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION.value,
+                }
+            ]
+            reviewed_ids: set[str] = set()
+            for review in index.records_by_kind("architecture-review"):
+                if (
+                    review.payload.get("mission_id") == science["active_mission"]
+                    and review.payload.get("system_architecture_family")
+                    == architecture
+                ):
+                    reviewed_ids.update(
+                        value
+                        for value in review.payload.get(
+                            "covered_diagnosis_ids", []
+                        )
+                        if isinstance(value, str)
+                    )
+            unreviewed = [
+                record for record in prior_diagnoses if record.record_id not in reviewed_ids
+            ]
+            current_is_reviewable = diagnosis.evidence_state not in {
+                EvidenceState.ENGINEERING_GAP,
+                EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION,
+            }
+            review_records = [*unreviewed]
+            diagnosis_sequence_head = index.event_head(
+                f"study-diagnosis:{science['active_mission']}"
+            )
+            diagnosis_sequence = (
+                1
+                if diagnosis_sequence_head is None
+                else diagnosis_sequence_head.sequence + 1
+            )
+            diagnosis_record = _record(
+                kind="study-diagnosis",
+                record_id=diagnosis.identity,
+                subject=f"Study:{diagnosis.study_id}",
+                status=diagnosis.evidence_state.value,
+                fingerprint=diagnosis.identity.removeprefix("diagnosis:"),
+                payload=payload,
+                event_stream=f"study-diagnosis:{science['active_mission']}",
+                event_sequence=diagnosis_sequence,
+            )
+            if current_is_reviewable:
+                review_records.append(diagnosis_record)
+            snapshot_id = study.payload.get("portfolio_snapshot_id")
+            snapshot = (
+                None
+                if not isinstance(snapshot_id, str)
+                else index.get("portfolio-snapshot", snapshot_id)
+            )
+            standard = (
+                None if snapshot is None else snapshot.payload.get("exhaustion_standard")
+            )
+            trigger_record: IndexRecord | None = None
+            if isinstance(standard, dict) and current_is_reviewable:
+                minimum_studies = standard.get(
+                    "architecture_review_minimum_studies"
+                )
+                minimum_axes = standard.get("architecture_review_minimum_axes")
+                axis_ids = {
+                    record.payload.get("portfolio_axis_id")
+                    for record in review_records
+                }
+                if (
+                    type(minimum_studies) is int
+                    and type(minimum_axes) is int
+                    and len(review_records) >= minimum_studies
+                    and len(axis_ids) >= minimum_axes
+                    and None not in axis_ids
+                ):
+                    trigger_payload = {
+                        "diagnosis_ids": sorted(
+                            record.record_id for record in review_records
+                        ),
+                        "mission_id": science["active_mission"],
+                        "portfolio_axis_ids": sorted(axis_ids),
+                        "portfolio_snapshot_id": snapshot_id,
+                        "primary_research_layers": sorted(
+                            {
+                                record.payload["primary_research_layer"]
+                                for record in review_records
+                            }
+                        ),
+                        "schema": "architecture_review_trigger.v1",
+                        "system_architecture_family": architecture,
+                        "threshold": {
+                            "minimum_distinct_axes": minimum_axes,
+                            "minimum_studies": minimum_studies,
+                        },
+                    }
+                    trigger_id = canonical_digest(
+                        domain="architecture-review-trigger",
+                        payload=trigger_payload,
+                    )
+                    trigger_record = _record(
+                        kind="architecture-review-trigger",
+                        record_id=trigger_id,
+                        subject=f"Mission:{science['active_mission']}",
+                        status="required",
+                        fingerprint=trigger_id,
+                        payload=trigger_payload,
+                    )
+            body = self._body(current)
+            if trigger_record is None:
+                body["next_action"] = {
+                    "kind": "portfolio_decision",
+                    "portfolio_snapshot_id": snapshot_id,
+                    "study_diagnosis_id": diagnosis.identity,
+                }
+                records = [diagnosis_record]
+            else:
+                body["next_action"] = {
+                    "kind": "review_architecture",
+                    "trigger_record_id": trigger_record.record_id,
+                }
+                records = [diagnosis_record, trigger_record]
+            return body, records, {
+                "architecture_review_trigger_id": (
+                    None if trigger_record is None else trigger_record.record_id
+                ),
+                "study_diagnosis_id": diagnosis.identity,
+            }
+
+        return self._commit(
+            event_kind="study_diagnosis_recorded",
+            operation_id=operation_id,
+            subject=f"Study:{diagnosis.study_id}",
+            payload={"study_diagnosis_id": diagnosis.identity},
+            prepare=prepare,
+        )
+
+    def record_architecture_review(
+        self,
+        *,
+        review: Any,
+        operation_id: str,
+    ) -> TransitionResult:
+        from axiom_rift.research.governance import (
+            ArchitectureReview,
+            ArchitectureReviewConclusion,
+        )
+
+        self._require_study_close_delivery_guard()
+        if self.engineering_fixture:
+            raise TransitionError("engineering fixtures do not create architecture review")
+        if not isinstance(review, ArchitectureReview):
+            raise TransitionError("review must be an ArchitectureReview")
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None or current["scientific"]["active_mission"] is None:
+                raise TransitionError("architecture review requires an active Mission")
+            science = current["scientific"]
+            if science["active_mission"] != review.mission_id:
+                raise TransitionError("architecture review belongs to another Mission")
+            if any(
+                science[name] is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_job",
+                    "active_repair",
+                    "active_study",
+                )
+            ):
+                raise TransitionError("architecture review cannot bypass active work")
+            next_action = current["next_action"]
+            trigger_id = next_action.get("trigger_record_id")
+            trigger = (
+                None
+                if not isinstance(trigger_id, str)
+                else index.get("architecture-review-trigger", trigger_id)
+            )
+            if (
+                next_action.get("kind") != "review_architecture"
+                or trigger_id != review.trigger_record_id
+                or trigger is None
+                or trigger.status != "required"
+                or trigger.payload.get("mission_id") != review.mission_id
+                or trigger.payload.get("system_architecture_family")
+                != review.system_architecture_family
+            ):
+                raise TransitionError("architecture review trigger is absent or stale")
+            payload = {
+                **review.to_identity_payload(),
+                "covered_diagnosis_ids": trigger.payload["diagnosis_ids"],
+                "portfolio_axis_ids": trigger.payload["portfolio_axis_ids"],
+                "portfolio_snapshot_id": trigger.payload["portfolio_snapshot_id"],
+                "primary_research_layers": trigger.payload[
+                    "primary_research_layers"
+                ],
+            }
+            body = self._body(current)
+            body["next_action"] = {
+                "kind": "portfolio_decision",
+                "architecture_review_id": review.identity,
+                "constraint_source_id": review.identity,
+                "portfolio_snapshot_id": trigger.payload["portfolio_snapshot_id"],
+            }
+            if (
+                review.conclusion
+                == ArchitectureReviewConclusion.ROTATE_ARCHITECTURE
+            ):
+                body["next_action"]["excluded_architecture_family"] = (
+                    review.system_architecture_family
+                )
+            else:
+                body["next_action"]["excluded_research_layers"] = trigger.payload[
+                    "primary_research_layers"
+                ]
+            record = _record(
+                kind="architecture-review",
+                record_id=review.identity,
+                subject=f"Mission:{review.mission_id}",
+                status=review.conclusion.value,
+                fingerprint=review.identity.removeprefix("architecture-review:"),
+                payload=payload,
+            )
+            return body, [record], {"architecture_review_id": review.identity}
+
+        return self._commit(
+            event_kind="architecture_review_recorded",
+            operation_id=operation_id,
+            subject=f"Mission:{review.mission_id}",
+            payload={"architecture_review_id": review.identity},
+            prepare=prepare,
+        )
 
     @staticmethod
     def _normalize_job_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
@@ -5373,6 +6046,7 @@ class StateWriter:
     ) -> TransitionResult:
         from axiom_rift.core.identity import ExecutableSpec
 
+        self._require_study_close_delivery_guard()
         if not isinstance(executable, ExecutableSpec):
             raise TransitionError("candidate requires a frozen ExecutableSpec")
         executable_id = executable.identity
@@ -5398,6 +6072,14 @@ class StateWriter:
             science = body["scientific"]
             if science["active_mission"] is None:
                 raise TransitionError("candidate freeze requires an active Mission")
+            if body["next_action"].get("kind") in {
+                "record_research_intake",
+                "diagnose_study",
+                "review_architecture",
+            }:
+                raise TransitionError(
+                    "candidate freeze cannot bypass research direction"
+                )
             candidate_id = "candidate:" + canonical_digest(
                 domain="mission-candidate",
                 payload={
@@ -6452,6 +7134,8 @@ class StateWriter:
                 raise TransitionError("Portfolio snapshot cannot bypass active work")
             head = index.event_head(f"portfolio:{snapshot.mission_id}")
             sequence = 1 if head is None else head.sequence + 1
+            required_target_axis_ids: list[str] = []
+            constraint_source_id: str | None = None
             if head is None:
                 standard = snapshot.exhaustion_standard_value()
                 if not self.engineering_fixture and not isinstance(standard, dict):
@@ -6460,17 +7144,42 @@ class StateWriter:
                     )
                 if isinstance(standard, dict):
                     families = {axis.mechanism_family for axis in snapshot.axes}
+                    research_layers = {
+                        axis.primary_research_layer.value for axis in snapshot.axes
+                    }
+                    architecture_families = {
+                        axis.system_architecture_family for axis in snapshot.axes
+                    }
                     if (
                         len(snapshot.axes) < standard["minimum_axes"]
                         or len(families) < standard["minimum_mechanism_families"]
+                        or len(research_layers)
+                        < standard["minimum_primary_research_layers"]
+                        or len(architecture_families)
+                        < standard["minimum_system_architecture_families"]
                     ):
                         raise TransitionError(
                             "initial Portfolio is smaller than its exhaustion standard"
                         )
+                intake = (
+                    None
+                    if not isinstance(snapshot.research_intake_id, str)
+                    else index.get("research-intake", snapshot.research_intake_id)
+                )
                 if (
                     current["next_action"].get("kind") != "build_portfolio"
                     or current["next_action"].get("initiative_id")
                     != science["active_initiative"]
+                    or (
+                        not self.engineering_fixture
+                        and (
+                            current["next_action"].get("research_intake_id")
+                            != snapshot.research_intake_id
+                            or intake is None
+                            or intake.subject != f"Mission:{snapshot.mission_id}"
+                            or intake.status != "accepted"
+                        )
+                    )
                 ):
                     raise TransitionError(
                         "initial Portfolio snapshot is not the exact Initiative action"
@@ -6503,6 +7212,13 @@ class StateWriter:
                 ):
                     raise TransitionError(
                         "Portfolio exhaustion standard is immutable within a Mission"
+                    )
+                if (
+                    new_payload.get("research_intake_id")
+                    != prior.payload.get("research_intake_id")
+                ):
+                    raise TransitionError(
+                        "Portfolio research intake is immutable within a Mission"
                     )
                 if not set(old_axes).issubset(new_axes):
                     raise TransitionError("Portfolio axes cannot be silently removed")
@@ -6546,6 +7262,47 @@ class StateWriter:
                         raise TransitionError(
                             "new_mechanism must add a genuinely distinct untouched axis"
                         )
+                    required_layers = set(
+                        next_action.get("required_followup_layers", [])
+                    )
+                    excluded_layers = set(
+                        next_action.get("excluded_research_layers", [])
+                    )
+                    excluded_architecture = next_action.get(
+                        "excluded_architecture_family"
+                    )
+                    constrained = bool(
+                        required_layers
+                        or excluded_layers
+                        or isinstance(excluded_architecture, str)
+                    )
+                    if constrained:
+                        required_target_axis_ids = sorted(
+                            axis_id
+                            for axis_id in added
+                            if (
+                                not required_layers
+                                or new_axes[axis_id]["primary_research_layer"]
+                                in required_layers
+                            )
+                            and new_axes[axis_id]["primary_research_layer"]
+                            not in excluded_layers
+                            and (
+                                not isinstance(excluded_architecture, str)
+                                or new_axes[axis_id]["system_architecture_family"]
+                                != excluded_architecture
+                            )
+                        )
+                        if not required_target_axis_ids:
+                            raise TransitionError(
+                                "new mechanism does not satisfy its diagnosis or architecture constraint"
+                            )
+                        source = next_action.get("constraint_source_id")
+                        if not isinstance(source, str):
+                            raise TransitionError(
+                                "constrained Portfolio mutation lacks its source"
+                            )
+                        constraint_source_id = source
                 else:
                     raise TransitionError(
                         "Portfolio Decision does not authorize snapshot mutation"
@@ -6555,6 +7312,13 @@ class StateWriter:
                 "kind": "portfolio_decision",
                 "portfolio_snapshot_id": snapshot.identity,
             }
+            if required_target_axis_ids:
+                body["next_action"].update(
+                    {
+                        "constraint_source_id": constraint_source_id,
+                        "required_target_axis_ids": required_target_axis_ids,
+                    }
+                )
             record = _record(
                 kind="portfolio-snapshot",
                 record_id=snapshot.identity,
@@ -6640,12 +7404,143 @@ class StateWriter:
             }
             if any(option.target_id not in eligible_targets for option in decision.options):
                 raise TransitionError("Portfolio Decision names an undeclared target axis")
+            required_target_axis_ids = next_action.get("required_target_axis_ids")
+            if required_target_axis_ids is not None and (
+                not isinstance(required_target_axis_ids, list)
+                or decision.chosen.target_id not in required_target_axis_ids
+            ):
+                raise TransitionError(
+                    "Portfolio Decision bypasses its admitted constrained axis"
+                )
             if (
                 decision.recent_positive_lineage_id is not None
                 and decision.recent_positive_lineage_id not in eligible_targets
                 and _index.get("lineage", decision.recent_positive_lineage_id) is None
             ):
                 raise TransitionError("recent-positive reference is not durable")
+            target_axis = axes_by_id[decision.chosen.target_id]
+            diagnosis_id = next_action.get("study_diagnosis_id")
+            diagnosis = (
+                None
+                if not isinstance(diagnosis_id, str)
+                else _index.get("study-diagnosis", diagnosis_id)
+            )
+            if isinstance(diagnosis_id, str):
+                if (
+                    diagnosis is None
+                    or diagnosis.payload.get("mission_id")
+                    != science["active_mission"]
+                    or diagnosis.payload.get("portfolio_snapshot_id")
+                    != snapshot.record_id
+                ):
+                    raise TransitionError(
+                        "Portfolio Decision Study diagnosis is absent or stale"
+                    )
+                allowed_actions = set(diagnosis.payload.get("allowed_actions", []))
+                allowed_layers = set(
+                    diagnosis.payload.get("allowed_research_layers", [])
+                )
+                source_axis_id = diagnosis.payload.get("portfolio_axis_id")
+                source_axis = axes_by_id.get(source_axis_id)
+                chosen_action = decision.chosen.action.value
+                same_axis_disposition = (
+                    decision.chosen.target_id == source_axis_id
+                    and chosen_action in {"preserve", "prune"}
+                    and chosen_action in allowed_actions
+                )
+                branch_match = (
+                    chosen_action not in {"preserve", "prune"}
+                    and chosen_action in allowed_actions
+                    and (
+                        target_axis["primary_research_layer"] in allowed_layers
+                        or chosen_action == "new_mechanism"
+                    )
+                )
+                forest_diversion = (
+                    source_axis is not None
+                    and decision.chosen.target_id != source_axis_id
+                    and chosen_action
+                    in {
+                        "complementary_sleeve",
+                        "contrast",
+                        "recombine",
+                        "rotate",
+                        "synthesize",
+                    }
+                    and (
+                        target_axis["primary_research_layer"]
+                        != source_axis["primary_research_layer"]
+                        or target_axis["system_architecture_family"]
+                        != source_axis["system_architecture_family"]
+                    )
+                )
+                if not (same_axis_disposition or branch_match or forest_diversion):
+                    raise TransitionError(
+                        "Portfolio Decision does not follow or structurally exit its diagnosis"
+                    )
+            architecture_review_id = next_action.get("architecture_review_id")
+            architecture_review = (
+                None
+                if not isinstance(architecture_review_id, str)
+                else _index.get("architecture-review", architecture_review_id)
+            )
+            if isinstance(architecture_review_id, str) and (
+                architecture_review is None
+                or architecture_review.payload.get("mission_id")
+                != science["active_mission"]
+            ):
+                raise TransitionError(
+                    "Portfolio Decision architecture review is absent or stale"
+                )
+            excluded_architecture = next_action.get(
+                "excluded_architecture_family"
+            )
+            excluded_layers = set(
+                next_action.get("excluded_research_layers", [])
+            )
+            if architecture_review is not None:
+                conclusion = architecture_review.payload.get("conclusion")
+                if conclusion == "rotate_architecture":
+                    if (
+                        excluded_architecture
+                        != architecture_review.payload.get(
+                            "system_architecture_family"
+                        )
+                        or excluded_layers
+                    ):
+                        raise TransitionError(
+                            "Portfolio Decision architecture constraint is malformed"
+                        )
+                elif conclusion == "change_research_layer":
+                    if (
+                        excluded_layers
+                        != set(
+                            architecture_review.payload.get(
+                                "primary_research_layers", []
+                            )
+                        )
+                        or excluded_architecture is not None
+                    ):
+                        raise TransitionError(
+                            "Portfolio Decision layer constraint is malformed"
+                        )
+                else:
+                    raise TransitionError(
+                        "Portfolio Decision architecture conclusion is invalid"
+                    )
+            if decision.chosen.action != PortfolioAction.NEW_MECHANISM:
+                if (
+                    isinstance(excluded_architecture, str)
+                    and target_axis["system_architecture_family"]
+                    == excluded_architecture
+                ):
+                    raise TransitionError(
+                        "Portfolio Decision did not rotate the reviewed architecture"
+                    )
+                if target_axis["primary_research_layer"] in excluded_layers:
+                    raise TransitionError(
+                        "Portfolio Decision did not change the reviewed research layer"
+                    )
             body = self._body(current)
             next_kind = (
                 "record_portfolio_snapshot"
@@ -6657,7 +7552,6 @@ class StateWriter:
                 }
                 else "execute_portfolio_decision"
             )
-            target_axis = axes_by_id[decision.chosen.target_id]
             body["next_action"] = {
                 "kind": next_kind,
                 "decision_id": decision.identity,
@@ -6666,6 +7560,35 @@ class StateWriter:
                 "target_axis_identity": target_axis["axis_identity"],
                 "portfolio_snapshot_id": snapshot.record_id,
             }
+            if next_kind == "record_portfolio_snapshot" and (
+                decision.chosen.action == PortfolioAction.NEW_MECHANISM
+            ):
+                constraint_source_id = next_action.get("constraint_source_id")
+                if isinstance(diagnosis_id, str):
+                    body["next_action"]["required_followup_layers"] = list(
+                        diagnosis.payload["allowed_research_layers"]
+                    )
+                    constraint_source_id = diagnosis_id
+                if isinstance(excluded_architecture, str):
+                    body["next_action"]["excluded_architecture_family"] = (
+                        excluded_architecture
+                    )
+                if excluded_layers:
+                    body["next_action"]["excluded_research_layers"] = sorted(
+                        excluded_layers
+                    )
+                if (
+                    "required_followup_layers" in body["next_action"]
+                    or "excluded_architecture_family" in body["next_action"]
+                    or "excluded_research_layers" in body["next_action"]
+                ):
+                    if not isinstance(constraint_source_id, str):
+                        raise TransitionError(
+                            "constrained new mechanism lacks its exact source"
+                        )
+                    body["next_action"]["constraint_source_id"] = (
+                        constraint_source_id
+                    )
             record = _record(
                 kind="portfolio-decision",
                 record_id=decision.identity,
@@ -6674,7 +7597,9 @@ class StateWriter:
                 fingerprint=decision_hash,
                 payload={
                     **decision.to_identity_payload(),
+                    "architecture_review_id": architecture_review_id,
                     "portfolio_snapshot_id": snapshot.record_id,
+                    "study_diagnosis_id": diagnosis_id,
                     "target_axis_identity": target_axis["axis_identity"],
                 },
             )
@@ -9241,6 +10166,14 @@ class StateWriter:
             if current is None or current["scientific"]["active_mission"] is None:
                 raise TransitionError("exhaustion audit requires an active Mission")
             science = current["scientific"]
+            if current["next_action"].get("kind") in {
+                "record_research_intake",
+                "diagnose_study",
+                "review_architecture",
+            }:
+                raise TransitionError(
+                    "exhaustion audit cannot bypass research direction"
+                )
             if any(
                 science[key] is not None
                 for key in (
@@ -9275,6 +10208,12 @@ class StateWriter:
                 raise TransitionError("exhaustion Portfolio snapshot is unavailable")
             axes = {axis["axis_id"]: axis for axis in snapshot.payload["axes"]}
             families = {axis["mechanism_family"] for axis in axes.values()}
+            research_layers = {
+                axis.get("primary_research_layer") for axis in axes.values()
+            }
+            architecture_families = {
+                axis.get("system_architecture_family") for axis in axes.values()
+            }
             standard = snapshot.payload.get("exhaustion_standard")
             if not isinstance(standard, dict):
                 raise TransitionError(
@@ -9284,6 +10223,12 @@ class StateWriter:
                 set(normalized) != set(axes)
                 or len(axes) < standard["minimum_axes"]
                 or len(families) < standard["minimum_mechanism_families"]
+                or len(research_layers)
+                < standard["minimum_primary_research_layers"]
+                or len(architecture_families)
+                < standard["minimum_system_architecture_families"]
+                or None in research_layers
+                or None in architecture_families
             ):
                 raise TransitionError(
                     "exhaustion does not cover its preregistered axes and families"
@@ -9461,6 +10406,8 @@ class StateWriter:
                 "diversity_basis": diversity_basis,
                 "frontiers": normalized,
                 "mechanism_families": sorted(families),
+                "primary_research_layers": sorted(research_layers),
+                "system_architecture_families": sorted(architecture_families),
                 "opportunity_cost_audit": opportunity_cost_audit,
                 "portfolio_snapshot_id": snapshot.record_id,
                 "preregistered_exhaustion_standard": standard,
