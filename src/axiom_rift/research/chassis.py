@@ -886,6 +886,7 @@ class ControlledStudyChassis:
     changed_domains: tuple[ResearchLayer, ...]
     controlled_domains: tuple[ResearchLayer, ...]
     architecture: ArchitectureChassisSpec
+    embedded_controlled_domains: tuple[ResearchLayer, ...] = ()
     equivalences: tuple[ComponentParityEvidence, ...] = ()
     identity: str = field(init=False)
     architecture_family: str = field(init=False)
@@ -910,13 +911,23 @@ class ControlledStudyChassis:
             raise ChassisIdentityError("changed chassis domains are not typed")
         if any(not isinstance(domain, ResearchLayer) for domain in self.controlled_domains):
             raise ChassisIdentityError("controlled chassis domains are not typed")
+        if type(self.embedded_controlled_domains) is not tuple or any(
+            not isinstance(domain, ResearchLayer)
+            for domain in self.embedded_controlled_domains
+        ):
+            raise ChassisIdentityError("embedded controlled chassis domains are not typed")
         changed = tuple(sorted(set(self.changed_domains), key=lambda value: value.value))
         domains = tuple(sorted(set(self.controlled_domains), key=lambda value: value.value))
+        embedded = tuple(
+            sorted(set(self.embedded_controlled_domains), key=lambda value: value.value)
+        )
         if len(changed) != len(self.changed_domains):
             raise ChassisIdentityError("changed chassis domains must be unique")
         if len(domains) != len(self.controlled_domains):
             raise ChassisIdentityError("controlled chassis domains must be unique")
-        if set(changed).intersection(domains):
+        if len(embedded) != len(self.embedded_controlled_domains):
+            raise ChassisIdentityError("embedded controlled chassis domains must be unique")
+        if set(changed).intersection(domains) or set(changed).intersection(embedded) or set(domains).intersection(embedded):
             raise ChassisIdentityError("changed and controlled chassis domains overlap")
         if not isinstance(self.architecture, ArchitectureChassisSpec):
             raise ChassisIdentityError("controlled chassis architecture is not typed")
@@ -948,7 +959,7 @@ class ControlledStudyChassis:
         if len({value.identity for value in equivalences}) != len(equivalences):
             raise ChassisIdentityError("component equivalences must be unique")
         for equivalence in equivalences:
-            if component_domain(equivalence.canonical_component) not in domains:
+            if component_domain(equivalence.canonical_component) not in (*domains, *embedded):
                 raise ChassisIdentityError(
                     "component equivalence is allowed only for a controlled domain"
                 )
@@ -979,7 +990,7 @@ class ControlledStudyChassis:
                 raise ChassisIdentityError(
                     "component equivalence cannot collapse two baseline composition slots"
                 )
-        undeclared_baseline_domains = set(by_domain) - set(changed) - set(domains)
+        undeclared_baseline_domains = set(by_domain) - set(changed) - set(domains) - set(embedded)
         if undeclared_baseline_domains:
             raise ChassisIdentityError(
                 "baseline executable has undeclared component domains: "
@@ -994,7 +1005,7 @@ class ControlledStudyChassis:
         baseline_parameters = self.baseline_executable.parameter_values()
         if not isinstance(baseline_parameters, dict):
             raise ChassisIdentityError("baseline parameters must be an object")
-        for domain in domains:
+        for domain in (*domains, *embedded):
             identities = by_domain.get(domain, ())
             controlled.append(
                 (
@@ -1087,6 +1098,7 @@ class ControlledStudyChassis:
         )
         object.__setattr__(self, "changed_domains", changed)
         object.__setattr__(self, "controlled_domains", domains)
+        object.__setattr__(self, "embedded_controlled_domains", embedded)
         object.__setattr__(self, "equivalences", equivalences)
         object.__setattr__(self, "_controlled_components", tuple(controlled))
         object.__setattr__(
@@ -1130,6 +1142,9 @@ class ControlledStudyChassis:
             },
             "controlled_parameter_bindings": self.controlled_parameter_bindings(),
             "controlled_domains": [domain.value for domain in self.controlled_domains],
+            "embedded_controlled_domains": [
+                domain.value for domain in self.embedded_controlled_domains
+            ],
             "changed_domains": [domain.value for domain in self.changed_domains],
             "equivalences": [
                 equivalence.to_identity_payload() for equivalence in self.equivalences
@@ -1172,6 +1187,7 @@ def validate_controlled_executable(
     equivalences = control_payload.get("equivalences")
     expected = control_payload.get("controlled_component_identities")
     domains = control_payload.get("controlled_domains")
+    embedded_domains = control_payload.get("embedded_controlled_domains", [])
     changed_domains = control_payload.get("changed_domains")
     controlled_parameter_bindings = control_payload.get(
         "controlled_parameter_bindings"
@@ -1182,6 +1198,7 @@ def validate_controlled_executable(
         or not isinstance(equivalences, list)
         or not isinstance(expected, dict)
         or not isinstance(domains, list)
+        or not isinstance(embedded_domains, list)
         or not isinstance(changed_domains, list)
         or not isinstance(controlled_parameter_bindings, dict)
     ):
@@ -1272,6 +1289,7 @@ def validate_controlled_executable(
     try:
         allowed_domains = {
             *(ResearchLayer(value) for value in domains),
+            *(ResearchLayer(value) for value in embedded_domains),
             *(ResearchLayer(value) for value in changed_domains),
         }
     except (TypeError, ValueError) as exc:
@@ -1393,7 +1411,7 @@ def validate_controlled_executable(
                     "protocol-only controlled component identity bump is forbidden"
                 )
 
-    for domain_value in domains:
+    for domain_value in [*domains, *embedded_domains]:
         try:
             domain = ResearchLayer(domain_value)
         except (TypeError, ValueError) as exc:
