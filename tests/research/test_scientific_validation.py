@@ -113,6 +113,7 @@ class ScientificValidationTests(unittest.TestCase):
         include_auxiliary: bool = False,
         evaluation_schema: str = "trend_discovery_evaluation.v3",
         selection_total_exposures: int = 42,
+        selection_context_count: int = 12,
     ) -> tuple[EvidenceValidationRequest, tuple[ValidationArtifact, ...]]:
         plan = build_validation_plan(
             mission_id=MISSION_ID,
@@ -162,7 +163,7 @@ class ScientificValidationTests(unittest.TestCase):
                 "net_profit_micropoints": 0,
                 "selection_aware_pvalue_ppm": 1_000_000,
             }
-            for index in range(1, 12)
+            for index in range(1, selection_context_count)
         ]
         job_execution = {
             "job_hash": JOB_HASH,
@@ -361,6 +362,25 @@ class ScientificValidationTests(unittest.TestCase):
         stale_request, _ = self._request(
             evaluation_schema="cross_asset_downside_spillover_evaluation.v1",
             selection_total_exposures=234,
+        )
+        with self.assertRaises(EvidenceValidationError):
+            self._validate(stale_request)
+
+    def test_shadow_slot_lifecycle_schema_binds_two_rows_and_536_exposures(self) -> None:
+        request, _ = self._request(
+            evaluation_schema="shadow_slot_lifecycle_evaluation.v1",
+            selection_total_exposures=536,
+            selection_context_count=2,
+        )
+
+        validated, _ = self._validate(request)
+
+        self.assertEqual(validated.verdict, "passed")
+        self.assertTrue(validated.scientific_eligible)
+        stale_request, _ = self._request(
+            evaluation_schema="shadow_slot_lifecycle_evaluation.v1",
+            selection_total_exposures=534,
+            selection_context_count=2,
         )
         with self.assertRaises(EvidenceValidationError):
             self._validate(stale_request)
