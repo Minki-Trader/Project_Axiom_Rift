@@ -14,6 +14,7 @@ from axiom_rift.research.market_residual_event_chassis import (
     project_market_residual_score,
 )
 from axiom_rift.research.us500_source import us500_source_contract
+from axiom_rift.research.validation import require_supported_evaluation_schema
 
 
 class MarketResidualEventChassisTests(unittest.TestCase):
@@ -74,6 +75,14 @@ class MarketResidualEventChassisTests(unittest.TestCase):
         self.assertEqual(baseline.parameter_values()["holding_bars"], 6)
         self.assertEqual(baseline.parameter_values()["selector_quantile_bp"], 9000)
         self.assertEqual(architecture.identity[:20], "architecture-family:")
+
+    def test_scientific_validator_profile_is_registered(self) -> None:
+        self.assertEqual(
+            require_supported_evaluation_schema(
+                "market_residual_event_evaluation.v1"
+            ),
+            "market_residual_event_evaluation.v1",
+        )
 
 
 if __name__ == "__main__":

@@ -167,6 +167,7 @@ _SCIENTIFIC_EVALUATION_PROFILES = {
     "high_vol_target_reversal_evaluation.v1": (2, 585),
     "fold_train_target_role_evaluation.v1": (2, 587),
     "us500_market_coherence_evaluation.v1": (2, 589),
+    "market_residual_event_evaluation.v1": (3, 592),
     "complementary_sleeve_evaluation.v1": (4, 512),
     "probability_calibration_evaluation.v1": (4, 516),
     "rank_bin_calibration_evaluation.v1": (4, 520),
