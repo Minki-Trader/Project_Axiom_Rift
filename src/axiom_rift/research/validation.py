@@ -169,6 +169,7 @@ _SCIENTIFIC_EVALUATION_PROFILES = {
     "us500_market_coherence_evaluation.v1": (2, 589),
     "market_residual_event_evaluation.v1": (3, 592),
     "event_direction_meta_evaluation.v1": (2, 593),
+    "residual_quote_deferral_evaluation.v1": (2, 594),
     "complementary_sleeve_evaluation.v1": (4, 512),
     "probability_calibration_evaluation.v1": (4, 516),
     "rank_bin_calibration_evaluation.v1": (4, 520),

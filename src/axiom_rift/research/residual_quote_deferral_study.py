@@ -1,0 +1,453 @@
+"""Writer-gated evidence Job for residual-continuation quote timing."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from hashlib import sha256
+from pathlib import Path
+import sys
+from typing import Any, Mapping
+
+import numpy as np
+import pandas as pd
+import scipy
+
+from axiom_rift.core.canonical import canonical_bytes, parse_canonical
+from axiom_rift.operations import writer as writer_module
+from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.research.discovery import (
+    DATASET_SHA256,
+    OBSERVED_MATERIAL_ID,
+    ROLLING_SPLIT_SHA256,
+    discovery_implementation_sha256,
+)
+from axiom_rift.research.high_vol_target_reversal_chassis import (
+    loader_implementation_sha256,
+)
+from axiom_rift.research.market_residual_event_chassis import (
+    US500_RAW_SHA256,
+    market_residual_event_chassis_implementation_sha256,
+)
+from axiom_rift.research.residual_quote_deferral_chassis import (
+    residual_quote_deferral_chassis_implementation_sha256,
+    residual_quote_deferral_configurations,
+    residual_quote_deferral_executable,
+)
+from axiom_rift.research.residual_quote_deferral_discovery import (
+    compute_registered_residual_quote_deferral_surface,
+    project_residual_quote_deferral_evaluation,
+    residual_quote_deferral_discovery_implementation_sha256,
+)
+from axiom_rift.research.scientific_study import (
+    EVIDENCE_MODES,
+    PLANNED_CLAIMS,
+    claim_metrics,
+    discovery_criteria,
+    planned_verdict,
+)
+from axiom_rift.research.us500_source import us500_source_contract
+from axiom_rift.research.validation import (
+    SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
+    SCIENTIFIC_MEASUREMENT_SCHEMA,
+    SCIENTIFIC_RESULT_SCHEMA,
+    build_validation_plan,
+)
+
+
+CALLABLE_IDENTITY = (
+    "axiom_rift.research.residual_quote_deferral_study."
+    "execute_residual_quote_deferral_job.v1"
+)
+EVIDENCE_DEPTH = "discovery"
+_DELTA = "immediate_control_delta_net_profit_micropoints"
+_PVALUE = "immediate_control_pvalue_upper_ppm"
+CRITERIA = tuple(
+    sorted(
+        (
+            *discovery_criteria(
+                control_delta_metric=_DELTA,
+                control_pvalue_metric=_PVALUE,
+                include_opposite_sign=False,
+            ),
+            {
+                "claim_id": "activity_and_concentration",
+                "criterion_id": "A04-target-minimum-density",
+                "evidence_mode": "extreme_or_boundary",
+                "metric": "entries_per_day_milli",
+                "operator": "ge",
+                "threshold": 5_000,
+            },
+            {
+                "claim_id": "activity_and_concentration",
+                "criterion_id": "A05-target-maximum-density",
+                "evidence_mode": "extreme_or_boundary",
+                "metric": "entries_per_day_milli",
+                "operator": "le",
+                "threshold": 10_000,
+            },
+            {
+                "claim_id": "causal_feature_and_execution_validity",
+                "criterion_id": "C06-execution-timing-accounting",
+                "evidence_mode": "causal_contrast",
+                "metric": "execution_timing_accounting_mismatch_count",
+                "operator": "eq",
+                "threshold": 0,
+            },
+        ),
+        key=lambda value: (value["claim_id"], value["criterion_id"]),
+    )
+)
+
+
+def executable_configuration_map():
+    return {
+        residual_quote_deferral_executable(configuration).identity: configuration
+        for configuration in residual_quote_deferral_configurations()
+    }
+
+
+def build_residual_quote_deferral_validation_plan(
+    executable_id: str,
+    *,
+    mission_id: str,
+) -> dict[str, object]:
+    return build_validation_plan(
+        mission_id=mission_id,
+        executable_id=executable_id,
+        evidence_depth=EVIDENCE_DEPTH,
+        planned_claims=PLANNED_CLAIMS,
+        evidence_modes=EVIDENCE_MODES,
+        criteria=CRITERIA,
+        candidate_eligible_on_pass=False,
+    )
+
+
+def output_names(executable_id: str, *, study_id: str) -> dict[str, str]:
+    prefix = f"scientific/{study_id}/{executable_id.removeprefix('executable:')[:16]}"
+    return {
+        "context": f"{prefix}/evaluation.json",
+        "environment": f"{prefix}/environment.json",
+        "measurement": f"{prefix}/measurement.json",
+        "plan": f"{prefix}/validation-plan.json",
+        "result": f"{prefix}/result.json",
+    }
+
+
+def surface_output_name(*, study_id: str) -> str:
+    return f"scientific/{study_id}/residual-quote-deferral-surface.json"
+
+
+def surface_manifest_output_name(*, study_id: str) -> str:
+    return f"scientific/{study_id}/residual-quote-deferral-surface-manifest.json"
+
+
+def build_environment_manifest() -> dict[str, object]:
+    contract = us500_source_contract()
+    value = {
+        "schema": "scientific_engine_environment.v1",
+        "dataset_sha256": DATASET_SHA256,
+        "material_identity": OBSERVED_MATERIAL_ID,
+        "split_artifact_sha256": ROLLING_SPLIT_SHA256,
+        "source_contract_id": contract.source_contract_id,
+        "source_mapping_identity": contract.mapping_identity,
+        "source_schema_identity": contract.schema_identity,
+        "source_field_identity": contract.field_identity,
+        "source_clock_identity": contract.clock_identity,
+        "source_availability_identity": contract.availability_identity,
+        "source_raw_sha256": US500_RAW_SHA256,
+        "loader_implementation_sha256": loader_implementation_sha256(),
+        "shared_discovery_implementation_sha256": (
+            discovery_implementation_sha256()
+        ),
+        "market_residual_event_chassis_implementation_sha256": (
+            market_residual_event_chassis_implementation_sha256()
+        ),
+        "residual_quote_deferral_chassis_implementation_sha256": (
+            residual_quote_deferral_chassis_implementation_sha256()
+        ),
+        "residual_quote_deferral_discovery_implementation_sha256": (
+            residual_quote_deferral_discovery_implementation_sha256()
+        ),
+        "runner_implementation_sha256": sha256(
+            Path(__file__).resolve().read_bytes()
+        ).hexdigest(),
+        "writer_implementation_sha256": sha256(
+            Path(writer_module.__file__).resolve().read_bytes()
+        ).hexdigest(),
+        "validator_id": SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
+        "python_version": ".".join(str(value) for value in sys.version_info[:3]),
+        "numpy_version": np.__version__,
+        "pandas_version": pd.__version__,
+        "scipy_version": scipy.__version__,
+    }
+    canonical_bytes(value)
+    return value
+
+
+def _metrics(evaluation: Mapping[str, Any]) -> dict[str, dict[str, int | None]]:
+    values = claim_metrics(
+        evaluation,
+        control_delta_metric=_DELTA,
+        control_pvalue_metric=_PVALUE,
+        include_opposite_sign=False,
+    )
+    raw = evaluation.get("metrics")
+    if not isinstance(raw, Mapping):
+        raise ValueError("residual quote-deferral metrics are absent")
+    for name in (
+        "deferred_entry_count",
+        "deferred_entry_rate_ppm",
+        "entry_delay_bars_max",
+        "execution_timing_accounting_mismatch_count",
+        "immediate_control_delta_trade_count",
+        "immediate_entry_count",
+        "quote_reference_unknown_immediate_count",
+    ):
+        if type(raw.get(name)) is not int:
+            raise ValueError(f"residual quote-deferral metric is invalid: {name}")
+    values["activity_and_concentration"].update(
+        {
+            name: raw[name]
+            for name in (
+                "deferred_entry_count",
+                "deferred_entry_rate_ppm",
+                "immediate_entry_count",
+                "quote_reference_unknown_immediate_count",
+            )
+        }
+    )
+    values["causal_feature_and_execution_validity"].update(
+        {
+            "entry_delay_bars_max": raw["entry_delay_bars_max"],
+            "execution_timing_accounting_mismatch_count": raw[
+                "execution_timing_accounting_mismatch_count"
+            ],
+        }
+    )
+    values["registered_control_contrast"][
+        "immediate_control_delta_trade_count"
+    ] = raw["immediate_control_delta_trade_count"]
+    return values
+
+
+def build_measurement(
+    *,
+    executable_id: str,
+    job_id: str,
+    job_hash: str,
+    evaluation_artifact_hash: str,
+    evaluation: Mapping[str, Any],
+    mission_id: str,
+) -> dict[str, object]:
+    value = {
+        "schema": SCIENTIFIC_MEASUREMENT_SCHEMA,
+        "claims": list(PLANNED_CLAIMS),
+        "evidence_depth": EVIDENCE_DEPTH,
+        "evidence_modes": list(EVIDENCE_MODES),
+        "evaluation_artifact_hash": evaluation_artifact_hash,
+        "executable_id": executable_id,
+        "job_hash": job_hash,
+        "job_id": job_id,
+        "metrics": _metrics(evaluation),
+        "mission_id": mission_id,
+    }
+    canonical_bytes(value)
+    return value
+
+
+def build_result_manifest(
+    *,
+    executable_id: str,
+    job_id: str,
+    job_hash: str,
+    measurement_artifact_hash: str,
+    mission_id: str,
+) -> dict[str, object]:
+    value = {
+        "schema": SCIENTIFIC_RESULT_SCHEMA,
+        "evidence_depth": EVIDENCE_DEPTH,
+        "executable_id": executable_id,
+        "job_hash": job_hash,
+        "job_id": job_id,
+        "mission_id": mission_id,
+        "observations": [
+            {
+                "claim_id": claim,
+                "measurement_artifact_hash": measurement_artifact_hash,
+            }
+            for claim in PLANNED_CLAIMS
+        ],
+    }
+    canonical_bytes(value)
+    return value
+
+
+@dataclass(frozen=True, slots=True)
+class ResidualQuoteDeferralJobPacket:
+    output_manifest: tuple[tuple[str, str], ...]
+    verdict: str
+
+    def outputs(self) -> dict[str, str]:
+        return dict(self.output_manifest)
+
+
+def _load_surface(
+    writer: StateWriter,
+    input_hashes: tuple[str, ...],
+) -> tuple[dict[str, Any], str, str]:
+    surface: tuple[dict[str, Any], str] | None = None
+    manifest: tuple[dict[str, Any], str] | None = None
+    for artifact_hash in input_hashes:
+        try:
+            artifact = writer.evidence.verify(artifact_hash)
+            value = parse_canonical(
+                (writer.evidence._root / artifact.relative_path).read_bytes()
+            )
+        except (FileNotFoundError, OSError, RuntimeError, ValueError):
+            continue
+        if isinstance(value, dict) and value.get("schema") == (
+            "residual_quote_deferral_surface.v1"
+        ):
+            surface = (value, artifact_hash)
+        if isinstance(value, dict) and value.get("schema") == (
+            "residual_quote_deferral_surface_manifest.v1"
+        ):
+            manifest = (value, artifact_hash)
+    if (
+        surface is None
+        or manifest is None
+        or manifest[0].get("surface_artifact_hash") != surface[1]
+    ):
+        raise ValueError("residual quote-deferral surface is missing")
+    return surface[0], surface[1], manifest[1]
+
+
+def execute_residual_quote_deferral_job(
+    *,
+    repository_root: str | Path,
+    execution: RunningJobExecution,
+) -> ResidualQuoteDeferralJobPacket:
+    root = Path(repository_root).resolve()
+    writer = StateWriter(root)
+    binding = writer.verify_running_job_execution(
+        execution,
+        expected_callable_identity=CALLABLE_IDENTITY,
+    )
+    spec = binding["spec"]
+    subject = spec.get("evidence_subject")
+    mission_id = binding.get("mission_id")
+    study_id = binding.get("study_id")
+    configurations = executable_configuration_map()
+    if (
+        not isinstance(mission_id, str)
+        or not isinstance(study_id, str)
+        or not isinstance(subject, dict)
+        or subject.get("id") not in configurations
+    ):
+        raise ValueError("residual quote-deferral binding is invalid")
+    executable_id = subject["id"]
+    plan = build_residual_quote_deferral_validation_plan(
+        executable_id,
+        mission_id=mission_id,
+    )
+    plan_hash = sha256(canonical_bytes(plan)).hexdigest()
+    names = output_names(executable_id, study_id=study_id)
+    contract = us500_source_contract()
+    required = {
+        DATASET_SHA256,
+        OBSERVED_MATERIAL_ID,
+        ROLLING_SPLIT_SHA256,
+        US500_RAW_SHA256,
+        contract.source_contract_id.removeprefix("source:"),
+        contract.mapping_identity,
+        contract.schema_identity,
+        contract.field_identity,
+        contract.clock_identity,
+        contract.availability_identity,
+        plan_hash,
+        market_residual_event_chassis_implementation_sha256(),
+        residual_quote_deferral_chassis_implementation_sha256(),
+        residual_quote_deferral_discovery_implementation_sha256(),
+        loader_implementation_sha256(),
+        discovery_implementation_sha256(),
+    }
+    if not required.issubset(spec["input_hashes"]):
+        raise ValueError("residual quote-deferral Job inputs are incomplete")
+    expected = set(spec["expected_outputs"])
+    produces_surface = surface_output_name(study_id=study_id) in expected
+    if produces_surface:
+        surface = compute_registered_residual_quote_deferral_surface(root)
+        surface_hash = writer.evidence.finalize(canonical_bytes(surface)).sha256
+        surface_manifest = {
+            "schema": "residual_quote_deferral_surface_manifest.v1",
+            "surface_artifact_hash": surface_hash,
+            "surface_implementation_sha256": (
+                residual_quote_deferral_discovery_implementation_sha256()
+            ),
+        }
+        surface_manifest_hash = writer.evidence.finalize(
+            canonical_bytes(surface_manifest)
+        ).sha256
+    else:
+        surface, surface_hash, surface_manifest_hash = _load_surface(
+            writer,
+            tuple(spec["input_hashes"]),
+        )
+    evaluation = project_residual_quote_deferral_evaluation(
+        surface,
+        job_execution={**execution.payload(), "identity": execution.identity},
+        subject_executable_id=executable_id,
+        surface_artifact_hash=surface_hash,
+        surface_manifest_hash=surface_manifest_hash,
+    )
+    evaluation_hash = writer.evidence.finalize(canonical_bytes(evaluation)).sha256
+    measurement = build_measurement(
+        executable_id=executable_id,
+        job_id=execution.job_id,
+        job_hash=execution.job_hash,
+        evaluation_artifact_hash=evaluation_hash,
+        evaluation=evaluation,
+        mission_id=mission_id,
+    )
+    measurement_hash = writer.evidence.finalize(canonical_bytes(measurement)).sha256
+    result = build_result_manifest(
+        executable_id=executable_id,
+        job_id=execution.job_id,
+        job_hash=execution.job_hash,
+        measurement_artifact_hash=measurement_hash,
+        mission_id=mission_id,
+    )
+    outputs = {
+        names["context"]: evaluation_hash,
+        names["environment"]: writer.evidence.finalize(
+            canonical_bytes(build_environment_manifest())
+        ).sha256,
+        names["measurement"]: measurement_hash,
+        names["plan"]: writer.evidence.finalize(canonical_bytes(plan)).sha256,
+        names["result"]: writer.evidence.finalize(canonical_bytes(result)).sha256,
+    }
+    if produces_surface:
+        outputs[surface_output_name(study_id=study_id)] = surface_hash
+        outputs[surface_manifest_output_name(study_id=study_id)] = (
+            surface_manifest_hash
+        )
+    return ResidualQuoteDeferralJobPacket(
+        output_manifest=tuple(sorted(outputs.items())),
+        verdict=planned_verdict(plan, measurement),
+    )
+
+
+__all__ = [
+    "CALLABLE_IDENTITY",
+    "CRITERIA",
+    "EVIDENCE_DEPTH",
+    "EVIDENCE_MODES",
+    "PLANNED_CLAIMS",
+    "build_environment_manifest",
+    "build_residual_quote_deferral_validation_plan",
+    "execute_residual_quote_deferral_job",
+    "executable_configuration_map",
+    "output_names",
+    "surface_manifest_output_name",
+    "surface_output_name",
+]
