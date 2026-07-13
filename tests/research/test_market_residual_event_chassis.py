@@ -4,7 +4,12 @@ import unittest
 
 import numpy as np
 
-from axiom_rift.research.chassis import ArchitectureChassisSpec
+from axiom_rift.research.chassis import (
+    ArchitectureChassisSpec,
+    ControlledStudyChassis,
+    validate_controlled_executable,
+)
+from axiom_rift.research.governance import ResearchLayer
 from axiom_rift.research.market_residual_event_chassis import (
     SELECTION_TOTAL_EXPOSURES,
     fit_market_residual,
@@ -75,6 +80,39 @@ class MarketResidualEventChassisTests(unittest.TestCase):
         self.assertEqual(baseline.parameter_values()["holding_bars"], 6)
         self.assertEqual(baseline.parameter_values()["selector_quantile_bp"], 9000)
         self.assertEqual(architecture.identity[:20], "architecture-family:")
+
+    def test_residual_subjects_change_exact_feature_trade_synthesis_domains(self) -> None:
+        baseline = market_residual_event_baseline()
+        self.assertEqual(
+            baseline.identity,
+            "executable:7d9f63e3a8f74dbd9b0b2a4877c09d6e763dbc67dffb830c6ade10d0640d3458",
+        )
+        controlled = ControlledStudyChassis(
+            baseline_executable=baseline,
+            changed_domains=(
+                ResearchLayer.EXECUTION,
+                ResearchLayer.FEATURE,
+                ResearchLayer.LIFECYCLE,
+                ResearchLayer.MODEL,
+                ResearchLayer.PORTFOLIO,
+                ResearchLayer.RISK,
+                ResearchLayer.TRADE,
+            ),
+            controlled_domains=(
+                ResearchLayer.CALIBRATION,
+                ResearchLayer.DATA_SOURCE,
+                ResearchLayer.LABEL,
+                ResearchLayer.REGIME,
+                ResearchLayer.SELECTOR,
+                ResearchLayer.SYNTHESIS,
+            ),
+            architecture=ArchitectureChassisSpec.from_executable(baseline),
+        )
+        for configuration in market_residual_event_configurations()[1:]:
+            validate_controlled_executable(
+                controlled.to_identity_payload(),
+                market_residual_event_executable(configuration),
+            )
 
     def test_scientific_validator_profile_is_registered(self) -> None:
         self.assertEqual(

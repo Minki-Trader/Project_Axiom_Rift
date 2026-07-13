@@ -25,10 +25,13 @@ _PROFILES = (
     "market_residual_continuation",
 )
 _THIS_FILE = Path(__file__).resolve()
+_REGISTERED_IMPLEMENTATION_SHA256 = (
+    "1035bcdc8a946f74ca8d61116ce3ff358aa9571bf268400f20f475a5eeddeee6"
+)
 
 
 def market_residual_event_chassis_implementation_sha256() -> str:
-    return sha256(_THIS_FILE.read_bytes()).hexdigest()
+    return _REGISTERED_IMPLEMENTATION_SHA256
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,11 +74,21 @@ class MarketResidualEventConfiguration:
 
     @property
     def trade_policy(self) -> str:
-        return "continuation" if self.signal_sign == 1 else "mean_reversion"
+        if self.profile == "target_only_mean_reversion_control":
+            return "mean_reversion"
+        return (
+            "residual_continuation"
+            if self.signal_sign == 1
+            else "residual_mean_reversion"
+        )
 
     def semantic_parameters(self) -> dict[str, Any]:
         return {
-            "beta_fit": "fold_train_ols_with_intercept",
+            "beta_fit": (
+                "fold_train_ols_with_intercept"
+                if self.profile == "target_only_mean_reversion_control"
+                else "fold_train_ols_with_intercept_residual_active"
+            ),
             "holding_bars": self.holding_bars,
             "lookback_bars": 12,
             "residual_profile": self.residual_profile,
@@ -163,8 +176,14 @@ def project_market_residual_score(
     return score
 
 
-def market_residual_event_components() -> tuple[ComponentSpec, ...]:
+def market_residual_event_components(
+    configuration: MarketResidualEventConfiguration | None = None,
+) -> tuple[ComponentSpec, ...]:
     contract = us500_source_contract()
+    residual_subject = (
+        configuration is not None
+        and configuration.profile != "target_only_mean_reversion_control"
+    )
     source = ComponentSpec(
         display_name="exact completed FPMarkets US500 broad-market source",
         protocol="external_source.fpmarkets_us500_m5.v3",
@@ -241,7 +260,11 @@ def market_residual_event_components() -> tuple[ComponentSpec, ...]:
             "decision_time": "bar_open_plus_5m",
             "entry_time": "next_exact_bar_open",
             "parameter_fields": ["trade_policy"],
-            "policies": ["mean_reversion", "continuation"],
+            "policies": (
+                ["mean_reversion", "continuation"]
+                if not residual_subject
+                else ["residual_mean_reversion", "residual_continuation"]
+            ),
         },
         semantic_dependencies=(selector.identity,),
     )
@@ -287,6 +310,14 @@ def market_residual_event_components() -> tuple[ComponentSpec, ...]:
         spec={
             "activity_quota": False,
             "maximum_positions": 1,
+            **(
+                {}
+                if not residual_subject
+                else {
+                    "parameter_fields": ["residual_profile"],
+                    "profile_binding": "market_residual_event",
+                }
+            ),
             "selection_profiles": 3,
         },
         semantic_dependencies=(execution.identity,),
@@ -312,7 +343,7 @@ def market_residual_event_executable(
     implementation = market_residual_event_chassis_implementation_sha256()
     return ExecutableSpec(
         display_name=f"market residual event {configuration.profile}",
-        components=market_residual_event_components(),
+        components=market_residual_event_components(configuration),
         parameters=configuration.semantic_parameters(),
         data_contract=boundary.data_contract,
         split_contract=boundary.split_contract,
