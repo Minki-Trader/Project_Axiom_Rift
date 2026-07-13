@@ -1,3 +1,4 @@
+
 """Journal-bound source eligibility Jobs for FPMarkets US500 M5."""
 
 from __future__ import annotations
@@ -9,9 +10,9 @@ from typing import Any, Mapping
 
 from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.operations.writer import RunningJobExecution, StateWriter
-from axiom_rift.research import source_eligibility_validation as validator_module
+from axiom_rift.research import us500_source_eligibility_validation as validator_module
 from axiom_rift.research import us500_source as source_module
-from axiom_rift.research.source_eligibility_validation import (
+from axiom_rift.research.us500_source_eligibility_validation import (
     SOURCE_ELIGIBILITY_VALIDATOR_ID,
 )
 from axiom_rift.research.us500_source import (
@@ -22,8 +23,6 @@ from axiom_rift.research.us500_source import (
 )
 
 
-MISSION_ID = "MIS-0001"
-STUDY_ID = "STU-0019"
 HISTORICAL_CALLABLE_IDENTITY = (
     "axiom_rift.research.us500_source_study.execute_us500_historical_audit_job.v2"
 )
@@ -52,14 +51,14 @@ def source_validator_implementation_sha256() -> str:
 def output_names(transition_evidence: str) -> dict[str, str]:
     if transition_evidence == "historical_audit":
         return {
-            "raw": "source/STU-0019/us500-historical.csv",
-            "measurement": "source/STU-0019/us500-historical-audit.json",
-            "result": "source/STU-0019/us500-historical-result.json",
+            "raw": "source/us500/historical.csv",
+            "measurement": "source/us500/historical-audit.json",
+            "result": "source/us500/historical-result.json",
         }
     if transition_evidence == "runtime_availability_proof":
         return {
-            "measurement": "source/STU-0019/us500-runtime-probe.json",
-            "result": "source/STU-0019/us500-runtime-result.json",
+            "measurement": "source/us500/runtime-probe.json",
+            "result": "source/us500/runtime-result.json",
         }
     raise ValueError("source transition is not registered")
 
@@ -84,12 +83,13 @@ def _build_result(
     observed_at_utc: str,
     facts: Mapping[str, Any],
     measurement_hashes: tuple[str, ...],
+    mission_id: str,
 ) -> dict[str, Any]:
     result = {
         "schema": "source_eligibility_evidence.v1",
         "job_id": execution.job_id,
         "job_hash": execution.job_hash,
-        "mission_id": MISSION_ID,
+        "mission_id": mission_id,
         "source_contract_id": us500_source_contract().source_contract_id,
         "transition_evidence": transition_evidence,
         "observed_at_utc": observed_at_utc,
@@ -112,15 +112,16 @@ def _execute(
     binding = writer.verify_running_job_execution(
         execution,
         expected_callable_identity=callable_identity,
-        expected_evidence_subject={"kind": "Study", "id": STUDY_ID},
     )
     source_binding = binding["spec"].get("source_binding")
     names = output_names(transition_evidence)
     contract_id = us500_source_contract().source_contract_id
     plan_hash = source_validation_plan_hash(transition_evidence)
     if (
-        binding.get("mission_id") != MISSION_ID
-        or binding.get("study_id") != STUDY_ID
+        not isinstance(binding.get("mission_id"), str)
+        or not isinstance(binding.get("study_id"), str)
+        or binding["spec"].get("evidence_subject")
+        != {"kind": "Study", "id": binding["study_id"]}
         or not isinstance(source_binding, dict)
         or source_binding.get("source_contract_id") != contract_id
         or source_binding.get("transition_evidence") != transition_evidence
@@ -172,6 +173,7 @@ def _execute(
         observed_at_utc=observed_at,
         facts=facts,
         measurement_hashes=measurement_hashes,
+        mission_id=binding["mission_id"],
     )
     result_bytes = canonical_bytes(result)
     output_manifest[names["result"]] = writer.evidence.finalize(result_bytes).sha256
@@ -209,10 +211,8 @@ def execute_us500_runtime_availability_job(
 
 __all__ = [
     "HISTORICAL_CALLABLE_IDENTITY",
-    "MISSION_ID",
     "RUNTIME_CALLABLE_IDENTITY",
     "SOURCE_ELIGIBILITY_VALIDATOR_ID",
-    "STUDY_ID",
     "SourceJobPacket",
     "execute_us500_historical_audit_job",
     "execute_us500_runtime_availability_job",
@@ -221,3 +221,5 @@ __all__ = [
     "source_study_implementation_sha256",
     "source_validator_implementation_sha256",
 ]
+
+

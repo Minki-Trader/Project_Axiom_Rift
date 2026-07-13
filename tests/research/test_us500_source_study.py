@@ -19,8 +19,8 @@ class US500SourceStudyTests(unittest.TestCase):
         runtime = output_names("runtime_availability_proof")
         self.assertEqual(set(historical), {"raw", "measurement", "result"})
         self.assertEqual(set(runtime), {"measurement", "result"})
-        self.assertTrue(all(name.startswith("source/STU-0019/") for name in historical.values()))
-        self.assertTrue(all(name.startswith("source/STU-0019/") for name in runtime.values()))
+        self.assertTrue(all(name.startswith("source/us500/") for name in historical.values()))
+        self.assertTrue(all(name.startswith("source/us500/") for name in runtime.values()))
         self.assertNotEqual(
             source_validation_plan_hash("historical_audit"),
             source_validation_plan_hash("runtime_availability_proof"),
@@ -46,6 +46,7 @@ class US500SourceStudyTests(unittest.TestCase):
                 "historical_runtime_field_parity": True,
             },
             measurement_hashes=("d" * 64,),
+            mission_id="MIS-fixture",
         )
         self.assertEqual(result["job_id"], execution.job_id)
         self.assertEqual(result["transition_evidence"], "runtime_availability_proof")

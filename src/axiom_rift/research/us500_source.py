@@ -1,3 +1,4 @@
+
 """FPMarkets US500 M5 source contract and eligibility measurements."""
 
 from __future__ import annotations
@@ -280,6 +281,7 @@ def derive_runtime_facts(probe: Mapping[str, Any]) -> dict[str, Any]:
         "market_closed",
         "closed_bar_available",
         "retrieval_latency_ms",
+        "market_clock_coherent",
         "dtype_fields",
     }
     if not required.issubset(probe):
@@ -302,6 +304,7 @@ def derive_runtime_facts(probe: Mapping[str, Any]) -> dict[str, Any]:
         and isinstance(probe["rates_count"], int)
         and probe["rates_count"] >= 3
         and probe["finite_tick"] is True
+        and probe["market_clock_coherent"] is True
     )
     return {
         "local_realtime_retrieval": bool(retrieval),
@@ -314,6 +317,16 @@ def derive_runtime_facts(probe: Mapping[str, Any]) -> dict[str, Any]:
         "latency_ms": int(latency),
         "historical_runtime_field_parity": bool(exact_spec),
     }
+
+
+def _completed_rate_epochs(
+    epochs: np.ndarray,
+    *,
+    market_epoch_seconds: int,
+) -> np.ndarray:
+    """Select completed bars in the MT5 market-clock coordinate."""
+
+    return epochs[epochs + 300 <= market_epoch_seconds]
 
 
 def probe_us500_runtime(repository_root: str | Path) -> dict[str, Any]:
@@ -339,7 +352,18 @@ def probe_us500_runtime(repository_root: str | Path) -> dict[str, Any]:
     if account is None or terminal is None or info is None or rates is None or tick is None:
         raise US500SourceError("US500 runtime probe returned an incomplete surface")
     epochs = np.asarray(rates["time"], dtype=np.int64)
-    closed = epochs[epochs + 300 <= int(observed.timestamp())]
+    market_epoch_seconds = int(tick.time)
+    machine_epoch_seconds = int(observed.timestamp())
+    market_clock_offset_seconds = market_epoch_seconds - machine_epoch_seconds
+    nearest_hour_offset = round(market_clock_offset_seconds / 3600)
+    market_clock_coherent = bool(
+        -4 <= nearest_hour_offset <= 4
+        and abs(market_clock_offset_seconds - nearest_hour_offset * 3600) <= 60
+    )
+    closed = _completed_rate_epochs(
+        epochs,
+        market_epoch_seconds=market_epoch_seconds,
+    )
     consecutive = len(closed) >= 3 and bool(np.all(np.diff(closed[-3:]) == 300))
     tick_values = np.array([tick.bid, tick.ask, float(tick.time)], dtype=float)
     probe = {
@@ -359,6 +383,8 @@ def probe_us500_runtime(repository_root: str | Path) -> dict[str, Any]:
         "finite_tick": bool(np.isfinite(tick_values).all() and tick.bid > 0),
         "market_closed": bool(observed.weekday() >= 5),
         "closed_bar_available": bool(len(closed) >= 1),
+        "market_clock_offset_seconds": market_clock_offset_seconds,
+        "market_clock_coherent": market_clock_coherent,
         "latest_closed_bar_utc": (
             None
             if len(closed) == 0
@@ -419,3 +445,4 @@ __all__ = [
     "source_validation_plan_hash",
     "us500_source_contract",
 ]
+

@@ -11,12 +11,13 @@ from axiom_rift.operations.validation import (
     EvidenceValidatorRegistry,
     ValidationArtifact,
 )
-from axiom_rift.research.source_eligibility_validation import (
+from axiom_rift.research.us500_source_eligibility_validation import (
     SOURCE_ELIGIBILITY_VALIDATOR_ID,
     SourceEligibilityValidator,
 )
 from axiom_rift.research.us500_source import (
     US500_COLUMNS,
+    _completed_rate_epochs,
     audit_us500_historical_bytes,
     derive_runtime_facts,
     source_validation_plan_hash,
@@ -42,6 +43,8 @@ def runtime_probe() -> dict[str, object]:
         "finite_tick": True,
         "market_closed": True,
         "closed_bar_available": True,
+        "market_clock_offset_seconds": 10800,
+        "market_clock_coherent": True,
         "latest_closed_bar_utc": "2026-07-10T23:55:00Z",
         "retrieval_latency_ms": 5,
         "dtype_fields": list(US500_COLUMNS),
@@ -51,6 +54,16 @@ def runtime_probe() -> dict[str, object]:
 
 
 class US500SourceTests(unittest.TestCase):
+    def test_completed_bars_use_the_mt5_market_clock_coordinate(self) -> None:
+        import numpy as np
+
+        epochs = np.asarray([10800, 11100, 11400, 11700], dtype=np.int64)
+        completed = _completed_rate_epochs(
+            epochs,
+            market_epoch_seconds=12001,
+        )
+        self.assertEqual(completed.tolist(), [10800, 11100, 11400, 11700])
+
     def test_contract_binds_exact_broker_surface_and_plans(self) -> None:
         contract = us500_source_contract()
         self.assertEqual(contract.runtime_identifier, "US500")
@@ -84,7 +97,7 @@ class US500SourceTests(unittest.TestCase):
             "schema": "source_eligibility_evidence.v1",
             "job_id": "job:" + "a" * 64,
             "job_hash": "a" * 64,
-            "mission_id": "MIS-0001",
+            "mission_id": "MIS-0006",
             "source_contract_id": us500_source_contract().source_contract_id,
             "transition_evidence": "runtime_availability_proof",
             "observed_at_utc": probe["observed_at_utc"],
@@ -107,8 +120,8 @@ class US500SourceTests(unittest.TestCase):
                 ),
                 job_id=result["job_id"],
                 job_hash=result["job_hash"],
-                mission_id="MIS-0001",
-                evidence_subject={"kind": "Study", "id": "STU-0018"},
+                mission_id="MIS-0006",
+                evidence_subject={"kind": "Study", "id": "STU-0085"},
                 binding={
                     "result_manifest_output": "result.json",
                     "source_contract_id": us500_source_contract().source_contract_id,
