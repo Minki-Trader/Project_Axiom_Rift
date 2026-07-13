@@ -25,13 +25,10 @@ _PROFILES = (
     "market_residual_continuation",
 )
 _THIS_FILE = Path(__file__).resolve()
-_REGISTERED_IMPLEMENTATION_SHA256 = (
-    "1035bcdc8a946f74ca8d61116ce3ff358aa9571bf268400f20f475a5eeddeee6"
-)
 
 
 def market_residual_event_chassis_implementation_sha256() -> str:
-    return _REGISTERED_IMPLEMENTATION_SHA256
+    return sha256(_THIS_FILE.read_bytes()).hexdigest()
 
 
 @dataclass(frozen=True, slots=True)

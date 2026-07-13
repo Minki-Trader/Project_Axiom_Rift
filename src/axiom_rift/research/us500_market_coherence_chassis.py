@@ -22,21 +22,20 @@ from axiom_rift.research.session_dense_positive_sleeve_chassis import (
     session_dense_positive_sleeve_configurations,
     simulate_session_dense_positive_sleeves,
 )
-from axiom_rift.research.us500_source import us500_source_contract
-
-
-SELECTION_TOTAL_EXPOSURES = PRIOR_TOTAL_EXPOSURES + 2
-US500_RAW_SHA256 = "0cffed5e030cc71dd8a5df798b67e156c92f6e905b663d836115e2ceb1c3a424"
-_PROFILES = ("fixed_high_reversal_control", "us500_sign_coherence_subject")
-_THIS_FILE = Path(__file__).resolve()
-_REGISTERED_IMPLEMENTATION_SHA256 = (
-    "c061acd46c3db509be94f71b97e549de7668e4ef14cc62c7e5acb34c0b428ad9"
+from axiom_rift.research.us500_source import (
+    US500_HISTORICAL_SNAPSHOT_SHA256,
+    us500_source_contract,
 )
 
 
+SELECTION_TOTAL_EXPOSURES = PRIOR_TOTAL_EXPOSURES + 2
+US500_RAW_SHA256 = US500_HISTORICAL_SNAPSHOT_SHA256
+_PROFILES = ("fixed_high_reversal_control", "us500_sign_coherence_subject")
+_THIS_FILE = Path(__file__).resolve()
+
+
 def us500_market_coherence_chassis_implementation_sha256() -> str:
-    # Preserve the registered Executable across a display-only reusable-code fix.
-    return _REGISTERED_IMPLEMENTATION_SHA256
+    return sha256(_THIS_FILE.read_bytes()).hexdigest()
 
 
 def frontier_executable() -> ExecutableSpec:
@@ -133,6 +132,24 @@ def us500_market_coherence_components() -> tuple[ComponentSpec, ...]:
         },
         semantic_dependencies=(source.identity, target_feature.identity),
     )
+    frontier_execution = next(
+        component
+        for component in frontier.components
+        if component.protocol.startswith("execution.")
+    )
+    engine_binding = ComponentSpec(
+        display_name="content-bound US500 coherence chassis engine",
+        protocol="execution.chassis_artifact_binding.v1",
+        implementation=_local("simulate_us500_market_coherence"),
+        spec={
+            "artifact_sha256": (
+                us500_market_coherence_chassis_implementation_sha256()
+            ),
+            "baseline_execution_semantics": "preserved",
+            "identity_policy": "any_artifact_byte_change_creates_new_identity",
+        },
+        semantic_dependencies=(frontier_execution.identity,),
+    )
     portfolio = ComponentSpec(
         display_name="US500 coherence high-target role router",
         protocol="portfolio.us500_market_coherence_high_target_role.v1",
@@ -145,9 +162,13 @@ def us500_market_coherence_components() -> tuple[ComponentSpec, ...]:
             "existing_regime_router": "unchanged",
             "activity_quota": False,
         },
-        semantic_dependencies=(frontier.components[-1].identity, regime.identity),
+        semantic_dependencies=(
+            frontier.components[-1].identity,
+            regime.identity,
+            engine_binding.identity,
+        ),
     )
-    return (*frontier.components, source, regime, portfolio)
+    return (*frontier.components, source, regime, engine_binding, portfolio)
 
 
 def us500_market_coherence_executable(
@@ -156,6 +177,7 @@ def us500_market_coherence_executable(
     if not configuration.uses_market_coherence:
         return frontier_executable()
     baseline = frontier_executable()
+    implementation = us500_market_coherence_chassis_implementation_sha256()
     return ExecutableSpec(
         display_name="fixed reversal frontier with US500 sign-coherence role routing",
         components=us500_market_coherence_components(),
@@ -164,7 +186,10 @@ def us500_market_coherence_executable(
         split_contract=baseline.split_contract,
         clock_contract=baseline.clock_contract,
         cost_contract=baseline.cost_contract,
-        engine_contract=baseline.engine_contract,
+        engine_contract=(
+            f"{baseline.engine_contract}:"
+            f"us500_market_coherence_chassis_sha256_{implementation}"
+        ),
         source_contracts=(us500_source_contract().source_contract_id,),
     )
 

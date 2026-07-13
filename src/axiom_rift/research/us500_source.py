@@ -15,12 +15,26 @@ import pandas as pd
 import yaml
 
 from axiom_rift.core.canonical import canonical_bytes
-from axiom_rift.research.sources import SourceContract, SourceType
+from axiom_rift.research.sources import (
+    INDEPENDENT_POINT_IN_TIME_FACT_FIELDS,
+    MT5_ABSOLUTE_TIME_AUTHORITY,
+    MT5_DOCUMENTED_TIME_REFERENCE,
+    MT5_DOCUMENTED_TIME_STANDARD,
+    MT5_EPOCH_COORDINATE,
+    MT5_OFFSET_POLICY,
+    MT5_SESSION_TIME_AUTHORITY,
+    SourceContract,
+    SourceType,
+    mt5_epoch_coordinate_observation_is_valid,
+)
 
 
 US500_SYMBOL = "US500"
 US500_SERVER = "FPMarketsSC-Live"
 US500_RAW_RELATIVE_PATH = "data/raw/mt5_bars/m5/US500_M5_max.csv"
+US500_HISTORICAL_SNAPSHOT_SHA256 = (
+    "0cffed5e030cc71dd8a5df798b67e156c92f6e905b663d836115e2ceb1c3a424"
+)
 US500_START_UTC = datetime(2018, 5, 7, 1, 0, tzinfo=timezone.utc)
 US500_END_UTC = datetime(2026, 6, 26, 23, 50, tzinfo=timezone.utc)
 US500_COLUMNS = (
@@ -70,8 +84,10 @@ def us500_source_contract() -> SourceContract:
             "currency": "USD",
             "digits": 2,
             "point": "0.01",
-            "session": "FPMarkets_dynamic_broker_session",
-            "timezone": "MT5_epoch_UTC",
+            "session": "FPMarkets_dynamic_broker_session_label_timezone_DST_unverified",
+            "timezone": (
+                f"{MT5_EPOCH_COORDINATE}_{MT5_ABSOLUTE_TIME_AUTHORITY}"
+            ),
             "adjustment": "none_observed",
             "roll": "cash_index_no_contract_roll",
         },
@@ -84,22 +100,41 @@ def us500_source_contract() -> SourceContract:
             "schema_revision": "mt5_copy_rates_m5_v1",
         },
         field_semantics={
-            "bar_open": "bid_open_at_event_time",
-            "bar_close": "bid_close_at_event_time_plus_5m",
-            "event_time": "MT5_epoch_seconds_rendered_as_UTC_bar_open",
-            "information_complete_at": "event_time_plus_5m",
-            "first_available_at": "first_successful_local_retrieval_after_bar_close",
+            "bar_open": "bid_open_at_MT5_epoch_coordinate",
+            "bar_close": "bid_close_at_MT5_epoch_coordinate_plus_5m",
+            "event_time": (
+                "MT5_epoch_rendered_with_UTC_formatter_absolute_timezone_unverified"
+            ),
+            "information_complete_at": (
+                "runtime_observed_bar_close_historical_point_in_time_unknown"
+            ),
+            "first_available_at": (
+                "runtime_probe_observation_only_historical_unknown"
+            ),
         },
         clock_semantics={
-            "decision_alignment": "information_complete_at_le_US100_decision_time",
-            "timezone_conversion": "epoch_to_UTC_without_server_label_inference",
+            "decision_alignment": "exact_same_MT5_epoch_coordinate_no_offset_inference",
+            "timezone_conversion": "none_absolute_timezone_authority_unknown",
+            "broker_session_label_timezone_dst_authority": (
+                MT5_SESSION_TIME_AUTHORITY
+            ),
+            "documented_time_standard": MT5_DOCUMENTED_TIME_STANDARD,
+            "documented_time_reference": MT5_DOCUMENTED_TIME_REFERENCE,
+            "observed_time_coordinate": MT5_EPOCH_COORDINATE,
+            "absolute_time_authority": MT5_ABSOLUTE_TIME_AUTHORITY,
+            "offset_policy": MT5_OFFSET_POLICY,
         },
         availability_semantics={
             "acquisition": "MetaTrader5.copy_rates_range_local_terminal",
-            "content_hash": "sha256_of_deterministic_csv_bytes",
-            "coverage": "2018-05-07T01:00:00Z_through_2026-06-26T23:50:00Z",
+            "content_hash": f"sha256:{US500_HISTORICAL_SNAPSHOT_SHA256}",
+            "coverage": (
+                "2018-05-07T01:00:00_through_2026-06-26T23:50:00_"
+                "MT5_epoch_coordinate"
+            ),
             "gap_policy": "exact_timestamp_inner_join_fail_closed_no_fill",
-            "revision_or_vintage": "immutable_broker_snapshot_by_sha256",
+            "revision_or_vintage": (
+                "historical_unknown_requires_independent_vintage_ledger"
+            ),
             "causal_ttl_seconds": 360,
             "eligibility_receipt_ttl_seconds": 21_600,
             "runtime_retrieval_method": "copy_rates_from_pos_plus_symbol_tick",
@@ -180,7 +215,9 @@ def audit_us500_historical_bytes(
     observed_at_utc: str,
 ) -> dict[str, Any]:
     frame = _parse_historical(content)
-    time = pd.to_datetime(frame["time"], format="%Y.%m.%d %H:%M:%S", utc=True, errors="coerce")
+    time = pd.to_datetime(
+        frame["time"], format="%Y.%m.%d %H:%M:%S", errors="coerce"
+    )
     numeric_names = US500_COLUMNS[1:]
     numeric = frame.loc[:, numeric_names].apply(pd.to_numeric, errors="coerce")
     values = numeric.to_numpy(dtype=float)
@@ -198,10 +235,10 @@ def audit_us500_historical_bytes(
     time_ns = time.astype("int64", copy=False).to_numpy()
     differences = np.diff(time_ns) if len(time_ns) > 1 else np.array([], dtype=np.int64)
     five_minutes_ns = 300_000_000_000
-    first = None if not valid_time.all() else time.iloc[0].isoformat().replace("+00:00", "Z")
-    last = None if not valid_time.all() else time.iloc[-1].isoformat().replace("+00:00", "Z")
-    expected_first = US500_START_UTC.isoformat().replace("+00:00", "Z")
-    expected_last = US500_END_UTC.isoformat().replace("+00:00", "Z")
+    first = None if not valid_time.all() else time.iloc[0].isoformat()
+    last = None if not valid_time.all() else time.iloc[-1].isoformat()
+    expected_first = US500_START_UTC.replace(tzinfo=None).isoformat()
+    expected_last = US500_END_UTC.replace(tzinfo=None).isoformat()
     duplicate_rows = int(frame.duplicated(subset=["time"]).sum())
     non_monotonic_rows = int((differences <= 0).sum())
     valid_timestamps = time.dropna()
@@ -226,25 +263,37 @@ def audit_us500_historical_bytes(
         and invalid_ohlc_rows == 0
     )
     coverage_ok = first == expected_first and last == expected_last
+    raw_sha256 = sha256(content).hexdigest()
     facts = {
         "acquisition_observed": bool(acquisition_ok),
-        "content_hash_verified": True,
+        "content_hash_verified": raw_sha256 == US500_HISTORICAL_SNAPSHOT_SHA256,
         "event_time_audited": bool(valid_time.all() and off_grid_rows == 0),
-        "information_complete_at_audited": bool(structure_ok),
-        "first_availability_audited": bool(structure_ok),
+        "information_complete_at_audited": False,
+        "first_availability_audited": False,
         "coverage_audited": bool(coverage_ok),
         "gaps_audited": bool(structure_ok),
-        "revision_or_vintage_audited": True,
+        "revision_or_vintage_audited": False,
     }
     return {
-        "schema": "us500_historical_audit_measurement.v1",
+        "schema": "us500_historical_audit_measurement.v2",
         "source_contract_id": us500_source_contract().source_contract_id,
         "observed_at_utc": observed_at_utc,
-        "raw_sha256": sha256(content).hexdigest(),
+        "evidence_scope": "current_mt5_epoch_coordinate_history_reconstruction",
+        "freshness_scope": (
+            "retrieval_observed_at_utc_not_historical_bar_availability"
+        ),
+        "timestamp_provenance": (
+            "UTC_formatter_applied_to_MT5_epoch_absolute_timezone_unverified"
+        ),
+        "point_in_time_authority": {
+            name: "unknown_no_independent_evidence"
+            for name in sorted(INDEPENDENT_POINT_IN_TIME_FACT_FIELDS)
+        },
+        "raw_sha256": raw_sha256,
         "columns": list(US500_COLUMNS),
         "row_count": int(len(frame)),
-        "first_time_utc": first,
-        "last_time_utc": last,
+        "first_time_mt5_epoch_coordinate": first,
+        "last_time_mt5_epoch_coordinate": last,
         "duplicate_rows": duplicate_rows,
         "non_monotonic_rows": non_monotonic_rows,
         "off_grid_rows": off_grid_rows,
@@ -260,8 +309,6 @@ def build_us500_historical_audit(repository_root: str | Path) -> tuple[bytes, di
     content = acquire_us500_historical_snapshot(repository_root)
     observed = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
     measurement = audit_us500_historical_bytes(content, observed_at_utc=observed)
-    if any(measurement["facts"].get(name) is not True for name in HISTORICAL_FACT_FIELDS):
-        raise US500SourceError("US500 historical source audit did not pass")
     return content, measurement
 
 
@@ -281,7 +328,21 @@ def derive_runtime_facts(probe: Mapping[str, Any]) -> dict[str, Any]:
         "market_closed",
         "closed_bar_available",
         "retrieval_latency_ms",
-        "market_clock_coherent",
+        "absolute_time_authority",
+        "broker_session_timezone_dst_authority",
+        "documented_time_standard",
+        "latest_rate_mt5_epoch_seconds",
+        "mt5_epoch_minus_observed_utc_seconds",
+        "mt5_epoch_sequence_coherent",
+        "mt5_package_version",
+        "observed_at_utc",
+        "observed_utc_epoch_seconds",
+        "offset_policy",
+        "terminal_build",
+        "tick_mt5_epoch_seconds",
+        "time_coordinate",
+        "evidence_scope",
+        "freshness_scope",
         "dtype_fields",
     }
     if not required.issubset(probe):
@@ -304,7 +365,10 @@ def derive_runtime_facts(probe: Mapping[str, Any]) -> dict[str, Any]:
         and isinstance(probe["rates_count"], int)
         and probe["rates_count"] >= 3
         and probe["finite_tick"] is True
-        and probe["market_clock_coherent"] is True
+        and mt5_epoch_coordinate_observation_is_valid(probe)
+        and probe["evidence_scope"] == "local_terminal_runtime_observation"
+        and probe["freshness_scope"]
+        == "live_retrieval_latency_at_observed_at_utc"
     )
     return {
         "local_realtime_retrieval": bool(retrieval),
@@ -322,11 +386,11 @@ def derive_runtime_facts(probe: Mapping[str, Any]) -> dict[str, Any]:
 def _completed_rate_epochs(
     epochs: np.ndarray,
     *,
-    market_epoch_seconds: int,
+    tick_mt5_epoch_seconds: int,
 ) -> np.ndarray:
-    """Select completed bars in the MT5 market-clock coordinate."""
+    """Select completed bars on the observed MT5 coordinate only."""
 
-    return epochs[epochs + 300 <= market_epoch_seconds]
+    return epochs[epochs + 300 <= tick_mt5_epoch_seconds]
 
 
 def probe_us500_runtime(repository_root: str | Path) -> dict[str, Any]:
@@ -352,24 +416,40 @@ def probe_us500_runtime(repository_root: str | Path) -> dict[str, Any]:
     if account is None or terminal is None or info is None or rates is None or tick is None:
         raise US500SourceError("US500 runtime probe returned an incomplete surface")
     epochs = np.asarray(rates["time"], dtype=np.int64)
-    market_epoch_seconds = int(tick.time)
-    machine_epoch_seconds = int(observed.timestamp())
-    market_clock_offset_seconds = market_epoch_seconds - machine_epoch_seconds
-    nearest_hour_offset = round(market_clock_offset_seconds / 3600)
-    market_clock_coherent = bool(
-        -4 <= nearest_hour_offset <= 4
-        and abs(market_clock_offset_seconds - nearest_hour_offset * 3600) <= 60
+    tick_mt5_epoch_seconds = int(tick.time)
+    latest_rate_mt5_epoch_seconds = (
+        -1 if len(epochs) == 0 else int(np.max(epochs))
+    )
+    observed_utc_epoch_seconds = int(observed.timestamp())
+    mt5_epoch_minus_observed_utc_seconds = (
+        tick_mt5_epoch_seconds - observed_utc_epoch_seconds
+    )
+    mt5_epoch_sequence_coherent = bool(
+        len(epochs) >= 1
+        and 0
+        <= tick_mt5_epoch_seconds - latest_rate_mt5_epoch_seconds
+        <= 600
     )
     closed = _completed_rate_epochs(
         epochs,
-        market_epoch_seconds=market_epoch_seconds,
+        tick_mt5_epoch_seconds=tick_mt5_epoch_seconds,
     )
     consecutive = len(closed) >= 3 and bool(np.all(np.diff(closed[-3:]) == 300))
     tick_values = np.array([tick.bid, tick.ask, float(tick.time)], dtype=float)
     probe = {
-        "schema": "us500_runtime_probe_measurement.v1",
+        "schema": "us500_runtime_probe_measurement.v2",
         "source_contract_id": us500_source_contract().source_contract_id,
         "observed_at_utc": observed.isoformat().replace("+00:00", "Z"),
+        "observed_utc_epoch_seconds": observed_utc_epoch_seconds,
+        "evidence_scope": "local_terminal_runtime_observation",
+        "freshness_scope": "live_retrieval_latency_at_observed_at_utc",
+        "time_coordinate": MT5_EPOCH_COORDINATE,
+        "documented_time_standard": MT5_DOCUMENTED_TIME_STANDARD,
+        "absolute_time_authority": MT5_ABSOLUTE_TIME_AUTHORITY,
+        "offset_policy": MT5_OFFSET_POLICY,
+        "broker_session_timezone_dst_authority": MT5_SESSION_TIME_AUTHORITY,
+        "mt5_package_version": str(mt5.__version__),
+        "terminal_build": int(terminal.build),
         "connected": bool(terminal.connected),
         "server": str(account.server),
         "symbol": str(info.name),
@@ -383,12 +463,18 @@ def probe_us500_runtime(repository_root: str | Path) -> dict[str, Any]:
         "finite_tick": bool(np.isfinite(tick_values).all() and tick.bid > 0),
         "market_closed": bool(observed.weekday() >= 5),
         "closed_bar_available": bool(len(closed) >= 1),
-        "market_clock_offset_seconds": market_clock_offset_seconds,
-        "market_clock_coherent": market_clock_coherent,
-        "latest_closed_bar_utc": (
+        "tick_mt5_epoch_seconds": tick_mt5_epoch_seconds,
+        "latest_rate_mt5_epoch_seconds": latest_rate_mt5_epoch_seconds,
+        "mt5_epoch_minus_observed_utc_seconds": (
+            mt5_epoch_minus_observed_utc_seconds
+        ),
+        "mt5_epoch_sequence_coherent": mt5_epoch_sequence_coherent,
+        "latest_closed_bar_mt5_epoch_coordinate": (
             None
             if len(closed) == 0
-            else datetime.fromtimestamp(int(closed[-1]), timezone.utc).isoformat().replace("+00:00", "Z")
+            else datetime.fromtimestamp(int(closed[-1]), timezone.utc)
+            .replace(tzinfo=None)
+            .isoformat()
         ),
         "retrieval_latency_ms": latency,
         "dtype_fields": list(rates.dtype.names or ()),
@@ -414,11 +500,14 @@ def source_validation_plan(transition_evidence: str) -> dict[str, Any]:
     if fields is None:
         raise ValueError("source validation transition is not registered")
     return {
-        "schema": "us500_source_validation_plan.v1",
+        "schema": "us500_source_validation_plan.v2",
         "source_contract_id": us500_source_contract().source_contract_id,
         "transition_evidence": transition_evidence,
         "required_fact_fields": list(fields),
-        "verdict_rule": "all_boolean_facts_true_and_latency_nonnegative",
+        "verdict_rule": (
+            "current_reconstruction_and_independent_point_in_time_facts_true_"
+            "then_runtime_facts_true_and_latency_nonnegative"
+        ),
     }
 
 
@@ -431,6 +520,7 @@ __all__ = [
     "RUNTIME_FACT_FIELDS",
     "US500_COLUMNS",
     "US500_END_UTC",
+    "US500_HISTORICAL_SNAPSHOT_SHA256",
     "US500_RAW_RELATIVE_PATH",
     "US500_SERVER",
     "US500_START_UTC",
@@ -445,4 +535,3 @@ __all__ = [
     "source_validation_plan_hash",
     "us500_source_contract",
 ]
-

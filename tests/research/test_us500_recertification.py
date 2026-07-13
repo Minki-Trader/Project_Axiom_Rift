@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -12,6 +13,11 @@ from axiom_rift.operations.validation import (
     ValidationArtifact,
 )
 from axiom_rift.research.sources import (
+    MT5_ABSOLUTE_TIME_AUTHORITY,
+    MT5_DOCUMENTED_TIME_STANDARD,
+    MT5_EPOCH_COORDINATE,
+    MT5_OFFSET_POLICY,
+    MT5_SESSION_TIME_AUTHORITY,
     SourceEligibilityReceipt,
     SourceTransitionEvidence,
 )
@@ -30,10 +36,25 @@ from axiom_rift.research.us500_source import US500_COLUMNS, derive_runtime_facts
 
 
 def runtime_probe() -> dict[str, object]:
+    observed_at_utc = "2026-07-13T01:00:00Z"
+    observed_epoch = int(
+        datetime.fromisoformat(observed_at_utc.replace("Z", "+00:00")).timestamp()
+    )
+    tick_epoch = observed_epoch + 10_800
     value = {
-        "schema": "us500_runtime_probe_measurement.v1",
+        "schema": "us500_runtime_probe_measurement.v2",
         "source_contract_id": us500_source_contract().source_contract_id,
-        "observed_at_utc": "2026-07-13T01:00:00Z",
+        "observed_at_utc": observed_at_utc,
+        "observed_utc_epoch_seconds": observed_epoch,
+        "evidence_scope": "local_terminal_runtime_observation",
+        "freshness_scope": "live_retrieval_latency_at_observed_at_utc",
+        "time_coordinate": MT5_EPOCH_COORDINATE,
+        "documented_time_standard": MT5_DOCUMENTED_TIME_STANDARD,
+        "absolute_time_authority": MT5_ABSOLUTE_TIME_AUTHORITY,
+        "offset_policy": MT5_OFFSET_POLICY,
+        "broker_session_timezone_dst_authority": MT5_SESSION_TIME_AUTHORITY,
+        "mt5_package_version": "5.0.fixture",
+        "terminal_build": 5833,
         "connected": True,
         "server": "FPMarketsSC-Live",
         "symbol": "US500",
@@ -47,9 +68,11 @@ def runtime_probe() -> dict[str, object]:
         "finite_tick": True,
         "market_closed": False,
         "closed_bar_available": True,
-        "market_clock_offset_seconds": 10800,
-        "market_clock_coherent": True,
-        "latest_closed_bar_utc": "2026-07-13T03:55:00Z",
+        "tick_mt5_epoch_seconds": tick_epoch,
+        "latest_rate_mt5_epoch_seconds": tick_epoch - 300,
+        "mt5_epoch_minus_observed_utc_seconds": 10_800,
+        "mt5_epoch_sequence_coherent": True,
+        "latest_closed_bar_mt5_epoch_coordinate": "2026-07-13T03:55:00",
         "retrieval_latency_ms": 7,
         "dtype_fields": list(US500_COLUMNS),
     }

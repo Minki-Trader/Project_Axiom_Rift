@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from hashlib import sha256
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -12,7 +11,11 @@ from axiom_rift.operations.validation import (
     EvidenceValidationRequest,
     ValidatedEvidence,
     validator_identity,
+    validator_implementation_sha256,
 )
+from axiom_rift.research import sources as sources_module
+from axiom_rift.research import us500_recertification as recertification_module
+from axiom_rift.research import us500_source as source_module
 from axiom_rift.research.sources import SourceTransitionEvidence
 from axiom_rift.research.us500_recertification import (
     DRIFT_FACTS,
@@ -25,10 +28,18 @@ from axiom_rift.research.us500_source import derive_runtime_facts, us500_source_
 
 
 _THIS_FILE = Path(__file__).resolve()
+_DEPENDENCY_PATHS = (
+    Path(sources_module.__file__).resolve(),
+    Path(source_module.__file__).resolve(),
+    Path(recertification_module.__file__).resolve(),
+)
 US500_RECERTIFICATION_VALIDATOR_ID = validator_identity(
     protocol="fpmarkets_us500_source_recertification.v1",
     domains=frozenset({"source"}),
-    implementation_sha256=sha256(_THIS_FILE.read_bytes()).hexdigest(),
+    implementation_sha256=validator_implementation_sha256(
+        implementation_path=_THIS_FILE,
+        dependency_paths=_DEPENDENCY_PATHS,
+    ),
 )
 
 
@@ -42,6 +53,7 @@ class US500RecertificationValidator:
     validator_id = US500_RECERTIFICATION_VALIDATOR_ID
     domains = frozenset({"source"})
     implementation_path = _THIS_FILE
+    dependency_paths = _DEPENDENCY_PATHS
     protocol = "fpmarkets_us500_source_recertification.v1"
 
     def validate(self, request: EvidenceValidationRequest) -> ValidatedEvidence:

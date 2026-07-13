@@ -37,11 +37,12 @@ training, hashing, parsing, and records, while a future EA stays thin.
 ## Local Commands
 
 ```powershell
-$env:PYTHONPATH = (Join-Path $PWD "src")
 python -m axiom_rift.cli status
 python -m axiom_rift.cli recover
-python -m unittest tests.core.test_identity tests.storage.test_index
+python -m pytest -q tests/core/test_identity.py tests/storage/test_index.py
 ```
 
 Verification is selected by the changed reusable surface. There is no mandatory
 full-suite, PR, CI, external review, or portable deployment requirement.
+Pytest is the canonical test collector; a successful zero-test unittest
+discovery is not a project verification result.

@@ -68,15 +68,28 @@ and a stop or reopen condition. A non-synthesis axis changes exactly its one
 primary layer. Synthesis or Portfolio axes may change multiple domains but must
 say so explicitly.
 
-The initial intake-bound Portfolio preregisters immutable exhaustion and
+The initial intake-bound Portfolio preregisters evidence-bound exhaustion and
 architecture-review thresholds. It must be diverse in mechanism family,
 primary research layer, and architecture family. This is a terminal-credibility
-standard, not a quota requiring periodic layer rotation.
+standard, not a quota requiring periodic layer rotation. Its numeric floors and
+required evidence modes remain immutable inside the Mission. Additive evidence
+may qualify conclusions without rewriting the standard. If a later exhaustive
+audit proves the standard itself defective, bind that finding into the exact
+successor Mission intake and its newly preregistered standard; never reinterpret
+history silently.
 
 Do not select a default feature, label, model, objective, trade family, or
 external source. Do not let a recent positive monopolize the Portfolio or a
 failure become a universal ban. Use extremes, neighborhoods, ablations,
 boundary tests, and stress when they identify a mechanism or surface.
+
+When several live axes share one data and decision boundary, prefer one
+preregistered concurrent forest to serial one-axis Decisions. Freeze the exact
+family and common calendar, run axes together when their resource claims are
+disjoint, and preserve synchronized selection inference. Compare information
+value, identifiability, compute cost, architecture, and opportunity cost before
+deepening, contrasting, recombining, or pruning. Never add missing family days
+as implicit zero PnL.
 
 ## Register Before Evidence
 
@@ -87,6 +100,12 @@ boundary tests, and stress when they identify a mechanism or surface.
   clock, cost, engine, and source semantics.
 - Freeze an adaptive Batch bound, acceptance profile, compute and wall limits,
   stop rule, expected artifacts, and evidence modes.
+- For prospective scientific work use the active adjudication v2 validator.
+  Preregister criterion roles as validity, component, multiplicity,
+  risk_diagnostic, or risk_gate and preserve supported, contradicted,
+  unresolved, invalid, and diagnostic states. Discovery maps a frontier and
+  is always candidate-ineligible; only confirmation may request promotion-grade
+  authority after every decisive gate passes.
 - Consume the Decision's finite Batch commitment mechanically.
 - Count each unique Executable. Reuse identical success and reject unchanged
   failed retry.
@@ -95,6 +114,10 @@ boundary tests, and stress when they identify a mechanism or surface.
 Prefer the smallest interpretable baseline contrast that can falsify the
 question. Hold the common chassis fixed and change the declared primary layer.
 Do not hide a multi-layer redesign inside a feature-named Study.
+Use the reusable component, evaluation, selection-inference, and adjudication
+engines for new work. Do not create another temporal Study runner when a
+declarative plan over an existing primitive is sufficient. Historical runners
+remain compatibility surfaces until exact parity evidence supports retirement.
 
 ## Data And Sources
 
@@ -103,10 +126,23 @@ time. Keep fit, calibration, development, restricted confirmation, quarantine,
 and final forward evidence distinct. Require one-time HoldoutPermit for value
 access; sealed ingestion exposes no values.
 
-Treat every inference-time external dependency as executable input. Performance
-requires runtime eligibility, an exact SourcePermit, and current source state.
-Fail stale, missing, late, nonfinite, unsynchronized, or invalid mappings closed
-for the dependent sleeve without stopping independent sleeves.
+Treat every inference-time external dependency as executable input. Offline
+historical performance requires sealed content, valid semantics, an exact
+SourcePermit, and a non-suspended source state; an expired wall-clock freshness
+receipt alone does not invalidate immutable historical bytes. Runtime entry and
+candidate-bound runtime evidence additionally require current synchronization,
+freshness, closure, latency, and mapping checks. Fail stale, missing, late,
+nonfinite, unsynchronized, or invalid mappings closed for the dependent sleeve
+without stopping independent sleeves.
+
+Current broker history is reconstruction, not proof of historical first
+availability or vintage. If official MT5 time documentation and the observed
+provider epoch coordinate disagree, preserve both facts and leave absolute
+timezone, broker-session, and DST authority unknown; never infer a silent shift.
+An audit-invalidated source head is latched. Ordinary same-semantics
+recertification cannot restore it; follow its exact resolution policy, normally
+a new source contract. Qualify every historical scientific result whose trial
+binds that source as not evaluable through an additive provenance-bound overlay.
 
 After a holdout reveal, never retune or refreeze from pre-reveal evidence.
 Require a registered later development receipt and new post-registration
@@ -122,6 +158,12 @@ completion when present, and negative memory when present. Classify the
 evidence state, confidence, counterfactual, and reopen condition. KPI magnitude
 alone cannot choose the state. Engineering failure is `engineering_gap`, not
 scientific falsification.
+
+Interpret the validator independently of Job status. An operationally
+successful Job may carry a failed scientific verdict, while an engineering or
+source failure carries no scientific verdict. Use component-aware evidence to
+preserve partial positives and exact contradicted claims instead of collapsing
+the whole Executable into one universal negative.
 
 The writer derives allowed local actions and research-layer branches from the
 typed evidence state. The next Decision must either follow that branch,
@@ -161,9 +203,12 @@ recombine, or synthesize with exact evidence scope and next action.
 
 Do not mutate a Portfolio while a Study or Batch is active. Axis meaning is
 immutable inside a Mission. A `closed_no_candidate` proposal requires every
-axis pruned, exact negative lineage, the preregistered mechanism, research-layer,
-architecture, Study, Executable, and validator-demonstrated evidence depth,
-plus no unresolved candidate-eligible positive evidence.
+axis to have an evidence-bound prune, preservation, replay, low-information
+disposition, or reopen rule; it does not require falsely pruning unresolved or
+invalid work. Bind the exact negative lineage, current evidence-bound exhaustion
+standard, mechanism, research-layer, architecture, Study, Executable, and
+validator-demonstrated depth, with no unresolved candidate-eligible positive
+evidence.
 
 ## Mandatory Study KPI And User Report
 

@@ -19,7 +19,7 @@ from axiom_rift.research.us30_sector_rotation_discovery import (
 
 RAW_SHA256 = "6d638467069a756a7a3897b587ec16a4b9ff76df8718186c2a81905d6d0488d4"
 AXIS_ARCHITECTURE = (
-    "architecture-family:e784a1eb1469ff0dd6ceaee9cb1c705ff8bb9357e12a3f4fc2f04015784ea120"
+    "architecture-family:4de82fba3755cf208b81794e4f00b9307ae88901519304836d95c6dae294f154"
 )
 
 
@@ -59,7 +59,7 @@ class US30SectorRotationChassisTests(unittest.TestCase):
         validate_controlled_executable(chassis.to_identity_payload(), subject)
         self.assertEqual(
             baseline.identity,
-            "executable:411fa152eb56829ea0500818d3885fc40e0ebcfa07bcf8db23833710d31fbafd",
+            "executable:6fa1f078ef72ebc6e71a84c6ab5cf705a4307c849d89c1dc87e09005be848ec6",
         )
         self.assertEqual(
             subject.parameter_values()["source_usage_profile"],

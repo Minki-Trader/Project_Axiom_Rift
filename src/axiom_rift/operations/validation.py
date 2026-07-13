@@ -167,11 +167,65 @@ class ValidationTrace:
     opened_artifact_count: int
 
 
+def validator_implementation_sha256(
+    *,
+    implementation_path: str | Path,
+    dependency_paths: tuple[str | Path, ...] = (),
+) -> str:
+    """Bind one implementation and its ordered, declared dependency bytes.
+
+    A validator without dependencies retains the legacy identity input: the
+    plain SHA-256 of its implementation file.  Dependency-aware validators use
+    a domain-separated manifest of the implementation digest and every
+    dependency digest in declaration order.
+    """
+
+    if type(dependency_paths) is not tuple:
+        raise EvidenceValidationError(
+            "validator dependency paths must be a declared tuple"
+        )
+    try:
+        implementation = Path(implementation_path).resolve()
+        dependencies = tuple(Path(item).resolve() for item in dependency_paths)
+    except (OSError, TypeError, ValueError) as exc:
+        raise EvidenceValidationError("validator implementation path is invalid") from exc
+    if len(set(dependencies)) != len(dependencies) or implementation in dependencies:
+        raise EvidenceValidationError("validator dependency paths must be unique")
+
+    def content_digest(path: Path, *, dependency: bool) -> str:
+        try:
+            content = path.read_bytes()
+        except OSError as exc:
+            label = "dependency" if dependency else "implementation"
+            raise EvidenceValidationError(
+                f"validator {label} file is absent"
+            ) from exc
+        return sha256(content).hexdigest()
+
+    implementation_digest = content_digest(implementation, dependency=False)
+    if not dependencies:
+        return implementation_digest
+    dependency_digests = [
+        content_digest(path, dependency=True) for path in dependencies
+    ]
+    return canonical_digest(
+        domain="evidence-validator-implementation-bundle",
+        payload={
+            "dependency_sha256s": dependency_digests,
+            "implementation_sha256": implementation_digest,
+            "schema": "evidence_validator_implementation_bundle.v1",
+        },
+    )
+
+
 class EvidenceValidatorRegistry:
     """Small trusted adapter registry. The production default is intentionally empty."""
 
     def __init__(self, validators: tuple[EvidenceValidator, ...] = ()) -> None:
         self._validators: dict[str, EvidenceValidator] = {}
+        self._implementation_bindings: dict[
+            str, tuple[Path, tuple[Path, ...], str]
+        ] = {}
         for validator in validators:
             validator_id = _ascii("validator_id", validator.validator_id)
             if validator_id in self._validators:
@@ -180,10 +234,24 @@ class EvidenceValidatorRegistry:
                 {"scientific", "source", "runtime", "external"}
             ):
                 raise EvidenceValidationError("validator domains are invalid")
-            implementation_path = Path(validator.implementation_path).resolve()
-            if not implementation_path.is_file():
-                raise EvidenceValidationError("validator implementation file is absent")
-            implementation_hash = sha256(implementation_path.read_bytes()).hexdigest()
+            try:
+                implementation_path = Path(validator.implementation_path).resolve()
+                raw_dependencies = getattr(validator, "dependency_paths", ())
+                if type(raw_dependencies) is not tuple:
+                    raise EvidenceValidationError(
+                        "validator dependency paths must be a declared tuple"
+                    )
+                dependency_paths = tuple(
+                    Path(item).resolve() for item in raw_dependencies
+                )
+            except (OSError, TypeError, ValueError) as exc:
+                raise EvidenceValidationError(
+                    "validator implementation path is invalid"
+                ) from exc
+            implementation_hash = validator_implementation_sha256(
+                implementation_path=implementation_path,
+                dependency_paths=dependency_paths,
+            )
             expected_id = validator_identity(
                 protocol=validator.protocol,
                 domains=validator.domains,
@@ -191,9 +259,27 @@ class EvidenceValidatorRegistry:
             )
             if validator_id != expected_id:
                 raise EvidenceValidationError(
-                    "validator identity does not bind its implementation file"
+                    "validator identity does not bind its implementation bundle"
                 )
             self._validators[validator_id] = validator
+            self._implementation_bindings[validator_id] = (
+                implementation_path,
+                dependency_paths,
+                implementation_hash,
+            )
+
+    def _require_implementation_unchanged(self, validator_id: str) -> None:
+        implementation, dependencies, expected_hash = self._implementation_bindings[
+            validator_id
+        ]
+        actual_hash = validator_implementation_sha256(
+            implementation_path=implementation,
+            dependency_paths=dependencies,
+        )
+        if actual_hash != expected_hash:
+            raise EvidenceValidationError(
+                "validator implementation bundle changed after registration"
+            )
 
     def validate(
         self, request: EvidenceValidationRequest
@@ -203,7 +289,9 @@ class EvidenceValidatorRegistry:
             raise EvidenceValidationError(
                 "no registered validator authorizes this evidence domain"
             )
+        self._require_implementation_unchanged(request.validator_id)
         result = validator.validate(request)
+        self._require_implementation_unchanged(request.validator_id)
         if not isinstance(result, ValidatedEvidence):
             raise EvidenceValidationError("validator returned an untyped result")
         opened = sum(artifact.was_read for artifact in request.artifacts)
@@ -225,6 +313,7 @@ class EvidenceValidatorRegistry:
             raise EvidenceValidationError(
                 "no registered validator authorizes this evidence domain"
             )
+        self._require_implementation_unchanged(validator_id)
 
     def preflight_binding(
         self,
@@ -243,6 +332,7 @@ class EvidenceValidatorRegistry:
         if not callable(preflight):
             raise EvidenceValidationError("validator binding preflight is invalid")
         preflight(domain=domain, binding=_freeze_canonical(binding))
+        self._require_implementation_unchanged(validator_id)
 
 
 ENGINEERING_RUNTIME_PLAN = {
@@ -295,7 +385,9 @@ _THIS_IMPLEMENTATION = Path(__file__).resolve()
 ENGINEERING_VALIDATOR_ID = validator_identity(
     protocol="engineering_fixture.v1",
     domains=frozenset({"runtime", "scientific"}),
-    implementation_sha256=sha256(_THIS_IMPLEMENTATION.read_bytes()).hexdigest(),
+    implementation_sha256=validator_implementation_sha256(
+        implementation_path=_THIS_IMPLEMENTATION
+    ),
 )
 
 
@@ -380,5 +472,6 @@ __all__ = [
     "ValidatedEvidence",
     "ValidationArtifact",
     "ValidationTrace",
+    "validator_implementation_sha256",
     "validator_identity",
 ]

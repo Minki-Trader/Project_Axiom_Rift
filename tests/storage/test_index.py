@@ -144,6 +144,45 @@ class LocalIndexTests(unittest.TestCase):
             with self.assertRaises(IndexIntegrityError):
                 index.event_head("source:fixture")
 
+    def test_count_by_kind_is_keyed_without_authority_row_decodes(self) -> None:
+        validated: list[str] = []
+        with LocalIndex(
+            self.path,
+            authority_validator=lambda item: validated.append(item.record_id),
+        ) as index:
+            index.rebuild(record(number) for number in range(2_000))
+            validated.clear()
+            self.assertEqual(index.count_by_kind("event"), 2_000)
+            self.assertEqual(index.count_by_kind("absent"), 0)
+            self.assertEqual(validated, [])
+            index._connection.execute(  # noqa: SLF001 - adversarial view test
+                "UPDATE record_kind_stats SET record_count = ? WHERE kind = ?",
+                (1_999, "event"),
+            )
+            with self.assertRaisesRegex(IndexIntegrityError, "count projection"):
+                index.count_by_kind("event")
+
+    def test_existing_projection_migrates_kind_counts_once(self) -> None:
+        with LocalIndex(self.path) as index:
+            index.put_many((record(1), record(2)))
+            index._connection.execute(  # noqa: SLF001 - legacy schema fixture
+                "DELETE FROM record_kind_stats"
+            )
+            index._connection.execute(  # noqa: SLF001 - legacy schema fixture
+                "UPDATE projection_stats SET projection_valid = 1"
+            )
+            index._connection.execute(  # noqa: SLF001 - legacy schema fixture
+                "PRAGMA user_version = 0"
+            )
+        with LocalIndex(self.path) as migrated:
+            self.assertEqual(migrated.count_by_kind("event"), 2)
+            self.assertEqual(
+                migrated._connection.execute(  # noqa: SLF001
+                    "PRAGMA user_version"
+                ).fetchone()[0],
+                1,
+            )
+
     def test_event_head_delete_or_same_count_replacement_invalidates_projection(self) -> None:
         cases = ("delete", "replace", "tamper")
         for case in cases:
@@ -227,6 +266,7 @@ class LocalIndexTests(unittest.TestCase):
                 "latest_event_record_by_stream": ("small-stream",),
                 "event_record_by_position": ("small-stream", 1),
                 "projection_record_count": (1,),
+                "record_count_by_kind": ("event",),
             }
             large_parameters = dict(parameters)
             large_parameters["event_head_by_stream"] = ("large-stream",)
@@ -250,6 +290,7 @@ class LocalIndexTests(unittest.TestCase):
                     "latest_event_record_by_stream": 1,
                     "event_record_by_position": 1,
                     "projection_record_count": 1,
+                    "record_count_by_kind": 1,
                 },
             )
             small_store = EvidenceStore(Path(self.temporary.name) / "small-evidence")

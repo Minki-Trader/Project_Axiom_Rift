@@ -17,6 +17,10 @@ Read `contracts/runtime.yaml`, `contracts/evidence.yaml`, the frozen candidate E
 - Revalidate the actual signed permit, active candidate, and every current source
   state through `StateWriter.validate_runtime_entry` at the engine boundary;
   caller booleans are never authority.
+- Treat MT5 epoch values as an observed coordinate until official documentation
+  and the current provider runtime agree. If they conflict, record the exact
+  probe and leave absolute timezone, broker-session mapping, and DST authority
+  unknown. Do not infer a fixed offset or silently shift data.
 - Persist the exact runtime engine-entry attestation before completion. A
   registered implementation-bound validator must read every declared durable
   artifact from an immutable request and the writer rechecks its hash after return.
@@ -45,7 +49,18 @@ Timestamps and directions require exact parity. Freeze numeric tolerances before
 - Bind exact model I/O names, shapes, types, feature order, and artifact hashes.
 - Cover cold start, warmup, duplicate-bar protection, restart, source interruption, stale or missing input, model-load failure, clock and DST, symbol mapping, and missing KPI.
 - Recheck source eligibility at startup, refresh, and decision boundaries.
-- Suspend on semantic drift; same-semantics recertification may restore eligibility without a new scientific trial.
+- Missing required source state at dependent entry means no dependent entry. If
+  a held dependent sleeve loses required state, execute its preregistered safe
+  exit; never retain baseline PnL as if the dependency were present. Preserve
+  independent controls and unrelated sleeves.
+- Suspend on semantic drift. Same-semantics recertification may restore ordinary
+  drift without a new scientific trial, but it may not clear a latched audit
+  invalidation; follow that record's exact resolution policy, normally a new
+  source contract.
+- Bind Python, ONNX, MQL, EA, and participating source or lifecycle engine
+  identity to their actual bytes and declared semantic dependencies. Fixed
+  placeholder digests and copied baseline engine identities are not parity or
+  Release evidence.
 - Require a ReleasePermit and all candidate-bound evidence before freezing the local handoff bundle.
 - Build `ReleaseEvidence` only from successful runtime Job completion record
   IDs. The writer derives parity, materialization cases, artifacts, Mission,

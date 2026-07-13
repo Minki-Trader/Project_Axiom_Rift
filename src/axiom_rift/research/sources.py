@@ -3,12 +3,202 @@
 from __future__ import annotations
 
 from dataclasses import InitVar, dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Iterable, Mapping
 
 from axiom_rift.core.canonical import CanonicalValue, canonical_bytes, parse_canonical
 from axiom_rift.core.identity import canonical_digest
+
+
+MT5_EPOCH_COORDINATE = "MT5_epoch_coordinate"
+MT5_DOCUMENTED_TIME_STANDARD = "MetaTrader5_Python_API_documented_UTC"
+MT5_DOCUMENTED_TIME_REFERENCE = (
+    "https://www.mql5.com/en/docs/python_metatrader5/mt5copyratesrange_py"
+)
+MT5_ABSOLUTE_TIME_AUTHORITY = "unknown_documentation_runtime_conflict"
+MT5_OFFSET_POLICY = "diagnostic_only_no_shift_or_timezone_inference"
+MT5_SESSION_TIME_AUTHORITY = "unknown_no_broker_timezone_or_DST_inference"
+
+
+def mt5_epoch_coordinate_observation_is_valid(
+    probe: Mapping[str, object],
+) -> bool:
+    """Recompute the raw MT5-coordinate observation without interpreting it."""
+
+    required = {
+        "absolute_time_authority",
+        "broker_session_timezone_dst_authority",
+        "documented_time_standard",
+        "latest_rate_mt5_epoch_seconds",
+        "mt5_epoch_minus_observed_utc_seconds",
+        "mt5_epoch_sequence_coherent",
+        "mt5_package_version",
+        "observed_at_utc",
+        "observed_utc_epoch_seconds",
+        "offset_policy",
+        "terminal_build",
+        "tick_mt5_epoch_seconds",
+        "time_coordinate",
+    }
+    if not required.issubset(probe):
+        return False
+    if (
+        probe["time_coordinate"] != MT5_EPOCH_COORDINATE
+        or probe["documented_time_standard"] != MT5_DOCUMENTED_TIME_STANDARD
+        or probe["absolute_time_authority"] != MT5_ABSOLUTE_TIME_AUTHORITY
+        or probe["offset_policy"] != MT5_OFFSET_POLICY
+        or probe["broker_session_timezone_dst_authority"]
+        != MT5_SESSION_TIME_AUTHORITY
+        or type(probe["mt5_package_version"]) is not str
+        or not probe["mt5_package_version"]
+        or not probe["mt5_package_version"].isascii()
+        or type(probe["terminal_build"]) is not int
+        or probe["terminal_build"] <= 0
+        or type(probe["tick_mt5_epoch_seconds"]) is not int
+        or type(probe["latest_rate_mt5_epoch_seconds"]) is not int
+        or type(probe["mt5_epoch_minus_observed_utc_seconds"]) is not int
+        or type(probe["mt5_epoch_sequence_coherent"]) is not bool
+        or type(probe["observed_at_utc"]) is not str
+        or type(probe["observed_utc_epoch_seconds"]) is not int
+    ):
+        return False
+    try:
+        observed = datetime.fromisoformat(
+            probe["observed_at_utc"].replace("Z", "+00:00")
+        )
+    except ValueError:
+        return False
+    if (
+        observed.tzinfo is None
+        or observed.utcoffset() != timezone.utc.utcoffset(observed)
+    ):
+        return False
+    tick_epoch = probe["tick_mt5_epoch_seconds"]
+    latest_rate_epoch = probe["latest_rate_mt5_epoch_seconds"]
+    observed_epoch = int(observed.timestamp())
+    expected_sequence = 0 <= tick_epoch - latest_rate_epoch <= 600
+    return bool(
+        probe["observed_utc_epoch_seconds"] == observed_epoch
+        and probe["mt5_epoch_minus_observed_utc_seconds"]
+        == tick_epoch - observed_epoch
+        and probe["mt5_epoch_sequence_coherent"] is expected_sequence
+        and expected_sequence
+    )
+
+
+def build_mt5_time_coordinate_probe_manifest(
+    *,
+    probes: Iterable[Mapping[str, object]],
+    independent_utc_observation: Mapping[str, object] | None = None,
+) -> dict[str, object]:
+    """Build canonical evidence without converting the observed MT5 coordinate."""
+
+    manifest_fields = (
+        "absolute_time_authority",
+        "broker_session_timezone_dst_authority",
+        "documented_time_standard",
+        "facts",
+        "latest_closed_bar_mt5_epoch_coordinate",
+        "latest_rate_mt5_epoch_seconds",
+        "mt5_epoch_minus_observed_utc_seconds",
+        "mt5_epoch_sequence_coherent",
+        "mt5_package_version",
+        "observed_at_utc",
+        "observed_utc_epoch_seconds",
+        "offset_policy",
+        "retrieval_latency_ms",
+        "server",
+        "source_contract_id",
+        "symbol",
+        "terminal_build",
+        "tick_mt5_epoch_seconds",
+        "time_coordinate",
+    )
+    normalized: list[dict[str, object]] = []
+    symbols: set[str] = set()
+    source_ids: set[str] = set()
+    for probe in probes:
+        if not mt5_epoch_coordinate_observation_is_valid(probe):
+            raise SourceContractError("MT5 coordinate probe observation is invalid")
+        if any(name not in probe for name in manifest_fields):
+            raise SourceContractError("MT5 coordinate probe manifest is incomplete")
+        symbol = probe["symbol"]
+        server = probe["server"]
+        source_id = probe["source_contract_id"]
+        latency = probe["retrieval_latency_ms"]
+        latest_closed = probe["latest_closed_bar_mt5_epoch_coordinate"]
+        facts = probe["facts"]
+        if (
+            type(symbol) is not str
+            or not symbol
+            or not symbol.isascii()
+            or type(server) is not str
+            or not server
+            or not server.isascii()
+            or type(source_id) is not str
+            or not source_id.startswith("source:")
+            or not source_id.isascii()
+            or type(latency) is not int
+            or latency < 0
+            or (
+                latest_closed is not None
+                and (
+                    type(latest_closed) is not str
+                    or not latest_closed
+                    or not latest_closed.isascii()
+                )
+            )
+            or not isinstance(facts, Mapping)
+        ):
+            raise SourceContractError("MT5 coordinate probe manifest field is invalid")
+        if symbol in symbols or source_id in source_ids:
+            raise SourceContractError("MT5 coordinate probe manifest identity is duplicated")
+        symbols.add(symbol)
+        source_ids.add(source_id)
+        entry = {name: probe[name] for name in manifest_fields}
+        canonical_bytes(entry)
+        normalized.append(entry)
+    if not normalized:
+        raise SourceContractError("MT5 coordinate probe manifest is empty")
+
+    utc_reference: dict[str, object] | None = None
+    if independent_utc_observation is not None:
+        source = independent_utc_observation.get("source")
+        observed_at = independent_utc_observation.get("observed_at_utc")
+        if (
+            type(source) is not str
+            or not source
+            or not source.isascii()
+            or type(observed_at) is not str
+        ):
+            raise SourceContractError("independent UTC observation is invalid")
+        try:
+            parsed = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise SourceContractError("independent UTC observation is invalid") from exc
+        if (
+            parsed.tzinfo is None
+            or parsed.utcoffset() != timezone.utc.utcoffset(parsed)
+        ):
+            raise SourceContractError("independent UTC observation is not UTC")
+        utc_reference = {
+            "observed_at_utc": observed_at,
+            "observed_utc_epoch_seconds": int(parsed.timestamp()),
+            "source": source,
+        }
+
+    manifest: dict[str, object] = {
+        "documented_time_reference": MT5_DOCUMENTED_TIME_REFERENCE,
+        "independent_utc_observation": utc_reference,
+        "independent_utc_observation_policy": (
+            "asynchronous_sanity_check_no_latency_or_offset_inference"
+        ),
+        "probes": sorted(normalized, key=lambda item: str(item["symbol"])),
+        "schema": "mt5_time_coordinate_probe_manifest.v1",
+    }
+    canonical_bytes(manifest)
+    return manifest
 
 
 class SourceContractError(ValueError):
@@ -392,18 +582,28 @@ class SourceContract:
         )
 
 
+CURRENT_RECONSTRUCTION_FACT_FIELDS = frozenset(
+    {
+        "acquisition_observed",
+        "content_hash_verified",
+        "event_time_audited",
+        "coverage_audited",
+        "gaps_audited",
+    }
+)
+INDEPENDENT_POINT_IN_TIME_FACT_FIELDS = frozenset(
+    {
+        "information_complete_at_audited",
+        "first_availability_audited",
+        "revision_or_vintage_audited",
+    }
+)
+
+
 _RECEIPT_FACT_FIELDS: dict[SourceTransitionEvidence, frozenset[str]] = {
     SourceTransitionEvidence.HISTORICAL_AUDIT: frozenset(
-        {
-            "acquisition_observed",
-            "content_hash_verified",
-            "event_time_audited",
-            "information_complete_at_audited",
-            "first_availability_audited",
-            "coverage_audited",
-            "gaps_audited",
-            "revision_or_vintage_audited",
-        }
+        CURRENT_RECONSTRUCTION_FACT_FIELDS
+        | INDEPENDENT_POINT_IN_TIME_FACT_FIELDS
     ),
     SourceTransitionEvidence.RUNTIME_AVAILABILITY_PROOF: frozenset(
         {
@@ -459,10 +659,21 @@ class SourceEligibilityReceipt:
                 raise SourceContractError("source receipt artifact hash is invalid")
         required = _RECEIPT_FACT_FIELDS[self.evidence]
         value = _semantic_mapping("receipt facts", facts, required=required)
-        if self.evidence is SourceTransitionEvidence.HISTORICAL_AUDIT and any(
-            value[name] is not True for name in required
-        ):
-            raise SourceContractError("historical source audit requires every fact=true")
+        if self.evidence is SourceTransitionEvidence.HISTORICAL_AUDIT:
+            missing_authority = sorted(
+                name
+                for name in INDEPENDENT_POINT_IN_TIME_FACT_FIELDS
+                if value[name] is not True
+            )
+            if missing_authority:
+                raise SourceContractError(
+                    "historical source audit requires independent point-in-time "
+                    f"authority for {missing_authority!r}"
+                )
+            if any(value[name] is not True for name in required):
+                raise SourceContractError(
+                    "historical source audit requires every reconstruction fact=true"
+                )
         if self.evidence is SourceTransitionEvidence.RUNTIME_AVAILABILITY_PROOF:
             for name in (
                 "local_realtime_retrieval",
@@ -929,8 +1140,16 @@ SleeveSpec = SleeveDependencySpec
 __all__ = [
     "CandidateBinding",
     "CandidateSourceBinding",
+    "CURRENT_RECONSTRUCTION_FACT_FIELDS",
+    "INDEPENDENT_POINT_IN_TIME_FACT_FIELDS",
     "InferenceDependency",
     "InferenceDependencyKind",
+    "MT5_ABSOLUTE_TIME_AUTHORITY",
+    "MT5_DOCUMENTED_TIME_STANDARD",
+    "MT5_DOCUMENTED_TIME_REFERENCE",
+    "MT5_EPOCH_COORDINATE",
+    "MT5_OFFSET_POLICY",
+    "MT5_SESSION_TIME_AUTHORITY",
     "ObservationAssessment",
     "RecertificationResult",
     "RuntimeObservation",
@@ -950,7 +1169,9 @@ __all__ = [
     "SourceType",
     "assess_observation",
     "bind_candidate_source",
+    "build_mt5_time_coordinate_probe_manifest",
     "evaluate_sleeves",
+    "mt5_epoch_coordinate_observation_is_valid",
     "recertify_source",
     "require_source_state_transition",
 ]

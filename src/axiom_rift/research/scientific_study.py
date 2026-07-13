@@ -4,6 +4,13 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+from axiom_rift.research.adjudication import (
+    AdjudicationProfile,
+    ScientificAdjudication,
+    adjudicate_plan_measurement,
+    legacy_noncompensatory_verdict,
+)
+
 
 PLANNED_CLAIMS = (
     "activity_and_concentration",
@@ -149,29 +156,26 @@ def claim_metrics(
 def planned_verdict(
     plan: Mapping[str, Any], measurement: Mapping[str, Any]
 ) -> str:
-    metrics = measurement["metrics"]
-    unavailable = False
-    failed = False
-    comparisons = {
-        "eq": lambda value, threshold: value == threshold,
-        "ge": lambda value, threshold: value >= threshold,
-        "gt": lambda value, threshold: value > threshold,
-        "le": lambda value, threshold: value <= threshold,
-        "lt": lambda value, threshold: value < threshold,
-    }
-    for criterion in plan["criteria"]:
-        value = metrics[criterion["claim_id"]][criterion["metric"]]
-        if value is None:
-            unavailable = True
-            continue
-        if not comparisons[criterion["operator"]](value, criterion["threshold"]):
-            failed = True
-    return "not_evaluable" if unavailable else "failed" if failed else "passed"
+    """Return the unchanged v1 verdict used by historical evidence bundles."""
+
+    return legacy_noncompensatory_verdict(plan["criteria"], measurement["metrics"])
+
+
+def adjudicate_discovery(
+    plan: Mapping[str, Any],
+    measurement: Mapping[str, Any],
+    *,
+    profile: AdjudicationProfile | None = None,
+) -> ScientificAdjudication:
+    """Return a component-aware adjudication without changing v1 evidence."""
+
+    return adjudicate_plan_measurement(plan, measurement, profile=profile)
 
 
 __all__ = [
     "EVIDENCE_MODES",
     "PLANNED_CLAIMS",
+    "adjudicate_discovery",
     "claim_metrics",
     "discovery_criteria",
     "planned_verdict",

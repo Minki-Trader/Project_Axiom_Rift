@@ -122,6 +122,7 @@ _RECORD_COLUMN_NAMES = (
 )
 
 _SELECT_RECORD_COLUMNS = ", ".join(_RECORD_COLUMN_NAMES)
+_INDEX_SCHEMA_VERSION = 1
 
 _HOT_QUERIES: dict[str, _HotQuery] = {
     "record_by_key": _HotQuery(
@@ -145,6 +146,12 @@ _HOT_QUERIES: dict[str, _HotQuery] = {
         f"SELECT {_SELECT_RECORD_COLUMNS} FROM records "
         "WHERE kind = ? ORDER BY record_id",
         "records",
+        ("kind",),
+        "USING PRIMARY KEY",
+    ),
+    "record_count_by_kind": _HotQuery(
+        "SELECT record_count FROM record_kind_stats WHERE kind = ?",
+        "record_kind_stats",
         ("kind",),
         "USING PRIMARY KEY",
     ),
@@ -187,6 +194,7 @@ _CURRENT_QUERY_NAMES = (
     "latest_event_record_by_stream",
     "event_record_by_position",
     "projection_record_count",
+    "record_count_by_kind",
 )
 
 
@@ -237,6 +245,11 @@ ON records(subject, status, kind, record_id);
 CREATE INDEX IF NOT EXISTS ix_records_fingerprint
 ON records(fingerprint, kind, record_id);
 
+CREATE TABLE IF NOT EXISTS record_kind_stats (
+    kind         TEXT NOT NULL PRIMARY KEY,
+    record_count INTEGER NOT NULL CHECK (record_count > 0)
+) STRICT, WITHOUT ROWID;
+
 CREATE TABLE IF NOT EXISTS event_heads (
     stream       TEXT NOT NULL PRIMARY KEY,
     sequence     INTEGER NOT NULL CHECK (sequence >= 0),
@@ -266,6 +279,13 @@ BEGIN
     UPDATE projection_stats SET record_count = record_count + 1 WHERE singleton = 1;
 END;
 
+CREATE TRIGGER IF NOT EXISTS records_kind_count_insert
+AFTER INSERT ON records
+BEGIN
+    INSERT INTO record_kind_stats(kind, record_count) VALUES (NEW.kind, 1)
+    ON CONFLICT(kind) DO UPDATE SET record_count = record_count + 1;
+END;
+
 CREATE TRIGGER IF NOT EXISTS records_projection_count_delete
 AFTER DELETE ON records
 BEGIN
@@ -274,8 +294,49 @@ BEGIN
     WHERE singleton = 1;
 END;
 
+CREATE TRIGGER IF NOT EXISTS records_kind_count_delete
+AFTER DELETE ON records
+BEGIN
+    DELETE FROM record_kind_stats
+    WHERE kind = OLD.kind AND record_count = 1;
+    UPDATE record_kind_stats
+    SET record_count = record_count - 1
+    WHERE kind = OLD.kind;
+END;
+
+CREATE TRIGGER IF NOT EXISTS records_kind_count_update
+AFTER UPDATE OF kind ON records
+WHEN OLD.kind != NEW.kind
+BEGIN
+    DELETE FROM record_kind_stats
+    WHERE kind = OLD.kind AND record_count = 1;
+    UPDATE record_kind_stats
+    SET record_count = record_count - 1
+    WHERE kind = OLD.kind;
+    INSERT INTO record_kind_stats(kind, record_count) VALUES (NEW.kind, 1)
+    ON CONFLICT(kind) DO UPDATE SET record_count = record_count + 1;
+END;
+
 CREATE TRIGGER IF NOT EXISTS records_projection_update_invalid
 AFTER UPDATE ON records
+BEGIN
+    UPDATE projection_stats SET projection_valid = 0 WHERE singleton = 1;
+END;
+
+CREATE TRIGGER IF NOT EXISTS record_kind_stats_insert_invalid
+AFTER INSERT ON record_kind_stats
+BEGIN
+    UPDATE projection_stats SET projection_valid = 0 WHERE singleton = 1;
+END;
+
+CREATE TRIGGER IF NOT EXISTS record_kind_stats_update_invalid
+AFTER UPDATE ON record_kind_stats
+BEGIN
+    UPDATE projection_stats SET projection_valid = 0 WHERE singleton = 1;
+END;
+
+CREATE TRIGGER IF NOT EXISTS record_kind_stats_delete_invalid
+AFTER DELETE ON record_kind_stats
 BEGIN
     UPDATE projection_stats SET projection_valid = 0 WHERE singleton = 1;
 END;
@@ -470,6 +531,7 @@ class LocalIndex:
         try:
             self._configure()
             self._connection.executescript(_CREATE_SCHEMA)
+            self._migrate_schema()
         except BaseException:
             self._connection.close()
             raise
@@ -505,6 +567,30 @@ class LocalIndex:
                 raise LocalIndexError(
                     f"SQLite pragma {pragma} is {actual!r}, expected {wanted!r}"
                 )
+
+    def _migrate_schema(self) -> None:
+        version = self._connection.execute("PRAGMA user_version").fetchone()[0]
+        if version == _INDEX_SCHEMA_VERSION:
+            return
+        if version != 0:
+            raise LocalIndexError(
+                f"local index schema version is unsupported: {version}"
+            )
+        with self._write_transaction():
+            projection_valid = self.projection_guard()[1]
+            self._connection.execute("DELETE FROM record_kind_stats")
+            self._connection.execute(
+                "INSERT INTO record_kind_stats(kind, record_count) "
+                "SELECT kind, count(*) FROM records GROUP BY kind"
+            )
+            self._connection.execute(
+                "UPDATE projection_stats SET projection_valid = ? "
+                "WHERE singleton = 1",
+                (int(projection_valid),),
+            )
+            self._connection.execute(
+                f"PRAGMA user_version = {_INDEX_SCHEMA_VERSION}"
+            )
 
     def settings(self) -> dict[str, int | str]:
         """Return the connection settings relevant to durability and safety."""
@@ -652,15 +738,15 @@ class LocalIndex:
                         record.fingerprint,
                     ),
                 )
-                # The event-head triggers make every out-of-band mutation
-                # fail closed.  Only this transaction, which began from a
-                # valid projection and just derived the head from the inserted
-                # immutable record, may restore the guard.
-                if projection_was_valid:
-                    self._connection.execute(
-                        "UPDATE projection_stats SET projection_valid = 1 "
-                        "WHERE singleton = 1"
-                    )
+            # Event-head and kind-count triggers make every out-of-band
+            # mutation fail closed.  Only this transaction, which began from
+            # a valid projection and derived both views from the inserted
+            # immutable record, may restore the guard.
+            if projection_was_valid:
+                self._connection.execute(
+                    "UPDATE projection_stats SET projection_valid = 1 "
+                    "WHERE singleton = 1"
+                )
         except sqlite3.IntegrityError as exc:
             raise RecordCollisionError(
                 "immutable event position or record constraint collision"
@@ -743,6 +829,25 @@ class LocalIndex:
             (_require_text("kind", kind),),
         ).fetchall()
         return tuple(self._decode_record(row) for row in rows)
+
+    def count_by_kind(self, kind: str) -> int:
+        """Return one keyed aggregate without materializing authority rows."""
+
+        _, projection_valid = self.projection_guard()
+        if not projection_valid:
+            raise IndexIntegrityError("record-kind count projection is invalid")
+        row = self._connection.execute(
+            _HOT_QUERIES["record_count_by_kind"].sql,
+            (_require_text("kind", kind),),
+        ).fetchone()
+        if row is None:
+            return 0
+        if isinstance(row["record_count"], bool):
+            raise IndexIntegrityError("record-kind count projection is invalid")
+        count = row["record_count"]
+        if not isinstance(count, int) or count < 0:
+            raise IndexIntegrityError("record-kind count projection is invalid")
+        return count
 
     def event_head(self, stream: str) -> EventHead | None:
         row = self._connection.execute(
@@ -835,6 +940,7 @@ class LocalIndex:
         with self._write_transaction():
             self._connection.execute("DELETE FROM event_heads")
             self._connection.execute("DELETE FROM records")
+            self._connection.execute("DELETE FROM record_kind_stats")
             self._connection.execute(
                 "UPDATE projection_stats SET record_count = 0, "
                 "projection_digest = ?, projection_valid = 1 WHERE singleton = 1",
@@ -888,6 +994,20 @@ class LocalIndex:
         projection_digest, projection_valid = self.projection_guard()
         if not projection_valid:
             raise IndexIntegrityError("local projection was invalidated by mutation")
+        observed_kind_counts = tuple(
+            tuple(row)
+            for row in self._connection.execute(
+                "SELECT kind, record_count FROM record_kind_stats ORDER BY kind"
+            )
+        )
+        expected_kind_counts = tuple(
+            tuple(row)
+            for row in self._connection.execute(
+                "SELECT kind, count(*) FROM records GROUP BY kind ORDER BY kind"
+            )
+        )
+        if observed_kind_counts != expected_kind_counts:
+            raise IndexIntegrityError("local record-kind count projection differs")
         rows = self._connection.execute(
             f"SELECT {_SELECT_RECORD_COLUMNS} FROM records"
         ).fetchall()
@@ -964,6 +1084,7 @@ class LocalIndex:
                 "records.UNIQUE(event_stream,event_sequence)"
             ),
             "projection_record_count": "projection_stats.PRIMARY_KEY(singleton)",
+            "record_count_by_kind": "record_kind_stats.PRIMARY_KEY(kind)",
         }[name]
         return CurrentAccessTrace(
             query_name=name,
@@ -1027,6 +1148,7 @@ class LocalIndex:
             "latest_event_record_by_stream": ("stream",),
             "event_record_by_position": ("stream", 1),
             "projection_record_count": (1,),
+            "record_count_by_kind": ("kind",),
         }
         return {
             name: self.hot_query_access_shape(name, representative[name])

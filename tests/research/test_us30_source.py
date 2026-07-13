@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -11,12 +12,23 @@ from axiom_rift.operations.validation import (
     EvidenceValidatorRegistry,
     ValidationArtifact,
 )
+from axiom_rift.research.sources import (
+    MT5_ABSOLUTE_TIME_AUTHORITY,
+    MT5_DOCUMENTED_TIME_STANDARD,
+    MT5_EPOCH_COORDINATE,
+    MT5_OFFSET_POLICY,
+    MT5_SESSION_TIME_AUTHORITY,
+    SourceContractError,
+    SourceEligibilityReceipt,
+    SourceTransitionEvidence,
+)
 from axiom_rift.research.us30_source_eligibility_validation import (
     SOURCE_ELIGIBILITY_VALIDATOR_ID,
     SourceEligibilityValidator,
 )
 from axiom_rift.research.us30_source import (
     US30_COLUMNS,
+    _completed_rate_epochs,
     audit_us30_historical_bytes,
     derive_runtime_facts,
     source_validation_plan_hash,
@@ -25,10 +37,25 @@ from axiom_rift.research.us30_source import (
 
 
 def runtime_probe() -> dict[str, object]:
+    observed_at_utc = "2026-07-11T00:00:00Z"
+    observed_epoch = int(
+        datetime.fromisoformat(observed_at_utc.replace("Z", "+00:00")).timestamp()
+    )
+    tick_epoch = observed_epoch + 10_800
     value = {
-        "schema": "us30_runtime_probe_measurement.v1",
+        "schema": "us30_runtime_probe_measurement.v2",
         "source_contract_id": us30_source_contract().source_contract_id,
-        "observed_at_utc": "2026-07-11T00:00:00Z",
+        "observed_at_utc": observed_at_utc,
+        "observed_utc_epoch_seconds": observed_epoch,
+        "evidence_scope": "local_terminal_runtime_observation",
+        "freshness_scope": "live_retrieval_latency_at_observed_at_utc",
+        "time_coordinate": MT5_EPOCH_COORDINATE,
+        "documented_time_standard": MT5_DOCUMENTED_TIME_STANDARD,
+        "absolute_time_authority": MT5_ABSOLUTE_TIME_AUTHORITY,
+        "offset_policy": MT5_OFFSET_POLICY,
+        "broker_session_timezone_dst_authority": MT5_SESSION_TIME_AUTHORITY,
+        "mt5_package_version": "5.0.fixture",
+        "terminal_build": 5833,
         "connected": True,
         "server": "FPMarketsSC-Live",
         "symbol": "US30",
@@ -42,7 +69,11 @@ def runtime_probe() -> dict[str, object]:
         "finite_tick": True,
         "market_closed": True,
         "closed_bar_available": True,
-        "latest_closed_bar_utc": "2026-07-10T23:55:00Z",
+        "tick_mt5_epoch_seconds": tick_epoch,
+        "latest_rate_mt5_epoch_seconds": tick_epoch - 300,
+        "mt5_epoch_minus_observed_utc_seconds": 10_800,
+        "mt5_epoch_sequence_coherent": True,
+        "latest_closed_bar_mt5_epoch_coordinate": "2026-07-11T02:55:00",
         "retrieval_latency_ms": 5,
         "dtype_fields": list(US30_COLUMNS),
     }
@@ -51,11 +82,38 @@ def runtime_probe() -> dict[str, object]:
 
 
 class US30SourceTests(unittest.TestCase):
+    def test_completed_bars_use_only_the_observed_mt5_coordinate(self) -> None:
+        import numpy as np
+
+        epochs = np.asarray([10800, 11100, 11400, 11700], dtype=np.int64)
+        completed = _completed_rate_epochs(
+            epochs,
+            tick_mt5_epoch_seconds=12001,
+        )
+        self.assertEqual(completed.tolist(), [10800, 11100, 11400, 11700])
+
     def test_contract_binds_exact_broker_surface_and_plans(self) -> None:
         contract = us30_source_contract()
         self.assertEqual(contract.runtime_identifier, "US30")
         self.assertEqual(contract.mapping()["runtime_symbol"], "US30")
         self.assertEqual(contract.instrument()["asset_type"], "cash_index_cfd")
+        self.assertIn(
+            MT5_ABSOLUTE_TIME_AUTHORITY,
+            contract.instrument()["timezone"],
+        )
+        self.assertEqual(
+            contract.clock()["timezone_conversion"],
+            "none_absolute_timezone_authority_unknown",
+        )
+        self.assertEqual(
+            contract.clock()["broker_session_label_timezone_dst_authority"],
+            MT5_SESSION_TIME_AUTHORITY,
+        )
+        self.assertEqual(
+            contract.clock()["documented_time_standard"],
+            MT5_DOCUMENTED_TIME_STANDARD,
+        )
+        self.assertEqual(contract.clock()["offset_policy"], MT5_OFFSET_POLICY)
         self.assertEqual(contract.schema()["columns"], list(US30_COLUMNS))
         self.assertNotEqual(
             source_validation_plan_hash("historical_audit"),
@@ -74,10 +132,61 @@ class US30SourceTests(unittest.TestCase):
         )
         self.assertEqual(measurement["row_count"], 2)
         self.assertFalse(measurement["facts"]["acquisition_observed"])
+        self.assertEqual(
+            measurement["evidence_scope"],
+            "current_mt5_epoch_coordinate_history_reconstruction",
+        )
+        self.assertFalse(
+            measurement["facts"]["information_complete_at_audited"]
+        )
+        self.assertFalse(measurement["facts"]["first_availability_audited"])
+        self.assertFalse(
+            measurement["facts"]["revision_or_vintage_audited"]
+        )
+        self.assertEqual(
+            measurement["first_time_mt5_epoch_coordinate"],
+            "2018-05-07T01:00:00",
+        )
+        self.assertEqual(
+            measurement["timestamp_provenance"],
+            "UTC_formatter_applied_to_MT5_epoch_absolute_timezone_unverified",
+        )
         self.assertGreater(measurement["timestamp_gap_count"], 0)
+        with self.assertRaisesRegex(SourceContractError, "point-in-time"):
+            SourceEligibilityReceipt(
+                source_contract_id=measurement["source_contract_id"],
+                evidence=SourceTransitionEvidence.HISTORICAL_AUDIT,
+                producer_completion_id="a" * 64,
+                observed_at_utc=measurement["observed_at_utc"],
+                artifact_hashes=(measurement["raw_sha256"],),
+                facts=measurement["facts"],
+            )
 
     def test_runtime_validator_derives_every_fact_and_reads_every_artifact(self) -> None:
         probe = runtime_probe()
+        inconsistent_probe = dict(probe)
+        inconsistent_probe["mt5_epoch_minus_observed_utc_seconds"] = 0
+        self.assertFalse(
+            derive_runtime_facts(inconsistent_probe)["local_realtime_retrieval"]
+        )
+        self.assertNotEqual(
+            probe["freshness_scope"],
+            "retrieval_observed_at_utc_not_historical_bar_availability",
+        )
+        reconstruction_labeled_probe = dict(probe)
+        reconstruction_labeled_probe.update(
+            {
+                "evidence_scope": (
+                    "current_mt5_epoch_coordinate_history_reconstruction"
+                ),
+                "freshness_scope": (
+                    "retrieval_observed_at_utc_not_historical_bar_availability"
+                ),
+            }
+        )
+        reconstruction_facts = derive_runtime_facts(reconstruction_labeled_probe)
+        self.assertFalse(reconstruction_facts["local_realtime_retrieval"])
+        self.assertFalse(reconstruction_facts["fresh"])
         probe_bytes = canonical_bytes(probe)
         probe_hash = sha256(probe_bytes).hexdigest()
         result = {
@@ -143,4 +252,3 @@ class US30SourceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

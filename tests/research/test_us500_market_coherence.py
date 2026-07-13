@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import unittest
 from hashlib import sha256
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 import numpy as np
 
@@ -13,10 +16,12 @@ from axiom_rift.research.chassis import (
     validate_controlled_executable,
 )
 from axiom_rift.research.governance import ResearchLayer
+from axiom_rift.research import us500_market_coherence_chassis as chassis_module
 from axiom_rift.research.us500_market_coherence_chassis import (
     _route_scores,
     executable_configuration_map,
     frontier_executable,
+    us500_market_coherence_chassis_implementation_sha256,
     us500_market_coherence_configurations,
     us500_market_coherence_executable,
 )
@@ -40,12 +45,12 @@ class US500MarketCoherenceTests(unittest.TestCase):
             baseline_executable=baseline,
             changed_domains=(
                 ResearchLayer.DATA_SOURCE,
+                ResearchLayer.EXECUTION,
                 ResearchLayer.REGIME,
                 ResearchLayer.PORTFOLIO,
             ),
             controlled_domains=(
                 ResearchLayer.CALIBRATION,
-                ResearchLayer.EXECUTION,
                 ResearchLayer.FEATURE,
                 ResearchLayer.LABEL,
                 ResearchLayer.LIFECYCLE,
@@ -61,6 +66,37 @@ class US500MarketCoherenceTests(unittest.TestCase):
         self.assertEqual(
             subject.source_contracts,
             (us500_source_contract().source_contract_id,),
+        )
+        self.assertNotEqual(subject.engine_contract, baseline.engine_contract)
+        self.assertIn(
+            us500_market_coherence_chassis_implementation_sha256(),
+            subject.engine_contract,
+        )
+
+    def test_implementation_identity_tracks_artifact_bytes(self) -> None:
+        implementation_path = Path(chassis_module.__file__).resolve()
+        self.assertEqual(
+            us500_market_coherence_chassis_implementation_sha256(),
+            sha256(implementation_path.read_bytes()).hexdigest(),
+        )
+        with TemporaryDirectory() as temporary:
+            candidate = Path(temporary) / "chassis.py"
+            candidate.write_bytes(b"semantic-manifest-a")
+            with patch.object(chassis_module, "_THIS_FILE", candidate):
+                left = us500_market_coherence_chassis_implementation_sha256()
+                left_executable = us500_market_coherence_executable(
+                    us500_market_coherence_configurations()[1]
+                )
+                candidate.write_bytes(b"semantic-manifest-b")
+                right = us500_market_coherence_chassis_implementation_sha256()
+                right_executable = us500_market_coherence_executable(
+                    us500_market_coherence_configurations()[1]
+                )
+        self.assertNotEqual(left, right)
+        self.assertNotEqual(left_executable.identity, right_executable.identity)
+        self.assertNotEqual(
+            left_executable.engine_contract,
+            right_executable.engine_contract,
         )
 
     def test_systemic_follows_idiosyncratic_reverses_and_missing_fails_closed(self) -> None:

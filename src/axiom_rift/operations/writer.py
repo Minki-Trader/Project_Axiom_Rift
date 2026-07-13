@@ -613,12 +613,20 @@ class StateWriter:
         index: LocalIndex,
         source_id: str,
         *,
+        freshness_required: bool = True,
         error_type: type[Exception] = TransitionError,
     ) -> IndexRecord:
-        """Return a current, typed and artifact-backed runtime source state."""
+        """Return typed source authority, optionally requiring live freshness."""
 
+        from axiom_rift.research.source_authority import (
+            AUTHORITY_TRANSITION_EVIDENCE,
+            SourceAuthorityAuditManifest,
+            SourceAuthorityInvalidation,
+            SourceAuthorityLatch,
+        )
         from axiom_rift.research.sources import (
             SourceContract,
+            SourceEligibilityState,
             SourceEligibilityReceipt,
             SourceTransitionEvidence,
             SourceType,
@@ -694,6 +702,276 @@ class StateWriter:
             return receipt
 
         try:
+            authority_stream = f"source-authority:{source_id}"
+            authority_head = index.event_head(authority_stream)
+            if authority_head is not None:
+                correction = index.get(
+                    authority_head.record_kind, authority_head.record_id
+                )
+                if (
+                    correction is None
+                    or correction.kind != "source-authority-invalidation"
+                    or correction.status != "confirmed_and_suspended"
+                    or correction.subject != f"Source:{source_id}"
+                    or correction.event_stream != authority_stream
+                    or correction.event_sequence != authority_head.sequence
+                    or set(correction.payload)
+                    != {
+                        "audit_manifest",
+                        "eligible_source_state_record_id",
+                        "invalidated_state",
+                        "invalidation",
+                        "latch",
+                        "preserved_receipt_id",
+                        "prior_active_source_state_record_id",
+                        "replacement_state_record_id",
+                        "scientific_trial_delta",
+                    }
+                ):
+                    raise ValueError("source authority correction is malformed")
+                invalidation = SourceAuthorityInvalidation.from_identity_payload(
+                    correction.payload["invalidation"]
+                )
+                manifest = SourceAuthorityAuditManifest.from_mapping(
+                    correction.payload["audit_manifest"]
+                )
+                latch = SourceAuthorityLatch.from_mapping(correction.payload["latch"])
+                expected_latch = SourceAuthorityLatch.bind(
+                    invalidation=invalidation,
+                    manifest=manifest,
+                )
+                replacement_id = correction.payload["replacement_state_record_id"]
+                replacement = (
+                    None
+                    if not isinstance(replacement_id, str)
+                    else index.get("source-state", replacement_id)
+                )
+                source_head = index.event_head(stream)
+                invalidated = index.get(
+                    "source-state", invalidation.source_state_record_id
+                )
+                prior_active_id = correction.payload[
+                    "prior_active_source_state_record_id"
+                ]
+                prior_active = (
+                    None
+                    if not isinstance(prior_active_id, str)
+                    else index.get("source-state", prior_active_id)
+                )
+                invalidated_receipt_payload = (
+                    None
+                    if invalidated is None
+                    else invalidated.payload.get("receipt")
+                )
+                invalidated_receipt = (
+                    None
+                    if not isinstance(invalidated_receipt_payload, dict)
+                    else require_edge(
+                        invalidated,
+                        sequence=invalidated.event_sequence or 0,
+                        state=correction.payload["invalidated_state"],
+                        evidence=SourceTransitionEvidence(
+                            invalidated_receipt_payload["evidence"]
+                        ),
+                    )
+                )
+                invalidated_state = correction.payload["invalidated_state"]
+                allowed_invalidated_states = {
+                    SourceEligibilityState.CONTEXT_ONLY.value,
+                    SourceEligibilityState.HISTORICAL_AUDITED.value,
+                    SourceEligibilityState.RUNTIME_ELIGIBLE.value,
+                }
+                context_only_invalidation = (
+                    invalidated_state == SourceEligibilityState.CONTEXT_ONLY.value
+                )
+                expected_invalidated_id = (
+                    None
+                    if invalidated is None
+                    or invalidated.event_sequence is None
+                    else canonical_digest(
+                        domain="source-state",
+                        payload={
+                            "source_id": source_id,
+                            "state": invalidated_state,
+                            "ordinal": invalidated.event_sequence,
+                            "evidence_receipt_id": invalidated.payload.get(
+                                "evidence_receipt_id"
+                            ),
+                        },
+                    )
+                )
+                invalidated_receipt_is_legal = (
+                    invalidated_receipt is None
+                    and invalidated_receipt_payload is None
+                    and correction.payload["preserved_receipt_id"] is None
+                    if context_only_invalidation
+                    else invalidated_receipt is not None
+                    and correction.payload["preserved_receipt_id"]
+                    == invalidated_receipt.identity
+                    and (
+                        (
+                            invalidated_state
+                            == SourceEligibilityState.HISTORICAL_AUDITED.value
+                            and invalidated_receipt.evidence
+                            is SourceTransitionEvidence.HISTORICAL_AUDIT
+                        )
+                        or (
+                            invalidated_state
+                            == SourceEligibilityState.RUNTIME_ELIGIBLE.value
+                            and invalidated_receipt.evidence
+                            in {
+                                SourceTransitionEvidence.RUNTIME_AVAILABILITY_PROOF,
+                                SourceTransitionEvidence.SAME_SEMANTICS_RECERTIFICATION,
+                            }
+                        )
+                    )
+                )
+                expected_replacement_id = (
+                    None
+                    if replacement is None
+                    else canonical_digest(
+                        domain="source-state",
+                        payload={
+                            "source_id": source_id,
+                            "state": "suspended",
+                            "ordinal": replacement.event_sequence,
+                            "evidence_receipt_id": replacement.payload.get(
+                                "evidence_receipt_id"
+                            ),
+                        },
+                    )
+                )
+                ordinary_suspended = (
+                    prior_active is not None
+                    and invalidated is not None
+                    and prior_active.record_id != invalidated.record_id
+                )
+                ordinary_suspension_is_legal = True
+                if ordinary_suspended:
+                    try:
+                        ordinary_receipt = require_edge(
+                            prior_active,
+                            sequence=prior_active.event_sequence or 0,
+                            state=SourceEligibilityState.SUSPENDED.value,
+                            evidence=SourceTransitionEvidence.DRIFT,
+                        )
+                    except (KeyError, TypeError, ValueError):
+                        ordinary_suspension_is_legal = False
+                    else:
+                        ordinary_suspension_is_legal = (
+                            ordinary_receipt is not None
+                            and invalidated.event_sequence is not None
+                            and prior_active.event_sequence
+                            == invalidated.event_sequence + 1
+                            and prior_active.subject == f"Source:{source_id}"
+                            and prior_active.fingerprint == source_id
+                            and prior_active.payload.get("source_authority_latch")
+                            is None
+                            and all(
+                                prior_active.payload.get(field)
+                                == invalidated.payload.get(field)
+                                for field in (
+                                    "availability_identity",
+                                    "clock_identity",
+                                    "contract",
+                                    "contract_hash",
+                                    "field_identity",
+                                    "mapping_identity",
+                                    "schema_identity",
+                                )
+                            )
+                        )
+                if (
+                    authority_head.sequence != 1
+                    or invalidation.identity != correction.record_id
+                    or correction.fingerprint
+                    != invalidation.identity.removeprefix(
+                        "source-authority-invalidation:"
+                    )
+                    or invalidation.source_contract_id != source_id
+                    or invalidated_state not in allowed_invalidated_states
+                    or correction.payload["eligible_source_state_record_id"]
+                    != invalidation.source_state_record_id
+                    or latch != expected_latch
+                    or correction.payload["preserved_receipt_id"]
+                    != (
+                        None
+                        if replacement is None
+                        else replacement.payload.get("evidence_receipt_id")
+                    )
+                    or correction.payload["scientific_trial_delta"] != 0
+                    or source_head is None
+                    or replacement is None
+                    or replacement.record_id != replacement_id
+                    or replacement.record_id != expected_replacement_id
+                    or replacement.event_stream != stream
+                    or replacement.event_sequence != source_head.sequence
+                    or replacement.record_id != source_head.record_id
+                    or replacement.status != "suspended"
+                    or replacement.subject != f"Source:{source_id}"
+                    or replacement.fingerprint != source_id
+                    or replacement.payload.get("ordinal")
+                    != replacement.event_sequence
+                    or replacement.payload.get("transition_evidence")
+                    != AUTHORITY_TRANSITION_EVIDENCE
+                    or replacement.payload.get("source_authority_latch")
+                    != latch.to_identity_payload()
+                    or replacement.payload.get(
+                        "eligible_source_state_record_id"
+                    )
+                    != invalidation.source_state_record_id
+                    or replacement.payload.get(
+                        "prior_active_source_state_record_id"
+                    )
+                    != prior_active_id
+                    or invalidated is None
+                    or invalidated.status != invalidated_state
+                    or invalidated.record_id != expected_invalidated_id
+                    or not invalidated_receipt_is_legal
+                    or invalidated.event_stream != stream
+                    or prior_active is None
+                    or prior_active.event_stream != stream
+                    or prior_active.event_sequence != replacement.event_sequence - 1
+                    or not ordinary_suspension_is_legal
+                    or invalidated.record_id
+                    != latch.invalidated_source_state_record_id
+                    or invalidated.payload.get("evidence_receipt_id")
+                    != correction.payload["preserved_receipt_id"]
+                    or replacement.payload.get("receipt")
+                    != invalidated.payload.get("receipt")
+                    or replacement.payload.get("suspension_reason")
+                    != (
+                        f"{invalidation.reason_code.value}: "
+                        f"{invalidation.observed_defect}"
+                    )
+                    or any(
+                        replacement.payload.get(field)
+                        != invalidated.payload.get(field)
+                        for field in (
+                            "availability_identity",
+                            "clock_identity",
+                            "contract",
+                            "contract_hash",
+                            "field_identity",
+                            "mapping_identity",
+                            "schema_identity",
+                        )
+                    )
+                ):
+                    raise ValueError("source authority correction provenance is invalid")
+                durable_manifest = SourceAuthorityAuditManifest.from_bytes(
+                    self.evidence.read_verified(latch.audit_manifest_hash)
+                )
+                if durable_manifest != manifest:
+                    raise ValueError("source authority audit manifest projection drifted")
+                durable_report = self.evidence.read_verified(
+                    manifest.report_artifact_hash
+                )
+                manifest.require_report(durable_report)
+                raise error_type(
+                    f"source {source_id!r} is permanently audit-invalidated; "
+                    "a new SourceContract identity is required"
+                )
             head = index.event_head(stream)
             record = None if head is None else index.get(head.record_kind, head.record_id)
             if head is None or record is None or record.status != "runtime_eligible":
@@ -752,14 +1030,16 @@ class StateWriter:
                 "eligibility_receipt_ttl_seconds",
                 availability["causal_ttl_seconds"],
             )
-            if (
+            if freshness_required and (
                 isinstance(ttl_seconds, bool)
                 or not isinstance(ttl_seconds, int)
                 or ttl_seconds <= 0
             ):
                 raise ValueError("runtime source eligibility TTL is invalid")
             age_seconds = (now - observed_at).total_seconds()
-            if age_seconds < 0 or age_seconds > ttl_seconds:
+            if freshness_required and (
+                age_seconds < 0 or age_seconds > ttl_seconds
+            ):
                 raise ValueError("runtime source eligibility receipt is stale")
             if (
                 receipt.evidence is SourceTransitionEvidence.RUNTIME_AVAILABILITY_PROOF
@@ -804,6 +1084,31 @@ class StateWriter:
             raise error_type(
                 f"source {source_id!r} lacks current runtime provenance"
             ) from exc
+
+    def _require_source_authority_for_actions(
+        self,
+        index: LocalIndex,
+        source_id: str,
+        *,
+        actions: Sequence[str],
+        error_type: type[Exception] = TransitionError,
+    ) -> IndexRecord:
+        """Apply one source-freshness policy consistently at all action gates."""
+
+        normalized = tuple(actions)
+        allowed = {"performance_batch", "runtime_source_use"}
+        if (
+            not normalized
+            or len(set(normalized)) != len(normalized)
+            or any(type(action) is not str or action not in allowed for action in normalized)
+        ):
+            raise error_type("source authority action policy is invalid")
+        return self._require_runtime_source(
+            index,
+            source_id,
+            freshness_required="runtime_source_use" in normalized,
+            error_type=error_type,
+        )
 
     def _require_stable_locked(
         self, index: LocalIndex, *, allow_empty: bool = False
@@ -1070,11 +1375,11 @@ class StateWriter:
                 failure = (
                     None if completion is None else completion.payload.get("failure")
                 )
-                expected_verdict = {
-                    "success": "passed",
-                    "failed": "failed",
-                    "not_evaluable": "not_evaluable",
-                }.get(None if completion is None else completion.status)
+                scientific_verdict = (
+                    None
+                    if not isinstance(scientific, dict)
+                    else scientific.get("verdict")
+                )
                 if (
                     completion is None
                     or completion.kind != "job-completed"
@@ -1100,8 +1405,17 @@ class StateWriter:
                     )
                     != "durable_evidence"
                     or not isinstance(scientific, dict)
-                    or scientific.get("verdict") != expected_verdict
+                    or scientific_verdict not in {"passed", "failed", "not_evaluable"}
                     or scientific.get("scientific_eligible") is not True
+                    or completion.status not in {
+                        "success",
+                        "failed",
+                        "not_evaluable",
+                    }
+                    or (
+                        completion.status == "success"
+                        and failure is not None
+                    )
                     or (
                         completion.status == "failed"
                         and (
@@ -2760,6 +3074,141 @@ class StateWriter:
             prepare=prepare,
         )
 
+    def activate_research_protocol(
+        self,
+        *,
+        activation: Any,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Activate or rebind the prospective protocol to current authority."""
+
+        from axiom_rift.research.protocol import (
+            ResearchProtocol,
+            ResearchProtocolActivation,
+        )
+        from axiom_rift.research.validation_v2 import (
+            SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
+        )
+
+        if not isinstance(activation, ResearchProtocolActivation):
+            raise TransitionError("research protocol activation must be typed")
+        if (
+            activation.protocol
+            is not ResearchProtocol.SCIENTIFIC_ADJUDICATION_V2
+            or activation.validator_id
+            != SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID
+        ):
+            raise TransitionError(
+                "research protocol activation does not name the supported v2 validator"
+            )
+        self.evidence.verify(activation.audit_artifact_hash)
+        try:
+            self.validation_registry.require_registered(
+                validator_id=activation.validator_id,
+                domain="scientific",
+            )
+        except EvidenceValidationError as exc:
+            raise TransitionError(
+                "research protocol validator is unavailable or drifted"
+            ) from exc
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("research protocol activation requires control")
+            science = current["scientific"]
+            if (
+                current.get("authority", {}).get("manifest_digest")
+                != activation.authority_manifest_digest
+            ):
+                raise TransitionError(
+                    "research protocol activation is bound to another authority"
+                )
+            if (
+                not isinstance(science.get("active_mission"), str)
+                or not isinstance(science.get("active_initiative"), str)
+                or current.get("next_action", {}).get("kind")
+                != "portfolio_decision"
+                or any(
+                    science.get(name) is not None
+                    for name in (
+                        "active_batch",
+                        "active_executable",
+                        "active_holdout_evaluation",
+                        "active_job",
+                        "active_lineage",
+                        "active_release",
+                        "active_repair",
+                        "active_study",
+                    )
+                )
+            ):
+                raise TransitionError(
+                    "research protocol activation requires the stable Portfolio boundary"
+                )
+            stream = "research-protocol:scientific"
+            prior_head = index.event_head(stream)
+            prior = (
+                None
+                if prior_head is None
+                else index.get(prior_head.record_kind, prior_head.record_id)
+            )
+            if prior_head is not None and (
+                prior is None
+                or prior.kind != "research-protocol-activation"
+                or prior.status != "active"
+                or prior.event_sequence != prior_head.sequence
+                or prior.payload.get("protocol")
+                != ResearchProtocol.SCIENTIFIC_ADJUDICATION_V2.value
+                or prior.payload.get("validator_id") != activation.validator_id
+            ):
+                raise RecoveryRequired(
+                    "prospective scientific protocol projection is invalid"
+                )
+            if (
+                prior is not None
+                and prior.payload.get("authority_manifest_digest")
+                == activation.authority_manifest_digest
+            ):
+                raise TransitionError(
+                    "prospective scientific protocol is already bound to this authority"
+                )
+            ordinal = 1 if prior_head is None else prior_head.sequence + 1
+            record = _record(
+                kind="research-protocol-activation",
+                record_id=activation.identity,
+                subject="ProjectGoal:OPERATING_DIRECTION.md",
+                status="active",
+                fingerprint=activation.identity.removeprefix(
+                    "research-protocol:"
+                ),
+                payload={
+                    **activation.to_identity_payload(),
+                    "ordinal": ordinal,
+                    "scientific_trial_delta": 0,
+                    "supersedes_activation_record_id": (
+                        None if prior is None else prior.record_id
+                    ),
+                },
+                event_stream=stream,
+                event_sequence=ordinal,
+            )
+            return self._body(current), [record], {
+                "activation_record_id": activation.identity,
+                "ordinal": ordinal,
+                "protocol": activation.protocol.value,
+                "trial_delta": 0,
+                "validator_id": activation.validator_id,
+            }
+
+        return self._commit(
+            event_kind="research_protocol_activated",
+            operation_id=operation_id,
+            subject="ProjectGoal:OPERATING_DIRECTION.md",
+            payload=activation.to_identity_payload(),
+            prepare=prepare,
+        )
+
     def open_initiative(
         self,
         *,
@@ -2925,6 +3374,49 @@ class StateWriter:
         )
 
     @staticmethod
+    def _portfolio_decision_withdrawal(
+        index: LocalIndex,
+        decision_id: str,
+    ) -> IndexRecord | None:
+        stream = f"portfolio-decision-status:{decision_id}"
+        head = index.event_head(stream)
+        if head is None:
+            return None
+        record = index.get(head.record_kind, head.record_id)
+        if (
+            record is None
+            or record.kind != "portfolio-decision-withdrawal"
+            or record.status != "withdrawn_pre_execution"
+            or record.event_stream != stream
+            or record.event_sequence != 1
+            or head.sequence != 1
+            or record.payload.get("decision_id") != decision_id
+        ):
+            raise RecoveryRequired(
+                "Portfolio Decision withdrawal status projection is invalid"
+            )
+        return record
+
+    @staticmethod
+    def _active_portfolio_decision(
+        index: LocalIndex,
+        decision_id: str,
+    ) -> IndexRecord | None:
+        decision = index.get("portfolio-decision", decision_id)
+        withdrawal = StateWriter._portfolio_decision_withdrawal(index, decision_id)
+        if withdrawal is None:
+            return decision
+        if (
+            decision is None
+            or withdrawal.subject != decision.subject
+            or withdrawal.fingerprint != decision.fingerprint
+        ):
+            raise RecoveryRequired(
+                "withdrawn Portfolio Decision lost its accepted provenance"
+            )
+        return None
+
+    @staticmethod
     def _axis_architecture_anchor(
         index: LocalIndex,
         axis: Mapping[str, Any],
@@ -2943,6 +3435,8 @@ class StateWriter:
         axis_identity = axis.get("axis_identity")
         anchors: dict[tuple[str, str], dict[str, Any]] = {}
         for record in index.records_by_kind("portfolio-decision"):
+            if StateWriter._active_portfolio_decision(index, record.record_id) is None:
+                continue
             payload = record.payload
             architecture_identity = payload.get("architecture_chassis_identity")
             baseline_id = payload.get("baseline_executable_id")
@@ -3003,7 +3497,7 @@ class StateWriter:
             anchor = (
                 None
                 if not isinstance(anchor_id, str)
-                else index.get("portfolio-decision", anchor_id)
+                else self._active_portfolio_decision(index, anchor_id)
             )
             if (
                 prior is not None
@@ -3115,7 +3609,9 @@ class StateWriter:
             accepted_bootstrap_anchors = [
                 record
                 for record in index.records_by_kind("portfolio-decision")
-                if record.payload.get("baseline_executable_id") == baseline.identity
+                if StateWriter._active_portfolio_decision(index, record.record_id)
+                is not None
+                and record.payload.get("baseline_executable_id") == baseline.identity
                 and record.payload.get("baseline_executable") == baseline_payload
                 and isinstance(record.payload.get("baseline_provenance"), dict)
                 and record.payload["baseline_provenance"].get("kind")
@@ -3940,7 +4436,9 @@ class StateWriter:
                 snapshot = _index.get("portfolio-snapshot", portfolio_snapshot_id)
                 if snapshot is None:
                     raise TransitionError("Study Portfolio snapshot is unavailable")
-                decision = _index.get("portfolio-decision", portfolio_decision_id)
+                decision = self._active_portfolio_decision(
+                    _index, portfolio_decision_id
+                )
                 if (
                     decision is None
                     or decision.payload.get("portfolio_snapshot_id")
@@ -4332,6 +4830,7 @@ class StateWriter:
     ) -> TransitionResult:
         """Commit one typed source-contract eligibility edge to the journal."""
 
+        from axiom_rift.research.source_authority import SourceAuthorityLatch
         from axiom_rift.research.sources import (
             SourceEligibility,
             SourceEligibilityReceipt,
@@ -4402,6 +4901,36 @@ class StateWriter:
             )
             if latest is not None and latest.kind != "source-state":
                 raise TransitionError("source-state projection is invalid")
+            latch_payload = (
+                None if latest is None else latest.payload.get("source_authority_latch")
+            )
+            authority_head = index.event_head(f"source-authority:{source_id}")
+            if authority_head is not None or latch_payload is not None:
+                if latch_payload is None:
+                    raise RecoveryRequired(
+                        "source authority correction lacks its permanent latch"
+                    )
+                try:
+                    latch = SourceAuthorityLatch.from_mapping(latch_payload)
+                except (TypeError, ValueError) as exc:
+                    raise RecoveryRequired(
+                        "source authority latch projection is malformed"
+                    ) from exc
+                if (
+                    latest is None
+                    or latest.status != SourceEligibilityState.SUSPENDED.value
+                    or latch.source_contract_id != source_id
+                    or latch.to_identity_payload() != latch_payload
+                    or authority_head is None
+                    or authority_head.record_id != latch.invalidation_id
+                ):
+                    raise RecoveryRequired(
+                        "source authority latch projection is inconsistent"
+                    )
+                raise TransitionError(
+                    "audit-invalidated SourceContract cannot be recertified; "
+                    "register a new SourceContract identity"
+                )
             previous = (
                 None if latest is None else SourceEligibilityState(latest.status)
             )
@@ -4468,6 +4997,445 @@ class StateWriter:
                 "receipt_id": None if receipt is None else receipt.identity,
             },
             prepare=prepare,
+        )
+
+    def suspend_source_authority_from_audit(
+        self,
+        *,
+        invalidation: Any,
+        operation_id: str,
+        crash_after: str | None = None,
+    ) -> TransitionResult:
+        """Fail closed one exact legacy source head without rewriting history."""
+
+        from axiom_rift.research.source_authority import (
+            AUTHORITY_TRANSITION_EVIDENCE,
+            SourceAuthorityAuditManifest,
+            SourceAuthorityInvalidation,
+            SourceAuthorityLatch,
+        )
+        from axiom_rift.research.sources import (
+            SourceContract,
+            SourceEligibilityReceipt,
+            SourceEligibilityState,
+            SourceTransitionEvidence,
+            SourceType,
+        )
+
+        if not isinstance(invalidation, SourceAuthorityInvalidation):
+            raise TransitionError(
+                "source authority suspension requires a typed invalidation"
+            )
+        try:
+            manifest = SourceAuthorityAuditManifest.from_bytes(
+                self.evidence.read_verified(invalidation.audit_artifact_hash)
+            )
+            invalidation.require_manifest(manifest)
+            report_bytes = self.evidence.read_verified(
+                manifest.report_artifact_hash
+            )
+            manifest.require_report(report_bytes)
+            latch = SourceAuthorityLatch.bind(
+                invalidation=invalidation,
+                manifest=manifest,
+            )
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise TransitionError(
+                "source authority suspension lacks its exact canonical audit manifest"
+            ) from exc
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("source authority suspension requires control")
+            science = current["scientific"]
+            if (
+                not isinstance(science.get("active_mission"), str)
+                or not isinstance(science.get("active_initiative"), str)
+                or current.get("next_action", {}).get("kind")
+                != "portfolio_decision"
+                or any(
+                    science.get(name) is not None
+                    for name in (
+                        "active_batch",
+                        "active_executable",
+                        "active_holdout_evaluation",
+                        "active_job",
+                        "active_lineage",
+                        "active_release",
+                        "active_repair",
+                        "active_study",
+                    )
+                )
+            ):
+                raise TransitionError(
+                    "source authority suspension requires the stable Portfolio boundary"
+                )
+            try:
+                durable_manifest = SourceAuthorityAuditManifest.from_bytes(
+                    self.evidence.read_verified(invalidation.audit_artifact_hash)
+                )
+                durable_report_bytes = self.evidence.read_verified(
+                    durable_manifest.report_artifact_hash
+                )
+                durable_manifest.require_report(durable_report_bytes)
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                raise RecoveryRequired(
+                    "source authority audit evidence changed before commit"
+                ) from exc
+            if durable_manifest != manifest or durable_report_bytes != report_bytes:
+                raise RecoveryRequired(
+                    "source authority audit manifest changed before commit"
+                )
+
+            source_id = invalidation.source_contract_id
+            if index.event_head(f"source-authority:{source_id}") is not None:
+                raise TransitionError(
+                    "source is permanently audit-invalidated; "
+                    "a new SourceContract identity is required"
+                )
+            stream = f"source:{source_id}"
+            head = index.event_head(stream)
+            latest = (
+                None
+                if head is None
+                else index.get(head.record_kind, head.record_id)
+            )
+            eligible = index.get(
+                "source-state",
+                invalidation.source_state_record_id,
+            )
+            expected_latest_id = (
+                None
+                if latest is None or latest.event_sequence is None
+                else canonical_digest(
+                    domain="source-state",
+                    payload={
+                        "source_id": source_id,
+                        "state": latest.status,
+                        "ordinal": latest.event_sequence,
+                        "evidence_receipt_id": latest.payload.get(
+                            "evidence_receipt_id"
+                        ),
+                    },
+                )
+            )
+            expected_eligible_id = (
+                None
+                if eligible is None or eligible.event_sequence is None
+                else canonical_digest(
+                    domain="source-state",
+                    payload={
+                        "source_id": source_id,
+                        "state": eligible.status,
+                        "ordinal": eligible.event_sequence,
+                        "evidence_receipt_id": eligible.payload.get(
+                            "evidence_receipt_id"
+                        ),
+                    },
+                )
+            )
+            if (
+                head is None
+                or latest is None
+                or latest.kind != "source-state"
+                or latest.record_id != expected_latest_id
+                or latest.subject != f"Source:{source_id}"
+                or latest.fingerprint != source_id
+                or latest.event_sequence != head.sequence
+                or latest.payload.get("ordinal") != head.sequence
+                or eligible is None
+                or eligible.kind != "source-state"
+                or eligible.record_id != invalidation.source_state_record_id
+                or eligible.record_id != expected_eligible_id
+                or eligible.status
+                not in {
+                    SourceEligibilityState.CONTEXT_ONLY.value,
+                    SourceEligibilityState.HISTORICAL_AUDITED.value,
+                    SourceEligibilityState.RUNTIME_ELIGIBLE.value,
+                }
+                or eligible.subject != f"Source:{source_id}"
+                or eligible.fingerprint != source_id
+                or eligible.event_stream != stream
+                or eligible.payload.get("ordinal") != eligible.event_sequence
+            ):
+                raise TransitionError(
+                    "source authority invalidation does not bind its eligible head"
+                )
+            ordinary_suspended = latest.record_id != eligible.record_id
+            prior_stream_record = (
+                None
+                if eligible.event_sequence is None
+                else index.event_record(stream, eligible.event_sequence)
+            )
+            if ordinary_suspended and (
+                eligible.status != SourceEligibilityState.RUNTIME_ELIGIBLE.value
+                or latest.status != SourceEligibilityState.SUSPENDED.value
+                or eligible.event_sequence is None
+                or latest.event_sequence != eligible.event_sequence + 1
+                or prior_stream_record is None
+                or prior_stream_record.record_id != eligible.record_id
+                or latest.payload.get("transition_evidence")
+                != SourceTransitionEvidence.DRIFT.value
+                or latest.payload.get("source_authority_latch") is not None
+            ):
+                raise TransitionError(
+                    "source authority invalidation is not the active eligible head "
+                    "or its exact ordinary suspension"
+                )
+            contract_payload = eligible.payload.get("contract")
+            if not isinstance(contract_payload, dict):
+                raise RecoveryRequired("source authority contract projection is absent")
+            try:
+                contract = SourceContract(
+                    display_name="audit-invalidated-journal-projection",
+                    canonical_instrument=contract_payload["canonical_instrument"],
+                    runtime_identifier=contract_payload["runtime_identifier"],
+                    source_type=SourceType(contract_payload["source_type"]),
+                    instrument_semantics=contract_payload["instrument_semantics"],
+                    mapping_semantics=contract_payload["mapping_semantics"],
+                    schema_semantics=contract_payload["schema_semantics"],
+                    field_semantics=contract_payload["field_semantics"],
+                    clock_semantics=contract_payload["clock_semantics"],
+                    availability_semantics=contract_payload[
+                        "availability_semantics"
+                    ],
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise RecoveryRequired(
+                    "source authority contract projection is malformed"
+                ) from exc
+            if (
+                contract.identity != source_id
+                or contract.to_identity_payload() != contract_payload
+                or eligible.payload.get("contract_hash")
+                != source_id.removeprefix("source:")
+                or eligible.payload.get("mapping_identity")
+                != contract.mapping_identity
+                or eligible.payload.get("schema_identity")
+                != contract.schema_identity
+                or eligible.payload.get("field_identity") != contract.field_identity
+                or eligible.payload.get("clock_identity") != contract.clock_identity
+                or eligible.payload.get("availability_identity")
+                != contract.availability_identity
+            ):
+                raise RecoveryRequired(
+                    "source authority contract projection differs from its identity"
+                )
+
+            invalidated_state = eligible.status
+            preserved_receipt_id = eligible.payload.get("evidence_receipt_id")
+            preserved_receipt = eligible.payload.get("receipt")
+            if (
+                invalidated_state == SourceEligibilityState.CONTEXT_ONLY.value
+                and (preserved_receipt_id is not None or preserved_receipt is not None)
+            ) or (
+                invalidated_state != SourceEligibilityState.CONTEXT_ONLY.value
+                and (
+                    not isinstance(preserved_receipt_id, str)
+                    or not isinstance(preserved_receipt, dict)
+                )
+            ):
+                raise RecoveryRequired(
+                    "source authority invalidation cannot preserve the legal receipt"
+                )
+            receipt: SourceEligibilityReceipt | None = None
+            if isinstance(preserved_receipt, dict):
+                try:
+                    receipt = SourceEligibilityReceipt(
+                        source_contract_id=preserved_receipt["source_contract_id"],
+                        evidence=SourceTransitionEvidence(
+                            preserved_receipt["evidence"]
+                        ),
+                        producer_completion_id=preserved_receipt[
+                            "producer_completion_id"
+                        ],
+                        observed_at_utc=preserved_receipt["observed_at_utc"],
+                        artifact_hashes=tuple(preserved_receipt["artifact_hashes"]),
+                        facts=preserved_receipt["facts"],
+                    )
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise RecoveryRequired(
+                        "source authority invalidation receipt is malformed"
+                    ) from exc
+            legal_receipt = (
+                receipt is None
+                and invalidated_state == SourceEligibilityState.CONTEXT_ONLY.value
+            ) or (
+                receipt is not None
+                and receipt.identity == preserved_receipt_id
+                and receipt.source_contract_id == source_id
+                and receipt.to_identity_payload() == preserved_receipt
+                and eligible.payload.get("transition_evidence")
+                == receipt.evidence.value
+                and (
+                    (
+                        invalidated_state
+                        == SourceEligibilityState.HISTORICAL_AUDITED.value
+                        and receipt.evidence
+                        is SourceTransitionEvidence.HISTORICAL_AUDIT
+                    )
+                    or (
+                        invalidated_state
+                        == SourceEligibilityState.RUNTIME_ELIGIBLE.value
+                        and receipt.evidence
+                        in {
+                            SourceTransitionEvidence.RUNTIME_AVAILABILITY_PROOF,
+                            SourceTransitionEvidence.SAME_SEMANTICS_RECERTIFICATION,
+                        }
+                    )
+                )
+            )
+            if not legal_receipt:
+                raise RecoveryRequired(
+                    "source authority invalidation receipt differs from its state"
+                )
+            ordinary_suspension_receipt: SourceEligibilityReceipt | None = None
+            if ordinary_suspended:
+                latest_receipt_payload = latest.payload.get("receipt")
+                try:
+                    ordinary_suspension_receipt = SourceEligibilityReceipt(
+                        source_contract_id=latest_receipt_payload[
+                            "source_contract_id"
+                        ],
+                        evidence=SourceTransitionEvidence(
+                            latest_receipt_payload["evidence"]
+                        ),
+                        producer_completion_id=latest_receipt_payload[
+                            "producer_completion_id"
+                        ],
+                        observed_at_utc=latest_receipt_payload["observed_at_utc"],
+                        artifact_hashes=tuple(
+                            latest_receipt_payload["artifact_hashes"]
+                        ),
+                        facts=latest_receipt_payload["facts"],
+                    )
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise RecoveryRequired(
+                        "ordinary source suspension receipt is malformed"
+                    ) from exc
+                if (
+                    ordinary_suspension_receipt.evidence
+                    is not SourceTransitionEvidence.DRIFT
+                    or ordinary_suspension_receipt.source_contract_id != source_id
+                    or ordinary_suspension_receipt.identity
+                    != latest.payload.get("evidence_receipt_id")
+                    or ordinary_suspension_receipt.to_identity_payload()
+                    != latest_receipt_payload
+                    or not isinstance(latest.payload.get("suspension_reason"), str)
+                    or any(
+                        latest.payload.get(field) != eligible.payload.get(field)
+                        for field in (
+                            "availability_identity",
+                            "clock_identity",
+                            "contract",
+                            "contract_hash",
+                            "field_identity",
+                            "mapping_identity",
+                            "schema_identity",
+                        )
+                    )
+                ):
+                    raise RecoveryRequired(
+                        "ordinary source suspension does not preserve eligible provenance"
+                    )
+            if receipt is not None:
+                for artifact_hash in receipt.artifact_hashes:
+                    self.evidence.verify(artifact_hash)
+            if ordinary_suspension_receipt is not None:
+                for artifact_hash in ordinary_suspension_receipt.artifact_hashes:
+                    self.evidence.verify(artifact_hash)
+            suspension_reason = (
+                f"{invalidation.reason_code.value}: "
+                f"{invalidation.observed_defect}"
+            )
+            ordinal = head.sequence + 1
+            state_id = canonical_digest(
+                domain="source-state",
+                payload={
+                    "source_id": source_id,
+                    "state": SourceEligibilityState.SUSPENDED.value,
+                    "ordinal": ordinal,
+                    "evidence_receipt_id": preserved_receipt_id,
+                },
+            )
+            correction_stream = f"source-authority:{source_id}"
+            correction_head = index.event_head(correction_stream)
+            if correction_head is not None:
+                raise RecoveryRequired(
+                    "source authority contract already has an audit correction"
+                )
+            correction = _record(
+                kind="source-authority-invalidation",
+                record_id=invalidation.identity,
+                subject=f"Source:{source_id}",
+                status="confirmed_and_suspended",
+                fingerprint=invalidation.identity.removeprefix(
+                    "source-authority-invalidation:"
+                ),
+                payload={
+                    "audit_manifest": manifest.to_identity_payload(),
+                    "eligible_source_state_record_id": eligible.record_id,
+                    "invalidation": invalidation.to_identity_payload(),
+                    "latch": latch.to_identity_payload(),
+                    "invalidated_state": invalidated_state,
+                    "preserved_receipt_id": preserved_receipt_id,
+                    "prior_active_source_state_record_id": latest.record_id,
+                    "replacement_state_record_id": state_id,
+                    "scientific_trial_delta": 0,
+                },
+                event_stream=correction_stream,
+                event_sequence=1,
+            )
+            state = _record(
+                kind="source-state",
+                record_id=state_id,
+                subject=f"Source:{source_id}",
+                status=SourceEligibilityState.SUSPENDED.value,
+                fingerprint=source_id,
+                payload={
+                    "contract_hash": source_id.removeprefix("source:"),
+                    "contract": contract.to_identity_payload(),
+                    "mapping_identity": contract.mapping_identity,
+                    "schema_identity": contract.schema_identity,
+                    "field_identity": contract.field_identity,
+                    "clock_identity": contract.clock_identity,
+                    "availability_identity": contract.availability_identity,
+                    "ordinal": ordinal,
+                    "evidence_receipt_id": preserved_receipt_id,
+                    "suspension_reason": suspension_reason,
+                    "transition_evidence": AUTHORITY_TRANSITION_EVIDENCE,
+                    "receipt": (
+                        None
+                        if preserved_receipt is None
+                        else _copy(preserved_receipt)
+                    ),
+                    "eligible_source_state_record_id": eligible.record_id,
+                    "prior_active_source_state_record_id": latest.record_id,
+                    "source_authority_latch": latch.to_identity_payload(),
+                    "scientific_trial_delta": 0,
+                    "alpha_failure": False,
+                },
+                event_stream=stream,
+                event_sequence=ordinal,
+            )
+            return self._body(current), [correction, state], {
+                "invalidation_record_id": invalidation.identity,
+                "invalidated_state": invalidated_state,
+                "prior_active_source_state_record_id": latest.record_id,
+                "source_id": source_id,
+                "source_state_record_id": state_id,
+                "state": SourceEligibilityState.SUSPENDED.value,
+                "trial_delta": 0,
+            }
+
+        return self._commit(
+            event_kind="source_authority_suspended_from_audit",
+            operation_id=operation_id,
+            subject=f"Source:{invalidation.source_contract_id}",
+            payload=invalidation.to_identity_payload(),
+            prepare=prepare,
+            crash_after=crash_after,
         )
 
     def open_batch(
@@ -4549,8 +5517,11 @@ class StateWriter:
                     expected_input_hash=batch_hash,
                     required_scope=(f"source:{source_id}",),
                 )
-                self._require_runtime_source(
-                    index, source_id, error_type=PermitError
+                self._require_source_authority_for_actions(
+                    index,
+                    source_id,
+                    actions=("performance_batch",),
+                    error_type=PermitError,
                 )
                 used_source_permits.add(source_permit.permit_id)
             if used_source_permits != {item.permit_id for item in source_permits}:
@@ -6968,6 +7939,31 @@ class StateWriter:
                 f"scientific validation preflight failed: {exc}"
             ) from exc
 
+    def _authority_requires_scientific_adjudication_v2(
+        self,
+        current: Mapping[str, Any],
+    ) -> bool:
+        authority = current.get("authority")
+        if not isinstance(authority, Mapping):
+            raise RecoveryRequired("scientific protocol authority is unavailable")
+        contracts = authority.get("contracts")
+        if not isinstance(contracts, list):
+            raise RecoveryRequired("scientific protocol contract manifest is invalid")
+        root = self.foundation_root.resolve()
+        for relative in contracts:
+            _require_ascii("authority contract path", relative)
+            path = (root / relative).resolve()
+            if root != path and root not in path.parents:
+                raise RecoveryRequired("scientific protocol contract escapes Foundation")
+            if not path.is_file():
+                raise RecoveryRequired("scientific protocol contract is unavailable")
+            if any(
+                line.strip() == b"scientific_adjudication_v2:"
+                for line in path.read_bytes().splitlines()
+            ):
+                return True
+        return False
+
     def declare_job(
         self, *, spec: Mapping[str, Any], operation_id: str
     ) -> TransitionResult:
@@ -6998,6 +7994,40 @@ class StateWriter:
                 raise TransitionError("Job requires an active Mission")
             if science["active_job"] is not None:
                 raise TransitionError("another parent Job is active")
+            scientific_binding = spec.get("scientific_binding")
+            protocol_head = _index.event_head("research-protocol:scientific")
+            if (
+                isinstance(scientific_binding, dict)
+                and protocol_head is None
+                and self._authority_requires_scientific_adjudication_v2(current)
+            ):
+                raise TransitionError(
+                    "authority requires an active v2 scientific protocol"
+                )
+            if isinstance(scientific_binding, dict) and protocol_head is not None:
+                protocol = _index.get(
+                    protocol_head.record_kind, protocol_head.record_id
+                )
+                if (
+                    protocol is None
+                    or protocol.kind != "research-protocol-activation"
+                    or protocol.status != "active"
+                    or protocol.event_sequence != protocol_head.sequence
+                    or protocol.payload.get("protocol")
+                    != "scientific_adjudication_v2"
+                    or protocol.payload.get("authority_manifest_digest")
+                    != current.get("authority", {}).get("manifest_digest")
+                ):
+                    raise RecoveryRequired(
+                        "active scientific protocol projection is invalid"
+                    )
+                if (
+                    scientific_binding.get("validator_id")
+                    != protocol.payload.get("validator_id")
+                ):
+                    raise TransitionError(
+                        "prospective scientific Job must use the active v2 protocol"
+                    )
             if not self.engineering_fixture:
                 next_action = current.get("next_action")
                 active_batch = science.get("active_batch")
@@ -7059,8 +8089,8 @@ class StateWriter:
                         raise TransitionError(
                             "pre-Study component parity requires no active Study or Batch"
                         )
-                    decision = _index.get(
-                        "portfolio-decision", parity_binding["portfolio_decision_id"]
+                    decision = self._active_portfolio_decision(
+                        _index, parity_binding["portfolio_decision_id"]
                     )
                     baseline = None if decision is None else decision.payload.get(
                         "baseline_executable"
@@ -7447,7 +8477,7 @@ class StateWriter:
                 decision = (
                     None
                     if not isinstance(decision_id, str)
-                    else _index.get("portfolio-decision", decision_id)
+                    else self._active_portfolio_decision(_index, decision_id)
                 )
                 snapshot = (
                     None
@@ -7524,8 +8554,11 @@ class StateWriter:
                 if not source_scopes:
                     raise PermitError("SourcePermit must name at least one source scope")
                 for source_id in source_scopes:
-                    self._require_runtime_source(
-                        _index, source_id, error_type=PermitError
+                    self._require_source_authority_for_actions(
+                        _index,
+                        source_id,
+                        actions=actions,
+                        error_type=PermitError,
                     )
             if kind is PermitKind.RUNTIME:
                 from axiom_rift.runtime.guards import EvidenceDepth
@@ -8875,7 +9908,11 @@ class StateWriter:
                     "Executable uses an external source absent from the frozen Batch"
                 )
             for source_id in executable_sources:
-                self._require_runtime_source(index, source_id)
+                self._require_source_authority_for_actions(
+                    index,
+                    source_id,
+                    actions=("performance_batch",),
+                )
             record_kind = "engineering-evaluation-fixture" if self.engineering_fixture else "trial"
             study_id = current["scientific"]["active_study"]
             study_record = index.get("study-open", study_id)
@@ -9230,7 +10267,7 @@ class StateWriter:
                 decision = (
                     None
                     if not isinstance(decision_id, str)
-                    else index.get("portfolio-decision", decision_id)
+                    else self._active_portfolio_decision(index, decision_id)
                 )
                 if (
                     next_action.get("kind") != "record_portfolio_snapshot"
@@ -9462,11 +10499,32 @@ class StateWriter:
             required_target_axis_ids = next_action.get("required_target_axis_ids")
             if required_target_axis_ids is not None and (
                 not isinstance(required_target_axis_ids, list)
+                or not required_target_axis_ids
+                or required_target_axis_ids != sorted(set(required_target_axis_ids))
+                or any(type(item) is not str for item in required_target_axis_ids)
+                or any(item not in eligible_targets for item in required_target_axis_ids)
                 or decision.chosen.target_id not in required_target_axis_ids
             ):
                 raise TransitionError(
                     "Portfolio Decision bypasses its admitted constrained axis"
                 )
+            constraint_source_id = next_action.get("constraint_source_id")
+            if constraint_source_id is not None and (
+                type(constraint_source_id) is not str
+                or not constraint_source_id
+                or not constraint_source_id.isascii()
+            ):
+                raise TransitionError("Portfolio Decision constraint source is invalid")
+            if required_target_axis_ids is not None and constraint_source_id is None:
+                raise TransitionError(
+                    "Portfolio Decision constrained axes lack their exact source"
+                )
+            scheduler_constraints = None
+            if required_target_axis_ids is not None or constraint_source_id is not None:
+                scheduler_constraints = {
+                    "constraint_source_id": constraint_source_id,
+                    "required_target_axis_ids": required_target_axis_ids,
+                }
             if (
                 decision.recent_positive_lineage_id is not None
                 and decision.recent_positive_lineage_id not in eligible_targets
@@ -9540,7 +10598,9 @@ class StateWriter:
                 bootstrap_anchors = [
                     record
                     for record in _index.records_by_kind("portfolio-decision")
-                    if record.payload.get("baseline_executable_id") == baseline.identity
+                    if self._active_portfolio_decision(_index, record.record_id)
+                    is not None
+                    and record.payload.get("baseline_executable_id") == baseline.identity
                     and record.payload.get("baseline_executable")
                     == baseline.to_identity_payload()
                     and isinstance(record.payload.get("baseline_provenance"), dict)
@@ -9828,6 +10888,7 @@ class StateWriter:
                     "architecture_review_id": architecture_review_id,
                     "baseline_provenance": baseline_provenance,
                     "portfolio_snapshot_id": snapshot.record_id,
+                    "scheduler_constraints": scheduler_constraints,
                     "study_diagnosis_id": diagnosis_id,
                     "target_axis_identity": target_axis["axis_identity"],
                     "resolved_architecture_family": resolved_architecture_family,
@@ -9842,6 +10903,965 @@ class StateWriter:
             operation_id=operation_id,
             subject="Portfolio:active",
             payload={"decision_id": decision.identity},
+            prepare=prepare,
+        )
+
+    def withdraw_pending_portfolio_decision(
+        self,
+        *,
+        manifest_artifact_hash: str,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Withdraw an accepted but unstarted Decision whose basis was invalidated."""
+
+        from axiom_rift.research.decision_withdrawal import (
+            PortfolioDecisionWithdrawalManifest,
+            PortfolioDecisionWithdrawalReason,
+        )
+
+        _require_digest(
+            "Portfolio Decision withdrawal manifest",
+            manifest_artifact_hash,
+        )
+        try:
+            manifest_bytes = self.evidence.read_verified(manifest_artifact_hash)
+            manifest = PortfolioDecisionWithdrawalManifest.from_bytes(manifest_bytes)
+            report_bytes = self.evidence.read_verified(manifest.report_artifact_hash)
+            manifest.require_report(report_bytes)
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise TransitionError(
+                "Portfolio Decision withdrawal lacks its exact canonical manifest"
+            ) from exc
+        if (
+            manifest.reason_code
+            is not PortfolioDecisionWithdrawalReason.SOURCE_AUTHORITY_INVALIDATED
+        ):
+            raise TransitionError("Portfolio Decision withdrawal reason is unsupported")
+
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("Portfolio Decision withdrawal requires control")
+            science = current["scientific"]
+            mission_id = science.get("active_mission")
+            initiative_id = science.get("active_initiative")
+            if type(mission_id) is not str or type(initiative_id) is not str:
+                raise TransitionError(
+                    "Portfolio Decision withdrawal requires active Mission work"
+                )
+            if any(
+                science.get(name) is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_job",
+                    "active_lineage",
+                    "active_release",
+                    "active_repair",
+                    "active_study",
+                    "active_holdout_evaluation",
+                )
+            ):
+                raise TransitionError(
+                    "Portfolio Decision withdrawal cannot bypass started work"
+                )
+            next_action = current.get("next_action")
+            decision = index.get("portfolio-decision", manifest.decision_id)
+            if (
+                self._portfolio_decision_withdrawal(
+                    index,
+                    manifest.decision_id,
+                )
+                is not None
+            ):
+                raise TransitionError("Portfolio Decision is already withdrawn")
+            if (
+                not isinstance(next_action, dict)
+                or next_action.get("kind") != "execute_portfolio_decision"
+                or next_action.get("decision_id") != manifest.decision_id
+                or decision is None
+                or decision.subject != f"Mission:{mission_id}"
+                or decision.payload.get("portfolio_snapshot_id")
+                != next_action.get("portfolio_snapshot_id")
+            ):
+                raise TransitionError(
+                    "Portfolio Decision withdrawal is not the exact unstarted action"
+                )
+            snapshot = index.get(
+                "portfolio-snapshot",
+                manifest.portfolio_snapshot_id,
+            )
+            axes = (
+                ()
+                if snapshot is None
+                else tuple(snapshot.payload.get("axes", ()))
+            )
+            target_axes = tuple(
+                axis
+                for axis in axes
+                if isinstance(axis, dict)
+                and axis.get("axis_id") == manifest.target_axis_id
+            )
+            eligible_axis_ids = {
+                axis.get("axis_id")
+                for axis in axes
+                if isinstance(axis, dict)
+                and axis.get("status") != "pruned"
+                and isinstance(axis.get("axis_id"), str)
+            }
+            chosen_options = tuple(
+                option
+                for option in decision.payload.get("options", ())
+                if isinstance(option, dict)
+                and option.get("option_id")
+                == decision.payload.get("chosen_option_id")
+            )
+            baseline = decision.payload.get("baseline_executable")
+            component_manifests = (
+                ()
+                if not isinstance(baseline, dict)
+                else baseline.get("component_manifests", ())
+            )
+            bound_sources = set(
+                baseline.get("source_contracts", ())
+                if isinstance(baseline, dict)
+                else ()
+            )
+            if isinstance(component_manifests, list):
+                for component in component_manifests:
+                    specification = (
+                        None
+                        if not isinstance(component, dict)
+                        else component.get("spec")
+                    )
+                    source_id = (
+                        None
+                        if not isinstance(specification, dict)
+                        else specification.get("source_contract_id")
+                    )
+                    if isinstance(source_id, str):
+                        bound_sources.add(source_id)
+            source_head = index.event_head(
+                f"source:{manifest.source_contract_id}"
+            )
+            source_state = (
+                None
+                if source_head is None
+                else index.get(source_head.record_kind, source_head.record_id)
+            )
+            if (
+                snapshot is None
+                or snapshot.record_id != decision.payload.get("portfolio_snapshot_id")
+                or len(target_axes) != 1
+                or len(chosen_options) != 1
+                or chosen_options[0].get("target_id") != manifest.target_axis_id
+                or target_axes[0].get("axis_identity")
+                != manifest.target_axis_identity
+                or decision.payload.get("target_axis_identity")
+                != manifest.target_axis_identity
+                or next_action.get("target_id") != manifest.target_axis_id
+                or next_action.get("target_axis_identity")
+                != manifest.target_axis_identity
+                or decision.payload.get("baseline_executable_id")
+                != manifest.baseline_executable_id
+                or (
+                    next_action.get("baseline_executable_id") is not None
+                    and next_action.get("baseline_executable_id")
+                    != manifest.baseline_executable_id
+                )
+                or manifest.source_contract_id not in bound_sources
+                or source_head is None
+                or source_state is None
+                or source_head.record_id != manifest.source_state_record_id
+                or source_state.subject
+                != f"Source:{manifest.source_contract_id}"
+                or source_state.fingerprint != manifest.source_contract_id
+            ):
+                raise TransitionError(
+                    "Portfolio Decision withdrawal manifest does not bind its exact basis"
+                )
+            try:
+                durable_manifest_bytes = self.evidence.read_verified(
+                    manifest_artifact_hash
+                )
+                durable_report_bytes = self.evidence.read_verified(
+                    manifest.report_artifact_hash
+                )
+                durable_manifest = PortfolioDecisionWithdrawalManifest.from_bytes(
+                    durable_manifest_bytes
+                )
+                durable_manifest.require_report(durable_report_bytes)
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                raise RecoveryRequired(
+                    "Portfolio Decision withdrawal evidence changed before commit"
+                ) from exc
+            if (
+                durable_manifest_bytes != manifest_bytes
+                or durable_report_bytes != report_bytes
+                or durable_manifest != manifest
+            ):
+                raise RecoveryRequired(
+                    "Portfolio Decision withdrawal evidence changed before commit"
+                )
+            body = self._body(current)
+            replacement_action: dict[str, Any] = {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": decision.payload["portfolio_snapshot_id"],
+            }
+            constraints = decision.payload.get("scheduler_constraints")
+            if constraints is not None:
+                if (
+                    not isinstance(constraints, dict)
+                    or set(constraints)
+                    != {"constraint_source_id", "required_target_axis_ids"}
+                ):
+                    raise RecoveryRequired(
+                        "withdrawn Decision scheduler constraints are malformed"
+                    )
+                required = constraints.get("required_target_axis_ids")
+                source = constraints.get("constraint_source_id")
+                if required is not None:
+                    if (
+                        not isinstance(required, list)
+                        or not required
+                        or required != sorted(set(required))
+                        or any(type(item) is not str for item in required)
+                        or any(item not in eligible_axis_ids for item in required)
+                        or manifest.target_axis_id not in required
+                    ):
+                        raise RecoveryRequired(
+                            "withdrawn Decision target constraints are malformed"
+                        )
+                    replacement_action["required_target_axis_ids"] = list(required)
+                if source is not None:
+                    if (
+                        type(source) is not str
+                        or not source
+                        or not source.isascii()
+                    ):
+                        raise RecoveryRequired(
+                            "withdrawn Decision constraint source is malformed"
+                        )
+                    replacement_action["constraint_source_id"] = source
+                if required is not None and source is None:
+                    raise RecoveryRequired(
+                        "withdrawn Decision constrained axes lack their source"
+                    )
+            diagnosis_id = decision.payload.get("study_diagnosis_id")
+            if isinstance(diagnosis_id, str):
+                replacement_action["study_diagnosis_id"] = diagnosis_id
+            review_id = decision.payload.get("architecture_review_id")
+            if isinstance(review_id, str):
+                review = index.get("architecture-review", review_id)
+                if review is None or review.payload.get("mission_id") != mission_id:
+                    raise RecoveryRequired(
+                        "withdrawn Decision architecture review is unavailable"
+                    )
+                replacement_action["architecture_review_id"] = review_id
+                conclusion = review.payload.get("conclusion")
+                if conclusion == "rotate_architecture":
+                    replacement_action["excluded_architecture_family"] = (
+                        self._review_resolved_architecture_family(
+                            index=index,
+                            review=review,
+                        )
+                    )
+                elif conclusion == "change_research_layer":
+                    replacement_action["excluded_research_layers"] = sorted(
+                        review.payload.get("primary_research_layers", [])
+                    )
+                else:
+                    raise RecoveryRequired(
+                        "withdrawn Decision architecture review is malformed"
+                    )
+            body["next_action"] = replacement_action
+            record_id = canonical_digest(
+                domain="portfolio-decision-withdrawal",
+                payload={
+                    "manifest": manifest.to_identity_payload(),
+                    "manifest_artifact_hash": manifest_artifact_hash,
+                },
+            )
+            record = _record(
+                kind="portfolio-decision-withdrawal",
+                record_id=record_id,
+                subject=f"Mission:{mission_id}",
+                status="withdrawn_pre_execution",
+                fingerprint=decision.fingerprint,
+                payload={
+                    "decision_id": manifest.decision_id,
+                    "manifest": manifest.to_identity_payload(),
+                    "manifest_artifact_hash": manifest_artifact_hash,
+                    "replacement_next_action": replacement_action,
+                },
+                event_stream=(
+                    f"portfolio-decision-status:{manifest.decision_id}"
+                ),
+                event_sequence=1,
+            )
+            return body, [record], {
+                "decision_id": manifest.decision_id,
+                "withdrawal_record_id": record_id,
+            }
+
+        return self._commit(
+            event_kind="portfolio_decision_withdrawn",
+            operation_id=operation_id,
+            subject="Portfolio:active",
+            payload={
+                "manifest": manifest.to_identity_payload(),
+                "manifest_artifact_hash": manifest_artifact_hash,
+            },
+            prepare=prepare,
+        )
+
+    def _require_historical_validity_override(
+        self,
+        index: LocalIndex,
+        *,
+        override: Any,
+        executable_id: str,
+        declaration: IndexRecord,
+    ) -> None:
+        """Verify that an additive validity override is an exact dependency fact."""
+
+        from axiom_rift.research.historical_adjudication import (
+            HistoricalValidityOverride,
+            HistoricalValidityReason,
+        )
+        from axiom_rift.research.source_authority import (
+            AUTHORITY_TRANSITION_EVIDENCE,
+            SourceAuthorityAuditManifest,
+            SourceAuthorityInvalidation,
+            SourceAuthorityLatch,
+        )
+
+        if (
+            not isinstance(override, HistoricalValidityOverride)
+            or override.reason
+            is not HistoricalValidityReason.SOURCE_AUTHORITY_INVALIDATED
+        ):
+            raise TransitionError("historical validity override is unsupported")
+
+        source_id = override.subject_id
+        correction = index.get(
+            "source-authority-invalidation", override.evidence_record_id
+        )
+        if correction is None:
+            raise TransitionError(
+                "historical validity override evidence is unavailable"
+            )
+        try:
+            invalidation = SourceAuthorityInvalidation.from_identity_payload(
+                correction.payload["invalidation"]
+            )
+            manifest = SourceAuthorityAuditManifest.from_mapping(
+                correction.payload["audit_manifest"]
+            )
+            latch = SourceAuthorityLatch.from_mapping(correction.payload["latch"])
+            expected_latch = SourceAuthorityLatch.bind(
+                invalidation=invalidation,
+                manifest=manifest,
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise TransitionError(
+                "historical validity override evidence is malformed"
+            ) from exc
+
+        correction_head = index.event_head(f"source-authority:{source_id}")
+        if (
+            invalidation.identity != override.evidence_record_id
+            or invalidation.source_contract_id != source_id
+            or correction.subject != f"Source:{source_id}"
+            or correction.status != "confirmed_and_suspended"
+            or correction.fingerprint
+            != override.evidence_record_id.removeprefix(
+                "source-authority-invalidation:"
+            )
+            or correction.event_stream != f"source-authority:{source_id}"
+            or correction.event_sequence != 1
+            or correction_head is None
+            or correction_head.record_kind != correction.kind
+            or correction_head.record_id != correction.record_id
+            or correction_head.sequence != correction.event_sequence
+            or latch != expected_latch
+            or latch.source_contract_id != source_id
+            or latch.invalidation_id != override.evidence_record_id
+            or latch.audit_manifest_hash != invalidation.audit_artifact_hash
+        ):
+            raise TransitionError(
+                "historical validity override does not bind the canonical correction"
+            )
+
+        try:
+            durable_manifest = SourceAuthorityAuditManifest.from_bytes(
+                self.evidence.read_verified(latch.audit_manifest_hash)
+            )
+            durable_report = self.evidence.read_verified(
+                latch.report_artifact_hash
+            )
+            durable_manifest.require_report(durable_report)
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise TransitionError(
+                "historical validity override audit evidence is unavailable"
+            ) from exc
+        if durable_manifest != manifest:
+            raise TransitionError(
+                "historical validity override audit manifest has drifted"
+            )
+
+        original_state = index.get(
+            "source-state", invalidation.source_state_record_id
+        )
+        replacement_id = correction.payload.get("replacement_state_record_id")
+        replacement_state = (
+            None
+            if not isinstance(replacement_id, str)
+            else index.get("source-state", replacement_id)
+        )
+        prior_active_id = correction.payload.get(
+            "prior_active_source_state_record_id"
+        )
+        prior_active_state = (
+            None
+            if not isinstance(prior_active_id, str)
+            else index.get("source-state", prior_active_id)
+        )
+        source_head = index.event_head(f"source:{source_id}")
+        preserved_receipt_id = correction.payload.get("preserved_receipt_id")
+        ordinary_suspended = (
+            original_state is not None
+            and prior_active_state is not None
+            and original_state.record_id != prior_active_state.record_id
+        )
+        if (
+            original_state is None
+            or original_state.subject != f"Source:{source_id}"
+            or original_state.status != "runtime_eligible"
+            or original_state.fingerprint != source_id
+            or original_state.event_stream != f"source:{source_id}"
+            or replacement_state is None
+            or replacement_state.subject != f"Source:{source_id}"
+            or replacement_state.status != "suspended"
+            or replacement_state.fingerprint != source_id
+            or replacement_state.event_stream != f"source:{source_id}"
+            or original_state.event_sequence is None
+            or prior_active_state is None
+            or prior_active_state.event_sequence is None
+            or replacement_state.event_sequence
+            != prior_active_state.event_sequence + 1
+            or source_head is None
+            or source_head.record_kind != "source-state"
+            or source_head.record_id != replacement_state.record_id
+            or source_head.sequence != replacement_state.event_sequence
+            or replacement_state.payload.get("transition_evidence")
+            != AUTHORITY_TRANSITION_EVIDENCE
+            or replacement_state.payload.get("source_authority_latch")
+            != latch.to_identity_payload()
+            or correction.payload.get("eligible_source_state_record_id")
+            != original_state.record_id
+            or replacement_state.payload.get("eligible_source_state_record_id")
+            != original_state.record_id
+            or replacement_state.payload.get(
+                "prior_active_source_state_record_id"
+            )
+            != prior_active_state.record_id
+            or replacement_state.payload.get("evidence_receipt_id")
+            != preserved_receipt_id
+            or original_state.payload.get("evidence_receipt_id")
+            != preserved_receipt_id
+            or replacement_state.payload.get("receipt")
+            != original_state.payload.get("receipt")
+            or (
+                ordinary_suspended
+                and (
+                    prior_active_state.status != "suspended"
+                    or prior_active_state.event_sequence
+                    != original_state.event_sequence + 1
+                    or prior_active_state.payload.get("transition_evidence")
+                    != "drift"
+                    or prior_active_state.payload.get("source_authority_latch")
+                    is not None
+                    or any(
+                        prior_active_state.payload.get(field)
+                        != original_state.payload.get(field)
+                        for field in (
+                            "availability_identity",
+                            "clock_identity",
+                            "contract",
+                            "contract_hash",
+                            "field_identity",
+                            "mapping_identity",
+                            "schema_identity",
+                        )
+                    )
+                )
+            )
+        ):
+            raise TransitionError(
+                "historical validity override source suspension is not durable"
+            )
+
+        spec = declaration.payload.get("spec")
+        trial = index.get("trial", executable_id)
+        executable = None if trial is None else trial.payload.get("executable")
+        sources = (
+            None if not isinstance(executable, dict) else executable.get("source_contracts")
+        )
+        if (
+            not isinstance(spec, dict)
+            or spec.get("evidence_subject")
+            != {"kind": "Executable", "id": executable_id}
+            or trial is None
+            or trial.record_id != executable_id
+            or trial.status != "evaluated"
+            or not isinstance(executable, dict)
+            or canonical_digest(domain="executable", payload=executable)
+            != executable_id.removeprefix("executable:")
+            or not isinstance(sources, list)
+            or source_id not in sources
+        ):
+            raise TransitionError(
+                "historical validity override is not bound to the completed trial"
+            )
+
+    def _writer_derived_historical_validity_overrides(
+        self,
+        index: LocalIndex,
+        *,
+        executable_id: str,
+        declaration: IndexRecord,
+        prior: IndexRecord | None,
+    ) -> tuple[Any, ...]:
+        """Derive the monotone validity facts for one legacy completion.
+
+        A request may describe these facts, but it cannot create, omit, or
+        withdraw them.  The durable source-authority streams and any prior
+        additive overlay are the only inputs to this projection.
+        """
+
+        from axiom_rift.research.historical_adjudication import (
+            HistoricalValidityOverride,
+            HistoricalValidityReason,
+        )
+
+        trial = index.get("trial", executable_id)
+        executable = None if trial is None else trial.payload.get("executable")
+        sources = (
+            None
+            if not isinstance(executable, dict)
+            else executable.get("source_contracts")
+        )
+        if (
+            trial is None
+            or trial.record_id != executable_id
+            or trial.status != "evaluated"
+            or not isinstance(executable, dict)
+            or canonical_digest(domain="executable", payload=executable)
+            != executable_id.removeprefix("executable:")
+            or not isinstance(sources, list)
+            or any(type(source_id) is not str for source_id in sources)
+            or len(sources) != len(set(sources))
+        ):
+            raise TransitionError(
+                "historical validity projection lacks the exact completed trial"
+            )
+
+        overrides_by_subject: dict[str, Any] = {}
+        if prior is not None:
+            raw_prior = prior.payload.get("validity_overrides")
+            if not isinstance(raw_prior, list):
+                raise RecoveryRequired(
+                    "prior historical validity projection is malformed"
+                )
+            try:
+                prior_overrides = tuple(
+                    HistoricalValidityOverride(
+                        reason=HistoricalValidityReason(item["reason"]),
+                        subject_id=item["subject_id"],
+                        evidence_record_id=item["evidence_record_id"],
+                    )
+                    for item in raw_prior
+                    if isinstance(item, dict)
+                    and set(item)
+                    == {"evidence_record_id", "reason", "subject_id"}
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                raise RecoveryRequired(
+                    "prior historical validity projection is malformed"
+                ) from exc
+            if len(prior_overrides) != len(raw_prior):
+                raise RecoveryRequired(
+                    "prior historical validity projection is malformed"
+                )
+            for override in prior_overrides:
+                self._require_historical_validity_override(
+                    index,
+                    override=override,
+                    executable_id=executable_id,
+                    declaration=declaration,
+                )
+                previous = overrides_by_subject.setdefault(
+                    override.subject_id, override
+                )
+                if previous != override:
+                    raise RecoveryRequired(
+                        "prior historical validity projection conflicts"
+                    )
+
+        for source_id in sorted(sources):
+            correction_head = index.event_head(f"source-authority:{source_id}")
+            if correction_head is None:
+                continue
+            if correction_head.record_kind != "source-authority-invalidation":
+                raise RecoveryRequired(
+                    "source authority correction head is malformed"
+                )
+            try:
+                override = HistoricalValidityOverride(
+                    reason=(
+                        HistoricalValidityReason.SOURCE_AUTHORITY_INVALIDATED
+                    ),
+                    subject_id=source_id,
+                    evidence_record_id=correction_head.record_id,
+                )
+            except (TypeError, ValueError) as exc:
+                raise RecoveryRequired(
+                    "source authority correction identity is malformed"
+                ) from exc
+            self._require_historical_validity_override(
+                index,
+                override=override,
+                executable_id=executable_id,
+                declaration=declaration,
+            )
+            previous = overrides_by_subject.setdefault(source_id, override)
+            if previous != override:
+                raise RecoveryRequired(
+                    "historical validity correction cannot be replaced"
+                )
+
+        return tuple(
+            sorted(
+                overrides_by_subject.values(),
+                key=lambda item: (
+                    item.reason.value,
+                    item.subject_id,
+                    item.evidence_record_id,
+                ),
+            )
+        )
+
+    def record_historical_scientific_adjudications(
+        self,
+        *,
+        requests: Sequence[Any],
+        audit_artifact_hash: str,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Add claim-scoped interpretations without rewriting legacy evidence."""
+
+        from axiom_rift.research.historical_adjudication import (
+            HistoricalAdjudicationRequest,
+            HistoricalScientificAdjudication,
+            derive_historical_adjudication,
+            profile_manifest,
+        )
+        from axiom_rift.research.adjudication import AdjudicationProfile
+
+        _require_digest("historical audit artifact", audit_artifact_hash)
+        self.evidence.verify(audit_artifact_hash)
+        normalized = tuple(requests)
+        if (
+            not normalized
+            or any(
+                not isinstance(item, HistoricalAdjudicationRequest)
+                for item in normalized
+            )
+            or len({item.completion_record_id for item in normalized})
+            != len(normalized)
+        ):
+            raise TransitionError(
+                "historical adjudication requires unique typed completion requests"
+            )
+        normalized = tuple(
+            sorted(normalized, key=lambda item: item.completion_record_id)
+        )
+        request_manifest = [
+            {
+                "completion_record_id": item.completion_record_id,
+                "disposition": item.disposition.value,
+                "profile": profile_manifest(item.profile),
+                "reason_codes": list(item.reason_codes),
+                "replay_priority": item.replay_priority.value,
+                "validity_overrides": [
+                    override.manifest() for override in item.validity_overrides
+                ],
+            }
+            for item in normalized
+        ]
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("historical adjudication requires control")
+            science = current["scientific"]
+            if (
+                not isinstance(science.get("active_mission"), str)
+                or not isinstance(science.get("active_initiative"), str)
+                or current.get("next_action", {}).get("kind")
+                != "portfolio_decision"
+                or any(
+                    science.get(name) is not None
+                    for name in (
+                        "active_batch",
+                        "active_executable",
+                        "active_holdout_evaluation",
+                        "active_job",
+                        "active_lineage",
+                        "active_release",
+                        "active_repair",
+                        "active_study",
+                    )
+                )
+            ):
+                raise TransitionError(
+                    "historical adjudication requires the active stable Portfolio boundary"
+                )
+
+            memory_by_subject: dict[tuple[str, str], list[str]] = {}
+            for memory in index.records_by_kind("negative-memory"):
+                study_id = memory.payload.get("study_id")
+                executable_id = memory.subject.removeprefix("Executable:")
+                if isinstance(study_id, str) and isinstance(executable_id, str):
+                    memory_by_subject.setdefault(
+                        (study_id, executable_id), []
+                    ).append(memory.record_id)
+
+            records: list[IndexRecord] = []
+            derived: list[HistoricalScientificAdjudication] = []
+            for request in normalized:
+                completion = index.get(
+                    "job-completed", request.completion_record_id
+                )
+                scientific = (
+                    None
+                    if completion is None
+                    else completion.payload.get("scientific")
+                )
+                declaration = (
+                    None
+                    if completion is None
+                    else index.get(
+                        "job-declared", completion.payload.get("job_id", "")
+                    )
+                )
+                if (
+                    completion is None
+                    or completion.status not in {
+                        "failed",
+                        "not_evaluable",
+                        "success",
+                    }
+                    or not isinstance(scientific, dict)
+                    or declaration is None
+                ):
+                    raise TransitionError(
+                        "historical adjudication completion is unavailable"
+                    )
+                if "adjudication" in scientific:
+                    raise TransitionError(
+                        "historical adjudication is restricted to legacy completions "
+                        "without rich v2 adjudication"
+                    )
+                study_id = declaration.payload.get("study_id")
+                executable_id = scientific.get("executable_id")
+                plan_hash = scientific.get("validation_plan_hash")
+                measurement_hashes = scientific.get(
+                    "measurement_artifact_hashes"
+                )
+                verdict = scientific.get("verdict")
+                if (
+                    not isinstance(study_id, str)
+                    or not isinstance(executable_id, str)
+                    or not isinstance(plan_hash, str)
+                    or not isinstance(measurement_hashes, list)
+                    or len(measurement_hashes) != 1
+                    or not isinstance(measurement_hashes[0], str)
+                    or verdict not in {"passed", "failed", "not_evaluable"}
+                ):
+                    raise TransitionError(
+                        "historical adjudication scientific provenance is malformed"
+                    )
+                measurement_hash = measurement_hashes[0]
+                _require_digest("historical validation plan", plan_hash)
+                _require_digest("historical measurement", measurement_hash)
+                outputs = completion.payload.get("outputs")
+                spec = declaration.payload.get("spec")
+                if (
+                    not isinstance(outputs, dict)
+                    or plan_hash not in outputs.values()
+                    or measurement_hash not in outputs.values()
+                    or not isinstance(spec, dict)
+                    or plan_hash not in spec.get("input_hashes", [])
+                ):
+                    raise TransitionError(
+                        "historical adjudication artifacts are not completion-bound"
+                    )
+                try:
+                    plan = parse_canonical(self.evidence.read_verified(plan_hash))
+                    measurement = parse_canonical(
+                        self.evidence.read_verified(measurement_hash)
+                    )
+                except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+                    raise TransitionError(
+                        "historical adjudication evidence is unavailable"
+                    ) from exc
+                if not isinstance(plan, dict) or not isinstance(measurement, dict):
+                    raise TransitionError(
+                        "historical adjudication evidence is not a mapping"
+                    )
+                if (
+                    plan.get("schema") != "scientific_validation_plan.v1"
+                    or measurement.get("schema") != "scientific_measurement.v1"
+                ):
+                    raise TransitionError(
+                        "historical adjudication requires exact legacy v1 artifacts"
+                    )
+                if (
+                    plan.get("executable_id") != executable_id
+                    or measurement.get("executable_id") != executable_id
+                    or plan.get("mission_id")
+                    != declaration.payload.get("mission_id")
+                    or measurement.get("mission_id")
+                    != declaration.payload.get("mission_id")
+                ):
+                    raise TransitionError(
+                        "historical adjudication subject binding is invalid"
+                    )
+                fixed_profile = AdjudicationProfile()
+                if request.profile != fixed_profile:
+                    raise TransitionError(
+                        "historical adjudication profile differs from the "
+                        "Writer-derived fixed legacy audit profile"
+                    )
+                stream = f"historical-adjudication:{completion.record_id}"
+                head = index.event_head(stream)
+                prior = (
+                    None
+                    if head is None
+                    else index.get(head.record_kind, head.record_id)
+                )
+                if head is not None and (
+                    prior is None
+                    or prior.kind != "historical-scientific-adjudication"
+                    or prior.event_stream != stream
+                    or prior.event_sequence != head.sequence
+                ):
+                    raise RecoveryRequired(
+                        "historical adjudication stream head is malformed"
+                    )
+                derived_overrides = (
+                    self._writer_derived_historical_validity_overrides(
+                        index,
+                        executable_id=executable_id,
+                        declaration=declaration,
+                        prior=prior,
+                    )
+                )
+                if request.validity_overrides != derived_overrides:
+                    raise TransitionError(
+                        "historical validity overrides differ from "
+                        "Writer-derived durable source-authority latches"
+                    )
+                study = index.get("study-open", study_id)
+                close_records = tuple(
+                    record
+                    for outcome in _STUDY_OUTCOMES
+                    for record in index.records_by_subject_status(
+                        f"Study:{study_id}", outcome
+                    )
+                    if record.kind == "study-close"
+                )
+                if study is None or len(close_records) != 1:
+                    raise TransitionError(
+                        "historical adjudication Study close is unavailable"
+                    )
+                close = close_records[0]
+                try:
+                    item = derive_historical_adjudication(
+                        audit_artifact_hash=audit_artifact_hash,
+                        study_id=study_id,
+                        study_close_record_id=close.record_id,
+                        completion_record_id=completion.record_id,
+                        executable_id=executable_id,
+                        validation_plan_hash=plan_hash,
+                        measurement_artifact_hash=measurement_hash,
+                        original_job_status=completion.status,
+                        original_scientific_verdict=verdict,
+                        plan=plan,
+                        measurement=measurement,
+                        request=request,
+                        negative_memory_ids=tuple(
+                            memory_by_subject.get(
+                                (study_id, executable_id), ()
+                            )
+                        ),
+                    )
+                except ValueError as exc:
+                    raise TransitionError(
+                        "historical adjudication derivation failed"
+                    ) from exc
+                if item.adjudication.legacy_verdict != verdict:
+                    raise TransitionError(
+                        "historical adjudication does not reproduce the legacy verdict"
+                    )
+                sequence = 1 if head is None else head.sequence + 1
+                prior_record_id = None if head is None else head.record_id
+                payload = {
+                    **item.to_identity_payload(),
+                    "supersedes_record_id": prior_record_id,
+                    "trial_delta": 0,
+                    "holdout_delta": 0,
+                    "candidate_delta": 0,
+                    "claim_authority": "additive_qualification_only",
+                    "profile_authority": "writer_derived_fixed_legacy_v1",
+                    "validity_override_authority": (
+                        "writer_derived_durable_source_latches"
+                    ),
+                }
+                records.append(
+                    _record(
+                        kind="historical-scientific-adjudication",
+                        record_id=item.identity,
+                        subject=f"Study:{study_id}",
+                        status=item.disposition.value,
+                        fingerprint=item.identity.removeprefix(
+                            "historical-adjudication:"
+                        ),
+                        payload=payload,
+                        event_stream=stream,
+                        event_sequence=sequence,
+                    )
+                )
+                derived.append(item)
+            return self._body(current), records, {
+                "adjudication_record_ids": [item.identity for item in derived],
+                "audit_artifact_hash": audit_artifact_hash,
+                "candidate_delta": 0,
+                "holdout_delta": 0,
+                "trial_delta": 0,
+            }
+
+        return self._commit(
+            event_kind="historical_scientific_adjudications_recorded",
+            operation_id=operation_id,
+            subject="ProjectGoal:OPERATING_DIRECTION.md",
+            payload={
+                "audit_artifact_hash": audit_artifact_hash,
+                "requests": request_manifest,
+            },
             prepare=prepare,
         )
 
@@ -9903,11 +11923,23 @@ class StateWriter:
                 evidence = index.get("job-completed", reference)
                 failure = None if evidence is None else evidence.payload.get("failure")
                 scientific = None if evidence is None else evidence.payload.get("scientific")
+                legacy_scientific_failure = (
+                    evidence is not None
+                    and evidence.status == "failed"
+                    and isinstance(failure, dict)
+                    and failure.get("failure_kind") == "scientific_falsification"
+                )
+                operationally_successful_falsification = (
+                    evidence is not None
+                    and evidence.status == "success"
+                    and failure is None
+                )
                 if (
                     evidence is None
-                    or evidence.status != "failed"
-                    or not isinstance(failure, dict)
-                    or failure.get("failure_kind") != "scientific_falsification"
+                    or not (
+                        legacy_scientific_failure
+                        or operationally_successful_falsification
+                    )
                     or not isinstance(scientific, dict)
                     or scientific.get("verdict") != "failed"
                     or scientific.get("scientific_eligible") is not True
@@ -10710,7 +12742,6 @@ class StateWriter:
         binding: Mapping[str, Any],
         output_manifest: Mapping[str, Any],
         output_classes: Mapping[str, Any],
-        expected_outcome: str,
     ) -> dict[str, Any]:
         result_name = binding["result_manifest_output"]
         result_hash = output_manifest.get(result_name)
@@ -10784,23 +12815,62 @@ class StateWriter:
             output_classes=output_classes,
             result_name=result_name,
         )
-        expected_verdict = {
-            "success": "passed",
-            "failed": "failed",
-            "not_evaluable": "not_evaluable",
-        }[expected_outcome]
+        validator_facts = dict(validated.facts)
+        executed_modes = validator_facts.pop("executed_evidence_modes", None)
+        adjudication = validator_facts.pop("scientific_adjudication", None)
         if (
-            validated.verdict != expected_verdict
+            validated.verdict not in {"passed", "failed", "not_evaluable"}
             or set(validated.claims) != claims
             or set(validated.measurement_artifact_hashes) != measurement_hashes
-            or dict(validated.facts)
-            != {"executed_evidence_modes": list(binding["evidence_modes"])}
+            or executed_modes != list(binding["evidence_modes"])
+            or validator_facts
             or not validated.scientific_eligible
         ):
             raise TransitionError(
                 "scientific evidence was not derived as eligible by the validator"
             )
-        return {
+        if adjudication is not None:
+            required_adjudication = {
+                "candidate_eligible",
+                "claims",
+                "criteria",
+                "evaluable",
+                "evidence_depth",
+                "invalid_metrics",
+                "legacy_verdict",
+                "multiplicity",
+                "schema",
+                "state",
+            }
+            projected_verdict = {
+                "confirmed": "passed",
+                "contradicted": "failed",
+                "frontier": "passed",
+                "not_evaluable": "not_evaluable",
+                "partial_positive": "not_evaluable",
+                "unresolved": "not_evaluable",
+            }
+            if (
+                not isinstance(adjudication, dict)
+                or set(adjudication) != required_adjudication
+                or adjudication.get("schema") != "scientific_adjudication.v1"
+                or adjudication.get("evidence_depth") != binding["evidence_depth"]
+                or projected_verdict.get(adjudication.get("state"))
+                != validated.verdict
+                or adjudication.get("candidate_eligible")
+                is not validated.candidate_eligible
+                or not isinstance(adjudication.get("claims"), list)
+                or {
+                    item.get("claim_id")
+                    for item in adjudication["claims"]
+                    if isinstance(item, dict)
+                }
+                != claims
+            ):
+                raise TransitionError(
+                    "scientific rich adjudication differs from the validator verdict"
+                )
+        scientific = {
             "candidate_eligible": validated.candidate_eligible,
             "claims": sorted(claims),
             "evidence_depth": binding["evidence_depth"],
@@ -10814,6 +12884,9 @@ class StateWriter:
             "validator_id": binding["validator_id"],
             "validation_plan_hash": binding["validation_plan_hash"],
         }
+        if adjudication is not None:
+            scientific["adjudication"] = adjudication
+        return scientific
 
     def _derive_external_dependency_evidence(
         self,
@@ -11097,6 +13170,10 @@ class StateWriter:
                 "external_dependency",
             }:
                 raise TransitionError("Job failure_kind is not typed")
+            if failure_manifest["failure_kind"] == "scientific_falsification":
+                raise TransitionError(
+                    "a validator-derived scientific verdict is not a Job execution failure"
+                )
             references = failure_manifest["minimum_reproduction_evidence"]
             if not isinstance(references, list) or not references:
                 raise TransitionError("failure requires minimum reproduction evidence")
@@ -11275,18 +13352,7 @@ class StateWriter:
                     output_manifest=output_manifest,
                     output_classes=output_classes,
                 )
-            if scientific_binding is not None and (
-                outcome == "success"
-                or (
-                    failure_manifest is not None
-                    and failure_manifest["failure_kind"] == "scientific_falsification"
-                )
-                or (
-                    outcome == "not_evaluable"
-                    and failure_manifest is not None
-                    and failure_manifest["failure_kind"] == "not_evaluable"
-                )
-            ):
+            if scientific_binding is not None and outcome == "success":
                 if set(output_manifest) != set(expected_outputs):
                     raise TransitionError(
                         "scientific evidence disposition requires every declared output"
@@ -11299,7 +13365,6 @@ class StateWriter:
                     binding=scientific_binding,
                     output_manifest=output_manifest,
                     output_classes=output_classes,
-                    expected_outcome=outcome,
                 )
             if component_parity_binding is not None and outcome == "success":
                 if set(output_manifest) != set(expected_outputs):
@@ -11465,6 +13530,11 @@ class StateWriter:
             return body, records, {
                 "job_id": job_id,
                 "outcome": outcome,
+                "scientific_verdict": (
+                    None
+                    if scientific_manifest is None
+                    else scientific_manifest["verdict"]
+                ),
                 "completion_record_id": record_id,
                 "failure_signature": (
                     None
@@ -11552,12 +13622,8 @@ class StateWriter:
                 raise TransitionError("Job judgement lacks Mission provenance")
             scientific = completion.payload.get("scientific")
             component_parity = completion.payload.get("component_parity")
-            failure = completion.payload.get("failure")
             needs_negative_memory = (
-                completion.status == "failed"
-                and isinstance(failure, dict)
-                and failure.get("failure_kind") == "scientific_falsification"
-                and isinstance(scientific, dict)
+                isinstance(scientific, dict)
                 and scientific.get("verdict") == "failed"
                 and scientific.get("scientific_eligible") is True
             )
@@ -11602,8 +13668,8 @@ class StateWriter:
                     raise TransitionError(
                         "Writer cannot accept component parity without validator equivalence"
                     )
-                decision = index.get(
-                    "portfolio-decision",
+                decision = self._active_portfolio_decision(
+                    index,
                     parity_binding["portfolio_decision_id"],
                 )
                 if decision is None:
@@ -12805,6 +14871,407 @@ class StateWriter:
             prepare=prepare,
         )
 
+    @staticmethod
+    def _resolved_candidate_disposition_for_completion(
+        index: LocalIndex,
+        *,
+        completion: IndexRecord,
+        mission_id: str,
+    ) -> str | None:
+        """Return the exact terminal candidate-stream head for one positive.
+
+        Candidate eligibility is authority to enter the candidate lifecycle,
+        not a permanent ban on an honest axis disposition.  It is resolved only
+        when the Writer-created candidate binds this exact completion and the
+        latest executable stream head is its later typed disposition.
+        """
+
+        scientific = completion.payload.get("scientific")
+        executable_id = (
+            None
+            if not isinstance(scientific, dict)
+            else scientific.get("executable_id")
+        )
+        if (
+            completion.status != "success"
+            or not isinstance(scientific, dict)
+            or scientific.get("scientific_eligible") is not True
+            or scientific.get("candidate_eligible") is not True
+            or not isinstance(executable_id, str)
+        ):
+            return None
+        head = index.event_head(f"candidate:{executable_id}")
+        disposition = (
+            None
+            if head is None
+            else index.get(head.record_kind, head.record_id)
+        )
+        candidate_id = (
+            None
+            if disposition is None
+            else disposition.payload.get("candidate_id")
+        )
+        candidate = (
+            None
+            if not isinstance(candidate_id, str)
+            else index.get("candidate", candidate_id)
+        )
+        evidence_refs = (
+            None if candidate is None else candidate.payload.get("evidence_refs")
+        )
+        reason = (
+            None if disposition is None else disposition.payload.get("reason")
+        )
+        expected_candidate_id = (
+            None
+            if not isinstance(evidence_refs, list)
+            or any(not isinstance(item, str) for item in evidence_refs)
+            else "candidate:"
+            + canonical_digest(
+                domain="mission-candidate",
+                payload={
+                    "evidence_refs": sorted(evidence_refs),
+                    "executable_id": executable_id,
+                    "mission_id": mission_id,
+                },
+            )
+        )
+        expected_disposition_id = (
+            None
+            if disposition is None
+            or not isinstance(reason, str)
+            or disposition.status
+            not in {
+                "invalidated",
+                "rejected",
+                "returned_to_library",
+                "superseded",
+            }
+            else canonical_digest(
+                domain="candidate-disposition",
+                payload={
+                    "candidate_id": candidate_id,
+                    "disposition": disposition.status,
+                    "reason": reason,
+                },
+            )
+        )
+        candidate_stream = f"candidate:{executable_id}"
+        if (
+            head is None
+            or disposition is None
+            or disposition.kind != "candidate-disposition"
+            or disposition.event_stream != candidate_stream
+            or disposition.event_sequence != head.sequence
+            or disposition.record_id != expected_disposition_id
+            or disposition.subject != f"Executable:{executable_id}"
+            or disposition.payload.get("candidate_id") != candidate_id
+            or disposition.payload.get("executable_id") != executable_id
+            or disposition.payload.get("mission_id") != mission_id
+            or candidate is None
+            or candidate.record_id != expected_candidate_id
+            or candidate.status != "frozen"
+            or candidate.event_stream != candidate_stream
+            or candidate.event_sequence is None
+            or candidate.event_sequence + 1 != disposition.event_sequence
+            or candidate.subject != f"Executable:{executable_id}"
+            or candidate.fingerprint != executable_id.removeprefix("executable:")
+            or disposition.fingerprint != candidate.fingerprint
+            or candidate.payload.get("mission_id") != mission_id
+            or not isinstance(evidence_refs, list)
+            or len(set(evidence_refs)) != len(evidence_refs)
+            or evidence_refs != sorted(evidence_refs)
+            or completion.record_id not in evidence_refs
+            or completion.authority_sequence is None
+            or candidate.authority_sequence is None
+            or disposition.authority_sequence is None
+            or candidate.authority_sequence <= completion.authority_sequence
+            or disposition.authority_sequence <= candidate.authority_sequence
+        ):
+            return None
+        return disposition.record_id
+
+    @classmethod
+    def _candidate_authority_for_axis_bindings(
+        cls,
+        index: LocalIndex,
+        *,
+        references: Sequence[Any],
+        bindings: Sequence[Any],
+        mission_id: str,
+    ) -> tuple[list[dict[str, str]], tuple[str, ...]]:
+        resolved: list[dict[str, str]] = []
+        unresolved: list[str] = []
+        for reference, binding in zip(references, bindings, strict=True):
+            if not binding.candidate_eligible:
+                continue
+            completion = (
+                None
+                if getattr(reference.kind, "value", None) != "job-completed"
+                else index.get("job-completed", reference.record_id)
+            )
+            disposition_id = (
+                None
+                if completion is None
+                else cls._resolved_candidate_disposition_for_completion(
+                    index,
+                    completion=completion,
+                    mission_id=mission_id,
+                )
+            )
+            if disposition_id is None:
+                unresolved.append(reference.record_id)
+            else:
+                resolved.append(
+                    {
+                        "candidate_disposition_record_id": disposition_id,
+                        "completion_record_id": reference.record_id,
+                    }
+                )
+        return (
+            sorted(
+                resolved,
+                key=lambda item: (
+                    item["completion_record_id"],
+                    item["candidate_disposition_record_id"],
+                ),
+            ),
+            tuple(sorted(unresolved)),
+        )
+
+    def record_axis_dispositions(
+        self,
+        *,
+        dispositions: Sequence[Any],
+        operation_id: str,
+    ) -> TransitionResult:
+        """Record additive evidence-bound axis states without rewriting snapshots."""
+
+        from axiom_rift.operations.axis_disposition import (
+            AxisDispositionEvidenceError,
+            aggregate_axis_evidence_state,
+            derive_axis_evidence_binding,
+            required_axis_scientific_references,
+        )
+        from axiom_rift.research.axis_disposition import (
+            AxisDisposition,
+            AxisDispositionAction,
+            AxisEvidenceKind,
+            AxisEvidenceState,
+        )
+
+        self._require_study_close_delivery_guard()
+        normalized = tuple(dispositions)
+        if (
+            not normalized
+            or any(not isinstance(item, AxisDisposition) for item in normalized)
+            or len({item.axis_id for item in normalized}) != len(normalized)
+            or len({item.axis_identity for item in normalized}) != len(normalized)
+        ):
+            raise TransitionError(
+                "axis dispositions require unique typed Mission axes"
+            )
+        normalized = tuple(sorted(normalized, key=lambda item: item.axis_id))
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("axis disposition requires control")
+            science = current["scientific"]
+            mission_id = science.get("active_mission")
+            if not isinstance(mission_id, str) or any(
+                science.get(name) is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_holdout_evaluation",
+                    "active_job",
+                    "active_lineage",
+                    "active_release",
+                    "active_repair",
+                    "active_study",
+                )
+            ):
+                raise TransitionError(
+                    "axis disposition requires a stable active Mission boundary"
+                )
+            next_action = current.get("next_action", {})
+            active_initiative = science.get("active_initiative")
+            stable_initiative_boundary = (
+                isinstance(active_initiative, str)
+                and next_action.get("kind") == "portfolio_decision"
+            )
+            stable_mission_boundary = (
+                active_initiative is None
+                and next_action
+                == {
+                    "kind": "choose_next_initiative_or_terminal",
+                    "mission_id": mission_id,
+                }
+            )
+            if not (stable_initiative_boundary or stable_mission_boundary):
+                raise TransitionError(
+                    "axis disposition cannot bypass pending research direction"
+                )
+            portfolio_head = index.event_head(f"portfolio:{mission_id}")
+            snapshot = (
+                None
+                if portfolio_head is None
+                else index.get(portfolio_head.record_kind, portfolio_head.record_id)
+            )
+            if snapshot is None or snapshot.kind != "portfolio-snapshot":
+                raise TransitionError("axis disposition requires a current Portfolio")
+            if (
+                stable_initiative_boundary
+                and next_action.get("portfolio_snapshot_id") != snapshot.record_id
+            ):
+                raise TransitionError(
+                    "axis disposition Portfolio boundary is not current"
+                )
+            axes = {axis["axis_id"]: axis for axis in snapshot.payload["axes"]}
+            records: list[IndexRecord] = []
+            accepted_ids: list[str] = []
+            for disposition in normalized:
+                axis = axes.get(disposition.axis_id)
+                if (
+                    disposition.mission_id != mission_id
+                    or disposition.portfolio_snapshot_id != snapshot.record_id
+                    or axis is None
+                    or axis.get("axis_identity") != disposition.axis_identity
+                ):
+                    raise TransitionError(
+                        "axis disposition is stale or belongs to another Portfolio"
+                    )
+                try:
+                    required_references = required_axis_scientific_references(
+                        index,
+                        mission_id=mission_id,
+                        axis_id=disposition.axis_id,
+                        axis_identity=disposition.axis_identity,
+                    )
+                    supplied_scientific_references = {
+                        (reference.kind, reference.record_id)
+                        for reference in disposition.evidence_references
+                        if reference.kind is not AxisEvidenceKind.NEGATIVE_MEMORY
+                    }
+                    exact_required_references = {
+                        (reference.kind, reference.record_id)
+                        for reference in required_references
+                    }
+                    if supplied_scientific_references != exact_required_references:
+                        raise AxisDispositionEvidenceError(
+                            "axis disposition omits or supersedes scientific history"
+                        )
+                    bindings = tuple(
+                        derive_axis_evidence_binding(
+                            index,
+                            reference=reference,
+                            mission_id=mission_id,
+                            axis_id=disposition.axis_id,
+                            axis_identity=disposition.axis_identity,
+                        )
+                        for reference in disposition.evidence_references
+                    )
+                    effective_state = aggregate_axis_evidence_state(bindings)
+                except AxisDispositionEvidenceError as exc:
+                    raise TransitionError(str(exc)) from exc
+                (
+                    resolved_candidate_authority,
+                    unresolved_candidate_completions,
+                ) = self._candidate_authority_for_axis_bindings(
+                    index,
+                    references=disposition.evidence_references,
+                    bindings=bindings,
+                    mission_id=mission_id,
+                )
+                if unresolved_candidate_completions:
+                    raise TransitionError(
+                        "candidate-eligible evidence remains unresolved by its "
+                        "candidate/disposition stream: "
+                        + ", ".join(sorted(unresolved_candidate_completions))
+                    )
+                if effective_state is not disposition.evidence_state:
+                    raise TransitionError(
+                        "axis disposition differs from its Writer-derived evidence state"
+                    )
+                negative_memory_ids = sorted(
+                    {
+                        memory_id
+                        for binding in bindings
+                        for memory_id in binding.negative_memory_ids
+                    }
+                )
+                scientifically_exhausted = bool(
+                    effective_state is AxisEvidenceState.LOW_INFORMATION
+                    and disposition.action
+                    is AxisDispositionAction.RETIRE_WITH_REASON
+                    and negative_memory_ids
+                )
+                if (
+                    effective_state is AxisEvidenceState.LOW_INFORMATION
+                    and disposition.action
+                    is AxisDispositionAction.RETIRE_WITH_REASON
+                    and not scientifically_exhausted
+                ):
+                    raise TransitionError(
+                        "low-information retirement requires durable negative memory"
+                    )
+                stream = (
+                    f"axis-disposition:{mission_id}:{disposition.axis_identity}"
+                )
+                head = index.event_head(stream)
+                if head is not None and head.record_id == disposition.identity:
+                    raise TransitionError("axis disposition is already current")
+                sequence = 1 if head is None else head.sequence + 1
+                payload = {
+                    **disposition.to_identity_payload(),
+                    "candidate_eligible": False,
+                    "candidate_delta": 0,
+                    "claim_delta": "none",
+                    "derived_evidence_states": sorted(
+                        {item.state.value for item in bindings}
+                    ),
+                    "holdout_delta": 0,
+                    "negative_memory_ids": negative_memory_ids,
+                    "resolved_candidate_authority": resolved_candidate_authority,
+                    "scientifically_exhausted": scientifically_exhausted,
+                    "supersedes_record_id": None if head is None else head.record_id,
+                    "trial_delta": 0,
+                }
+                records.append(
+                    _record(
+                        kind="axis-disposition",
+                        record_id=disposition.identity,
+                        subject=f"Axis:{disposition.axis_identity}",
+                        status=disposition.action.value,
+                        fingerprint=disposition.identity.removeprefix(
+                            "axis-disposition:"
+                        ),
+                        payload=payload,
+                        event_stream=stream,
+                        event_sequence=sequence,
+                    )
+                )
+                accepted_ids.append(disposition.identity)
+            return self._body(current), records, {
+                "axis_disposition_record_ids": accepted_ids,
+                "candidate_delta": 0,
+                "claim_delta": "none",
+                "holdout_delta": 0,
+                "trial_delta": 0,
+            }
+
+        return self._commit(
+            event_kind="axis_dispositions_recorded",
+            operation_id=operation_id,
+            subject="Mission:active",
+            payload={
+                "dispositions": [
+                    item.to_identity_payload() for item in normalized
+                ]
+            },
+            prepare=prepare,
+        )
+
     def accept_exhaustion_audit(
         self,
         *,
@@ -12813,6 +15280,20 @@ class StateWriter:
         opportunity_cost_audit: str,
         operation_id: str,
     ) -> TransitionResult:
+        from axiom_rift.operations.axis_disposition import (
+            AxisDispositionEvidenceError,
+            aggregate_axis_evidence_state,
+            derive_axis_evidence_binding,
+            required_axis_scientific_references,
+        )
+        from axiom_rift.research.axis_disposition import (
+            AxisDispositionAction,
+            AxisEvidenceKind,
+            AxisEvidenceReference,
+            AxisEvidenceState,
+        )
+
+        self._require_study_close_delivery_guard()
         if self.engineering_fixture:
             raise TransitionError("engineering fixtures cannot accept frontier exhaustion")
         _require_ascii("diversity_basis", diversity_basis)
@@ -12843,13 +15324,12 @@ class StateWriter:
             if current is None or current["scientific"]["active_mission"] is None:
                 raise TransitionError("exhaustion audit requires an active Mission")
             science = current["scientific"]
-            if current["next_action"].get("kind") in {
-                "record_research_intake",
-                "diagnose_study",
-                "review_architecture",
+            if current["next_action"] != {
+                "kind": "choose_next_initiative_or_terminal",
+                "mission_id": science["active_mission"],
             }:
                 raise TransitionError(
-                    "exhaustion audit cannot bypass research direction"
+                    "exhaustion audit requires the exact Mission terminal boundary"
                 )
             if any(
                 science[key] is not None
@@ -12917,22 +15397,11 @@ class StateWriter:
                 < standard["minimum_primary_research_layers"]
                 or len(architecture_families)
                 < standard["minimum_system_architecture_families"]
-                or any(
-                    anchor is None and axis["status"] != "pruned"
-                    for axis, anchor in zip(
-                        axes.values(), resolved_architectures, strict=True
-                    )
-                )
+                or any(anchor is None for anchor in resolved_architectures)
                 or None in research_layers
             ):
                 raise TransitionError(
                     "exhaustion does not cover its preregistered axes and families"
-                )
-            if snapshot.status != "closed" or any(
-                axis["status"] != "pruned" for axis in axes.values()
-            ):
-                raise TransitionError(
-                    "exhaustion requires every current Portfolio axis to be durably pruned"
                 )
             family_executables: dict[str, set[str]] = {
                 family: set() for family in families
@@ -12940,91 +15409,214 @@ class StateWriter:
             axis_studies: dict[str, set[str]] = {axis_id: set() for axis_id in axes}
             axis_modes: dict[str, set[str]] = {axis_id: set() for axis_id in axes}
             global_executables: set[str] = set()
+            scientifically_exhausted_axes: set[str] = set()
+            carried_forward_axes: set[str] = set()
+            retired_families: set[str] = set()
+            disposition_summaries: dict[str, dict[str, Any]] = {}
             for axis_id, references in normalized.items():
-                prune_found = False
-                negative_found = False
-                for reference in references:
-                    if reference["kind"] not in {
-                        "portfolio-decision",
-                        "negative-memory",
-                    }:
-                        raise TransitionError(
-                            "exhaustion evidence kind is not scientifically admissible"
-                        )
-                    record = index.get(reference["kind"], reference["record_id"])
-                    if record is None:
-                        raise TransitionError("exhaustion evidence record is absent")
-                    if record.kind == "portfolio-decision":
-                        options = {
-                            option["option_id"]: option
-                            for option in record.payload.get("options", [])
-                        }
-                        chosen = options.get(record.payload.get("chosen_option_id"))
-                        if (
-                            record.subject != f"Mission:{science['active_mission']}"
-                            or not isinstance(chosen, dict)
-                            or chosen.get("action") != "prune"
-                            or chosen.get("target_id") != axis_id
-                            or record.payload.get("target_axis_identity")
-                            != axes[axis_id]["axis_identity"]
-                        ):
-                            raise TransitionError(
-                                "frontier prune Decision is not Mission/axis bound"
-                            )
-                        prune_found = True
-                    else:
-                        executable_id = record.subject.removeprefix("Executable:")
-                        study_id = record.payload.get("study_id")
-                        study = (
-                            None
-                            if not isinstance(study_id, str)
-                            else index.get("study-open", study_id)
-                        )
-                        if (
-                            record.payload.get("mission_id")
-                            != science["active_mission"]
-                            or record.payload.get("portfolio_axis_id") != axis_id
-                            or record.payload.get("portfolio_axis_identity")
-                            != axes[axis_id]["axis_identity"]
-                            or study is None
-                            or study.payload.get("portfolio_axis_identity")
-                            != axes[axis_id]["axis_identity"]
-                            or executable_id in global_executables
-                        ):
-                            raise TransitionError(
-                                "frontier negative memory is stale, reused, or unbound"
-                            )
-                        global_executables.add(executable_id)
-                        family_executables[axes[axis_id]["mechanism_family"]].add(
-                            executable_id
-                        )
-                        axis_studies[axis_id].add(study_id)
-                        axis_modes[axis_id].update(
-                            record.payload.get("executed_evidence_modes", [])
-                        )
-                        negative_found = True
-                if not prune_found or not negative_found:
+                axis_identity = axes[axis_id]["axis_identity"]
+                stream = (
+                    f"axis-disposition:{science['active_mission']}:{axis_identity}"
+                )
+                head = index.event_head(stream)
+                disposition = (
+                    None
+                    if head is None
+                    else index.get(head.record_kind, head.record_id)
+                )
+                if (
+                    disposition is None
+                    or disposition.kind != "axis-disposition"
+                    or disposition.payload.get("mission_id")
+                    != science["active_mission"]
+                    or disposition.payload.get("portfolio_snapshot_id")
+                    != snapshot.record_id
+                    or disposition.payload.get("axis_id") != axis_id
+                    or disposition.payload.get("axis_identity") != axis_identity
+                    or disposition.payload.get("candidate_eligible") is not False
+                    or disposition.authority_sequence is None
+                    or snapshot.authority_sequence is None
+                    or disposition.authority_sequence
+                    <= snapshot.authority_sequence
+                ):
                     raise TransitionError(
-                        "every frontier requires a prune Decision and negative memory"
+                        "every axis requires its latest evidence-bound disposition"
                     )
-            if any(
-                len(executables)
-                < standard["minimum_negative_executables_per_family"]
-                for executables in family_executables.values()
-            ):
+                evidence_manifest = disposition.payload.get(
+                    "evidence_references"
+                )
+                if not isinstance(evidence_manifest, list) or not evidence_manifest:
+                    raise TransitionError(
+                        "axis disposition evidence manifest is malformed"
+                    )
+                try:
+                    typed_references = tuple(
+                        AxisEvidenceReference(
+                            kind=AxisEvidenceKind(reference["kind"]),
+                            record_id=reference["record_id"],
+                        )
+                        for reference in evidence_manifest
+                        if isinstance(reference, dict)
+                        and set(reference) == {"kind", "record_id"}
+                    )
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise TransitionError(
+                        "axis disposition evidence manifest is malformed"
+                    ) from exc
+                if len(typed_references) != len(evidence_manifest):
+                    raise TransitionError(
+                        "axis disposition evidence manifest is malformed"
+                    )
+                expected_references = {
+                    ("axis-disposition", disposition.record_id),
+                    *{
+                        (reference.kind.value, reference.record_id)
+                        for reference in typed_references
+                    },
+                }
+                supplied_references = {
+                    (reference["kind"], reference["record_id"])
+                    for reference in references
+                }
+                if (
+                    len(supplied_references) != len(references)
+                    or supplied_references != expected_references
+                ):
+                    raise TransitionError(
+                        "exhaustion frontier differs from its exact axis disposition"
+                    )
+                try:
+                    required_references = required_axis_scientific_references(
+                        index,
+                        mission_id=science["active_mission"],
+                        axis_id=axis_id,
+                        axis_identity=axis_identity,
+                    )
+                    supplied_scientific_references = {
+                        (reference.kind, reference.record_id)
+                        for reference in typed_references
+                        if reference.kind is not AxisEvidenceKind.NEGATIVE_MEMORY
+                    }
+                    exact_required_references = {
+                        (reference.kind, reference.record_id)
+                        for reference in required_references
+                    }
+                    if supplied_scientific_references != exact_required_references:
+                        raise AxisDispositionEvidenceError(
+                            "axis disposition no longer covers scientific history"
+                        )
+                    bindings = tuple(
+                        derive_axis_evidence_binding(
+                            index,
+                            reference=reference,
+                            mission_id=science["active_mission"],
+                            axis_id=axis_id,
+                            axis_identity=axis_identity,
+                        )
+                        for reference in typed_references
+                    )
+                    effective_state = aggregate_axis_evidence_state(bindings)
+                    action = AxisDispositionAction(disposition.status)
+                except (AxisDispositionEvidenceError, ValueError) as exc:
+                    raise TransitionError(str(exc)) from exc
+                (
+                    resolved_candidate_authority,
+                    unresolved_candidate_completions,
+                ) = self._candidate_authority_for_axis_bindings(
+                    index,
+                    references=typed_references,
+                    bindings=bindings,
+                    mission_id=science["active_mission"],
+                )
+                if (
+                    unresolved_candidate_completions
+                    or disposition.payload.get("resolved_candidate_authority")
+                    != resolved_candidate_authority
+                    or disposition.payload.get("evidence_state")
+                    != effective_state.value
+                    or disposition.payload.get("action") != action.value
+                ):
+                    raise TransitionError(
+                        "axis disposition no longer matches its scientific evidence"
+                    )
+                evidence_records = [
+                    index.get(reference.kind.value, reference.record_id)
+                    for reference in typed_references
+                ]
+                if any(
+                    record is None
+                    or record.authority_sequence is None
+                    or record.authority_sequence
+                    >= disposition.authority_sequence
+                    for record in evidence_records
+                ):
+                    raise TransitionError(
+                        "axis disposition does not postdate its exact evidence"
+                    )
+                for binding in bindings:
+                    axis_studies[axis_id].update(binding.study_ids)
+                    axis_modes[axis_id].update(binding.evidence_modes)
+                negative_bindings = tuple(
+                    binding for binding in bindings if binding.negative_memory_ids
+                )
+                scientifically_exhausted = bool(
+                    effective_state is AxisEvidenceState.LOW_INFORMATION
+                    and action is AxisDispositionAction.RETIRE_WITH_REASON
+                    and negative_bindings
+                )
+                if (
+                    disposition.payload.get("scientifically_exhausted")
+                    is not scientifically_exhausted
+                ):
+                    raise TransitionError(
+                        "axis scientific-exhaustion projection has drifted"
+                    )
+                if scientifically_exhausted:
+                    family = axes[axis_id]["mechanism_family"]
+                    retired_families.add(family)
+                    scientifically_exhausted_axes.add(axis_id)
+                    for binding in negative_bindings:
+                        for executable_id in binding.executable_ids:
+                            if executable_id in global_executables:
+                                raise TransitionError(
+                                    "negative Executable is reused across axis dispositions"
+                                )
+                            global_executables.add(executable_id)
+                            family_executables[family].add(executable_id)
+                else:
+                    carried_forward_axes.add(axis_id)
+                disposition_summaries[axis_id] = {
+                    "action": action.value,
+                    "axis_disposition_record_id": disposition.record_id,
+                    "continuation_or_reopen_condition": disposition.payload.get(
+                        "continuation_or_reopen_condition"
+                    ),
+                    "evidence_state": effective_state.value,
+                    "scientifically_exhausted": scientifically_exhausted,
+                }
+            if not scientifically_exhausted_axes:
                 raise TransitionError(
-                    "negative evidence is below the preregistered family bound"
+                    "exhaustion requires at least one genuinely scientifically "
+                    "exhausted axis"
                 )
             required_modes = set(standard["required_evidence_modes"])
-            for axis_id in axes:
+            for axis_id in scientifically_exhausted_axes:
                 if (
                     len(axis_studies[axis_id])
                     < standard["minimum_distinct_studies_per_axis"]
                     or not required_modes.issubset(axis_modes[axis_id])
                 ):
                     raise TransitionError(
-                        "frontier lacks preregistered Study or evidence-mode depth"
+                        "scientifically exhausted axis lacks preregistered depth"
                     )
+            if any(
+                len(family_executables[family])
+                < standard["minimum_negative_executables_per_family"]
+                for family in retired_families
+            ):
+                raise TransitionError(
+                    "retired negative family is below its preregistered depth"
+                )
             unresolved_positive_axes: set[str] = set()
             for completion in index.records_by_kind("job-completed"):
                 scientific = completion.payload.get("scientific")
@@ -13059,38 +15651,11 @@ class StateWriter:
                     raise TransitionError(
                         "positive scientific evidence has stale Portfolio lineage"
                     )
-                candidate_head = index.event_head(f"candidate:{executable_id}")
-                candidate_state = (
-                    None
-                    if candidate_head is None
-                    else index.get(
-                        candidate_head.record_kind, candidate_head.record_id
-                    )
-                )
-                candidate = (
-                    None
-                    if candidate_state is None
-                    or candidate_state.kind != "candidate-disposition"
-                    else index.get(
-                        "candidate", candidate_state.payload.get("candidate_id", "")
-                    )
-                )
-                if (
-                    candidate_state is None
-                    or candidate_state.kind != "candidate-disposition"
-                    or candidate is None
-                    or candidate.payload.get("mission_id")
-                    != science["active_mission"]
-                    or candidate_state.payload.get("mission_id")
-                    != science["active_mission"]
-                    or completion.record_id
-                    not in candidate.payload.get("evidence_refs", [])
-                    or candidate.authority_sequence is None
-                    or completion.authority_sequence is None
-                    or candidate_state.authority_sequence is None
-                    or candidate.authority_sequence <= completion.authority_sequence
-                    or candidate_state.authority_sequence <= candidate.authority_sequence
-                ):
+                if self._resolved_candidate_disposition_for_completion(
+                    index,
+                    completion=completion,
+                    mission_id=science["active_mission"],
+                ) is None:
                     unresolved_positive_axes.add(axis_id)
             if unresolved_positive_axes:
                 raise TransitionError(
@@ -13098,6 +15663,8 @@ class StateWriter:
                     + ", ".join(sorted(unresolved_positive_axes))
                 )
             audit_payload = {
+                "axis_dispositions": disposition_summaries,
+                "carried_forward_axis_ids": sorted(carried_forward_axes),
                 "diversity_basis": diversity_basis,
                 "frontiers": normalized,
                 "mechanism_families": sorted(families),
@@ -13106,8 +15673,13 @@ class StateWriter:
                 "opportunity_cost_audit": opportunity_cost_audit,
                 "portfolio_snapshot_id": snapshot.record_id,
                 "preregistered_exhaustion_standard": standard,
+                "scientifically_exhausted_axis_ids": sorted(
+                    scientifically_exhausted_axes
+                ),
                 "unique_negative_executable_count": len(global_executables),
-                "unresolved_positive_iv_axes": sorted(unresolved_positive_axes),
+                "unresolved_candidate_eligible_axes": sorted(
+                    unresolved_positive_axes
+                ),
             }
             audit_id = canonical_digest(
                 domain="exhaustion-audit", payload=audit_payload
@@ -13358,6 +15930,7 @@ class StateWriter:
         basis_record_id: str,
         operation_id: str,
     ) -> TransitionResult:
+        self._require_study_close_delivery_guard()
         if self.engineering_fixture:
             raise TransitionError("engineering fixtures cannot create a Mission terminal")
         allowed = {"completed_pre_live_handoff", "closed_no_candidate", "blocked_external"}

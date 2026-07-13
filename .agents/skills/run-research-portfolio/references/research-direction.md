@@ -11,6 +11,8 @@ Read the exact Journal/index head and reconstruct the research forest from:
 2. Final validator evidence and typed Study outcomes.
 3. Study KPI rows as navigation only.
 4. Negative memory and reopen conditions.
+   Read additive historical adjudications before treating a whole-Executable
+   memory as a claim-level ban.
 5. Portfolio Decisions and omitted alternatives.
 6. Executable component protocols and common architecture.
 7. Mission terminals and exhaustion bases.
@@ -51,6 +53,9 @@ Use a stable ASCII identifier such as:
 Do not rename an architecture merely to avoid a review trigger. Change it only
 when label, decision, entry, lifecycle, execution, or portfolio semantics make
 the chassis materially different.
+Define the family from stable semantic roles and boundary bindings. Keep actual
+implementation bytes in Component and Executable identity; a harmless refactor
+must not manufacture an unrelated architecture family.
 
 ## 3. Axis Admission
 
@@ -87,6 +92,12 @@ Choose the narrowest state supported by the final bound evidence:
 | `not_identifiable` | Could the design not distinguish the causal alternatives? |
 | `engineering_gap` | Did non-scientific failure prevent a scientific judgment? |
 
+Before selecting the row, separate validity, component support, multiplicity,
+and diagnostic risk. Missing or invalid validity evidence is not evaluable.
+Discovery concentration profile B04 is diagnostic unless preregistered as a
+decisive gate. A failed familywise gate can leave supported components as a
+partial positive, but never creates candidate authority.
+
 Never diagnose `model_capacity` merely because a larger model is available.
 Never diagnose `target_mismatch` merely because another label might score
 better. The evidence must identify that bottleneck or the diagnosis confidence
@@ -112,9 +123,11 @@ The writer, not the operator, derives allowed follow-up actions and layers.
 - Not identifiable: redesign the contrast before tuning.
 - Engineering gap: Repair or preserve the question; grant no scientific credit.
 
-An unrelated high-information-value axis remains valid only as a structural
-forest exit. It must differ in primary layer or architecture family and use a
-diversifying Decision action.
+An unrelated high-information-value axis remains valid as a structural forest
+exit. It must differ in primary layer or architecture family and use a
+diversifying Decision action. When several live axes share one boundary,
+compare and execute them as one preregistered concurrent forest rather than
+serializing them by recency.
 
 ## 6. Architecture Review
 
@@ -126,5 +139,8 @@ identity to the exact `trigger_record_id` so a later review cannot collide with
 or impersonate this conclusion.
 
 Do not declare scientific exhaustion from the review itself. Mission exhaustion
-still requires the preregistered negative evidence for every axis and the
+still requires the current evidence-bound disposition for every axis and the
 required diversity across mechanisms, research layers, and architectures.
+Partial, invalid, or unresolved evidence needs a replay, preservation,
+low-information disposition, or explicit reopen rule; do not manufacture a
+negative merely to satisfy a terminal count.

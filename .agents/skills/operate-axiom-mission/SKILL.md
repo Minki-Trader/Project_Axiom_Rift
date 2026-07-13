@@ -37,9 +37,16 @@ Use the repository as authority. Do not depend on chat history.
    `origin/main`. The repair cannot replace missing or incorrect scientific or
    projection content and cannot create another Study-close snapshot.
    Require `git config --get core.hooksPath` to equal `.githooks`; run
-   `scripts/install_git_hooks.py` when absent or different. Run
-   `scripts/audit_all_study_close_deliveries.py` before a later Portfolio
-   Decision. The Writer repeats this audit at that state boundary.
+   `scripts/install_git_hooks.py` when absent or different. At routine state
+   boundaries let the Writer authenticate the tracked
+   `records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json`, seek its exact Journal
+   boundary, and validate only the bounded Journal and local-main suffix. The
+   ignored local cache is a hint and its deletion or contents never establish
+   delivery. Initialize the tracked checkpoint only with
+   `scripts/audit_all_study_close_deliveries.py --initialize-checkpoint`; its
+   commit-msg validation repeats the complete audit. After initialization, a
+   missing, modified, or malformed tracked checkpoint blocks later science and
+   never falls back to the ignored cache or a routine complete-history scan.
 6. If an active Job or Repair exists, resume or dispose it before opening work.
 
 ## Goal Intake
@@ -99,6 +106,19 @@ scientific work.
   artifact byte hash. Budget or timeout edits do not reset failed-attempt
   equivalence, and an implementation retry must change the actual artifact set.
   Input or scientific semantic changes use a distinct Job or Executable identity.
+- Keep operational Job outcome separate from scientific verdict. A Job that
+  produced and validated its declared outputs is operationally `success` even
+  when the scientific validator returns `failed` or `not_evaluable`. Reserve
+  operational failure for execution, engineering, source, runtime, or external
+  failure, and never turn it into scientific falsification.
+- At a stable Portfolio boundary, an accepted but unstarted Decision may be
+  withdrawn only through its exact typed evidence-bound Writer transition.
+  Historical scientific errors are corrected additively; never rewrite old
+  closes, trials, or negative memories.
+- An authority migration invalidates the active prospective scientific protocol
+  binding. Rebind the exact registered protocol to the new authority manifest
+  before declaring another scientific Job; same-authority duplicate activation
+  is not work.
 - Treat Git as recovery and delivery observation, never as state-transition authority.
 
 ## Mandatory Study Close Delivery
@@ -117,7 +137,12 @@ delivery trigger.  Before any later Portfolio action, Study, Batch, or Job:
    If the close rotates the Journal, also stage the changed manifest, the new
    seal, and the new active segment. Reject unrelated staged paths; never use
    blanket staging.
-4. Create one commit whose final paragraph is exactly two contiguous lines:
+4. After staging state, Journal, and KPI, run
+   `scripts/update_study_close_delivery_checkpoint.py`, then stage the exact
+   changed `records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json`. The checkpoint must
+   advance in the same commit; omission or a caller-authored substitute fails
+   closed.
+5. Create one commit whose final paragraph is exactly two contiguous lines:
    `Axiom-Study-Close: <event_id>` followed immediately by
    `Axiom-State-Revision: <revision>`. The tracked commit-msg hook must validate
    the staged Journal, control, deterministic KPI bytes, co-staged paths, and
@@ -154,7 +179,13 @@ Study-close snapshot.
 
 ## Repair
 
-Freeze scientific identity and counts. Record cause, minimum reproduction, changed-cause proof, and resume target. Make the smallest coherent engineering change, validate the affected surface, and resume the interrupted action. If scientific semantics change, stop calling the work Repair and register a new Executable.
+Freeze scientific identity and counts. Record cause, minimum reproduction,
+changed-cause proof, and resume target. Make the smallest coherent engineering
+change, validate the affected surface, and resume the interrupted action. A
+failed Repair attempt does not abandon a feasible recovery: preserve it as
+engineering evidence and try another bounded Repair only when cause, input,
+implementation, or information state materially changed. If scientific
+semantics change, stop calling the work Repair and register a new Executable.
 
 ## Terminal
 
@@ -162,9 +193,14 @@ Freeze scientific identity and counts. Record cause, minimum reproduction, chang
   every evidence required by `contracts/runtime.yaml`. It is the only Mission
   outcome that completes the persistent API Goal.
 - `closed_no_candidate` requires a credible diverse-frontier exhaustion audit,
-  not a few failures or a small budget limit. It closes only that Mission; keep
-  the API Goal active and continue through the exact predecessor-bound
-  successor.
+  not a few failures, exact quota satisfaction, or a small budget limit. Every
+  partial, invalid, or unresolved axis needs an evidence-bound disposition,
+  replay, preservation, or reopen condition. The preregistered numeric floors
+  and required modes remain immutable inside the Mission. Additive evidence may
+  qualify a conclusion without rewriting that standard; an audit-discovered
+  standard defect is bound into the exact successor Mission intake and its new
+  standard. The terminal closes only the current Mission; keep the API Goal
+  active and continue through the exact predecessor-bound successor.
 - A genuine external blocker requires no safe in-scope substitute, exhausted recovery paths, an exact external change, and an exact resume action.
 - External unavailability must be derived by a registered external validator;
   caller failure prose cannot establish a blocker attempt.

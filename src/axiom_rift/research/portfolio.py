@@ -7,7 +7,11 @@ from enum import Enum
 
 from axiom_rift.core.canonical import CanonicalValue, canonical_bytes, parse_canonical
 from axiom_rift.core.identity import ExecutableSpec, canonical_digest
-from axiom_rift.research.chassis import ArchitectureChassisSpec
+from axiom_rift.research.chassis import (
+    ArchitectureChassisSpec,
+    ArchitectureRole,
+    component_domain,
+)
 from axiom_rift.research.governance import (
     ResearchGovernanceError,
     ResearchLayer,
@@ -78,7 +82,46 @@ class PortfolioAxis:
             raise PortfolioDecisionError("changed and controlled domains must be disjoint")
         if self.primary_research_layer not in changed:
             raise PortfolioDecisionError("primary research layer must be changed")
-        if self.primary_research_layer in {
+        if (
+            self.primary_research_layer is ResearchLayer.SYNTHESIS
+            and changed == (ResearchLayer.SYNTHESIS,)
+        ):
+            if self.architecture_chassis is None:
+                raise PortfolioDecisionError(
+                    "a pure synthesis axis requires a typed architecture chassis"
+                )
+            missing_roles = tuple(
+                role.value
+                for role in ArchitectureRole
+                if not getattr(
+                    self.architecture_chassis, role.value
+                ).component_identities
+            )
+            if missing_roles:
+                raise PortfolioDecisionError(
+                    "a pure synthesis axis requires all architecture roles: "
+                    + ", ".join(missing_roles)
+                )
+            represented_decision_domains = {
+                component_domain(component)
+                for component in self.architecture_chassis.decision.components
+            }
+            required_controls = {
+                ResearchLayer.LABEL,
+                ResearchLayer.TRADE,
+                ResearchLayer.LIFECYCLE,
+                ResearchLayer.EXECUTION,
+                *represented_decision_domains,
+            }
+            missing_controls = required_controls.difference(controlled)
+            if missing_controls:
+                raise PortfolioDecisionError(
+                    "a pure synthesis axis lacks required controlled domains: "
+                    + ", ".join(
+                        sorted(domain.value for domain in missing_controls)
+                    )
+                )
+        elif self.primary_research_layer in {
             ResearchLayer.SYNTHESIS,
             ResearchLayer.PORTFOLIO,
         }:

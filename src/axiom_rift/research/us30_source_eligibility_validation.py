@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from hashlib import sha256
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -12,10 +11,15 @@ from axiom_rift.operations.validation import (
     EvidenceValidationRequest,
     ValidatedEvidence,
     validator_identity,
+    validator_implementation_sha256,
 )
+from axiom_rift.research import sources as sources_module
+from axiom_rift.research import us30_source as source_module
+from axiom_rift.research.sources import INDEPENDENT_POINT_IN_TIME_FACT_FIELDS
 from axiom_rift.research.us30_source import (
     HISTORICAL_FACT_FIELDS,
     RUNTIME_FACT_FIELDS,
+    US30_HISTORICAL_SNAPSHOT_SHA256,
     audit_us30_historical_bytes,
     derive_runtime_facts,
     source_validation_plan_hash,
@@ -24,13 +28,17 @@ from axiom_rift.research.us30_source import (
 
 
 _THIS_FILE = Path(__file__).resolve()
-_EXPECTED_RAW_SHA256 = (
-    "6d638467069a756a7a3897b587ec16a4b9ff76df8718186c2a81905d6d0488d4"
+_DEPENDENCY_PATHS = (
+    Path(sources_module.__file__).resolve(),
+    Path(source_module.__file__).resolve(),
 )
 SOURCE_ELIGIBILITY_VALIDATOR_ID = validator_identity(
-    protocol="fpmarkets_us30_source_eligibility.v1",
+    protocol="fpmarkets_us30_source_eligibility.v2",
     domains=frozenset({"source"}),
-    implementation_sha256=sha256(_THIS_FILE.read_bytes()).hexdigest(),
+    implementation_sha256=validator_implementation_sha256(
+        implementation_path=_THIS_FILE,
+        dependency_paths=_DEPENDENCY_PATHS,
+    ),
 )
 
 
@@ -46,7 +54,8 @@ class SourceEligibilityValidator:
     validator_id = SOURCE_ELIGIBILITY_VALIDATOR_ID
     domains = frozenset({"source"})
     implementation_path = _THIS_FILE
-    protocol = "fpmarkets_us30_source_eligibility.v1"
+    dependency_paths = _DEPENDENCY_PATHS
+    protocol = "fpmarkets_us30_source_eligibility.v2"
 
     def validate(self, request: EvidenceValidationRequest) -> ValidatedEvidence:
         if request.domain != "source" or request.validator_id != self.validator_id:
@@ -116,7 +125,7 @@ class SourceEligibilityValidator:
             expected = audit_us30_historical_bytes(
                 contents[csv_names[0]], observed_at_utc=observed_at
             )
-            if expected["raw_sha256"] != _EXPECTED_RAW_SHA256:
+            if expected["raw_sha256"] != US30_HISTORICAL_SNAPSHOT_SHA256:
                 raise EvidenceValidationError(
                     "US30 historical bytes differ from the precommitted snapshot"
                 )
@@ -133,7 +142,7 @@ class SourceEligibilityValidator:
                 raise EvidenceValidationError("runtime probe is not canonical") from exc
             probe = _mapping(probe, "runtime probe")
             if (
-                probe.get("schema") != "us30_runtime_probe_measurement.v1"
+                probe.get("schema") != "us30_runtime_probe_measurement.v2"
                 or probe.get("source_contract_id") != source_id
                 or probe.get("observed_at_utc") != observed_at
             ):
@@ -150,6 +159,14 @@ class SourceEligibilityValidator:
                 if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                     raise EvidenceValidationError("runtime latency is invalid")
             elif value is not True:
+                if (
+                    transition == "historical_audit"
+                    and name in INDEPENDENT_POINT_IN_TIME_FACT_FIELDS
+                ):
+                    raise EvidenceValidationError(
+                        "independent point-in-time source authority is absent: "
+                        f"{name}"
+                    )
                 raise EvidenceValidationError(f"source eligibility fact failed: {name}")
         if canonical_bytes(result.get("facts")) != canonical_bytes(facts):
             raise EvidenceValidationError("result facts differ from derived facts")

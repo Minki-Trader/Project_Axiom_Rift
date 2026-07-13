@@ -23,8 +23,8 @@ state.
 
 - Use `.agents/skills/operate-axiom-mission/SKILL.md` for `/goal`, Project Goal,
   first or successor Mission admission, initiative operation, continuation,
-  next action, Job, Repair, blocker, terminal, state mutation, reentry,
-  closeout, or Git observation.
+  next action, Job, Repair, audit correction, authority migration, blocker,
+  terminal, state mutation, reentry, closeout, or Git observation.
 - Use `.agents/skills/run-research-portfolio/SKILL.md` for data, time, split,
   source eligibility, feature, label, model, trade, Study, Batch, Executable,
   Lineage, trial, evidence, Portfolio, candidate, synthesis, or negative memory.
@@ -40,6 +40,10 @@ State triggers take precedence over prompt wording:
   `execute_portfolio_decision`, `diagnose_study`, and `review_architecture`
   route through the Mission skill, then the research skill, then back to the
   writer.
+- Accepted-decision withdrawal, prospective-protocol activation, historical
+  scientific adjudication, and source-authority invalidation route through the
+  Mission skill, then the affected research or runtime skill, then the single
+  writer. They are additive corrections and never direct state edits.
 - A real `study_closed` event routes first to the Mission skill for its exact
   local-main checkpoint and push attempt. Only then route to the research skill
   for the pending `diagnose_study` action.
@@ -62,7 +66,14 @@ route, bounded evidence or typed proposal, then the single state writer.
 - Use the durable journal as authority and the local SQLite index as a
   reconstructible projection.
 - Count trials and claims by immutable Executable identity, never display name.
-- Treat engineering failure as Repair evidence, not scientific evidence.
+- Treat engineering failure as Repair evidence, not scientific evidence. A
+  completed and validated Job is operationally successful even when its
+  independent scientific verdict is failed or not_evaluable.
+- Keep discovery candidate-ineligible, apply multiplicity only to the exact
+  preregistered concurrent family, and preserve claim-level partial,
+  contradicted, unresolved, invalid, and diagnostic states.
+- Treat current broker history as reconstruction, not point-in-time authority.
+  An audit-invalidated source head remains latched until its typed resolution.
 - Do not bypass Mission research intake, Study diagnosis, or a triggered
   architecture review. KPI is an observation projection, not decision
   authority.

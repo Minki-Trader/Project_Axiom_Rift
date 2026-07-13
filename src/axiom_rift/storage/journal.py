@@ -4,10 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
+from hmac import new as new_hmac
 from pathlib import Path, PurePosixPath
+from threading import RLock
 from typing import Any, Callable, Iterable, Mapping
 import json
 import os
+import stat as stat_module
 
 from axiom_rift.core.canonical import CanonicalJSONError, canonical_bytes, parse_canonical
 from axiom_rift.core.identity import canonical_digest
@@ -87,6 +90,47 @@ class JournalSnapshot:
             return JournalHead(0, None)
         tail = self.events[-1]
         return JournalHead(tail["sequence"], tail["event_id"])
+
+
+@dataclass(frozen=True, slots=True)
+class _FileSignature:
+    size: int
+    modified_ns: int
+    changed_ns: int
+    inode: int
+    device: int
+
+    def payload(self) -> dict[str, int]:
+        return {
+            "changed_ns": self.changed_ns,
+            "device": self.device,
+            "inode": self.inode,
+            "modified_ns": self.modified_ns,
+            "size": self.size,
+        }
+
+    def same_file_bytes(self, other: "_FileSignature") -> bool:
+        return (
+            self.size,
+            self.modified_ns,
+            self.inode,
+            self.device,
+        ) == (
+            other.size,
+            other.modified_ns,
+            other.inode,
+            other.device,
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class _SealedSegmentCacheEntry:
+    descriptor_digest: str
+    content_signature: _FileSignature
+    seal_signature: _FileSignature
+    content: bytes
+    seal_content: bytes
+    token: str
 
 
 SnapshotLoader = Callable[[str], bytes | None]
@@ -593,6 +637,9 @@ class DurableJournal:
     MAX_EVENT_BYTES = _MAX_EVENT_BYTES
     MAX_SEGMENT_BYTES = _MAX_SEGMENT_BYTES
     MAX_SEGMENT_EVENTS = _MAX_SEGMENT_EVENTS
+    MAX_VERIFIED_SEALED_CACHE_BYTES = 2 * (
+        _MAX_SEGMENT_BYTES + _MAX_EVENT_BYTES
+    )
 
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path)
@@ -601,6 +648,9 @@ class DurableJournal:
         self.manifest_path = self.repository_root / JOURNAL_MANIFEST_RELATIVE_PATH
         self.segment_directory = self.repository_root / JOURNAL_DIRECTORY_RELATIVE_PATH
         self._tail_cache: tuple[tuple[Any, ...], JournalHead, dict[str, Any] | None] | None = None
+        self._sealed_cache_secret = os.urandom(32)
+        self._sealed_segment_cache: dict[str, _SealedSegmentCacheEntry] = {}
+        self._sealed_cache_lock = RLock()
 
     @staticmethod
     def _base(event: Mapping[str, Any]) -> dict[str, Any]:
@@ -624,6 +674,251 @@ class DurableJournal:
 
     def _absolute(self, relative: str) -> Path:
         return self.repository_root / PurePosixPath(relative)
+
+    @staticmethod
+    def _file_signature_from_stat(value: os.stat_result) -> _FileSignature:
+        if not stat_module.S_ISREG(value.st_mode):
+            raise JournalIntegrityError("sealed Journal artifact is not a regular file")
+        return _FileSignature(
+            size=value.st_size,
+            modified_ns=value.st_mtime_ns,
+            changed_ns=value.st_ctime_ns,
+            inode=value.st_ino,
+            device=value.st_dev,
+        )
+
+    @classmethod
+    def _file_signature(cls, path: Path) -> _FileSignature:
+        try:
+            return cls._file_signature_from_stat(path.stat())
+        except OSError as exc:
+            raise JournalIntegrityError(
+                "sealed Journal artifact is unavailable"
+            ) from exc
+
+    @classmethod
+    def _read_stable_file(cls, path: Path) -> tuple[bytes, _FileSignature]:
+        try:
+            path_before = cls._file_signature(path)
+            with path.open("rb") as handle:
+                before = cls._file_signature_from_stat(os.fstat(handle.fileno()))
+                content = handle.read()
+                after = cls._file_signature_from_stat(os.fstat(handle.fileno()))
+            path_after = cls._file_signature(path)
+        except OSError as exc:
+            raise JournalIntegrityError(
+                "sealed Journal artifact is unavailable"
+            ) from exc
+        if (
+            before != after
+            or path_before != path_after
+            or not after.same_file_bytes(path_after)
+            or len(content) != path_after.size
+        ):
+            raise JournalIntegrityError(
+                "sealed Journal artifact changed while it was verified"
+            )
+        return content, path_after
+
+    @staticmethod
+    def _sealed_descriptor_digest(descriptor: Mapping[str, Any]) -> str:
+        return sha256(canonical_bytes(dict(descriptor))).hexdigest()
+
+    def _sealed_cache_token(
+        self,
+        *,
+        descriptor_digest: str,
+        content_signature: _FileSignature,
+        seal_signature: _FileSignature,
+        content: bytes,
+        seal_content: bytes,
+    ) -> str:
+        return new_hmac(
+            self._sealed_cache_secret,
+            canonical_bytes(
+                {
+                    "content_object_id": id(content),
+                    "content_signature": content_signature.payload(),
+                    "descriptor_digest": descriptor_digest,
+                    "seal_object_id": id(seal_content),
+                    "seal_signature": seal_signature.payload(),
+                }
+            ),
+            sha256,
+        ).hexdigest()
+
+    def _ensure_sealed_cache_state(self) -> None:
+        if (
+            type(self._sealed_cache_secret) is not bytes
+            or len(self._sealed_cache_secret) != 32
+            or type(self._sealed_segment_cache) is not dict
+        ):
+            self._sealed_cache_secret = os.urandom(32)
+            self._sealed_segment_cache = {}
+
+    def _sealed_entry_current(
+        self,
+        entry: object,
+        descriptor: Mapping[str, Any],
+    ) -> bool:
+        if not isinstance(entry, _SealedSegmentCacheEntry):
+            return False
+        descriptor_digest = self._sealed_descriptor_digest(descriptor)
+        expected_token = self._sealed_cache_token(
+            descriptor_digest=descriptor_digest,
+            content_signature=entry.content_signature,
+            seal_signature=entry.seal_signature,
+            content=entry.content,
+            seal_content=entry.seal_content,
+        )
+        if (
+            entry.descriptor_digest != descriptor_digest
+            or entry.token != expected_token
+        ):
+            return False
+        try:
+            return (
+                self._file_signature(self._absolute(descriptor["path"]))
+                == entry.content_signature
+                and self._file_signature(self._absolute(descriptor["seal_path"]))
+                == entry.seal_signature
+            )
+        except JournalIntegrityError:
+            return False
+
+    def _read_and_verify_sealed_segment(
+        self, descriptor: Mapping[str, Any]
+    ) -> _SealedSegmentCacheEntry:
+        content, content_signature = self._read_stable_file(
+            self._absolute(descriptor["path"])
+        )
+        seal_content, seal_signature = self._read_stable_file(
+            self._absolute(descriptor["seal_path"])
+        )
+        if (
+            len(content) != descriptor["byte_length"]
+            or sha256(content).hexdigest() != descriptor["sha256"]
+        ):
+            raise JournalIntegrityError("sealed Journal segment differs")
+        _parse_seal(seal_content, descriptor)
+        descriptor_digest = self._sealed_descriptor_digest(descriptor)
+        return _SealedSegmentCacheEntry(
+            descriptor_digest=descriptor_digest,
+            content_signature=content_signature,
+            seal_signature=seal_signature,
+            content=content,
+            seal_content=seal_content,
+            token=self._sealed_cache_token(
+                descriptor_digest=descriptor_digest,
+                content_signature=content_signature,
+                seal_signature=seal_signature,
+                content=content,
+                seal_content=seal_content,
+            ),
+        )
+
+    def _verified_sealed_segment(
+        self, descriptor: Mapping[str, Any]
+    ) -> _SealedSegmentCacheEntry:
+        with self._sealed_cache_lock:
+            return self._verified_sealed_segment_locked(descriptor)
+
+    def _verified_sealed_segment_locked(
+        self, descriptor: Mapping[str, Any]
+    ) -> _SealedSegmentCacheEntry:
+        self._ensure_sealed_cache_state()
+        relative = descriptor["path"]
+        entry = self._sealed_segment_cache.get(relative)
+        if self._sealed_entry_current(entry, descriptor):
+            assert isinstance(entry, _SealedSegmentCacheEntry)
+            self._sealed_segment_cache.pop(relative)
+            self._sealed_segment_cache[relative] = entry
+            return entry
+        self._sealed_segment_cache.pop(relative, None)
+        verified = self._read_and_verify_sealed_segment(descriptor)
+        if not self._sealed_entry_current(verified, descriptor):
+            raise JournalIntegrityError(
+                "sealed Journal segment changed after verification"
+            )
+        try:
+            cached_bytes = sum(
+                len(item.content) + len(item.seal_content)
+                for item in self._sealed_segment_cache.values()
+                if isinstance(item, _SealedSegmentCacheEntry)
+            )
+            if not all(
+                isinstance(item, _SealedSegmentCacheEntry)
+                for item in self._sealed_segment_cache.values()
+            ):
+                raise TypeError("sealed cache entry differs")
+        except (AttributeError, TypeError):
+            self._sealed_segment_cache.clear()
+            cached_bytes = 0
+        added_bytes = len(verified.content) + len(verified.seal_content)
+        while (
+            self._sealed_segment_cache
+            and cached_bytes + added_bytes
+            > self.MAX_VERIFIED_SEALED_CACHE_BYTES
+        ):
+            oldest = next(iter(self._sealed_segment_cache))
+            removed = self._sealed_segment_cache.pop(oldest)
+            assert isinstance(removed, _SealedSegmentCacheEntry)
+            cached_bytes -= len(removed.content) + len(removed.seal_content)
+        self._sealed_segment_cache[relative] = verified
+        return verified
+
+    def _prune_sealed_cache(self, manifest: Mapping[str, Any]) -> None:
+        with self._sealed_cache_lock:
+            self._ensure_sealed_cache_state()
+            current = {item["path"] for item in manifest["sealed_segments"]}
+            for relative in tuple(self._sealed_segment_cache):
+                if relative not in current:
+                    del self._sealed_segment_cache[relative]
+
+    def verify_sealed_segments(
+        self, *, expected_manifest_sha256: str | None = None
+    ) -> int:
+        """Verify current immutable segments, reusing only stable cached bytes."""
+
+        legacy = self.path.is_file()
+        segmented = self.manifest_path.is_file()
+        if legacy and segmented:
+            raise JournalIntegrityError("legacy and segmented Journal layouts overlap")
+        if not segmented:
+            with self._sealed_cache_lock:
+                self._ensure_sealed_cache_state()
+                self._sealed_segment_cache.clear()
+            if self._listed_paths():
+                raise JournalIntegrityError("Journal segments exist without a manifest")
+            if expected_manifest_sha256 is not None:
+                raise JournalIntegrityError("expected Journal manifest is absent")
+            return 0
+        manifest_content = self.manifest_path.read_bytes()
+        if (
+            expected_manifest_sha256 is not None
+            and sha256(manifest_content).hexdigest() != expected_manifest_sha256
+        ):
+            raise JournalIntegrityError("Journal manifest changed before verification")
+        manifest = _parse_manifest(manifest_content)
+        self._prune_sealed_cache(manifest)
+        entries = tuple(
+            self._verified_sealed_segment(descriptor)
+            for descriptor in manifest["sealed_segments"]
+        )
+        if any(
+            not self._sealed_entry_current(entry, descriptor)
+            for entry, descriptor in zip(
+                entries, manifest["sealed_segments"], strict=True
+            )
+        ):
+            raise JournalIntegrityError(
+                "sealed Journal segment changed during verification"
+            )
+        if self.manifest_path.read_bytes() != manifest_content:
+            raise JournalIntegrityError(
+                "Journal manifest changed during sealed verification"
+            )
+        return len(entries)
 
     def _load_file(self, relative: str) -> bytes | None:
         path = self._absolute(relative)
@@ -749,19 +1044,19 @@ class DurableJournal:
         if legacy:
             relative = offset
             source = self.path
+            sealed_entry: _SealedSegmentCacheEntry | None = None
+            sealed_descriptor: Mapping[str, Any] | None = None
         elif segmented:
             manifest = _parse_manifest(self.manifest_path.read_bytes())
+            self._prune_sealed_cache(manifest)
             selected: Mapping[str, Any] | None = None
+            sealed_entry = None
+            sealed_descriptor = None
             for descriptor in manifest["sealed_segments"]:
                 if descriptor["start_offset"] <= offset < descriptor["start_offset"] + descriptor["byte_length"]:
                     selected = descriptor
-                    content = self._absolute(descriptor["path"]).read_bytes()
-                    if (
-                        len(content) != descriptor["byte_length"]
-                        or sha256(content).hexdigest() != descriptor["sha256"]
-                    ):
-                        raise JournalIntegrityError("sealed Journal segment differs")
-                    _parse_seal(self._absolute(descriptor["seal_path"]).read_bytes(), descriptor)
+                    sealed_descriptor = descriptor
+                    sealed_entry = self._verified_sealed_segment(descriptor)
                     break
             if selected is None:
                 active = manifest["active_segment"]
@@ -774,9 +1069,16 @@ class DurableJournal:
             relative = offset - selected["start_offset"]
         else:
             raise JournalIntegrityError("journal is absent")
-        with source.open("rb") as handle:
-            handle.seek(relative)
-            framed = handle.readline(self.MAX_EVENT_BYTES + 2)
+        if sealed_entry is None:
+            with source.open("rb") as handle:
+                handle.seek(relative)
+                framed = handle.readline(self.MAX_EVENT_BYTES + 2)
+        else:
+            upper = min(len(sealed_entry.content), relative + self.MAX_EVENT_BYTES + 2)
+            newline = sealed_entry.content.find(b"\n", relative, upper)
+            framed = sealed_entry.content[
+                relative : upper if newline < 0 else newline + 1
+            ]
         if not framed.endswith(b"\n") or len(framed) > self.MAX_EVENT_BYTES:
             raise TornJournalError("journal indexed event is incomplete or oversized")
         try:
@@ -793,6 +1095,16 @@ class DurableJournal:
         )
         if event["event_id"] != expected_event_id:
             raise JournalIntegrityError("journal indexed event identity mismatch")
+        if (
+            sealed_entry is not None
+            and sealed_descriptor is not None
+            and not self._sealed_entry_current(sealed_entry, sealed_descriptor)
+        ):
+            with self._sealed_cache_lock:
+                self._sealed_segment_cache.pop(sealed_descriptor["path"], None)
+            raise JournalIntegrityError(
+                "sealed Journal segment changed during indexed lookup"
+            )
         return event
 
     def _descriptor_for_active(

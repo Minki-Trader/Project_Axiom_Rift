@@ -25,13 +25,14 @@ from axiom_rift.research.high_vol_target_reversal_chassis import (
 from axiom_rift.research.residual_quote_deferral_chassis import (
     SELECTION_TOTAL_EXPOSURES as PRIOR_SELECTION_TOTAL_EXPOSURES,
 )
-from axiom_rift.research.usdjpy_source import usdjpy_source_contract
+from axiom_rift.research.usdjpy_source import (
+    USDJPY_HISTORICAL_SNAPSHOT_SHA256,
+    usdjpy_source_contract,
+)
 
 
 SELECTION_TOTAL_EXPOSURES = PRIOR_SELECTION_TOTAL_EXPOSURES + 1
-USDJPY_RAW_SHA256 = (
-    "364d94e662e5ee53e1092d11629deb8461575f82510a5b02d40f9ad46aabfa4e"
-)
+USDJPY_RAW_SHA256 = USDJPY_HISTORICAL_SNAPSHOT_SHA256
 CARRY_STATE_BARS = 288
 TARGET_HOLDING_BARS = 6
 _FIVE_MINUTES_NS = 300_000_000_000
@@ -40,14 +41,10 @@ _PROFILES = (
     "usdjpy_carry_unwind_exit_subject",
 )
 _THIS_FILE = Path(__file__).resolve()
-_REGISTERED_IMPLEMENTATION_SHA256 = (
-    "bae15d0d219e947a88fa33670febd25c069da4c4b0f904625e0780baef7af065"
-)
 
 
 def usdjpy_carry_exit_chassis_implementation_sha256() -> str:
-    # Preserve the admitted Executable across a display-only reusable-code fix.
-    return _REGISTERED_IMPLEMENTATION_SHA256
+    return sha256(_THIS_FILE.read_bytes()).hexdigest()
 
 
 def frontier_executable() -> ExecutableSpec:
@@ -91,8 +88,8 @@ class USDJPYCarryExitConfiguration:
                 "target_lifecycle_policy": (
                     "fixed_six_bar_control"
                     if not self.uses_carry_exit
-                    else "exit_next_open_after_first_negative_completed_"
-                    "usdjpy_288bar_return_and_reserve_slot_to_six_bars"
+                    else "entry_requires_completed_state_then_exit_next_open_"
+                    "after_negative_or_missing_state_and_reserve_slot_to_six_bars"
                 ),
                 "usdjpy_carry_state_bars": CARRY_STATE_BARS,
                 "usdjpy_carry_unwind_sign": "negative",
@@ -133,13 +130,14 @@ def usdjpy_carry_exit_components() -> tuple[ComponentSpec, ...]:
             "clock_identity": contract.clock_identity,
             "availability_identity": contract.availability_identity,
             "join": "exact_timestamp_no_fill_no_asof_no_offset_inference",
-            "missing_state_action": "retain_fixed_six_bar_control_exit",
+            "entry_missing_state_action": "no_entry",
+            "holding_missing_or_stale_action": "next_exact_open_safe_exit",
         },
         semantic_dependencies=(contract.source_contract_id,),
     )
     state = ComponentSpec(
         display_name="completed USDJPY one-FX-day carry state",
-        protocol="lifecycle.usdjpy_completed_288bar_carry_state.v1",
+        protocol="lifecycle.usdjpy_completed_288bar_carry_state.v2",
         implementation=_local("aligned_usdjpy_carry_return"),
         spec={
             "lookback_completed_source_bars": CARRY_STATE_BARS,
@@ -147,13 +145,13 @@ def usdjpy_carry_exit_components() -> tuple[ComponentSpec, ...]:
             "carry_stable": "nonnegative_log_return",
             "fit": "none",
             "threshold": "zero_only",
-            "gap_action": "reset_and_rewarm",
+            "gap_action": "reset_and_rewarm_then_fail_closed",
         },
         semantic_dependencies=(source.identity,),
     )
     lifecycle = ComponentSpec(
         display_name="USDJPY carry-unwind target lifecycle invalidation",
-        protocol="lifecycle.usdjpy_carry_unwind_target_exit.v1",
+        protocol="lifecycle.usdjpy_carry_unwind_target_exit.v2",
         implementation=_local("simulate_usdjpy_carry_exit"),
         spec={
             "parameter_fields": ["target_lifecycle_policy"],
@@ -164,11 +162,31 @@ def usdjpy_carry_exit_components() -> tuple[ComponentSpec, ...]:
                 "next_exact_bar_open_after_first_completed_negative_carry_state"
             ),
             "slot_reservation": "retain_original_six_bar_horizon",
-            "missing_state": "fixed_six_bar_control_exit",
+            "entry_missing_state": "no_entry",
+            "entry_missing_slot_reservation": "retain_original_six_bar_horizon",
+            "holding_missing_or_stale_state": (
+                "next_exact_bar_open_safe_exit"
+            ),
             "router_slot": "unchanged_fixed_twelve_bar",
             "parameter_grid": False,
         },
         semantic_dependencies=(target_lifecycle.identity, state.identity),
+    )
+    frontier_execution = next(
+        component
+        for component in frontier.components
+        if component.protocol.startswith("execution.")
+    )
+    engine_binding = ComponentSpec(
+        display_name="content-bound USDJPY carry-exit chassis engine",
+        protocol="execution.chassis_artifact_binding.v1",
+        implementation=_local("simulate_usdjpy_carry_exit"),
+        spec={
+            "artifact_sha256": usdjpy_carry_exit_chassis_implementation_sha256(),
+            "baseline_execution_semantics": "preserved",
+            "identity_policy": "any_artifact_byte_change_creates_new_identity",
+        },
+        semantic_dependencies=(frontier_execution.identity,),
     )
     portfolio = ComponentSpec(
         display_name="fixed frontier with macro lifecycle invalidation",
@@ -181,9 +199,13 @@ def usdjpy_carry_exit_components() -> tuple[ComponentSpec, ...]:
             "session": "unchanged_broker_15_22_target",
             "per_sleeve_lot": 1,
         },
-        semantic_dependencies=(frontier.components[-1].identity, lifecycle.identity),
+        semantic_dependencies=(
+            frontier.components[-1].identity,
+            lifecycle.identity,
+            engine_binding.identity,
+        ),
     )
-    return (*frontier.components, source, state, lifecycle, portfolio)
+    return (*frontier.components, source, state, lifecycle, engine_binding, portfolio)
 
 
 def usdjpy_carry_exit_executable(
@@ -192,6 +214,7 @@ def usdjpy_carry_exit_executable(
     if not configuration.uses_carry_exit:
         return frontier_executable()
     baseline = frontier_executable()
+    implementation = usdjpy_carry_exit_chassis_implementation_sha256()
     return ExecutableSpec(
         display_name=(
             "registered activity frontier with USDJPY carry-unwind target early exit"
@@ -202,7 +225,10 @@ def usdjpy_carry_exit_executable(
         split_contract=baseline.split_contract,
         clock_contract=baseline.clock_contract,
         cost_contract=baseline.cost_contract,
-        engine_contract=baseline.engine_contract,
+        engine_contract=(
+            f"{baseline.engine_contract}:"
+            f"usdjpy_carry_exit_chassis_sha256_{implementation}"
+        ),
         source_contracts=(usdjpy_source_contract().source_contract_id,),
     )
 
@@ -248,7 +274,14 @@ def _fixed_slot(
         effective_spread=effective_spread,
     )
     if not result.trades.empty:
-        result.trades = result.trades.assign(slot=name, carry_early_exit=False)
+        result.trades = result.trades.assign(
+            slot=name,
+            carry_early_exit=False,
+            carry_trigger_time=pd.NaT,
+            carry_exit_reason="not_applicable_router",
+            carry_state_fail_closed=False,
+            scheduled_exit_time=result.trades["exit_time"],
+        )
     result.intent_rows = tuple((name, *row) for row in result.intent_rows)
     return result
 
@@ -330,15 +363,36 @@ def _target_carry_exit_slot(
                 )
             )
             continue
+        if not np.isfinite(state[decision_index]):
+            next_decision_index = scheduled_exit_index
+            intents.append(
+                (
+                    "target_direction",
+                    decision_time,
+                    entry_time,
+                    entry_time,
+                    direction,
+                    "source_state_missing_no_entry",
+                )
+            )
+            continue
         exit_index = scheduled_exit_index
         trigger_index: int | None = None
+        trigger_reason: str | None = None
         for state_index in range(entry_index, scheduled_exit_index):
-            if np.isfinite(state[state_index]) and state[state_index] < 0.0:
+            if not np.isfinite(state[state_index]):
                 trigger_index = state_index
+                trigger_reason = "missing_or_stale_state_safe_exit"
+                exit_index = state_index + 1
+                break
+            if state[state_index] < 0.0:
+                trigger_index = state_index
+                trigger_reason = "negative_carry_unwind_exit"
                 exit_index = state_index + 1
                 break
         exit_time = time.iloc[exit_index]
         carry_early_exit = exit_index < scheduled_exit_index
+        carry_state_fail_closed = trigger_reason == "missing_or_stale_state_safe_exit"
         next_decision_index = scheduled_exit_index
         if not (np.isfinite(spreads[entry_index]) and np.isfinite(spreads[exit_index])):
             unresolved += 1
@@ -384,6 +438,12 @@ def _target_carry_exit_slot(
                 "carry_trigger_time": (
                     pd.NaT if trigger_index is None else time.iloc[trigger_index]
                 ),
+                "carry_exit_reason": (
+                    "scheduled_fixed_exit"
+                    if trigger_reason is None
+                    else trigger_reason
+                ),
+                "carry_state_fail_closed": carry_state_fail_closed,
                 "scheduled_exit_time": scheduled_exit_time,
             }
         )
@@ -394,7 +454,13 @@ def _target_carry_exit_slot(
                 entry_time,
                 exit_time,
                 direction,
-                "executed_carry_exit" if carry_early_exit else "executed_fixed_exit",
+                (
+                    "executed_missing_state_safe_exit"
+                    if carry_state_fail_closed
+                    else "executed_carry_exit"
+                    if carry_early_exit
+                    else "executed_fixed_exit"
+                ),
             )
         )
     trades = pd.DataFrame.from_records(records)
@@ -413,6 +479,8 @@ def _target_carry_exit_slot(
                 "slot",
                 "carry_early_exit",
                 "carry_trigger_time",
+                "carry_exit_reason",
+                "carry_state_fail_closed",
                 "scheduled_exit_time",
             )
         )
@@ -491,7 +559,12 @@ def simulate_usdjpy_carry_exit(
         regime_cutoffs=regime_cutoffs,
         effective_spread=spreads,
     )
-    trades = pd.concat((router.trades, macro.trades), ignore_index=True)
+    if router.trades.empty:
+        trades = macro.trades.copy()
+    elif macro.trades.empty:
+        trades = router.trades.copy()
+    else:
+        trades = pd.concat((router.trades, macro.trades), ignore_index=True)
     trades = trades.sort_values(
         ["decision_time", "slot"], kind="stable"
     ).reset_index(drop=True)

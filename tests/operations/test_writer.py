@@ -62,6 +62,39 @@ from axiom_rift.research.chassis import (
     ControlledStudyChassis,
 )
 from axiom_rift.research.trials import NegativeMemory
+from axiom_rift.research.historical_adjudication import (
+    HistoricalAdjudicationRequest,
+    HistoricalDisposition,
+    HistoricalValidityOverride,
+    HistoricalValidityReason,
+    ReplayPriority,
+)
+from axiom_rift.research.adjudication import (
+    AdjudicationProfile,
+    bonferroni_concurrent_family,
+)
+from axiom_rift.research.source_authority import (
+    SourceAuthorityAuditManifest,
+    SourceAuthorityInvalidation,
+    SourceAuthorityLatch,
+    SourceAuthorityReason,
+    SourceAuthoritySurface,
+)
+from axiom_rift.research.decision_withdrawal import (
+    PortfolioDecisionWithdrawalManifest,
+    PortfolioDecisionWithdrawalReason,
+)
+from axiom_rift.research.protocol import (
+    ResearchProtocol,
+    ResearchProtocolActivation,
+)
+from axiom_rift.research.validation_v2 import (
+    ScientificAdjudicationValidatorV2,
+)
+from axiom_rift.research.scientific_study import (
+    PLANNED_CLAIMS,
+    discovery_criteria,
+)
 from axiom_rift.storage.journal import JournalIntegrityError, TornJournalError
 from axiom_rift.storage.index import IndexRecord, LocalIndex
 from axiom_rift.runtime.guards import (
@@ -78,6 +111,20 @@ FIXED_NOW = "2026-07-11T00:00:00Z"
 FIXED_EXPIRY = "2026-07-12T00:00:00Z"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OBSERVED_MATERIAL_ID = "36caaaeef95d4bfeac4e3df7b2108702a4e64632c94e88d46528ac0cccbd2065"
+
+
+def source_audit_report_bytes(
+    *,
+    finding_id: str,
+    source_contract_id: str,
+    source_state_record_id: str,
+) -> bytes:
+    return (
+        "# Source Authority Audit\n\n"
+        f"- {finding_id}:\n"
+        f"  {source_contract_id},\n"
+        f"  audited head {source_state_record_id};\n"
+    ).encode("ascii")
 
 
 def architecture_chassis(tag: str) -> ArchitectureChassisSpec:
@@ -1386,6 +1433,63 @@ class WriterTests(unittest.TestCase):
 
     def test_portfolio_decision_requires_a_current_declared_target(self) -> None:
         self.open_mission_and_initiative()
+        contract = source_contract()
+        context = SourceEligibility.register(contract)
+        self.writer.record_source_eligibility(
+            eligibility=context,
+            receipt=None,
+            operation_id="register-audit-invalidated-source",
+        )
+        historical_artifact = self.writer.evidence.finalize(
+            b"historical point-in-time source fixture"
+        )
+        historical_receipt = SourceEligibilityReceipt(
+            source_contract_id=contract.source_contract_id,
+            evidence=SourceTransitionEvidence.HISTORICAL_AUDIT,
+            producer_completion_id="engineering-fixture",
+            observed_at_utc=FIXED_NOW,
+            artifact_hashes=(historical_artifact.sha256,),
+            facts={
+                "acquisition_observed": True,
+                "content_hash_verified": True,
+                "event_time_audited": True,
+                "information_complete_at_audited": True,
+                "first_availability_audited": True,
+                "coverage_audited": True,
+                "gaps_audited": True,
+                "revision_or_vintage_audited": True,
+            },
+        )
+        audited = context.complete_historical_audit(historical_receipt.identity)
+        self.writer.record_source_eligibility(
+            eligibility=audited,
+            receipt=historical_receipt,
+            operation_id="audit-invalidated-source",
+        )
+        runtime_artifact = self.writer.evidence.finalize(
+            b"runtime source fixture before audit invalidation"
+        )
+        runtime_receipt = SourceEligibilityReceipt(
+            source_contract_id=contract.source_contract_id,
+            evidence=SourceTransitionEvidence.RUNTIME_AVAILABILITY_PROOF,
+            producer_completion_id="engineering-fixture",
+            observed_at_utc=FIXED_NOW,
+            artifact_hashes=(runtime_artifact.sha256,),
+            facts={
+                "local_realtime_retrieval": True,
+                "fresh": True,
+                "synchronized": True,
+                "complete_or_closed": True,
+                "latency_ms": 5,
+                "historical_runtime_field_parity": True,
+            },
+        )
+        eligible = audited.prove_runtime_availability(runtime_receipt.identity)
+        self.writer.record_source_eligibility(
+            eligibility=eligible,
+            receipt=runtime_receipt,
+            operation_id="qualify-invalidated-source",
+        )
         snapshot = PortfolioSnapshot(
             mission_id="MIS-FIXTURE",
             axes=(
@@ -1432,6 +1536,53 @@ class WriterTests(unittest.TestCase):
             self.writer.record_portfolio_decision(
                 decision=invalid, operation_id="reject-unknown-portfolio-target"
             )
+
+        def seed_scheduler_constraint(current, _index):
+            assert current is not None
+            body = self.writer._body(current)
+            action = dict(body["next_action"])
+            action.update(
+                {
+                    "constraint_source_id": "portfolio-fixture:source-audit",
+                    "required_target_axis_ids": ["axis-microstructure"],
+                }
+            )
+            body["next_action"] = action
+            return body, [], {"seeded": True}
+
+        self.writer._commit(
+            event_kind="portfolio_scheduler_constraint_fixture_seeded",
+            operation_id="seed-portfolio-scheduler-constraint",
+            subject="Portfolio:active",
+            payload={"target_id": "axis-microstructure"},
+            prepare=seed_scheduler_constraint,
+        )
+        unconstrained_baseline = scientific_executable_spec("withdrawal-source")
+        unconstrained_component = unconstrained_baseline.components[-1]
+        source_component = ComponentSpec(
+            display_name="withdrawal source fixture component",
+            protocol=unconstrained_component.protocol,
+            implementation=unconstrained_component.implementation,
+            spec=unconstrained_component.specification(),
+            semantic_dependencies=(
+                *unconstrained_component.semantic_dependencies,
+                contract.source_contract_id,
+            ),
+        )
+        source_baseline = ExecutableSpec(
+            display_name="withdrawal source fixture executable",
+            components=(
+                *unconstrained_baseline.components[:-1],
+                source_component,
+            ),
+            parameters=unconstrained_baseline.parameter_values(),
+            data_contract=unconstrained_baseline.data_contract,
+            split_contract=unconstrained_baseline.split_contract,
+            clock_contract=unconstrained_baseline.clock_contract,
+            cost_contract=unconstrained_baseline.cost_contract,
+            engine_contract=unconstrained_baseline.engine_contract,
+            source_contracts=(contract.source_contract_id,),
+        )
         valid = PortfolioDecision(
             decision_id="DEC-VALID-TARGET",
             chosen_option_id="micro",
@@ -1454,6 +1605,7 @@ class WriterTests(unittest.TestCase):
             ),
             rationale="retain a structurally distinct alternative",
             commitment_batches=1,
+            baseline_executable=source_baseline,
         )
         recorded = self.writer.record_portfolio_decision(
             decision=valid, operation_id="record-valid-portfolio-target"
@@ -1463,6 +1615,1288 @@ class WriterTests(unittest.TestCase):
             self.writer.read_control()["next_action"]["target_id"],  # type: ignore[index]
             "axis-microstructure",
         )
+        with LocalIndex(self.writer.index_path) as index:
+            source_head = index.event_head(
+                f"source:{contract.source_contract_id}"
+            )
+            accepted_decision = index.get("portfolio-decision", valid.identity)
+        assert source_head is not None
+        assert accepted_decision is not None
+        self.assertEqual(
+            accepted_decision.payload["scheduler_constraints"],
+            {
+                "constraint_source_id": "portfolio-fixture:source-audit",
+                "required_target_axis_ids": ["axis-microstructure"],
+            },
+        )
+        report = self.writer.evidence.finalize(
+            source_audit_report_bytes(
+                finding_id="SOURCE-AUTH-001",
+                source_contract_id=contract.source_contract_id,
+                source_state_record_id=source_head.record_id,
+            )
+        )
+        target_axis = next(
+            axis
+            for axis in snapshot.to_identity_payload()["axes"]
+            if axis["axis_id"] == "axis-microstructure"
+        )
+        withdrawal_manifest = PortfolioDecisionWithdrawalManifest(
+            report_artifact_hash=report.sha256,
+            report_finding_id="SOURCE-AUTH-001",
+            decision_id=valid.identity,
+            portfolio_snapshot_id=snapshot.identity,
+            target_axis_id="axis-microstructure",
+            target_axis_identity=target_axis["axis_identity"],
+            baseline_executable_id=source_baseline.identity,
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=source_head.record_id,
+            reason_code=(
+                PortfolioDecisionWithdrawalReason.SOURCE_AUTHORITY_INVALIDATED
+            ),
+            reason="source authority no longer supports the accepted execution path",
+        )
+        audit = self.writer.evidence.finalize(
+            canonical_bytes(withdrawal_manifest.to_identity_payload())
+        )
+        forged_basis_manifest = PortfolioDecisionWithdrawalManifest(
+            report_artifact_hash=report.sha256,
+            report_finding_id="SOURCE-AUTH-001",
+            decision_id=valid.identity,
+            portfolio_snapshot_id=snapshot.identity,
+            target_axis_id="axis-microstructure",
+            target_axis_identity=target_axis["axis_identity"],
+            baseline_executable_id="executable:" + "f" * 64,
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=source_head.record_id,
+            reason_code=(
+                PortfolioDecisionWithdrawalReason.SOURCE_AUTHORITY_INVALIDATED
+            ),
+            reason="source authority no longer supports the accepted execution path",
+        )
+        forged_basis = self.writer.evidence.finalize(
+            canonical_bytes(forged_basis_manifest.to_identity_payload())
+        )
+        with self.assertRaisesRegex(TransitionError, "exact basis"):
+            self.writer.withdraw_pending_portfolio_decision(
+                manifest_artifact_hash=forged_basis.sha256,
+                operation_id="reject-forged-withdrawal-basis",
+            )
+        scattered_withdrawal_report = self.writer.evidence.finalize(
+            (
+                "# Invalid Decision Withdrawal Audit\n\n"
+                "- SOURCE-AUTH-001:\n"
+                "  unrelated finding body;\n\n"
+                f"{contract.source_contract_id}\n"
+                f"audited head {source_head.record_id}\n"
+            ).encode("ascii")
+        )
+        scattered_withdrawal_manifest = PortfolioDecisionWithdrawalManifest(
+            report_artifact_hash=scattered_withdrawal_report.sha256,
+            report_finding_id="SOURCE-AUTH-001",
+            decision_id=valid.identity,
+            portfolio_snapshot_id=snapshot.identity,
+            target_axis_id="axis-microstructure",
+            target_axis_identity=target_axis["axis_identity"],
+            baseline_executable_id=source_baseline.identity,
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=source_head.record_id,
+            reason_code=(
+                PortfolioDecisionWithdrawalReason.SOURCE_AUTHORITY_INVALIDATED
+            ),
+            reason="source authority no longer supports the accepted execution path",
+        )
+        scattered_withdrawal = self.writer.evidence.finalize(
+            canonical_bytes(scattered_withdrawal_manifest.to_identity_payload())
+        )
+        with self.assertRaisesRegex(TransitionError, "canonical manifest"):
+            self.writer.withdraw_pending_portfolio_decision(
+                manifest_artifact_hash=scattered_withdrawal.sha256,
+                operation_id="reject-scattered-withdrawal-report-facts",
+            )
+        withdrawn = self.writer.withdraw_pending_portfolio_decision(
+            manifest_artifact_hash=audit.sha256,
+            operation_id="withdraw-invalidated-portfolio-target",
+        )
+        self.assertEqual(withdrawn.result["decision_id"], valid.identity)
+        self.assertEqual(
+            self.writer.read_control()["next_action"],  # type: ignore[index]
+            {
+                "constraint_source_id": "portfolio-fixture:source-audit",
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": snapshot.identity,
+                "required_target_axis_ids": ["axis-microstructure"],
+            },
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            withdrawal = index.get(
+                "portfolio-decision-withdrawal",
+                withdrawn.result["withdrawal_record_id"],
+            )
+            withdrawal_head = index.event_head(
+                f"portfolio-decision-status:{valid.identity}"
+            )
+            accepted = index.get("portfolio-decision", valid.identity)
+            active = StateWriter._active_portfolio_decision(index, valid.identity)
+            assert accepted is not None
+            legacy_anchor = StateWriter._axis_architecture_anchor(
+                index,
+                {"axis_identity": accepted.payload["target_axis_identity"]},
+            )
+        assert withdrawal is not None
+        self.assertEqual(withdrawal.status, "withdrawn_pre_execution")
+        assert withdrawal_head is not None
+        self.assertEqual(withdrawal_head.record_id, withdrawal.record_id)
+        self.assertEqual(withdrawal_head.sequence, 1)
+        self.assertIsNone(active)
+        self.assertIsNone(legacy_anchor)
+        observed_defect = (
+            "current broker snapshot cannot prove first availability or vintage"
+        )
+        reused_artifact_invalidation = SourceAuthorityInvalidation(
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=source_head.record_id,
+            audit_artifact_hash=audit.sha256,
+            surface=SourceAuthoritySurface.AVAILABILITY,
+            reason_code=SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN,
+            observed_defect=observed_defect,
+            observed_at_utc=FIXED_NOW,
+        )
+        with self.assertRaisesRegex(TransitionError, "canonical audit manifest"):
+            self.writer.suspend_source_authority_from_audit(
+                invalidation=reused_artifact_invalidation,
+                operation_id="reject-arbitrary-source-audit-artifact",
+            )
+        audit_report = report
+        scattered_report = self.writer.evidence.finalize(
+            (
+                "# Invalid Source Audit\n\n"
+                "- SOURCE-AUTH-001:\n"
+                "  unrelated finding body;\n\n"
+                f"{contract.source_contract_id}\n"
+                f"audited head {source_head.record_id}\n"
+            ).encode("ascii")
+        )
+        scattered_manifest = SourceAuthorityAuditManifest(
+            report_artifact_hash=scattered_report.sha256,
+            report_finding_id="SOURCE-AUTH-001",
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=source_head.record_id,
+            surface=SourceAuthoritySurface.AVAILABILITY,
+            reason_code=SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN,
+            observed_defect=observed_defect,
+            observed_at_utc=FIXED_NOW,
+        )
+        scattered_manifest_artifact = self.writer.evidence.finalize(
+            canonical_bytes(scattered_manifest.to_identity_payload())
+        )
+        with self.assertRaisesRegex(TransitionError, "canonical audit manifest"):
+            self.writer.suspend_source_authority_from_audit(
+                invalidation=SourceAuthorityInvalidation(
+                    source_contract_id=contract.source_contract_id,
+                    source_state_record_id=source_head.record_id,
+                    audit_artifact_hash=scattered_manifest_artifact.sha256,
+                    surface=SourceAuthoritySurface.AVAILABILITY,
+                    reason_code=(
+                        SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN
+                    ),
+                    observed_defect=observed_defect,
+                    observed_at_utc=FIXED_NOW,
+                ),
+                operation_id="reject-scattered-source-audit-facts",
+            )
+        mismatched_manifest = SourceAuthorityAuditManifest(
+            report_artifact_hash=audit_report.sha256,
+            report_finding_id="SOURCE-AUTH-001",
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=source_head.record_id,
+            surface=SourceAuthoritySurface.CLOCK,
+            reason_code=SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN,
+            observed_defect=observed_defect,
+            observed_at_utc=FIXED_NOW,
+        )
+        mismatched_manifest_artifact = self.writer.evidence.finalize(
+            canonical_bytes(mismatched_manifest.to_identity_payload())
+        )
+        mismatched_manifest_invalidation = SourceAuthorityInvalidation(
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=source_head.record_id,
+            audit_artifact_hash=mismatched_manifest_artifact.sha256,
+            surface=SourceAuthoritySurface.AVAILABILITY,
+            reason_code=SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN,
+            observed_defect=observed_defect,
+            observed_at_utc=FIXED_NOW,
+        )
+        with self.assertRaisesRegex(TransitionError, "canonical audit manifest"):
+            self.writer.suspend_source_authority_from_audit(
+                invalidation=mismatched_manifest_invalidation,
+                operation_id="reject-mismatched-source-audit-manifest",
+            )
+        missing_report_manifest = SourceAuthorityAuditManifest(
+            report_artifact_hash="f" * 64,
+            report_finding_id="SOURCE-AUTH-001",
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=source_head.record_id,
+            surface=SourceAuthoritySurface.AVAILABILITY,
+            reason_code=SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN,
+            observed_defect=observed_defect,
+            observed_at_utc=FIXED_NOW,
+        )
+        missing_report_manifest_artifact = self.writer.evidence.finalize(
+            canonical_bytes(missing_report_manifest.to_identity_payload())
+        )
+        missing_report_invalidation = SourceAuthorityInvalidation(
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=source_head.record_id,
+            audit_artifact_hash=missing_report_manifest_artifact.sha256,
+            surface=SourceAuthoritySurface.AVAILABILITY,
+            reason_code=SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN,
+            observed_defect=observed_defect,
+            observed_at_utc=FIXED_NOW,
+        )
+        with self.assertRaisesRegex(TransitionError, "canonical audit manifest"):
+            self.writer.suspend_source_authority_from_audit(
+                invalidation=missing_report_invalidation,
+                operation_id="reject-missing-source-audit-report",
+            )
+        audit_manifest = SourceAuthorityAuditManifest(
+            report_artifact_hash=audit_report.sha256,
+            report_finding_id="SOURCE-AUTH-001",
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=source_head.record_id,
+            surface=SourceAuthoritySurface.AVAILABILITY,
+            reason_code=SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN,
+            observed_defect=observed_defect,
+            observed_at_utc=FIXED_NOW,
+        )
+        audit_manifest_artifact = self.writer.evidence.finalize(
+            canonical_bytes(audit_manifest.to_identity_payload())
+        )
+        invalidation = SourceAuthorityInvalidation(
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=source_head.record_id,
+            audit_artifact_hash=audit_manifest_artifact.sha256,
+            surface=SourceAuthoritySurface.AVAILABILITY,
+            reason_code=SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN,
+            observed_defect=observed_defect,
+            observed_at_utc=FIXED_NOW,
+        )
+        drift_artifact = self.writer.evidence.finalize(
+            b"ordinary source suspension before audit latch"
+        )
+        drift_receipt = SourceEligibilityReceipt(
+            source_contract_id=contract.source_contract_id,
+            evidence=SourceTransitionEvidence.DRIFT,
+            producer_completion_id="engineering-fixture",
+            observed_at_utc=FIXED_NOW,
+            artifact_hashes=(drift_artifact.sha256,),
+            facts={
+                "changed_surface": "availability",
+                "observed_change": "ordinary pre-audit source drift",
+                "dependent_action": "fail_closed",
+            },
+        )
+        ordinary_suspended = eligible.suspend(
+            receipt_id=drift_receipt.identity,
+            reason="ordinary pre-audit source drift",
+        )
+        ordinary_result = self.writer.record_source_eligibility(
+            eligibility=ordinary_suspended,
+            receipt=drift_receipt,
+            operation_id="ordinary-source-suspension-before-audit-latch",
+        )
+        before_action = self.writer.read_control()["next_action"]  # type: ignore[index]
+        with self.assertRaises(InjectedCrash):
+            self.writer.suspend_source_authority_from_audit(
+                invalidation=invalidation,
+                operation_id="suspend-invalid-source-authority",
+                crash_after="after_journal",
+            )
+        recovery = self.writer.recover()
+        self.assertGreater(recovery["journal_sequence"], 0)
+        suspended = self.writer.suspend_source_authority_from_audit(
+            invalidation=invalidation,
+            operation_id="suspend-invalid-source-authority",
+        )
+        self.assertTrue(suspended.reused)
+        self.assertEqual(suspended.result["state"], "suspended")
+        self.assertEqual(suspended.result["trial_delta"], 0)
+        self.assertEqual(
+            self.writer.read_control()["next_action"],  # type: ignore[index]
+            before_action,
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            new_head = index.event_head(f"source:{contract.source_contract_id}")
+            correction = index.get(
+                "source-authority-invalidation", invalidation.identity
+            )
+            source_state = (
+                None
+                if new_head is None
+                else index.get(new_head.record_kind, new_head.record_id)
+            )
+        assert correction is not None and source_state is not None
+        self.assertEqual(correction.status, "confirmed_and_suspended")
+        self.assertEqual(correction.event_sequence, 1)
+        self.assertEqual(new_head.sequence, 5)
+        self.assertEqual(source_state.status, "suspended")
+        self.assertEqual(
+            correction.payload["audit_manifest"],
+            audit_manifest.to_identity_payload(),
+        )
+        self.assertEqual(
+            correction.payload["preserved_receipt_id"], runtime_receipt.identity
+        )
+        self.assertEqual(
+            correction.payload["eligible_source_state_record_id"],
+            source_head.record_id,
+        )
+        self.assertEqual(
+            correction.payload["prior_active_source_state_record_id"],
+            canonical_digest(
+                domain="source-state",
+                payload={
+                    "source_id": contract.source_contract_id,
+                    "state": "suspended",
+                    "ordinal": ordinary_result.result["ordinal"],
+                    "evidence_receipt_id": drift_receipt.identity,
+                },
+            ),
+        )
+        self.assertEqual(
+            source_state.payload["transition_evidence"], "authority_invalidation"
+        )
+        self.assertEqual(
+            source_state.payload["evidence_receipt_id"], runtime_receipt.identity
+        )
+        self.assertEqual(
+            source_state.payload["receipt"],
+            runtime_receipt.to_identity_payload(),
+        )
+        self.assertEqual(
+            source_state.payload["source_authority_latch"]["invalidation_id"],
+            invalidation.identity,
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            with self.assertRaisesRegex(PermitError, "permanently audit-invalidated"):
+                self.writer._require_source_authority_for_actions(
+                    index,
+                    contract.source_contract_id,
+                    actions=("performance_batch",),
+                    error_type=PermitError,
+                )
+        recert_artifact = self.writer.evidence.finalize(
+            b"audit-invalidated source recertification fixture"
+        )
+        recert_receipt = SourceEligibilityReceipt(
+            source_contract_id=contract.source_contract_id,
+            evidence=SourceTransitionEvidence.SAME_SEMANTICS_RECERTIFICATION,
+            producer_completion_id="engineering-fixture",
+            observed_at_utc=FIXED_NOW,
+            artifact_hashes=(recert_artifact.sha256,),
+            facts={
+                "semantic_equivalence": True,
+                "mapping_parity": True,
+                "schema_field_clock_parity": True,
+            },
+        )
+        restored = SourceEligibility(
+            contract=contract,
+            state=SourceEligibilityState.RUNTIME_ELIGIBLE,
+            evidence_receipt_id=recert_receipt.identity,
+        )
+        with self.assertRaisesRegex(TransitionError, "new SourceContract"):
+            self.writer.record_source_eligibility(
+                eligibility=restored,
+                receipt=recert_receipt,
+                operation_id="reject-audit-invalidated-source-recertification",
+            )
+        replacement_contract = SourceContract(
+            display_name="replacement synthetic external source",
+            canonical_instrument=contract.canonical_instrument,
+            runtime_identifier="SYN.IDX.V2",
+            source_type=contract.source_type,
+            instrument_semantics=contract.instrument(),
+            mapping_semantics={
+                "runtime_symbol": "SYN.IDX.V2",
+                "mapping_rule": "exact_local_symbol",
+            },
+            schema_semantics=contract.schema(),
+            field_semantics=contract.fields(),
+            clock_semantics=contract.clock(),
+            availability_semantics=contract.availability(),
+        )
+        self.assertNotEqual(
+            replacement_contract.source_contract_id,
+            contract.source_contract_id,
+        )
+        replacement_context = SourceEligibility.register(replacement_contract)
+        replacement_registration = self.writer.record_source_eligibility(
+            eligibility=replacement_context,
+            receipt=None,
+            operation_id="register-replacement-source-contract",
+        )
+        self.assertEqual(replacement_registration.result["state"], "context_only")
+        with self.assertRaisesRegex(TransitionError, "permanently audit-invalidated"):
+            self.writer.suspend_source_authority_from_audit(
+                invalidation=invalidation,
+                operation_id="reject-repeated-source-suspension",
+            )
+        self.writer.validation_registry = EvidenceValidatorRegistry(
+            (
+                ScientificAdjudicationValidatorV2(),
+                ScientificFixtureValidator(),
+            )
+        )
+        control = self.writer.read_control()
+        assert control is not None
+        activation = ResearchProtocolActivation(
+            protocol=ResearchProtocol.SCIENTIFIC_ADJUDICATION_V2,
+            validator_id=ScientificAdjudicationValidatorV2.validator_id,
+            authority_manifest_digest=control["authority"]["manifest_digest"],
+            audit_artifact_hash=audit.sha256,
+        )
+        activated = self.writer.activate_research_protocol(
+            activation=activation,
+            operation_id="activate-scientific-adjudication-v2",
+        )
+        self.assertEqual(activated.result["trial_delta"], 0)
+        self.assertEqual(activated.result["ordinal"], 1)
+        with self.assertRaisesRegex(TransitionError, "already bound"):
+            self.writer.activate_research_protocol(
+                activation=activation,
+                operation_id="reject-duplicate-scientific-protocol-binding",
+            )
+        authority_fixture = self.root / "protocol-authority"
+        authority_paths = (
+            control["authority"]["operating_direction"],
+            *control["authority"]["contracts"],
+            *control["authority"]["foundation_inputs"],
+        )
+        for relative in authority_paths:
+            destination = authority_fixture / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((REPO_ROOT / relative).read_bytes())
+        self.writer.foundation_root = authority_fixture
+        operations_path = self.writer.foundation_root / "contracts/operations.yaml"
+        replacement = operations_path.read_bytes() + b"\n# protocol rebind fixture\n"
+        self.writer.migrate_authority(
+            replacements={"contracts/operations.yaml": replacement},
+            reason="exercise authority-bound protocol reactivation",
+            operation_id="migrate-authority-for-protocol-rebind",
+            allow_active_stable_boundary=True,
+        )
+        rebound_control = self.writer.read_control()
+        assert rebound_control is not None
+        rebound = ResearchProtocolActivation(
+            protocol=ResearchProtocol.SCIENTIFIC_ADJUDICATION_V2,
+            validator_id=ScientificAdjudicationValidatorV2.validator_id,
+            authority_manifest_digest=rebound_control["authority"][
+                "manifest_digest"
+            ],
+            audit_artifact_hash=audit.sha256,
+        )
+        reactivated = self.writer.activate_research_protocol(
+            activation=rebound,
+            operation_id="reactivate-scientific-adjudication-v2",
+        )
+        self.assertEqual(reactivated.result["ordinal"], 2)
+        legacy_plan = self.writer.evidence.finalize(b"legacy scientific plan")
+        legacy_spec = job_spec(
+            self.writer,
+            {"kind": "Executable", "id": "executable:" + "e" * 64},
+        )
+        legacy_spec["input_hashes"] = [
+            *legacy_spec["input_hashes"],  # type: ignore[list-item]
+            legacy_plan.sha256,
+        ]
+        legacy_spec["expected_outputs"] = [
+            "evidence/legacy-measurement",
+            "evidence/legacy-result",
+        ]
+        legacy_spec["output_classes"] = {
+            "evidence/legacy-measurement": "durable_evidence",
+            "evidence/legacy-result": "durable_evidence",
+        }
+        legacy_spec["scientific_binding"] = {
+            "evidence_depth": "discovery",
+            "evidence_modes": [
+                "causal_contrast",
+                "cost_and_execution",
+                "sensitivity_or_stress",
+            ],
+            "planned_claims": ["claim-a"],
+            "result_manifest_output": "evidence/legacy-result",
+            "validation_plan_hash": legacy_plan.sha256,
+            "validator_id": ScientificFixtureValidator.validator_id,
+        }
+        with self.assertRaisesRegex(TransitionError, "active v2 protocol"):
+            self.writer.declare_job(
+                spec=legacy_spec,
+                operation_id="reject-legacy-scientific-validator-after-activation",
+            )
+
+    def test_v2_authority_fails_closed_without_protocol_activation(self) -> None:
+        self.open_mission_and_initiative()
+        snapshot = PortfolioSnapshot(
+            mission_id="MIS-FIXTURE",
+            axes=(
+                PortfolioAxis(
+                    axis_id="v2-fail-closed-axis-a",
+                    causal_question="Does mechanism A survive controlled comparison?",
+                    mechanism_family="v2-family-a",
+                ),
+                PortfolioAxis(
+                    axis_id="v2-fail-closed-axis-b",
+                    causal_question="Does mechanism B survive controlled comparison?",
+                    mechanism_family="v2-family-b",
+                ),
+            ),
+            opportunity_cost_basis="preserve two independent mechanisms",
+        )
+        self.writer.record_portfolio_snapshot(
+            snapshot=snapshot,
+            operation_id="record-v2-fail-closed-portfolio",
+        )
+        control = self.writer.read_control()
+        assert control is not None
+        authority_fixture = self.root / "v2-fail-closed-authority"
+        authority_paths = (
+            control["authority"]["operating_direction"],
+            *control["authority"]["contracts"],
+            *control["authority"]["foundation_inputs"],
+        )
+        for relative in authority_paths:
+            destination = authority_fixture / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((REPO_ROOT / relative).read_bytes())
+        self.writer.foundation_root = authority_fixture
+        science_path = authority_fixture / "contracts/science.yaml"
+        replacement = (
+            science_path.read_bytes()
+            + b"\nscientific_adjudication_v2:\n  required: true\n"
+        )
+        self.writer.migrate_authority(
+            replacements={"contracts/science.yaml": replacement},
+            reason="exercise fail-closed scientific protocol authority",
+            operation_id="migrate-v2-fail-closed-authority",
+            allow_active_stable_boundary=True,
+        )
+        self.writer.validation_registry = EvidenceValidatorRegistry(
+            (
+                ScientificAdjudicationValidatorV2(),
+                ScientificFixtureValidator(),
+            )
+        )
+        plan = self.writer.evidence.finalize(b"legacy validator plan")
+        spec = job_spec(
+            self.writer,
+            {"kind": "Executable", "id": "executable:" + "d" * 64},
+        )
+        spec["input_hashes"] = [
+            *spec["input_hashes"],  # type: ignore[list-item]
+            plan.sha256,
+        ]
+        spec["expected_outputs"] = [
+            "evidence/v2-fail-closed-measurement",
+            "evidence/v2-fail-closed-result",
+        ]
+        spec["output_classes"] = {
+            "evidence/v2-fail-closed-measurement": "durable_evidence",
+            "evidence/v2-fail-closed-result": "durable_evidence",
+        }
+        spec["scientific_binding"] = {
+            "evidence_depth": "discovery",
+            "evidence_modes": [
+                "causal_contrast",
+                "cost_and_execution",
+                "sensitivity_or_stress",
+            ],
+            "planned_claims": ["claim-a"],
+            "result_manifest_output": "evidence/v2-fail-closed-result",
+            "validation_plan_hash": plan.sha256,
+            "validator_id": ScientificFixtureValidator.validator_id,
+        }
+        with self.assertRaisesRegex(
+            TransitionError,
+            "authority requires an active v2 scientific protocol",
+        ):
+            self.writer.declare_job(
+                spec=spec,
+                operation_id="reject-v2-authority-without-activation",
+            )
+
+    def test_context_only_source_can_be_permanently_rejected_by_audit(self) -> None:
+        self.open_mission_and_initiative()
+        contract = source_contract()
+        context = SourceEligibility.register(contract)
+        registered = self.writer.record_source_eligibility(
+            eligibility=context,
+            receipt=None,
+            operation_id="register-context-only-source-for-audit",
+        )
+        source_state_record_id = canonical_digest(
+            domain="source-state",
+            payload={
+                "source_id": contract.source_contract_id,
+                "state": "context_only",
+                "ordinal": registered.result["ordinal"],
+                "evidence_receipt_id": None,
+            },
+        )
+        snapshot = PortfolioSnapshot(
+            mission_id="MIS-FIXTURE",
+            axes=(
+                PortfolioAxis(
+                    axis_id="context-audit-axis-a",
+                    causal_question="Can the audited source support a causal claim?",
+                    mechanism_family="source-authority-audit",
+                ),
+                PortfolioAxis(
+                    axis_id="context-audit-axis-b",
+                    causal_question="What independent axis remains available?",
+                    mechanism_family="independent-control",
+                ),
+            ),
+            opportunity_cost_basis="reject invalid authority before evidence production",
+        )
+        self.writer.record_portfolio_snapshot(
+            snapshot=snapshot,
+            operation_id="context-only-audit-portfolio",
+        )
+        report = self.writer.evidence.finalize(
+            source_audit_report_bytes(
+                finding_id="SOURCE-CONTEXT-001",
+                source_contract_id=contract.source_contract_id,
+                source_state_record_id=source_state_record_id,
+            )
+        )
+        manifest = SourceAuthorityAuditManifest(
+            report_artifact_hash=report.sha256,
+            report_finding_id="SOURCE-CONTEXT-001",
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=source_state_record_id,
+            surface=SourceAuthoritySurface.AVAILABILITY,
+            reason_code=SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN,
+            observed_defect="context contract asserts unavailable point-in-time facts",
+            observed_at_utc=FIXED_NOW,
+        )
+        manifest_artifact = self.writer.evidence.finalize(
+            canonical_bytes(manifest.to_identity_payload())
+        )
+        invalidation = SourceAuthorityInvalidation(
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=source_state_record_id,
+            audit_artifact_hash=manifest_artifact.sha256,
+            surface=SourceAuthoritySurface.AVAILABILITY,
+            reason_code=SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN,
+            observed_defect="context contract asserts unavailable point-in-time facts",
+            observed_at_utc=FIXED_NOW,
+        )
+        suspended = self.writer.suspend_source_authority_from_audit(
+            invalidation=invalidation,
+            operation_id="reject-context-only-source-from-audit",
+        )
+        self.assertEqual(suspended.result["invalidated_state"], "context_only")
+        self.assertEqual(suspended.result["state"], "suspended")
+        with LocalIndex(self.writer.index_path) as index:
+            correction = index.get(
+                "source-authority-invalidation", invalidation.identity
+            )
+            head = index.event_head(f"source:{contract.source_contract_id}")
+            assert head is not None
+            state = index.get(head.record_kind, head.record_id)
+            with self.assertRaisesRegex(
+                PermitError, "permanently audit-invalidated"
+            ):
+                self.writer._require_source_authority_for_actions(
+                    index,
+                    contract.source_contract_id,
+                    actions=("performance_batch",),
+                    error_type=PermitError,
+                )
+        assert correction is not None and state is not None
+        self.assertIsNone(correction.payload["preserved_receipt_id"])
+        self.assertEqual(correction.payload["invalidated_state"], "context_only")
+        self.assertIsNone(state.payload["receipt"])
+        self.assertEqual(state.status, "suspended")
+        with self.assertRaisesRegex(TransitionError, "new SourceContract"):
+            self.writer.record_source_eligibility(
+                eligibility=context,
+                receipt=None,
+                operation_id="reject-context-only-source-reregistration",
+            )
+
+    def test_historical_adjudication_is_additive_and_replay_scoped(self) -> None:
+        self.open_mission_and_initiative()
+        study_id = "STU-HISTORICAL-ADJUDICATION"
+        source_id = "source:" + "e" * 64
+        trial_executable = {
+            "schema": "historical_trial_fixture.v1",
+            "source_contracts": [source_id],
+        }
+        executable_id = "executable:" + canonical_digest(
+            domain="executable", payload=trial_executable
+        )
+        job_id = "job:" + "b" * 64
+        completion_id = canonical_digest(
+            domain="fixture-completion", payload={"study_id": study_id}
+        )
+        close_id = canonical_digest(
+            domain="fixture-study-close", payload={"study_id": study_id}
+        )
+        memory_id = "negative-memory:" + canonical_digest(
+            domain="fixture-negative-memory", payload={"study_id": study_id}
+        )
+        eligible_state_id = canonical_digest(
+            domain="fixture-source-state",
+            payload={"source_id": source_id, "state": "runtime_eligible"},
+        )
+        audit = self.writer.evidence.finalize(
+            source_audit_report_bytes(
+                finding_id="SOURCE-AUTH-HISTORICAL",
+                source_contract_id=source_id,
+                source_state_record_id=eligible_state_id,
+            )
+        )
+        observed_defect = "legacy source had no point-in-time authority"
+        source_manifest = SourceAuthorityAuditManifest(
+            report_artifact_hash=audit.sha256,
+            report_finding_id="SOURCE-AUTH-HISTORICAL",
+            source_contract_id=source_id,
+            source_state_record_id=eligible_state_id,
+            surface=SourceAuthoritySurface.AVAILABILITY,
+            reason_code=SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN,
+            observed_defect=observed_defect,
+            observed_at_utc=FIXED_NOW,
+        )
+        source_manifest_artifact = self.writer.evidence.finalize(
+            canonical_bytes(source_manifest.to_identity_payload())
+        )
+        source_invalidation = SourceAuthorityInvalidation(
+            source_contract_id=source_id,
+            source_state_record_id=eligible_state_id,
+            audit_artifact_hash=source_manifest_artifact.sha256,
+            surface=SourceAuthoritySurface.AVAILABILITY,
+            reason_code=SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN,
+            observed_defect=observed_defect,
+            observed_at_utc=FIXED_NOW,
+        )
+        source_override = HistoricalValidityOverride(
+            reason=HistoricalValidityReason.SOURCE_AUTHORITY_INVALIDATED,
+            subject_id=source_id,
+            evidence_record_id=source_invalidation.identity,
+        )
+        source_latch = SourceAuthorityLatch.bind(
+            invalidation=source_invalidation,
+            manifest=source_manifest,
+        )
+        suspended_state_id = canonical_digest(
+            domain="fixture-source-state",
+            payload={"source_id": source_id, "state": "suspended"},
+        )
+        preserved_receipt_id = "source-receipt:" + "f" * 64
+        preserved_receipt = {"fixture": "historical-source-receipt"}
+        criteria = discovery_criteria(
+            control_delta_metric="control_delta_net_profit_micropoints",
+            control_pvalue_metric="control_pvalue_upper_ppm",
+            include_opposite_sign=False,
+        )
+        evidence_modes = [
+            "causal_contrast",
+            "cost_and_execution",
+            "extreme_or_boundary",
+            "regime_stability",
+            "sensitivity_or_stress",
+            "temporal_stability",
+        ]
+        plan = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "candidate_eligible_on_pass": False,
+                    "criteria": list(criteria),
+                    "evidence_depth": "discovery",
+                    "evidence_modes": evidence_modes,
+                    "executable_id": executable_id,
+                    "mission_id": "MIS-FIXTURE",
+                    "planned_claims": list(PLANNED_CLAIMS),
+                    "schema": "scientific_validation_plan.v1",
+                }
+            )
+        )
+        measurement = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "claims": list(PLANNED_CLAIMS),
+                    "evidence_depth": "discovery",
+                    "evidence_modes": evidence_modes,
+                    "executable_id": executable_id,
+                    "job_hash": job_id.removeprefix("job:"),
+                    "job_id": job_id,
+                    "metrics": {
+                        "activity_and_concentration": {
+                            "entries_per_day_milli": 5_000,
+                            "top5_profit_day_share_ppm": 150_000,
+                            "trade_count": 1_000,
+                        },
+                        "after_cost_fixed_lot_economics": {
+                            "median_fold_profit_factor_milli": 1_200,
+                            "monthly_realized_exit_drawdown_share_of_gross_profit_ppm": 800_000,
+                            "net_profit_micropoints": 9_000_000_000,
+                            "stress_net_profit_micropoints": 6_000_000_000,
+                        },
+                        "causal_feature_and_execution_validity": {
+                            "append_invariance_mismatch_count": 0,
+                            "causality_violation_count": 0,
+                            "nonfinite_metric_count": 0,
+                            "prefix_invariance_mismatch_count": 0,
+                            "unknown_cost_unresolved_signal_count": 0,
+                        },
+                        "registered_control_contrast": {
+                            "control_delta_net_profit_micropoints": 2_000_000_000,
+                            "control_pvalue_upper_ppm": 1_000_000,
+                        },
+                        "selection_aware_signal_evidence": {
+                            "selection_aware_pvalue_ppm": 1_000_000,
+                        },
+                        "temporal_and_regime_stability": {
+                            "evaluable_folds": 9,
+                            "supported_positive_regime_count": 2,
+                            "winning_fold_count": 6,
+                        },
+                    },
+                    "mission_id": "MIS-FIXTURE",
+                    "schema": "scientific_measurement.v1",
+                }
+            )
+        )
+
+        def seed(current, _index):
+            assert current is not None
+            body = self.writer._body(current)
+            body["next_action"] = {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": "portfolio:" + "c" * 64,
+            }
+            records = [
+                IndexRecord(
+                    kind="study-open",
+                    record_id=study_id,
+                    subject=f"Study:{study_id}",
+                    status="open",
+                    fingerprint="d" * 64,
+                    payload={"mission_id": "MIS-FIXTURE"},
+                ),
+                IndexRecord(
+                    kind="study-close",
+                    record_id=close_id,
+                    subject=f"Study:{study_id}",
+                    status="not_supported",
+                    fingerprint="d" * 64,
+                    payload={"outcome": "not_supported"},
+                ),
+                IndexRecord(
+                    kind="job-declared",
+                    record_id=job_id,
+                    subject=f"Job:{job_id}",
+                    status="declared",
+                    fingerprint=job_id.removeprefix("job:"),
+                    payload={
+                        "mission_id": "MIS-FIXTURE",
+                        "study_id": study_id,
+                        "spec": {
+                            "evidence_subject": {
+                                "kind": "Executable",
+                                "id": executable_id,
+                            },
+                            "input_hashes": [plan.sha256],
+                        },
+                    },
+                ),
+                IndexRecord(
+                    kind="job-completed",
+                    record_id=completion_id,
+                    subject=f"Job:{job_id}",
+                    status="failed",
+                    fingerprint=job_id.removeprefix("job:"),
+                    payload={
+                        "job_id": job_id,
+                        "outputs": {
+                            "validation-plan.json": plan.sha256,
+                            "measurement.json": measurement.sha256,
+                        },
+                        "scientific": {
+                            "executable_id": executable_id,
+                            "measurement_artifact_hashes": [measurement.sha256],
+                            "validation_plan_hash": plan.sha256,
+                            "verdict": "failed",
+                        },
+                    },
+                ),
+                IndexRecord(
+                    kind="negative-memory",
+                    record_id=memory_id,
+                    subject=f"Executable:{executable_id}",
+                    status="durable",
+                    fingerprint=memory_id.removeprefix("negative-memory:"),
+                    payload={"study_id": study_id},
+                ),
+                IndexRecord(
+                    kind="trial",
+                    record_id=executable_id,
+                    subject="Batch:BAT-HISTORICAL",
+                    status="evaluated",
+                    fingerprint=executable_id.removeprefix("executable:"),
+                    payload={"executable": trial_executable},
+                ),
+                IndexRecord(
+                    kind="source-state",
+                    record_id=eligible_state_id,
+                    subject=f"Source:{source_id}",
+                    status="runtime_eligible",
+                    fingerprint=source_id,
+                    payload={
+                        "evidence_receipt_id": preserved_receipt_id,
+                        "receipt": preserved_receipt,
+                    },
+                    event_stream=f"source:{source_id}",
+                    event_sequence=1,
+                ),
+                IndexRecord(
+                    kind="source-authority-invalidation",
+                    record_id=source_invalidation.identity,
+                    subject=f"Source:{source_id}",
+                    status="confirmed_and_suspended",
+                    fingerprint=source_invalidation.identity.removeprefix(
+                        "source-authority-invalidation:"
+                    ),
+                    payload={
+                        "audit_manifest": source_manifest.to_identity_payload(),
+                        "eligible_source_state_record_id": eligible_state_id,
+                        "invalidated_state": "runtime_eligible",
+                        "invalidation": source_invalidation.to_identity_payload(),
+                        "latch": source_latch.to_identity_payload(),
+                        "preserved_receipt_id": preserved_receipt_id,
+                        "prior_active_source_state_record_id": eligible_state_id,
+                        "replacement_state_record_id": suspended_state_id,
+                        "scientific_trial_delta": 0,
+                    },
+                    event_stream=f"source-authority:{source_id}",
+                    event_sequence=1,
+                ),
+                IndexRecord(
+                    kind="source-state",
+                    record_id=suspended_state_id,
+                    subject=f"Source:{source_id}",
+                    status="suspended",
+                    fingerprint=source_id,
+                    payload={
+                        "evidence_receipt_id": preserved_receipt_id,
+                        "eligible_source_state_record_id": eligible_state_id,
+                        "prior_active_source_state_record_id": eligible_state_id,
+                        "receipt": preserved_receipt,
+                        "source_authority_latch": source_latch.to_identity_payload(),
+                        "transition_evidence": "authority_invalidation",
+                    },
+                    event_stream=f"source:{source_id}",
+                    event_sequence=2,
+                ),
+            ]
+            return body, records, {"seeded": True}
+
+        self.writer._commit(
+            event_kind="historical_adjudication_fixture_seeded",
+            operation_id="historical-adjudication-seed",
+            subject=f"Study:{study_id}",
+            payload={"study_id": study_id},
+            prepare=seed,
+        )
+        before = self.writer.read_control()
+        recorded = self.writer.record_historical_scientific_adjudications(
+            requests=(
+                HistoricalAdjudicationRequest(
+                    completion_record_id=completion_id,
+                    disposition=HistoricalDisposition.REPLAY_REQUIRED,
+                    replay_priority=ReplayPriority.P0,
+                    reason_codes=(
+                        "global_multiplicity_not_a_concurrent_family",
+                        "raw_uncertainty_replay_required",
+                    ),
+                    validity_overrides=(source_override,),
+                ),
+            ),
+            audit_artifact_hash=audit.sha256,
+            operation_id="record-historical-adjudication",
+        )
+        after = self.writer.read_control()
+        assert before is not None and after is not None
+        self.assertEqual(after["next_action"], before["next_action"])
+        self.assertEqual(after["scientific"], before["scientific"])
+        self.assertEqual(recorded.result["trial_delta"], 0)
+        self.assertEqual(recorded.result["holdout_delta"], 0)
+        self.assertEqual(recorded.result["candidate_delta"], 0)
+        with LocalIndex(self.writer.index_path) as index:
+            overlay = index.get(
+                "historical-scientific-adjudication",
+                recorded.result["adjudication_record_ids"][0],
+            )
+            original = index.get("job-completed", completion_id)
+            memory = index.get("negative-memory", memory_id)
+        assert overlay is not None and original is not None and memory is not None
+        self.assertEqual(overlay.status, "replay_required")
+        self.assertEqual(overlay.payload["adjudication"]["state"], "partial_positive")
+        self.assertEqual(overlay.payload["adjudication"]["legacy_verdict"], "failed")
+        self.assertEqual(overlay.payload["negative_memory_ids"], [memory_id])
+        self.assertEqual(original.status, "failed")
+        self.assertEqual(memory.status, "durable")
+
+        source_qualified = self.writer.record_historical_scientific_adjudications(
+            requests=(
+                HistoricalAdjudicationRequest(
+                    completion_record_id=completion_id,
+                    disposition=(
+                        HistoricalDisposition.NOT_EVALUABLE_QUALIFICATION
+                    ),
+                    replay_priority=ReplayPriority.NONE,
+                    reason_codes=("source_authority_invalidated",),
+                    validity_overrides=(source_override,),
+                ),
+            ),
+            audit_artifact_hash=audit.sha256,
+            operation_id="record-source-invalidated-historical-adjudication",
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            source_overlay = index.get(
+                "historical-scientific-adjudication",
+                source_qualified.result["adjudication_record_ids"][0],
+            )
+        assert source_overlay is not None
+        self.assertEqual(source_overlay.status, "not_evaluable_qualification")
+        self.assertEqual(source_overlay.payload["effective_state"], "not_evaluable")
+        self.assertEqual(
+            source_overlay.payload["profile_authority"],
+            "writer_derived_fixed_legacy_v1",
+        )
+        self.assertEqual(
+            source_overlay.payload["validity_override_authority"],
+            "writer_derived_durable_source_latches",
+        )
+        self.assertEqual(
+            source_overlay.payload["validity_overrides"],
+            [
+                {
+                    "evidence_record_id": source_invalidation.identity,
+                    "reason": "source_authority_invalidated",
+                    "subject_id": source_id,
+                }
+            ],
+        )
+
+        with self.assertRaisesRegex(
+            TransitionError, "Writer-derived durable source-authority latches"
+        ):
+            self.writer.record_historical_scientific_adjudications(
+                requests=(
+                    HistoricalAdjudicationRequest(
+                        completion_record_id=completion_id,
+                        disposition=(
+                            HistoricalDisposition.NOT_EVALUABLE_QUALIFICATION
+                        ),
+                        replay_priority=ReplayPriority.NONE,
+                        reason_codes=("forged_source_invalidation",),
+                        validity_overrides=(
+                            HistoricalValidityOverride(
+                                reason=(
+                                    HistoricalValidityReason.SOURCE_AUTHORITY_INVALIDATED
+                                ),
+                                subject_id=source_id,
+                                evidence_record_id=(
+                                    "source-authority-invalidation:" + "f" * 64
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+                audit_artifact_hash=audit.sha256,
+                operation_id="reject-forged-source-validity-override",
+            )
+
+        with self.assertRaisesRegex(
+            TransitionError, "Writer-derived durable source-authority latches"
+        ):
+            self.writer.record_historical_scientific_adjudications(
+                requests=(
+                    HistoricalAdjudicationRequest(
+                        completion_record_id=completion_id,
+                        disposition=(
+                            HistoricalDisposition.NOT_EVALUABLE_QUALIFICATION
+                        ),
+                        replay_priority=ReplayPriority.NONE,
+                        reason_codes=("unbound_source_invalidation",),
+                        validity_overrides=(
+                            HistoricalValidityOverride(
+                                reason=(
+                                    HistoricalValidityReason.SOURCE_AUTHORITY_INVALIDATED
+                                ),
+                                subject_id="source:" + "d" * 64,
+                                evidence_record_id=source_invalidation.identity,
+                            ),
+                        ),
+                    ),
+                ),
+                audit_artifact_hash=audit.sha256,
+                operation_id="reject-unbound-source-validity-override",
+            )
+
+        with self.assertRaisesRegex(TransitionError, "idempotency key"):
+            self.writer.record_historical_scientific_adjudications(
+                requests=(
+                    HistoricalAdjudicationRequest(
+                        completion_record_id=completion_id,
+                        disposition=HistoricalDisposition.REPLAY_REQUIRED,
+                        replay_priority=ReplayPriority.P0,
+                        reason_codes=(
+                            "global_multiplicity_not_a_concurrent_family",
+                            "raw_uncertainty_replay_required",
+                        ),
+                        validity_overrides=(source_override,),
+                        profile=AdjudicationProfile(
+                            multiplicity=(
+                                bonferroni_concurrent_family(
+                                    criterion_id="E01-familywise-selection",
+                                    family_id="fixture-concurrent-family",
+                                    family_size=2,
+                                    raw_pvalue_ppm=10_000,
+                                    alpha_ppm=50_000,
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+                audit_artifact_hash=audit.sha256,
+                operation_id="record-historical-adjudication",
+            )
+
+        with self.assertRaisesRegex(
+            TransitionError, "profile differs from the Writer-derived"
+        ):
+            self.writer.record_historical_scientific_adjudications(
+                requests=(
+                    HistoricalAdjudicationRequest(
+                        completion_record_id=completion_id,
+                        disposition=HistoricalDisposition.REPLAY_REQUIRED,
+                        replay_priority=ReplayPriority.P0,
+                        reason_codes=("caller_forged_multiplicity",),
+                        validity_overrides=(source_override,),
+                        profile=AdjudicationProfile(
+                            multiplicity=(
+                                bonferroni_concurrent_family(
+                                    criterion_id="E01-familywise-selection",
+                                    family_id="forged-concurrent-family",
+                                    family_size=2,
+                                    raw_pvalue_ppm=1,
+                                    alpha_ppm=50_000,
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+                audit_artifact_hash=audit.sha256,
+                operation_id="reject-caller-forged-historical-profile",
+            )
+
+        rich_job_id = "job:" + "a" * 64
+        rich_completion_id = canonical_digest(
+            domain="fixture-rich-completion", payload={"study_id": study_id}
+        )
+
+        def seed_rich_completion(current, _index):
+            assert current is not None
+            return self.writer._body(current), [
+                IndexRecord(
+                    kind="job-declared",
+                    record_id=rich_job_id,
+                    subject=f"Job:{rich_job_id}",
+                    status="declared",
+                    fingerprint=rich_job_id.removeprefix("job:"),
+                    payload={
+                        "mission_id": "MIS-FIXTURE",
+                        "study_id": study_id,
+                        "spec": {
+                            "evidence_subject": {
+                                "kind": "Executable",
+                                "id": executable_id,
+                            },
+                            "input_hashes": [plan.sha256],
+                        },
+                    },
+                ),
+                IndexRecord(
+                    kind="job-completed",
+                    record_id=rich_completion_id,
+                    subject=f"Job:{rich_job_id}",
+                    status="success",
+                    fingerprint=rich_job_id.removeprefix("job:"),
+                    payload={
+                        "job_id": rich_job_id,
+                        "outputs": {
+                            "validation-plan.json": plan.sha256,
+                            "measurement.json": measurement.sha256,
+                        },
+                        "scientific": {
+                            "adjudication": {
+                                "schema": "scientific_adjudication.v2"
+                            },
+                            "executable_id": executable_id,
+                            "measurement_artifact_hashes": [measurement.sha256],
+                            "validation_plan_hash": plan.sha256,
+                            "verdict": "failed",
+                        },
+                    },
+                ),
+            ], {"seeded": True}
+
+        self.writer._commit(
+            event_kind="rich_scientific_completion_fixture_seeded",
+            operation_id="rich-scientific-completion-seed",
+            subject=f"Study:{study_id}",
+            payload={"completion_record_id": rich_completion_id},
+            prepare=seed_rich_completion,
+        )
+        with self.assertRaisesRegex(
+            TransitionError, "restricted to legacy completions"
+        ):
+            self.writer.record_historical_scientific_adjudications(
+                requests=(
+                    HistoricalAdjudicationRequest(
+                        completion_record_id=rich_completion_id,
+                        disposition=HistoricalDisposition.REPLAY_REQUIRED,
+                        replay_priority=ReplayPriority.P0,
+                        reason_codes=("cannot_rejudge_rich_v2",),
+                        validity_overrides=(source_override,),
+                    ),
+                ),
+                audit_artifact_hash=audit.sha256,
+                operation_id="reject-rich-v2-historical-overlay",
+            )
+
+        with self.assertRaisesRegex(
+            TransitionError, "Writer-derived durable source-authority latches"
+        ):
+            self.writer.record_historical_scientific_adjudications(
+                requests=(
+                    HistoricalAdjudicationRequest(
+                        completion_record_id=completion_id,
+                        disposition=(
+                            HistoricalDisposition.NOT_EVALUABLE_QUALIFICATION
+                        ),
+                        replay_priority=ReplayPriority.NONE,
+                        reason_codes=("caller_cannot_withdraw_source_invalidity",),
+                    ),
+                ),
+                audit_artifact_hash=audit.sha256,
+                operation_id="reject-historical-validity-withdrawal",
+            )
 
     def test_portfolio_cannot_bypass_required_initiative_open(self) -> None:
         self.writer.open_mission(
@@ -2110,6 +3544,19 @@ class WriterTests(unittest.TestCase):
             receipt=recert_receipt,
             operation_id="recertify-source",
         )
+        self.writer.clock = lambda: "2026-07-11T01:00:00Z"
+        with self.assertRaisesRegex(PermitError, "runtime provenance"):
+            self.writer.issue_permit(
+                kind=PermitKind.SOURCE,
+                subject_kind=SubjectKind.STUDY,
+                subject_id="STU-SOURCE",
+                input_hash=source_batch_hash,
+                actions=("runtime_source_use",),
+                scope=(f"source:{contract.source_contract_id}",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="reject-stale-runtime-source-permit",
+            )
         replacement_permit = self.writer.issue_permit(
             kind=PermitKind.SOURCE,
             subject_kind=SubjectKind.STUDY,
@@ -2127,6 +3574,29 @@ class WriterTests(unittest.TestCase):
             source_permits=(replacement_permit,),
             operation_id="open-source-batch",
         )
+        source_component = ComponentSpec(
+            display_name="stale offline source fixture component",
+            protocol="feature.engineering_fixture.v1",
+            implementation="fixture.component.stale_offline_source",
+            spec={"tag": "stale-offline-source"},
+            semantic_dependencies=(contract.source_contract_id,),
+        )
+        source_executable = ExecutableSpec(
+            display_name="stale offline source fixture executable",
+            components=(source_component,),
+            parameters={"tag": "stale-offline-source"},
+            data_contract="data:engineering_fixture",
+            split_contract="split:engineering_fixture",
+            clock_contract="clock:completed_bar_fixture",
+            cost_contract="cost:engineering_fixture",
+            engine_contract="engine:engineering_fixture",
+            source_contracts=(contract.source_contract_id,),
+        )
+        registered = self.writer.register_trial(
+            executable=source_executable,
+            operation_id="register-stale-offline-source-trial",
+        )
+        self.assertEqual(registered.result["trial_delta"], 0)
 
     def test_source_projection_tamper_cannot_issue_permit_and_recovers(self) -> None:
         self.open_mission_and_initiative()
@@ -2554,6 +4024,61 @@ class WriterTests(unittest.TestCase):
                 decision=decision,
                 operation_id="reject-candidate-route-without-initiative",
             )
+
+    def test_generic_job_cannot_report_scientific_falsification(self) -> None:
+        self.open_mission_and_initiative()
+        spec = job_spec(
+            self.writer,
+            {"kind": "Initiative", "id": "INI-FIXTURE"},
+        )
+        declared = self.writer.declare_job(
+            spec=spec,
+            operation_id="declare-generic-failure-kind-boundary",
+        )
+        permit = self.writer.issue_permit(
+            kind=PermitKind.JOB,
+            subject_kind=SubjectKind.JOB,
+            subject_id=declared.result["job_id"],
+            input_hash=declared.result["job_hash"],
+            actions=("start_job",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="permit-generic-failure-kind-boundary",
+        )
+        self.writer.start_job(
+            permit=permit,
+            operation_id="start-generic-failure-kind-boundary",
+        )
+        reproduction = self.writer.evidence.finalize(
+            b"generic Job failure-kind boundary fixture"
+        )
+        common = {
+            "minimum_reproduction_evidence": [reproduction.sha256],
+            "root_cause": "fixture failure",
+            "interrupted_action": spec["callable_identity"],
+            "resume_action": spec["resume_action"],
+        }
+        with self.assertRaisesRegex(
+            TransitionError,
+            "scientific verdict is not a Job execution failure",
+        ):
+            self.writer.complete_job(
+                outcome="failed",
+                output_manifest={},
+                failure={
+                    **common,
+                    "failure_kind": "scientific_falsification",
+                },
+                operation_id="reject-generic-scientific-falsification",
+            )
+        completed = self.writer.complete_job(
+            outcome="failed",
+            output_manifest={},
+            failure={**common, "failure_kind": "engineering"},
+            operation_id="complete-generic-engineering-failure",
+        )
+        self.assertEqual(completed.result["outcome"], "failed")
 
     def test_release_basis_is_derived_only_from_runtime_bound_jobs(self) -> None:
         self.writer.open_mission(
@@ -3433,31 +4958,30 @@ class ScientificLifecycleTests(unittest.TestCase):
                 }
             )
         )
-        outcome = {
-            "passed": "success",
-            "failed": "failed",
-            "not_evaluable": "not_evaluable",
-        }[verdict]
-        failure = None
-        if outcome != "success":
-            failure = {
-                "failure_kind": (
-                    "scientific_falsification"
-                    if verdict == "failed"
-                    else "not_evaluable"
-                ),
-                "minimum_reproduction_evidence": [measurement.sha256],
-                "root_cause": f"fixture scientific verdict {verdict}",
-                "interrupted_action": spec["callable_identity"],
-                "resume_action": spec["resume_action"],
-            }
+        outputs = {
+            result_name: result.sha256,
+            measurement_name: measurement.sha256,
+        }
+        if verdict == "failed":
+            with self.assertRaisesRegex(
+                TransitionError,
+                "scientific verdict is not a Job execution failure",
+            ):
+                writer.complete_job(
+                    outcome="failed",
+                    output_manifest=outputs,
+                    failure={
+                        "failure_kind": "scientific_falsification",
+                        "minimum_reproduction_evidence": [measurement.sha256],
+                        "root_cause": "fixture validator rejected the claim",
+                        "interrupted_action": spec["callable_identity"],
+                        "resume_action": spec["resume_action"],
+                    },
+                    operation_id=f"{tag}-reject-conflated-outcome",
+                )
         completed = writer.complete_job(
-            outcome=outcome,
-            output_manifest={
-                result_name: result.sha256,
-                measurement_name: measurement.sha256,
-            },
-            failure=failure,
+            outcome="success",
+            output_manifest=outputs,
             operation_id=f"{tag}-complete",
         )
         with LocalIndex(writer.index_path) as index:
@@ -3465,6 +4989,9 @@ class ScientificLifecycleTests(unittest.TestCase):
                 "job-completed", completed.result["completion_record_id"]
             )
         assert completion is not None
+        self.assertEqual(completion.status, "success")
+        self.assertIsNone(completion.payload["failure"])
+        self.assertEqual(completed.result["scientific_verdict"], verdict)
         trace = completion.payload["scientific"]["validation_trace"]
         self.assertEqual(trace["declared_artifact_count"], 2)
         self.assertEqual(trace["opened_artifact_count"], 2)
@@ -5072,6 +6599,7 @@ class ResearchDirectionFlowTests(unittest.TestCase):
         )
 
         bootstrap_decision = SimpleNamespace(
+            record_id="decision:legacy-bootstrap",
             payload={
                 "baseline_executable_id": baseline.identity,
                 "baseline_executable": baseline.to_identity_payload(),
@@ -5088,6 +6616,15 @@ class ResearchDirectionFlowTests(unittest.TestCase):
                 self.anchored = anchored
 
             def get(self, kind: str, record_id: str):
+                if (
+                    kind == "portfolio-decision"
+                    and self.anchored
+                    and record_id == bootstrap_decision.record_id
+                ):
+                    return bootstrap_decision
+                return None
+
+            def event_head(self, stream: str):
                 return None
 
             def records_by_kind(self, kind: str):

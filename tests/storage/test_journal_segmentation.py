@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -137,6 +138,115 @@ class JournalSegmentationTests(unittest.TestCase):
             ),
             appended,
         )
+
+    def test_sealed_lookup_verification_count_is_history_size_invariant(self) -> None:
+        verification_counts: list[int] = []
+        for event_count in (3, 250):
+            with self.subTest(event_count=event_count), TemporaryDirectory() as temporary:
+                journal = DurableJournal(
+                    Path(temporary) / "records" / "journal.jsonl"
+                )
+                events = [self.append(journal) for _ in range(event_count)]
+                self.migrate(journal)
+                with patch.object(
+                    journal,
+                    "_read_and_verify_sealed_segment",
+                    wraps=journal._read_and_verify_sealed_segment,
+                ) as verification:
+                    for event in (*events, *reversed(events)):
+                        self.assertEqual(
+                            journal.read_event_at(
+                                offset=event["journal_offset"],
+                                expected_sequence=event["sequence"],
+                                expected_event_id=event["event_id"],
+                            ),
+                            event,
+                        )
+                verification_counts.append(verification.call_count)
+        self.assertEqual(verification_counts, [1, 1])
+
+    def test_sealed_cache_drift_replacement_and_corruption_revalidate(self) -> None:
+        cases = ("content", "size", "seal", "replacement", "cache")
+        for case in cases:
+            with self.subTest(case=case), TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                journal = DurableJournal(root / "records" / "journal.jsonl")
+                event = self.append(journal)
+                self.migrate(journal)
+                directory = root / "records" / "journal"
+                segment = directory / "journal-000001.jsonl"
+                seal = directory / "journal-000001.seal.json"
+                with patch.object(
+                    journal,
+                    "_read_and_verify_sealed_segment",
+                    wraps=journal._read_and_verify_sealed_segment,
+                ) as verification:
+                    journal.read_event_at(
+                        offset=event["journal_offset"],
+                        expected_sequence=event["sequence"],
+                        expected_event_id=event["event_id"],
+                    )
+                    if case == "content":
+                        content = bytearray(segment.read_bytes())
+                        content[10] = ord("z") if content[10] != ord("z") else ord("y")
+                        segment.write_bytes(content)
+                    elif case == "size":
+                        segment.write_bytes(segment.read_bytes()[:-1])
+                    elif case == "seal":
+                        seal.write_bytes(seal.read_bytes()[:-1])
+                    elif case == "replacement":
+                        replacement = directory / "replacement.jsonl"
+                        replacement.write_bytes(segment.read_bytes())
+                        os.replace(replacement, segment)
+                    else:
+                        journal._sealed_segment_cache[  # noqa: SLF001
+                            "records/journal/journal-000001.jsonl"
+                        ] = object()  # type: ignore[assignment]
+                    if case in {"replacement", "cache"}:
+                        self.assertEqual(
+                            journal.read_event_at(
+                                offset=event["journal_offset"],
+                                expected_sequence=event["sequence"],
+                                expected_event_id=event["event_id"],
+                            ),
+                            event,
+                        )
+                    else:
+                        with self.assertRaises(JournalIntegrityError):
+                            journal.read_event_at(
+                                offset=event["journal_offset"],
+                                expected_sequence=event["sequence"],
+                                expected_event_id=event["event_id"],
+                            )
+                self.assertEqual(verification.call_count, 2)
+
+    def test_rotation_reuses_old_seal_and_verifies_only_new_seal(self) -> None:
+        first = self.append()
+        self.migrate()
+        with patch.object(
+            self.journal,
+            "_read_and_verify_sealed_segment",
+            wraps=self.journal._read_and_verify_sealed_segment,
+        ) as verification:
+            self.journal.read_event_at(
+                offset=first["journal_offset"],
+                expected_sequence=first["sequence"],
+                expected_event_id=first["event_id"],
+            )
+            with patch.object(DurableJournal, "MAX_SEGMENT_EVENTS", 1):
+                second = self.append()
+                self.append()
+            self.journal.read_event_at(
+                offset=first["journal_offset"],
+                expected_sequence=first["sequence"],
+                expected_event_id=first["event_id"],
+            )
+            self.journal.read_event_at(
+                offset=second["journal_offset"],
+                expected_sequence=second["sequence"],
+                expected_event_id=second["event_id"],
+            )
+        self.assertEqual(verification.call_count, 2)
 
     def test_event_count_rotation_keeps_whole_event_and_chain(self) -> None:
         self.append()

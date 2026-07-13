@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import unittest
+from hashlib import sha256
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 import numpy as np
 
@@ -10,12 +14,14 @@ from axiom_rift.research.chassis import (
     validate_controlled_executable,
 )
 from axiom_rift.research.governance import ResearchLayer
+from axiom_rift.research import market_residual_event_chassis as chassis_module
 from axiom_rift.research.market_residual_event_chassis import (
     SELECTION_TOTAL_EXPOSURES,
     fit_market_residual,
     market_residual_event_baseline,
     market_residual_event_configurations,
     market_residual_event_executable,
+    market_residual_event_chassis_implementation_sha256,
     project_market_residual_score,
 )
 from axiom_rift.research.us500_source import us500_source_contract
@@ -83,9 +89,9 @@ class MarketResidualEventChassisTests(unittest.TestCase):
 
     def test_residual_subjects_change_exact_feature_trade_synthesis_domains(self) -> None:
         baseline = market_residual_event_baseline()
-        self.assertEqual(
-            baseline.identity,
-            "executable:7d9f63e3a8f74dbd9b0b2a4877c09d6e763dbc67dffb830c6ade10d0640d3458",
+        self.assertIn(
+            market_residual_event_chassis_implementation_sha256(),
+            baseline.engine_contract,
         )
         controlled = ControlledStudyChassis(
             baseline_executable=baseline,
@@ -113,6 +119,32 @@ class MarketResidualEventChassisTests(unittest.TestCase):
                 controlled.to_identity_payload(),
                 market_residual_event_executable(configuration),
             )
+
+    def test_implementation_identity_tracks_artifact_bytes(self) -> None:
+        implementation_path = Path(chassis_module.__file__).resolve()
+        self.assertEqual(
+            market_residual_event_chassis_implementation_sha256(),
+            sha256(implementation_path.read_bytes()).hexdigest(),
+        )
+        with TemporaryDirectory() as temporary:
+            candidate = Path(temporary) / "chassis.py"
+            candidate.write_bytes(b"semantic-manifest-a")
+            with patch.object(chassis_module, "_THIS_FILE", candidate):
+                left = market_residual_event_chassis_implementation_sha256()
+                left_executable = market_residual_event_executable(
+                    market_residual_event_configurations()[1]
+                )
+                candidate.write_bytes(b"semantic-manifest-b")
+                right = market_residual_event_chassis_implementation_sha256()
+                right_executable = market_residual_event_executable(
+                    market_residual_event_configurations()[1]
+                )
+        self.assertNotEqual(left, right)
+        self.assertNotEqual(left_executable.identity, right_executable.identity)
+        self.assertNotEqual(
+            left_executable.engine_contract,
+            right_executable.engine_contract,
+        )
 
     def test_scientific_validator_profile_is_registered(self) -> None:
         self.assertEqual(

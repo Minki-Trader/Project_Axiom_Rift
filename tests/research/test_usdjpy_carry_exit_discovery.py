@@ -15,6 +15,10 @@ from axiom_rift.research.usdjpy_carry_exit_chassis import (
     usdjpy_carry_exit_executable,
 )
 from axiom_rift.research.usdjpy_carry_exit_discovery import (
+    _entry_identity_diagnostics,
+    _held_missing_state_safe_exit_count,
+    _require_no_unexpected_entry_mismatch,
+    USDJPYCarryExitBoundaryError,
     aligned_usdjpy_carry_return,
     project_usdjpy_carry_exit_evaluation,
     source_carry_return,
@@ -26,6 +30,73 @@ from axiom_rift.research.validation import require_supported_evaluation_schema
 
 
 class USDJPYCarryExitDiscoveryTests(unittest.TestCase):
+    def test_only_preregistered_missing_source_entry_removals_are_allowed(self) -> None:
+        decision_a = pd.Timestamp("2026-01-05 15:00:00")
+        decision_b = pd.Timestamp("2026-01-05 15:30:00")
+        entry_a = decision_a + pd.Timedelta(minutes=5)
+        entry_b = decision_b + pd.Timedelta(minutes=5)
+        control = pd.DataFrame(
+            {
+                "slot": ["target_direction", "target_direction"],
+                "decision_time": [decision_a, decision_b],
+                "entry_time": [entry_a, entry_b],
+                "direction": [1, -1],
+            }
+        )
+        subject = control.iloc[[0]].copy()
+        allowed = _entry_identity_diagnostics(
+            control,
+            subject,
+            (
+                (
+                    "target_direction",
+                    decision_b,
+                    entry_b,
+                    entry_b,
+                    -1,
+                    "source_state_missing_no_entry",
+                ),
+            ),
+        )
+        self.assertEqual(
+            allowed["control_source_missing_no_entry_removal_count"], 1
+        )
+        self.assertEqual(allowed["entry_identity_mismatch_count"], 0)
+
+        wrong_reason = _entry_identity_diagnostics(
+            control,
+            subject,
+            (
+                (
+                    "target_direction",
+                    decision_b,
+                    entry_b,
+                    entry_b,
+                    -1,
+                    "some_other_reason",
+                ),
+            ),
+        )
+        self.assertEqual(wrong_reason["unexpected_control_entry_removal_count"], 1)
+        self.assertEqual(wrong_reason["entry_identity_mismatch_count"], 1)
+        with self.assertRaises(USDJPYCarryExitBoundaryError):
+            _require_no_unexpected_entry_mismatch(wrong_reason)
+
+        added = _entry_identity_diagnostics(subject, control, ())
+        self.assertEqual(added["unexpected_subject_entry_addition_count"], 1)
+        self.assertEqual(added["entry_identity_mismatch_count"], 1)
+        with self.assertRaises(USDJPYCarryExitBoundaryError):
+            _require_no_unexpected_entry_mismatch(added)
+
+    def test_held_missing_state_safe_exit_count_is_target_only(self) -> None:
+        trades = pd.DataFrame(
+            {
+                "slot": ["target_direction", "target_direction", "regime_router"],
+                "carry_state_fail_closed": [True, False, True],
+            }
+        )
+        self.assertEqual(_held_missing_state_safe_exit_count(trades), 1)
+
     def test_carry_return_requires_one_exact_consecutive_source_day(self) -> None:
         periods = CARRY_STATE_BARS + 3
         time = pd.date_range("2026-01-05 00:00:00", periods=periods, freq="5min")

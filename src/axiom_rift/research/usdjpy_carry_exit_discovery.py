@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from hashlib import sha256
 from io import BytesIO
@@ -251,6 +252,67 @@ def _entry_rows(trades: pd.DataFrame) -> tuple[tuple[Any, ...], ...]:
     )
 
 
+def _entry_identity_diagnostics(
+    control_trades: pd.DataFrame,
+    subject_trades: pd.DataFrame,
+    subject_intent_rows: tuple[tuple[Any, ...], ...],
+) -> dict[str, int]:
+    """Classify only preregistered source-missing target drops as expected."""
+
+    control = Counter(_entry_rows(control_trades))
+    subject = Counter(_entry_rows(subject_trades))
+    removed = control - subject
+    added = subject - control
+    no_entry_intents = Counter(
+        (row[0], row[1], row[2], row[4])
+        for row in subject_intent_rows
+        if len(row) == 6
+        and row[0] == "target_direction"
+        and row[-1] == "source_state_missing_no_entry"
+    )
+    allowed_removed = removed & no_entry_intents
+    unexpected_removed = removed - allowed_removed
+    unmatched_intents = no_entry_intents - removed
+    unexpected_count = sum(unexpected_removed.values()) + sum(added.values())
+    return {
+        "control_entry_count": sum(control.values()),
+        "subject_entry_count": sum(subject.values()),
+        "source_missing_no_entry_intent_count": sum(no_entry_intents.values()),
+        "control_source_missing_no_entry_removal_count": sum(
+            allowed_removed.values()
+        ),
+        "unmatched_source_missing_no_entry_intent_count": sum(
+            unmatched_intents.values()
+        ),
+        "unexpected_control_entry_removal_count": sum(
+            unexpected_removed.values()
+        ),
+        "unexpected_subject_entry_addition_count": sum(added.values()),
+        "entry_identity_mismatch_count": unexpected_count,
+    }
+
+
+def _held_missing_state_safe_exit_count(trades: pd.DataFrame) -> int:
+    if trades.empty or "carry_state_fail_closed" not in trades:
+        return 0
+    target = trades[trades["slot"] == "target_direction"]
+    if target.empty:
+        return 0
+    return int(target["carry_state_fail_closed"].fillna(False).astype(bool).sum())
+
+
+def _require_no_unexpected_entry_mismatch(
+    diagnostics: Mapping[str, int],
+) -> None:
+    if diagnostics.get("entry_identity_mismatch_count") != 0:
+        raise USDJPYCarryExitBoundaryError(
+            "USDJPY lifecycle has an entry change outside preregistered "
+            "source-missing no-entry drops: "
+            f"removed={diagnostics.get('unexpected_control_entry_removal_count')}, "
+            f"added={diagnostics.get('unexpected_subject_entry_addition_count')}"
+        )
+
+
 def compute_registered_usdjpy_carry_exit_surface(
     repository_root: str | Path,
 ) -> dict[str, Any]:
@@ -335,7 +397,15 @@ def compute_registered_usdjpy_carry_exit_surface(
         )
     results: list[Any] = []
     diagnostics = {
+        "control_entry_count": 0,
+        "subject_entry_count": 0,
+        "source_missing_no_entry_intent_count": 0,
+        "control_source_missing_no_entry_removal_count": 0,
+        "unmatched_source_missing_no_entry_intent_count": 0,
+        "unexpected_control_entry_removal_count": 0,
+        "unexpected_subject_entry_addition_count": 0,
         "entry_identity_mismatch_count": 0,
+        "held_missing_state_safe_exit_count": 0,
         "target_carry_early_exit_count": 0,
         "target_fixed_exit_count": 0,
     }
@@ -461,11 +531,13 @@ def compute_registered_usdjpy_carry_exit_surface(
                     regime_cutoffs=cutoffs,
                     effective_spread=spread,
                 )
-                mismatch = int(
-                    _entry_rows(control_simulation.trades)
-                    != _entry_rows(subject_simulation.trades)
+                entry_diagnostics = _entry_identity_diagnostics(
+                    control_simulation.trades,
+                    subject_simulation.trades,
+                    subject_simulation.intent_rows,
                 )
-                diagnostics["entry_identity_mismatch_count"] += mismatch
+                for name, count in entry_diagnostics.items():
+                    diagnostics[name] += count
                 target_trades = subject_simulation.trades[
                     subject_simulation.trades["slot"] == "target_direction"
                 ]
@@ -476,6 +548,9 @@ def compute_registered_usdjpy_carry_exit_surface(
                 )
                 diagnostics["target_carry_early_exit_count"] += int(early.sum())
                 diagnostics["target_fixed_exit_count"] += int((~early).sum())
+                diagnostics["held_missing_state_safe_exit_count"] += (
+                    _held_missing_state_safe_exit_count(subject_simulation.trades)
+                )
         first = fold_scores[str(folds[0]["fold_id"])]
         results.append(
             _evaluate_configuration(
@@ -493,10 +568,7 @@ def compute_registered_usdjpy_carry_exit_surface(
                 simulation_fn=simulate_usdjpy_carry_exit,
             )
         )
-    if diagnostics["entry_identity_mismatch_count"] != 0:
-        raise USDJPYCarryExitBoundaryError(
-            "USDJPY lifecycle changed an entry identity"
-        )
+    _require_no_unexpected_entry_mismatch(diagnostics)
     adjusted = _selection_adjusted_pvalues(
         results, total_exposures=SELECTION_TOTAL_EXPOSURES
     )
@@ -533,10 +605,12 @@ def compute_registered_usdjpy_carry_exit_surface(
         + [
             "data_source_and_lifecycle_are_the_primary_changed_layers",
             "subject_uses_one_fixed_negative_288_completed_source_bar_state",
-            "subject_changes_only_the_target_sleeve_exit_time",
-            "entry_time_direction_and_original_slot_reservation_are_unchanged",
+            "subject_entry_requires_a_finite_completed_source_state",
+            "source_missing_at_entry_drops_only_the_dependent_target_entry",
+            "a_dropped_entry_reserves_the_exact_control_six_bar_slot",
+            "common_entry_time_direction_and_slot_reservation_are_unchanged",
+            "source_missing_or_stale_while_held_safe_exits_at_the_next_exact_open",
             "router_target_roles_selectors_session_risk_execution_and_lot_are_unchanged",
-            "missing_source_state_retains_the_exact_fixed_six_bar_control_exit",
             "no_source_threshold_lookback_direction_session_hold_model_trade_or_lot_grid",
             "one_new_subject_with_exact_registered_STU_0092_control",
         ],

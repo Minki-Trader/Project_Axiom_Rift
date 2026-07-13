@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from hashlib import sha256
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -12,10 +11,15 @@ from axiom_rift.operations.validation import (
     EvidenceValidationRequest,
     ValidatedEvidence,
     validator_identity,
+    validator_implementation_sha256,
 )
+from axiom_rift.research import sources as sources_module
+from axiom_rift.research import usdjpy_source as source_module
+from axiom_rift.research.sources import INDEPENDENT_POINT_IN_TIME_FACT_FIELDS
 from axiom_rift.research.usdjpy_source import (
     HISTORICAL_FACT_FIELDS,
     RUNTIME_FACT_FIELDS,
+    USDJPY_HISTORICAL_SNAPSHOT_SHA256,
     audit_usdjpy_historical_bytes,
     derive_runtime_facts,
     source_validation_plan_hash,
@@ -24,10 +28,17 @@ from axiom_rift.research.usdjpy_source import (
 
 
 _THIS_FILE = Path(__file__).resolve()
+_DEPENDENCY_PATHS = (
+    Path(sources_module.__file__).resolve(),
+    Path(source_module.__file__).resolve(),
+)
 SOURCE_ELIGIBILITY_VALIDATOR_ID = validator_identity(
-    protocol="fpmarkets_usdjpy_source_eligibility.v1",
+    protocol="fpmarkets_usdjpy_source_eligibility.v2",
     domains=frozenset({"source"}),
-    implementation_sha256=sha256(_THIS_FILE.read_bytes()).hexdigest(),
+    implementation_sha256=validator_implementation_sha256(
+        implementation_path=_THIS_FILE,
+        dependency_paths=_DEPENDENCY_PATHS,
+    ),
 )
 
 
@@ -43,7 +54,8 @@ class SourceEligibilityValidator:
     validator_id = SOURCE_ELIGIBILITY_VALIDATOR_ID
     domains = frozenset({"source"})
     implementation_path = _THIS_FILE
-    protocol = "fpmarkets_usdjpy_source_eligibility.v1"
+    dependency_paths = _DEPENDENCY_PATHS
+    protocol = "fpmarkets_usdjpy_source_eligibility.v2"
 
     def validate(self, request: EvidenceValidationRequest) -> ValidatedEvidence:
         if request.domain != "source" or request.validator_id != self.validator_id:
@@ -119,8 +131,13 @@ class SourceEligibilityValidator:
                 raise EvidenceValidationError(
                     "historical audit was not derived from raw bytes"
                 )
-            if expected["raw_sha256"] != artifacts[csv_names[0]].sha256:
-                raise EvidenceValidationError("historical raw artifact hash differs")
+            if (
+                expected["raw_sha256"] != USDJPY_HISTORICAL_SNAPSHOT_SHA256
+                or expected["raw_sha256"] != artifacts[csv_names[0]].sha256
+            ):
+                raise EvidenceValidationError(
+                    "USDJPY historical bytes differ from the precommitted snapshot"
+                )
             facts = dict(expected["facts"])
             required_fields = HISTORICAL_FACT_FIELDS
         else:
@@ -132,7 +149,7 @@ class SourceEligibilityValidator:
                 raise EvidenceValidationError("runtime probe is not canonical") from exc
             probe = _mapping(probe, "runtime probe")
             if (
-                probe.get("schema") != "usdjpy_runtime_probe_measurement.v1"
+                probe.get("schema") != "usdjpy_runtime_probe_measurement.v2"
                 or probe.get("source_contract_id") != source_id
                 or probe.get("observed_at_utc") != observed_at
             ):
@@ -149,6 +166,14 @@ class SourceEligibilityValidator:
                 if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                     raise EvidenceValidationError("runtime latency is invalid")
             elif value is not True:
+                if (
+                    transition == "historical_audit"
+                    and name in INDEPENDENT_POINT_IN_TIME_FACT_FIELDS
+                ):
+                    raise EvidenceValidationError(
+                        "independent point-in-time source authority is absent: "
+                        f"{name}"
+                    )
                 raise EvidenceValidationError(f"source eligibility fact failed: {name}")
         if canonical_bytes(result.get("facts")) != canonical_bytes(facts):
             raise EvidenceValidationError("result facts differ from derived facts")
