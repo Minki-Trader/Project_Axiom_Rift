@@ -310,3 +310,78 @@ git:
     - history_rewrite
     - unrelated_staging
     - cleanup_outside_verified_allowlist
+project_goal_audit_correction:
+  authority_migration_is_single_writer_only: true
+  historical_state_rewrite_allowed: false
+  accepted_unstarted_decision_withdrawal_requires_exact_basis_and_evidence: true
+  source_authority_invalidation_is_additive_and_latched: true
+  prospective_protocol_rebinds_after_later_authority_migration: true
+job_result_semantics:
+  operational_success_requires_declared_outputs_and_validation: true
+  scientific_verdict_is_independent: true
+  scientific_falsification_as_operational_failure_allowed: false
+  legacy_failed_scientific_completion_remains_readable: true
+  negative_memory_uses_validator_verdict: true
+source_authority_audit:
+  exact_active_source_head_bound: true
+  canonical_audit_manifest_and_report_provenance_required: true
+  unrelated_artifact_reuse_allowed: false
+  prior_legitimate_receipt_preserved: true
+  audit_invalidation_may_not_impersonate_job_completion: true
+  ordinary_same_semantics_recertification_clears_latch: false
+  resolution_policy_required: true
+  current_point_in_time_defect_resolution: new_source_contract
+research_protocol:
+  stream: research-protocol:scientific
+  supported: scientific_adjudication_v2
+  current_authority_manifest_bound: true
+  latest_valid_stream_head_is_active: true
+  authority_migration_requires_additive_rebinding_before_scientific_job: true
+  same_authority_duplicate_activation_allowed: false
+  trial_holdout_and_candidate_delta: 0
+mission_axis_disposition:
+  single_writer_route: record_axis_dispositions
+  portfolio_snapshot_rewrite_allowed: false
+  accepted_evidence_kinds:
+    - job-completed
+    - historical-scientific-adjudication
+    - negative-memory
+  writer_rederives_state_and_candidate_eligibility: true
+  actions:
+    - preserve
+    - replay
+    - reopen
+    - defer
+    - retire_with_reason
+  partial_positive_retirement_allowed: false
+  low_information_retirement_requires_negative_memory: true
+  exact_latest_disposition_required_for_terminal: true
+  terminal_requires_at_least_one_scientifically_exhausted_axis: true
+  unresolved_candidate_eligible_positive_blocks_terminal: true
+  trial_holdout_candidate_and_claim_delta: 0
+validation_economics:
+  routine_study_close_delivery_basis: tamper_evident_high_water_and_new_suffix
+  complete_history_scan: explicit_maintenance_only
+  sealed_segment_hash_cache: process_shared_bounded_by_identity
+  current_kind_counts: materialized_projection
+  routine_cost_may_grow_with_history: false
+study_close_delivery_checkpoint:
+  tracked_checkpoint: records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json
+  schema: study_close_delivery_checkpoint.v1
+  git_authenticated_high_water: true
+  ignored_local_cache_role: non_authoritative_hint_only
+  routine_validation_reads: checkpoint_boundary_and_bounded_suffix
+  routine_active_segment_prefix_rehash_required: false
+  missing_local_cache_forces_full_audit: false
+  initialization_requires_explicit_complete_history_audit: true
+  initialization_commit_trailers:
+    - Axiom-Study-Close-Checkpoint
+    - Axiom-State-Revision
+  prospective_close_advances_checkpoint_in_same_commit: true
+  prospective_required_same_commit_paths:
+    - state/control.json
+    - records/STUDY_KPI.md
+    - resolved_journal_paths
+    - records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json
+  omitted_modified_or_malformed_checkpoint_blocks_later_science: true
+  no_op_guard_rewrites_local_projection: false

@@ -316,10 +316,9 @@ foundation must preserve them and keep later updates receipt-bound.
 - [MUST] OD-SNP-009 Data after 2026-06-26 23:50:00 is the forward-holdout
   candidate boundary, and its reveal count is zero.
 - [MUST] OD-SNP-010 The previous scientific operation evaluated eighteen unique
-  configurations. This remains exposure accounting, while its coupled
-  executable hashes are not new duplicate authority. Future work using the same
-  observed development material includes eighteen as the minimum prior global
-  multiplicity exposure.
+  configurations. This remains descriptive exposure and duplicate-search
+  context. It is never an automatic multiplicity factor for an unrelated or
+  later concurrent family; each adjudication binds its own preregistered family.
 - [MUST] OD-SNP-011 No positive candidate, ingredient, selected bundle, MT5 scout
   evidence, or holdout reveal is inherited into the clean scientific state.
 - [MUST] OD-SNP-012 Zero spread is unknown cost, not free execution. The intake
@@ -416,8 +415,10 @@ runtime_eligible; semantic change requires a new source contract.
   this PC whenever its mechanism requires it, through the actual MT5 path or an
   explicitly allowed local adapter, under a declared update/retrieval SLA and
   explicit market-closure behavior.
-- [MUST] OD-EXT-011 Symbol synchronization, feed freshness, market closure, and
-  latency are tested before the source enters an executable Batch.
+- [MUST] OD-EXT-011 Historical content and semantic eligibility are checked before
+  an offline performance Batch. Live synchronization, freshness, market closure,
+  and latency are checked at runtime entry and candidate-bound runtime evidence;
+  expired wall-clock freshness alone does not invalidate sealed historical bytes.
 - [MUST] OD-EXT-012 information_complete_at <= first_available_at <=
   us100_decision_time is enforced. For bars, information_complete_at is
   bar_close; for macro data it includes release time and vintage; for events it
@@ -539,7 +540,9 @@ runtime_eligible; semantic change requires a new source contract.
   configuration, and evidence-pipeline failure are not scientific failures.
 - [MUST] OD-REP-002 Repair freezes the scientific identity, classifies the cause,
   performs the smallest coherent change, verifies the affected surface, and
-  resumes the interrupted Job.
+  resumes the interrupted Job. A failed repair attempt remains engineering
+  evidence and may be followed by another changed-cause repair while recovery
+  remains feasible and has positive expected value.
 - [MUST] OD-REP-003 Repair does not consume a scientific trial or create negative
   scientific memory.
 - [MUST] OD-REP-004 If a proposed Repair changes scientific semantics, it ceases
@@ -772,12 +775,12 @@ runtime_eligible; semantic change requires a new source contract.
   The tracked commit-msg hook reads the staged Journal, control, and KPI bytes,
   requires all three paths in one commit, deterministically rerenders the KPI,
   and accepts only one contiguous final trailer block bound to the exact close
-  event and revision. Bypassing the hook is prohibited. The StateWriter verifies
-  that the exact tracked executable hook is active and independently audits
-  every prospective closeout or exact authorized repair on local main before a
-  later Portfolio snapshot or Decision, Study, Batch, or Job declaration. A
-  missing, disabled, modified, or malformed checkpoint guard blocks those later
-  scientific state mutations.
+  event and revision. Bypassing the hook is prohibited. Routine StateWriter
+  boundaries verify the exact guard, a tamper-evident local high-water, and only
+  the new delivery suffix. A separate explicit maintenance action may rebuild
+  that projection by a complete audit. Missing, modified, or malformed delivery
+  evidence blocks later scientific mutation without making routine cost grow
+  with all historical closes.
 
 ## 20. Foundation Initiative Boundary
 
@@ -837,7 +840,75 @@ runtime_eligible; semantic change requires a new source contract.
   knowledge and an exhaustion audit. The Project Goal continues through the
   exact predecessor-bound successor without resetting its history.
 
-## 22. Governing Principle
+## 22. Audit-Corrected Quant Research Protocol
+
+- [MUST] OD-AUD-001 Historical events, trials, closes, and negative memories are
+  immutable. A discovered interpretation defect is corrected by an additive,
+  provenance-bound, claim-scoped adjudication or authority invalidation.
+- [MUST] OD-AUD-002 Job outcome describes operational execution only. A completed
+  computation with valid declared outputs is success; its independent scientific
+  verdict is passed, failed, or not_evaluable. Engineering failure has no
+  scientific verdict, falsification, negative memory, or trial implication.
+- [MUST] OD-AUD-003 Scientific adjudication separates validity, discovery,
+  confirmation, and candidate authority. Discovery maps a frontier and can
+  preserve a partial positive, but can never create candidate authority.
+- [MUST] OD-AUD-004 Each preregistered claim criterion has a typed role and one of
+  supported, contradicted, unresolved, invalid, or diagnostic state. Only the
+  criteria declared decisive for that claim may contradict it; missing or
+  invalid inputs make that claim not evaluable rather than falsely negative.
+- [MUST] OD-AUD-005 Selection adjustment binds the exact concurrent family, raw
+  p-value, Monte Carlo uncertainty, method, alpha, and adjusted p-value.
+  Project-wide search history remains context and duplicate authority only.
+- [MUST] OD-AUD-006 A live frontier is scheduled as a simultaneous forest when
+  axes share data and a decision boundary. The scheduler compares information
+  value, identifiability, cost, architecture, and opportunity cost, then deepens,
+  contrasts, recombines, or prunes without recency monopoly.
+- [MUST] OD-AUD-007 Monthly drawdown concentration profile B04 is diagnostic in
+  discovery unless the preregistration makes it a decisive risk gate. Diagnostic
+  failure cannot erase supported signal, activity, or stress economics.
+- [MUST] OD-AUD-008 Mission exhaustion is an evidence-bound professional judgment
+  under its preregistered standard, not satisfaction of counts alone. Numeric
+  floors and required evidence modes remain immutable inside that Mission; an
+  audit-exposed standard defect is preserved for the successor standard rather
+  than used to reinterpret current evidence. Partial, invalid, or unresolved
+  axes require a typed additive preserve, replay, reopen, defer, or reason-bound
+  retirement disposition. A partial positive cannot be manufactured into a
+  prune. At least one axis must be an exact low-information retirement with its
+  required negative depth; every other disposition carries its continuation or
+  reopen condition into the successor. Unresolved candidate-eligible positive
+  evidence still forbids a negative Mission terminal.
+- [MUST] OD-AUD-009 Repair feasibility and expected value, not one failed attempt,
+  determine whether engineering recovery continues. Repeated attempts require a
+  changed cause, input, implementation, or information state.
+- [MUST] OD-AUD-010 Current broker history proves reconstruction under the observed
+  current interface only. It cannot prove historical first availability, vintage,
+  revision state, or point-in-time knowledge without independent evidence.
+- [MUST] OD-AUD-011 MT5 epoch values are an observed coordinate until documentation
+  and the actual provider runtime agree. A conflict leaves absolute timezone,
+  broker-session mapping, and DST authority unknown and permits no silent shift.
+- [MUST] OD-AUD-012 Component and engine identity bind the current implementation
+  bytes and declared semantic dependencies. Fixed labels or copied baseline
+  engine identities cannot attest changed code or a participating source.
+- [MUST] OD-AUD-013 Audit-invalidated source authority is latched on the exact
+  source-state head. Ordinary recertification cannot clear it; the declared
+  resolution policy, normally a new source contract, is required.
+- [MUST] OD-AUD-014 Architecture family identity is semantic: stable component
+  roles, causal boundaries, and runtime bindings define the family. Artifact
+  hashes remain Component and Executable identity, not gratuitous family splits.
+- [MUST] OD-AUD-015 Prospective Studies use reusable component and adjudication
+  engines with declarative plans. Historical runners remain compatibility
+  surfaces until exact parity evidence supports retirement.
+- [MUST] OD-AUD-016 Validation protects the changed surface and claim at risk.
+  Routine checks use keyed projections, immutable-segment verification caches,
+  and suffix guards; complete audits are explicit maintenance, not per-Job delay.
+- [MUST] OD-AUD-017 A missing source at dependent entry means no dependent entry.
+  If a held dependent sleeve loses required state, it follows a preregistered
+  safe exit. Independent controls and unrelated sleeves remain unaffected.
+- [MUST] OD-AUD-018 The first exhaustive audit must be followed by actual research
+  under the repaired protocol and a second exhaustive audit. Neither audit alone
+  creates candidate, terminal, or Project Goal completion authority.
+
+## 23. Governing Principle
 
 - [MUST] OD-PRN-001 Keep the hypothesis space broad, the evidence path narrow and
   clear, and the operating surface light.

@@ -62,3 +62,32 @@ engineering_fixture:
   holdout_delta: 0
   scientific_claim: none
   real_git_worktree_target_allowed: false
+scientific_adjudication_v2:
+  plan_measurement_and_result_are_exact_bound_artifacts: true
+  validator_dependency_hashes_are_identity: true
+  criterion_roles_are_preregistered: true
+  component_dimensions_are_non_compensatory: true
+  invalid_unresolved_and_diagnostic_are_not_failed: true
+  only_exact_contradiction_is_scientific_failure: true
+  discovery_candidate_eligible: false
+  confirmation_candidate_requires_all_decisive_gates: true
+  project_history_fields_in_multiplicity_artifact_allowed: false
+  concurrent_family_raw_and_adjusted_pvalues_recomputed: true
+historical_adjudication:
+  original_evidence_hashes_required: true
+  exact_completion_and_study_close_required: true
+  legacy_completion_without_rich_v2_only: true
+  interpretation_recomputed_by_writer: true
+  profile_is_writer_derived_fixed_legacy_v1: true
+  caller_multiplicity_or_risk_profile_authority: false
+  validity_overrides_are_writer_derived_from_durable_source_latches: true
+  validity_override_supersession_is_union_monotone: true
+  additive_qualification_only: true
+  candidate_trial_and_holdout_delta: 0
+axis_disposition:
+  additive_and_portfolio_snapshot_preserving: true
+  exact_evidence_references_required: true
+  effective_state_and_candidate_eligibility_writer_derived: true
+  partial_invalid_unresolved_and_low_information_preserved: true
+  scientific_exhaustion_requires_exact_negative_depth: true
+  candidate_trial_holdout_and_claim_delta: 0

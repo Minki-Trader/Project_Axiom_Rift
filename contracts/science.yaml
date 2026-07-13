@@ -122,6 +122,8 @@ portfolio:
   initial_snapshot_requires_active_initiative: true
   mission_preregisters_exhaustion_standard: true
   exhaustion_standard_is_immutable: true
+  in_mission_exhaustion_standard_amendment_allowed: false
+  audit_defect_routes_to_successor_standard: true
   minimum_terminal_evidence_modes:
     - causal_contrast
     - sensitivity_or_stress
@@ -302,7 +304,19 @@ terminals:
     closes_only_current_mission: true
     exact_predecessor_bound_successor_required: true
     credible_diverse_frontier_exhaustion_required: true
-    final_snapshot_all_axes_pruned: true
+    final_snapshot_all_axes_pruned: false
+    final_snapshot_all_axes_evidence_bound_disposition: true
+    axis_disposition_record_required: true
+    axis_disposition_actions:
+      - preserve
+      - replay
+      - reopen
+      - defer
+      - retire_with_reason
+    partial_positive_retirement_allowed: false
+    scientific_exhaustion_requires_low_information_negative_depth: true
+    terminal_requires_at_least_one_scientifically_exhausted_axis: true
+    nonexhausted_disposition_carries_successor_condition: true
     stale_axis_meaning_reuse_allowed: false
     unresolved_candidate_eligible_evidence_allowed: false
     candidate_disposition_must_postdate_and_include_positive_completion: true
@@ -312,3 +326,67 @@ terminals:
     operations_contract_required: true
     project_goal_remains_active: true
 live_ready_allowed: false
+scientific_adjudication_v2:
+  prospective_activation_required: true
+  validator_identity_binds_protocol_and_dependencies: true
+  stages:
+    discovery:
+      purpose: frontier_mapping
+      candidate_authority: false
+      partial_positive_allowed: true
+      confirmation_grade_conjunction_required: false
+    confirmation:
+      purpose: promotion_grade_claim_testing
+      untouched_or_separately_permitted_material_required: true
+      candidate_authority_requires_all_decisive_claims: true
+  criterion_roles:
+    - validity
+    - component
+    - multiplicity
+    - risk_diagnostic
+    - risk_gate
+  criterion_states:
+    - supported
+    - contradicted
+    - unresolved
+    - invalid
+    - diagnostic
+  result_states:
+    - not_evaluable
+    - contradicted
+    - unresolved
+    - partial_positive
+    - frontier
+    - confirmed
+  discovery_candidate_eligible: false
+  invalid_or_missing_decisive_input: not_evaluable
+  unrelated_claim_compensation_allowed: false
+  monthly_drawdown_profile_b04_default_role: risk_diagnostic
+  multiplicity:
+    authority: preregistered_concurrent_family_only
+    global_search_history_role: context_and_duplicate_detection_only
+    raw_and_adjusted_values_preserved: true
+    monte_carlo_point_and_upper_preserved: true
+historical_scientific_correction:
+  original_event_rewrite_allowed: false
+  additive_claim_scoped_adjudication_required: true
+  candidate_authority: false
+  trial_or_holdout_delta: 0
+  missing_uncertainty_evidence_opens_bounded_replay: true
+job_science_separation:
+  operational_outcomes:
+    - success
+    - failed
+    - not_evaluable
+  scientific_verdicts:
+    - passed
+    - failed
+    - not_evaluable
+  validator_result_independent_of_job_status: true
+  operational_failure_scientific_falsification_allowed: false
+forest_execution:
+  shared_boundary_axes_may_run_as_one_preregistered_concurrent_family: true
+  sequential_recency_monopoly_allowed: false
+  generic_engine_preferred_over_temporal_study_module: true
+  exact_common_calendar_required: true
+  implicit_missing_day_zero_fill_allowed: false

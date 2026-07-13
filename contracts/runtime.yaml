@@ -90,3 +90,27 @@ claim_guards:
   compile_success_is_runtime_evidence: false
   schedule_replay_is_native_inference_proof: false
   aggregate_profit_is_robustness: false
+source_time_coordinate:
+  mt5_epoch_is_observed_coordinate_not_assumed_timezone: true
+  documentation_runtime_conflict_state: absolute_timezone_unknown
+  broker_timezone_or_dst_inference_from_offset_allowed: false
+  silent_performance_shift_allowed: false
+  session_authority_requires_independent_evidence: true
+source_freshness_scope:
+  sealed_historical_performance_requires_current_wall_clock_freshness: false
+  runtime_entry_and_candidate_runtime_evidence_require_freshness: true
+  trial_registration_reuses_batch_permit_source_scope: true
+source_dependency_lifecycle:
+  missing_at_dependent_entry: no_entry
+  stale_or_missing_while_held: preregistered_safe_exit
+  retain_baseline_pnl_for_missing_dependent_subject: false
+  independent_control_unaffected: true
+  unrelated_sleeves_unaffected: true
+source_authority_invalidation:
+  audit_latched_on_exact_source_head: true
+  ordinary_recertification_restores_invalidated_contract: false
+  point_in_time_authority_defect_requires_new_source_contract: true
+implementation_identity:
+  actual_python_mql_and_dependency_bytes_required: true
+  fixed_placeholder_digest_allowed: false
+  copied_baseline_engine_contract_for_changed_engine_allowed: false
