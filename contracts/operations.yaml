@@ -3,7 +3,12 @@ status: active
 authority:
   operating_direction: OPERATING_DIRECTION.md
   mutable_control: state/control.json
-  durable_journal: records/journal.jsonl
+  durable_journal:
+    legacy_path: records/journal.jsonl
+    segmented_manifest: records/journal/manifest.json
+    resolver: axiom_rift.storage.journal.DurableJournal
+    offset_mode: global_virtual
+    dual_read_compatibility: true
   local_projection: local/index.sqlite
   single_writer: axiom_rift.operations.writer.StateWriter
 transaction:
@@ -18,6 +23,23 @@ transaction:
   reject_future_cursor_or_index: true
   recover_trailing_cursor_or_index: true
   projection_guard_binds_exact_record_digest_chain: true
+journal_storage:
+  schema: journal_manifest_v1
+  sealed_segment_schema: journal_segment_seal_v1
+  active_segment_count: 1
+  sealed_segments_immutable: true
+  sealed_segment_sha256_required: true
+  manifest_changes_only_on_rotation: true
+  segment_byte_limit: 33554432
+  segment_event_limit: 5000
+  event_may_cross_segment_boundary: false
+  event_max_bytes: 1048576
+  legacy_event_bytes_rewritten_on_migration: false
+  existing_global_offsets_preserved: true
+  existing_event_ids_preserved: true
+  rotation_under_single_writer_lock: true
+  interrupted_rotation_requires_recovery_before_append: true
+  unreferenced_segment_allowed: false
 authority_migration:
   journal_first: true
   content_addressed_replacement_bytes_required: true
@@ -175,8 +197,14 @@ git:
     remote_equality_required_before_later_scientific_work: false
     required_same_commit_paths:
       - state/control.json
-      - records/journal.jsonl
       - records/STUDY_KPI.md
+    required_journal_path:
+      legacy: records/journal.jsonl
+      segmented: manifest_active_segment
+      rotation_additional:
+        - records/journal/manifest.json
+        - just_sealed_segment_seal
+        - new_active_segment
     local_ref: main
     remote_ref: origin/main
     one_commit_per_study_close: true
@@ -260,8 +288,8 @@ git:
     old_history_rewrite_allowed: false
     required_same_commit_paths:
       - state/control.json
-      - records/journal.jsonl
       - records/STUDY_KPI.md
+    required_journal_path: resolved_snapshot_active_segment
     local_ref: main
     remote_ref: origin/main
     exact_path_staging_required: true
