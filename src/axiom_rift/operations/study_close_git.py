@@ -1,4 +1,4 @@
-"""Git delivery guard for prospective Study close checkpoints."""
+"""Git delivery guard for legacy and segmented Study-close checkpoints."""
 
 from __future__ import annotations
 
@@ -9,14 +9,22 @@ import re
 import subprocess
 from typing import Any, Mapping, Sequence
 
+from axiom_rift.storage.journal import (
+    JOURNAL_DIRECTORY_RELATIVE_PATH,
+    JOURNAL_MANIFEST_RELATIVE_PATH,
+    JournalIntegrityError,
+    JournalSnapshot,
+    LEGACY_JOURNAL_RELATIVE_PATH,
+    read_journal_snapshot,
+)
 from axiom_rift.storage.study_kpi import StudyKpiProjectionRow, render_study_kpi
 
 
-REQUIRED_PATHS = (
-    "state/control.json",
-    "records/journal.jsonl",
-    "records/STUDY_KPI.md",
-)
+CONTROL_PATH = "state/control.json"
+KPI_PATH = "records/STUDY_KPI.md"
+BASE_REQUIRED_PATHS = (CONTROL_PATH, KPI_PATH)
+# Kept as the exact legacy checkpoint surface for compatibility callers.
+REQUIRED_PATHS = (CONTROL_PATH, LEGACY_JOURNAL_RELATIVE_PATH, KPI_PATH)
 COMMIT_MSG_HOOK_PATH = ".githooks/commit-msg"
 COMMIT_MSG_HOOK = (
     b'#!/bin/sh\nexec python scripts/validate_study_close_commit.py "$1"\n'
@@ -50,12 +58,8 @@ def require_study_close_guard_ready(repository_root: str | Path) -> None:
             "tracked Study-close commit-msg hook is unavailable"
         ) from exc
     if hook_bytes != COMMIT_MSG_HOOK:
-        raise StudyCloseDeliveryError(
-            "tracked Study-close commit-msg hook differs"
-        )
-    staged_entry = str(
-        _git(root, "ls-files", "--stage", "--", COMMIT_MSG_HOOK_PATH)
-    )
+        raise StudyCloseDeliveryError("tracked Study-close commit-msg hook differs")
+    staged_entry = str(_git(root, "ls-files", "--stage", "--", COMMIT_MSG_HOOK_PATH))
     if not staged_entry.startswith("100755 "):
         raise StudyCloseDeliveryError(
             "Study-close commit-msg hook is not tracked executable"
@@ -87,8 +91,93 @@ def _snapshot(root: Path, commit: str, path: str) -> bytes:
     return value
 
 
-def _events(content: bytes) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in content.decode("ascii").splitlines()]
+def _optional_git_file(root: Path, specifier: str, path: str) -> bytes | None:
+    try:
+        value = _git(root, "show", f"{specifier}{path}", binary=True)
+    except subprocess.CalledProcessError:
+        return None
+    assert isinstance(value, bytes)
+    return value
+
+
+def _journal_paths_from_git(root: Path, *arguments: str) -> tuple[str, ...]:
+    try:
+        output = str(_git(root, *arguments))
+    except subprocess.CalledProcessError:
+        return ()
+    return tuple(path for path in output.splitlines() if path)
+
+
+def _worktree_journal(root: Path) -> JournalSnapshot:
+    def load(path: str) -> bytes | None:
+        candidate = root / Path(path)
+        return candidate.read_bytes() if candidate.is_file() else None
+
+    paths: list[str] = []
+    legacy = root / LEGACY_JOURNAL_RELATIVE_PATH
+    if legacy.is_file():
+        paths.append(LEGACY_JOURNAL_RELATIVE_PATH)
+    directory = root / JOURNAL_DIRECTORY_RELATIVE_PATH
+    if directory.is_dir():
+        paths.extend(
+            candidate.relative_to(root).as_posix()
+            for candidate in directory.iterdir()
+            if candidate.is_file() and not candidate.name.startswith(".")
+        )
+    return read_journal_snapshot(load, listed_paths=paths)
+
+
+def _index_journal(root: Path) -> JournalSnapshot:
+    paths = _journal_paths_from_git(
+        root,
+        "ls-files",
+        "--cached",
+        "--",
+        LEGACY_JOURNAL_RELATIVE_PATH,
+        JOURNAL_DIRECTORY_RELATIVE_PATH,
+    )
+    available = set(paths)
+    return read_journal_snapshot(
+        lambda path: (
+            _optional_git_file(root, ":", path) if path in available else None
+        ),
+        listed_paths=paths,
+    )
+
+
+def _commit_journal(
+    root: Path, commit: str, *, validate_events: bool = False
+) -> JournalSnapshot:
+    paths = _journal_paths_from_git(
+        root,
+        "ls-tree",
+        "-r",
+        "--name-only",
+        commit,
+        "--",
+        LEGACY_JOURNAL_RELATIVE_PATH,
+        JOURNAL_DIRECTORY_RELATIVE_PATH,
+    )
+    available = set(paths)
+    return read_journal_snapshot(
+        lambda path: (
+            _optional_git_file(root, f"{commit}:", path)
+            if path in available
+            else None
+        ),
+        listed_paths=paths,
+        validate_events=validate_events,
+    )
+
+
+def _journal_path(path: str) -> bool:
+    return path == LEGACY_JOURNAL_RELATIVE_PATH or path.startswith(
+        JOURNAL_DIRECTORY_RELATIVE_PATH + "/"
+    )
+
+
+def _events(snapshot: JournalSnapshot) -> list[dict[str, Any]]:
+    return [dict(event) for event in snapshot.events]
 
 
 def render_projection(events: Sequence[Mapping[str, Any]]) -> bytes:
@@ -131,6 +220,8 @@ def render_projection(events: Sequence[Mapping[str, Any]]) -> bytes:
 def _validate_boundary(
     *, control: Mapping[str, Any], events: Sequence[Mapping[str, Any]]
 ) -> tuple[str, int]:
+    if not events:
+        raise StudyCloseDeliveryError("Study-close Journal snapshot is empty")
     tail = events[-1]
     event_id = tail["event_id"]
     revision = tail["sequence"]
@@ -165,46 +256,99 @@ def _validate_trailers(message: str, event_id: str, revision: int) -> None:
         )
 
 
+def _required_paths(snapshot: JournalSnapshot) -> set[str]:
+    if snapshot.active_path is None:
+        raise StudyCloseDeliveryError("Study-close Journal has no active path")
+    return {CONTROL_PATH, KPI_PATH, snapshot.active_path}
+
+
+def _manifest_transition_paths(
+    previous: JournalSnapshot | None, current: JournalSnapshot
+) -> set[str]:
+    if current.layout != "segmented":
+        return set()
+    if previous is not None and previous.layout == "segmented":
+        if previous.manifest_path == current.manifest_path:
+            previous_paths = set(previous.journal_paths)
+            current_paths = set(current.journal_paths)
+            if previous_paths == current_paths:
+                return set()
+            return {
+                JOURNAL_MANIFEST_RELATIVE_PATH,
+                *(current_paths - previous_paths),
+            }
+    return {JOURNAL_MANIFEST_RELATIVE_PATH, *current.journal_paths}
+
+
+def _head_journal(root: Path) -> JournalSnapshot | None:
+    try:
+        _git(root, "rev-parse", "--verify", "HEAD")
+    except subprocess.CalledProcessError:
+        return None
+    try:
+        return _commit_journal(root, "HEAD")
+    except JournalIntegrityError as exc:
+        raise StudyCloseDeliveryError("HEAD Journal snapshot is invalid") from exc
+
+
 def validate_commit_message(repository_root: str | Path, message_path: str | Path) -> None:
     root = Path(repository_root).resolve()
-    staged_text = _git(root, "diff", "--cached", "--name-only")
-    unstaged_text = _git(root, "diff", "--name-only")
-    staged = set(str(staged_text).splitlines())
-    unstaged = set(str(unstaged_text).splitlines())
-    journal = root / "records" / "journal.jsonl"
-    pending_close = False
-    if journal.is_file():
-        worktree_events = _events(journal.read_bytes())
-        pending_close = (
-            worktree_events[-1]["event_kind"] == "study_closed"
-            and bool((staged | unstaged) & set(REQUIRED_PATHS))
+    staged = set(str(_git(root, "diff", "--cached", "--name-only")).splitlines())
+    unstaged = set(str(_git(root, "diff", "--name-only")).splitlines())
+    journal_delta = {path for path in staged | unstaged if _journal_path(path)}
+    try:
+        worktree = _worktree_journal(root)
+    except (OSError, JournalIntegrityError) as exc:
+        if journal_delta:
+            raise StudyCloseDeliveryError("worktree Journal snapshot is invalid") from exc
+        return
+    worktree_events = _events(worktree)
+    pending_close = bool(
+        worktree_events
+        and worktree_events[-1]["event_kind"] == "study_closed"
+        and (
+            journal_delta
+            or bool((staged | unstaged) & set(BASE_REQUIRED_PATHS))
         )
-    if not pending_close and "records/journal.jsonl" not in staged:
+    )
+    staged_journal_delta = {path for path in staged if _journal_path(path)}
+    if not pending_close and not staged_journal_delta:
         return
     try:
-        staged_journal = _git(
-            root, "show", ":records/journal.jsonl", binary=True
-        )
-    except subprocess.CalledProcessError:
+        staged_snapshot = _index_journal(root)
+    except (OSError, JournalIntegrityError) as exc:
         if pending_close:
             raise StudyCloseDeliveryError(
-                "pending Study close requires all projection paths staged"
-            ) from None
+                "pending Study close requires a complete staged Journal snapshot"
+            ) from exc
         return
-    assert isinstance(staged_journal, bytes)
-    staged_events = _events(staged_journal)
-    if staged_events[-1]["event_kind"] != "study_closed":
+    staged_events = _events(staged_snapshot)
+    if not staged_events or staged_events[-1]["event_kind"] != "study_closed":
         if pending_close:
             raise StudyCloseDeliveryError(
                 "pending Study close cannot be split across commits"
             )
         return
-    if not set(REQUIRED_PATHS).issubset(staged) or set(REQUIRED_PATHS) & unstaged:
+    previous = _head_journal(root)
+    required = _required_paths(staged_snapshot) | _manifest_transition_paths(
+        previous, staged_snapshot
+    )
+    unreferenced = staged_journal_delta - set(staged_snapshot.journal_paths)
+    if unreferenced:
         raise StudyCloseDeliveryError(
-            "Study close requires state, Journal, and KPI staged together"
+            "Study close stages an unreferenced Journal segment"
         )
-    staged_control = _git(root, "show", ":state/control.json", binary=True)
-    staged_kpi = _git(root, "show", ":records/STUDY_KPI.md", binary=True)
+    if not required.issubset(staged) or required & unstaged:
+        raise StudyCloseDeliveryError(
+            "Study close requires state, active Journal paths, and KPI staged together"
+        )
+    try:
+        staged_control = _git(root, "show", f":{CONTROL_PATH}", binary=True)
+        staged_kpi = _git(root, "show", f":{KPI_PATH}", binary=True)
+    except subprocess.CalledProcessError as exc:
+        raise StudyCloseDeliveryError(
+            "pending Study close requires all projection paths staged"
+        ) from exc
     assert isinstance(staged_control, bytes) and isinstance(staged_kpi, bytes)
     event_id, revision = _validate_boundary(
         control=json.loads(staged_control), events=staged_events
@@ -228,14 +372,7 @@ def _prospective_closes(events: Sequence[Mapping[str, Any]]) -> list[tuple[str, 
 
 
 def _trailer_commits(root: Path) -> dict[tuple[str, int], list[str]]:
-    output = str(
-        _git(
-            root,
-            "log",
-            "main",
-            "--format=%H%x1f%B%x1e",
-        )
-    )
+    output = str(_git(root, "log", "main", "--format=%H%x1f%B%x1e"))
     result: dict[tuple[str, int], list[str]] = {}
     for row in output.split("\x1e"):
         parts = row.strip().split("\x1f", 1)
@@ -258,6 +395,14 @@ def _trailer_commits(root: Path) -> dict[tuple[str, int], list[str]]:
     return result
 
 
+def _parent_journal(root: Path, commit: str) -> JournalSnapshot | None:
+    try:
+        parent = str(_git(root, "rev-parse", f"{commit}^"))
+    except subprocess.CalledProcessError:
+        return None
+    return _commit_journal(root, parent)
+
+
 def _validate_snapshot(root: Path, commit: str, event_id: str, revision: int) -> None:
     if not _ancestor(root, commit, "main"):
         raise StudyCloseDeliveryError("Study-close commit is not on local main")
@@ -274,16 +419,31 @@ def _validate_snapshot(root: Path, commit: str, event_id: str, revision: int) ->
             )
         ).splitlines()
     )
-    if not set(REQUIRED_PATHS).issubset(changed):
+    try:
+        journal = _commit_journal(root, commit)
+        previous = (
+            _parent_journal(root, commit)
+            if journal.layout == "segmented"
+            else None
+        )
+    except (OSError, JournalIntegrityError) as exc:
+        raise StudyCloseDeliveryError("Study-close commit Journal is invalid") from exc
+    required = _required_paths(journal) | _manifest_transition_paths(previous, journal)
+    changed_journal = {path for path in changed if _journal_path(path)}
+    if changed_journal - set(journal.journal_paths):
+        raise StudyCloseDeliveryError(
+            "Study-close commit changed an unreferenced Journal segment"
+        )
+    if not required.issubset(changed):
         raise StudyCloseDeliveryError("Study-close commit split required paths")
-    events = _events(_snapshot(root, commit, "records/journal.jsonl"))
-    control = json.loads(_snapshot(root, commit, "state/control.json"))
+    events = _events(journal)
+    control = json.loads(_snapshot(root, commit, CONTROL_PATH))
     observed_event, observed_revision = _validate_boundary(
         control=control, events=events
     )
     if observed_event != event_id or observed_revision != revision:
         raise StudyCloseDeliveryError("Study-close commit snapshot differs")
-    if _snapshot(root, commit, "records/STUDY_KPI.md") != render_projection(events):
+    if _snapshot(root, commit, KPI_PATH) != render_projection(events):
         raise StudyCloseDeliveryError("Study-close commit KPI differs")
 
 
@@ -291,7 +451,10 @@ def require_all_study_close_deliveries(repository_root: str | Path) -> None:
     root = Path(repository_root).resolve()
     if not (root / ".git").exists():
         return
-    events = _events((root / "records" / "journal.jsonl").read_bytes())
+    try:
+        events = _events(_worktree_journal(root))
+    except (OSError, JournalIntegrityError) as exc:
+        raise StudyCloseDeliveryError("worktree Journal audit failed") from exc
     trailer_commits = _trailer_commits(root)
     repair_path = root / "records" / "STUDY_CLOSE_DELIVERY_REPAIR.json"
     repaired: dict[tuple[str, int], str] = {}
@@ -319,22 +482,26 @@ def require_all_study_close_deliveries(repository_root: str | Path) -> None:
                 matches.append(parts[0].strip())
         if repaired and len(matches) != 1:
             raise StudyCloseDeliveryError("delivery repair attestation is absent")
-    for event_id, revision in _prospective_closes(events):
-        commits = trailer_commits.get((event_id, revision), [])
+    for close_event_id, close_revision in _prospective_closes(events):
+        commits = trailer_commits.get((close_event_id, close_revision), [])
         if len(commits) == 1:
-            _validate_snapshot(root, commits[0], event_id, revision)
+            _validate_snapshot(root, commits[0], close_event_id, close_revision)
             continue
-        repaired_commit = repaired.get((event_id, revision))
+        repaired_commit = repaired.get((close_event_id, close_revision))
         if len(commits) == 0 and repaired_commit is not None:
-            _validate_snapshot(root, repaired_commit, event_id, revision)
+            _validate_snapshot(root, repaired_commit, close_event_id, close_revision)
             continue
         raise StudyCloseDeliveryError(
-            f"Study close {event_id} revision {revision} lacks one authenticated commit"
+            f"Study close {close_event_id} revision {close_revision} "
+            "lacks one authenticated commit"
         )
 
 
 __all__ = [
+    "BASE_REQUIRED_PATHS",
+    "REQUIRED_PATHS",
     "StudyCloseDeliveryError",
+    "render_projection",
     "require_all_study_close_deliveries",
     "require_study_close_guard_ready",
     "validate_commit_message",

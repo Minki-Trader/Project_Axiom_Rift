@@ -13,10 +13,16 @@ from .index import (
 from .evidence import EvidenceArtifact, EvidenceManifestTrace, EvidenceStore
 from .journal import (
     DurableJournal,
+    JOURNAL_DIRECTORY_RELATIVE_PATH,
+    JOURNAL_MANIFEST_RELATIVE_PATH,
+    JOURNAL_STORAGE_MIGRATION_SCHEMA,
     JournalError,
     JournalHead,
     JournalIntegrityError,
+    JournalSnapshot,
+    LEGACY_JOURNAL_RELATIVE_PATH,
     TornJournalError,
+    read_journal_snapshot,
 )
 from .state import (
     ConcurrentWriterError,
@@ -39,15 +45,21 @@ __all__ = [
     "EventHead",
     "IndexIntegrityError",
     "IndexRecord",
+    "JOURNAL_DIRECTORY_RELATIVE_PATH",
+    "JOURNAL_MANIFEST_RELATIVE_PATH",
+    "JOURNAL_STORAGE_MIGRATION_SCHEMA",
     "JournalError",
     "JournalHead",
     "JournalIntegrityError",
+    "JournalSnapshot",
+    "LEGACY_JOURNAL_RELATIVE_PATH",
     "LocalIndex",
     "LocalIndexError",
     "QueryPlanError",
     "RecordCollisionError",
     "TornJournalError",
     "WriterLock",
+    "read_journal_snapshot",
     "seal_control",
     "validate_control",
 ]

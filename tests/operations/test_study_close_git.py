@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import json
+from hashlib import sha256
 from pathlib import Path
 import subprocess
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.study_close_git import (
     StudyCloseDeliveryError,
     render_projection,
@@ -15,9 +18,9 @@ from axiom_rift.operations.study_close_git import (
     validate_commit_message,
 )
 from axiom_rift.operations.writer import StateWriter,TransitionError
+from axiom_rift.storage.journal import _render_manifest, _render_seal
 
 
-EVENT_ID = "a" * 64
 EXECUTABLE_ID = "executable:" + "b" * 64
 
 
@@ -25,10 +28,22 @@ def run(root: Path, *arguments: str) -> None:
     subprocess.run(arguments, cwd=root, check=True, capture_output=True)
 
 
-def close_event() -> dict[str, object]:
-    return {
-        "event_id": EVENT_ID,
+def close_event(
+    *,
+    sequence: int = 1,
+    previous_event_id: str | None = None,
+    journal_offset: int = 0,
+) -> dict[str, object]:
+    base: dict[str, object] = {
+        "schema": "journal_event",
+        "sequence": sequence,
+        "previous_event_id": previous_event_id,
+        "journal_offset": journal_offset,
         "event_kind": "study_closed",
+        "operation_id": "close-study",
+        "subject": "Study:STU-TEST",
+        "payload": {},
+        "control": {},
         "index_records": [
             {
                 "kind": "study-kpi",
@@ -48,9 +63,39 @@ def close_event() -> dict[str, object]:
                 },
             }
         ],
+        "index_record_count": sequence + 1,
+        "index_projection_digest": "c" * 64,
         "occurred_at_utc": "2026-07-12T00:00:00Z",
-        "sequence": 1,
     }
+    return {
+        **base,
+        "event_id": canonical_digest(domain="journal-event", payload=base),
+    }
+
+
+def fixture_event() -> dict[str, object]:
+    base: dict[str, object] = {
+        "schema": "journal_event",
+        "sequence": 1,
+        "previous_event_id": None,
+        "journal_offset": 0,
+        "event_kind": "fixture_recorded",
+        "operation_id": "fixture-one",
+        "subject": "Fixture:Git",
+        "payload": {},
+        "control": {},
+        "index_records": [],
+        "index_record_count": 1,
+        "index_projection_digest": "d" * 64,
+        "occurred_at_utc": "2026-07-11T00:00:00Z",
+    }
+    return {
+        **base,
+        "event_id": canonical_digest(domain="journal-event", payload=base),
+    }
+
+
+EVENT_ID = str(close_event()["event_id"])
 
 
 class StudyCloseGitTests(unittest.TestCase):
@@ -73,8 +118,8 @@ class StudyCloseGitTests(unittest.TestCase):
         run(self.root, "git", "config", "core.hooksPath", ".githooks")
         event = close_event()
         events = [event]
-        (self.root / "records" / "journal.jsonl").write_text(
-            json.dumps(event, separators=(",", ":")) + "\n", encoding="ascii"
+        (self.root / "records" / "journal.jsonl").write_bytes(
+            canonical_bytes(event) + b"\n"
         )
         (self.root / "state" / "control.json").write_text(
             json.dumps(
@@ -101,6 +146,39 @@ class StudyCloseGitTests(unittest.TestCase):
             )
         path.write_text(value, encoding="ascii")
         return path
+
+    def write_control(self, event: dict[str, object]) -> None:
+        (self.root / "state" / "control.json").write_text(
+            json.dumps(
+                {
+                    "heads": {"journal": {"event_id": event["event_id"]}},
+                    "revision": event["sequence"],
+                },
+                separators=(",", ":"),
+            ),
+            encoding="ascii",
+        )
+
+    def convert_to_segmented(self) -> None:
+        legacy = self.root / "records" / "journal.jsonl"
+        content = legacy.read_bytes()
+        legacy.unlink()
+        directory = self.root / "records" / "journal"
+        directory.mkdir()
+        (directory / "journal-000001.jsonl").write_bytes(content)
+        (directory / "manifest.json").write_bytes(
+            _render_manifest(
+                sealed_segments=(),
+                active_segment={
+                    "id": "000001",
+                    "path": "records/journal/journal-000001.jsonl",
+                    "start_offset": 0,
+                    "first_sequence": 1,
+                    "previous_event_id": None,
+                },
+            )
+        )
+        run(self.root, "git", "add", "-A", "records")
 
     def test_exact_staged_snapshot_and_trailers_pass(self) -> None:
         validate_commit_message(self.root, self.message(valid=True))
@@ -130,6 +208,131 @@ class StudyCloseGitTests(unittest.TestCase):
 
     def test_committed_checkpoint_passes_full_audit(self) -> None:
         message = self.message(valid=True)
+        run(
+            self.root,
+            "git",
+            "-c",
+            "core.hooksPath=.git/hooks",
+            "commit",
+            "-F",
+            str(message),
+        )
+        require_all_study_close_deliveries(self.root)
+
+    def test_segmented_staged_snapshot_and_trailers_pass(self) -> None:
+        self.convert_to_segmented()
+        validate_commit_message(self.root, self.message(valid=True))
+
+    def test_segmented_committed_checkpoint_passes_full_audit(self) -> None:
+        self.convert_to_segmented()
+        message = self.message(valid=True)
+        run(
+            self.root,
+            "git",
+            "-c",
+            "core.hooksPath=.git/hooks",
+            "commit",
+            "-F",
+            str(message),
+        )
+        require_all_study_close_deliveries(self.root)
+
+    def test_segmented_active_path_is_required(self) -> None:
+        self.convert_to_segmented()
+        run(self.root, "git", "reset")
+        run(self.root, "git", "add", "state/control.json")
+        run(self.root, "git", "add", "records/STUDY_KPI.md")
+        run(self.root, "git", "add", "records/journal/manifest.json")
+        with self.assertRaisesRegex(StudyCloseDeliveryError, "complete|staged"):
+            validate_commit_message(self.root, self.message(valid=True))
+
+    def test_rotation_and_study_close_are_one_valid_checkpoint(self) -> None:
+        run(self.root, "git", "reset")
+        event_one = fixture_event()
+        first_frame = canonical_bytes(event_one) + b"\n"
+        legacy = self.root / "records" / "journal.jsonl"
+        legacy.unlink()
+        directory = self.root / "records" / "journal"
+        directory.mkdir()
+        segment_one = directory / "journal-000001.jsonl"
+        segment_one.write_bytes(first_frame)
+        (directory / "manifest.json").write_bytes(
+            _render_manifest(
+                sealed_segments=(),
+                active_segment={
+                    "id": "000001",
+                    "path": "records/journal/journal-000001.jsonl",
+                    "start_offset": 0,
+                    "first_sequence": 1,
+                    "previous_event_id": None,
+                },
+            )
+        )
+        self.write_control(event_one)
+        (self.root / "records" / "STUDY_KPI.md").write_bytes(
+            render_projection([event_one])
+        )
+        run(self.root, "git", "add", "-A", "state", "records", ".githooks")
+        run(
+            self.root,
+            "git",
+            "-c",
+            "core.hooksPath=.git/hooks",
+            "commit",
+            "-m",
+            "Seed segmented Journal fixture",
+        )
+
+        event_two = close_event(
+            sequence=2,
+            previous_event_id=str(event_one["event_id"]),
+            journal_offset=len(first_frame),
+        )
+        descriptor = {
+            "id": "000001",
+            "path": "records/journal/journal-000001.jsonl",
+            "seal_path": "records/journal/journal-000001.seal.json",
+            "start_offset": 0,
+            "byte_length": len(first_frame),
+            "first_sequence": 1,
+            "last_sequence": 1,
+            "first_event_id": event_one["event_id"],
+            "last_event_id": event_one["event_id"],
+            "sha256": sha256(first_frame).hexdigest(),
+        }
+        (directory / "journal-000001.seal.json").write_bytes(
+            _render_seal(descriptor)
+        )
+        (directory / "journal-000002.jsonl").write_bytes(
+            canonical_bytes(event_two) + b"\n"
+        )
+        (directory / "manifest.json").write_bytes(
+            _render_manifest(
+                sealed_segments=(descriptor,),
+                active_segment={
+                    "id": "000002",
+                    "path": "records/journal/journal-000002.jsonl",
+                    "start_offset": len(first_frame),
+                    "first_sequence": 2,
+                    "previous_event_id": event_one["event_id"],
+                },
+            )
+        )
+        self.write_control(event_two)
+        (self.root / "records" / "STUDY_KPI.md").write_bytes(
+            render_projection([event_one, event_two])
+        )
+        run(self.root, "git", "add", "state/control.json")
+        run(self.root, "git", "add", "records/STUDY_KPI.md")
+        run(self.root, "git", "add", "records/journal")
+        message = self.root / "rotation-message.txt"
+        message.write_text(
+            "Close Study after rotation\n\n"
+            f"Axiom-Study-Close: {event_two['event_id']}\n"
+            "Axiom-State-Revision: 2\n",
+            encoding="ascii",
+        )
+        validate_commit_message(self.root, message)
         run(
             self.root,
             "git",

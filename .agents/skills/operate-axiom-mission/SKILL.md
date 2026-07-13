@@ -109,10 +109,14 @@ delivery trigger.  Before any later Portfolio action, Study, Batch, or Job:
 1. Require the writer-created `study-kpi` record and the matching row in
    `records/STUDY_KPI.md`.
 2. Run focused checks for the closed Study and the KPI projection.
-3. On local `main`, stage only the exact Study milestone paths.  They include
-   `state/control.json`, `records/journal.jsonl`, `records/STUDY_KPI.md`, and
-   the Study-scoped code, tests, or compact records that belong to the same
-   closeout.  Reject unrelated staged paths; never use blanket staging.
+3. On local `main`, stage only the exact Study milestone paths. They include
+   `state/control.json`, `records/STUDY_KPI.md`, the Journal path resolved from
+   the staged snapshot, and the Study-scoped code, tests, or compact records
+   that belong to the same closeout. A legacy snapshot resolves
+   `records/journal.jsonl`; a segmented snapshot resolves its active segment.
+   If the close rotates the Journal, also stage the changed manifest, the new
+   seal, and the new active segment. Reject unrelated staged paths; never use
+   blanket staging.
 4. Create one commit whose final paragraph is exactly two contiguous lines:
    `Axiom-Study-Close: <event_id>` followed immediately by
    `Axiom-State-Revision: <revision>`. The tracked commit-msg hook must validate

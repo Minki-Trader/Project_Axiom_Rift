@@ -591,6 +591,25 @@ class StudyKpiWriterTests(unittest.TestCase):
             )
         )
         self.assertEqual(science["study_kpi_projection"]["path"], LEDGER_RELATIVE_PATH)
+        durable = operations["authority"]["durable_journal"]
+        segmented_contract = isinstance(durable, dict)
+        if segmented_contract:
+            self.assertEqual(durable["legacy_path"], "records/journal.jsonl")
+            self.assertEqual(
+                durable["segmented_manifest"],
+                "records/journal/manifest.json",
+            )
+            self.assertEqual(durable["offset_mode"], "global_virtual")
+            self.assertTrue(durable["dual_read_compatibility"])
+            journal_storage = operations["journal_storage"]
+            self.assertTrue(journal_storage["sealed_segments_immutable"])
+            self.assertTrue(journal_storage["existing_global_offsets_preserved"])
+            self.assertTrue(journal_storage["existing_event_ids_preserved"])
+            self.assertEqual(journal_storage["segment_byte_limit"], 33_554_432)
+            self.assertEqual(journal_storage["segment_event_limit"], 5_000)
+        else:
+            self.assertEqual(durable, "records/journal.jsonl")
+            self.assertNotIn("journal_storage", operations)
         historical = science["study_kpi_projection"]["historical_backfill"]
         self.assertTrue(historical["sponsor_authorized_once"])
         self.assertFalse(historical["retrospective_best_selection_allowed"])
@@ -610,6 +629,16 @@ class StudyKpiWriterTests(unittest.TestCase):
         self.assertFalse(
             checkpoint["remote_equality_required_before_later_scientific_work"]
         )
+        if segmented_contract:
+            self.assertEqual(
+                checkpoint["required_journal_path"]["segmented"],
+                "manifest_active_segment",
+            )
+        else:
+            self.assertIn(
+                "records/journal.jsonl",
+                checkpoint["required_same_commit_paths"],
+            )
         self.assertTrue(
             checkpoint["boot_delivery_audit"][
                 "local_commit_absence_requires_resume_before_state_or_science_action"

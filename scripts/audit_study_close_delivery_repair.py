@@ -9,12 +9,16 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-MANIFEST = ROOT / "records" / "STUDY_CLOSE_DELIVERY_REPAIR.json"
-REQUIRED_PATHS = (
-    "state/control.json",
-    "records/journal.jsonl",
-    "records/STUDY_KPI.md",
+sys.path.insert(0, str(ROOT / "src"))
+
+from axiom_rift.storage.journal import (  # noqa: E402
+    LEGACY_JOURNAL_RELATIVE_PATH,
+    read_journal_snapshot,
 )
+
+MANIFEST = ROOT / "records" / "STUDY_CLOSE_DELIVERY_REPAIR.json"
+CONTROL_PATH = "state/control.json"
+KPI_PATH = "records/STUDY_KPI.md"
 
 
 def git(*arguments: str, binary: bool = False) -> bytes | str:
@@ -42,12 +46,28 @@ def snapshot(commit: str, path: str) -> bytes:
     return value
 
 
-def journal_events(content: bytes) -> list[dict[str, Any]]:
-    return [json.loads(line) for line in content.decode("ascii").splitlines()]
+def commit_journal(commit: str):
+    paths = set(
+        str(
+            git(
+                "ls-tree",
+                "-r",
+                "--name-only",
+                commit,
+                "--",
+                LEGACY_JOURNAL_RELATIVE_PATH,
+                "records/journal",
+            )
+        ).splitlines()
+    )
+    return read_journal_snapshot(
+        lambda path: snapshot(commit, path) if path in paths else None,
+        listed_paths=paths,
+        validate_events=False,
+    )
 
 
 def render_projection(events: list[dict[str, Any]]) -> bytes:
-    sys.path.insert(0, str(ROOT / "src"))
     from axiom_rift.storage.study_kpi import (  # noqa: PLC0415
         StudyKpiProjectionRow,
         render_study_kpi,
@@ -97,19 +117,26 @@ def audit_entry(entry: dict[str, Any]) -> None:
     observed_tree = git("rev-parse", f"{commit}^{{tree}}")
     if observed_tree != entry["original_tree"]:
         raise RuntimeError(f"{entry['study_id']} tree differs")
+    journal = commit_journal(commit)
+    if journal.layout != "legacy":
+        raise RuntimeError(
+            f"{entry['study_id']} repair manifest v1 requires a legacy Journal"
+        )
+    assert journal.active_path is not None
+    required_paths = {CONTROL_PATH, journal.active_path, KPI_PATH}
     changed = set(git("diff-tree", "--no-commit-id", "--name-only", "-r", commit).splitlines())
-    if not set(REQUIRED_PATHS).issubset(changed):
+    if not required_paths.issubset(changed):
         raise RuntimeError(f"{entry['study_id']} required paths were not co-committed")
     blob_fields = {
-        "state/control.json": "control_blob",
-        "records/journal.jsonl": "journal_blob",
-        "records/STUDY_KPI.md": "study_kpi_blob",
+        CONTROL_PATH: "control_blob",
+        journal.active_path: "journal_blob",
+        KPI_PATH: "study_kpi_blob",
     }
     for path, field in blob_fields.items():
         if git("rev-parse", f"{commit}:{path}") != entry[field]:
             raise RuntimeError(f"{entry['study_id']} {path} blob differs")
-    control = json.loads(snapshot(commit, "state/control.json"))
-    events = journal_events(snapshot(commit, "records/journal.jsonl"))
+    control = json.loads(snapshot(commit, CONTROL_PATH))
+    events = list(journal.events)
     tail = events[-1]
     if (
         control["revision"] != entry["state_revision"]
@@ -120,7 +147,7 @@ def audit_entry(entry: dict[str, Any]) -> None:
         or tail["event_kind"] != "study_closed"
     ):
         raise RuntimeError(f"{entry['study_id']} close boundary differs")
-    ledger = snapshot(commit, "records/STUDY_KPI.md")
+    ledger = snapshot(commit, KPI_PATH)
     if ledger != render_projection(events):
         raise RuntimeError(f"{entry['study_id']} KPI projection differs")
     message = git("show", "-s", "--format=%B", commit)

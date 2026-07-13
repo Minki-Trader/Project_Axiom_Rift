@@ -41,8 +41,11 @@ from axiom_rift.storage.index import (
 )
 from axiom_rift.storage.journal import (
     DurableJournal,
+    JOURNAL_MANIFEST_RELATIVE_PATH,
+    JOURNAL_STORAGE_MIGRATION_SCHEMA,
     JournalHead,
     JournalIntegrityError,
+    LEGACY_JOURNAL_RELATIVE_PATH,
     _issue_journal_write_capability,
 )
 from axiom_rift.storage.study_kpi import (
@@ -494,7 +497,7 @@ class StateWriter:
                 "engineering_fixture state must be isolated outside a Git worktree"
             )
         self.control = ControlStore(self.root / "state" / "control.json")
-        self.journal = DurableJournal(self.root / "records" / "journal.jsonl")
+        self.journal = DurableJournal(self.root / LEGACY_JOURNAL_RELATIVE_PATH)
         self._journal_write_capability = _issue_journal_write_capability()
         self.index_path = self.root / "local" / "index.sqlite"
         self.lock_path = self.root / "local" / "state.writer.lock"
@@ -1129,6 +1132,7 @@ class StateWriter:
         prepare: Prepare,
         evidence_blobs: Sequence[bytes] = (),
         authority_replacements: Sequence[Mapping[str, Any]] = (),
+        journal_storage_migration: bool = False,
         crash_after: str | None = None,
         allow_empty: bool = False,
         read_only_when_unchanged: bool = False,
@@ -1139,6 +1143,10 @@ class StateWriter:
         if bool(authority_replacements) != (event_kind == "authority_migrated"):
             raise TransitionError(
                 "authority replacements and the typed migration event are inseparable"
+            )
+        if journal_storage_migration != (event_kind == "journal_storage_migrated"):
+            raise TransitionError(
+                "Journal storage materialization and its typed event are inseparable"
             )
         evidence = [self.evidence.finalize(blob).manifest() for blob in evidence_blobs]
         committed_payload = {**dict(payload), "evidence": evidence}
@@ -1370,6 +1378,17 @@ class StateWriter:
                 )
                 if crash_after == "after_journal":
                     raise InjectedCrash("after_journal")
+                if journal_storage_migration:
+                    def after_journal_storage_stage(label: str) -> None:
+                        if crash_after == label:
+                            raise InjectedCrash(label)
+
+                    self.journal.materialize_legacy_migration(
+                        event,
+                        after_stage=after_journal_storage_stage,
+                    )
+                    if crash_after == "after_journal_storage":
+                        raise InjectedCrash("after_journal_storage")
                 if authority_replacements:
                     self._apply_authority_replacements(
                         authority=next_body["authority"],
@@ -1406,6 +1425,7 @@ class StateWriter:
         """Explicitly reconcile control and index projections from authority."""
 
         with WriterLock(self.lock_path):
+            journal_storage_repaired = self.journal.recover_storage()
             events = self.journal.read_all()
             control = self.control.read()
             if control is not None:
@@ -1418,7 +1438,12 @@ class StateWriter:
             if not events:
                 if control is not None:
                     raise JournalIntegrityError("control exists without journal authority")
-                return {"journal_sequence": 0, "control_repaired": False, "index_rebuilt": False}
+                return {
+                    "journal_sequence": 0,
+                    "journal_storage_repaired": journal_storage_repaired,
+                    "control_repaired": False,
+                    "index_rebuilt": False,
+                }
             last = events[-1]
             desired = self._assemble(last)
             try:
@@ -1491,6 +1516,7 @@ class StateWriter:
                     )
             report = {
                 "journal_sequence": last["sequence"],
+                "journal_storage_repaired": journal_storage_repaired,
                 "control_repaired": control_repaired,
                 "index_rebuilt": needs_rebuild,
             }
@@ -1848,6 +1874,150 @@ class StateWriter:
             and science.get("claim") == "none"
         )
         return "active_stable" if active_stable else None
+
+    def migrate_journal_storage(
+        self,
+        *,
+        reason: str,
+        operation_id: str,
+        allow_active_stable_boundary: bool = False,
+        crash_after: str | None = None,
+    ) -> TransitionResult:
+        """Seal exact legacy Journal bytes and activate segmented storage."""
+
+        _require_ascii("Journal storage migration reason", reason)
+        _require_ascii("operation_id", operation_id)
+        if type(allow_active_stable_boundary) is not bool:
+            raise TransitionError("active stable Journal migration flag must be bool")
+        self._require_study_close_delivery_guard()
+
+        if self.journal.manifest_path.is_file() and not self.journal.path.exists():
+            with WriterLock(self.lock_path):
+                with self._open_authoritative_index() as index:
+                    self._require_stable_locked(index)
+                    existing = index.get("operation", operation_id)
+                    if (
+                        existing is None
+                        or existing.status != "success"
+                        or existing.payload.get("event_kind")
+                        != "journal_storage_migrated"
+                        or existing.authority_sequence is None
+                        or existing.authority_event_id is None
+                    ):
+                        raise TransitionError(
+                            "segmented Journal lacks the requested migration operation"
+                        )
+                    return TransitionResult(
+                        event_id=existing.authority_event_id,
+                        revision=existing.authority_sequence,
+                        reused=True,
+                        result=existing.payload.get("result", {}),
+                    )
+        if not self.journal.path.is_file():
+            raise TransitionError("legacy Journal is unavailable for migration")
+        if self.journal.manifest_path.exists():
+            raise TransitionError("legacy and segmented Journal layouts overlap")
+        if self.journal.segment_directory.is_dir() and any(
+            path.is_file() and not path.name.startswith(".")
+            for path in self.journal.segment_directory.iterdir()
+        ):
+            raise TransitionError("Journal segment residue precedes migration")
+
+        legacy_content = self.journal.path.read_bytes()
+        legacy_events = self.journal.read_all()
+        if not legacy_events:
+            raise TransitionError("Journal storage migration requires authority")
+        pre_migration = {
+            "byte_length": len(legacy_content),
+            "sha256": sha256(legacy_content).hexdigest(),
+            "first_sequence": legacy_events[0]["sequence"],
+            "last_sequence": legacy_events[-1]["sequence"],
+            "first_event_id": legacy_events[0]["event_id"],
+            "last_event_id": legacy_events[-1]["event_id"],
+        }
+        boundary_name = (
+            "active_stable"
+            if allow_active_stable_boundary
+            else "disposed_root"
+        )
+        migration_payload = {
+            "schema": JOURNAL_STORAGE_MIGRATION_SCHEMA,
+            "boundary": boundary_name,
+            "reason": reason,
+            "legacy_path": LEGACY_JOURNAL_RELATIVE_PATH,
+            "manifest_path": JOURNAL_MANIFEST_RELATIVE_PATH,
+            "sealed_segment_id": "000001",
+            "sealed_segment_path": "records/journal/journal-000001.jsonl",
+            "seal_path": "records/journal/journal-000001.seal.json",
+            "active_segment_id": "000002",
+            "active_segment_path": "records/journal/journal-000002.jsonl",
+            "pre_migration": pre_migration,
+            "trial_delta": 0,
+            "holdout_delta": 0,
+            "candidate_delta": 0,
+            "claim_delta": 0,
+            "recovery_action": "StateWriter.recover",
+        }
+        migration_id = canonical_digest(
+            domain="journal-storage-migration", payload=migration_payload
+        )
+
+        def prepare(current: dict[str, Any] | None, _index: LocalIndex):
+            if current is None:
+                raise TransitionError("Journal storage migration requires control")
+            boundary = self._authority_migration_boundary(
+                current,
+                allow_active_stable_boundary=allow_active_stable_boundary,
+            )
+            if boundary != boundary_name:
+                raise TransitionError(
+                    "Journal storage migration requires a disposed root or "
+                    "authorized active Portfolio boundary"
+                )
+            if self.journal.manifest_path.exists():
+                raise RecoveryRequired("Journal storage changed before migration")
+            observed = self.journal.path.read_bytes()
+            observed_events = self.journal.read_all()
+            if (
+                len(observed) != pre_migration["byte_length"]
+                or sha256(observed).hexdigest() != pre_migration["sha256"]
+                or not observed_events
+                or observed_events[0]["event_id"]
+                != pre_migration["first_event_id"]
+                or observed_events[-1]["sequence"]
+                != pre_migration["last_sequence"]
+                or observed_events[-1]["event_id"]
+                != pre_migration["last_event_id"]
+                or current["heads"]["journal"]["event_id"]
+                != pre_migration["last_event_id"]
+            ):
+                raise RecoveryRequired("legacy Journal changed before migration")
+            body = self._body(current)
+            record = _record(
+                kind="journal-storage-migration",
+                record_id=migration_id,
+                subject="Journal:authority",
+                status="activated",
+                fingerprint=migration_id,
+                payload=migration_payload,
+            )
+            return body, [record], {
+                "migration_id": migration_id,
+                "manifest_path": JOURNAL_MANIFEST_RELATIVE_PATH,
+                "active_segment_path": migration_payload[
+                    "active_segment_path"
+                ],
+            }
+
+        return self._commit(
+            event_kind="journal_storage_migrated",
+            operation_id=operation_id,
+            subject="Journal:authority",
+            payload=migration_payload,
+            prepare=prepare,
+            journal_storage_migration=True,
+            crash_after=crash_after,
+        )
 
     def migrate_authority(
         self,
