@@ -348,6 +348,7 @@ def _satisfy_replay(
     token: int,
     replay_axis: dict[str, str],
     scope: ReplayResolutionScope,
+    validator_id: str = SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
 ):
     decision, study, trial = _seed_replay_execution(
         index,
@@ -388,7 +389,7 @@ def _satisfy_replay(
                 },
                 "scientific_binding": {
                     "validation_plan_hash": obligation.validation_plan_hash,
-                    "validator_id": SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
+                    "validator_id": validator_id,
                 },
             },
         },
@@ -416,9 +417,9 @@ def _satisfy_replay(
                 "validation_trace": {
                     "declared_artifact_count": 1,
                     "opened_artifact_count": 1,
-                    "validator_id": SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
+                    "validator_id": validator_id,
                 },
-                "validator_id": SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
+                "validator_id": validator_id,
             },
         },
     )
@@ -831,6 +832,34 @@ class EffectiveAxisProjectionTests(unittest.TestCase):
                     ),
                     (),
                 )
+
+    def test_scientific_satisfaction_survives_validator_upgrade(self) -> None:
+        original_axis = _axis("a")
+        replay_axis = _axis("b")
+        historical_validator_id = "validator:" + "f" * 64
+        self.assertNotEqual(
+            historical_validator_id,
+            SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
+        )
+        with TemporaryDirectory() as temporary:
+            with LocalIndex(Path(temporary) / "index.sqlite3") as index:
+                obligation = _seed_obligation(
+                    index,
+                    token=14,
+                    axis=original_axis,
+                )
+                _satisfy_replay(
+                    index,
+                    obligation=obligation,
+                    token=14,
+                    replay_axis=replay_axis,
+                    scope=ReplayResolutionScope.SCIENTIFIC,
+                    validator_id=historical_validator_id,
+                )
+                resolution = effective_axis_resolution(index, original_axis)
+                self.assertTrue(resolution.selectable)
+                self.assertTrue(resolution.terminal_eligible)
+                self.assertEqual(resolution.blocking_replay_obligation_ids, ())
 
     def test_audit_only_scope_zero_credits_completion_without_blocking_axes(
         self,

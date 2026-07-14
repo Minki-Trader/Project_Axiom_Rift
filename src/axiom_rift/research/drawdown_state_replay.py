@@ -24,6 +24,11 @@ import scipy
 from axiom_rift.core.canonical import parse_canonical
 from axiom_rift.core.identity import ComponentSpec, ExecutableSpec
 from axiom_rift.research import data as data_module
+from axiom_rift.research.chassis import (
+    ArchitectureChassisSpec,
+    ControlledStudyChassis,
+    validate_controlled_executable,
+)
 from axiom_rift.research.data import load_observed_development
 from axiom_rift.research.discovery import (
     DATASET_SHA256,
@@ -58,6 +63,7 @@ from axiom_rift.research.historical_family_replay import (
     STU0048_HISTORICAL_FAMILY,
     HistoricalMemberSpec,
 )
+from axiom_rift.research.governance import ResearchLayer
 from axiom_rift.research.selection_inference import (
     selection_inference_implementation_sha256,
 )
@@ -80,6 +86,7 @@ DRAWDOWN_REPLAY_PROFILES = (
     "drawdown_depth_288",
     "drawdown_duration_288",
 )
+DRAWDOWN_REPLAY_COMPARISON_ANCHOR_PROFILE = "comparison_anchor_none"
 DRAWDOWN_REPLAY_CLOCK_CONTRACT = (
     "clock:fpmarkets_m5_bar_open_completed_plus_5m_v2"
 )
@@ -227,9 +234,34 @@ def drawdown_replay_components() -> tuple[ComponentSpec, ...]:
         spec={
             "availability": "completed_bar_close",
             "lookback_bars": DRAWDOWN_REPLAY_LOOKBACK_BARS,
+            "non_evaluated_anchor_profile": (
+                DRAWDOWN_REPLAY_COMPARISON_ANCHOR_PROFILE
+            ),
             "parameter_fields": ["lookback_bars", "profile"],
             "profiles": list(DRAWDOWN_REPLAY_PROFILES),
         },
+    )
+    label = ComponentSpec(
+        display_name="realized fixed-hold after-cost replay label",
+        protocol="label.realized_fixed_hold_native_net_pnl.replay.v1",
+        implementation=_shared("_evaluate_configuration"),
+        spec={
+            "availability": "exit_bar_open_after_registered_holding_interval",
+            "cost_basis": "native_entry_and_exit_execution_cost",
+            "parameter_fields": ["holding_bars"],
+            "target": "native_net_pnl_micropoints",
+        },
+    )
+    model = ComponentSpec(
+        display_name="registered drawdown-state outcome hypothesis",
+        protocol="model.deterministic_drawdown_state_hypothesis.replay.v1",
+        implementation=_local("compute_drawdown_replay_score"),
+        spec={
+            "fit": "none",
+            "label_role": "scientific_outcome_never_runtime_input",
+            "score_role": "causal_completed_bar_state",
+        },
+        semantic_dependencies=(feature.identity, label.identity),
     )
     selector = ComponentSpec(
         display_name="fold isolated historical drawdown selector",
@@ -241,7 +273,7 @@ def drawdown_replay_components() -> tuple[ComponentSpec, ...]:
             "parameter_fields": ["selector_quantile_bp"],
             "quantile_method": "higher",
         },
-        semantic_dependencies=(feature.identity,),
+        semantic_dependencies=(model.identity,),
     )
     trade = ComponentSpec(
         display_name="completed-bar next-open directional replay entry",
@@ -325,6 +357,8 @@ def drawdown_replay_components() -> tuple[ComponentSpec, ...]:
     )
     return (
         feature,
+        label,
+        model,
         selector,
         trade,
         lifecycle,
@@ -335,13 +369,9 @@ def drawdown_replay_components() -> tuple[ComponentSpec, ...]:
     )
 
 
-def drawdown_replay_executable(
-    configuration: DrawdownReplayConfiguration,
-    *,
+def _drawdown_replay_shared_parameters(
     historical_context_prior_global_exposure_count: int,
-) -> ExecutableSpec:
-    if configuration not in drawdown_replay_configurations():
-        raise ValueError("configuration is outside the exact STU-0048 family")
+) -> dict[str, object]:
     if (
         type(historical_context_prior_global_exposure_count) is not int
         or historical_context_prior_global_exposure_count
@@ -350,20 +380,45 @@ def drawdown_replay_executable(
         raise ValueError(
             "historical context cannot precede the original STU-0048 family"
         )
+    return {
+        "alpha_ppm": DRAWDOWN_REPLAY_ALPHA_PPM,
+        "base_seed": SELECTION_SEED,
+        "block_lengths": list(SELECTION_BLOCK_LENGTHS),
+        "bootstrap_samples": SELECTION_BOOTSTRAP_SAMPLES,
+        "historical_context_prior_global_exposure_count": (
+            historical_context_prior_global_exposure_count
+        ),
+        "monte_carlo_confidence_ppm": SELECTION_MONTE_CARLO_CONFIDENCE_PPM,
+    }
+
+
+def _drawdown_replay_engine_contract() -> str:
+    return (
+        "engine:stu0048_drawdown_replay_v2:"
+        f"python{'.'.join(str(value) for value in sys.version_info[:3])}:"
+        f"numpy{np.__version__}:pandas{pd.__version__}:scipy{scipy.__version__}:"
+        f"adapter_{drawdown_replay_implementation_sha256()}:"
+        f"loader_{drawdown_replay_loader_sha256()}:"
+        f"shared_{discovery_implementation_sha256()}:"
+        f"selection_{selection_inference_implementation_sha256()}:"
+        f"catalog_{P1_HISTORICAL_FAMILY_CATALOG_DIGEST}"
+    )
+
+
+def drawdown_replay_executable(
+    configuration: DrawdownReplayConfiguration,
+    *,
+    historical_context_prior_global_exposure_count: int,
+) -> ExecutableSpec:
+    if configuration not in drawdown_replay_configurations():
+        raise ValueError("configuration is outside the exact STU-0048 family")
     return ExecutableSpec(
         display_name=f"STU-0048 replay {configuration.configuration_id}",
         components=drawdown_replay_components(),
         parameters={
             **configuration.semantic_parameters(),
-            "alpha_ppm": DRAWDOWN_REPLAY_ALPHA_PPM,
-            "base_seed": SELECTION_SEED,
-            "block_lengths": list(SELECTION_BLOCK_LENGTHS),
-            "bootstrap_samples": SELECTION_BOOTSTRAP_SAMPLES,
-            "historical_context_prior_global_exposure_count": (
+            **_drawdown_replay_shared_parameters(
                 historical_context_prior_global_exposure_count
-            ),
-            "monte_carlo_confidence_ppm": (
-                SELECTION_MONTE_CARLO_CONFIDENCE_PPM
             ),
         },
         data_contract=f"data:{OBSERVED_MATERIAL_ID}",
@@ -373,17 +428,90 @@ def drawdown_replay_executable(
         ),
         clock_contract=DRAWDOWN_REPLAY_CLOCK_CONTRACT,
         cost_contract=DRAWDOWN_REPLAY_COST_CONTRACT,
-        engine_contract=(
-            "engine:stu0048_drawdown_replay_v2:"
-            f"python{'.'.join(str(value) for value in sys.version_info[:3])}:"
-            f"numpy{np.__version__}:pandas{pd.__version__}:scipy{scipy.__version__}:"
-            f"adapter_{drawdown_replay_implementation_sha256()}:"
-            f"loader_{drawdown_replay_loader_sha256()}:"
-            f"shared_{discovery_implementation_sha256()}:"
-            f"selection_{selection_inference_implementation_sha256()}:"
-            f"catalog_{P1_HISTORICAL_FAMILY_CATALOG_DIGEST}"
-        ),
+        engine_contract=_drawdown_replay_engine_contract(),
     )
+
+
+def drawdown_replay_baseline_executable(
+    *,
+    historical_context_prior_global_exposure_count: int,
+) -> ExecutableSpec:
+    """Build the explicit non-evaluated anchor for the factorial replay.
+
+    The anchor prevents the Study chassis from pretending that one evaluated
+    family member is a causal baseline for the other three.  It freezes every
+    genuinely controlled layer while feature profile, direction, and exact
+    historical-member synthesis remain the registered changed domains.
+    """
+
+    return ExecutableSpec(
+        display_name="STU-0048 non-evaluated comparison anchor",
+        components=drawdown_replay_components(),
+        parameters={
+            **_drawdown_replay_shared_parameters(
+                historical_context_prior_global_exposure_count
+            ),
+            "configuration_id": "comparison-anchor",
+            "historical_reference_executable_id": "none",
+            "holding_bars": DRAWDOWN_REPLAY_HOLDING_BARS,
+            "lookback_bars": DRAWDOWN_REPLAY_LOOKBACK_BARS,
+            "profile": DRAWDOWN_REPLAY_COMPARISON_ANCHOR_PROFILE,
+            "selector_quantile_bp": DRAWDOWN_REPLAY_SELECTOR_QUANTILE_BP,
+            "signal_sign": 0,
+            "unknown_entry_action": "cancel_before_open",
+        },
+        data_contract=f"data:{OBSERVED_MATERIAL_ID}",
+        split_contract=(
+            f"split:{ROLLING_SPLIT_SHA256}:"
+            "rolling_windows_9_observed_development"
+        ),
+        clock_contract=DRAWDOWN_REPLAY_CLOCK_CONTRACT,
+        cost_contract=DRAWDOWN_REPLAY_COST_CONTRACT,
+        engine_contract=_drawdown_replay_engine_contract(),
+    )
+
+
+def drawdown_replay_controlled_chassis(
+    *,
+    historical_context_prior_global_exposure_count: int,
+) -> ControlledStudyChassis:
+    """Return and self-check the exact STU-0048 factorial Study chassis."""
+
+    baseline = drawdown_replay_baseline_executable(
+        historical_context_prior_global_exposure_count=(
+            historical_context_prior_global_exposure_count
+        )
+    )
+    chassis = ControlledStudyChassis(
+        baseline_executable=baseline,
+        changed_domains=(
+            ResearchLayer.FEATURE,
+            ResearchLayer.SYNTHESIS,
+            ResearchLayer.TRADE,
+        ),
+        controlled_domains=(
+            ResearchLayer.EXECUTION,
+            ResearchLayer.LABEL,
+            ResearchLayer.LIFECYCLE,
+            ResearchLayer.MODEL,
+            ResearchLayer.PORTFOLIO,
+            ResearchLayer.RISK,
+            ResearchLayer.SELECTOR,
+        ),
+        architecture=ArchitectureChassisSpec.from_executable(baseline),
+    )
+    payload = chassis.to_identity_payload()
+    for configuration in drawdown_replay_configurations():
+        validate_controlled_executable(
+            payload,
+            drawdown_replay_executable(
+                configuration,
+                historical_context_prior_global_exposure_count=(
+                    historical_context_prior_global_exposure_count
+                ),
+            ),
+        )
+    return chassis
 
 
 def drawdown_replay_executable_map(

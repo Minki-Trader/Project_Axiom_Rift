@@ -41,6 +41,9 @@ from axiom_rift.research.scientific_trace import (
     SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
     SCIENTIFIC_EVALUATION_TRACE_SCHEMA,
 )
+from axiom_rift.research.replay_coverage import (
+    validated_recomputed_criterion_ids,
+)
 from axiom_rift.research.selection_inference import (
     selection_inference_implementation_sha256,
 )
@@ -853,6 +856,19 @@ def build_fixed_hold_result(
     return value
 
 
+def validated_fixed_hold_recomputed_criterion_ids(
+    facts: Mapping[str, object],
+) -> tuple[str, ...]:
+    """Prove exact fixed-hold criterion coverage without requiring a pass."""
+
+    return validated_recomputed_criterion_ids(
+        facts,
+        expected_evidence_modes=FIXED_HOLD_REPLAY_EVIDENCE_MODES,
+        expected_criteria=FIXED_HOLD_REPLAY_CRITERIA,
+        context="historical fixed-hold replay",
+    )
+
+
 def materialize_fixed_hold_evidence(
     *,
     writer: StateWriter,
@@ -945,5 +961,6 @@ __all__ = [
     "materialize_fixed_hold_cache",
     "materialize_fixed_hold_evidence",
     "validate_fixed_hold_cache_provenance",
+    "validated_fixed_hold_recomputed_criterion_ids",
     "verify_fixed_hold_cache_producer",
 ]

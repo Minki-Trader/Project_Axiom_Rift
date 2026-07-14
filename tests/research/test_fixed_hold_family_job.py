@@ -7,6 +7,7 @@ import unittest
 
 from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.operations.writer import RunningJobExecution
+from axiom_rift.research.adjudication import scientific_adjudication_manifest
 from axiom_rift.research.fixed_hold_family_job import (
     FIXED_HOLD_CACHE_PROVENANCE_SCHEMA,
     build_fixed_hold_cache_provenance,
@@ -17,14 +18,18 @@ from axiom_rift.research.fixed_hold_family_job import (
     fixed_hold_multiplicity_registrations,
     materialize_fixed_hold_cache,
     validate_fixed_hold_cache_provenance,
+    validated_fixed_hold_recomputed_criterion_ids,
     verify_fixed_hold_cache_producer,
 )
 from axiom_rift.research.fixed_hold_family_trace import (
+    FIXED_HOLD_REPLAY_CRITERIA,
+    FIXED_HOLD_REPLAY_EVIDENCE_MODES,
     FIXED_HOLD_TRACE_VALIDATOR,
     bind_fixed_hold_family_trace,
 )
 from axiom_rift.research.validation_v2 import (
     SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD,
+    adjudicate_validation_measurement_v2,
 )
 from tests.research.test_fixed_hold_family_trace import (
     calculation,
@@ -189,6 +194,36 @@ class FixedHoldFamilyJobTests(unittest.TestCase):
             measurement_sha256="b" * 64,
         )
         self.assertEqual(len(result["observations"]), 6)
+        adjudication = adjudicate_validation_measurement_v2(
+            plan.plan,
+            measurement,
+        )
+        facts = {
+            "executed_evidence_modes": list(
+                FIXED_HOLD_REPLAY_EVIDENCE_MODES
+            ),
+            "scientific_adjudication": scientific_adjudication_manifest(
+                adjudication
+            ),
+        }
+        self.assertEqual(
+            validated_fixed_hold_recomputed_criterion_ids(facts),
+            tuple(
+                sorted(
+                    str(item["criterion_id"])
+                    for item in FIXED_HOLD_REPLAY_CRITERIA
+                )
+            ),
+        )
+        forged = {
+            **facts,
+            "scientific_adjudication": {
+                **facts["scientific_adjudication"],
+                "evaluable": False,
+            },
+        }
+        with self.assertRaisesRegex(ValueError, "not fully evaluable"):
+            validated_fixed_hold_recomputed_criterion_ids(forged)
 
     def test_cache_materialization_is_atomic_and_conflict_intolerant(self) -> None:
         producer = self.plan(self.definition.prospective_executable_ids[0])

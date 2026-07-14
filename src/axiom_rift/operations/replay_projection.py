@@ -765,14 +765,15 @@ def _require_scientific_satisfaction_evidence(
     """Recompute the admissibility of a scientific replay resolution.
 
     The completion was derived by Writer at Job close, but resolution is a
-    separate authority boundary.  Rechecking its exact registered-validator,
+    separate authority boundary.  Rechecking its exact recorded-validator,
     subject, historical-definition, and criterion-state bindings prevents a
     caller-created ``ReplaySatisfaction`` from becoming a capability.
-    """
 
-    from axiom_rift.research.validation_v2 import (
-        SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
-    )
+    The validator identity is intentionally read from the immutable Job
+    declaration and cross-checked against its completion.  Requiring the
+    current source tree's validator identity would make a code upgrade revoke
+    already validated historical evidence and deadlock every later axis read.
+    """
 
     basis = diagnosis.payload.get("evidence_basis")
     completion_ids = (
@@ -821,6 +822,9 @@ def _require_scientific_satisfaction_evidence(
     binding = None if not isinstance(spec, Mapping) else spec.get("scientific_binding")
     trace = scientific.get("validation_trace")
     adjudication = scientific.get("adjudication")
+    recorded_validator_id = (
+        None if not isinstance(binding, Mapping) else binding.get("validator_id")
+    )
     historical = index.get(
         "historical-scientific-adjudication",
         obligation.historical_adjudication_id,
@@ -832,17 +836,20 @@ def _require_scientific_satisfaction_evidence(
         completion.status != "success"
         or declaration.payload.get("study_id") != satisfaction.replay_study_id
         or not isinstance(binding, Mapping)
-        or binding.get("validator_id")
-        != SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID
-        or scientific.get("validator_id")
-        != SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID
+        or type(recorded_validator_id) is not str
+        or not recorded_validator_id.startswith("validator:")
+        or len(recorded_validator_id.removeprefix("validator:")) != 64
+        or any(
+            character not in "0123456789abcdef"
+            for character in recorded_validator_id.removeprefix("validator:")
+        )
+        or scientific.get("validator_id") != recorded_validator_id
         or scientific.get("validation_plan_hash")
         != binding.get("validation_plan_hash")
         or scientific.get("scientific_eligible") is not True
         or scientific.get("candidate_eligible") is not False
         or not isinstance(trace, Mapping)
-        or trace.get("validator_id")
-        != SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID
+        or trace.get("validator_id") != recorded_validator_id
         or type(trace.get("declared_artifact_count")) is not int
         or trace.get("declared_artifact_count", 0) <= 0
         or trace.get("declared_artifact_count")

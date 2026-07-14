@@ -74,6 +74,9 @@ from axiom_rift.research.scientific_trace import (
 from axiom_rift.research.selection_inference import (
     selection_inference_implementation_sha256,
 )
+from axiom_rift.research.replay_coverage import (
+    validated_recomputed_criterion_ids,
+)
 from axiom_rift.research.validation_v2 import (
     SCIENTIFIC_ADJUDICATION_PROFILE_SCHEMA,
     SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
@@ -256,81 +259,15 @@ def validated_stu0061_recomputed_criterion_ids(
     silently turning a scientifically negative result into missing evidence.
     """
 
-    if not isinstance(facts, Mapping):
-        raise ValueError("historical analog replay facts must be a mapping")
-    modes = facts.get("executed_evidence_modes")
-    if not isinstance(modes, (list, tuple)) or tuple(modes) != (
-        ANALOG_REPLAY_EVIDENCE_MODES
-    ):
-        raise ValueError("historical analog replay evidence modes are incomplete")
-    adjudication = facts.get("scientific_adjudication")
-    if (
-        not isinstance(adjudication, Mapping)
-        or adjudication.get("schema") != "scientific_adjudication.v1"
-        or adjudication.get("evaluable") is not True
-        or adjudication.get("invalid_metrics") != []
-    ):
-        raise ValueError("historical analog replay adjudication is not fully evaluable")
-    raw_criteria = adjudication.get("criteria")
-    if not isinstance(raw_criteria, list) or any(
-        not isinstance(item, Mapping) for item in raw_criteria
-    ):
-        raise ValueError("historical analog replay criterion facts are malformed")
-    by_id: dict[str, Mapping[str, object]] = {}
-    for item in raw_criteria:
-        criterion_id = item.get("criterion_id")
-        if type(criterion_id) is not str or criterion_id in by_id:
-            raise ValueError("historical analog replay criterion identity is ambiguous")
-        by_id[criterion_id] = item
-    if tuple(sorted(by_id)) != STU0061_REPLAY_CRITERION_IDS:
-        raise ValueError("historical analog replay criterion inventory is incomplete")
-    expected = {
-        str(item["criterion_id"]): item for item in ANALOG_REPLAY_CRITERIA
-    }
-    for criterion_id, item in by_id.items():
-        definition = expected[criterion_id]
-        for field in (
-            "claim_id",
-            "criterion_id",
-            "decision_role",
-            "metric",
-            "operator",
-            "threshold",
-        ):
-            if item.get(field) != definition[field]:
-                raise ValueError(
-                    "historical analog replay criterion definition drifted: "
-                    f"{criterion_id}"
-                )
-        comparison = item.get("comparison_state", item.get("state"))
-        if comparison not in {"passed", "failed"} or type(item.get("value")) is not int:
-            raise ValueError(
-                "historical analog replay criterion was not recomputed: "
-                f"{criterion_id}"
-            )
-        role = definition["decision_role"]
-        expected_scientific = (
-            "diagnostic"
-            if role == "risk_diagnostic"
-            else (
-                "invalid"
-                if role == "validity" and comparison == "failed"
-                else "supported"
-                if comparison == "passed"
-                else "contradicted"
-            )
-        )
-        if item.get("scientific_state") != expected_scientific:
-            raise ValueError(
-                "historical analog replay scientific state drifted: "
-                f"{criterion_id}"
-            )
-        if expected_scientific == "invalid":
-            raise ValueError(
-                "historical analog replay validity evidence failed: "
-                f"{criterion_id}"
-            )
-    return STU0061_REPLAY_CRITERION_IDS
+    result = validated_recomputed_criterion_ids(
+        facts,
+        expected_evidence_modes=ANALOG_REPLAY_EVIDENCE_MODES,
+        expected_criteria=ANALOG_REPLAY_CRITERIA,
+        context="historical analog replay",
+    )
+    if result != STU0061_REPLAY_CRITERION_IDS:
+        raise ValueError("historical analog replay criterion order drifted")
+    return result
 
 
 def _ascii(name: str, value: object) -> str:

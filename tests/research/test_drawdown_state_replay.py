@@ -14,6 +14,7 @@ from axiom_rift.research.drawdown_state_replay import (
     compute_drawdown_replay_score,
     compute_stu0048_drawdown_family_trace,
     drawdown_replay_components,
+    drawdown_replay_controlled_chassis,
     drawdown_replay_executable_map,
     drawdown_replay_protocol_definition,
 )
@@ -82,7 +83,7 @@ class DrawdownReplayBoundaryTests(unittest.TestCase):
             definition.protocol_id,
             DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID,
         )
-        self.assertEqual(len(drawdown_replay_components()), 8)
+        self.assertEqual(len(drawdown_replay_components()), 10)
         self.assertEqual(
             len(
                 drawdown_replay_executable_map(
@@ -182,6 +183,28 @@ class DrawdownReplayIntegrationTests(unittest.TestCase):
             validator=FIXED_HOLD_TRACE_VALIDATOR,
             trace_output_name=cls.job_plan.output_names["trace"],
             trace_hash=cls.trace_hash,
+        )
+
+    def test_factorial_chassis_uses_non_evaluated_anchor(self) -> None:
+        chassis = drawdown_replay_controlled_chassis(
+            historical_context_prior_global_exposure_count=(
+                HISTORICAL_CONTEXT_COUNT
+            )
+        )
+        baseline = chassis.baseline_executable
+        parameters = baseline.parameter_values()
+        self.assertEqual(
+            parameters["configuration_id"],
+            "comparison-anchor",
+        )
+        self.assertEqual(parameters["signal_sign"], 0)
+        self.assertNotIn(
+            baseline.identity,
+            drawdown_replay_executable_map(
+                historical_context_prior_global_exposure_count=(
+                    HISTORICAL_CONTEXT_COUNT
+                )
+            ),
         )
 
     def test_full_atomic_replay_matches_all_historical_raw_surfaces(self) -> None:

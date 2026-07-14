@@ -6,6 +6,8 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Mapping
 
+import axiom_rift.research.drawdown_state_replay as drawdown_replay_module
+import axiom_rift.research.fixed_hold_family_job as fixed_hold_job_module
 from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.operations.writer import RunningJobExecution, StateWriter
 from axiom_rift.research.drawdown_state_replay import (
@@ -22,6 +24,9 @@ from axiom_rift.research.fixed_hold_family_job import (
     materialize_fixed_hold_evidence,
     verify_fixed_hold_cache_producer,
 )
+from axiom_rift.research.validation_v2 import (
+    SCIENTIFIC_VALIDATION_V2_DEPENDENCIES,
+)
 
 
 CALLABLE_IDENTITY = (
@@ -33,7 +38,28 @@ _THIS_FILE = Path(__file__).resolve()
 
 
 def drawdown_replay_job_implementation_sha256() -> str:
-    return sha256(_THIS_FILE.read_bytes()).hexdigest()
+    paths = tuple(
+        sorted(
+            {
+                _THIS_FILE,
+                Path(drawdown_replay_module.__file__).resolve(),
+                Path(fixed_hold_job_module.__file__).resolve(),
+                *(Path(value).resolve() for value in SCIENTIFIC_VALIDATION_V2_DEPENDENCIES),
+            },
+            key=lambda value: value.as_posix(),
+        )
+    )
+    return sha256(
+        canonical_bytes(
+            {
+                "callable_identity": CALLABLE_IDENTITY,
+                "dependency_sha256": [
+                    sha256(path.read_bytes()).hexdigest() for path in paths
+                ],
+                "schema": "job_implementation_evidence.v1",
+            }
+        )
+    ).hexdigest()
 
 
 def build_drawdown_replay_job_plan(
