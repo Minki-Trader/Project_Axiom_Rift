@@ -1356,8 +1356,6 @@ def validate_completed_correction_ancestor(
     require_observed_development_materialization(root)
     report_bytes, report_hash = read_frozen_audit_report(root)
     addendum_bytes, addendum_hash = read_frozen_integration_addendum(root)
-    writer.evidence.verify(report_hash)
-    writer.evidence.verify(addendum_hash)
     events = _events_for_prefix(writer, len(STEPS))
     manifest = _validate_authority_event(events[0])
     _validate_protocol_event(events[1], authority_manifest_digest=manifest)
@@ -1365,8 +1363,14 @@ def validate_completed_correction_ancestor(
     for relative, expected in EXPECTED_AUTHORITY_SHA256.items():
         rows = events[0]["payload"]["replacements"]
         row = next(item for item in rows if item["path"] == relative)
-        content = writer.evidence.read_verified(row["artifact_sha256"])
-        if sha256(content).hexdigest() != expected:
+        try:
+            content = (root / relative).read_bytes()
+        except OSError as exc:
+            raise RuntimeError("V2 authority replacement is unavailable") from exc
+        if (
+            row["artifact_sha256"] != expected
+            or sha256(content).hexdigest() != expected
+        ):
             raise RuntimeError("V2 authority replacement evidence differs")
     current = writer.read_control()
     suffix = validate_completed_correction_suffix_boundary(
@@ -1419,8 +1423,6 @@ def validate_correction_progress(
     ):
         raise RuntimeError("partial V2 correction has a foreign suffix")
     _require_mission_boundary(control, with_replay_constraints=False)
-    writer.evidence.verify(EXPECTED_REPORT_SHA256)
-    writer.evidence.verify(EXPECTED_ADDENDUM_SHA256)
     return observed
 
 

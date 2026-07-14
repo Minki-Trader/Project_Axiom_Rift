@@ -282,6 +282,35 @@ class ProjectGoalAuditV2OrchestratorTests(unittest.TestCase):
             control_before,
         )
 
+    def test_completed_validation_does_not_require_reproducible_cache_presence(
+        self,
+    ) -> None:
+        registry = self.module.EvidenceValidatorRegistry(
+            (self.module.ScientificAdjudicationValidatorV2(),)
+        )
+        writer = self.module.StateWriter(REPO_ROOT, validation_registry=registry)
+        writer.require_stable_head()
+        self.assertEqual(
+            self.module.inspect_correction_prefix(writer),
+            len(self.module.correction_steps()),
+        )
+        cache_error = AssertionError("reproducible local cache was consulted")
+        with patch.object(
+            writer.evidence,
+            "verify",
+            side_effect=cache_error,
+        ), patch.object(
+            writer.evidence,
+            "read_verified",
+            side_effect=cache_error,
+        ):
+            completed = self.module.validate_completed_correction_ancestor(
+                writer,
+                root=REPO_ROOT,
+            )
+        self.assertEqual(completed["p0_satisfied_count"], 6)
+        self.assertEqual(completed["p1_pending_count"], 7)
+
     def test_strict_three_step_prefix_rejects_standalone_or_holes(self) -> None:
         steps = self.module.correction_steps()
         self.assertEqual(
