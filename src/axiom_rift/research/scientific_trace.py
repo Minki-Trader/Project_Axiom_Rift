@@ -17,6 +17,9 @@ SCIENTIFIC_CALCULATION_PROOF_SCHEMA = "scientific_calculation_proof.v1"
 ATOMIC_TRACE_PROOF_KIND = "atomic_evaluation_trace.v1"
 CALCULATION_PROOF_KIND = "protocol_calculation_proof.v1"
 ANALOG_STATE_TRACE_PROTOCOL_ID = "analog_state.concurrent_four_config.v1"
+ANALOG_SCOPED_TRACE_PROTOCOL_ID = (
+    "analog_state.concurrent_four_config.scoped_query.v2"
+)
 
 _TRACE_FIELDS = {
     "adapter_implementation_sha256",
@@ -76,7 +79,10 @@ def trace_proof_kinds(
 ) -> dict[str, str]:
     """Return the closed proof pair for one supported protocol and mode."""
 
-    if protocol_id != ANALOG_STATE_TRACE_PROTOCOL_ID:
+    if protocol_id not in {
+        ANALOG_STATE_TRACE_PROTOCOL_ID,
+        ANALOG_SCOPED_TRACE_PROTOCOL_ID,
+    }:
         raise ScientificTraceError("scientific trace protocol is not registered")
     if evidence_mode not in {
         "causal_contrast",
@@ -187,6 +193,15 @@ def validate_trace_calculation_pair(
             trace=trace,
             calculation=calculation,
         )
+    elif protocol_id == ANALOG_SCOPED_TRACE_PROTOCOL_ID:
+        from axiom_rift.research.analog_state_scoped_job import (
+            validate_analog_scoped_trace_calculation,
+        )
+
+        derived_metrics = validate_analog_scoped_trace_calculation(
+            trace=trace,
+            calculation=calculation,
+        )
     else:
         raise ScientificTraceError("scientific trace protocol is not registered")
 
@@ -207,6 +222,7 @@ def validate_trace_calculation_pair(
 
 __all__ = [
     "ANALOG_STATE_TRACE_PROTOCOL_ID",
+    "ANALOG_SCOPED_TRACE_PROTOCOL_ID",
     "ATOMIC_TRACE_PROOF_KIND",
     "CALCULATION_PROOF_KIND",
     "SCIENTIFIC_CALCULATION_PROOF_SCHEMA",

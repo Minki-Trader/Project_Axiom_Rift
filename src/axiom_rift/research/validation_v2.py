@@ -777,10 +777,14 @@ _SELECTION_INFERENCE_DEPENDENCY = Path(
     selection_inference_module.__file__
 ).resolve()
 _SCIENTIFIC_TRACE_DEPENDENCY = Path(scientific_trace_module.__file__).resolve()
+_ANALOG_SCOPED_JOB_DEPENDENCY = (
+    Path(__file__).with_name("analog_state_scoped_job.py").resolve()
+)
 SCIENTIFIC_VALIDATION_V2_DEPENDENCIES = (
     _ADJUDICATION_DEPENDENCY,
     _ANALOG_FAMILY_DEPENDENCY,
     _ANALOG_TRACE_DEPENDENCY,
+    _ANALOG_SCOPED_JOB_DEPENDENCY,
     _AUDIT_PROOF_DEPENDENCY,
     _EVIDENCE_PROOF_DEPENDENCY,
     _SELECTION_INFERENCE_DEPENDENCY,
