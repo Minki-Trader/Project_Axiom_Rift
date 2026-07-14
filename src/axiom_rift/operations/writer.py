@@ -16,6 +16,12 @@ import yaml
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.core.identity import canonical_digest
+from axiom_rift.operations.batch_budget import (
+    FIXED_HOLD_REPLAY_BUDGET_POLICY_ID,
+    FIXED_HOLD_REPLAY_BUDGET_REPAIR_REASON,
+    batch_budget_reservation_repair_manifest,
+    registered_batch_budget_for_output_classes,
+)
 from axiom_rift.operations.permits import (
     Permit,
     PermitAuthority,
@@ -6391,6 +6397,308 @@ class StateWriter:
                 "batch_id": batch_id,
                 "batch_hash": batch_hash,
                 "source_permit_ids": sorted(item.permit_id for item in source_permits),
+            },
+            prepare=prepare,
+        )
+
+    def _batch_budget_reservation_repair_plan_locked(
+        self,
+        current: Mapping[str, Any],
+        index: LocalIndex,
+        *,
+        corrected_job_budgets: Mapping[str, Mapping[str, int]],
+        policy_id: str,
+        reason: str,
+    ) -> dict[str, object]:
+        body = self._body(dict(current))
+        science = body["scientific"]
+        batch = science.get("active_batch")
+        if (
+            not isinstance(batch, dict)
+            or science.get("active_job") is not None
+            or science.get("active_repair") is not None
+            or body.get("next_action")
+            != {"kind": "declare_job", "batch_id": batch.get("id")}
+        ):
+            raise TransitionError(
+                "Batch budget repair requires a stable between-Job boundary"
+            )
+        batch_id = batch.get("id")
+        if type(batch_id) is not str:
+            raise TransitionError("Batch budget repair lacks its active Batch")
+        batch_record = index.get("batch-open", batch_id)
+        budget_head = index.event_head(f"batch-budget:{batch_id}")
+        if (
+            batch_record is None
+            or budget_head is None
+            or budget_head.record_kind != "batch-budget-reservation"
+        ):
+            raise TransitionError(
+                "Batch budget repair requires unrepaired reservations"
+            )
+        budget_record = index.get(
+            budget_head.record_kind,
+            budget_head.record_id,
+        )
+        if budget_record is None:
+            raise TransitionError("Batch budget reservation head is absent")
+        declarations = tuple(
+            sorted(
+                (
+                    record
+                    for record in index.records_by_kind("job-declared")
+                    if record.payload.get("batch_id") == batch_id
+                ),
+                key=lambda record: record.record_id,
+            )
+        )
+        if not declarations:
+            raise TransitionError("Batch budget repair has no completed Jobs")
+        decisions = {
+            record.subject.removeprefix("Job:")
+            for record in index.records_by_kind("job-evidence-decision")
+            if record.status in {"continue_batch", "stop_batch"}
+        }
+        job_ids = {record.record_id for record in declarations}
+        if not job_ids.issubset(decisions):
+            raise TransitionError(
+                "Batch budget repair cannot rebase unfinished Job reservations"
+            )
+        declared_job_budgets: dict[str, dict[str, int]] = {}
+        implementation_identities: dict[str, str] = {}
+        declaration_specs: dict[str, Mapping[str, Any]] = {}
+        for declaration in declarations:
+            spec = declaration.payload.get("spec")
+            budget = None if not isinstance(spec, Mapping) else spec.get("budget")
+            implementation = (
+                None
+                if not isinstance(spec, Mapping)
+                else spec.get("implementation_identity")
+            )
+            if not isinstance(budget, Mapping) or type(implementation) is not str:
+                raise TransitionError(
+                    "Batch budget repair Job declaration is malformed"
+                )
+            declared_job_budgets[declaration.record_id] = {
+                "compute_seconds": budget.get("compute_seconds"),
+                "wall_seconds": budget.get("wall_seconds"),
+            }
+            implementation_identities[declaration.record_id] = implementation
+            assert isinstance(spec, Mapping)
+            declaration_specs[declaration.record_id] = spec
+        frozen_spec = batch_record.payload.get("spec")
+        if not isinstance(frozen_spec, Mapping):
+            raise TransitionError("Batch budget repair lacks the frozen ceiling")
+        if not self.engineering_fixture:
+            acceptance = frozen_spec.get("acceptance_profile")
+            concurrent = (
+                None
+                if not isinstance(acceptance, Mapping)
+                else acceptance.get("concurrent_family")
+            )
+            family_ids = (
+                None
+                if not isinstance(concurrent, Mapping)
+                else concurrent.get("executable_ids")
+            )
+            subjects = {
+                spec.get("evidence_subject", {}).get("id")
+                for spec in declaration_specs.values()
+                if isinstance(spec.get("evidence_subject"), Mapping)
+            }
+            callable_identities = {
+                spec.get("callable_identity")
+                for spec in declaration_specs.values()
+            }
+            if (
+                policy_id != FIXED_HOLD_REPLAY_BUDGET_POLICY_ID
+                or reason != FIXED_HOLD_REPLAY_BUDGET_REPAIR_REASON
+                or not isinstance(acceptance, Mapping)
+                or acceptance.get("candidate_authority") != "none"
+                or not isinstance(acceptance.get("exact_original_criteria"), list)
+                or not acceptance.get("exact_original_criteria")
+                or type(acceptance.get("replay_obligation_id")) is not str
+                or not isinstance(concurrent, Mapping)
+                or concurrent.get("evaluation_mode") != "vectorized"
+                or concurrent.get("family_size") != frozen_spec.get("max_trials")
+                or not isinstance(family_ids, list)
+                or len(family_ids) != frozen_spec.get("max_trials")
+                or not subjects
+                or not subjects.issubset(set(family_ids))
+                or len(callable_identities) != 1
+                or len(set(implementation_identities.values())) != 1
+                or frozen_spec.get("stop_rule")
+                != "stop only after the exact registered family"
+            ):
+                raise TransitionError(
+                    "Batch budget repair is outside the registered replay policy"
+                )
+            cache_producer_count = 0
+            registered_budgets: dict[str, dict[str, int]] = {}
+            try:
+                for job_id, spec in declaration_specs.items():
+                    output_classes = spec.get("output_classes")
+                    if not isinstance(output_classes, Mapping):
+                        raise ValueError(
+                            "Batch budget repair output classes are invalid"
+                        )
+                    cache_producer_count += tuple(output_classes.values()).count(
+                        "reproducible_cache"
+                    )
+                    registered_budgets[job_id] = (
+                        registered_batch_budget_for_output_classes(
+                            policy_id=policy_id,
+                            output_classes=output_classes,
+                        )
+                    )
+            except ValueError as exc:
+                raise TransitionError(str(exc)) from exc
+            normalized_corrected = {
+                job_id: dict(budget)
+                for job_id, budget in corrected_job_budgets.items()
+            }
+            if (
+                cache_producer_count != 1
+                or normalized_corrected != registered_budgets
+            ):
+                raise TransitionError(
+                    "Batch budget repair differs from the registered policy"
+                )
+        try:
+            manifest = batch_budget_reservation_repair_manifest(
+                batch_id=batch_id,
+                frozen_budget_ceiling={
+                    "compute_seconds": frozen_spec.get("max_compute_seconds"),
+                    "wall_seconds": frozen_spec.get("max_wall_seconds"),
+                },
+                declared_job_budgets=declared_job_budgets,
+                corrected_job_budgets=corrected_job_budgets,
+                job_implementation_identities=implementation_identities,
+                policy_id=policy_id,
+                reason=reason,
+            )
+        except ValueError as exc:
+            raise TransitionError(str(exc)) from exc
+        prior = manifest["prior_reserved_totals"]
+        if (
+            not isinstance(prior, Mapping)
+            or budget_record.payload.get("compute_seconds")
+            != prior.get("compute_seconds")
+            or budget_record.payload.get("wall_seconds")
+            != prior.get("wall_seconds")
+        ):
+            raise TransitionError(
+                "Batch budget repair differs from the reservation head"
+            )
+        return manifest
+
+    def plan_batch_budget_reservation_repair(
+        self,
+        *,
+        corrected_job_budgets: Mapping[str, Mapping[str, int]],
+        policy_id: str,
+        reason: str,
+    ) -> dict[str, object]:
+        """Build a read-only, reduction-only Batch reservation repair."""
+
+        _require_ascii("Batch budget repair policy", policy_id)
+        _require_ascii("Batch budget repair reason", reason)
+        report = self.require_stable_head()
+        current = report.get("control")
+        if not isinstance(current, Mapping):
+            raise TransitionError("Batch budget repair requires control")
+        with LocalIndex(self.index_path) as index:
+            return self._batch_budget_reservation_repair_plan_locked(
+                current,
+                index,
+                corrected_job_budgets=corrected_job_budgets,
+                policy_id=policy_id,
+                reason=reason,
+            )
+
+    def repair_batch_budget_reservations(
+        self,
+        *,
+        corrected_job_budgets: Mapping[str, Mapping[str, int]],
+        policy_id: str,
+        reason: str,
+        proof_hash: str,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Release proven over-reservations without changing frozen science."""
+
+        _require_ascii("Batch budget repair policy", policy_id)
+        _require_ascii("Batch budget repair reason", reason)
+        _require_digest("Batch budget repair proof", proof_hash)
+        try:
+            proof = parse_canonical(self.evidence.read_verified(proof_hash))
+        except ValueError as exc:
+            raise TransitionError("Batch budget repair proof is invalid") from exc
+        if not isinstance(proof, Mapping):
+            raise TransitionError("Batch budget repair proof is not an object")
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("Batch budget repair requires control")
+            expected = self._batch_budget_reservation_repair_plan_locked(
+                current,
+                index,
+                corrected_job_budgets=corrected_job_budgets,
+                policy_id=policy_id,
+                reason=reason,
+            )
+            if dict(proof) != expected:
+                raise TransitionError(
+                    "Batch budget repair proof differs from durable state"
+                )
+            batch_id = str(expected["batch_id"])
+            budget_head = index.event_head(f"batch-budget:{batch_id}")
+            if budget_head is None:
+                raise TransitionError("Batch budget repair head disappeared")
+            totals = expected["corrected_reserved_totals"]
+            assert isinstance(totals, Mapping)
+            record = _record(
+                kind="batch-budget-repair",
+                record_id=canonical_digest(
+                    domain="batch-budget-repair",
+                    payload={
+                        "batch_id": batch_id,
+                        "policy_id": policy_id,
+                        "proof_hash": proof_hash,
+                    },
+                ),
+                subject=f"Batch:{batch_id}",
+                status="repaired",
+                fingerprint=proof_hash,
+                payload={
+                    "compute_seconds": totals["compute_seconds"],
+                    "proof_hash": proof_hash,
+                    "repair": expected,
+                    "wall_seconds": totals["wall_seconds"],
+                },
+                event_stream=f"batch-budget:{batch_id}",
+                event_sequence=budget_head.sequence + 1,
+            )
+            return self._body(current), [record], {
+                "batch_id": batch_id,
+                "completed_job_count": expected["completed_job_count"],
+                "corrected_reserved_totals": dict(totals),
+                "proof_hash": proof_hash,
+                "scientific_trial_delta": 0,
+            }
+
+        return self._commit(
+            event_kind="batch_budget_repaired",
+            operation_id=operation_id,
+            subject="Batch:active",
+            payload={
+                "corrected_job_budgets": {
+                    job_id: dict(budget)
+                    for job_id, budget in sorted(corrected_job_budgets.items())
+                },
+                "policy_id": policy_id,
+                "proof_hash": proof_hash,
+                "reason": reason,
             },
             prepare=prepare,
         )

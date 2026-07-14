@@ -14,6 +14,13 @@ from typing import Any
 
 from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.core.identity import ExecutableSpec
+from axiom_rift.operations.batch_budget import (
+    FIXED_HOLD_REPLAY_BUDGET_POLICY_ID,
+    FIXED_HOLD_REPLAY_BUDGET_REPAIR_REASON,
+    FIXED_HOLD_REPLAY_CONSUMER_BUDGET,
+    FIXED_HOLD_REPLAY_PRODUCER_BUDGET,
+    registered_batch_budget_for_output_classes,
+)
 from axiom_rift.operations.effective_axis_projection import (
     effective_axis_resolution,
 )
@@ -184,6 +191,28 @@ class FixedHoldReplayMember:
     @property
     def label(self) -> str:
         return f"member-{self.ordinal:02d}"
+
+
+def fixed_hold_replay_job_budget(
+    member: FixedHoldReplayMember,
+) -> dict[str, int]:
+    """Reserve producer work once and a smaller proof-only consumer bound."""
+
+    if member.job_plan.produces_family_cache:
+        return dict(FIXED_HOLD_REPLAY_PRODUCER_BUDGET)
+    return dict(FIXED_HOLD_REPLAY_CONSUMER_BUDGET)
+
+
+def fixed_hold_replay_batch_budget(
+    members: Sequence[FixedHoldReplayMember],
+) -> dict[str, int]:
+    budgets = tuple(fixed_hold_replay_job_budget(member) for member in members)
+    if not budgets:
+        raise ValueError("fixed-hold replay Batch requires members")
+    return {
+        field: sum(budget[field] for budget in budgets)
+        for field in ("compute_seconds", "wall_seconds")
+    }
 
 
 @dataclass(frozen=True, slots=True)
@@ -544,14 +573,15 @@ def build_fixed_hold_replay_design(
         portfolio_axis_identity=replay_axis.identity,
         portfolio_decision_id=work_decision.identity,
     )
+    batch_budget = fixed_hold_replay_batch_budget(members)
     batch_spec = BatchSpec(
         batch_id=spec.batch_display_id,
         study_id=spec.study_id,
         study_hash=study_hash,
         display_name=spec.display_name,
         max_trials=len(members),
-        max_compute_seconds=14_400,
-        max_wall_seconds=21_600,
+        max_compute_seconds=batch_budget["compute_seconds"],
+        max_wall_seconds=batch_budget["wall_seconds"],
         stop_rule="stop only after the exact registered family",
         source_contract_ids=(),
         concurrent_family=ConcurrentFamilyManifest(
@@ -853,11 +883,144 @@ def activate_current_scientific_protocol(
     )
 
 
+def _batch_budget_repair_operation_id(
+    design: FixedHoldReplayDesign,
+) -> str:
+    return design.spec.operation_prefix + "repair-batch-budget-reservations"
+
+
+def _corrected_declared_job_budget(
+    declaration: IndexRecord,
+) -> dict[str, int]:
+    spec = declaration.payload.get("spec")
+    output_classes = (
+        None if not isinstance(spec, Mapping) else spec.get("output_classes")
+    )
+    if not isinstance(output_classes, Mapping):
+        raise RuntimeError("replay budget repair Job classes are malformed")
+    try:
+        return registered_batch_budget_for_output_classes(
+            policy_id=FIXED_HOLD_REPLAY_BUDGET_POLICY_ID,
+            output_classes=output_classes,
+        )
+    except ValueError as exc:
+        raise RuntimeError(str(exc)) from exc
+
+
+def _batch_budget_repair_boundary(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+) -> int | None:
+    index_path = getattr(writer, "index_path", None)
+    if index_path is None:
+        return None
+    operation_id = _batch_budget_repair_operation_id(design)
+    with LocalIndex(index_path) as index:
+        operation = index.get("operation", operation_id)
+        if operation is not None:
+            result = operation.payload.get("result")
+            count = (
+                None
+                if not isinstance(result, Mapping)
+                else result.get("completed_job_count")
+            )
+            if (
+                operation.status != "success"
+                or operation.payload.get("event_kind")
+                != "batch_budget_repaired"
+                or type(count) is not int
+                or count < 1
+                or count >= len(design.members)
+            ):
+                raise RuntimeError("replay Batch budget Repair is malformed")
+            return count
+    control = writer.read_control()
+    science = (
+        None if not isinstance(control, Mapping) else control.get("scientific")
+    )
+    batch = (
+        None if not isinstance(science, Mapping) else science.get("active_batch")
+    )
+    if not isinstance(batch, Mapping) or type(batch.get("id")) is not str:
+        return None
+    with LocalIndex(index_path) as index:
+        declarations = tuple(
+            record
+            for record in index.records_by_kind("job-declared")
+            if record.payload.get("batch_id") == batch["id"]
+        )
+    if not declarations:
+        return None
+    drifted = False
+    for declaration in declarations:
+        spec = declaration.payload.get("spec")
+        declared = None if not isinstance(spec, Mapping) else spec.get("budget")
+        corrected = _corrected_declared_job_budget(declaration)
+        if not isinstance(declared, Mapping):
+            raise RuntimeError("replay budget repair Job budget is malformed")
+        observed = {
+            "compute_seconds": declared.get("compute_seconds"),
+            "wall_seconds": declared.get("wall_seconds"),
+        }
+        if any(
+            type(observed[field]) is not int
+            or corrected[field] > observed[field]
+            for field in ("compute_seconds", "wall_seconds")
+        ):
+            raise RuntimeError("replay budget policy cannot rebase this Job")
+        drifted = drifted or observed != corrected
+    if not drifted:
+        return None
+    count = len(declarations)
+    if count >= len(design.members):
+        raise RuntimeError("completed replay family cannot need budget repair")
+    return count
+
+
+def repair_fixed_hold_replay_batch_budget(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+) -> Any:
+    control = writer.read_control()
+    science = (
+        None if not isinstance(control, Mapping) else control.get("scientific")
+    )
+    batch = (
+        None if not isinstance(science, Mapping) else science.get("active_batch")
+    )
+    if not isinstance(batch, Mapping) or type(batch.get("id")) is not str:
+        raise RuntimeError("replay Batch budget Repair lacks an active Batch")
+    with LocalIndex(writer.index_path) as index:
+        declarations = tuple(
+            record
+            for record in index.records_by_kind("job-declared")
+            if record.payload.get("batch_id") == batch["id"]
+        )
+    corrected = {
+        declaration.record_id: _corrected_declared_job_budget(declaration)
+        for declaration in declarations
+    }
+    manifest = writer.plan_batch_budget_reservation_repair(
+        corrected_job_budgets=corrected,
+        policy_id=FIXED_HOLD_REPLAY_BUDGET_POLICY_ID,
+        reason=FIXED_HOLD_REPLAY_BUDGET_REPAIR_REASON,
+    )
+    proof = writer.evidence.finalize(canonical_bytes(manifest))
+    return writer.repair_batch_budget_reservations(
+        corrected_job_budgets=corrected,
+        policy_id=FIXED_HOLD_REPLAY_BUDGET_POLICY_ID,
+        reason=FIXED_HOLD_REPLAY_BUDGET_REPAIR_REASON,
+        proof_hash=proof.sha256,
+        operation_id=_batch_budget_repair_operation_id(design),
+    )
+
+
 def operation_steps(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
 ) -> tuple[OperationStep, ...]:
     prefix = design.spec.operation_prefix
+    budget_repair_boundary = _batch_budget_repair_boundary(writer, design)
     failed = {
         member.ordinal
         for member in design.members
@@ -953,6 +1116,14 @@ def operation_steps(
                 STUDY_CLOSE_STAGE,
             )
         )
+        if budget_repair_boundary == member.ordinal:
+            steps.append(
+                OperationStep(
+                    _batch_budget_repair_operation_id(design),
+                    "batch_budget_repaired",
+                    STUDY_CLOSE_STAGE,
+                )
+            )
     steps.extend(
         (
             OperationStep(prefix + "dispose-batch", "batch_disposed", STUDY_CLOSE_STAGE),
@@ -1068,7 +1239,7 @@ def build_replay_job_spec(
         member,
     )
     return {
-        "budget": {"compute_seconds": 3_600, "wall_seconds": 5_400},
+        "budget": fixed_hold_replay_job_budget(member),
         "callable_identity": design.spec.callable_identity,
         "evidence_subject": {
             "kind": "Executable",
@@ -1134,6 +1305,7 @@ def _initiative_objective(
     design: FixedHoldReplayDesign,
 ) -> Mapping[str, Any]:
     count = len(design.members)
+    budget = fixed_hold_replay_batch_budget(design.members)
     return {
         "objective": (
             f"execute one exact {design.spec.original_study_id} P1 replay family"
@@ -1142,7 +1314,7 @@ def _initiative_objective(
             "batch_count": 1,
             "job_count": count,
             "trial_count": count,
-            "wall_seconds": 21_600,
+            "wall_seconds": budget["wall_seconds"],
         },
         "done_conditions": [
             "the exact family is evaluated",
@@ -1247,6 +1419,8 @@ def _apply_study_close_step(
         )
     if operation_id == _protocol_activation_operation_id(design):
         return activate_current_scientific_protocol(writer, design)
+    if operation_id == _batch_budget_repair_operation_id(design):
+        return repair_fixed_hold_replay_batch_budget(writer, design)
     for member in design.members:
         stem = prefix + member.label
         if operation_id == stem + "-register-trial":
@@ -1764,7 +1938,10 @@ def run_study_close_stage(
     _, final_end = stage_bounds(final_steps, stage=STUDY_CLOSE_STAGE)
     return {
         "applied_step_count": final - initial,
-        "batch_id": design.batch_spec.identity,
+        "batch_id": _operation_result(
+            writer,
+            design.spec.operation_prefix + "open-batch",
+        )["batch_id"],
         "candidate_created": False,
         "checkpoint_required": True,
         "executable_ids": [
@@ -1961,6 +2138,7 @@ def read_only_summary(
 
 __all__ = [
     "DIAGNOSE_STAGE",
+    "FIXED_HOLD_REPLAY_BUDGET_POLICY_ID",
     "STUDY_CLOSE_STAGE",
     "FixedHoldReplayDesign",
     "FixedHoldReplayMember",
@@ -1970,6 +2148,8 @@ __all__ = [
     "build_fixed_hold_replay_design",
     "build_replay_job_spec",
     "activate_current_scientific_protocol",
+    "fixed_hold_replay_batch_budget",
+    "fixed_hold_replay_job_budget",
     "inspect_replay_prefix",
     "interpret_fixed_hold_completion",
     "operation_steps",

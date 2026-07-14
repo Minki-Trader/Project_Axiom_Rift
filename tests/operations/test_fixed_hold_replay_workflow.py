@@ -11,6 +11,8 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
     ReplayAuthorityBoundary,
     _member_repair_chain_complete,
     _projection_payloads,
+    fixed_hold_replay_batch_budget,
+    fixed_hold_replay_job_budget,
     operation_steps,
 )
 
@@ -72,6 +74,29 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         self.assertEqual(
             steps[-4].event_kind,
             "historical_replay_obligations_deferred",
+        )
+
+    def test_family_cache_budget_does_not_multiply_producer_work(self) -> None:
+        producer = SimpleNamespace(
+            job_plan=SimpleNamespace(produces_family_cache=True)
+        )
+        consumers = tuple(
+            SimpleNamespace(
+                job_plan=SimpleNamespace(produces_family_cache=False)
+            )
+            for _ in range(11)
+        )
+        self.assertEqual(
+            fixed_hold_replay_job_budget(producer),
+            {"compute_seconds": 3_600, "wall_seconds": 5_400},
+        )
+        self.assertEqual(
+            fixed_hold_replay_job_budget(consumers[0]),
+            {"compute_seconds": 900, "wall_seconds": 1_440},
+        )
+        self.assertEqual(
+            fixed_hold_replay_batch_budget((producer, *consumers)),
+            {"compute_seconds": 13_500, "wall_seconds": 21_240},
         )
 
     def test_failed_member_adds_memory_without_changing_replay_coverage(self) -> None:

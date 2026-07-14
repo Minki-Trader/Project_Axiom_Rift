@@ -1612,6 +1612,126 @@ class WriterTests(unittest.TestCase):
             operation_id=f"{operation_prefix}-open",
         )
 
+    def test_completed_job_budget_overreservation_has_typed_repair(self) -> None:
+        self.open_mission_and_initiative()
+        opened = self.open_fixture_study(
+            study_id="STU-BUDGET-REPAIR",
+            question=study_question("typed Batch budget repair"),
+            semantic_proposal={"mechanism": "budget reservation repair"},
+            operation_prefix="budget-repair-study",
+        )
+        batch = batch_spec(
+            batch_id="BAT-BUDGET-REPAIR",
+            study_id="STU-BUDGET-REPAIR",
+            study_hash=opened.result["study_hash"],
+            max_trials=2,
+            max_compute_seconds=40,
+        )
+        batch_permit = self.writer.issue_permit(
+            kind=PermitKind.BATCH,
+            subject_kind=SubjectKind.STUDY,
+            subject_id="STU-BUDGET-REPAIR",
+            input_hash=batch.identity.removeprefix("batch:"),
+            actions=("open_batch",),
+            scope=("batch",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="budget-repair-batch-permit",
+        )
+        self.writer.open_batch(
+            batch_spec=batch,
+            permit=batch_permit,
+            operation_id="budget-repair-batch-open",
+        )
+        first_spec = job_spec(
+            self.writer,
+            {"kind": "Study", "id": "STU-BUDGET-REPAIR"},
+        )
+        first = self.writer.declare_job(
+            spec=first_spec,
+            operation_id="budget-repair-first-declare",
+        )
+        first_permit = self.writer.issue_permit(
+            kind=PermitKind.JOB,
+            subject_kind=SubjectKind.JOB,
+            subject_id=first.result["job_id"],
+            input_hash=first.result["job_hash"],
+            actions=("start_job",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="budget-repair-first-permit",
+        )
+        self.writer.start_job(
+            permit=first_permit,
+            operation_id="budget-repair-first-start",
+        )
+        output = self.writer.root / "local" / "jobs" / "fixture" / "fixture.json"
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_bytes(b"typed budget repair fixture")
+        completed = self.writer.complete_job(
+            outcome="success",
+            output_manifest={
+                "local/jobs/fixture/fixture.json": sha256(
+                    b"typed budget repair fixture"
+                ).hexdigest()
+            },
+            operation_id="budget-repair-first-complete",
+        )
+        self.writer.judge_job_evidence(
+            completion_record_id=completed.result["completion_record_id"],
+            disposition="continue_batch",
+            operation_id="budget-repair-first-judge",
+        )
+        second_spec = job_spec(
+            self.writer,
+            {"kind": "Study", "id": "STU-BUDGET-REPAIR"},
+        )
+        second_spec["input_hashes"] = [
+            *second_spec["input_hashes"],
+            digest("input", {"budget_repair_second": True}),
+        ]
+        with self.assertRaisesRegex(TransitionError, "exceeds the frozen Batch"):
+            self.writer.declare_job(
+                spec=second_spec,
+                operation_id="budget-repair-second-rejected",
+            )
+        corrected = {
+            first.result["job_id"]: {
+                "compute_seconds": 10,
+                "wall_seconds": 10,
+            }
+        }
+        policy_id = "fixture.completed_job_reservation.v1"
+        reason = "release a proven completed Job over-reservation"
+        manifest = self.writer.plan_batch_budget_reservation_repair(
+            corrected_job_budgets=corrected,
+            policy_id=policy_id,
+            reason=reason,
+        )
+        proof = self.writer.evidence.finalize(canonical_bytes(manifest))
+        repaired = self.writer.repair_batch_budget_reservations(
+            corrected_job_budgets=corrected,
+            policy_id=policy_id,
+            reason=reason,
+            proof_hash=proof.sha256,
+            operation_id="budget-repair-apply",
+        )
+        self.assertEqual(
+            repaired.result["corrected_reserved_totals"],
+            {"compute_seconds": 10, "wall_seconds": 10},
+        )
+        self.assertEqual(repaired.result["scientific_trial_delta"], 0)
+        second = self.writer.declare_job(
+            spec=second_spec,
+            operation_id="budget-repair-second-declare",
+        )
+        self.assertTrue(second.result["job_id"].startswith("job:"))
+        with LocalIndex(self.writer.index_path) as index:
+            repairs = tuple(index.records_by_kind("batch-budget-repair"))
+        self.assertEqual(len(repairs), 1)
+        self.assertEqual(repairs[0].payload["proof_hash"], proof.sha256)
+
     def test_exact_ready_boundary_and_atomic_mission_handoff(self) -> None:
         ready = self.writer.read_control()
         assert ready is not None
