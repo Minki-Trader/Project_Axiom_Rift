@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from copy import deepcopy
 from hashlib import sha256
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
 import numpy as np
@@ -19,8 +21,12 @@ from axiom_rift.research.drawdown_state_replay import (
     drawdown_replay_protocol_definition,
 )
 from axiom_rift.research.drawdown_state_replay_job import (
+    CALLABLE_IDENTITY,
     build_drawdown_replay_job_plan,
+    drawdown_replay_job_implementation_sha256,
+    materialize_drawdown_replay_job_implementation,
 )
+from axiom_rift.operations.writer import StateWriter
 from axiom_rift.research.fixed_hold_family_job import (
     build_fixed_hold_measurement,
 )
@@ -49,6 +55,32 @@ HISTORICAL_CONTEXT_COUNT = 578
 
 
 class DrawdownReplayBoundaryTests(unittest.TestCase):
+    def test_job_implementation_closure_is_writer_readable(self) -> None:
+        with TemporaryDirectory() as temporary:
+            writer = StateWriter(
+                temporary,
+                engineering_fixture=True,
+                foundation_root=Path(__file__).resolve().parents[2],
+            )
+            writer.initialize_ready()
+            identity = materialize_drawdown_replay_job_implementation(writer)
+            self.assertEqual(
+                identity,
+                drawdown_replay_job_implementation_sha256(),
+            )
+            manifest = writer._require_job_implementation_evidence(
+                {
+                    "callable_identity": CALLABLE_IDENTITY,
+                    "implementation_identity": identity,
+                },
+                allowed_historical_control_ids=("STU-0048",),
+            )
+        self.assertEqual(
+            manifest["schema"],
+            "job_implementation_evidence.v1",
+        )
+        self.assertEqual(len(manifest["artifact_hashes"]), 4)
+
     def test_family_identity_is_new_exact_and_context_bound(self) -> None:
         definition = drawdown_replay_protocol_definition(
             historical_context_prior_global_exposure_count=(

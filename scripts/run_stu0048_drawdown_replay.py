@@ -37,9 +37,11 @@ from axiom_rift.research.drawdown_state_replay import (  # noqa: E402
 )
 from axiom_rift.research.drawdown_state_replay_job import (  # noqa: E402
     CALLABLE_IDENTITY,
+    JOB_IMPLEMENTATION_PROTOCOL,
     build_drawdown_replay_job_plan,
     drawdown_replay_job_implementation_sha256,
     execute_drawdown_state_replay_job,
+    materialize_drawdown_replay_job_implementation,
 )
 from axiom_rift.research.fixed_hold_family_trace import (  # noqa: E402
     FIXED_HOLD_REPLAY_CRITERIA,
@@ -59,7 +61,7 @@ INITIATIVE_ID = "INI-0019"
 STUDY_ID = "STU-0107"
 BATCH_DISPLAY_ID = "BAT-0107"
 HISTORICAL_CONTEXT_COUNT = 578
-JOB_PROTOCOL = "python.source.drawdown_state_replay.v2"
+JOB_PROTOCOL = JOB_IMPLEMENTATION_PROTOCOL
 PERMIT_EXPIRY_UTC = "2027-12-31T23:59:59Z"
 PREDECESSOR_REVISION = 4977
 PREDECESSOR_EVENT_ID = (
@@ -247,6 +249,9 @@ def main(argv: Sequence[str] | None = None) -> None:
             design=design,
             repository_root=ROOT,
             job_runner=execute_drawdown_state_replay_job,
+            job_implementation_materializer=(
+                materialize_drawdown_replay_job_implementation
+            ),
             explicit_recovery=arguments.recover,
         )
         print(json.dumps(summary, sort_keys=True))

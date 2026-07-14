@@ -3454,6 +3454,7 @@ class StateWriter:
         activation: Any,
         operation_id: str,
         allow_active_stable_boundary: bool = False,
+        allow_active_unexecuted_study_boundary: bool = False,
     ) -> TransitionResult:
         """Activate or rebind the prospective protocol to current authority."""
 
@@ -3470,6 +3471,10 @@ class StateWriter:
         if type(allow_active_stable_boundary) is not bool:
             raise TransitionError(
                 "active stable research protocol boundary flag must be bool"
+            )
+        if type(allow_active_unexecuted_study_boundary) is not bool:
+            raise TransitionError(
+                "active unexecuted Study protocol boundary flag must be bool"
             )
         if (
             activation.protocol
@@ -3526,29 +3531,74 @@ class StateWriter:
                 allow_active_stable_boundary
                 and self._active_mission_stable_boundary(current)
             )
-            if not (portfolio_boundary or mission_boundary):
-                raise TransitionError(
-                    "research protocol activation requires the stable Portfolio "
-                    "boundary or its explicit stable Mission boundary"
-                )
-            if (
-                not isinstance(science.get("active_mission"), str)
-                or any(
-                    science.get(name) is not None
+            active_batch = science.get("active_batch")
+            active_study = science.get("active_study")
+            active_unexecuted_study_boundary = (
+                allow_active_unexecuted_study_boundary
+                and isinstance(science.get("active_mission"), str)
+                and isinstance(science.get("active_initiative"), str)
+                and isinstance(active_study, str)
+                and isinstance(active_batch, dict)
+                and current.get("next_action")
+                == {
+                    "kind": "declare_job",
+                    "batch_id": active_batch.get("id"),
+                }
+                and all(
+                    science.get(name) is None
                     for name in (
-                        "active_batch",
                         "active_executable",
                         "active_holdout_evaluation",
                         "active_job",
                         "active_lineage",
                         "active_release",
                         "active_repair",
-                        "active_study",
+                    )
+                )
+                and (
+                    (batch_record := index.get(
+                        "batch-open", str(active_batch.get("id", ""))
+                    ))
+                    is not None
+                )
+                and batch_record.status == "open"
+                and batch_record.subject == f"Study:{active_study}"
+                and not any(
+                    record.payload.get("study_id") == active_study
+                    for record in index.records_by_kind("job-declared")
+                )
+            )
+            if not (
+                portfolio_boundary
+                or mission_boundary
+                or active_unexecuted_study_boundary
+            ):
+                raise TransitionError(
+                    "research protocol activation requires the stable Portfolio "
+                    "boundary, its explicit stable Mission boundary, or an "
+                    "explicit unexecuted Study boundary"
+                )
+            if (
+                not isinstance(science.get("active_mission"), str)
+                or (
+                    not active_unexecuted_study_boundary
+                    and any(
+                        science.get(name) is not None
+                        for name in (
+                            "active_batch",
+                            "active_executable",
+                            "active_holdout_evaluation",
+                            "active_job",
+                            "active_lineage",
+                            "active_release",
+                            "active_repair",
+                            "active_study",
+                        )
                     )
                 )
             ):
                 raise TransitionError(
-                    "research protocol activation has active scientific subwork"
+                    "research protocol activation has active scientific execution"
                 )
             stream = "research-protocol:scientific"
             prior_head = index.event_head(stream)
@@ -3594,9 +3644,11 @@ class StateWriter:
                 prior is not None
                 and prior.payload.get("authority_manifest_digest")
                 == activation.authority_manifest_digest
+                and prior.payload.get("validator_id") == activation.validator_id
             ):
                 raise TransitionError(
-                    "prospective scientific protocol is already bound to this authority"
+                    "prospective scientific protocol is already bound to this "
+                    "authority and validator"
                 )
             ordinal = 1 if prior_head is None else prior_head.sequence + 1
             record = _record(
@@ -8582,10 +8634,87 @@ class StateWriter:
                         "runtime artifact roles require distinct durable outputs"
                     )
 
+    def _historical_replay_implementation_control_ids(
+        self,
+        index: LocalIndex,
+        *,
+        study_id: object,
+        mission_id: object,
+    ) -> tuple[str, ...]:
+        """Return exact historical Study IDs declared by replay obligations."""
+
+        if not isinstance(study_id, str) or not isinstance(mission_id, str):
+            return ()
+        study = index.get("study-open", study_id)
+        if study is None:
+            raise RecoveryRequired(
+                "active Study declaration is unavailable for Job implementation"
+            )
+        obligation_ids = study.payload.get("replay_obligation_ids", [])
+        if (
+            not isinstance(obligation_ids, list)
+            or any(type(value) is not str for value in obligation_ids)
+            or len(obligation_ids) != len(set(obligation_ids))
+        ):
+            raise RecoveryRequired(
+                "Study replay obligation binding is malformed"
+            )
+        historical_ids: set[str] = set()
+        for obligation_id in obligation_ids:
+            record = index.get(
+                "historical-replay-obligation", obligation_id
+            )
+            obligation = (
+                None
+                if record is None
+                else record.payload.get("obligation")
+            )
+            original_study_id = (
+                None
+                if not isinstance(obligation, Mapping)
+                else obligation.get("original_study_id")
+            )
+            if (
+                record is None
+                or record.subject != f"Mission:{mission_id}"
+                or not isinstance(obligation, Mapping)
+                or obligation.get("schema")
+                != "historical_replay_obligation.v1"
+                or obligation.get("governing_mission_id") != mission_id
+                or type(original_study_id) is not str
+                or _STUDY_BOUND_IMPLEMENTATION_PATTERN.fullmatch(
+                    original_study_id
+                )
+                is None
+                or original_study_id == study_id
+            ):
+                raise RecoveryRequired(
+                    "Study historical replay implementation lineage is invalid"
+                )
+            historical_ids.add(original_study_id)
+        return tuple(sorted(historical_ids))
+
     def _require_job_implementation_evidence(
-        self, spec: Mapping[str, Any]
+        self,
+        spec: Mapping[str, Any],
+        *,
+        allowed_historical_control_ids: tuple[str, ...] = (),
     ) -> Mapping[str, Any]:
         """Resolve one Job implementation identity to its exact stored bytes."""
+
+        if (
+            any(
+                type(value) is not str
+                or _STUDY_BOUND_IMPLEMENTATION_PATTERN.fullmatch(value) is None
+                for value in allowed_historical_control_ids
+            )
+            or tuple(sorted(set(allowed_historical_control_ids)))
+            != allowed_historical_control_ids
+        ):
+            raise TransitionError(
+                "historical implementation control-id allowance is invalid"
+            )
+        allowed_historical = set(allowed_historical_control_ids)
 
         identity = spec["implementation_identity"]
         try:
@@ -8623,10 +8752,12 @@ class StateWriter:
             try:
                 _require_digest("implementation artifact", source_hash)
                 source_bytes = self.evidence.read_verified(source_hash)
-                if _hardcoded_control_ids(source_bytes):
+                hardcoded = set(_hardcoded_control_ids(source_bytes))
+                if hardcoded.difference(allowed_historical):
                     raise TransitionError(
-                        "Job implementation hardcodes a Mission or Study identity; "
-                        "use a reusable mechanism with declarative runtime binding"
+                        "Job implementation hardcodes a Mission or Study identity "
+                        "outside declared historical replay lineage; use a reusable "
+                        "mechanism with declarative runtime binding"
                     )
             except TransitionError:
                 raise
@@ -8952,7 +9083,17 @@ class StateWriter:
                             "component parity canonical endpoint is outside the accepted baseline"
                         )
             mission_id = science["active_mission"]
-            implementation_manifest = self._require_job_implementation_evidence(spec)
+            historical_control_ids = (
+                self._historical_replay_implementation_control_ids(
+                    _index,
+                    study_id=science.get("active_study"),
+                    mission_id=mission_id,
+                )
+            )
+            implementation_manifest = self._require_job_implementation_evidence(
+                spec,
+                allowed_historical_control_ids=historical_control_ids,
+            )
             component_implementation_hashes: tuple[str, ...] = ()
             if (
                 not self.engineering_fixture
@@ -9080,7 +9221,10 @@ class StateWriter:
                 try:
                     previous_implementation_manifest = (
                         self._require_job_implementation_evidence(
-                            previous_declaration.payload["spec"]
+                            previous_declaration.payload["spec"],
+                            allowed_historical_control_ids=(
+                                historical_control_ids
+                            ),
                         )
                     )
                 except TransitionError as exc:
@@ -14186,10 +14330,24 @@ class StateWriter:
         output_manifest: Mapping[str, Any],
         output_classes: Mapping[str, Any],
         result_name: str,
+        artifact_output_names: frozenset[str] | None = None,
     ) -> tuple[Any, dict[str, Any]]:
+        if artifact_output_names is not None and (
+            not artifact_output_names
+            or any(
+                type(output_name) is not str or not output_name
+                for output_name in artifact_output_names
+            )
+        ):
+            raise TransitionError("validator artifact output scope is invalid")
         artifacts: list[ValidationArtifact] = []
         for output_name, output_hash in sorted(output_manifest.items()):
             if output_classes.get(output_name) != "durable_evidence":
+                continue
+            if (
+                artifact_output_names is not None
+                and output_name not in artifact_output_names
+            ):
                 continue
             artifact = self.evidence.verify(output_hash)
             artifacts.append(
@@ -14223,6 +14381,88 @@ class StateWriter:
             "declared_artifact_count": trace.declared_artifact_count,
             "opened_artifact_count": trace.opened_artifact_count,
         }
+
+    def _scientific_validator_artifact_output_names(
+        self,
+        *,
+        binding: Mapping[str, Any],
+        result_name: str,
+        measurement_hashes: set[str],
+        output_manifest: Mapping[str, Any],
+        output_classes: Mapping[str, Any],
+    ) -> frozenset[str] | None:
+        """Route only v2 core and preregistered proof artifacts to science."""
+
+        plan_hash = binding.get("validation_plan_hash")
+        if type(plan_hash) is not str:
+            raise TransitionError("scientific validation plan hash is absent")
+        try:
+            plan = parse_canonical(self.evidence.read_verified(plan_hash))
+        except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+            raise TransitionError(
+                "scientific validation plan is unavailable"
+            ) from exc
+        if (
+            not isinstance(plan, Mapping)
+            or plan.get("schema") != "scientific_validation_plan.v2"
+        ):
+            return None
+        requirements = plan.get("proof_requirements")
+        if not isinstance(requirements, list) or not requirements:
+            raise TransitionError(
+                "scientific v2 proof requirement routing is unavailable"
+            )
+        proof_names: set[str] = set()
+        for requirement in requirements:
+            output_name = (
+                None
+                if not isinstance(requirement, Mapping)
+                else requirement.get("output_name")
+            )
+            if type(output_name) is not str or not output_name:
+                raise TransitionError(
+                    "scientific v2 proof output routing is malformed"
+                )
+            proof_names.add(output_name)
+        plan_names = {
+            output_name
+            for output_name, output_hash in output_manifest.items()
+            if output_hash == plan_hash
+            and output_classes.get(output_name) == "durable_evidence"
+        }
+        measurement_names = {
+            output_name
+            for output_name, output_hash in output_manifest.items()
+            if output_hash in measurement_hashes
+            and output_classes.get(output_name) == "durable_evidence"
+        }
+        routed = {
+            result_name,
+            *plan_names,
+            *measurement_names,
+            *proof_names,
+        }
+        if (
+            len(plan_names) != 1
+            or not measurement_hashes
+            or len(measurement_names) != len(measurement_hashes)
+            or {
+                output_manifest[output_name]
+                for output_name in measurement_names
+            }
+            != measurement_hashes
+            or len(routed)
+            != 1 + len(plan_names) + len(measurement_names) + len(proof_names)
+            or any(
+                output_classes.get(output_name) != "durable_evidence"
+                or output_name not in output_manifest
+                for output_name in routed
+            )
+        ):
+            raise TransitionError(
+                "scientific v2 validator artifact routing is ambiguous"
+            )
+        return frozenset(routed)
 
     def _derive_runtime_job_evidence(
         self,
@@ -14529,6 +14769,15 @@ class StateWriter:
             measurement_hashes.add(measurement_hash)
         if claims != set(binding["planned_claims"]):
             raise TransitionError("scientific observations differ from preregistration")
+        validator_artifact_outputs = (
+            self._scientific_validator_artifact_output_names(
+                binding=binding,
+                result_name=result_name,
+                measurement_hashes=measurement_hashes,
+                output_manifest=output_manifest,
+                output_classes=output_classes,
+            )
+        )
         validated, validation_trace = self._run_registered_validator(
             domain="scientific",
             job_id=job_id,
@@ -14540,6 +14789,7 @@ class StateWriter:
             output_manifest=output_manifest,
             output_classes=output_classes,
             result_name=result_name,
+            artifact_output_names=validator_artifact_outputs,
         )
         validator_facts = dict(validated.facts)
         executed_modes = validator_facts.pop("executed_evidence_modes", None)

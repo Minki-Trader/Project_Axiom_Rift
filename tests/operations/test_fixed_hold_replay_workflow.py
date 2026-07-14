@@ -110,6 +110,54 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             "historical_replay_obligations_resolved",
         )
 
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow."
+        "_protocol_activation_step_needed",
+        return_value=True,
+    )
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow._member_completion",
+        return_value=None,
+    )
+    def test_protocol_drift_is_repaired_before_the_first_job(
+        self,
+        _completion,
+        _activation_needed,
+    ) -> None:
+        steps = operation_steps(SimpleNamespace(), self._design())
+        self.assertEqual(len(steps), 40)
+        self.assertEqual(
+            steps[12].operation_id,
+            "fixture-fixed-hold-replay-activate-current-v2-protocol",
+        )
+        self.assertEqual(
+            steps[12].event_kind,
+            "research_protocol_activated",
+        )
+        self.assertTrue(steps[13].operation_id.endswith("-declare-job"))
+
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow."
+        "_member_repair_chain_started",
+        side_effect=lambda _writer, _design, member: member.ordinal == 1,
+    )
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow._member_completion",
+        return_value=None,
+    )
+    def test_running_job_repair_remains_inside_the_strict_chain(
+        self,
+        _completion,
+        _repair_started,
+    ) -> None:
+        steps = operation_steps(SimpleNamespace(), self._design())
+        self.assertEqual(len(steps), 42)
+        self.assertEqual(
+            [item.event_kind for item in steps[15:18]],
+            ["permit_issued", "repair_opened", "repair_closed"],
+        )
+        self.assertTrue(steps[18].operation_id.endswith("-complete-job"))
+
 
 if __name__ == "__main__":
     unittest.main()

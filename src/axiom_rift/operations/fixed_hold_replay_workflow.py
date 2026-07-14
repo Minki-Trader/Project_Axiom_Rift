@@ -62,6 +62,10 @@ from axiom_rift.research.portfolio_projection import (
     component_surface_registry,
     portfolio_axes_from_projection,
 )
+from axiom_rift.research.protocol import (
+    ResearchProtocol,
+    ResearchProtocolActivation,
+)
 from axiom_rift.research.replay_obligation import (
     ReplayDeferral,
     ReplayDeferralBasis,
@@ -73,6 +77,9 @@ from axiom_rift.research.replay_obligation import (
     ReplaySatisfaction,
 )
 from axiom_rift.research.trials import NegativeMemory
+from axiom_rift.research.validation_v2 import (
+    SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
+)
 from axiom_rift.operations.permits import Permit, PermitKind, SubjectKind
 from axiom_rift.storage.index import IndexRecord, LocalIndex
 
@@ -643,6 +650,146 @@ def interpret_fixed_hold_completion(
     )
 
 
+def _protocol_activation_operation_id(
+    design: FixedHoldReplayDesign,
+) -> str:
+    return design.spec.operation_prefix + "activate-current-v2-protocol"
+
+
+def _protocol_activation_step_needed(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+) -> bool:
+    """Keep a required activation in the strict chain after it is recorded."""
+
+    index_path = getattr(writer, "index_path", None)
+    if index_path is None:
+        return False
+    control = writer.read_control()
+    if not isinstance(control, Mapping):
+        raise RuntimeError("replay protocol preflight lacks control")
+    operation_id = _protocol_activation_operation_id(design)
+    authority_digest = control.get("authority", {}).get("manifest_digest")
+    with LocalIndex(index_path) as index:
+        if index.get("operation", operation_id) is not None:
+            return True
+        head = index.event_head("research-protocol:scientific")
+        record = (
+            None
+            if head is None
+            else index.get(head.record_kind, head.record_id)
+        )
+    return not (
+        record is not None
+        and record.kind == "research-protocol-activation"
+        and record.status == "active"
+        and record.payload.get("protocol") == "scientific_adjudication_v2"
+        and record.payload.get("validator_id")
+        == SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID
+        and record.payload.get("authority_manifest_digest")
+        == authority_digest
+    )
+
+
+def _member_repair_chain_started(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+    member: FixedHoldReplayMember,
+) -> bool:
+    """Preserve a typed in-flight Repair inside the strict replay chain."""
+
+    index_path = getattr(writer, "index_path", None)
+    if index_path is None:
+        return False
+    stem = design.spec.operation_prefix + member.label
+    with LocalIndex(index_path) as index:
+        return any(
+            index.get("operation", stem + suffix) is not None
+            for suffix in (
+                "-repair-permit",
+                "-open-repair",
+                "-close-repair",
+            )
+        )
+
+
+def activate_current_scientific_protocol(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+) -> Any:
+    """Audit and bind the current validator before this Study's first Job."""
+
+    control = writer.read_control()
+    if not isinstance(control, Mapping):
+        raise RuntimeError("replay protocol activation lacks control")
+    authority_digest = control.get("authority", {}).get("manifest_digest")
+    if type(authority_digest) is not str:
+        raise RuntimeError("replay protocol activation lacks authority")
+    science = control.get("scientific", {})
+    study_id = science.get("active_study") if isinstance(science, Mapping) else None
+    batch = science.get("active_batch") if isinstance(science, Mapping) else None
+    with LocalIndex(writer.index_path) as index:
+        head = index.event_head("research-protocol:scientific")
+        prior = (
+            None
+            if head is None
+            else index.get(head.record_kind, head.record_id)
+        )
+        current_study_job_count = sum(
+            record.payload.get("study_id") == study_id
+            for record in index.records_by_kind("job-declared")
+        ) if isinstance(study_id, str) else 0
+    audit = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "authority_manifest_digest": authority_digest,
+                "batch_id": (
+                    batch.get("id") if isinstance(batch, Mapping) else None
+                ),
+                "candidate_delta": 0,
+                "holdout_reveal_delta": 0,
+                "mission_id": (
+                    science.get("active_mission")
+                    if isinstance(science, Mapping)
+                    else None
+                ),
+                "prior_activation_record_id": (
+                    None if prior is None else prior.record_id
+                ),
+                "prior_validator_id": (
+                    None if prior is None else prior.payload.get("validator_id")
+                ),
+                "prospective_job_declaration_count": current_study_job_count,
+                "prospective_job_implementation_identity": (
+                    design.spec.job_implementation_identity
+                ),
+                "reason": (
+                    "bind the current validated implementation before the first "
+                    "prospective scientific Job"
+                ),
+                "replacement_validator_id": (
+                    SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID
+                ),
+                "schema": "scientific_protocol_reactivation_audit.v1",
+                "study_id": study_id,
+                "trial_delta": 0,
+            }
+        )
+    )
+    activation = ResearchProtocolActivation(
+        protocol=ResearchProtocol.SCIENTIFIC_ADJUDICATION_V2,
+        validator_id=SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
+        authority_manifest_digest=authority_digest,
+        audit_artifact_hash=audit.sha256,
+    )
+    return writer.activate_research_protocol(
+        activation=activation,
+        operation_id=_protocol_activation_operation_id(design),
+        allow_active_stable_boundary=True,
+        allow_active_unexecuted_study_boundary=True,
+    )
+
+
 def operation_steps(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
@@ -684,6 +831,14 @@ def operation_steps(
         )
         for member in design.members
     )
+    if _protocol_activation_step_needed(writer, design):
+        steps.append(
+            OperationStep(
+                _protocol_activation_operation_id(design),
+                "research_protocol_activated",
+                STUDY_CLOSE_STAGE,
+            )
+        )
     for member in design.members:
         stem = prefix + member.label
         steps.extend(
@@ -691,7 +846,33 @@ def operation_steps(
                 OperationStep(stem + "-declare-job", "job_declared", STUDY_CLOSE_STAGE),
                 OperationStep(stem + "-job-permit", "permit_issued", STUDY_CLOSE_STAGE),
                 OperationStep(stem + "-start-job", "job_started", STUDY_CLOSE_STAGE),
-                OperationStep(stem + "-complete-job", "job_completed", STUDY_CLOSE_STAGE),
+            )
+        )
+        if _member_repair_chain_started(writer, design, member):
+            steps.extend(
+                (
+                    OperationStep(
+                        stem + "-repair-permit",
+                        "permit_issued",
+                        STUDY_CLOSE_STAGE,
+                    ),
+                    OperationStep(
+                        stem + "-open-repair",
+                        "repair_opened",
+                        STUDY_CLOSE_STAGE,
+                    ),
+                    OperationStep(
+                        stem + "-close-repair",
+                        "repair_closed",
+                        STUDY_CLOSE_STAGE,
+                    ),
+                )
+            )
+        steps.append(
+            OperationStep(
+                stem + "-complete-job",
+                "job_completed",
+                STUDY_CLOSE_STAGE,
             )
         )
         if member.ordinal in failed:
@@ -831,9 +1012,6 @@ def build_replay_job_spec(
             "id": member.executable.identity,
         },
         "expected_outputs": list(expected_outputs),
-        "historical_context_prior_global_exposure_count": (
-            member.job_plan.definition.historical_prior_global_exposure_count
-        ),
         "implementation_identity": design.spec.job_implementation_identity,
         "input_hashes": list(input_hashes),
         "log_path": (
@@ -944,6 +1122,7 @@ def _apply_study_close_step(
     step: OperationStep,
     repository_root: Path,
     job_runner: Callable[..., FixedHoldFamilyJobPacket],
+    job_implementation_materializer: Callable[[StateWriter], str],
 ) -> Any:
     spec = design.spec
     operation_id = step.operation_id
@@ -1003,6 +1182,8 @@ def _apply_study_close_step(
             permit=_permit_from_operation(writer, prefix + "batch-permit"),
             operation_id=operation_id,
         )
+    if operation_id == _protocol_activation_operation_id(design):
+        return activate_current_scientific_protocol(writer, design)
     for member in design.members:
         stem = prefix + member.label
         if operation_id == stem + "-register-trial":
@@ -1011,6 +1192,11 @@ def _apply_study_close_step(
                 operation_id=operation_id,
             )
         if operation_id == stem + "-declare-job":
+            implementation_identity = job_implementation_materializer(writer)
+            if implementation_identity != spec.job_implementation_identity:
+                raise RuntimeError(
+                    "replay Job implementation materialization drifted"
+                )
             result = writer.declare_job(
                 spec=build_replay_job_spec(writer, design, member),
                 operation_id=operation_id,
@@ -1482,6 +1668,7 @@ def run_study_close_stage(
     design: FixedHoldReplayDesign,
     repository_root: Path,
     job_runner: Callable[..., FixedHoldFamilyJobPacket],
+    job_implementation_materializer: Callable[[StateWriter], str],
     explicit_recovery: bool = False,
 ) -> dict[str, Any]:
     require_stable_head(writer, explicit_recovery=explicit_recovery)
@@ -1502,6 +1689,9 @@ def run_study_close_stage(
             step=steps[completed],
             repository_root=repository_root,
             job_runner=job_runner,
+            job_implementation_materializer=(
+                job_implementation_materializer
+            ),
         )
         advanced, _ = inspect_replay_prefix(writer, design)
         if advanced != completed + 1:
@@ -1716,6 +1906,7 @@ __all__ = [
     "ReplayInterpretation",
     "build_fixed_hold_replay_design",
     "build_replay_job_spec",
+    "activate_current_scientific_protocol",
     "inspect_replay_prefix",
     "interpret_fixed_hold_completion",
     "operation_steps",

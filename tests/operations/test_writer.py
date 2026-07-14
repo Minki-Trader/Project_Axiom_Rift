@@ -833,6 +833,147 @@ class WriterTests(unittest.TestCase):
                 allow_active_stable_boundary=True,
             )
 
+    def test_validator_rebind_is_limited_to_an_unexecuted_study(self) -> None:
+        self.open_mission_and_initiative()
+        self.writer.close_initiative(
+            outcome="completed",
+            operation_id="unexecuted-rebind-close-first-initiative",
+        )
+        historical_audit = self.writer.evidence.finalize(
+            b"historical validator before unexecuted Study rebind"
+        )
+        self.writer.validation_registry = EvidenceValidatorRegistry(
+            (
+                ScientificAdjudicationValidatorV2(),
+                ScientificFixtureValidator(),
+            )
+        )
+        stable = self.writer.read_control()
+        assert stable is not None
+        historical = ResearchProtocolActivation(
+            protocol=ResearchProtocol.SCIENTIFIC_ADJUDICATION_V2,
+            validator_id=ScientificFixtureValidator.validator_id,
+            authority_manifest_digest=stable["authority"]["manifest_digest"],
+            audit_artifact_hash=historical_audit.sha256,
+        )
+        with patch(
+            "axiom_rift.research.validation_v2."
+            "SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID",
+            ScientificFixtureValidator.validator_id,
+        ):
+            first = self.writer.activate_research_protocol(
+                activation=historical,
+                operation_id="activate-validator-before-unexecuted-study",
+                allow_active_stable_boundary=True,
+            )
+        self.assertEqual(first.result["ordinal"], 1)
+
+        initiative_id = "INI-PROTOCOL-REBIND"
+        study_id = "STU-PROTOCOL-REBIND"
+        self.writer.open_initiative(
+            initiative_id=initiative_id,
+            objective=initiative_objective("unexecuted protocol rebind"),
+            operation_id="open-unexecuted-rebind-initiative",
+        )
+        question = study_question("unexecuted protocol rebind")
+        proposal = {"mechanism": "validator implementation drift"}
+        study_hash = self.writer.study_input_hash(
+            question=question,
+            material_identity=OBSERVED_MATERIAL_ID,
+            semantic_proposal=proposal,
+        )
+        study_permit = self.writer.issue_permit(
+            kind=PermitKind.STUDY,
+            subject_kind=SubjectKind.INITIATIVE,
+            subject_id=initiative_id,
+            input_hash=study_hash,
+            actions=("open_study",),
+            scope=("study",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="permit-unexecuted-rebind-study",
+        )
+        opened = self.writer.open_study(
+            study_id=study_id,
+            question=question,
+            material_identity=OBSERVED_MATERIAL_ID,
+            material_display_name="unexecuted protocol rebind material",
+            semantic_proposal=proposal,
+            permit=study_permit,
+            operation_id="open-unexecuted-rebind-study",
+        )
+        batch = batch_spec(
+            batch_id="BAT-PROTOCOL-REBIND",
+            study_id=study_id,
+            study_hash=opened.result["study_hash"],
+        )
+        batch_permit = self.writer.issue_permit(
+            kind=PermitKind.BATCH,
+            subject_kind=SubjectKind.STUDY,
+            subject_id=study_id,
+            input_hash=batch.identity.removeprefix("batch:"),
+            actions=("open_batch",),
+            scope=("batch",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="permit-unexecuted-rebind-batch",
+        )
+        self.writer.open_batch(
+            batch_spec=batch,
+            permit=batch_permit,
+            operation_id="open-unexecuted-rebind-batch",
+        )
+
+        before = self.writer.read_control()
+        assert before is not None
+        current_audit = self.writer.evidence.finalize(
+            b"current validator at exact pre-Job boundary"
+        )
+        self.writer.validation_registry = EvidenceValidatorRegistry(
+            (ScientificAdjudicationValidatorV2(),)
+        )
+        current = ResearchProtocolActivation(
+            protocol=ResearchProtocol.SCIENTIFIC_ADJUDICATION_V2,
+            validator_id=ScientificAdjudicationValidatorV2.validator_id,
+            authority_manifest_digest=before["authority"]["manifest_digest"],
+            audit_artifact_hash=current_audit.sha256,
+        )
+        rebound = self.writer.activate_research_protocol(
+            activation=current,
+            operation_id="rebind-at-unexecuted-study-boundary",
+            allow_active_unexecuted_study_boundary=True,
+        )
+        after = self.writer.read_control()
+        assert after is not None
+        self.assertEqual(rebound.result["ordinal"], 2)
+        self.assertEqual(rebound.result["trial_delta"], 0)
+        self.assertEqual(after["scientific"], before["scientific"])
+        self.assertEqual(after["next_action"], before["next_action"])
+        with LocalIndex(self.writer.index_path) as index:
+            record = index.get(
+                "research-protocol-activation",
+                rebound.result["activation_record_id"],
+            )
+        assert record is not None
+        self.assertEqual(
+            record.payload["supersedes_activation_record_id"],
+            historical.identity,
+        )
+
+        self.writer.declare_job(
+            spec=job_spec(
+                self.writer,
+                {"kind": "Study", "id": study_id},
+            ),
+            operation_id="declare-before-rebind-rejection",
+        )
+        with self.assertRaisesRegex(TransitionError, "active Job must resume"):
+            self.writer.activate_research_protocol(
+                activation=current,
+                operation_id="reject-rebind-after-first-job",
+                allow_active_unexecuted_study_boundary=True,
+            )
+
     def test_protocol_rebind_supersedes_an_intact_historical_validator(self) -> None:
         self.open_mission_and_initiative()
         self.writer.close_initiative(
@@ -962,6 +1103,51 @@ class WriterTests(unittest.TestCase):
         spec["external_dependency_binding"] = {}
         with self.assertRaisesRegex(TransitionError, "cannot mix"):
             self.writer._validate_job_spec(spec)
+
+    def test_scientific_validator_excludes_auxiliary_durable_outputs(self) -> None:
+        plan = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "proof_requirements": [
+                        {"output_name": "evidence/calculation.json"},
+                        {"output_name": "evidence/trace.json"},
+                    ],
+                    "schema": "scientific_validation_plan.v2",
+                }
+            )
+        )
+        output_manifest = {
+            "evidence/plan.json": plan.sha256,
+            "evidence/result.json": "a" * 64,
+            "evidence/measurement.json": "b" * 64,
+            "evidence/calculation.json": "c" * 64,
+            "evidence/trace.json": "d" * 64,
+            "evidence/cache-provenance.json": "e" * 64,
+        }
+        output_classes = {
+            output_name: "durable_evidence"
+            for output_name in output_manifest
+        }
+        routed = self.writer._scientific_validator_artifact_output_names(
+            binding={"validation_plan_hash": plan.sha256},
+            result_name="evidence/result.json",
+            measurement_hashes={"b" * 64},
+            output_manifest=output_manifest,
+            output_classes=output_classes,
+        )
+        self.assertEqual(
+            routed,
+            frozenset(
+                {
+                    "evidence/plan.json",
+                    "evidence/result.json",
+                    "evidence/measurement.json",
+                    "evidence/calculation.json",
+                    "evidence/trace.json",
+                }
+            ),
+        )
+        self.assertNotIn("evidence/cache-provenance.json", routed)
 
     def test_scientific_schema_preflight_runs_before_job_declaration(self) -> None:
         validator_id = "validator:" + "a" * 64
