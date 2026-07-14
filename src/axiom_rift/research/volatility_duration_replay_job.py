@@ -15,6 +15,7 @@ import axiom_rift.research.historical_family_replay as historical_family_module
 import axiom_rift.research.scientific_trace as scientific_trace_module
 import axiom_rift.research.selection_inference as selection_inference_module
 import axiom_rift.research.volatility_duration_replay as replay_module
+import axiom_rift.research.volatility_duration_replay_parity as parity_module
 import axiom_rift.storage.evidence as evidence_module
 from axiom_rift.operations.writer import RunningJobExecution, StateWriter
 from axiom_rift.research.fixed_hold_family_job import (
@@ -28,13 +29,23 @@ from axiom_rift.research.fixed_hold_replay_runtime import (
     fixed_hold_replay_job_implementation_artifact,
     fixed_hold_replay_job_implementation_sha256,
     materialize_fixed_hold_replay_job_implementation,
+    materialize_running_job_implementation_repair_proof,
 )
 from axiom_rift.research.fixed_hold_family_trace import (
     FixedHoldProtocolDefinition,
 )
 from axiom_rift.research.volatility_duration_replay import (
-    compute_stu0051_volatility_duration_family_trace,
+    calibrate_volatility_duration_replay_selector,
+    causal_volatility_duration_replay_spread,
+    compute_volatility_duration_replay_score,
+    volatility_duration_replay_configurations,
     volatility_duration_replay_protocol_definition,
+)
+from axiom_rift.research.fixed_hold_trace_engine import (
+    compute_fixed_hold_family_trace,
+)
+from axiom_rift.research.volatility_duration_replay_parity import (
+    assert_repaired_volatility_duration_historical_raw_parity,
 )
 
 
@@ -59,10 +70,20 @@ def _trace(
     repository_root: Path,
     prior_global_exposure_count: int,
 ) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
-    return compute_stu0051_volatility_duration_family_trace(
-        repository_root,
+    definition = volatility_duration_replay_protocol_definition(
         historical_context_prior_global_exposure_count=(
             prior_global_exposure_count
+        )
+    )
+    return compute_fixed_hold_family_trace(
+        repository_root,
+        definition=definition,
+        configurations=volatility_duration_replay_configurations(),
+        feature_builder=compute_volatility_duration_replay_score,
+        selector_calibrator=calibrate_volatility_duration_replay_selector,
+        spread_builder=causal_volatility_duration_replay_spread,
+        raw_parity_validator=(
+            assert_repaired_volatility_duration_historical_raw_parity
         ),
     )
 
@@ -84,6 +105,7 @@ RUNTIME_ADAPTER = FixedHoldReplayRuntimeAdapter(
                 Path(fixed_hold_trace_module.__file__).resolve(),
                 Path(governance_module.__file__).resolve(),
                 Path(historical_family_module.__file__).resolve(),
+                Path(parity_module.__file__).resolve(),
                 Path(replay_module.__file__).resolve(),
                 Path(scientific_trace_module.__file__).resolve(),
                 Path(selection_inference_module.__file__).resolve(),
@@ -128,6 +150,19 @@ def materialize_volatility_duration_replay_job_implementation(
     )
 
 
+def materialize_volatility_duration_running_job_repair_proof(
+    writer: StateWriter,
+) -> str:
+    return materialize_running_job_implementation_repair_proof(
+        writer,
+        adapter=RUNTIME_ADAPTER,
+        explanation=(
+            "replace absent historical evaluation addresses without changing "
+            "the registered scientific Executable family"
+        ),
+    )
+
+
 def build_volatility_duration_replay_job_plan(
     *,
     mission_id: str,
@@ -166,6 +201,7 @@ __all__ = [
     "build_volatility_duration_replay_job_plan",
     "execute_volatility_duration_replay_job",
     "materialize_volatility_duration_replay_job_implementation",
+    "materialize_volatility_duration_running_job_repair_proof",
     "volatility_duration_replay_job_implementation_artifact",
     "volatility_duration_replay_job_implementation_sha256",
 ]

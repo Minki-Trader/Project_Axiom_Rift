@@ -41,6 +41,10 @@ from axiom_rift.research.volatility_duration_replay_job import (
     volatility_duration_replay_job_implementation_artifact,
     volatility_duration_replay_job_implementation_sha256,
 )
+from axiom_rift.research.volatility_duration_replay_parity import (
+    STU0051_REPAIRED_HISTORICAL_EVALUATION_HASHES,
+)
+from axiom_rift.storage.evidence import EvidenceStore
 
 
 HISTORICAL_CONTEXT_COUNT = 582
@@ -101,6 +105,36 @@ class VolatilityDurationReplayTests(unittest.TestCase):
             HISTORICAL_CONTEXT_COUNT,
         )
         self.assertEqual(len(self.definition.prospective_executable_ids), 4)
+        self.assertEqual(
+            self.definition.prospective_executable_ids,
+            (
+                "executable:"
+                "8392b61ce0b248381ac51be7975cacb75d7d74467b0903393656cbc2491f88e4",
+                "executable:"
+                "3a90958f5e1dca92bf61f7ed5abd0375ce1c15c8cab161512ffb480b37f0f915",
+                "executable:"
+                "d8f54d95a5a630377d9a82f7c2801d362008304d1e3096e1fb3117966799d905",
+                "executable:"
+                "eabf4c41722ac77fadccff0b669be9e9226cd250fd911878c8d594b7acbc7990",
+            ),
+        )
+
+    def test_repaired_parity_catalog_opens_exact_historical_evidence(self) -> None:
+        store = EvidenceStore(
+            Path(__file__).resolve().parents[2] / "local" / "evidence"
+        )
+        for configuration_id, identity in (
+            STU0051_REPAIRED_HISTORICAL_EVALUATION_HASHES.items()
+        ):
+            value = parse_canonical(store.read_verified(identity))
+            self.assertEqual(
+                value["subject_configuration_id"],
+                configuration_id,
+            )
+            self.assertEqual(
+                value["schema"],
+                "volatility_duration_evaluation.v2",
+            )
 
     def test_readable_adapter_matches_legacy_feature_and_cost_primitives(
         self,
@@ -172,6 +206,10 @@ class VolatilityDurationReplayTests(unittest.TestCase):
         )
         self.assertIn(
             "axiom_rift/research/volatility_duration_replay_job.py",
+            paths,
+        )
+        self.assertIn(
+            "axiom_rift/research/volatility_duration_replay_parity.py",
             paths,
         )
         self.assertEqual(RUNTIME_ADAPTER.expected_family_size, 4)

@@ -1389,6 +1389,43 @@ class StateWriter:
                     "projection_digest": projection_digest,
                 }
 
+    @staticmethod
+    def _effective_running_job_implementation(
+        index: LocalIndex,
+        *,
+        job_id: str,
+        declared_implementation_identity: str,
+    ) -> tuple[str, str | None]:
+        """Project the latest typed in-place implementation Repair."""
+
+        _require_digest(
+            "declared Job implementation",
+            declared_implementation_identity,
+        )
+        head = index.event_head(f"job-repair:{job_id}")
+        if head is None:
+            return declared_implementation_identity, None
+        record = index.get(head.record_kind, head.record_id)
+        payload = None if record is None else record.payload
+        effective = (
+            None
+            if not isinstance(payload, Mapping)
+            else payload.get("effective_implementation_identity")
+        )
+        if (
+            record is None
+            or record.kind != "repair-close"
+            or record.status != "repaired"
+            or record.subject != f"Job:{job_id}"
+            or payload.get("job_id") != job_id
+            or not isinstance(effective, str)
+        ):
+            raise RecoveryRequired(
+                "running Job implementation Repair projection is invalid"
+            )
+        _require_digest("effective Job implementation", effective)
+        return effective, record.record_id
+
     def verify_running_job_execution(
         self,
         execution: RunningJobExecution,
@@ -1463,6 +1500,15 @@ class StateWriter:
                     or not set(required).issubset(spec.get("input_hashes", []))
                 ):
                     raise PermitError("running Job capability differs from engine entry")
+                effective_implementation, repair_record_id = (
+                    self._effective_running_job_implementation(
+                        index,
+                        job_id=execution.job_id,
+                        declared_implementation_identity=spec[
+                            "implementation_identity"
+                        ],
+                    )
+                )
                 stream = f"permit:{execution.job_permit_id}"
                 issued = index.event_record(stream, 1)
                 consumed = index.event_record(stream, 2)
@@ -1514,7 +1560,11 @@ class StateWriter:
                     raise PermitError("running Job permit and start provenance diverge")
                 return {
                     "batch_id": declaration.payload.get("batch_id"),
+                    "effective_implementation_identity": (
+                        effective_implementation
+                    ),
                     "execution": execution.payload(),
+                    "implementation_repair_record_id": repair_record_id,
                     "initiative_id": declaration.payload.get("initiative_id"),
                     "mission_id": declaration.payload.get("mission_id"),
                     "spec": _copy(spec),
@@ -16229,7 +16279,14 @@ class StateWriter:
         operation_id: str,
     ) -> TransitionResult:
         _require_digest("changed_cause_proof_hash", changed_cause_proof_hash)
-        self.evidence.verify(changed_cause_proof_hash)
+        changed_artifact = self.evidence.verify(changed_cause_proof_hash)
+        changed_bytes = (
+            self.evidence._root / changed_artifact.relative_path
+        ).read_bytes()
+        try:
+            changed_manifest = parse_canonical(changed_bytes)
+        except ValueError:
+            changed_manifest = None
 
         def prepare(current: dict[str, Any] | None, _index: LocalIndex):
             if current is None:
@@ -16247,26 +16304,189 @@ class StateWriter:
                 raise TransitionError("Repair cause record is absent")
             if changed_cause_proof_hash in opened.payload["minimum_reproduction_evidence"]:
                 raise TransitionError("changed-cause proof reuses the failure reproduction")
+            declaration = _index.get("job-declared", job["id"])
+            spec = None if declaration is None else declaration.payload.get("spec")
+            if not isinstance(spec, Mapping):
+                raise TransitionError("Repair Job declaration is unavailable")
+            prior_effective, _prior_repair_record_id = (
+                self._effective_running_job_implementation(
+                    _index,
+                    job_id=job["id"],
+                    declared_implementation_identity=spec[
+                        "implementation_identity"
+                    ],
+                )
+            )
+            effective_implementation = prior_effective
+            implementation_changed = False
+            if (
+                isinstance(changed_manifest, Mapping)
+                and changed_manifest.get("schema")
+                == "running_job_implementation_repair.v1"
+            ):
+                required = {
+                    "changed_dimension",
+                    "explanation",
+                    "job_hash",
+                    "job_id",
+                    "new_evidence_hashes",
+                    "new_implementation_identity",
+                    "previous_implementation_identity",
+                    "repair_id",
+                    "reproduction_evidence_hashes",
+                    "schema",
+                }
+                new_evidence = changed_manifest.get("new_evidence_hashes")
+                reproduction = changed_manifest.get(
+                    "reproduction_evidence_hashes"
+                )
+                new_identity = changed_manifest.get(
+                    "new_implementation_identity"
+                )
+                explanation = changed_manifest.get("explanation")
+                if (
+                    set(changed_manifest) != required
+                    or changed_manifest.get("changed_dimension")
+                    != "implementation"
+                    or changed_manifest.get("job_id") != job["id"]
+                    or changed_manifest.get("job_hash") != job["hash"]
+                    or changed_manifest.get("repair_id") != repair["id"]
+                    or changed_manifest.get(
+                        "previous_implementation_identity"
+                    )
+                    != prior_effective
+                    or not isinstance(new_identity, str)
+                    or new_identity == prior_effective
+                    or type(explanation) is not str
+                    or not explanation
+                    or not explanation.isascii()
+                    or not isinstance(new_evidence, list)
+                    or not new_evidence
+                    or new_evidence != sorted(set(new_evidence))
+                    or not isinstance(reproduction, list)
+                    or reproduction
+                    != sorted(opened.payload["minimum_reproduction_evidence"])
+                ):
+                    raise TransitionError(
+                        "running Job implementation Repair proof is invalid"
+                    )
+                _require_digest("repaired Job implementation", new_identity)
+                if new_identity not in new_evidence:
+                    raise TransitionError(
+                        "running Job Repair omits its implementation manifest"
+                    )
+                for evidence_hash in new_evidence:
+                    _require_digest("running Job Repair evidence", evidence_hash)
+                    self.evidence.verify(evidence_hash)
+                mission_id = declaration.payload.get("mission_id")
+                study_id = declaration.payload.get("study_id")
+                allowed_historical_ids = (
+                    self._historical_replay_implementation_control_ids(
+                        _index,
+                        study_id=study_id,
+                        mission_id=mission_id,
+                    )
+                )
+                previous_manifest = self._require_job_implementation_evidence(
+                    {
+                        **dict(spec),
+                        "implementation_identity": prior_effective,
+                    },
+                    allowed_historical_control_ids=allowed_historical_ids,
+                )
+                repaired_spec = {
+                    **dict(spec),
+                    "implementation_identity": new_identity,
+                }
+                repaired_manifest = self._require_job_implementation_evidence(
+                    repaired_spec,
+                    allowed_historical_control_ids=allowed_historical_ids,
+                )
+                if (
+                    previous_manifest.get("protocol")
+                    != repaired_manifest.get("protocol")
+                    or any(
+                        value not in new_evidence
+                        for value in repaired_manifest["artifact_hashes"]
+                    )
+                ):
+                    raise TransitionError(
+                        "running Job Repair changes protocol or omits source bytes"
+                    )
+                if (
+                    not self.engineering_fixture
+                    and spec.get("evidence_subject", {}).get("kind")
+                    == "Executable"
+                ):
+                    from axiom_rift.research.implementation_closure import (
+                        ImplementationClosureError,
+                        require_job_implementation_closure,
+                    )
+
+                    subject = spec["evidence_subject"]["id"]
+                    trial = _index.get("trial", subject)
+                    executable = (
+                        None
+                        if trial is None
+                        else trial.payload.get("executable")
+                    )
+                    if not isinstance(executable, dict):
+                        raise TransitionError(
+                            "running Job Repair lost its Executable trial"
+                        )
+                    try:
+                        require_job_implementation_closure(
+                            executable_manifest=executable,
+                            job_artifact_hashes=repaired_manifest[
+                                "artifact_hashes"
+                            ],
+                            artifact_reader=self.evidence.read_verified,
+                        )
+                    except ImplementationClosureError as exc:
+                        raise TransitionError(str(exc)) from exc
+                effective_implementation = new_identity
+                implementation_changed = True
             science["active_repair"] = None
             job["status"] = "running"
             body["next_action"] = {"kind": "resume_job", "job_id": job["id"]}
+            repair_stream = f"job-repair:{job['id']}"
+            repair_head = _index.event_head(repair_stream)
             record = _record(
                 kind="repair-close",
                 record_id=canonical_digest(
                     domain="repair-close",
                     payload={"repair_id": repair["id"], "proof": changed_cause_proof_hash},
                 ),
-                subject=f"Repair:{repair['id']}",
+                subject=f"Job:{job['id']}",
                 status="repaired",
                 fingerprint=changed_cause_proof_hash,
                 payload={
                     "resume_action": repair["resume_action"],
                     "changed_cause_proof_hash": changed_cause_proof_hash,
+                    "effective_implementation_identity": (
+                        effective_implementation
+                    ),
+                    "implementation_changed": implementation_changed,
+                    "job_id": job["id"],
+                    "previous_effective_implementation_identity": (
+                        prior_effective
+                    ),
+                    "repair_id": repair["id"],
                     "scientific_trial_delta": 0,
                     "scientific_failure_delta": 0,
                 },
+                event_stream=repair_stream,
+                event_sequence=(
+                    1 if repair_head is None else repair_head.sequence + 1
+                ),
             )
-            return body, [record], {"job_id": job["id"], "resume_action": repair["resume_action"]}
+            return body, [record], {
+                "effective_implementation_identity": (
+                    effective_implementation
+                ),
+                "job_id": job["id"],
+                "resume_action": repair["resume_action"],
+            }
 
         return self._commit(
             event_kind="repair_closed",

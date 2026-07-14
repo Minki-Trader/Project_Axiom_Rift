@@ -3908,7 +3908,10 @@ class WriterTests(unittest.TestCase):
             operation_id="issue-repair-permit",
         )
         # The unrelated permit issue changed global revision but not Job auth.
-        self.writer.start_job(permit=start_permit, operation_id="start-job")
+        started = self.writer.start_job(
+            permit=start_permit,
+            operation_id="start-job",
+        )
         with self.assertRaises((PermitError, TransitionError)):
             self.writer.start_job(permit=start_permit, operation_id="replay-start")
 
@@ -3934,6 +3937,104 @@ class WriterTests(unittest.TestCase):
         for key in ("holdout_reveals", "active_executable", "required_future_holdout_id"):
             self.assertEqual(before["scientific"][key], after["scientific"][key])
         self.assertEqual(after["scientific"]["active_job"]["status"], "running")
+
+        implementation_reproduction = self.writer.evidence.finalize(
+            b"fixture running Job implementation defect"
+        )
+        implementation_permit = self.writer.issue_permit(
+            kind=PermitKind.REPAIR,
+            subject_kind=SubjectKind.JOB,
+            subject_id=job_id,
+            input_hash=job_hash,
+            actions=("open_repair",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="issue-implementation-repair-permit",
+        )
+        implementation_open = self.writer.open_repair(
+            permit=implementation_permit,
+            failure={
+                "minimum_reproduction_evidence": [
+                    implementation_reproduction.sha256
+                ],
+                "root_cause": "fixture running implementation defect",
+                "interrupted_action": "fixture.callable",
+            },
+            operation_id="open-implementation-repair",
+        )
+        changed_source = self.writer.evidence.finalize(
+            b"fixture repaired running Job source"
+        )
+        changed_implementation = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "artifact_hashes": [changed_source.sha256],
+                    "callable_identity": "fixture.callable",
+                    "protocol": "python.source.fixture.v1",
+                    "schema": "job_implementation_evidence.v1",
+                }
+            )
+        )
+        proof_manifest = {
+            "changed_dimension": "implementation",
+            "explanation": "repair fixture running implementation",
+            "job_hash": job_hash,
+            "job_id": job_id,
+            "new_evidence_hashes": sorted(
+                [
+                    changed_implementation.sha256,
+                    changed_source.sha256,
+                ]
+            ),
+            "new_implementation_identity": changed_implementation.sha256,
+            "previous_implementation_identity": oversized_job[
+                "implementation_identity"
+            ],
+            "repair_id": implementation_open.result["repair_id"],
+            "reproduction_evidence_hashes": [
+                implementation_reproduction.sha256
+            ],
+            "schema": "running_job_implementation_repair.v1",
+        }
+        incomplete_proof = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    **proof_manifest,
+                    "new_evidence_hashes": [
+                        changed_implementation.sha256
+                    ],
+                }
+            )
+        )
+        with self.assertRaisesRegex(TransitionError, "omits source bytes"):
+            self.writer.close_repair(
+                changed_cause_proof_hash=incomplete_proof.sha256,
+                operation_id="reject-incomplete-implementation-repair",
+            )
+        changed_proof = self.writer.evidence.finalize(
+            canonical_bytes(proof_manifest)
+        )
+        repaired = self.writer.close_repair(
+            changed_cause_proof_hash=changed_proof.sha256,
+            operation_id="close-implementation-repair",
+        )
+        self.assertEqual(
+            repaired.result["effective_implementation_identity"],
+            changed_implementation.sha256,
+        )
+        execution = RunningJobExecution.from_mapping(
+            started.result["execution"]
+        )
+        binding = self.writer.verify_running_job_execution(
+            execution,
+            expected_callable_identity="fixture.callable",
+        )
+        self.assertEqual(
+            binding["effective_implementation_identity"],
+            changed_implementation.sha256,
+        )
+        self.assertIsNotNone(binding["implementation_repair_record_id"])
 
         transient = self.root / "local" / "jobs" / "fixture" / "fixture.json"
         transient.parent.mkdir(parents=True, exist_ok=True)

@@ -20,7 +20,7 @@ import axiom_rift.research.fixed_hold_family_job as fixed_hold_job_module
 import axiom_rift.research.replay_exposure as replay_exposure_module
 import axiom_rift.research.trials as trials_module
 import axiom_rift.storage.index as index_module
-from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.operations.writer import RunningJobExecution, StateWriter
 from axiom_rift.research.fixed_hold_family_job import (
     FixedHoldFamilyJobPacket,
@@ -249,6 +249,85 @@ def materialize_fixed_hold_replay_job_implementation(
     return implementation.sha256
 
 
+def materialize_running_job_implementation_repair_proof(
+    writer: StateWriter,
+    *,
+    adapter: FixedHoldReplayRuntimeAdapter,
+    explanation: str,
+) -> str:
+    """Bind a repaired source closure to one interrupted running Job."""
+
+    reason = _ascii("running Job Repair explanation", explanation)
+    control = writer.read_control()
+    science = None if control is None else control.get("scientific")
+    repair = None if not isinstance(science, Mapping) else science.get(
+        "active_repair"
+    )
+    job = None if not isinstance(science, Mapping) else science.get("active_job")
+    if (
+        not isinstance(repair, Mapping)
+        or not isinstance(job, Mapping)
+        or job.get("status") != "interrupted_repair"
+        or repair.get("job_id") != job.get("id")
+    ):
+        raise ValueError("implementation Repair requires one interrupted Job")
+    with LocalIndex(writer.index_path) as index:
+        declaration = index.get("job-declared", str(job["id"]))
+        opened = index.get("repair-open", str(repair["id"]))
+        prior_head = index.event_head(f"job-repair:{job['id']}")
+        prior_close = (
+            None
+            if prior_head is None
+            else index.get(prior_head.record_kind, prior_head.record_id)
+        )
+    spec = None if declaration is None else declaration.payload.get("spec")
+    reproduction = (
+        None
+        if opened is None
+        else opened.payload.get("minimum_reproduction_evidence")
+    )
+    if not isinstance(spec, Mapping) or not isinstance(reproduction, list):
+        raise ValueError("implementation Repair provenance is unavailable")
+    previous_identity = spec.get("implementation_identity")
+    if prior_close is not None:
+        previous_identity = prior_close.payload.get(
+            "effective_implementation_identity"
+        )
+    if not isinstance(previous_identity, str):
+        raise ValueError("previous implementation identity is unavailable")
+    new_identity = materialize_fixed_hold_replay_job_implementation(
+        writer,
+        adapter=adapter,
+    )
+    if new_identity == previous_identity:
+        raise ValueError("implementation Repair did not change source closure")
+    manifest = parse_canonical(writer.evidence.read_verified(new_identity))
+    if (
+        not isinstance(manifest, dict)
+        or manifest.get("schema") != "job_implementation_evidence.v1"
+        or not isinstance(manifest.get("artifact_hashes"), list)
+    ):
+        raise ValueError("repaired implementation manifest is invalid")
+    new_evidence = sorted({new_identity, *manifest["artifact_hashes"]})
+    proof = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "changed_dimension": "implementation",
+                "explanation": reason,
+                "job_hash": job["hash"],
+                "job_id": job["id"],
+                "new_evidence_hashes": new_evidence,
+                "new_implementation_identity": new_identity,
+                "previous_implementation_identity": previous_identity,
+                "repair_id": repair["id"],
+                "reproduction_evidence_hashes": sorted(reproduction),
+                "schema": "running_job_implementation_repair.v1",
+            }
+        )
+    )
+    return proof.sha256
+
+
 def build_fixed_hold_replay_job_plan(
     *,
     adapter: FixedHoldReplayRuntimeAdapter,
@@ -339,7 +418,7 @@ def execute_fixed_hold_replay_job(
         historical_context_prior_global_exposure_count=historical_count,
     )
     if (
-        spec.get("implementation_identity")
+        binding.get("effective_implementation_identity")
         != fixed_hold_replay_job_implementation_sha256(adapter)
         or spec.get("scientific_binding") != scoped_plan.scientific_binding()
         or set(spec.get("expected_outputs", ()))
@@ -427,5 +506,6 @@ __all__ = [
     "fixed_hold_replay_job_implementation_sha256",
     "fixed_hold_replay_runtime_dependency_paths",
     "materialize_fixed_hold_replay_job_implementation",
+    "materialize_running_job_implementation_repair_proof",
     "registered_fixed_hold_replay_context",
 ]
