@@ -11120,6 +11120,7 @@ class StateWriter:
             sequence = 1 if head is None else head.sequence + 1
             required_target_axis_ids: list[str] = []
             constraint_source_id: str | None = None
+            replay_scheduler_projection_recovered = False
             replay_constraints = self._replay_scheduler_constraints(
                 index,
                 mission_id=snapshot.mission_id,
@@ -11185,18 +11186,6 @@ class StateWriter:
                 if prior is None or prior.kind != "portfolio-snapshot":
                     raise TransitionError("current Portfolio snapshot is unavailable")
                 next_action = current["next_action"]
-                next_replay = {
-                    name: next_action.get(name)
-                    for name in (
-                        "pending_replay_obligation_ids",
-                        "required_replay_priority",
-                    )
-                    if next_action.get(name) is not None
-                }
-                if next_replay != (replay_constraints or {}):
-                    raise TransitionError(
-                        "Portfolio mutation replay scheduler authority is stale"
-                    )
                 decision_id = next_action.get("decision_id")
                 decision = (
                     None
@@ -11211,6 +11200,21 @@ class StateWriter:
                     raise TransitionError(
                         "Portfolio snapshot mutation requires the current structural Decision"
                     )
+                from axiom_rift.operations.replay_projection import (
+                    ReplayTransitionError,
+                    validate_snapshot_scheduler_projection,
+                )
+
+                try:
+                    replay_scheduler_projection_recovered = (
+                        validate_snapshot_scheduler_projection(
+                            next_action=next_action,
+                            decision_payload=decision.payload,
+                            constraints=replay_constraints,
+                        )
+                    )
+                except ReplayTransitionError as exc:
+                    raise TransitionError(str(exc)) from exc
                 old_axes = {axis["axis_id"]: axis for axis in prior.payload["axes"]}
                 new_payload = snapshot.to_identity_payload()
                 new_axes = {axis["axis_id"]: axis for axis in new_payload["axes"]}
@@ -11361,7 +11365,10 @@ class StateWriter:
                 event_stream=f"portfolio:{snapshot.mission_id}",
                 event_sequence=sequence,
             )
-            return body, [record], {"portfolio_snapshot_id": snapshot.identity}
+            result = {"portfolio_snapshot_id": snapshot.identity}
+            if replay_scheduler_projection_recovered:
+                result["replay_scheduler_projection_recovered"] = True
+            return body, [record], result
 
         return self._commit(
             event_kind="portfolio_snapshot_recorded",
@@ -11880,8 +11887,11 @@ class StateWriter:
                     body["next_action"]["constraint_source_id"] = (
                         constraint_source_id
                     )
-                if replay_constraints is not None:
-                    body["next_action"].update(replay_constraints)
+            if next_kind == "record_portfolio_snapshot":
+                body["next_action"] = self._with_replay_scheduler_constraints(
+                    body["next_action"],
+                    replay_constraints,
+                )
             record = _record(
                 kind="portfolio-decision",
                 record_id=decision.identity,

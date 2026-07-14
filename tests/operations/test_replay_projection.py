@@ -10,6 +10,9 @@ from axiom_rift.operations.replay_projection import (
     initial_obligation_record,
     prepare_execution_progress,
     require_study_execution_complete,
+    validate_decision_selection,
+    validate_snapshot_scheduler_projection,
+    with_scheduler_constraints,
 )
 from axiom_rift.research.historical_adjudication import ReplayPriority
 from axiom_rift.research.replay_obligation import (
@@ -272,6 +275,122 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
             constraints["pending_replay_obligation_ids"],
             [p0.identity],
         )
+
+    def test_diagnosis_cleanup_may_dispose_exact_axis_with_pending_replays(
+        self,
+    ) -> None:
+        axis_id = "axis-completed-replay"
+        snapshot_id = "portfolio:" + "7" * 64
+        diagnosis_id = "diagnosis:" + "8" * 64
+        self.index.put(
+            IndexRecord(
+                kind="study-diagnosis",
+                record_id=diagnosis_id,
+                subject="Study:STU-COMPLETED-REPLAY",
+                status="supported_requires_confirmation",
+                fingerprint="8" * 64,
+                payload={
+                    "mission_id": MISSION_ID,
+                    "portfolio_axis_id": axis_id,
+                    "portfolio_snapshot_id": snapshot_id,
+                },
+            )
+        )
+        constraints = constraints_for_pending(self.obligations)
+        assert constraints is not None
+        next_action = {
+            "kind": "portfolio_decision",
+            **constraints,
+            "portfolio_snapshot_id": snapshot_id,
+            "study_diagnosis_id": diagnosis_id,
+        }
+        work_actions = frozenset(
+            {"contrast", "deepen", "recombine", "rotate", "synthesize"}
+        )
+
+        self.assertEqual(
+            validate_decision_selection(
+                self.index,
+                mission_id=MISSION_ID,
+                next_action=next_action,
+                replay_obligation_ids=(),
+                action="preserve",
+                target_axis_id=axis_id,
+                work_actions=work_actions,
+            ),
+            constraints,
+        )
+        snapshot_action = with_scheduler_constraints(
+            {
+                "action": "preserve",
+                "decision_id": "decision:" + "9" * 64,
+                "kind": "record_portfolio_snapshot",
+            },
+            constraints,
+        )
+        self.assertEqual(
+            {
+                name: snapshot_action[name]
+                for name in (
+                    "pending_replay_obligation_ids",
+                    "required_replay_priority",
+                )
+            },
+            constraints,
+        )
+        self.assertTrue(
+            validate_snapshot_scheduler_projection(
+                next_action={
+                    "action": "preserve",
+                    "decision_id": "decision:" + "9" * 64,
+                    "kind": "record_portfolio_snapshot",
+                },
+                decision_payload={
+                    "scheduler_constraints": constraints,
+                    "study_diagnosis_id": diagnosis_id,
+                },
+                constraints=constraints,
+            )
+        )
+        self.assertFalse(
+            validate_snapshot_scheduler_projection(
+                next_action=snapshot_action,
+                decision_payload={
+                    "scheduler_constraints": constraints,
+                    "study_diagnosis_id": diagnosis_id,
+                },
+                constraints=constraints,
+            )
+        )
+        with self.assertRaisesRegex(
+            ReplayTransitionError,
+            "Portfolio mutation replay scheduler authority is stale",
+        ):
+            validate_snapshot_scheduler_projection(
+                next_action={
+                    "action": "new_mechanism",
+                    "decision_id": "decision:" + "9" * 64,
+                    "kind": "record_portfolio_snapshot",
+                },
+                decision_payload={
+                    "scheduler_constraints": constraints,
+                    "study_diagnosis_id": diagnosis_id,
+                },
+                constraints=constraints,
+            )
+        with self.assertRaisesRegex(
+            ReplayTransitionError,
+            "pending replay permits only bound work or a new-mechanism bridge",
+        ):
+            validate_decision_selection(
+                self.index,
+                mission_id=MISSION_ID,
+                next_action=next_action,
+                replay_obligation_ids=(),
+                action="prune",
+                target_axis_id="axis-unrelated",
+                work_actions=work_actions,
+            )
 
 
 if __name__ == "__main__":

@@ -313,6 +313,48 @@ def with_scheduler_constraints(
     return result
 
 
+def validate_snapshot_scheduler_projection(
+    *,
+    next_action: Mapping[str, Any],
+    decision_payload: Mapping[str, Any],
+    constraints: Mapping[str, Any] | None,
+) -> bool:
+    """Validate snapshot scheduling and identify one exact legacy omission."""
+
+    fields = ("pending_replay_obligation_ids", "required_replay_priority")
+    expected = dict(constraints or {})
+    projected = {
+        name: next_action.get(name)
+        for name in fields
+        if next_action.get(name) is not None
+    }
+    if projected == expected:
+        return False
+    stored = decision_payload.get("scheduler_constraints")
+    stored_replay = (
+        {}
+        if not isinstance(stored, Mapping)
+        else {
+            name: stored.get(name)
+            for name in fields
+            if stored.get(name) is not None
+        }
+    )
+    recoverable_legacy_omission = (
+        not projected
+        and bool(expected)
+        and stored_replay == expected
+        and next_action.get("kind") == "record_portfolio_snapshot"
+        and next_action.get("action") in {"preserve", "prune"}
+        and isinstance(decision_payload.get("study_diagnosis_id"), str)
+    )
+    if recoverable_legacy_omission:
+        return True
+    raise ReplayTransitionError(
+        "Portfolio mutation replay scheduler authority is stale"
+    )
+
+
 def validate_decision_selection(
     index: LocalIndex,
     *,
@@ -365,7 +407,9 @@ def validate_decision_selection(
             raise ReplayTransitionError(
                 "scientific work cannot bypass the highest-priority replay queue"
             )
-        if action not in work_actions and (action != "new_mechanism" or selected):
+        elif action not in work_actions and (
+            action != "new_mechanism" or selected
+        ):
             raise ReplayTransitionError(
                 "pending replay permits only bound work or a new-mechanism bridge"
             )
@@ -2260,5 +2304,6 @@ __all__ = [
     "require_study_pending",
     "scheduler_constraints",
     "validate_decision_selection",
+    "validate_snapshot_scheduler_projection",
     "with_scheduler_constraints",
 ]
