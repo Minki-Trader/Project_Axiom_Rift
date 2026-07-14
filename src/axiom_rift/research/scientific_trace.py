@@ -23,6 +23,9 @@ ANALOG_SCOPED_TRACE_PROTOCOL_ID = (
 DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID = (
     "drawdown_state.concurrent_four_config.replay.v2"
 )
+VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID = (
+    "volatility_duration.concurrent_four_config.replay.v1"
+)
 
 _TRACE_FIELDS = {
     "adapter_implementation_sha256",
@@ -72,7 +75,9 @@ def _ascii(name: str, value: object) -> str:
 
 def _digest(name: str, value: object) -> str:
     text = _ascii(name, value)
-    if len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
+    if len(text) != 64 or any(
+        character not in "0123456789abcdef" for character in text
+    ):
         raise ScientificTraceError(f"{name} must be a lowercase SHA-256 digest")
     return text
 
@@ -86,6 +91,7 @@ def trace_proof_kinds(
         ANALOG_STATE_TRACE_PROTOCOL_ID,
         ANALOG_SCOPED_TRACE_PROTOCOL_ID,
         DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID,
+        VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID,
     }:
         raise ScientificTraceError("scientific trace protocol is not registered")
     if evidence_mode not in {
@@ -236,6 +242,36 @@ def validate_trace_calculation_pair(
             definition=definition,
             validator=FIXED_HOLD_TRACE_VALIDATOR,
         )
+    elif protocol_id == VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID:
+        parameters = calculation.get("parameters")
+        if not isinstance(parameters, Mapping):
+            raise ScientificTraceError(
+                "volatility-duration replay parameters are invalid"
+            )
+        historical_count = parameters.get(
+            "historical_context_prior_global_exposure_count"
+        )
+        if type(historical_count) is not int:
+            raise ScientificTraceError(
+                "volatility-duration historical context is invalid"
+            )
+        from axiom_rift.research.fixed_hold_family_trace import (
+            FIXED_HOLD_TRACE_VALIDATOR,
+            validate_fixed_hold_trace_calculation,
+        )
+        from axiom_rift.research.volatility_duration_replay import (
+            volatility_duration_replay_protocol_definition,
+        )
+
+        definition = volatility_duration_replay_protocol_definition(
+            historical_context_prior_global_exposure_count=historical_count
+        )
+        derived_metrics = validate_fixed_hold_trace_calculation(
+            trace=trace,
+            calculation=calculation,
+            definition=definition,
+            validator=FIXED_HOLD_TRACE_VALIDATOR,
+        )
     else:
         raise ScientificTraceError("scientific trace protocol is not registered")
 
@@ -263,6 +299,7 @@ __all__ = [
     "SCIENTIFIC_CALCULATION_PROOF_SCHEMA",
     "SCIENTIFIC_EVALUATION_TRACE_SCHEMA",
     "ScientificTraceError",
+    "VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID",
     "trace_proof_kinds",
     "validate_trace_calculation_pair",
 ]
