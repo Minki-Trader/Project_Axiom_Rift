@@ -122,6 +122,90 @@ def _completion(*, state: str, incomplete: bool = False) -> IndexRecord:
 
 
 class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
+    def test_judgement_binding_uses_same_event_decision_record(self) -> None:
+        event_id = "e" * 64
+        job_id = "job:" + "1" * 64
+        completion = IndexRecord(
+            kind="job-completed",
+            record_id="2" * 64,
+            subject=f"Job:{job_id}",
+            status="success",
+            fingerprint="3" * 64,
+            payload={"job_id": job_id},
+            authority_sequence=4954,
+            authority_event_id="d" * 64,
+        )
+        operation = IndexRecord(
+            kind="operation",
+            record_id="p1-stu0061-replay-v2-member-01-judge-job",
+            subject="Job:completed",
+            status="success",
+            fingerprint="4" * 64,
+            payload={
+                "result": {
+                    "disposition": "continue_batch",
+                    "job_id": job_id,
+                }
+            },
+            authority_sequence=4955,
+            authority_event_id=event_id,
+        )
+        decision = IndexRecord(
+            kind="job-evidence-decision",
+            record_id="5" * 64,
+            subject=f"Job:{job_id}",
+            status="continue_batch",
+            fingerprint=completion.fingerprint,
+            payload={
+                "completion_record_id": completion.record_id,
+                "negative_memory_id": None,
+            },
+            authority_sequence=4955,
+            authority_event_id=event_id,
+        )
+        index = SimpleNamespace(
+            records_by_kind=lambda kind: (
+                (decision,) if kind == "job-evidence-decision" else ()
+            )
+        )
+
+        subject._require_job_judgement_binding(
+            index,
+            operation=operation,
+            completion=completion,
+            expected_disposition="continue_batch",
+            expected_negative_memory_id=None,
+            label="member-01",
+        )
+
+        forged = IndexRecord(
+            kind=decision.kind,
+            record_id=decision.record_id,
+            subject=decision.subject,
+            status=decision.status,
+            fingerprint=decision.fingerprint,
+            payload={
+                "completion_record_id": "6" * 64,
+                "negative_memory_id": None,
+            },
+            authority_sequence=decision.authority_sequence,
+            authority_event_id=decision.authority_event_id,
+        )
+        forged_index = SimpleNamespace(
+            records_by_kind=lambda kind: (
+                (forged,) if kind == "job-evidence-decision" else ()
+            )
+        )
+        with self.assertRaisesRegex(RuntimeError, "judgement drifted"):
+            subject._require_job_judgement_binding(
+                forged_index,
+                operation=operation,
+                completion=completion,
+                expected_disposition="continue_batch",
+                expected_negative_memory_id=None,
+                label="member-01",
+            )
+
     def test_direct_cli_reaches_read_only_plan_without_mutating_authority(
         self,
     ) -> None:
@@ -276,14 +360,9 @@ class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
 
     def test_read_only_design_adds_one_bridge_and_selects_only_target_obligation(self) -> None:
         writer = StateWriter(subject.ROOT)
-        with LocalIndex(writer.index_path) as index:
-            head = index.event_head(f"portfolio:{subject.MISSION_ID}")
-            self.assertIsNotNone(head)
-            assert head is not None
-            base_snapshot_id = head.record_id
         design = subject.build_p1_replay_design(
             writer,
-            base_snapshot_id=base_snapshot_id,
+            base_snapshot_id=subject._base_snapshot_id(writer),
         )
         self.assertEqual(
             len(design.expanded_snapshot.axes),

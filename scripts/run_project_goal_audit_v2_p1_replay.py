@@ -1470,6 +1470,47 @@ def _require_identity_payload(
     return record
 
 
+def _require_job_judgement_binding(
+    index: LocalIndex,
+    *,
+    operation: IndexRecord,
+    completion: IndexRecord,
+    expected_disposition: str,
+    expected_negative_memory_id: str | None,
+    label: str,
+) -> None:
+    """Bind the compact operation result to its same-event decision record."""
+
+    result = operation.payload.get("result")
+    job_id = completion.payload.get("job_id")
+    decisions = tuple(
+        record
+        for record in index.records_by_kind("job-evidence-decision")
+        if record.subject == f"Job:{job_id}"
+        and record.authority_sequence == operation.authority_sequence
+        and record.authority_event_id == operation.authority_event_id
+    )
+    if (
+        not isinstance(result, Mapping)
+        or not isinstance(job_id, str)
+        or result.get("job_id") != job_id
+        or result.get("disposition") != expected_disposition
+        or len(decisions) != 1
+    ):
+        raise RuntimeError(f"completed P1 replay {label} judgement drifted")
+    decision = decisions[0]
+    if (
+        decision.status != expected_disposition
+        or decision.fingerprint != completion.fingerprint
+        or decision.payload
+        != {
+            "completion_record_id": completion.record_id,
+            "negative_memory_id": expected_negative_memory_id,
+        }
+    ):
+        raise RuntimeError(f"completed P1 replay {label} judgement drifted")
+
+
 def validate_replay_prefix_semantics(
     writer: StateWriter,
     *,
@@ -1738,15 +1779,30 @@ def validate_replay_prefix_semantics(
                 expected_disposition = (
                     "continue_batch" if member.ordinal < 4 else "stop_batch"
                 )
-                result = _operation_result(writer, operation_stem + "-judge-job")
-                if (
-                    completion is None
-                    or result.get("completion_record_id") != completion.record_id
-                    or result.get("disposition") != expected_disposition
-                ):
+                operation = index.get(
+                    "operation", operation_stem + "-judge-job"
+                )
+                if completion is None or operation is None:
                     raise RuntimeError(
                         f"completed P1 replay {stem} judgement drifted"
                     )
+                negative_memory_id = None
+                if done(stem + "-negative-memory"):
+                    negative_memory_id = _operation_result(
+                        writer, operation_stem + "-negative-memory"
+                    ).get("negative_memory_id")
+                    if not isinstance(negative_memory_id, str):
+                        raise RuntimeError(
+                            f"completed P1 replay {stem} judgement drifted"
+                        )
+                _require_job_judgement_binding(
+                    index,
+                    operation=operation,
+                    completion=completion,
+                    expected_disposition=expected_disposition,
+                    expected_negative_memory_id=negative_memory_id,
+                    label=stem,
+                )
 
         if done("close-study"):
             close_record = _study_close_record(writer)
