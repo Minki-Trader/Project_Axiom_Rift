@@ -10,13 +10,94 @@ from unittest.mock import patch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "scripts" / "apply_project_goal_audit_v2.py"
-PRE_V2_FOUNDATION_DATA_FIXTURE = (
-    REPO_ROOT
-    / "tests"
-    / "operations"
-    / "fixtures"
-    / "project_goal_audit_v2_foundation_data.yaml"
-)
+
+
+def remove_exact_insert(text: str, *, anchor: str, addition: str) -> str:
+    integrated = anchor + addition
+    if text.count(integrated) != 1:
+        raise AssertionError("integrated authority insert differs")
+    return text.replace(integrated, anchor, 1)
+
+
+def remove_exact_append(text: str, block: str) -> str:
+    suffix = block + "\n"
+    if text.count(block) != 1 or not text.endswith(suffix):
+        raise AssertionError("integrated authority append differs")
+    return text[: -len(suffix)]
+
+
+def derive_pre_v2_basis(module, materialized: dict[str, bytes]) -> dict[str, str]:
+    """Invert exact V2 text integration for repository-sufficient round-trip proof."""
+
+    post = {relative: content.decode("ascii") for relative, content in materialized.items()}
+    operating_anchor = "\n\n## 23. Governing Principle\n"
+    operating = post["OPERATING_DIRECTION.md"]
+    integrated_operating = "\n" + module.OD_V2_BLOCK + operating_anchor
+    if operating.count(integrated_operating) != 1:
+        raise AssertionError("integrated Operating Direction differs")
+    operating = operating.replace(integrated_operating, operating_anchor, 1)
+
+    foundation_data = remove_exact_insert(
+        post["foundation/data.yaml"],
+        anchor="    - real_volume\n",
+        addition=module.FOUNDATION_DATA_V2_INSERT,
+    )
+    science = remove_exact_append(
+        post["contracts/science.yaml"], module.SCIENCE_V2_BLOCK
+    )
+    science = remove_exact_insert(
+        science,
+        anchor="  frozen_before_evidence: true\n",
+        addition=module.SCIENCE_BATCH_V2_INSERT,
+    )
+    evidence = remove_exact_append(
+        post["contracts/evidence.yaml"], module.EVIDENCE_V2_BLOCK
+    )
+    evidence = remove_exact_insert(
+        evidence,
+        anchor="    eviction_allowed: true\n",
+        addition=module.EVIDENCE_CACHE_V2_INSERT,
+    )
+    evidence = remove_exact_insert(
+        evidence,
+        anchor="  additive_and_portfolio_snapshot_preserving: true\n",
+        addition=module.EVIDENCE_AXIS_V2_INSERT,
+    )
+    operations_block = (
+        module.OPERATIONS_V2_BLOCK
+        + "\n"
+        + module.OPERATIONS_SOURCE_REPLACEMENT_V2_BLOCK
+    )
+    operations = remove_exact_append(
+        post["contracts/operations.yaml"], operations_block
+    )
+    operations = remove_exact_insert(
+        operations,
+        anchor="  reproducible_cache_reuse_requires_present_exact_bytes: true\n",
+        addition=module.OPERATIONS_CACHE_V2_INSERT,
+    )
+    operations = remove_exact_insert(
+        operations,
+        anchor="  external_cause_required: true\n",
+        addition=module.OPERATIONS_EXTERNAL_PLAN_V2_INSERT,
+    )
+    operations = remove_exact_insert(
+        operations,
+        anchor="  blocked_mission_capability_required: true\n",
+        addition=module.OPERATIONS_EXTERNAL_REENTRY_V2_INSERT,
+    )
+    checkpoint_v2 = "  schema: study_close_delivery_checkpoint.v2\n"
+    checkpoint_v1 = "  schema: study_close_delivery_checkpoint.v1\n"
+    if operations.count(checkpoint_v2) != 1 or checkpoint_v1 in operations:
+        raise AssertionError("integrated checkpoint schema differs")
+    operations = operations.replace(checkpoint_v2, checkpoint_v1, 1)
+    return {
+        "OPERATING_DIRECTION.md": operating,
+        "contracts/evidence.yaml": evidence,
+        "contracts/operations.yaml": operations,
+        "contracts/science.yaml": science,
+        "foundation/data.yaml": foundation_data,
+    }
 
 
 def load_script():
@@ -76,29 +157,30 @@ class ProjectGoalAuditV2OrchestratorTests(unittest.TestCase):
         cls.module = load_script()
 
     def test_frozen_report_and_pure_authority_transforms_are_exact(self) -> None:
-        before = {
+        materialized = {
             relative: (REPO_ROOT / relative).read_bytes()
             for relative in self.module.EXPECTED_AUTHORITY_SHA256
         }
+        before = dict(materialized)
         report, digest = self.module.read_frozen_audit_report(REPO_ROOT)
         addendum, addendum_digest = (
             self.module.read_frozen_integration_addendum(REPO_ROOT)
         )
-        evidence = self.module.StateWriter(REPO_ROOT).evidence
-        frozen_basis = {}
-        for relative, expected in (
-            self.module.EXPECTED_PRE_V2_AUTHORITY_SHA256.items()
-        ):
-            # Foundation data joins the authority manifest in this migration,
-            # so preserve its exact predecessor as a test fixture rather than
-            # assuming the live repository has not yet activated V2.
-            content = (
-                PRE_V2_FOUNDATION_DATA_FIXTURE.read_bytes()
-                if relative == "foundation/data.yaml"
-                else evidence.read_verified(expected)
-            )
-            self.assertEqual(self.module.sha256(content).hexdigest(), expected)
-            frozen_basis[relative] = content.decode("ascii")
+        self.assertEqual(
+            {
+                relative: self.module.sha256(content).hexdigest()
+                for relative, content in materialized.items()
+            },
+            self.module.EXPECTED_AUTHORITY_SHA256,
+        )
+        frozen_basis = derive_pre_v2_basis(self.module, materialized)
+        self.assertEqual(
+            {
+                relative: self.module.sha256(content.encode("ascii")).hexdigest()
+                for relative, content in frozen_basis.items()
+            },
+            self.module.EXPECTED_PRE_V2_AUTHORITY_SHA256,
+        )
         replacements = self.module._transform_authority_basis(frozen_basis)
         self.assertEqual(digest, self.module.EXPECTED_REPORT_SHA256)
         self.assertEqual(len(report), self.module.EXPECTED_REPORT_SIZE)
