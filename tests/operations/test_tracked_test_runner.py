@@ -356,6 +356,48 @@ class TrackedTestRunnerTests(unittest.TestCase):
                         any(needle in content for needle in source_needles)
                     )
 
+    def test_independent_snapshot_preserves_executable_index_modes(self) -> None:
+        hooks = self.root / ".githooks"
+        hooks.mkdir()
+        hook = hooks / "commit-msg"
+        hook.write_bytes(b"#!/bin/sh\nexit 0\n")
+        run(self.root, "git", "add", ".githooks/commit-msg")
+        run(
+            self.root,
+            "git",
+            "update-index",
+            "--chmod=+x",
+            "--",
+            ".githooks/commit-msg",
+        )
+        tree = subprocess.run(
+            ("git", "write-tree"),
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        subject = load_runner_module()
+        with TemporaryDirectory(prefix="independent-mode-test-") as temporary:
+            sandbox = Path(temporary).resolve()
+            subject._checkout_independent_index_tree(
+                self.root.resolve(), sandbox, index_tree=tree
+            )
+            entry = subprocess.run(
+                (
+                    "git",
+                    "ls-files",
+                    "--stage",
+                    "--",
+                    ".githooks/commit-msg",
+                ),
+                cwd=sandbox,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+        self.assertTrue(entry.startswith("100755 "), entry)
+
     def test_mutated_sandbox_copy_rejects_otherwise_passing_suite(self) -> None:
         observed = b"immutable-development-prefix\n"
         observed_file, _ = self.configure_protected_development_inputs(

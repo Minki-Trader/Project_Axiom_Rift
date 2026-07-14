@@ -173,6 +173,50 @@ def _tree_paths(root: Path, index_tree: str) -> tuple[str, ...]:
     )
 
 
+def _regular_tree_modes(root: Path, index_tree: str) -> dict[str, str]:
+    """Read the exact regular-file modes before detaching Git metadata."""
+
+    result: dict[str, str] = {}
+    for row in _git(root, "ls-tree", "-r", "-z", index_tree).split(b"\0"):
+        if not row:
+            continue
+        header, separator, raw_path = row.partition(b"\t")
+        fields = header.split()
+        if (
+            not separator
+            or len(fields) != 3
+            or fields[1] != b"blob"
+            or fields[0] not in {b"100644", b"100755"}
+        ):
+            raise RuntimeError(
+                "frozen index tree contains a non-regular file entry"
+            )
+        paths = _paths(raw_path + b"\0")
+        if len(paths) != 1 or paths[0] in result:
+            raise RuntimeError("frozen index tree mode path is ambiguous")
+        result[paths[0]] = fields[0].decode("ascii")
+    if not result:
+        raise RuntimeError("frozen index tree has no regular file entries")
+    return result
+
+
+def _restore_independent_index_modes(
+    sandbox: Path, modes: Mapping[str, str]
+) -> None:
+    """Restore Git modes that a Windows worktree cannot represent."""
+
+    groups = {
+        "100644": tuple(path for path, mode in modes.items() if mode == "100644"),
+        "100755": tuple(path for path, mode in modes.items() if mode == "100755"),
+    }
+    if sum(len(paths) for paths in groups.values()) != len(modes):
+        raise RuntimeError("frozen index tree has an unsupported regular-file mode")
+    for mode, paths in groups.items():
+        flag = "--chmod=+x" if mode == "100755" else "--chmod=-x"
+        for offset in range(0, len(paths), 128):
+            _git(sandbox, "update-index", flag, "--", *paths[offset : offset + 128])
+
+
 def _is_link_like(path: Path) -> bool:
     if path.is_symlink():
         return True
@@ -981,6 +1025,7 @@ def _verify_independent_git_metadata(sandbox: Path, source_root: Path) -> None:
 def _checkout_independent_index_tree(
     root: Path, sandbox: Path, *, index_tree: str
 ) -> None:
+    frozen_modes = _regular_tree_modes(root, index_tree)
     subprocess.run(
         (
             "git",
@@ -1013,6 +1058,7 @@ def _checkout_independent_index_tree(
     _git(sandbox, "config", "user.email", "isolated-test@example.invalid")
     _git(sandbox, "config", "user.name", "Axiom Isolated Test")
     _git(sandbox, "add", "--force", "--all")
+    _restore_independent_index_modes(sandbox, frozen_modes)
     sealed_tree = _git(sandbox, "write-tree").decode("ascii").strip()
     if sealed_tree != index_tree:
         raise RuntimeError("independent Git snapshot tree differs")
