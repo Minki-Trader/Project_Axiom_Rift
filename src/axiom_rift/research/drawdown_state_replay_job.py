@@ -26,6 +26,9 @@ from axiom_rift.research.fixed_hold_family_job import (
     materialize_fixed_hold_evidence,
     verify_fixed_hold_cache_producer,
 )
+from axiom_rift.research.replay_exposure import (
+    derive_frozen_family_exposure_context,
+)
 from axiom_rift.research.trials import TrialAccountant
 from axiom_rift.research.validation_v2 import (
     SCIENTIFIC_VALIDATION_V2_DEPENDENCIES,
@@ -191,53 +194,26 @@ def _registered_historical_context(
         raise ValueError("drawdown replay Job Study binding is invalid")
     with LocalIndex(writer.index_path) as index:
         all_trials = tuple(index.records_by_kind("trial"))
-        family_trials = tuple(
-            record
-            for record in all_trials
-            if record.payload.get("study_id") == study_id
-        )
-    if (
-        len(family_trials) != 4
-        or subject_executable_id
-        not in {record.record_id for record in family_trials}
-    ):
-        raise ValueError("drawdown replay registered family is incomplete")
-    contexts: set[int] = set()
-    for record in family_trials:
-        executable = record.payload.get("executable")
-        parameters = (
-            None
-            if not isinstance(executable, Mapping)
-            else executable.get("parameters")
-        )
-        context = (
-            None
-            if not isinstance(parameters, Mapping)
-            else parameters.get(
-                "historical_context_prior_global_exposure_count"
-            )
-        )
-        if type(context) is not int:
-            raise ValueError(
-                "drawdown replay trial historical context is invalid"
-            )
-        contexts.add(context)
-    if len(contexts) != 1:
-        raise ValueError("drawdown replay family historical context drifted")
-    historical_count = contexts.pop()
-    family_ids = {record.record_id for record in family_trials}
     prior_floor = TrialAccountant.from_foundation(
         writer.foundation_root
     ).prior_global_multiplicity_floor
-    observed_count = prior_floor + sum(
-        record.record_id not in family_ids for record in all_trials
+    context = derive_frozen_family_exposure_context(
+        trials=all_trials,
+        prior_global_exposure_floor=prior_floor,
+        study_id=study_id,
+        expected_family_size=4,
+        parameter_name="historical_context_prior_global_exposure_count",
+        allow_unregistered=False,
     )
+    family_ids = set(context.family_executable_ids)
+    if subject_executable_id not in family_ids:
+        raise ValueError("drawdown replay subject is outside its family")
+    historical_count = context.prior_global_exposure_count
     definition = drawdown_replay_protocol_definition(
         historical_context_prior_global_exposure_count=historical_count
     )
     if (
-        observed_count != historical_count
-        or family_ids != set(definition.prospective_executable_ids)
+        family_ids != set(definition.prospective_executable_ids)
     ):
         raise ValueError(
             "drawdown replay family differs from its frozen historical context"

@@ -121,6 +121,7 @@ class FixedHoldReplayMissionSpec:
     study_id: str
     batch_display_id: str
     axis_id: str
+    bridge_axis_id: str
     operation_prefix: str
     decision_prefix: str
     target_obligation_id: str
@@ -139,6 +140,7 @@ class FixedHoldReplayMissionSpec:
             "study_id",
             "batch_display_id",
             "axis_id",
+            "bridge_axis_id",
             "operation_prefix",
             "decision_prefix",
             "target_obligation_id",
@@ -319,16 +321,14 @@ def _projection_payloads(
     index: LocalIndex,
     members: Sequence[FixedHoldReplayMember],
 ) -> tuple[Mapping[str, Any], ...]:
+    """Read the compact Component projection, not growing work history."""
+
     values: list[Mapping[str, Any]] = [
         member.executable.to_identity_payload() for member in members
     ]
-    for kind in (
-        "trial",
-        "portfolio-decision",
-        "study-open",
-        "portfolio-snapshot",
-    ):
-        values.extend(record.payload for record in index.records_by_kind(kind))
+    values.extend(
+        record.payload for record in index.records_by_kind("component-manifest")
+    )
     return tuple(values)
 
 
@@ -373,21 +373,58 @@ def build_fixed_hold_replay_design(
             is EffectiveAxisStatus.SELECTABLE
         )
         obligations = {
-            obligation.identity: head
+            obligation.identity: (obligation, head)
             for obligation, head in obligation_heads(
                 index,
                 mission_id=spec.mission_id,
             )
         }
-    target_head = obligations.get(spec.target_obligation_id)
+    target = obligations.get(spec.target_obligation_id)
     if (
         any(axis.axis_id == spec.axis_id for axis in prior_axes)
         or not selectable
-        or target_head is None
-        or target_head.status not in {"pending", "in_progress"}
+        or target is None
+        or target[1].status not in {"pending", "in_progress"}
     ):
         raise RuntimeError("replay axis, bridge, or obligation boundary is invalid")
-    source_axis = selectable[0]
+    obligation, _target_head = target
+    target_members = tuple(
+        member
+        for member in members
+        if member.executable.identity == target_executable_id
+    )
+    family_members = historical_family_manifest.get("members")
+    manifest_references = (
+        ()
+        if not isinstance(family_members, list)
+        else tuple(
+            item.get("historical_reference_executable_id")
+            for item in family_members
+            if isinstance(item, Mapping)
+        )
+    )
+    if (
+        len(target_members) != 1
+        or obligation.original_study_id != spec.original_study_id
+        or obligation.original_executable_id
+        != target_members[0].historical_reference_executable_id
+        or obligation.criterion_ids != criterion_ids
+        or historical_family_manifest.get("original_study_id")
+        != spec.original_study_id
+        or historical_family_manifest.get("target_historical_executable_id")
+        != obligation.original_executable_id
+        or manifest_references
+        != tuple(
+            member.historical_reference_executable_id for member in members
+        )
+    ):
+        raise RuntimeError("replay design differs from its exact obligation")
+    bridge_axes = tuple(
+        axis for axis in selectable if axis.axis_id == spec.bridge_axis_id
+    )
+    if len(bridge_axes) != 1:
+        raise RuntimeError("replay bridge axis is not exactly selectable")
+    source_axis = bridge_axes[0]
     replay_axis = PortfolioAxis(
         axis_id=spec.axis_id,
         causal_question=_ascii("replay causal question", causal_question),
@@ -691,26 +728,52 @@ def _protocol_activation_step_needed(
     )
 
 
-def _member_repair_chain_started(
+def _member_repair_chain_complete(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
     member: FixedHoldReplayMember,
 ) -> bool:
-    """Preserve a typed in-flight Repair inside the strict replay chain."""
+    """Preserve only a complete typed Repair inside the strict chain.
+
+    A partial chain is an exact resume boundary.  The workflow cannot invent a
+    failure cause or changed-cause proof, so it fails before treating that
+    partial Repair as ordinary Study execution.
+    """
 
     index_path = getattr(writer, "index_path", None)
     if index_path is None:
         return False
     stem = design.spec.operation_prefix + member.label
+    expected = (
+        ("-repair-permit", "permit_issued"),
+        ("-open-repair", "repair_opened"),
+        ("-close-repair", "repair_closed"),
+    )
     with LocalIndex(index_path) as index:
-        return any(
-            index.get("operation", stem + suffix) is not None
-            for suffix in (
-                "-repair-permit",
-                "-open-repair",
-                "-close-repair",
-            )
+        records = tuple(
+            index.get("operation", stem + suffix)
+            for suffix, _event_kind in expected
         )
+    present = tuple(record is not None for record in records)
+    if not any(present):
+        return False
+    if not all(present):
+        missing = ",".join(
+            stem + expected[index][0]
+            for index, is_present in enumerate(present)
+            if not is_present
+        )
+        raise RuntimeError(
+            "replay Repair is incomplete; resume exact operations: " + missing
+        )
+    if any(
+        record.status != "success"
+        or record.payload.get("event_kind") != event_kind
+        for record, (_suffix, event_kind) in zip(records, expected, strict=True)
+        if record is not None
+    ):
+        raise RuntimeError("replay Repair operation chain is malformed")
+    return True
 
 
 def activate_current_scientific_protocol(
@@ -848,7 +911,7 @@ def operation_steps(
                 OperationStep(stem + "-start-job", "job_started", STUDY_CLOSE_STAGE),
             )
         )
-        if _member_repair_chain_started(writer, design, member):
+        if _member_repair_chain_complete(writer, design, member):
             steps.extend(
                 (
                     OperationStep(

@@ -49,6 +49,9 @@ from axiom_rift.research.fixed_hold_family_trace import (  # noqa: E402
 from axiom_rift.research.historical_family_replay import (  # noqa: E402
     STU0048_HISTORICAL_FAMILY,
 )
+from axiom_rift.research.replay_exposure import (  # noqa: E402
+    derive_frozen_family_exposure_context,
+)
 from axiom_rift.research.trials import TrialAccountant  # noqa: E402
 from axiom_rift.research.validation_v2 import (  # noqa: E402
     ScientificAdjudicationValidatorV2,
@@ -76,6 +79,7 @@ def mission_spec() -> FixedHoldReplayMissionSpec:
         study_id=STUDY_ID,
         batch_display_id=BATCH_DISPLAY_ID,
         axis_id="axis-stu0048-drawdown-state-replay-bridge",
+        bridge_axis_id="axis-cost-aware-execution",
         operation_prefix="p1-stu0048-drawdown-replay-v2-",
         decision_prefix="DEC-P1-STU0048",
         target_obligation_id=DRAWDOWN_REPLAY_HISTORICAL_CONTEXT_ID,
@@ -142,14 +146,25 @@ def require_historical_context(
 ) -> None:
     prospective = {member.executable.identity for member in members}
     with LocalIndex(writer.index_path) as index:
-        historical_trials = sum(
-            record.record_id not in prospective
-            for record in index.records_by_kind("trial")
-        )
+        trials = tuple(index.records_by_kind("trial"))
     floor = TrialAccountant.from_foundation(
         writer.foundation_root
     ).prior_global_multiplicity_floor
-    if floor + historical_trials != HISTORICAL_CONTEXT_COUNT:
+    context = derive_frozen_family_exposure_context(
+        trials=trials,
+        prior_global_exposure_floor=floor,
+        study_id=STUDY_ID,
+        expected_family_size=len(members),
+        parameter_name="historical_context_prior_global_exposure_count",
+        allow_unregistered=True,
+    )
+    if (
+        context.prior_global_exposure_count != HISTORICAL_CONTEXT_COUNT
+        or (
+            context.family_executable_ids
+            and set(context.family_executable_ids) != prospective
+        )
+    ):
         raise RuntimeError("STU-0048 historical exposure context drifted")
 
 

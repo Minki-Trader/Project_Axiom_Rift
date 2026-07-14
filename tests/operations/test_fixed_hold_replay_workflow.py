@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from axiom_rift.operations.fixed_hold_replay_workflow import (
     DIAGNOSE_STAGE,
     STUDY_CLOSE_STAGE,
     FixedHoldReplayMissionSpec,
     ReplayAuthorityBoundary,
+    _member_repair_chain_complete,
+    _projection_payloads,
     operation_steps,
 )
 
@@ -21,6 +23,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             study_id="STU-9001",
             batch_display_id="BAT-9001",
             axis_id="axis-fixture-replay",
+            bridge_axis_id="axis-fixture-source",
             operation_prefix="fixture-fixed-hold-replay-",
             decision_prefix="DEC-FIXTURE-REPLAY",
             target_obligation_id=(
@@ -138,7 +141,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
 
     @patch(
         "axiom_rift.operations.fixed_hold_replay_workflow."
-        "_member_repair_chain_started",
+        "_member_repair_chain_complete",
         side_effect=lambda _writer, _design, member: member.ordinal == 1,
     )
     @patch(
@@ -157,6 +160,37 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             ["permit_issued", "repair_opened", "repair_closed"],
         )
         self.assertTrue(steps[18].operation_id.endswith("-complete-job"))
+
+    def test_component_projection_does_not_scan_growing_work_history(self) -> None:
+        executable = SimpleNamespace(
+            to_identity_payload=lambda: {"schema": "executable_spec.v1"}
+        )
+        index = SimpleNamespace(records_by_kind=Mock(return_value=()))
+        result = _projection_payloads(
+            index,
+            (SimpleNamespace(executable=executable),),
+        )
+        self.assertEqual(result, ({"schema": "executable_spec.v1"},))
+        index.records_by_kind.assert_called_once_with("component-manifest")
+
+    @patch("axiom_rift.operations.fixed_hold_replay_workflow.LocalIndex")
+    def test_partial_repair_chain_requires_exact_resume(self, local_index) -> None:
+        design = self._design()
+        stem = design.spec.operation_prefix + design.members[0].label
+        permit = SimpleNamespace(
+            status="success",
+            payload={"event_kind": "permit_issued"},
+        )
+        projected = local_index.return_value.__enter__.return_value
+        projected.get.side_effect = lambda _kind, record_id: (
+            permit if record_id == stem + "-repair-permit" else None
+        )
+        with self.assertRaisesRegex(RuntimeError, "Repair is incomplete"):
+            _member_repair_chain_complete(
+                SimpleNamespace(index_path="fixture.sqlite"),
+                design,
+                design.members[0],
+            )
 
 
 if __name__ == "__main__":
