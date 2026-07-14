@@ -10,6 +10,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical  # noqa: E402

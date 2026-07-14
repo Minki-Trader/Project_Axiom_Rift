@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from hashlib import sha256
+import json
 from pathlib import Path
+import subprocess
+import sys
 from types import SimpleNamespace
 from tempfile import TemporaryDirectory
 import unittest
@@ -119,6 +122,43 @@ def _completion(*, state: str, incomplete: bool = False) -> IndexRecord:
 
 
 class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
+    def test_direct_cli_reaches_read_only_plan_without_mutating_authority(
+        self,
+    ) -> None:
+        authority_paths = (
+            subject.ROOT / "state" / "control.json",
+            subject.ROOT / "records" / "journal" / "manifest.json",
+            subject.ROOT / "records" / "STUDY_KPI.md",
+            subject.ROOT / "records" / "STUDY_CLOSE_DELIVERY_CHECKPOINT.json",
+            *sorted((subject.ROOT / "records" / "journal").glob("*.jsonl")),
+            *sorted((subject.ROOT / "records" / "journal").glob("*.seal.json")),
+        )
+        before = {path: path.read_bytes() for path in authority_paths}
+        with TemporaryDirectory() as directory:
+            completed = subprocess.run(
+                (
+                    sys.executable,
+                    str(
+                        subject.ROOT
+                        / "scripts"
+                        / "run_project_goal_audit_v2_p1_replay.py"
+                    ),
+                ),
+                cwd=directory,
+                capture_output=True,
+                check=False,
+                text=True,
+                timeout=30,
+            )
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        summary = json.loads(completed.stdout)
+        self.assertEqual(summary["mode"], "read_only_plan")
+        self.assertEqual(summary["study_id"], subject.STUDY_ID)
+        self.assertEqual(
+            {path: path.read_bytes() for path in authority_paths},
+            before,
+        )
+
     def test_family_is_exact_one_to_one_and_target_is_final(self) -> None:
         members = subject.ordered_replay_members()
         references = tuple(
