@@ -327,6 +327,41 @@ class TrackedTestRunnerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "changed during"):
                 subject._manifest(self.root.resolve(), pytest_args=())
 
+    def test_nested_snapshot_reuses_only_parent_bound_runtime_roots(self) -> None:
+        subject = load_runner_module()
+        runtime_roots = subject._distribution_search_paths()
+        (self.root / "src").mkdir()
+        run(
+            self.root,
+            "git",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "Isolated tracked-test snapshot",
+        )
+        inherited_pythonpath = os.pathsep.join(
+            (
+                str((self.root / "src").resolve()),
+                str(self.root.resolve()),
+                *runtime_roots,
+            )
+        )
+        with patch.object(
+            subject,
+            "PROJECT_ROOT",
+            self.root.resolve(),
+        ), patch.dict(
+            os.environ,
+            {
+                "AXIOM_TRACKED_TEST_PARENT_RUNTIME": "1",
+                "PYTHONPATH": inherited_pythonpath,
+                "PYTHONSAFEPATH": "1",
+                "PYTEST_DISABLE_PLUGIN_AUTOLOAD": "1",
+            },
+        ):
+            inherited = subject._inherited_isolated_runtime_paths()
+        self.assertEqual(inherited, runtime_roots)
+
     def test_independent_git_metadata_contains_no_source_repository_path(self) -> None:
         self.configure_protected_development_inputs()
         tree = subprocess.run(

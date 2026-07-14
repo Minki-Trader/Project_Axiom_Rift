@@ -566,6 +566,44 @@ def _runtime_discovery_environment() -> dict[str, str]:
     return environment
 
 
+def _inherited_isolated_runtime_paths() -> tuple[str, ...]:
+    """Reuse only runtime roots already bound by an independent parent run."""
+
+    if os.environ.get("AXIOM_TRACKED_TEST_PARENT_RUNTIME") != "1":
+        return ()
+    if (
+        os.environ.get("PYTHONSAFEPATH") != "1"
+        or os.environ.get("PYTEST_DISABLE_PLUGIN_AUTOLOAD") != "1"
+    ):
+        return ()
+    try:
+        project = PROJECT_ROOT.resolve(strict=True)
+        if (
+            _git(project, "remote").strip()
+            or _git(project, "log", "-1", "--format=%s").decode("utf-8").strip()
+            != "Isolated tracked-test snapshot"
+            or _git(project, "rev-parse", "HEAD^{tree}").strip()
+            != _git(project, "write-tree").strip()
+            or (project / ".git" / "objects" / "info" / "alternates").exists()
+        ):
+            return ()
+    except (OSError, subprocess.CalledProcessError, UnicodeDecodeError):
+        return ()
+    raw_paths = os.environ.get("PYTHONPATH", "").split(os.pathsep)
+    if len(raw_paths) < 3:
+        return ()
+    try:
+        resolved = tuple(str(Path(path).resolve(strict=True)) for path in raw_paths)
+    except OSError:
+        return ()
+    if resolved[:2] != (str((project / "src").resolve()), str(project)):
+        return ()
+    inherited = tuple(dict.fromkeys(resolved[2:]))
+    if not inherited or any(not Path(path).is_dir() for path in inherited):
+        return ()
+    return inherited
+
+
 @lru_cache(maxsize=1)
 def _distribution_search_paths() -> tuple[str, ...]:
     """Find default install roots without honoring caller Python overrides."""
@@ -585,6 +623,7 @@ def _distribution_search_paths() -> tuple[str, ...]:
         text=True,
     )
     ordered = (
+        *_inherited_isolated_runtime_paths(),
         completed.stdout.strip(),
         sysconfig.get_path("purelib"),
         sysconfig.get_path("platlib"),
@@ -702,10 +741,10 @@ def _manifest(
         entries.append(
             {"blob": blob, "path": path, "sha256": sha256(content).hexdigest()}
         )
-    python_runtime, runtime_paths = _python_runtime()
     protected_inputs = _protected_development_input_plan(
         root, index_tree=index_tree, tracked_paths=tracked_paths
     )
+    python_runtime, runtime_paths = _python_runtime()
     body: dict[str, object] = {
         "execution_mode": "isolated_git_index_tree",
         "excluded_untracked_test_count": len(untracked),
@@ -767,6 +806,7 @@ def _isolated_environment(
     environment["TMP"] = str(temporary)
     environment["APPDATA"] = str(appdata)
     environment["LOCALAPPDATA"] = str(local_appdata)
+    environment["AXIOM_TRACKED_TEST_PARENT_RUNTIME"] = "1"
     environment["PYTEST_DISABLE_PLUGIN_AUTOLOAD"] = "1"
     # The exact index-tree root is required for intentional ``tests.*``
     # imports.  The sandbox contains no source-worktree untracked files.
