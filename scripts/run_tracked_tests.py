@@ -738,11 +738,25 @@ def _manifest(
 
 
 def _isolated_environment(
-    sandbox: Path, *, runtime_paths: Sequence[str]
+    repository: Path,
+    *,
+    runtime_root: Path,
+    runtime_paths: Sequence[str],
 ) -> dict[str, str]:
+    repository = repository.resolve()
+    runtime_root = runtime_root.resolve()
+    if (
+        repository == runtime_root
+        or repository in runtime_root.parents
+        or runtime_root in repository.parents
+        or repository.parent != runtime_root.parent
+    ):
+        raise RuntimeError(
+            "isolated runtime root must be a repository sibling"
+        )
     environment = _sanitized_host_environment()
-    home = sandbox / "local" / "isolated-home"
-    temporary = sandbox / "local" / "isolated-tmp"
+    home = runtime_root / "home"
+    temporary = runtime_root / "tmp"
     appdata = home / "AppData" / "Roaming"
     local_appdata = home / "AppData" / "Local"
     for directory in (home, temporary, appdata, local_appdata):
@@ -757,8 +771,8 @@ def _isolated_environment(
     # The exact index-tree root is required for intentional ``tests.*``
     # imports.  The sandbox contains no source-worktree untracked files.
     python_paths: list[str | Path] = [
-        sandbox / "src",
-        sandbox,
+        repository / "src",
+        repository,
         *runtime_paths,
     ]
     environment["PYTHONPATH"] = os.pathsep.join(str(path) for path in python_paths)
@@ -767,7 +781,10 @@ def _isolated_environment(
 
 
 def _rebuild_runtime_projection(
-    sandbox: Path, *, runtime_paths: Sequence[str]
+    sandbox: Path,
+    *,
+    runtime_root: Path,
+    runtime_paths: Sequence[str],
 ) -> None:
     """Rebuild disposable SQLite state from the checked-out Journal authority."""
 
@@ -785,7 +802,9 @@ def _rebuild_runtime_projection(
         ),
         cwd=sandbox,
         env=_isolated_environment(
-            sandbox, runtime_paths=runtime_paths
+            sandbox,
+            runtime_root=runtime_root,
+            runtime_paths=runtime_paths,
         ),
         check=False,
         capture_output=True,
@@ -1092,8 +1111,10 @@ def _run_isolated_pytest(
     protected_inputs: Sequence[object] = (),
 ) -> int:
     with TemporaryDirectory(prefix="tracked-pytest-") as temporary:
-        sandbox = Path(temporary).resolve()
-        if root == sandbox or root in sandbox.parents:
+        isolation_root = Path(temporary).resolve()
+        sandbox = isolation_root / "repository"
+        runtime_root = isolation_root / "runtime"
+        if root == isolation_root or root in isolation_root.parents:
             raise RuntimeError("isolated pytest sandbox remains under the source repository")
         _checkout_independent_index_tree(root, sandbox, index_tree=index_tree)
         materialized = _materialize_protected_inputs(
@@ -1107,7 +1128,9 @@ def _run_isolated_pytest(
         try:
             if rebuild_runtime_projection:
                 _rebuild_runtime_projection(
-                    sandbox, runtime_paths=runtime_paths
+                    sandbox,
+                    runtime_root=runtime_root,
+                    runtime_paths=runtime_paths,
                 )
             completed = subprocess.run(
                 (
@@ -1122,7 +1145,9 @@ def _run_isolated_pytest(
                 ),
                 cwd=sandbox,
                 env=_isolated_environment(
-                    sandbox, runtime_paths=runtime_paths
+                    sandbox,
+                    runtime_root=runtime_root,
+                    runtime_paths=runtime_paths,
                 ),
                 check=False,
             )

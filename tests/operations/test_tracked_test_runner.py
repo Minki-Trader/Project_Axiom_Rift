@@ -468,7 +468,7 @@ class TrackedTestRunnerTests(unittest.TestCase):
 
     def test_untracked_conftest_and_pytest_environment_cannot_inject(self) -> None:
         (self.root / "tests" / "test_tracked.py").write_text(
-            "import os, site\n"
+            "import os, site, tempfile\n"
             "from pathlib import Path\n\n"
             "def test_tracked():\n"
             "    assert site.ENABLE_USER_SITE is not True\n"
@@ -479,7 +479,14 @@ class TrackedTestRunnerTests(unittest.TestCase):
             "    root = Path.cwd().resolve()\n"
             "    for key in ('HOME', 'USERPROFILE', 'TEMP', 'TMP'):\n"
             "        value = Path(os.environ[key]).resolve()\n"
-            "        assert value == root or root in value.parents\n",
+            "        assert root not in value.parents\n"
+            "        assert value not in root.parents\n"
+            "        assert root.parent in value.parents\n"
+            "    fixture = Path(tempfile.mkdtemp()).resolve()\n"
+            "    assert root not in fixture.parents\n"
+            "    assert root.parent in fixture.parents\n"
+            "    assert not any((parent / '.git').exists() "
+            "for parent in (fixture, *fixture.parents))\n",
             encoding="ascii",
         )
         run(self.root, "git", "add", "tests/test_tracked.py")
