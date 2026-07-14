@@ -10,6 +10,7 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
     FixedHoldReplayMissionSpec,
     ReplayAuthorityBoundary,
     _member_repair_chain_complete,
+    _protocol_activation_operation_id,
     _projection_payloads,
     fixed_hold_replay_batch_budget,
     fixed_hold_replay_job_budget,
@@ -156,7 +157,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         self.assertEqual(len(steps), 40)
         self.assertEqual(
             steps[12].operation_id,
-            "fixture-fixed-hold-replay-activate-current-v2-protocol",
+            _protocol_activation_operation_id(self._design()),
         )
         self.assertEqual(
             steps[12].event_kind,

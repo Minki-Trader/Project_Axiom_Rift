@@ -720,7 +720,14 @@ def interpret_fixed_hold_completion(
 def _protocol_activation_operation_id(
     design: FixedHoldReplayDesign,
 ) -> str:
-    return design.spec.operation_prefix + "activate-current-v2-protocol"
+    validator_digest = SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID.removeprefix(
+        "validator:"
+    )
+    return (
+        design.spec.operation_prefix
+        + "activate-v2-protocol-"
+        + validator_digest
+    )
 
 
 def _protocol_activation_step_needed(
