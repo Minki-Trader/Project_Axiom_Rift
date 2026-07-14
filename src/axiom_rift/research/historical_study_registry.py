@@ -4,9 +4,10 @@ from __future__ import annotations
 
 
 # These byte identities preserve historical reconstruction.  StateWriter
-# rejects every module below as new Job implementation evidence because its
-# source contains a concrete Mission or Study id.  New research must use a
-# context-bound reusable engine instead of extending this registry.
+# rejects them as ordinary new Job implementation evidence because their
+# source contains a concrete Mission or Study id.  Exact replay adapters may
+# use them only through Writer-verified historical replay-obligation lineage;
+# unrelated new research must use a context-bound reusable engine.
 HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256 = {
     "adaptive_lifecycle_study.py": "849ea7a8b303520f36a09b6b9a8f8153d7e63c40e417f5796f08798046aa653f",
     "auction_location_study.py": "361c47db2a6f2a20a6d6db10655ce723633c145307dcd5ea750810c98fb06a7d",
@@ -14,6 +15,8 @@ HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256 = {
     "complementary_sleeve_discovery.py": "ce2d1cf94c0c8f3b8d669d0867fc031fbb15bb53613d4f677c787693718e201b",
     "complementary_sleeve_study.py": "60eca5ea68dcb5e5e5b448285070af11de93bd2c32fe03d09b1e89517335b290",
     "composite_consensus_study.py": "f1a7d86d443f0a1433c2d24de3e1fd4f19bab4bfd39a38294fdccb99323916cd",
+    "composite_consensus_replay_job.py": "5eb2475eafe1fbff0af3264d906b6eb735df5814db8e0f897c83866467f4282e",
+    "composite_router_replay_job.py": "1a7dae31ae4c3bcaf316bfcc867103e8c68d271e9f11afa1b401024557a3f0b2",
     "composite_router_study.py": "bd0c8640de4d0524ff4199263ba09f3f1eeb0d62a3a68e58dce2c13d8dbd3a97",
     "cost_utility_objective_discovery.py": "ab9ae1e40139c58998c790d139cffc9c1f6c6d4fa9d1b835b2beee12d9ee672e",
     "cost_utility_objective_study.py": "f1ecf8abfe14d03da8d09d25c81c421d127d25743ce60096aeb8a7d5828b69f2",
@@ -22,11 +25,18 @@ HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256 = {
     "cyclical_harmonic_study.py": "559e3f0f0d7cb621db2e467c7ba1dae37bca37bcde8837a7a7b47369ec64de17",
     "cyclical_phase_study.py": "b3f08cf644409264059217690778705c2090625aef68d1a18072609cdea2c005",
     "distribution_study.py": "5234bf7706b5bfa9ffffc9ebe2f9b13a5dafb01857a9322c48ee1bc2801e1d80",
+    "distribution_asymmetry_replay.py": "d60a4132cfd027038d0dd60094a64fdf0bc28a55c013fc13ff233e0473c7ddc5",
+    "distribution_asymmetry_replay_parity.py": "ea56e6ad22368a43b5e6d89ae953499add0428b3e31ed6ed23685573ffa6f3ee",
     "drawdown_state_study.py": "3326b8321118f03fc691246871ed451e482868b55d85691bb41182f6c2767700",
     "event_label_study.py": "99c6db5894881861dc595e31e884dcc8fee1c6c0465aeee18895bd6f41853379",
     "gap_recovery_diagnostic.py": "f48a8fac46e386b870e643d0df840aade5d636f0521ae730a9fe67c1c9186572",
     "gap_recovery_study.py": "4ea4c294cef4c6a47f0e6f13c64d076e7ec2a60b2e21067c720c75f141422727",
     "higher_order_volatility_study.py": "24c34397aa413791746199f0616d587e1a24478b0331944d2cc813a5295dfc18",
+    "historical_family_stu0016.py": "5373371cbda260657ec38f2be45f71759c2d5b66ab1e53d1776e9352e50c8e1f",
+    "historical_family_stu0017.py": "2f179b35ff70c706a9ce155a40f90c8f9b86dd20e855825482e22deecd08c0fb",
+    "historical_family_stu0032.py": "9230ecd8cdfe4e5abf0051f63448b29d10e189ea28f527a4cd7dfc6baefa5a6e",
+    "historical_family_stu0048.py": "ffa6af9f93b7598f668b4385caed85af08c7e4fc5b77cd6dc0f16fe0c322435b",
+    "historical_family_stu0051.py": "803936b35a1b36639351d85931f9cfd1c6d58d708d371bf7c2080c994c37e68a",
     "learned_state_study.py": "26ee72e7b13a36b69310c07996d62346e0471dc590c6fa706048940becf1f44b",
     "liquidity_supply_study.py": "a8ba1eee234e47aabff939b473fde0d7425a7dfd9d68b9144c3f521f64f9770f",
     "long_horizon_drift_study.py": "086bbab722a2f9d218818c1657d676e18f6a707b0b4b7f1b42776e976f10bc8c",
@@ -56,6 +66,8 @@ HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256 = {
     "trend_null_followup_study.py": "4ed50eb7701b5f033030d824ff8d11325f5656058a9bec87a824a9389575949f",
     "trend_study.py": "3061c20e45235d0010133694c3886e50fc1bc5ec5d489a68478437cf343198c4",
     "volatility_duration_study.py": "d09274881af55e3ce582d56c38ae5424a688014dfdc5e3ef80cec05bf3abd399",
+    "volatility_duration_replay.py": "0012c37f185120856f46f77c6e97155a192a9475b83cd82dbcfc8ad6402a8aa5",
+    "volatility_duration_replay_parity.py": "378d4eab967aeb0f87b29fbe0d0bbe227515cd29efe343b752c219d74d6df135",
     "volatility_regime_followup_study.py": "f1e498eaac56a364a4b30f5f6148448e1b4a53313fc3b33adf7f3b5c581a8aa9",
     "volatility_study.py": "a3b8d02306dcfd486a760d6b141e38cb8d4738c6ecf51da61bd260597180f8c3",
     "volume_price_followup_study.py": "472c27b8e5060b83732f8f0deb39248466fb19fde69fd082f59e682670390a8f",

@@ -405,7 +405,7 @@ class ProjectGoalAuditV2OrchestratorTests(unittest.TestCase):
         )
 
     def test_frozen_ancestor_identity_is_separate_from_current_apply_gate(self) -> None:
-        self.assertEqual(
+        self.assertNotEqual(
             self.module.ScientificAdjudicationValidatorV2.validator_id,
             self.module.EXPECTED_V2_VALIDATOR_ID,
         )
@@ -442,30 +442,24 @@ class ProjectGoalAuditV2OrchestratorTests(unittest.TestCase):
                 {"kind": "operation", "payload": {"result": {"trial_delta": 0}}},
             ],
         }
-        drifted = "validator:" + "f" * 64
+        self.module._validate_protocol_event(
+            event,
+            authority_manifest_digest="a" * 64,
+        )
+        with self.assertRaisesRegex(RuntimeError, "current V2 validator differs"):
+            self.module.require_current_validator_for_apply()
         with patch.object(
-            self.module.ScientificAdjudicationValidatorV2,
-            "validator_id",
-            drifted,
+            self.module,
+            "_read_v2_delivery_checkpoint",
+            side_effect=AssertionError(
+                "completed ancestor read current checkpoint"
+            ),
         ):
-            self.module._validate_protocol_event(
-                event,
-                authority_manifest_digest="a" * 64,
+            self.module.require_activation_ready(
+                SimpleNamespace(),
+                prefix=len(self.module.correction_steps()),
+                root=REPO_ROOT,
             )
-            with self.assertRaisesRegex(RuntimeError, "current V2 validator differs"):
-                self.module.require_current_validator_for_apply()
-            with patch.object(
-                self.module,
-                "_read_v2_delivery_checkpoint",
-                side_effect=AssertionError(
-                    "completed ancestor read current checkpoint"
-                ),
-            ):
-                self.module.require_activation_ready(
-                    SimpleNamespace(),
-                    prefix=len(self.module.correction_steps()),
-                    root=REPO_ROOT,
-                )
 
     def test_projection_recovery_is_explicit_opt_in(self) -> None:
         class RecoveringWriter:

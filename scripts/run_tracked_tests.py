@@ -85,9 +85,19 @@ _PROJECTION_REBUILD_REQUIREMENTS = frozenset(
     }
 )
 _FOUNDATION_DATA_PATH = "foundation/data.yaml"
+_TEST_EVIDENCE_MANIFEST_PATH = "tests/evidence_inputs.txt"
+_TEST_EVIDENCE_ROLE = "test_evidence"
+_TEST_EVIDENCE_PREFIX = PurePosixPath("local/evidence/sha256")
+_MAX_TEST_EVIDENCE_INPUTS = 512
+_MAX_TEST_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024
+_MAX_TEST_EVIDENCE_TOTAL_BYTES = 64 * 1024 * 1024
 _PROTECTED_INPUT_RULES = (
     ("observed_development", PurePosixPath("data/processed/datasets")),
     ("split_artifact", PurePosixPath("data/processed/coverage_audits")),
+)
+_MATERIALIZED_INPUT_RULES = (
+    *_PROTECTED_INPUT_RULES,
+    (_TEST_EVIDENCE_ROLE, _TEST_EVIDENCE_PREFIX),
 )
 _OBSERVED_DEVELOPMENT_FIELDS = frozenset(
     {
@@ -167,6 +177,118 @@ def _tree_blob_id(root: Path, index_tree: str, path: str) -> str:
         ) from exc
 
 
+def _tree_test_blob_ids(
+    root: Path,
+    index_tree: str,
+    paths: Sequence[str],
+) -> tuple[str, ...]:
+    """Resolve test blob identities with one tree read, not one Git process each."""
+
+    requested = tuple(paths)
+    if len(requested) != len(set(requested)):
+        raise RuntimeError("tracked test paths are not unique")
+    entries: dict[str, str] = {}
+    for row in _git(
+        root,
+        "ls-tree",
+        "-r",
+        "-z",
+        index_tree,
+        "--",
+        "tests",
+    ).split(b"\0"):
+        if not row:
+            continue
+        header, separator, raw_path = row.partition(b"\t")
+        fields = header.split()
+        decoded = _paths(raw_path + b"\0")
+        if (
+            not separator
+            or len(fields) != 3
+            or fields[0] not in {b"100644", b"100755"}
+            or fields[1] != b"blob"
+            or len(decoded) != 1
+        ):
+            raise RuntimeError("frozen test tree contains a malformed entry")
+        path = decoded[0]
+        blob = fields[2].decode("ascii")
+        if path in entries or not blob or any(
+            character not in "0123456789abcdef" for character in blob
+        ):
+            raise RuntimeError("frozen test tree blob identity is malformed")
+        entries[path] = blob
+    missing = sorted(set(requested).difference(entries))
+    if missing:
+        raise RuntimeError(
+            "frozen test tree blobs are unavailable: " + ", ".join(missing)
+        )
+    return tuple(entries[path] for path in requested)
+
+
+def _batch_blob_contents(
+    root: Path,
+    blob_ids: Sequence[str],
+) -> tuple[bytes, ...]:
+    """Read exact index blobs through one size-framed ``cat-file`` process."""
+
+    requested = tuple(blob_ids)
+    completed = subprocess.run(
+        ("git", "cat-file", "--batch"),
+        cwd=root,
+        check=True,
+        capture_output=True,
+        input=b"".join(blob.encode("ascii") + b"\n" for blob in requested),
+    )
+    output = completed.stdout
+    offset = 0
+    contents: list[bytes] = []
+    for expected in requested:
+        line_end = output.find(b"\n", offset)
+        if line_end < 0:
+            raise RuntimeError("Git batch blob response is truncated")
+        header = output[offset:line_end].split()
+        if len(header) != 3 or header[0].decode("ascii") != expected:
+            raise RuntimeError("Git batch blob response identity differs")
+        if header[1] != b"blob":
+            raise RuntimeError("Git batch object is not a blob")
+        try:
+            size = int(header[2])
+        except ValueError as exc:
+            raise RuntimeError("Git batch blob size is malformed") from exc
+        start = line_end + 1
+        end = start + size
+        if size < 0 or end >= len(output) or output[end : end + 1] != b"\n":
+            raise RuntimeError("Git batch blob content is truncated")
+        contents.append(output[start:end])
+        offset = end + 1
+    if offset != len(output):
+        raise RuntimeError("Git batch blob response has trailing bytes")
+    return tuple(contents)
+
+
+def _worktree_blob_ids(root: Path, paths: Sequence[str]) -> tuple[str, ...]:
+    """Hash worktree tests in bounded batches while honoring Git attributes."""
+
+    requested = tuple(paths)
+    result: list[str] = []
+    for offset in range(0, len(requested), 64):
+        batch = requested[offset : offset + 64]
+        rows = _git(root, "hash-object", "--", *batch).splitlines()
+        if len(rows) != len(batch):
+            raise RuntimeError("Git worktree blob response is incomplete")
+        for row in rows:
+            try:
+                blob = row.decode("ascii")
+            except UnicodeDecodeError as exc:
+                raise RuntimeError("Git worktree blob identity is malformed") from exc
+            if not blob or any(
+                character not in "0123456789abcdef" for character in blob
+            ):
+                raise RuntimeError("Git worktree blob identity is malformed")
+            result.append(blob)
+    return tuple(result)
+
+
 def _tree_paths(root: Path, index_tree: str) -> tuple[str, ...]:
     return _paths(
         _git(root, "ls-tree", "-r", "-z", "--name-only", index_tree)
@@ -234,7 +356,7 @@ def _protected_relative_path(role: str, value: object) -> PurePosixPath:
             f"Foundation protected input path is not ASCII: {role}"
         ) from exc
     relative = PurePosixPath(value)
-    prefix = dict(_PROTECTED_INPUT_RULES).get(role)
+    prefix = dict(_MATERIALIZED_INPUT_RULES).get(role)
     if (
         prefix is None
         or any(
@@ -510,6 +632,86 @@ def _protected_development_input_plan(
     }
 
 
+def _test_evidence_input_plan(
+    root: Path, *, index_tree: str, tracked_paths: set[str]
+) -> dict[str, object]:
+    """Bind the exact small local evidence set required by tracked tests."""
+
+    if _TEST_EVIDENCE_MANIFEST_PATH not in tracked_paths:
+        return {
+            "authority": "none",
+            "input_count": 0,
+            "inputs": [],
+            "schema": "tracked_test_evidence_inputs.v1",
+            "scientific_or_claim_authority": False,
+            "test_execution_prerequisite_only": True,
+        }
+    content = _tree_blob(root, index_tree, _TEST_EVIDENCE_MANIFEST_PATH)
+    try:
+        text = content.decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise RuntimeError("tracked test evidence manifest is not ASCII") from exc
+    identities = tuple(text.splitlines())
+    if (
+        not text.endswith("\n")
+        or not identities
+        or len(identities) > _MAX_TEST_EVIDENCE_INPUTS
+        or identities != tuple(sorted(set(identities)))
+        or any(
+            len(identity) != 64
+            or identity != identity.lower()
+            or any(
+                character not in "0123456789abcdef"
+                for character in identity
+            )
+            for identity in identities
+        )
+    ):
+        raise RuntimeError("tracked test evidence manifest is malformed")
+    entries: list[dict[str, object]] = []
+    total_size = 0
+    for identity in identities:
+        relative = (
+            _TEST_EVIDENCE_PREFIX / identity[:2] / identity
+        ).as_posix()
+        source = _protected_repository_file(
+            root, _TEST_EVIDENCE_ROLE, relative
+        )
+        observed, size = _hash_file(source)
+        if observed != identity:
+            raise RuntimeError(
+                "tracked test evidence content identity differs"
+            )
+        if size > _MAX_TEST_EVIDENCE_FILE_BYTES:
+            raise RuntimeError("tracked test evidence file exceeds its bound")
+        total_size += size
+        if total_size > _MAX_TEST_EVIDENCE_TOTAL_BYTES:
+            raise RuntimeError("tracked test evidence set exceeds its bound")
+        entries.append(
+            {
+                "path": relative,
+                "role": _TEST_EVIDENCE_ROLE,
+                "sha256": identity,
+                "size": size,
+            }
+        )
+    return {
+        "authority": "tracked_exact_content_allowlist",
+        "input_count": len(entries),
+        "inputs": entries,
+        "manifest_blob": _tree_blob_id(
+            root, index_tree, _TEST_EVIDENCE_MANIFEST_PATH
+        ),
+        "manifest_path": _TEST_EVIDENCE_MANIFEST_PATH,
+        "manifest_sha256": sha256(content).hexdigest(),
+        "materialization": "verified_independent_read_only_copy",
+        "schema": "tracked_test_evidence_inputs.v1",
+        "scientific_or_claim_authority": False,
+        "test_execution_prerequisite_only": True,
+        "total_size": total_size,
+    }
+
+
 def _runtime_projection_plan(tracked: set[str]) -> dict[str, str]:
     """Describe deterministic projection preparation without ignored inputs."""
 
@@ -726,20 +928,22 @@ def _manifest(
     )
     if not tracked:
         raise RuntimeError("tracked-test manifest is empty")
-    entries: list[dict[str, str]] = []
     for path in tracked:
-        candidate = root / Path(path)
         try:
-            candidate.read_bytes()
+            (root / Path(path)).read_bytes()
         except OSError as exc:
             raise RuntimeError(f"tracked test is unavailable: {path}") from exc
-        content = _tree_blob(root, index_tree, path)
-        blob = _tree_blob_id(root, index_tree, path)
-        worktree_blob = (
-            _git(root, "hash-object", f"--path={path}", "--", path)
-            .decode("ascii")
-            .strip()
-        )
+    blobs = _tree_test_blob_ids(root, index_tree, tracked)
+    contents = _batch_blob_contents(root, blobs)
+    worktree_blobs = _worktree_blob_ids(root, tracked)
+    entries: list[dict[str, str]] = []
+    for path, blob, content, worktree_blob in zip(
+        tracked,
+        blobs,
+        contents,
+        worktree_blobs,
+        strict=True,
+    ):
         if worktree_blob != blob:
             raise RuntimeError(
                 "tracked test worktree bytes differ from the Git index blob: " + path
@@ -748,6 +952,9 @@ def _manifest(
             {"blob": blob, "path": path, "sha256": sha256(content).hexdigest()}
         )
     protected_inputs = _protected_development_input_plan(
+        root, index_tree=index_tree, tracked_paths=tracked_paths
+    )
+    test_evidence_inputs = _test_evidence_input_plan(
         root, index_tree=index_tree, tracked_paths=tracked_paths
     )
     python_runtime, runtime_paths = _python_runtime()
@@ -763,6 +970,7 @@ def _manifest(
         "runtime_projection": _runtime_projection_plan(tracked_paths),
         "sandbox_origin_policy": "detached_no_remote_no_push",
         "schema": "tracked_pytest_manifest.v2",
+        "test_evidence_inputs": test_evidence_inputs,
         "tracked_test_count": len(entries),
         "tracked_tests": entries,
     }
@@ -890,7 +1098,7 @@ def _validated_protected_entry(value: object) -> dict[str, object]:
     if not isinstance(value, Mapping) or set(value) != required:
         raise RuntimeError("protected input manifest entry is malformed")
     role = value.get("role")
-    if type(role) is not str or role not in dict(_PROTECTED_INPUT_RULES):
+    if type(role) is not str or role not in dict(_MATERIALIZED_INPUT_RULES):
         raise RuntimeError("protected input manifest role is invalid")
     relative = _protected_relative_path(role, value.get("path"))
     digest = value.get("sha256")
@@ -992,10 +1200,27 @@ def _materialize_protected_inputs(
     validated = tuple(_validated_protected_entry(value) for value in protected_inputs)
     expected_roles = tuple(role for role, _ in _PROTECTED_INPUT_RULES)
     observed_roles = tuple(str(entry["role"]) for entry in validated)
-    if validated and observed_roles != expected_roles:
+    foundation_roles = tuple(
+        role for role in observed_roles if role != _TEST_EVIDENCE_ROLE
+    )
+    evidence_entries = tuple(
+        entry
+        for entry in validated
+        if entry["role"] == _TEST_EVIDENCE_ROLE
+    )
+    if foundation_roles and foundation_roles != expected_roles:
         raise RuntimeError(
             "protected input manifest must contain the exact approved role set"
         )
+    expected_observed_roles = (
+        *foundation_roles,
+        *(_TEST_EVIDENCE_ROLE for _ in evidence_entries),
+    )
+    if observed_roles != expected_observed_roles:
+        raise RuntimeError("test evidence inputs must follow Foundation inputs")
+    evidence_paths = tuple(str(entry["path"]) for entry in evidence_entries)
+    if evidence_paths != tuple(sorted(set(evidence_paths))):
+        raise RuntimeError("test evidence input paths are not canonical")
     paths = tuple(str(entry["path"]) for entry in validated)
     if len(set(paths)) != len(paths):
         raise RuntimeError("protected input manifest paths are not unique")
@@ -1291,7 +1516,15 @@ def main(argv: Sequence[str] | None = None) -> int:
             protected_plan.get("inputs"), list
         ):
             raise RuntimeError("protected development input plan is malformed")
-        protected_inputs = tuple(protected_plan["inputs"])
+        test_evidence_plan = manifest.get("test_evidence_inputs")
+        if not isinstance(test_evidence_plan, dict) or not isinstance(
+            test_evidence_plan.get("inputs"), list
+        ):
+            raise RuntimeError("tracked test evidence input plan is malformed")
+        protected_inputs = (
+            *protected_plan["inputs"],
+            *test_evidence_plan["inputs"],
+        )
         if not arguments.no_manifest_file:
             output = (
                 arguments.manifest_output

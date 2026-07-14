@@ -141,6 +141,31 @@ class TrackedTestRunnerTests(unittest.TestCase):
         )
         return observed_file, split_file
 
+    def configure_test_evidence(
+        self,
+        content: bytes = b'{"schema":"test-evidence"}\n',
+        *,
+        declared_identity: str | None = None,
+        materialize: bool = True,
+    ) -> tuple[str, Path]:
+        identity = declared_identity or sha256(content).hexdigest()
+        evidence = (
+            self.root
+            / "local"
+            / "evidence"
+            / "sha256"
+            / identity[:2]
+            / identity
+        )
+        if materialize:
+            evidence.parent.mkdir(parents=True, exist_ok=True)
+            evidence.write_bytes(content)
+        (self.root / "tests" / "evidence_inputs.txt").write_text(
+            identity + "\n", encoding="ascii"
+        )
+        run(self.root, "git", "add", "tests/evidence_inputs.txt")
+        return identity, evidence
+
     def test_manifest_excludes_and_reports_untracked_tests(self) -> None:
         result = self.invoke("--manifest-only", "--no-manifest-file")
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
@@ -219,6 +244,102 @@ class TrackedTestRunnerTests(unittest.TestCase):
             (self.root / "data/processed/datasets/observed.csv").read_bytes(),
             observed,
         )
+
+    def test_runner_materializes_only_exact_allowlisted_test_evidence(self) -> None:
+        content = b'{"schema":"approved-test-evidence"}\n'
+        identity, evidence = self.configure_test_evidence(content)
+        unlisted_content = b'{"schema":"unlisted-test-evidence"}\n'
+        unlisted_identity = sha256(unlisted_content).hexdigest()
+        unlisted = (
+            evidence.parents[1]
+            / unlisted_identity[:2]
+            / unlisted_identity
+        )
+        unlisted.parent.mkdir(parents=True)
+        unlisted.write_bytes(unlisted_content)
+        (self.root / "tests" / "test_tracked.py").write_text(
+            "from pathlib import Path\n\n"
+            "def test_tracked():\n"
+            f"    approved = Path('local/evidence/sha256/{identity[:2]}/{identity}')\n"
+            f"    assert approved.read_bytes() == {content!r}\n"
+            f"    assert not Path('local/evidence/sha256/{unlisted_identity[:2]}/"
+            f"{unlisted_identity}').exists()\n",
+            encoding="ascii",
+        )
+        run(self.root, "git", "add", "tests/test_tracked.py")
+
+        result = self.invoke("--no-manifest-file", "--", "-q")
+
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertIn("1 passed", result.stdout)
+        plan = json.loads(result.stdout.splitlines()[0])["test_evidence_inputs"]
+        self.assertEqual(plan["authority"], "tracked_exact_content_allowlist")
+        self.assertEqual(plan["input_count"], 1)
+        self.assertEqual(plan["total_size"], len(content))
+        self.assertFalse(plan["scientific_or_claim_authority"])
+        self.assertTrue(plan["test_execution_prerequisite_only"])
+        self.assertEqual(
+            [(item["role"], item["path"]) for item in plan["inputs"]],
+            [
+                (
+                    "test_evidence",
+                    f"local/evidence/sha256/{identity[:2]}/{identity}",
+                )
+            ],
+        )
+        self.assertEqual(evidence.read_bytes(), content)
+
+    def test_test_evidence_missing_or_identity_mismatch_fails_closed(self) -> None:
+        missing_identity = "1" * 64
+        self.configure_test_evidence(
+            declared_identity=missing_identity,
+            materialize=False,
+        )
+
+        missing = self.invoke("--manifest-only", "--no-manifest-file")
+
+        self.assertEqual(missing.returncode, 1)
+        self.assertIn("unavailable", json.loads(missing.stderr)["error"])
+
+        wrong = (
+            self.root
+            / "local"
+            / "evidence"
+            / "sha256"
+            / missing_identity[:2]
+            / missing_identity
+        )
+        wrong.parent.mkdir(parents=True)
+        wrong.write_bytes(b"wrong-content\n")
+
+        mismatch = self.invoke("--manifest-only", "--no-manifest-file")
+
+        self.assertEqual(mismatch.returncode, 1)
+        self.assertIn(
+            "content identity differs",
+            json.loads(mismatch.stderr)["error"],
+        )
+
+    def test_mutated_test_evidence_copy_rejects_passing_suite(self) -> None:
+        content = b'{"schema":"immutable-test-evidence"}\n'
+        identity, evidence = self.configure_test_evidence(content)
+        relative = f"local/evidence/sha256/{identity[:2]}/{identity}"
+        (self.root / "tests" / "test_tracked.py").write_text(
+            "from pathlib import Path\n\n"
+            "def test_tracked():\n"
+            f"    target = Path({relative!r})\n"
+            "    target.chmod(0o666)\n"
+            "    target.write_bytes(b'mutated-in-sandbox\\n')\n"
+            "    assert True\n",
+            encoding="ascii",
+        )
+        run(self.root, "git", "add", "tests/test_tracked.py")
+
+        result = self.invoke("--no-manifest-file", "--", "-q")
+
+        self.assertEqual(result.returncode, 1, result.stderr or result.stdout)
+        self.assertIn("postcondition failed", result.stderr)
+        self.assertEqual(evidence.read_bytes(), content)
 
     def test_protected_input_missing_or_hash_mismatch_fails_closed(self) -> None:
         observed_file, split_file = self.configure_protected_development_inputs()
@@ -483,6 +604,50 @@ class TrackedTestRunnerTests(unittest.TestCase):
         run(self.root, "git", "add", "tests/test_tracked.py")
         accepted = self.invoke("--manifest-only", "--no-manifest-file")
         self.assertEqual(accepted.returncode, 0, accepted.stderr)
+
+    def test_manifest_batches_git_blob_work_by_bounded_file_groups(self) -> None:
+        tests = self.root / "tests"
+        (tests / "test_untracked.py").unlink()
+        for ordinal in range(130):
+            (tests / f"test_batch_{ordinal:03d}.py").write_text(
+                f"def test_batch_{ordinal:03d}():\n    assert True\n",
+                encoding="ascii",
+            )
+        run(self.root, "git", "add", "tests")
+        subject = load_runner_module()
+        original_git = subject._git
+        calls: list[tuple[str, ...]] = []
+
+        def observed_git(root: Path, *arguments: str) -> bytes:
+            calls.append(tuple(arguments))
+            return original_git(root, *arguments)
+
+        with patch.object(
+            subject,
+            "_git",
+            side_effect=observed_git,
+        ), patch.object(
+            subject,
+            "_python_runtime",
+            return_value=({"runtime_sha256": "0" * 64}, ()),
+        ):
+            manifest, tracked, _runtime = subject._manifest(
+                self.root.resolve(), pytest_args=()
+            )
+
+        self.assertEqual(manifest["tracked_test_count"], 131)
+        self.assertEqual(len(tracked), 131)
+        hash_calls = [call for call in calls if call[:1] == ("hash-object",)]
+        self.assertEqual(len(hash_calls), 3)
+        self.assertFalse(any(call[:1] == ("show",) for call in calls))
+        self.assertFalse(
+            any(
+                call[:1] == ("rev-parse",)
+                and len(call) == 2
+                and ":tests/" in call[1]
+                for call in calls
+            )
+        )
 
     def test_skip_worktree_cannot_hide_index_blob_mismatch(self) -> None:
         tracked = self.root / "tests" / "test_tracked.py"
