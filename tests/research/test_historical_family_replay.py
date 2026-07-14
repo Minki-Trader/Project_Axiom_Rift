@@ -4,12 +4,18 @@ import unittest
 
 from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.research.historical_family_replay import (
+    ALL_P1_HISTORICAL_FAMILY_CATALOG,
+    ALL_P1_HISTORICAL_FAMILY_CATALOG_DIGEST,
     ControlBinding,
     HistoricalFamilyReplayError,
     HistoricalFamilySpec,
     HistoricalMemberSpec,
     P1_HISTORICAL_FAMILY_CATALOG,
     P1_HISTORICAL_FAMILY_CATALOG_DIGEST,
+    P1_ROUTED_HISTORICAL_FAMILY_CATALOG,
+    P1_ROUTED_HISTORICAL_FAMILY_CATALOG_DIGEST,
+    STU0016_HISTORICAL_FAMILY,
+    STU0017_HISTORICAL_FAMILY,
     STU0032_HISTORICAL_FAMILY,
     STU0048_HISTORICAL_FAMILY,
     STU0051_HISTORICAL_FAMILY,
@@ -138,8 +144,64 @@ class HistoricalFamilyReplayTests(unittest.TestCase):
                 )
             ).isascii()
         )
+        self.assertEqual(
+            tuple(
+                item.original_study_id
+                for item in P1_ROUTED_HISTORICAL_FAMILY_CATALOG
+            ),
+            ("STU-0016", "STU-0017"),
+        )
+        self.assertEqual(
+            P1_ROUTED_HISTORICAL_FAMILY_CATALOG_DIGEST,
+            "8c3e4d93de028de29f6c33d8e59d948cd7084926568ecf286cf4b339affba80b",
+        )
+        self.assertEqual(
+            tuple(
+                item.original_study_id
+                for item in ALL_P1_HISTORICAL_FAMILY_CATALOG
+            ),
+            ("STU-0016", "STU-0017", "STU-0032", "STU-0048", "STU-0051"),
+        )
+        self.assertEqual(
+            ALL_P1_HISTORICAL_FAMILY_CATALOG_DIGEST,
+            "f2f08b2db0139d2df91f3702a06b337754d874341f06dfb04f6e8e0a79547e11",
+        )
 
     def test_builtin_target_controls_preserve_exact_original_members(self) -> None:
+        stu0016 = STU0016_HISTORICAL_FAMILY.control_for_historical_executable(
+            STU0016_HISTORICAL_FAMILY.target_historical_executable_id
+        )
+        self.assertEqual(
+            stu0016.opposite_historical_executable_id,
+            "executable:"
+            "e1ae93800933f1739becd5e67512c20181948941d0b0bac491f40c206ca56f73",
+        )
+        self.assertEqual(
+            stu0016.feature_historical_executable_ids,
+            (
+                "executable:"
+                "87a549ee3c11ecfa276f03903e3bf46c63c1cb1f1b3f584841cc2005d67ffa1b",
+                "executable:"
+                "a1cf161817284545c00a7636c30481fa21568d7f0b7a8921d73dff0dbbb84c38",
+            ),
+        )
+        stu0017 = STU0017_HISTORICAL_FAMILY.control_for_historical_executable(
+            STU0017_HISTORICAL_FAMILY.target_historical_executable_id
+        )
+        self.assertEqual(
+            stu0017.opposite_historical_executable_id,
+            "executable:"
+            "415313ffe158c34da4c6a423289c142864d7d5a455e6d1b79b63328d94dc5849",
+        )
+        self.assertEqual(
+            stu0017.feature_historical_executable_ids,
+            (
+                "executable:"
+                "563de482fc6f5fc5967a51f4c0338a505901139024736ad00e3c2cb7e6161d99",
+                "executable:"
+                "f97438d20e3be08799887750daf3b6191619ddf874008083be70fc9a320dbf50",
+            ),
+        )
         stu0048 = STU0048_HISTORICAL_FAMILY.control_for_historical_executable(
             STU0048_HISTORICAL_FAMILY.target_historical_executable_id
         )
@@ -189,7 +251,7 @@ class HistoricalFamilyReplayTests(unittest.TestCase):
         )
 
     def test_builtin_controls_match_profile_sign_and_horizon_semantics(self) -> None:
-        for family_spec in P1_HISTORICAL_FAMILY_CATALOG:
+        for family_spec in ALL_P1_HISTORICAL_FAMILY_CATALOG:
             by_id = {
                 item.historical_reference_executable_id: item
                 for item in family_spec.members

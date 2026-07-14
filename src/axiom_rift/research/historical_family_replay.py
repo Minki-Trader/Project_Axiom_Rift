@@ -813,6 +813,217 @@ STU0032_HISTORICAL_FAMILY = HistoricalFamilySpec(
 )
 
 
+def _three_profile_controls(
+    identities: dict[tuple[str, int, int], str],
+) -> tuple[ControlBinding, ...]:
+    """Build exact sign and profile controls for a 3 x 2 x 2 family."""
+
+    profiles = tuple(sorted({key[0] for key in identities}))
+    signs = tuple(sorted({key[1] for key in identities}))
+    horizons = tuple(sorted({key[2] for key in identities}))
+    if (
+        len(profiles) != 3
+        or signs != (-1, 1)
+        or len(horizons) != 2
+        or set(identities)
+        != {
+            (profile, sign, horizon)
+            for profile in profiles
+            for sign in signs
+            for horizon in horizons
+        }
+    ):
+        raise HistoricalFamilyReplayError(
+            "routed family must be one complete 3 x 2 x 2 surface"
+        )
+    return tuple(
+        _control(
+            identities[(profile, sign, horizon)],
+            identities[(profile, -sign, horizon)],
+            *(
+                identities[(feature_profile, sign, horizon)]
+                for feature_profile in profiles
+                if feature_profile != profile
+            ),
+        )
+        for profile in profiles
+        for sign in signs
+        for horizon in horizons
+    )
+
+
+_STU0016_IDS = {
+    ("three_sleeve_router", -1, 12): (
+        "executable:fc759b3224803f7fcb02c3ff462952d9d5757f055332d03d5e523b750083bfa2"
+    ),
+    ("three_sleeve_router", -1, 48): (
+        "executable:e2fbd634f77f528e2602869a9185ca9be0839e5043f93fad3168e5234156e26a"
+    ),
+    ("three_sleeve_router", 1, 12): (
+        "executable:b36e424e2e39a835eb0025c9e5401dc3b9ea89d9218e62c47b3256331eb4e678"
+    ),
+    ("three_sleeve_router", 1, 48): (
+        "executable:87a549ee3c11ecfa276f03903e3bf46c63c1cb1f1b3f584841cc2005d67ffa1b"
+    ),
+    ("volume_reversion_ablation", -1, 12): (
+        "executable:3aa139c4dbf40f0249084e62d241280597f370e7e121b4ddac6cda83ffc4ad68"
+    ),
+    ("volume_reversion_ablation", -1, 48): (
+        "executable:bfd622b40f2326258781ea4fff27b7c6b08d5947eb7876d1cea49b64f00334bc"
+    ),
+    ("volume_reversion_ablation", 1, 12): (
+        "executable:f78844b7335bc4463a37645ea4948a164c8cfa74607e274d6d816320354d5ecd"
+    ),
+    ("volume_reversion_ablation", 1, 48): (
+        "executable:a1cf161817284545c00a7636c30481fa21568d7f0b7a8921d73dff0dbbb84c38"
+    ),
+    ("volume_volatility_ablation", -1, 12): (
+        "executable:06ad8508a168bfbf0216e715a01ccffa7e27dfd2cd8fb650431444b70431f975"
+    ),
+    ("volume_volatility_ablation", -1, 48): (
+        "executable:e1ae93800933f1739becd5e67512c20181948941d0b0bac491f40c206ca56f73"
+    ),
+    ("volume_volatility_ablation", 1, 12): (
+        "executable:43d19780f661ee5d05271fec7193f844f9646673eb75f0ae80ecfe5787404b93"
+    ),
+    ("volume_volatility_ablation", 1, 48): (
+        "executable:8de305e766e7048b4291c13c6e442f7b53c30b3659f09d343db504134f9ab5b4"
+    ),
+}
+
+_STU0016_ROWS = tuple(
+    (
+        ordinal,
+        f"{profile}-{'inverted' if sign == -1 else 'routed'}-h{horizon}",
+        profile,
+        sign,
+        horizon,
+    )
+    for ordinal, (profile, sign, horizon) in enumerate(
+        (
+            (profile, sign, horizon)
+            for profile in (
+                "three_sleeve_router",
+                "volume_reversion_ablation",
+                "volume_volatility_ablation",
+            )
+            for sign in (-1, 1)
+            for horizon in (12, 48)
+        ),
+        start=1,
+    )
+)
+
+STU0016_HISTORICAL_FAMILY = HistoricalFamilySpec(
+    original_study_id="STU-0016",
+    original_batch_id=(
+        "batch:c8c8f757ccfc444360a260aeb905b4254f2a0241ae2ff1e09663eb354bf2f937"
+    ),
+    target_historical_executable_id=_STU0016_IDS[
+        ("volume_volatility_ablation", 1, 48)
+    ],
+    members=tuple(
+        _member(
+            ordinal,
+            configuration_id,
+            _STU0016_IDS[(profile, sign, horizon)],
+            holding_bars=horizon,
+            profile=profile,
+            selector_quantile_bp=9_500,
+            signal_sign=sign,
+        )
+        for ordinal, configuration_id, profile, sign, horizon in _STU0016_ROWS
+    ),
+    controls=_three_profile_controls(_STU0016_IDS),
+)
+
+
+_STU0017_IDS = {
+    ("full_regime_consensus", -1, 24): (
+        "executable:6756cf4b4afc9b5e7825eb98ce637ab4b3996e469bf65f93e2cbedcadbdde4ce"
+    ),
+    ("full_regime_consensus", -1, 48): (
+        "executable:1d08147400a254e7f9a54425882fffac16e53cdeeb6267cf411543f9591aa27d"
+    ),
+    ("full_regime_consensus", 1, 24): (
+        "executable:d44b2c56cb72f609e372ade48042bc17d0775bd986759fb0635c9cc597d5d612"
+    ),
+    ("full_regime_consensus", 1, 48): (
+        "executable:f97438d20e3be08799887750daf3b6191619ddf874008083be70fc9a320dbf50"
+    ),
+    ("volume_primary_all_regimes", -1, 24): (
+        "executable:2d9dd7f2165a0157b53bdeaa80265e93fa2f9c16d055f44a75980deba0ea94f9"
+    ),
+    ("volume_primary_all_regimes", -1, 48): (
+        "executable:01084b49554bfe7b81c09a6754919afcd6a9c4ea82e577fcb489249e1a9d983a"
+    ),
+    ("volume_primary_all_regimes", 1, 24): (
+        "executable:de25016fc3c3356c268d281929c50f65774e1f3832ce49daf313d52de1b1e702"
+    ),
+    ("volume_primary_all_regimes", 1, 48): (
+        "executable:563de482fc6f5fc5967a51f4c0338a505901139024736ad00e3c2cb7e6161d99"
+    ),
+    ("middle_consensus_no_high", -1, 24): (
+        "executable:b77b5415e62a6eb58aaff05817a4c0263cb76b473c049976e628e39fe9636e9c"
+    ),
+    ("middle_consensus_no_high", -1, 48): (
+        "executable:415313ffe158c34da4c6a423289c142864d7d5a455e6d1b79b63328d94dc5849"
+    ),
+    ("middle_consensus_no_high", 1, 24): (
+        "executable:ed9db729ee68e448bfa82c50000bda7647bf0c247a1e08f6b2374b76c2a46740"
+    ),
+    ("middle_consensus_no_high", 1, 48): (
+        "executable:7d3a9f18039fd851454d9a8171a2f4c547de14fc464e86f6bafbf3d84e64526a"
+    ),
+}
+
+_STU0017_ROWS = tuple(
+    (
+        ordinal,
+        f"{profile}-{'inverted' if sign == -1 else 'routed'}-h{horizon}",
+        profile,
+        sign,
+        horizon,
+    )
+    for ordinal, (profile, sign, horizon) in enumerate(
+        (
+            (profile, sign, horizon)
+            for profile in (
+                "full_regime_consensus",
+                "volume_primary_all_regimes",
+                "middle_consensus_no_high",
+            )
+            for sign in (-1, 1)
+            for horizon in (24, 48)
+        ),
+        start=1,
+    )
+)
+
+STU0017_HISTORICAL_FAMILY = HistoricalFamilySpec(
+    original_study_id="STU-0017",
+    original_batch_id=(
+        "batch:7dbabdea68fffba4789a5dd92509610a652a84be95e6ed45fa49f659f37e928e"
+    ),
+    target_historical_executable_id=_STU0017_IDS[
+        ("middle_consensus_no_high", 1, 48)
+    ],
+    members=tuple(
+        _member(
+            ordinal,
+            configuration_id,
+            _STU0017_IDS[(profile, sign, horizon)],
+            holding_bars=horizon,
+            profile=profile,
+            selector_quantile_bp=9_750,
+            signal_sign=sign,
+        )
+        for ordinal, configuration_id, profile, sign, horizon in _STU0017_ROWS
+    ),
+    controls=_three_profile_controls(_STU0017_IDS),
+)
+
+
 P1_HISTORICAL_FAMILY_CATALOG = historical_family_catalog(
     (
         STU0048_HISTORICAL_FAMILY,
@@ -822,6 +1033,24 @@ P1_HISTORICAL_FAMILY_CATALOG = historical_family_catalog(
 )
 P1_HISTORICAL_FAMILY_CATALOG_DIGEST = historical_family_catalog_digest(
     P1_HISTORICAL_FAMILY_CATALOG
+)
+P1_ROUTED_HISTORICAL_FAMILY_CATALOG = historical_family_catalog(
+    (
+        STU0016_HISTORICAL_FAMILY,
+        STU0017_HISTORICAL_FAMILY,
+    )
+)
+P1_ROUTED_HISTORICAL_FAMILY_CATALOG_DIGEST = (
+    historical_family_catalog_digest(P1_ROUTED_HISTORICAL_FAMILY_CATALOG)
+)
+ALL_P1_HISTORICAL_FAMILY_CATALOG = historical_family_catalog(
+    (
+        *P1_HISTORICAL_FAMILY_CATALOG,
+        *P1_ROUTED_HISTORICAL_FAMILY_CATALOG,
+    )
+)
+ALL_P1_HISTORICAL_FAMILY_CATALOG_DIGEST = historical_family_catalog_digest(
+    ALL_P1_HISTORICAL_FAMILY_CATALOG
 )
 
 
@@ -834,8 +1063,14 @@ __all__ = [
     "HistoricalFamilyReplayError",
     "HistoricalFamilySpec",
     "HistoricalMemberSpec",
+    "ALL_P1_HISTORICAL_FAMILY_CATALOG",
+    "ALL_P1_HISTORICAL_FAMILY_CATALOG_DIGEST",
     "P1_HISTORICAL_FAMILY_CATALOG",
     "P1_HISTORICAL_FAMILY_CATALOG_DIGEST",
+    "P1_ROUTED_HISTORICAL_FAMILY_CATALOG",
+    "P1_ROUTED_HISTORICAL_FAMILY_CATALOG_DIGEST",
+    "STU0016_HISTORICAL_FAMILY",
+    "STU0017_HISTORICAL_FAMILY",
     "STU0032_HISTORICAL_FAMILY",
     "STU0048_HISTORICAL_FAMILY",
     "STU0051_HISTORICAL_FAMILY",

@@ -23,6 +23,12 @@ ANALOG_SCOPED_TRACE_PROTOCOL_ID = (
 DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID = (
     "drawdown_state.concurrent_four_config.replay.v2"
 )
+COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID = (
+    "composite_router.concurrent_twelve_config.replay.v1"
+)
+COMPOSITE_CONSENSUS_REPLAY_TRACE_PROTOCOL_ID = (
+    "composite_consensus.concurrent_twelve_config.replay.v1"
+)
 DISTRIBUTION_ASYMMETRY_REPLAY_TRACE_PROTOCOL_ID = (
     "distribution_asymmetry.concurrent_twelve_config.replay.v1"
 )
@@ -93,6 +99,8 @@ def trace_proof_kinds(
     if protocol_id not in {
         ANALOG_STATE_TRACE_PROTOCOL_ID,
         ANALOG_SCOPED_TRACE_PROTOCOL_ID,
+        COMPOSITE_CONSENSUS_REPLAY_TRACE_PROTOCOL_ID,
+        COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID,
         DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID,
         DISTRIBUTION_ASYMMETRY_REPLAY_TRACE_PROTOCOL_ID,
         VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID,
@@ -306,6 +314,53 @@ def validate_trace_calculation_pair(
             definition=definition,
             validator=FIXED_HOLD_TRACE_VALIDATOR,
         )
+    elif protocol_id in {
+        COMPOSITE_CONSENSUS_REPLAY_TRACE_PROTOCOL_ID,
+        COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID,
+    }:
+        parameters = calculation.get("parameters")
+        if not isinstance(parameters, Mapping):
+            raise ScientificTraceError(
+                "composite routed replay parameters are invalid"
+            )
+        historical_count = parameters.get(
+            "historical_context_prior_global_exposure_count"
+        )
+        if type(historical_count) is not int:
+            raise ScientificTraceError(
+                "composite routed historical context is invalid"
+            )
+        if protocol_id == COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID:
+            from axiom_rift.research.composite_router_replay import (
+                composite_router_replay_protocol_definition,
+            )
+
+            definition = composite_router_replay_protocol_definition(
+                historical_context_prior_global_exposure_count=(
+                    historical_count
+                )
+            )
+        else:
+            from axiom_rift.research.composite_consensus_replay import (
+                composite_consensus_replay_protocol_definition,
+            )
+
+            definition = composite_consensus_replay_protocol_definition(
+                historical_context_prior_global_exposure_count=(
+                    historical_count
+                )
+            )
+        from axiom_rift.research.fixed_hold_family_trace import (
+            FIXED_HOLD_TRACE_VALIDATOR,
+            validate_fixed_hold_trace_calculation,
+        )
+
+        derived_metrics = validate_fixed_hold_trace_calculation(
+            trace=trace,
+            calculation=calculation,
+            definition=definition,
+            validator=FIXED_HOLD_TRACE_VALIDATOR,
+        )
     else:
         raise ScientificTraceError("scientific trace protocol is not registered")
 
@@ -329,6 +384,8 @@ __all__ = [
     "ANALOG_SCOPED_TRACE_PROTOCOL_ID",
     "ATOMIC_TRACE_PROOF_KIND",
     "CALCULATION_PROOF_KIND",
+    "COMPOSITE_CONSENSUS_REPLAY_TRACE_PROTOCOL_ID",
+    "COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID",
     "DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID",
     "DISTRIBUTION_ASYMMETRY_REPLAY_TRACE_PROTOCOL_ID",
     "SCIENTIFIC_CALCULATION_PROOF_SCHEMA",
