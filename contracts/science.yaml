@@ -142,6 +142,13 @@ portfolio:
 batch:
   operator_selects_adaptive_bound: true
   frozen_before_evidence: true
+  concurrent_family_all_executables_registered_before_first_evaluation: true
+  concurrent_family_typed_manifest_bound_to_batch_identity: true
+  concurrent_family_exact_ordered_executable_ids_required: true
+  concurrent_family_size_derived_from_unique_executable_ids: true
+  concurrent_family_size_equals_frozen_trial_bound: true
+  concurrent_family_all_members_required_before_job_declaration_and_start: true
+  concurrent_family_runner_order_is_authority: false
   global_tiny_cap: null
   unique_executable_is_trial: true
   successful_identity_cache_hit_is_trial: false
@@ -390,3 +397,102 @@ forest_execution:
   generic_engine_preferred_over_temporal_study_module: true
   exact_common_calendar_required: true
   implicit_missing_day_zero_fill_allowed: false
+project_goal_audit_v2_protocol:
+  quant_team_judgment:
+    plural_lenses_required: true
+    universal_scalar_decision_score_allowed: false
+    harness_selects_scientific_allocation: false
+    harness_enforces_bounds_but_does_not_choose_judgment: true
+  implementation_closure:
+    component_current_bytes_and_semantic_dependencies_required: true
+    executable_contains_every_participating_component_identity: true
+    job_artifacts_cover_every_executable_component_implementation: true
+    caller_or_fixed_identity_without_current_bytes_allowed: false
+    implementation_bundle:
+      exact_domain_framed_bytes_are_durable_artifact: true
+      every_bound_source_dependency_is_durable_artifact: true
+      transitive_project_local_semantic_closure_required: true
+      delegated_dependency_change_changes_bundle_identity: true
+      digest_without_exact_artifact_bytes_allowed: false
+    historical_hardcoded_module:
+      reconstruction_allowed: true
+      prospective_registration_allowed: false
+      byte_identity_frozen: true
+      parity_required_before_retirement: true
+  data_exposure:
+    observed_development_is_distinct_content_addressed_prefix: true
+    prefix_binds_parent_dataset_and_split: true
+    routine_loader_opens_quarantined_parent: false
+    engineering_test_sandbox_contains_quarantined_parent: false
+    full_parent_integrity_materialization_scientific_or_claim_authority: false
+  adjudication:
+    comparison_state_is_scientific_state: false
+    comparison_states:
+      - passed
+      - failed
+      - not_evaluable
+    terminal_and_scheduler_read_scientific_state_only: true
+    audit_integrity:
+      scientific_mode_credit: false
+      terminal_or_exhaustion_credit: false
+      economic_or_candidate_authority: false
+      effective_evidence_modes:
+        - audit_integrity
+  historical_correction:
+    effective_scope_overlay_required_for_mistaken_mode_credit: true
+    overlay_is_additive_and_original_event_preserving: true
+  replay_obligation:
+    priorities:
+      - P0
+      - P1
+    lifecycle:
+      - pending
+      - in_progress
+      - satisfied
+      - deferred
+    exact_original_executable_and_criteria_bound: true
+    exact_original_study_and_adjudication_bound: true
+    P0_blocks_affected_scientific_credit: true
+    P1_highest_information_value_bounded_opportunity: true
+    P1_blocks_unrelated_valid_research: false
+    progress_requires_exact_new_to_original_executable_match: true
+    first_trial_or_position_fallback_allowed: false
+    one_new_executable_satisfies_at_most_one_original: true
+    family_level_evidence_satisfies_unmatched_member: false
+    satisfaction_requires_recomputed_original_criteria: true
+    defer_requires_typed_exact_resume_condition: true
+  effective_axis_projection:
+    immutable_portfolio_snapshot_preserved: true
+    applies_source_invalidations: true
+    applies_replay_obligations: true
+    applies_effective_evidence_scope_overlays: true
+    invalidated_source_axis_scheduler_eligible: false
+    invalidated_source_axis_terminal_credit: false
+    invalidated_source_axis_restoration_allowed: false
+    new_source_contract_and_new_axis_identity_required: true
+    source_replacement_lineage:
+      exact_old_invalidation_source_and_axis_bound: true
+      eligible_distinct_replacement_source_state_bound: true
+      distinct_replacement_axis_bound: true
+      original_snapshot_and_latch_immutable: true
+      retired_old_axis_scientific_or_terminal_credit: false
+      retired_old_axis_terminal_eligible_without_credit: true
+      retired_old_axis_schedulable: false
+      replacement_and_unrelated_eligible_axes_remain_schedulable: true
+      external_wait_requires_exact_replacement_capability: true
+      shared_outage_uses_typed_sorted_unique_capability_set: true
+      capability_set_may_hide_replay_scope_or_internal_blocker: false
+  concurrent_family_registration:
+    typed_manifest_bound_into_batch_identity: true
+    exact_executable_membership_required: true
+    all_members_registered_before_any_job_declaration_start_or_evaluation: true
+    runner_order_is_engine_authority: false
+    legacy_or_single_member_batch_behavior_preserved: true
+  economic_composite:
+    component_summary_bundle_is_economic_evidence: false
+    combined_significance_label_is_economic_evidence: false
+    actual_member_trade_execution_required: true
+    declared_entry_and_exit_timing_required: true
+    exposure_netting_required: true
+    native_and_stressed_costs_required: true
+    portfolio_drawdown_attribution_required: true

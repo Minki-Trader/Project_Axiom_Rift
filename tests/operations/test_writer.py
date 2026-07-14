@@ -5,6 +5,7 @@ from tempfile import TemporaryDirectory
 from hashlib import sha256
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.core.identity import ComponentSpec, ExecutableSpec, canonical_digest
@@ -831,6 +832,89 @@ class WriterTests(unittest.TestCase):
                 operation_id="reject-record-intake-boundary-protocol",
                 allow_active_stable_boundary=True,
             )
+
+    def test_protocol_rebind_supersedes_an_intact_historical_validator(self) -> None:
+        self.open_mission_and_initiative()
+        self.writer.close_initiative(
+            outcome="completed",
+            operation_id="historical-validator-close-initiative",
+        )
+        audit = self.writer.evidence.finalize(
+            b"historical validator supersession audit"
+        )
+        self.writer.validation_registry = EvidenceValidatorRegistry(
+            (
+                ScientificAdjudicationValidatorV2(),
+                ScientificFixtureValidator(),
+            )
+        )
+        control = self.writer.read_control()
+        assert control is not None
+        historical = ResearchProtocolActivation(
+            protocol=ResearchProtocol.SCIENTIFIC_ADJUDICATION_V2,
+            validator_id=ScientificFixtureValidator.validator_id,
+            authority_manifest_digest=control["authority"]["manifest_digest"],
+            audit_artifact_hash=audit.sha256,
+        )
+        with patch(
+            "axiom_rift.research.validation_v2."
+            "SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID",
+            ScientificFixtureValidator.validator_id,
+        ):
+            activated = self.writer.activate_research_protocol(
+                activation=historical,
+                operation_id="activate-historical-scientific-validator",
+                allow_active_stable_boundary=True,
+            )
+        self.assertEqual(activated.result["ordinal"], 1)
+
+        authority_fixture = self.root / "historical-validator-authority"
+        authority_paths = (
+            control["authority"]["operating_direction"],
+            *control["authority"]["contracts"],
+            *control["authority"]["foundation_inputs"],
+        )
+        for relative in authority_paths:
+            destination = authority_fixture / relative
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes((REPO_ROOT / relative).read_bytes())
+        self.writer.foundation_root = authority_fixture
+        operations_path = authority_fixture / "contracts/operations.yaml"
+        replacement = operations_path.read_bytes() + (
+            b"\n# historical validator supersession fixture\n"
+        )
+        self.writer.migrate_authority(
+            replacements={"contracts/operations.yaml": replacement},
+            reason="bind the current validator to replacement authority",
+            operation_id="migrate-historical-validator-authority",
+            allow_active_stable_boundary=True,
+        )
+        rebound_control = self.writer.read_control()
+        assert rebound_control is not None
+        current = ResearchProtocolActivation(
+            protocol=ResearchProtocol.SCIENTIFIC_ADJUDICATION_V2,
+            validator_id=ScientificAdjudicationValidatorV2.validator_id,
+            authority_manifest_digest=rebound_control["authority"][
+                "manifest_digest"
+            ],
+            audit_artifact_hash=audit.sha256,
+        )
+        rebound = self.writer.activate_research_protocol(
+            activation=current,
+            operation_id="supersede-historical-scientific-validator",
+            allow_active_stable_boundary=True,
+        )
+        self.assertEqual(rebound.result["ordinal"], 2)
+        with LocalIndex(self.writer.index_path) as index:
+            record = index.get(
+                "research-protocol-activation",
+                rebound.result["activation_record_id"],
+            )
+        assert record is not None
+        self.assertEqual(
+            record.payload["supersedes_activation_record_id"],
+            historical.identity,
+        )
 
     def test_job_implementation_rejects_hardcoded_study_identity(self) -> None:
         callable_identity = "fixture.generic.runner"

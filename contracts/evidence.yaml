@@ -14,6 +14,10 @@ outputs:
   reproducible_cache:
     claim_authority: false
     eviction_allowed: true
+    local_presence_required_for_scientific_or_terminal_credit: false
+    rematerialization_requires_exact_durable_producer_trace_and_hash: true
+    producer_identity_binds_exact_declaration_start_permit_entry_and_completion: true
+    later_same_work_fingerprint_attempt_may_substitute: false
   transient:
     delete_at_job_close: true
     allowed_root: local/jobs
@@ -86,8 +90,82 @@ historical_adjudication:
   candidate_trial_and_holdout_delta: 0
 axis_disposition:
   additive_and_portfolio_snapshot_preserving: true
+  audit_only_scope_is_completion_bound_not_axis_wide: true
+  historical_adjudication_cannot_restore_overlayed_credit: true
+  source_replacement_lineage_is_additive_and_snapshot_preserving: true
+  source_replacement_lineage_is_authority_disposition_not_scientific_evidence: true
+  retired_invalidated_axis_scientific_or_terminal_credit: false
   exact_evidence_references_required: true
   effective_state_and_candidate_eligibility_writer_derived: true
   partial_invalid_unresolved_and_low_information_preserved: true
   scientific_exhaustion_requires_exact_negative_depth: true
   candidate_trial_holdout_and_claim_delta: 0
+project_goal_audit_v2_evidence:
+  mode_authority:
+    caller_label_is_capability: false
+    cache_presence_is_capability: false
+    prior_verdict_is_capability: false
+    registered_protocol_recomputation_required: true
+    durable_subject_bound_proof_required: true
+    audit_integrity:
+      only_effective_mode: audit_integrity
+      scientific_credit: false
+      terminal_or_exhaustion_credit: false
+      economic_candidate_or_release_authority: false
+  atomic_scientific_proof:
+    exact_bundle:
+      - validation_plan
+      - atomic_support
+      - statistical_proof
+      - execution_trace
+      - result_manifest
+    every_artifact_content_addressed_and_opened: true
+    summary_metric_without_atomic_support_allowed: false
+    cached_point_value_without_recomputation_allowed: false
+    support_binds:
+      - protocol_identity
+      - data_identity
+      - split_identity
+      - executable_identity
+    statistical_proof_binds:
+      - exact_concurrent_family
+      - method
+      - seed
+      - resample_count
+      - alpha
+      - raw_statistic
+      - adjusted_statistic
+      - monte_carlo_uncertainty
+    execution_trace_binds:
+      - decision_time
+      - entry_time
+      - exit_time
+      - fold
+      - regime
+      - intent
+      - gross_pnl
+      - native_cost
+      - stress_cost
+      - native_net_pnl
+      - stress_net_pnl
+      - result_attribution
+    recomputation_must_match_declared_result: true
+    decision_day_and_exit_day_attribution_explicit: true
+  adjudication:
+    comparison_state_and_scientific_state_are_distinct: true
+    terminal_and_scheduler_use_scientific_state_only: true
+  historical_scope_overlay:
+    additive_only: true
+    original_completion_rewrite_allowed: false
+    exact_completion_and_executable_bound: true
+    effective_modes_replace_mistaken_credit_for_readers: true
+    audit_integrity_overlay_scientific_credit: false
+    audit_integrity_overlay_terminal_credit: false
+    applies_to_scheduler_axis_and_exhaustion_readers: true
+  economic_composite_proof:
+    component_summary_bundle_allowed: false
+    actual_trade_rows_required: true
+    member_identity_and_exposure_netting_required: true
+    entry_and_exit_timing_required: true
+    native_and_stressed_costs_required: true
+    portfolio_drawdown_attribution_required: true

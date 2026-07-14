@@ -19,16 +19,6 @@ processed:
     - tick_volume
     - spread
     - real_volume
-observed_development:
-  path: data/processed/datasets/us100_m5_observed_development.csv
-  sha256: a7f097242f46ab45e8f58387c35a76a8c7d8ea1b04519f0878b66747442acbbe
-  byte_count: 37029769
-  row_count: 560552
-  first_time: "2018-05-07 01:00:00"
-  last_time: "2026-04-30 23:55:00"
-  parent_dataset_sha256: fb02fe8754b8b9643a346982367813238d11475ca39de46f1cd8d4d0e33a2aa5
-  split_artifact_sha256: 21830ac109c810cf2b463106127090d586d90de96472c3d043990246d75aa606
-  derivation: exact_prefix_before_quarantined_tail
 coverage:
   path: data/processed/coverage_audits/us100_m5_clean_periods.json
   sha256: 9c1b260f9970d6a43734d1849b7c16c16007db8acd9c70a24b1f2247ffc8fb50

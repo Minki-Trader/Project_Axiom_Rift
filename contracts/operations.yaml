@@ -111,6 +111,16 @@ job:
   success_cache_binds_expected_outputs_and_storage_classes: true
   success_cache_reuse_reverifies_every_output_hash_and_availability: true
   reproducible_cache_reuse_requires_present_exact_bytes: true
+  missing_reproducible_cache_may_be_rematerialized: true
+  rematerialization_is_not_job_success_cache_reuse: true
+  rematerialization_requires_exact_durable_producer_completion_trace_manifest_and_hash: true
+  rematerialization_is_atomic_and_consumer_initiated: true
+  present_reproducible_cache_hash_mismatch_fails_closed: true
+  study_close_credit_requires_local_reproducible_cache_presence: false
+  study_close_reverifies_exact_durable_producer_and_consumer_traces: true
+  producer_lookup_starts_from_exact_manifest_execution_and_declaration: true
+  producer_start_permit_consumption_engine_entry_and_completion_rejoined: true
+  later_same_work_fingerprint_attempt_may_substitute: false
   transient_output_success_is_not_reusable: true
   repeated_success_cache_observation_creates_no_duplicate_record: true
   success_cache_observation_is_read_only_and_preserves_next_action: true
@@ -174,6 +184,27 @@ terminal_scope:
   blocked_external_keeps_project_goal_active_and_waits: true
 blocker:
   external_cause_required: true
+  typed_recovery_plan:
+    exact_stable_boundary_event_required: true
+    boundary_event_participates_in_plan_identity: true
+    validation_plan_content_addressed_and_reverified: true
+    ordered_paths_required: true
+    required_path_kinds:
+      - external_probe
+      - local_recovery
+      - safe_substitute_search
+    continuation_keeps_one_plan_identity: true
+    recurrent_outage_requires_new_current_boundary_plan: true
+    stale_boundary_plan_allowed: false
+  standalone_external_judgement_required_before_next_job: true
+  external_evidence_grants_scientific_candidate_or_release_credit: false
+  judgement:
+    failed_with_all_blocker_predicates_advances_only_to_next_frozen_path: true
+    failed_without_blocker_predicates_restores_exact_mission_action: true
+    final_failed_path_may_propose_blocker: true
+    passed_restores_exact_mission_action: true
+    not_evaluable_restores_exact_mission_action: true
+    not_evaluable_has_blocker_credit: false
   safe_substitute_absent_required: true
   recovery_paths_exhausted_required: true
   exact_external_change_required: true
@@ -183,6 +214,23 @@ blocker:
   validator_derived_indispensability_required: true
   validator_derived_no_contract_valid_next_action_required: true
   blocked_mission_capability_required: true
+  blocker_record_requires_every_ordered_failed_judgement: true
+  portfolio_snapshot_required_for_blocked_external: false
+  close_preserves_typed_resume_condition_and_action: true
+  reentry:
+    same_mission_required: true
+    exact_wait_boundary_required: true
+    exact_validator_derived_passed_change_required: true
+    fresh_mission_authorization_epoch_required: true
+    successor_mission_created: false
+    scientific_trial_claim_and_holdout_delta: 0
+    repeated_operation_id_is_idempotent: true
+    resume_action_requires_exact_action_specific_schema: true
+    canonical_nested_ascii_json_bindings_allowed: true
+    canonical_binding_name_order_required: true
+    exact_recovery_plan_payload_round_trip_required: true
+    lossy_scalar_coercion_allowed: false
+    restored_action_must_equal_frozen_action: true
 git:
   scientific_authority: false
   coherent_milestones_only: true
@@ -367,7 +415,7 @@ validation_economics:
   routine_cost_may_grow_with_history: false
 study_close_delivery_checkpoint:
   tracked_checkpoint: records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json
-  schema: study_close_delivery_checkpoint.v1
+  schema: study_close_delivery_checkpoint.v2
   git_authenticated_high_water: true
   ignored_local_cache_role: non_authoritative_hint_only
   routine_validation_reads: checkpoint_boundary_and_bounded_suffix
@@ -385,3 +433,118 @@ study_close_delivery_checkpoint:
     - records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json
   omitted_modified_or_malformed_checkpoint_blocks_later_science: true
   no_op_guard_rewrites_local_projection: false
+project_goal_audit_v2_operations:
+  implementation_closure:
+    component_to_executable_to_job_required: true
+    executable_component_current_byte_identities_required: true
+    job_artifacts_cover_all_executable_component_implementations: true
+    typed_bundle_dependencies_are_recursively_closed: true
+    bundle_without_dependency_artifacts_allowed: false
+    artifact_reader_reverifies_exact_bytes: true
+    historical_hardcoded_mission_or_study_module_prospective_use_allowed: false
+  real_worktree_checks_fail_closed:
+    missing_git_repository_allowed: false
+    unborn_or_missing_head_allowed: false
+    missing_local_main_allowed: false
+    malformed_or_missing_hook_allowed: false
+    malformed_or_missing_checkpoint_allowed: false
+    typed_isolated_engineering_fixture_is_only_bypass: true
+    fixture_scientific_authority: false
+  audit_correction:
+    historical_evidence_scope_overlay_is_additive: true
+    effective_axis_projection_applies_invalid_source_and_replay_overlays: true
+    replay_obligation:
+      priorities:
+        - P0
+        - P1
+      lifecycle:
+        - pending
+        - in_progress
+        - satisfied
+        - deferred
+      exact_original_executable_and_criteria_bound: true
+      exact_new_executable_match_required: true
+      first_trial_fallback_allowed: false
+      one_new_executable_matches_at_most_one_original: true
+      satisfaction_is_single_writer_only: true
+      defer_requires_exact_resume_condition: true
+  validation_economics:
+    routine_mode: fast_bounded_suffix
+    full_maintenance_mode: explicit_complete_reconstruction
+    exact_staging_mode: explicit_delivery_check
+    permitted_scientific_job_waits_for_unrelated_full_suite: false
+    tracked_test_manifest:
+      source: git_index
+      exact_path_and_byte_hash_required: true
+      excluded_untracked_tests_reported: true
+      untracked_or_unrelated_user_test_is_acceptance_authority: false
+      intended_new_test_must_be_staged_before_inclusion: true
+      protected_development_inputs:
+        declaration_source: indexed_foundation_data_manifest
+        allowed_roles:
+          - observed_development
+          - split_artifact
+        exact_path_sha256_and_size_required: true
+        independent_opaque_copy_required: true
+        traversal_link_junction_or_alternate_stream_allowed: false
+        missing_or_changed_input_fails_closed: true
+        scientific_or_claim_authority: false
+      sandbox_repository:
+        standalone_snapshot_required: true
+        location_outside_source_repository_required: true
+        source_alternate_remote_or_reflog_metadata_allowed: false
+        host_environment_policy: minimum_explicit_allowlist
+        home_and_temporary_paths_confined_to_sandbox: true
+  study_close_delivery_checkpoint_v2:
+    schema: study_close_delivery_checkpoint.v2
+    v1_to_v2_upgrade_requires_explicit_full_maintenance: true
+    monotone_across_close_and_no_close_boundaries: true
+    no_close_boundary_cannot_advance_authenticated_close_count: true
+    historical_backfill_proof:
+      event_kind: study_kpi_backfilled
+      exact_source_close_count: 21
+      exact_source_set_required: true
+      each_source_binds:
+        - original_close_event
+        - authenticated_commit
+        - commit_tree
+        - required_path_blobs
+        - trailer_or_typed_attestation
+        - local_main_ancestry
+      deterministic_kpi_bytes_bound: true
+source_replacement_lifecycle:
+  additive_lineage_only: true
+  exact_old_invalidation_source_axis_and_snapshot_required: true
+  exact_eligible_distinct_replacement_source_state_required: true
+  distinct_replacement_axis_required: true
+  original_source_latch_and_snapshot_remain_immutable: true
+  retired_old_axis_scheduler_eligible: false
+  retired_old_axis_scientific_or_terminal_credit: false
+  retired_old_axis_terminal_eligible_without_credit: true
+  replacement_axis_must_be_selectable_at_recording: true
+  blocked_external_requires_exact_unresolved_replacement_capability: true
+  multiple_unresolved_replacements_use_typed_sorted_unique_capability_set: true
+  capability_set_excludes_completed_replacement_lineages: true
+  capability_set_may_hide_replay_scope_or_internal_blocker: false
+  blocked_external_replacement_wait_scientific_credit: false
+concurrent_family_engine_boundary:
+  typed_manifest_bound_to_batch_identity: true
+  exact_ordered_unique_executable_membership_required: true
+  derived_family_size_equals_frozen_batch_trial_bound: true
+  all_members_registered_before_any_member_job_declaration: true
+  all_members_reverified_before_any_member_job_start: true
+  job_subject_must_be_exact_family_member: true
+  untyped_family_label_or_size_is_authority: false
+  runner_convention_is_capability: false
+authority_activation_boundary:
+  planning_is_local_and_read_only: true
+  planning_network_fetch_allowed: false
+  planning_receipt_write_allowed: false
+  explicit_delivery_readiness_owns_network_and_receipt_mutation: true
+  local_main_required: true
+  authenticated_v2_checkpoint_required: true
+  exact_unique_complete_old_to_new_authority_mapping_required: true
+  frozen_parent_and_addendum_provenance_required: true
+  observed_development_materialization_required_before_apply: true
+  foundation_data_replacement_uses_same_authority_event: true
+

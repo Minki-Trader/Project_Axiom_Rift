@@ -3557,14 +3557,35 @@ class StateWriter:
                 if prior_head is None
                 else index.get(prior_head.record_kind, prior_head.record_id)
             )
+            prior_activation = None
+            if prior is not None:
+                try:
+                    prior_activation = ResearchProtocolActivation(
+                        protocol=ResearchProtocol(prior.payload.get("protocol")),
+                        validator_id=prior.payload.get("validator_id"),
+                        authority_manifest_digest=prior.payload.get(
+                            "authority_manifest_digest"
+                        ),
+                        audit_artifact_hash=prior.payload.get(
+                            "audit_artifact_hash"
+                        ),
+                    )
+                except (TypeError, ValueError):
+                    prior_activation = None
             if prior_head is not None and (
                 prior is None
                 or prior.kind != "research-protocol-activation"
                 or prior.status != "active"
                 or prior.event_sequence != prior_head.sequence
-                or prior.payload.get("protocol")
-                != ResearchProtocol.SCIENTIFIC_ADJUDICATION_V2.value
-                or prior.payload.get("validator_id") != activation.validator_id
+                or prior.subject != "ProjectGoal:OPERATING_DIRECTION.md"
+                or prior_activation is None
+                or prior.record_id != prior_activation.identity
+                or prior.fingerprint
+                != prior_activation.identity.removeprefix("research-protocol:")
+                or prior.payload.get("schema")
+                != "research_protocol_activation.v1"
+                or prior.payload.get("ordinal") != prior_head.sequence
+                or prior.payload.get("scientific_trial_delta") != 0
             ):
                 raise RecoveryRequired(
                     "prospective scientific protocol projection is invalid"

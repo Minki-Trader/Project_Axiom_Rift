@@ -907,6 +907,119 @@ runtime_eligible; semantic change requires a new source contract.
 - [MUST] OD-AUD-018 The first exhaustive audit must be followed by actual research
   under the repaired protocol and a second exhaustive audit. Neither audit alone
   creates candidate, terminal, or Project Goal completion authority.
+- [MUST] OD-AUD-019 An evidence-mode name, caller declaration, cache artifact, or
+  prior verdict is not a capability. A mode receives scientific or terminal
+  credit only when the registered validator recomputes its exact protocol from
+  durable subject-bound inputs and opens every declared proof artifact.
+- [MUST] OD-AUD-020 Audit-integrity work can establish reconstruction and
+  provenance only. Its effective evidence scope is `audit_integrity`; it creates
+  no causal, temporal, regime, stress, cost, economic, exhaustion, candidate, or
+  terminal credit. Additive scope overlays remove mistaken historical credit
+  without rewriting the original event.
+- [MUST] OD-AUD-021 Scientific evidence preserves an exact plan, atomic support,
+  statistical proof, execution trace, and result. The trace binds protocol,
+  data, split, Executable, decision, entry and exit times, fold and regime,
+  gross PnL, native cost, stress cost, and result attribution. Summary metrics
+  or cached point values alone cannot establish the proof.
+- [MUST] OD-AUD-022 Comparison state and scientific state are distinct. A
+  criterion may compare as passed, failed, or not_evaluable while its claim
+  contribution remains supported, contradicted, unresolved, invalid, or
+  diagnostic. Terminal and scheduler readers use only the scientific state.
+- [MUST] OD-AUD-023 An audit-created replay duty is a typed P0 or P1
+  ReplayObligation with pending, in_progress, satisfied, or deferred lifecycle,
+  the exact original Executable and claim criteria, and a bounded satisfaction
+  or defer condition. P0 blocks affected scientific credit; P1 receives the
+  highest information-value bounded opportunity without freezing unrelated
+  valid research.
+- [MUST] OD-AUD-024 Replay progress binds each new Executable to at most one exact
+  original Executable. Position, display order, first-trial fallback, Study-wide
+  substitution, and family-level evidence cannot satisfy an unmatched member.
+  Effective-scope overlays, not rewritten history, govern later credit.
+- [MUST] OD-AUD-025 Portfolio snapshots are immutable observations. Scheduling,
+  architecture review, and terminal reasoning use a current effective-axis
+  projection that applies source invalidations, replay obligations, and scope
+  overlays. An invalidated source axis is never restored; research resumes only
+  through a new eligible SourceContract and a new axis identity.
+- [MUST] OD-AUD-026 An economic composite must execute actual member trades with
+  declared timing, exposure netting, native and stressed costs, and portfolio
+  drawdown attribution. A bundle label, combined significance score, or
+  collection of component summaries is not composite economic evidence.
+- [MUST] OD-AUD-027 Prospective implementation authority closes the exact chain
+  from current Component bytes and semantic dependencies through Executable to
+  Job implementation artifacts. Historical modules with embedded Mission or
+  Study identities are frozen reconstruction surfaces and cannot be registered
+  for prospective work.
+- [MUST] OD-AUD-028 A repository-wide engineering run uses a Git-index-bound
+  tracked-test manifest with exact path and byte identities and reports excluded
+  untracked tests. Untracked or unrelated user work never silently expands,
+  shrinks, or supplies acceptance authority.
+- [MUST] OD-AUD-029 Study-close checkpoint v2 binds the authenticated historical
+  KPI-backfill proof and every prospective close, is monotone across close and
+  no-close boundaries, and advances only with exact staged bytes. Routine
+  verification is a fast bounded suffix check; complete reconstruction is an
+  explicit full-maintenance action.
+- [MUST] OD-AUD-030 Git delivery checks fail closed when the repository, HEAD,
+  required local-main relation, hook, checkpoint, or authenticated path is
+  absent or malformed. Only a typed isolated engineering fixture may bypass a
+  real-worktree check, and it cannot create scientific authority.
+- [MUST] OD-AUD-031 Validation is proportionate to the changed reusable surface
+  and claim at risk. Slow full-history, full-suite, and exact-staging audits are
+  coherent maintenance or delivery checks, not repeated per-experiment gates;
+  they do not delay an otherwise permitted bounded scientific Job.
+- [MUST] OD-AUD-032 Scientific judgment uses plural quant-team lenses for
+  causality, statistics, economics, execution, risk, data, and architecture.
+  The harness enforces identities, permits, budgets, and claim boundaries but
+  does not replace bounded autonomous judgment with one scalar score, rigid
+  calendar rotation, or serial single-branch policy.
+- [MUST] OD-AUD-033 A corrected harness or audit replay does not satisfy a
+  scientific ReplayObligation by implication. The exact prospective protocol
+  must execute, validly recompute, and adjudicate every original subject-bound
+  criterion, whether supported or contradicted, or record the typed unresolved
+  or deferred condition honestly.
+- [MUST] OD-AUD-034 Permanent source invalidation retires an old axis only
+  through additive SourceReplacementLineage that binds the exact invalidation,
+  an eligible distinct SourceContract, and a distinct replacement axis. The old
+  axis then receives no scientific or terminal credit and is not schedulable;
+  the replacement and unrelated eligible forest axes remain independently
+  schedulable. An external wait requires the exact unresolved source-replacement
+  capability or, for a shared outage, its typed sorted unique capability set.
+- [MUST] OD-AUD-035 An external resume action preserves the exact canonical
+  typed next action, including ordered replay-obligation bindings. Lossy scalar
+  coercion, generic nested payloads, or a restored action that differs from the
+  frozen action is not reentry authority.
+- [MUST] OD-AUD-036 A concurrent scientific family is a typed Batch-bound set of
+  exact Executable identities. Every member is durably registered before any
+  member Job is declared, started, or evaluated; runner ordering is not an
+  engine capability.
+- [MUST] OD-AUD-037 Reproducible-cache provenance follows the exact named
+  producer declaration, start, permit consumption, engine entry, completion,
+  trace, and outputs. A later attempt sharing a work fingerprint cannot replace
+  or validate the named producer.
+- [MUST] OD-AUD-038 Authority activation planning is local and read-only.
+  Network observation and receipt mutation belong only to an explicit delivery
+  readiness phase, and activation binds exact old-to-new authority rows,
+  authenticated checkpoint state, local main, and frozen audit provenance.
+- [MUST] OD-AUD-039 Exact-index engineering tests may materialize only the
+  protected development inputs named by the indexed Foundation manifest. Paths,
+  roles, hashes, sizes, and independent copies fail closed; the inputs are test
+  prerequisites only and create no scientific or claim authority.
+- [MUST] OD-AUD-040 A Component implementation-bundle digest closes only when
+  the exact bytes hashing to that digest and every source dependency bound by
+  the bundle are durable Job artifacts. A digest label or source list without
+  the exact bundle bytes is not implementation evidence.
+- [MUST] OD-AUD-041 Observed development is a separately content-addressed
+  prefix bound to its parent dataset and split. Routine science and engineering
+  tests materialize that prefix, never the quarantined parent; full-parent
+  access is limited to sealed integrity maintenance and creates no reveal or
+  claim authority.
+- [MUST] OD-AUD-042 An implementation bundle includes the complete
+  project-local semantic dependency closure reached by its execution roots.
+  A delegated implementation change that leaves the bundle identity unchanged
+  is not closed implementation evidence.
+- [MUST] OD-AUD-043 Exact-index testing exposes neither source-repository Git
+  metadata nor the ambient host environment to collected tests. The executable
+  sandbox is a standalone snapshot with minimum explicit environment inputs and
+  sandbox-confined home and temporary paths.
 
 ## 23. Governing Principle
 
