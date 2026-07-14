@@ -17,25 +17,27 @@ from typing import Any, Callable
 import numpy as np
 import pandas as pd
 
+from axiom_rift.core import canonical as canonical_module
+from axiom_rift.core import identity as identity_module
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.research import (
-    adjudication as adjudication_module,
+    analog_state_family as analog_family_module,
     analog_state_discovery as analog_module,
     data as data_module,
     dense_short_synthesis_chassis as synthesis_chassis_module,
+    equity_premium_trade_chassis as equity_premium_chassis_module,
     discovery as discovery_module,
     event_label_discovery as event_label_module,
     high_vol_target_reversal_chassis as high_vol_chassis_module,
     high_vol_target_reversal_discovery as high_vol_module,
+    implementation_closure as implementation_closure_module,
     positive_direction_sleeve_chassis as positive_chassis_module,
     positive_direction_sleeve_discovery as positive_module,
     p0_replay_inventory as replay_inventory_module,
     regime_direction_router_chassis as regime_chassis_module,
-    regime_direction_router_discovery as regime_module,
     selection_inference as selection_module,
+    session_dense_positive_sleeve_chassis as session_dense_chassis_module,
     three_way_regime_router_chassis as three_way_chassis_module,
-    three_way_regime_router_discovery as three_way_module,
-    validation_v2 as validation_v2_module,
     volatility_clock_label_chassis as volatility_chassis_module,
     volatility_clock_label_discovery as volatility_module,
 )
@@ -67,6 +69,9 @@ from axiom_rift.research.high_vol_target_reversal_chassis import (
 from axiom_rift.research.high_vol_target_reversal_discovery import (
     _matrix as high_vol_matrix,
     _threshold as high_vol_threshold,
+)
+from axiom_rift.research.implementation_closure import (
+    semantic_dependency_closure,
 )
 from axiom_rift.research.positive_direction_sleeve_chassis import (
     positive_direction_sleeve_configurations,
@@ -164,31 +169,104 @@ P0_AXIS_SPECS = tuple(
 )
 
 
-def forest_replay_adapter_dependency_paths() -> tuple[Path, ...]:
-    """Return every implementation file that the replay calls directly."""
+def _module_source(module: object) -> Path:
+    value = getattr(module, "__file__", None)
+    if type(value) is not str:
+        raise ForestReplayError("semantic dependency module has no source path")
+    return Path(value)
 
-    modules = (
-        data_module,
-        discovery_module,
-        adjudication_module,
-        synthesis_chassis_module,
-        event_label_module,
-        analog_module,
-        volatility_module,
-        volatility_chassis_module,
-        regime_module,
-        regime_chassis_module,
-        three_way_module,
-        three_way_chassis_module,
-        positive_module,
-        positive_chassis_module,
-        replay_inventory_module,
-        high_vol_module,
-        high_vol_chassis_module,
-        selection_module,
-        validation_v2_module,
+
+def forest_replay_adapter_dependency_graph(
+) -> dict[Path, tuple[Path, ...]]:
+    """Declare only project modules executed by the six replay adapters.
+
+    This is a semantic call graph, not an import crawl.  In particular, legacy
+    discovery runners that are never called and package-initializer imports are
+    excluded.  Delegated calculation modules such as ``analog_state_family``
+    and ``session_dense_positive_sleeve_chassis`` remain explicit edges.
+    """
+
+    adapter = Path(__file__)
+    canonical = _module_source(canonical_module)
+    identity = _module_source(identity_module)
+    data = _module_source(data_module)
+    discovery = _module_source(discovery_module)
+    synthesis = _module_source(synthesis_chassis_module)
+    equity_premium = _module_source(equity_premium_chassis_module)
+    event_label = _module_source(event_label_module)
+    analog = _module_source(analog_module)
+    analog_family = _module_source(analog_family_module)
+    volatility = _module_source(volatility_module)
+    volatility_chassis = _module_source(volatility_chassis_module)
+    regime_chassis = _module_source(regime_chassis_module)
+    three_way_chassis = _module_source(three_way_chassis_module)
+    positive = _module_source(positive_module)
+    positive_chassis = _module_source(positive_chassis_module)
+    inventory = _module_source(replay_inventory_module)
+    high_vol = _module_source(high_vol_module)
+    high_vol_chassis = _module_source(high_vol_chassis_module)
+    implementation_closure = _module_source(implementation_closure_module)
+    session_dense_chassis = _module_source(session_dense_chassis_module)
+    selection = _module_source(selection_module)
+    return {
+        adapter: (
+            analog,
+            canonical,
+            data,
+            discovery,
+            event_label,
+            high_vol,
+            high_vol_chassis,
+            implementation_closure,
+            inventory,
+            positive,
+            positive_chassis,
+            regime_chassis,
+            selection,
+            synthesis,
+            three_way_chassis,
+            volatility,
+            volatility_chassis,
+        ),
+        analog: (analog_family,),
+        analog_family: (discovery,),
+        canonical: (),
+        data: (identity,),
+        discovery: (canonical, data, identity),
+        event_label: (discovery,),
+        high_vol: (discovery,),
+        high_vol_chassis: (session_dense_chassis,),
+        implementation_closure: (),
+        identity: (canonical,),
+        inventory: (canonical,),
+        positive: (discovery,),
+        positive_chassis: (discovery,),
+        regime_chassis: (discovery,),
+        selection: (canonical, identity, inventory),
+        session_dense_chassis: (discovery,),
+        synthesis: (equity_premium,),
+        equity_premium: (
+            data,
+            discovery,
+            event_label,
+            identity,
+            volatility_chassis,
+        ),
+        three_way_chassis: (discovery,),
+        volatility: (),
+        volatility_chassis: (event_label,),
+    }
+
+
+def forest_replay_adapter_dependency_paths() -> tuple[Path, ...]:
+    """Return the deterministic recursive adapter implementation closure."""
+
+    graph = forest_replay_adapter_dependency_graph()
+    return semantic_dependency_closure(
+        roots=(Path(__file__),),
+        dependency_graph=graph,
+        source_root=Path(__file__).resolve().parents[2],
     )
-    return tuple(Path(module.__file__).resolve() for module in modules)
 
 
 @dataclass(frozen=True, slots=True)
@@ -802,6 +880,7 @@ __all__ = [
     "P0_AXIS_REPLAY_SCHEMA",
     "P0_AXIS_SPECS",
     "P0AxisSpec",
+    "forest_replay_adapter_dependency_graph",
     "forest_replay_adapter_dependency_paths",
     "replay_p0_axes",
 ]

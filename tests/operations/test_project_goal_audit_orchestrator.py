@@ -188,6 +188,70 @@ class ProjectGoalAuditOrchestratorTests(unittest.TestCase):
         self.assertEqual(tuple(len(chunk) for chunk in chunks), (20,) * 23 + (10,))
         self.assertEqual(tuple(item for chunk in chunks for item in chunk), values)
 
+    def test_completed_boundary_accepts_a_legal_later_suffix(self) -> None:
+        boundary = self.module.EXPECTED_INITIAL_REVISION + len(
+            self.module.correction_steps()
+        )
+        close_event = {
+            "sequence": boundary,
+            "event_id": "a" * 64,
+            "payload": {"outcome": "superseded"},
+            "control": {
+                "next_action": self.module.EXPECTED_FINAL_ACTION,
+                "scientific": {
+                    "active_mission": self.module.EXPECTED_MISSION_ID,
+                    "active_initiative": None,
+                    "holdout_reveals": 0,
+                    "claim": "none",
+                },
+            },
+        }
+        for suffix in (0, 1, 20, 10_000):
+            with self.subTest(suffix=suffix):
+                current = {
+                    "revision": boundary + suffix,
+                    "heads": {"journal": {"sequence": boundary + suffix}},
+                }
+                self.assertEqual(
+                    self.module.validate_completed_correction_suffix_boundary(
+                        current=current,
+                        close_event=close_event,
+                        boundary_revision=boundary,
+                    ),
+                    suffix,
+                )
+
+    def test_completed_boundary_rejects_a_foreign_or_rewound_head(self) -> None:
+        boundary = self.module.EXPECTED_INITIAL_REVISION + len(
+            self.module.correction_steps()
+        )
+        close_event = {
+            "sequence": boundary,
+            "event_id": "a" * 64,
+            "payload": {"outcome": "superseded"},
+            "control": {
+                "next_action": self.module.EXPECTED_FINAL_ACTION,
+                "scientific": {
+                    "active_mission": self.module.EXPECTED_MISSION_ID,
+                    "active_initiative": None,
+                    "holdout_reveals": 0,
+                    "claim": "none",
+                },
+            },
+        }
+        invalid = (
+            {"revision": boundary - 1, "heads": {"journal": {"sequence": boundary - 1}}},
+            {"revision": boundary + 1, "heads": {"journal": {"sequence": boundary}}},
+        )
+        for current in invalid:
+            with self.subTest(current=current):
+                with self.assertRaisesRegex(RuntimeError, "legal correction suffix"):
+                    self.module.validate_completed_correction_suffix_boundary(
+                        current=current,
+                        close_event=close_event,
+                        boundary_revision=boundary,
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()

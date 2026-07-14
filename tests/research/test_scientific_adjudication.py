@@ -4,9 +4,11 @@ import unittest
 
 from axiom_rift.research.adjudication import (
     AdjudicationProfile,
+    CriterionAdjudication,
     MultiplicityAssessment,
     adjudicate_plan_measurement,
     bonferroni_concurrent_family,
+    scientific_adjudication_manifest,
 )
 from axiom_rift.research.scientific_study import (
     PLANNED_CLAIMS,
@@ -177,6 +179,12 @@ class ScientificAdjudicationTests(unittest.TestCase):
         self.assertEqual(len(adjudication.risk_diagnostics), 1)
         self.assertEqual(adjudication.risk_diagnostics[0].state, "failed")
         self.assertEqual(
+            adjudication.risk_diagnostics[0].comparison_state, "failed"
+        )
+        self.assertEqual(
+            adjudication.risk_diagnostics[0].scientific_state, "diagnostic"
+        )
+        self.assertEqual(
             adjudication.risk_diagnostics[0].criterion_id,
             "B04-monthly-realized-drawdown-share",
         )
@@ -222,6 +230,12 @@ class ScientificAdjudicationTests(unittest.TestCase):
                 self.assertFalse(adjudication.evaluable)
                 self.assertIn(metric, adjudication.invalid_metrics)
                 self.assertFalse(adjudication.candidate_eligible)
+                criterion = next(
+                    item for item in adjudication.criteria if item.metric == metric
+                )
+                self.assertEqual(criterion.state, "failed")
+                self.assertEqual(criterion.comparison_state, "failed")
+                self.assertEqual(criterion.scientific_state, "invalid")
 
     def test_missing_or_null_validity_is_not_evaluable(self) -> None:
         for missing in (False, True):
@@ -242,6 +256,14 @@ class ScientificAdjudicationTests(unittest.TestCase):
                 self.assertIn(
                     "causality_violation_count", adjudication.invalid_metrics
                 )
+                criterion = next(
+                    item
+                    for item in adjudication.criteria
+                    if item.metric == "causality_violation_count"
+                )
+                self.assertEqual(criterion.state, "unavailable")
+                self.assertEqual(criterion.comparison_state, "unavailable")
+                self.assertEqual(criterion.scientific_state, "invalid")
 
     def test_stu0061_like_zero_trade_surface_is_exactly_contradicted(self) -> None:
         metrics = _frontier_metrics()
@@ -343,6 +365,109 @@ class ScientificAdjudicationTests(unittest.TestCase):
         )
         self.assertIsNone(selection.value)
         self.assertEqual(selection.state, "unavailable")
+        self.assertEqual(selection.comparison_state, "unavailable")
+        self.assertEqual(selection.scientific_state, "unresolved")
+
+    def test_diagnostic_semantics_do_not_change_with_comparison_result(self) -> None:
+        for value, expected_comparison in (
+            (400_000, "passed"),
+            (808_232, "failed"),
+            (None, "unavailable"),
+        ):
+            with self.subTest(value=value):
+                metrics = _frontier_metrics()
+                metrics["after_cost_fixed_lot_economics"][
+                    "monthly_realized_exit_drawdown_share_of_gross_profit_ppm"
+                ] = value
+
+                adjudication = adjudicate_discovery(
+                    _plan(), _measurement(metrics), profile=_passing_profile()
+                )
+                diagnostic = adjudication.risk_diagnostics[0]
+
+                self.assertEqual(diagnostic.state, expected_comparison)
+                self.assertEqual(
+                    diagnostic.comparison_state, expected_comparison
+                )
+                self.assertEqual(diagnostic.scientific_state, "diagnostic")
+                self.assertEqual(adjudication.state, "frontier")
+
+    def test_missing_registered_risk_gate_is_unresolved_not_diagnostic(self) -> None:
+        metrics = _frontier_metrics()
+        del metrics["after_cost_fixed_lot_economics"][
+            "monthly_realized_exit_drawdown_share_of_gross_profit_ppm"
+        ]
+        profile = AdjudicationProfile(
+            decisive_risk_criterion_ids=frozenset(
+                {"B04-monthly-realized-drawdown-share"}
+            ),
+            multiplicity=_passing_profile().multiplicity,
+        )
+
+        adjudication = adjudicate_discovery(
+            _plan(), _measurement(metrics), profile=profile
+        )
+        risk_gate = next(
+            item
+            for item in adjudication.criteria
+            if item.criterion_id == "B04-monthly-realized-drawdown-share"
+        )
+        economics = next(
+            item
+            for item in adjudication.claims
+            if item.claim_id == "after_cost_fixed_lot_economics"
+        )
+
+        self.assertEqual(risk_gate.decision_role, "risk_gate")
+        self.assertEqual(risk_gate.state, "unavailable")
+        self.assertEqual(risk_gate.comparison_state, "unavailable")
+        self.assertEqual(risk_gate.scientific_state, "unresolved")
+        self.assertEqual(economics.state, "unresolved")
+        self.assertEqual(adjudication.state, "partial_positive")
+
+    def test_manifest_keeps_legacy_state_and_adds_explicit_states(self) -> None:
+        adjudication = adjudicate_discovery(
+            _plan(), _measurement(), profile=_passing_profile()
+        )
+
+        manifest = scientific_adjudication_manifest(adjudication)
+        diagnostic = next(
+            item
+            for item in manifest["criteria"]
+            if item["criterion_id"] == "B04-monthly-realized-drawdown-share"
+        )
+
+        self.assertEqual(manifest["schema"], "scientific_adjudication.v1")
+        self.assertEqual(diagnostic["state"], "failed")
+        self.assertEqual(diagnostic["comparison_state"], "failed")
+        self.assertEqual(diagnostic["scientific_state"], "diagnostic")
+
+    def test_legacy_state_constructor_cannot_forge_semantic_state(self) -> None:
+        diagnostic = CriterionAdjudication(
+            claim_id="claim:risk",
+            criterion_id="criterion:risk-diagnostic",
+            decision_role="risk_diagnostic",
+            metric="drawdown_share_ppm",
+            operator="le",
+            state="failed",
+            threshold=500_000,
+            value=800_000,
+        )
+
+        self.assertEqual(diagnostic.state, "failed")
+        self.assertEqual(diagnostic.comparison_state, "failed")
+        self.assertEqual(diagnostic.scientific_state, "diagnostic")
+        with self.assertRaises(ValueError):
+            CriterionAdjudication(
+                claim_id="claim:invalid",
+                criterion_id="criterion:invalid",
+                decision_role="component",
+                metric="metric",
+                operator="eq",
+                state="contradicted",  # type: ignore[arg-type]
+                threshold=0,
+                value=1,
+            )
 
     def test_candidate_authority_requires_passing_confirmation(self) -> None:
         discovery_plan = _plan(candidate_eligible_on_pass=True)

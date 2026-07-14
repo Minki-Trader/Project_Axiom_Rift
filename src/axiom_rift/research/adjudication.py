@@ -42,7 +42,17 @@ MULTIPLICITY_CRITERION_IDS = frozenset(
     }
 )
 
-CriterionState = Literal["passed", "failed", "unavailable"]
+CriterionComparisonState = Literal["passed", "failed", "unavailable"]
+# Backward-compatible type name for callers that treated the criterion state as
+# the raw threshold comparison.  New code should use CriterionComparisonState.
+CriterionState = CriterionComparisonState
+CriterionScientificState = Literal[
+    "supported",
+    "contradicted",
+    "unresolved",
+    "invalid",
+    "diagnostic",
+]
 DecisionRole = Literal[
     "validity",
     "component",
@@ -186,9 +196,41 @@ class CriterionAdjudication:
     decision_role: DecisionRole
     metric: str
     operator: str
-    state: CriterionState
+    state: CriterionComparisonState
     threshold: int
     value: int | None
+
+    def __post_init__(self) -> None:
+        if self.state not in {"passed", "failed", "unavailable"}:
+            raise ValueError("criterion comparison state is invalid")
+        if self.decision_role not in {
+            "validity",
+            "component",
+            "risk_gate",
+            "risk_diagnostic",
+            "multiplicity",
+        }:
+            raise ValueError("criterion decision role is invalid")
+
+    @property
+    def comparison_state(self) -> CriterionComparisonState:
+        """Name the legacy state explicitly as a threshold comparison."""
+
+        return self.state
+
+    @property
+    def scientific_state(self) -> CriterionScientificState:
+        """Interpret the comparison without collapsing scientific meaning."""
+
+        if self.decision_role == "risk_diagnostic":
+            return "diagnostic"
+        if self.decision_role == "validity":
+            return "supported" if self.state == "passed" else "invalid"
+        if self.state == "passed":
+            return "supported"
+        if self.state == "failed":
+            return "contradicted"
+        return "unresolved"
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,10 +282,12 @@ def scientific_adjudication_manifest(
             {
                 "claim_id": item.claim_id,
                 "criterion_id": item.criterion_id,
+                "comparison_state": item.comparison_state,
                 "decision_role": item.decision_role,
                 "metric": item.metric,
                 "operator": item.operator,
                 "state": item.state,
+                "scientific_state": item.scientific_state,
                 "threshold": item.threshold,
                 "value": item.value,
             }
@@ -380,22 +424,22 @@ def _criterion_adjudication(
             effective_operator = "le"
             effective_threshold = assessment.alpha_ppm
     if value is None:
-        state: CriterionState = "unavailable"
+        comparison_state: CriterionComparisonState = "unavailable"
     elif criterion_passed(
         value=value,
         operator=effective_operator,
         threshold=effective_threshold,
     ):
-        state = "passed"
+        comparison_state = "passed"
     else:
-        state = "failed"
+        comparison_state = "failed"
     return CriterionAdjudication(
         claim_id=claim_id,
         criterion_id=criterion_id,
         decision_role=role,
         metric=metric,
         operator=effective_operator,
-        state=state,
+        state=comparison_state,
         threshold=effective_threshold,
         value=value,
     )
@@ -418,11 +462,18 @@ def _claim_adjudications(
             for item in criteria
             if item.claim_id == claim_id and item.decision_role == "validity"
         )
-        if not decisive and validity and all(item.state == "passed" for item in validity):
-            state: ClaimState = "supported"
-        elif not decisive or any(item.state == "unavailable" for item in decisive):
-            state: ClaimState = "unresolved"
-        elif any(item.state == "failed" for item in decisive):
+        state: ClaimState
+        if any(item.scientific_state == "invalid" for item in validity):
+            state = "unresolved"
+        elif not decisive and validity and all(
+            item.scientific_state == "supported" for item in validity
+        ):
+            state = "supported"
+        elif not decisive or any(
+            item.scientific_state == "unresolved" for item in decisive
+        ):
+            state = "unresolved"
+        elif any(item.scientific_state == "contradicted" for item in decisive):
             state = "contradicted"
         else:
             state = "supported"
@@ -489,7 +540,8 @@ def adjudicate_plan_measurement(
             | {
                 item.metric
                 for item in criterion_results
-                if item.decision_role == "validity" and item.state != "passed"
+                if item.decision_role == "validity"
+                and item.scientific_state == "invalid"
             }
         )
     )
@@ -563,6 +615,9 @@ __all__ = [
     "AdjudicationProfile",
     "ClaimAdjudication",
     "CriterionAdjudication",
+    "CriterionComparisonState",
+    "CriterionScientificState",
+    "CriterionState",
     "MULTIPLICITY_CRITERION_IDS",
     "MultiplicityAssessment",
     "PER_MILLION",

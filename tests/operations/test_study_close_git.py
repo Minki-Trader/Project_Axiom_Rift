@@ -14,13 +14,27 @@ from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.study_close_git import (
     CHECKPOINT_PATH,
     StudyCloseDeliveryError,
+    StudyCloseGuardCapability,
     audit_all_study_close_deliveries,
+    check_study_close_delivery_checkpoint_maintenance,
+    check_study_close_delivery_checkpoint_v2_upgrade,
     initialize_study_close_delivery_checkpoint,
+    inspect_tracked_study_close_delivery,
     prepare_study_close_delivery_checkpoint,
+    prepare_study_close_delivery_checkpoint_maintenance,
+    prepare_study_close_delivery_checkpoint_v2_upgrade,
     render_projection,
     require_all_study_close_deliveries,
     require_study_close_guard_ready,
     validate_commit_message,
+)
+from axiom_rift.operations.study_close_checkpoint import (
+    CHECKPOINT_SCHEMA,
+    EMPTY_CLOSE_CHAIN_DIGEST,
+    LEGACY_CHECKPOINT_SCHEMA,
+    JournalDeliveryCursor,
+    StudyCloseDeliveryCheckpoint,
+    advance_close_chain,
 )
 from axiom_rift.operations.writer import StateWriter,TransitionError
 from axiom_rift.storage.journal import _render_manifest, _render_seal
@@ -102,6 +116,127 @@ def fixture_event() -> dict[str, object]:
     }
 
 
+def ordinary_event(
+    *,
+    sequence: int,
+    previous_event_id: str,
+    journal_offset: int,
+) -> dict[str, object]:
+    base: dict[str, object] = {
+        "schema": "journal_event",
+        "sequence": sequence,
+        "previous_event_id": previous_event_id,
+        "journal_offset": journal_offset,
+        "event_kind": "fixture_recorded",
+        "operation_id": f"fixture-{sequence}",
+        "subject": "Fixture:Git",
+        "payload": {},
+        "control": {},
+        "index_records": [],
+        "index_record_count": sequence + 1,
+        "index_projection_digest": "d" * 64,
+        "occurred_at_utc": "2026-07-11T00:00:00Z",
+    }
+    return {
+        **base,
+        "event_id": canonical_digest(domain="journal-event", payload=base),
+    }
+
+
+def historical_close_event(
+    *,
+    sequence: int,
+    previous_event_id: str | None,
+    journal_offset: int,
+) -> dict[str, object]:
+    study_id = f"STU-{sequence:04d}"
+    record_id = sha256(f"close:{study_id}".encode("ascii")).hexdigest()
+    base: dict[str, object] = {
+        "schema": "journal_event",
+        "sequence": sequence,
+        "previous_event_id": previous_event_id,
+        "journal_offset": journal_offset,
+        "event_kind": "study_closed",
+        "operation_id": f"historical-close-{sequence}",
+        "subject": f"Study:{study_id}",
+        "payload": {},
+        "control": {},
+        "index_records": [
+            {
+                "kind": "study-close",
+                "payload": {"outcome": "evidence_gap"},
+                "record_id": record_id,
+                "status": "evidence_gap",
+                "subject": f"Study:{study_id}",
+            }
+        ],
+        "index_record_count": sequence,
+        "index_projection_digest": "e" * 64,
+        "occurred_at_utc": f"2026-06-{sequence:02d}T00:00:00Z",
+    }
+    return {**base, "event_id": canonical_digest(domain="journal-event", payload=base)}
+
+
+def historical_backfill_event(
+    closes: list[dict[str, object]], *, journal_offset: int
+) -> dict[str, object]:
+    records: list[dict[str, object]] = []
+    for sequence, close in enumerate(closes, start=1):
+        close_record = close["index_records"][0]  # type: ignore[index]
+        study_id = str(close["subject"]).removeprefix("Study:")
+        records.append(
+            {
+                "event_sequence": sequence,
+                "event_stream": "study-kpi",
+                "fingerprint": sha256(f"kpi:{study_id}".encode("ascii")).hexdigest(),
+                "kind": "study-kpi",
+                "payload": {
+                    "completion_record_id": None,
+                    "executable_display_id": None,
+                    "executable_id": None,
+                    "historical_study_close_event_id": close["event_id"],
+                    "historical_study_close_record_id": close_record["record_id"],  # type: ignore[index]
+                    "historical_study_close_revision": close["sequence"],
+                    "metrics": {
+                        "median_fold_profit_factor_milli": None,
+                        "monthly_realized_exit_drawdown_share_of_gross_profit_ppm": None,
+                        "net_profit_micropoints": None,
+                        "trade_count": None,
+                    },
+                    "outcome": "evidence_gap",
+                    "provenance": "historical_backfill",
+                    "sequence": sequence,
+                    "source": "writer_derived_unavailable",
+                    "study_id": study_id,
+                    "unavailable_reason": "fixture",
+                },
+                "record_id": study_id,
+                "status": "evidence_gap",
+                "subject": f"Study:{study_id}",
+            }
+        )
+    sequence = len(closes) + 1
+    base: dict[str, object] = {
+        "schema": "journal_event",
+        "sequence": sequence,
+        "previous_event_id": closes[-1]["event_id"],
+        "journal_offset": journal_offset,
+        "event_kind": "study_kpi_backfilled",
+        "operation_id": "study-kpi-historical-backfill-v1",
+        "subject": "ProjectGoal:OPERATING_DIRECTION.md",
+        "payload": {
+            "activation_operation_id": "study-close-kpi-main-delivery-authority-v1",
+            "evidence": [],
+        },
+        "control": {},
+        "index_records": records,
+        "index_record_count": sequence + len(records),
+        "index_projection_digest": "f" * 64,
+        "occurred_at_utc": "2026-07-01T00:00:00Z",
+    }
+    return {**base, "event_id": canonical_digest(domain="journal-event", payload=base)}
+
+
 EVENT_ID = str(close_event()["event_id"])
 
 
@@ -123,6 +258,15 @@ class StudyCloseGitTests(unittest.TestCase):
         )
         run(self.root, "git", "add", "--chmod=+x", ".githooks/commit-msg")
         run(self.root, "git", "config", "core.hooksPath", ".githooks")
+        run(
+            self.root,
+            "git",
+            "-c",
+            "core.hooksPath=.git/hooks",
+            "commit",
+            "-m",
+            "Seed Study-close guard fixture",
+        )
         event = close_event()
         self.events = [event]
         (self.root / "records" / "journal.jsonl").write_bytes(
@@ -183,6 +327,56 @@ class StudyCloseGitTests(unittest.TestCase):
             "-F",
             str(self.message(valid=True)),
         )
+
+    def install_legacy_checkpoint(self) -> StudyCloseDeliveryCheckpoint:
+        self.commit_initial_close()
+        control_content = (self.root / "state" / "control.json").read_bytes()
+        kpi_content = (self.root / "records" / "STUDY_KPI.md").read_bytes()
+        parent_main = subprocess.run(
+            ("git", "rev-parse", "HEAD"),
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        legacy = StudyCloseDeliveryCheckpoint(
+            basis="full_audit",
+            parent_main=parent_main,
+            previous_checkpoint_commit=None,
+            previous_checkpoint_digest=None,
+            cursor=JournalDeliveryCursor.from_events(
+                self.events, journal_path="records/journal.jsonl"
+            ),
+            prospective_close_count=1,
+            prospective_close_chain_digest=advance_close_chain(
+                EMPTY_CLOSE_CHAIN_DIGEST, EVENT_ID, 1
+            ),
+            repair_manifest_digest=None,
+            control_sha256=sha256(control_content).hexdigest(),
+            kpi_sha256=sha256(kpi_content).hexdigest(),
+            last_study_close_event_id=None,
+            last_study_close_revision=None,
+            schema=LEGACY_CHECKPOINT_SCHEMA,
+        )
+        (self.root / CHECKPOINT_PATH).write_bytes(legacy.render())
+        run(self.root, "git", "add", CHECKPOINT_PATH)
+        message = self.root / "legacy-checkpoint.txt"
+        message.write_text(
+            "Initialize legacy checkpoint\n\n"
+            f"Axiom-Study-Close-Checkpoint: {legacy.checkpoint_digest}\n"
+            "Axiom-State-Revision: 1\n",
+            encoding="ascii",
+        )
+        run(
+            self.root,
+            "git",
+            "-c",
+            "core.hooksPath=.git/hooks",
+            "commit",
+            "-F",
+            str(message),
+        )
+        return legacy
 
     def initialize_checkpoint(self) -> None:
         self.commit_initial_close()
@@ -254,6 +448,33 @@ class StudyCloseGitTests(unittest.TestCase):
         )
         return event
 
+    def append_committed_non_close(self) -> dict[str, object]:
+        journal = self.root / "records" / "journal.jsonl"
+        content = journal.read_bytes()
+        previous = self.events[-1]
+        event = ordinary_event(
+            sequence=int(previous["sequence"]) + 1,
+            previous_event_id=str(previous["event_id"]),
+            journal_offset=len(content),
+        )
+        journal.write_bytes(content + canonical_bytes(event) + b"\n")
+        self.events.append(event)
+        self.write_control(event)
+        (self.root / "records" / "STUDY_KPI.md").write_bytes(
+            render_projection(self.events)
+        )
+        run(self.root, "git", "add", "state", "records")
+        run(
+            self.root,
+            "git",
+            "-c",
+            "core.hooksPath=.git/hooks",
+            "commit",
+            "-m",
+            "Record ordinary Journal suffix",
+        )
+        return event
+
     def convert_to_segmented(self) -> None:
         legacy = self.root / "records" / "journal.jsonl"
         content = legacy.read_bytes()
@@ -295,6 +516,35 @@ class StudyCloseGitTests(unittest.TestCase):
         with self.assertRaisesRegex(StudyCloseDeliveryError, "differs"):
             require_study_close_guard_ready(self.root)
 
+    def test_real_guard_fails_closed_without_git_and_fixture_is_typed(self) -> None:
+        with TemporaryDirectory() as directory:
+            isolated = Path(directory)
+            with self.assertRaisesRegex(
+                StudyCloseDeliveryError, "verifiable Git repository"
+            ):
+                require_study_close_guard_ready(isolated)
+            with self.assertRaisesRegex(
+                StudyCloseDeliveryError, "verifiable Git repository"
+            ):
+                require_all_study_close_deliveries(isolated)
+            require_study_close_guard_ready(
+                isolated,
+                capability=(
+                    StudyCloseGuardCapability.ISOLATED_ENGINEERING_FIXTURE
+                ),
+            )
+            require_all_study_close_deliveries(
+                isolated,
+                capability=(
+                    StudyCloseGuardCapability.ISOLATED_ENGINEERING_FIXTURE
+                ),
+            )
+
+    def test_delivery_commit_is_rejected_off_main(self) -> None:
+        run(self.root, "git", "switch", "-c", "feature")
+        with self.assertRaisesRegex(StudyCloseDeliveryError, "local main"):
+            validate_commit_message(self.root, self.message(valid=True))
+
     def test_partial_projection_staging_is_rejected(self) -> None:
         run(self.root, "git", "reset")
         run(self.root, "git", "add", "records/journal.jsonl")
@@ -313,6 +563,252 @@ class StudyCloseGitTests(unittest.TestCase):
             str(message),
         )
         require_all_study_close_deliveries(self.root)
+
+    def test_explicit_v1_to_v2_upgrade_is_checkable_and_hook_bound(self) -> None:
+        self.install_legacy_checkpoint()
+
+        projected = check_study_close_delivery_checkpoint_v2_upgrade(self.root)
+        self.assertEqual(projected.schema, CHECKPOINT_SCHEMA)
+        self.assertEqual(projected.basis, "checkpoint_upgrade")
+        self.assertEqual(
+            StudyCloseDeliveryCheckpoint.from_bytes(
+                (self.root / CHECKPOINT_PATH).read_bytes()
+            ).schema,
+            LEGACY_CHECKPOINT_SCHEMA,
+        )
+        written = prepare_study_close_delivery_checkpoint_v2_upgrade(self.root)
+        self.assertEqual(written, projected)
+        run(self.root, "git", "add", CHECKPOINT_PATH)
+        upgrade_message = self.root / "upgrade-checkpoint.txt"
+        upgrade_message.write_text(
+            "Upgrade tracked checkpoint v2\n\n"
+            f"Axiom-Study-Close-Checkpoint: {written.checkpoint_digest}\n"
+            f"Axiom-State-Revision: {written.cursor.sequence}\n",
+            encoding="ascii",
+        )
+        validate_commit_message(self.root, upgrade_message)
+        run(
+            self.root,
+            "git",
+            "-c",
+            "core.hooksPath=.git/hooks",
+            "commit",
+            "-F",
+            str(upgrade_message),
+        )
+        with patch.object(
+            study_close_git,
+            "_ensure_origin_delivery_observed",
+            side_effect=AssertionError("read-only inspection touched origin"),
+        ), patch.object(
+            study_close_git,
+            "_best_effort_write_cache",
+            side_effect=AssertionError("read-only inspection wrote cache"),
+        ):
+            inspected = inspect_tracked_study_close_delivery(self.root)
+        self.assertEqual(inspected.checkpoint_digest, written.checkpoint_digest)
+        require_all_study_close_deliveries(self.root)
+
+    def test_v2_upgrade_rejects_uncommitted_repair_manifest_bytes(self) -> None:
+        self.install_legacy_checkpoint()
+        repair = self.root / "records" / "STUDY_CLOSE_DELIVERY_REPAIR.json"
+        repair.write_bytes(canonical_bytes({"entries": []}) + b"\n")
+
+        with self.assertRaisesRegex(
+            StudyCloseDeliveryError, "authority bytes.*REPAIR"
+        ):
+            check_study_close_delivery_checkpoint_v2_upgrade(self.root)
+
+        run(self.root, "git", "add", str(repair.relative_to(self.root)))
+        with self.assertRaisesRegex(
+            StudyCloseDeliveryError, "authority bytes.*REPAIR"
+        ):
+            check_study_close_delivery_checkpoint_v2_upgrade(self.root)
+
+    def test_no_close_checkpoint_maintenance_is_explicit_and_hook_bound(self) -> None:
+        self.initialize_checkpoint()
+        previous = StudyCloseDeliveryCheckpoint.from_bytes(
+            (self.root / CHECKPOINT_PATH).read_bytes()
+        )
+        event = self.append_committed_non_close()
+        require_all_study_close_deliveries(self.root)
+
+        projected = check_study_close_delivery_checkpoint_maintenance(self.root)
+        self.assertEqual(projected.basis, "maintenance")
+        self.assertEqual(projected.cursor.sequence, event["sequence"])
+        self.assertEqual(
+            projected.prospective_close_count,
+            previous.prospective_close_count,
+        )
+        self.assertEqual(
+            projected.prospective_close_chain_digest,
+            previous.prospective_close_chain_digest,
+        )
+        written = prepare_study_close_delivery_checkpoint_maintenance(self.root)
+        self.assertEqual(written, projected)
+        run(self.root, "git", "add", CHECKPOINT_PATH)
+        message = self.root / "maintenance-checkpoint.txt"
+        message.write_text(
+            "Advance no-close Study delivery cursor\n\n"
+            f"Axiom-Study-Close-Checkpoint: {written.checkpoint_digest}\n"
+            f"Axiom-State-Revision: {written.cursor.sequence}\n",
+            encoding="ascii",
+        )
+        validate_commit_message(self.root, message)
+        run(
+            self.root,
+            "git",
+            "-c",
+            "core.hooksPath=.git/hooks",
+            "commit",
+            "-F",
+            str(message),
+        )
+        require_all_study_close_deliveries(self.root)
+        with self.assertRaisesRegex(
+            StudyCloseDeliveryError, "validation failed"
+        ):
+            check_study_close_delivery_checkpoint_maintenance(self.root)
+
+    def test_origin_attempt_debt_is_bound_and_exact_checkpoint_can_deliver(self) -> None:
+        self.initialize_checkpoint()
+        receipt_path = self.root / "local" / "study-close-origin-attempt.json"
+        receipt = json.loads(receipt_path.read_text(encoding="ascii"))
+        head = subprocess.run(
+            ("git", "rev-parse", "HEAD"),
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        checkpoint = StudyCloseDeliveryCheckpoint.from_bytes(
+            (self.root / CHECKPOINT_PATH).read_bytes()
+        )
+        self.assertEqual(receipt["outcome"], "delivery_debt")
+        self.assertEqual(receipt["attempt_main_head"], head)
+        self.assertEqual(receipt["target_commit"], head)
+        self.assertEqual(
+            receipt["checkpoint_digest"], checkpoint.checkpoint_digest
+        )
+
+        study_close_git._ensure_origin_delivery_observed.cache_clear()
+        with patch.object(study_close_git, "_run_origin_git") as origin_git:
+            require_all_study_close_deliveries(self.root)
+        origin_git.assert_not_called()
+
+        remote_temporary = TemporaryDirectory()
+        self.addCleanup(remote_temporary.cleanup)
+        remote = Path(remote_temporary.name)
+        run(remote, "git", "init", "--bare", "-b", "main")
+        run(self.root, "git", "remote", "add", "origin", str(remote))
+        receipt_path.unlink()
+        study_close_git._ensure_origin_delivery_observed.cache_clear()
+        require_all_study_close_deliveries(self.root)
+        delivered = json.loads(receipt_path.read_text(encoding="ascii"))
+        self.assertEqual(delivered["outcome"], "delivered")
+        self.assertEqual(delivered["target_commit"], head)
+        origin_main = subprocess.run(
+            ("git", "rev-parse", "origin/main"),
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        self.assertEqual(origin_main, head)
+
+        run(self.root, "git", "remote", "remove", "origin")
+        run(
+            self.root,
+            "git",
+            "update-ref",
+            "refs/remotes/origin/main",
+            head,
+        )
+        receipt_path.unlink()
+        study_close_git._ensure_origin_delivery_observed.cache_clear()
+        require_all_study_close_deliveries(self.root)
+        stale = json.loads(receipt_path.read_text(encoding="ascii"))
+        self.assertEqual(stale["observed_remote_before"], head)
+        self.assertNotEqual(stale["fetch_returncode"], 0)
+        self.assertNotEqual(stale["push_returncode"], 0)
+        self.assertEqual(stale["outcome"], "delivery_debt")
+
+    def test_v2_binds_exact_twenty_one_row_historical_backfill(self) -> None:
+        closes: list[dict[str, object]] = []
+        content = b""
+        previous_event_id: str | None = None
+        for sequence in range(1, 22):
+            event = historical_close_event(
+                sequence=sequence,
+                previous_event_id=previous_event_id,
+                journal_offset=len(content),
+            )
+            closes.append(event)
+            content += canonical_bytes(event) + b"\n"
+            previous_event_id = str(event["event_id"])
+        journal = self.root / "records" / "journal.jsonl"
+        journal.write_bytes(content)
+        self.write_control(closes[-1])
+        (self.root / "records" / "STUDY_KPI.md").write_bytes(
+            render_projection(closes)
+        )
+        run(self.root, "git", "add", "state", "records")
+        run(
+            self.root,
+            "git",
+            "-c",
+            "core.hooksPath=.git/hooks",
+            "commit",
+            "-m",
+            "Seed immutable historical Study closes",
+        )
+
+        backfill = historical_backfill_event(closes, journal_offset=len(content))
+        content += canonical_bytes(backfill) + b"\n"
+        journal.write_bytes(content)
+        all_events = [*closes, backfill]
+        self.write_control(backfill)
+        (self.root / "records" / "STUDY_KPI.md").write_bytes(
+            render_projection(all_events)
+        )
+        run(self.root, "git", "add", "state", "records")
+        message = self.root / "backfill-message.txt"
+        message.write_text(
+            "Backfill historical Study KPI ledger\n\n"
+            f"Axiom-Study-KPI-Backfill: {backfill['event_id']}\n"
+            f"Axiom-State-Revision: {backfill['sequence']}\n",
+            encoding="ascii",
+        )
+        run(
+            self.root,
+            "git",
+            "-c",
+            "core.hooksPath=.git/hooks",
+            "commit",
+            "-F",
+            str(message),
+        )
+
+        checkpoint = initialize_study_close_delivery_checkpoint(self.root)
+        proof = checkpoint.historical_kpi_backfill
+        self.assertIsNotNone(proof)
+        assert proof is not None
+        self.assertEqual(proof.event_id, backfill["event_id"])
+        self.assertEqual(proof.revision, backfill["sequence"])
+        self.assertEqual(len(proof.sources), 21)
+        self.assertEqual(
+            [source.kpi_sequence for source in proof.sources],
+            list(range(1, 22)),
+        )
+        self.assertEqual(
+            {binding.path for binding in proof.path_blobs},
+            {
+                "records/STUDY_KPI.md",
+                "records/journal.jsonl",
+                "state/control.json",
+            },
+        )
+        self.assertTrue(study_close_git._ancestor(self.root, proof.commit, proof.ancestry_anchor))
 
     def test_segmented_staged_snapshot_and_trailers_pass(self) -> None:
         self.convert_to_segmented()
@@ -490,7 +986,7 @@ class StudyCloseGitTests(unittest.TestCase):
     def test_deleted_or_forged_local_cache_is_not_authority(self) -> None:
         self.initialize_checkpoint()
         cache = self.root / "local" / "study-close-delivery-audit.json"
-        cache.parent.mkdir()
+        cache.parent.mkdir(exist_ok=True)
         cache.write_bytes(b"forged\n")
         with patch.object(
             study_close_git, "_perform_full_audit"
@@ -507,7 +1003,7 @@ class StudyCloseGitTests(unittest.TestCase):
         self.initialize_checkpoint()
         self.append_committed_close(2, advance_checkpoint=False)
         cache = self.root / "local" / "study-close-delivery-audit.json"
-        cache.parent.mkdir()
+        cache.parent.mkdir(exist_ok=True)
         cache.write_bytes(canonical_bytes({"forged": True}) + b"\n")
         with self.assertRaisesRegex(StudyCloseDeliveryError, "after the tracked"):
             require_all_study_close_deliveries(self.root)
@@ -645,6 +1141,28 @@ class StudyCloseGitTests(unittest.TestCase):
         writer=object.__new__(StateWriter);writer.root=self.root;writer.engineering_fixture=False
         with patch("axiom_rift.operations.study_close_git.require_all_study_close_deliveries",side_effect=StudyCloseDeliveryError("missing")):
             with self.assertRaisesRegex(TransitionError,"blocked"):writer._require_study_close_delivery_guard()
+
+    def test_real_writer_guard_fails_closed_without_git(self) -> None:
+        with TemporaryDirectory() as directory:
+            writer = object.__new__(StateWriter)
+            writer.root = Path(directory)
+            writer.engineering_fixture = False
+            with self.assertRaisesRegex(TransitionError, "blocked"):
+                writer._require_study_close_delivery_guard()
+
+    def test_writer_accepts_only_an_isolated_typed_guard_capability(self) -> None:
+        capability = StudyCloseGuardCapability.ISOLATED_ENGINEERING_FIXTURE
+        with TemporaryDirectory() as directory:
+            writer = StateWriter(
+                directory,
+                study_close_guard_capability=capability,
+            )
+            writer._require_study_close_delivery_guard()
+        with self.assertRaisesRegex(TransitionError, "isolated non-Git fixture"):
+            StateWriter(
+                self.root,
+                study_close_guard_capability=capability,
+            )
 
     def test_writer_guards_every_post_close_scientific_entry_boundary(self) -> None:
         writer = object.__new__(StateWriter)

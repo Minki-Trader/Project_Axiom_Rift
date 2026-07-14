@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.permits import SubjectKind
+from axiom_rift.operations.study_close_delivery import StudyCloseGuardCapability
 from axiom_rift.operations.writer import StateWriter, TransitionError, _record
 
 
@@ -45,7 +46,13 @@ class ProjectGoalContinuationTests(unittest.TestCase):
         self.temporary = TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
-        self.writer = StateWriter(self.root, foundation_root=REPO_ROOT)
+        self.writer = StateWriter(
+            self.root,
+            foundation_root=REPO_ROOT,
+            study_close_guard_capability=(
+                StudyCloseGuardCapability.ISOLATED_ENGINEERING_FIXTURE
+            ),
+        )
         self.writer.initialize_ready()
 
     def _open_fresh(self, mission_id: str = "MIS-0001") -> None:
@@ -55,11 +62,40 @@ class ProjectGoalContinuationTests(unittest.TestCase):
             operation_id=f"open-{mission_id.lower()}",
         )
 
+    @staticmethod
+    def _terminal_snapshot_record(mission_id: str):
+        payload = {
+            "axes": [],
+            "exhaustion_standard": None,
+            "mission_id": mission_id,
+            "opportunity_cost_basis": (
+                "isolated Mission terminal fixture with no scientific authority"
+            ),
+            "research_intake_id": None,
+            "schema": "portfolio_snapshot.v3",
+        }
+        fingerprint = canonical_digest(
+            domain="portfolio-snapshot",
+            payload=payload,
+        )
+        snapshot_id = f"portfolio:{fingerprint}"
+        return snapshot_id, _record(
+            kind="portfolio-snapshot",
+            record_id=snapshot_id,
+            subject=f"Mission:{mission_id}",
+            status="current",
+            fingerprint=fingerprint,
+            payload=payload,
+            event_stream=f"portfolio:{mission_id}",
+            event_sequence=1,
+        )
+
     def _seed_negative_terminal(self, mission_id: str, tag: str) -> str:
         basis_id = canonical_digest(
             domain="project-goal-negative-terminal-fixture",
             payload={"mission_id": mission_id, "tag": tag},
         )
+        snapshot_id, snapshot = self._terminal_snapshot_record(mission_id)
 
         def prepare(current, _index):
             if current is None:
@@ -79,9 +115,12 @@ class ProjectGoalContinuationTests(unittest.TestCase):
                 subject=f"Mission:{mission_id}",
                 status="accepted",
                 fingerprint=basis_id,
-                payload={"fixture": tag},
+                payload={
+                    "fixture": tag,
+                    "portfolio_snapshot_id": snapshot_id,
+                },
             )
-            return body, [record], {"basis_record_id": basis_id}
+            return body, [snapshot, record], {"basis_record_id": basis_id}
 
         self.writer._commit(
             event_kind="negative_terminal_fixture_seeded",
@@ -105,6 +144,7 @@ class ProjectGoalContinuationTests(unittest.TestCase):
             domain="project-goal-positive-release-fixture",
             payload={"candidate_id": candidate_id},
         )
+        _snapshot_id, snapshot = self._terminal_snapshot_record(mission_id)
 
         def prepare(current, _index):
             if current is None:
@@ -144,7 +184,7 @@ class ProjectGoalContinuationTests(unittest.TestCase):
                     "mission_id": mission_id,
                 },
             )
-            return body, [record], {"release_id": release_id}
+            return body, [snapshot, record], {"release_id": release_id}
 
         self.writer._commit(
             event_kind="positive_terminal_fixture_seeded",

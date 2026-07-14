@@ -357,6 +357,69 @@ def causal_effective_spread(
     return np.where(values > 0, values, lagged.to_numpy(dtype=float))
 
 
+@dataclass(frozen=True, slots=True)
+class ExecutionPnlBreakdown:
+    """Exact gross, native-cost, and stressed-cost trade decomposition."""
+
+    gross_pnl: float
+    native_cost: float
+    stress_cost: float
+    native_net_pnl: float
+    stress_net_pnl: float
+
+    def __post_init__(self) -> None:
+        values = tuple(getattr(self, name) for name in self.__slots__)
+        if any(not np.isfinite(value) for value in values):
+            raise ValueError("execution PnL breakdown must be finite")
+        if self.native_cost < 0 or self.stress_cost < self.native_cost:
+            raise ValueError("execution cost breakdown is invalid")
+        if not np.isclose(
+            self.gross_pnl - self.native_cost,
+            self.native_net_pnl,
+            rtol=0.0,
+            atol=1e-12,
+        ) or not np.isclose(
+            self.gross_pnl - self.stress_cost,
+            self.stress_net_pnl,
+            rtol=0.0,
+            atol=1e-12,
+        ):
+            raise ValueError("execution PnL components do not reconcile")
+
+
+def execution_pnl_breakdown(
+    *,
+    direction: int,
+    entry_bid: float,
+    exit_bid: float,
+    entry_spread_points: float,
+    exit_spread_points: float,
+) -> ExecutionPnlBreakdown:
+    if any(
+        not np.isfinite(value) or value < 0
+        for value in (entry_spread_points, exit_spread_points)
+    ):
+        raise ValueError("execution spreads must be finite and non-negative")
+    if direction == 1:
+        gross = exit_bid - entry_bid
+        native_cost = entry_spread_points * POINT
+    elif direction == -1:
+        gross = entry_bid - exit_bid
+        native_cost = exit_spread_points * POINT
+    else:
+        raise ValueError("direction must be -1 or 1")
+    stress_cost = native_cost + 0.5 * (
+        entry_spread_points + exit_spread_points
+    ) * POINT
+    return ExecutionPnlBreakdown(
+        gross_pnl=gross,
+        native_cost=native_cost,
+        stress_cost=stress_cost,
+        native_net_pnl=gross - native_cost,
+        stress_net_pnl=gross - stress_cost,
+    )
+
+
 def execution_pnl(
     *,
     direction: int,
@@ -365,16 +428,16 @@ def execution_pnl(
     entry_spread_points: float,
     exit_spread_points: float,
 ) -> tuple[float, float]:
-    if direction == 1:
-        native = exit_bid - (entry_bid + entry_spread_points * POINT)
-    elif direction == -1:
-        native = entry_bid - (exit_bid + exit_spread_points * POINT)
-    else:
-        raise ValueError("direction must be -1 or 1")
-    stress = native - 0.5 * (
-        entry_spread_points + exit_spread_points
-    ) * POINT
-    return native, stress
+    """Return the legacy net pair projected from the exact cost breakdown."""
+
+    breakdown = execution_pnl_breakdown(
+        direction=direction,
+        entry_bid=entry_bid,
+        exit_bid=exit_bid,
+        entry_spread_points=entry_spread_points,
+        exit_spread_points=exit_spread_points,
+    )
+    return breakdown.native_net_pnl, breakdown.stress_net_pnl
 
 
 @dataclass(slots=True)
@@ -485,7 +548,7 @@ def simulate_fixed_hold(
                 (decision_time, entry_time, exit_time, direction, "unknown_cost")
             )
             continue
-        native, stress = execution_pnl(
+        pnl = execution_pnl_breakdown(
             direction=direction,
             entry_bid=float(opens[entry_index]),
             exit_bid=float(opens[exit_index]),
@@ -507,8 +570,11 @@ def simulate_fixed_hold(
                 "entry_time": entry_time,
                 "exit_time": exit_time,
                 "direction": direction,
-                "pnl": native,
-                "stress_pnl": stress,
+                "gross_pnl": pnl.gross_pnl,
+                "native_cost": pnl.native_cost,
+                "stress_cost": pnl.stress_cost,
+                "pnl": pnl.native_net_pnl,
+                "stress_pnl": pnl.stress_net_pnl,
                 "fold_id": fold_id,
                 "regime": regime,
             }
@@ -516,19 +582,7 @@ def simulate_fixed_hold(
         intents.append((decision_time, entry_time, exit_time, direction, "executed"))
     trades = pd.DataFrame.from_records(records)
     if trades.empty:
-        trades = pd.DataFrame(
-            columns=(
-                "decision_bar_open_time",
-                "decision_time",
-                "entry_time",
-                "exit_time",
-                "direction",
-                "pnl",
-                "stress_pnl",
-                "fold_id",
-                "regime",
-            )
-        )
+        trades = empty_trade_frame()
     return SimulationResult(
         trades=trades,
         intent_rows=tuple(intents),
@@ -536,6 +590,64 @@ def simulate_fixed_hold(
         gap_excluded_signal_count=gap_excluded,
         causality_violation_count=causality_violations,
     )
+
+
+_TRADE_COLUMN_DTYPES = {
+    "decision_bar_open_time": "datetime64[ns]",
+    "decision_time": "datetime64[ns]",
+    "entry_time": "datetime64[ns]",
+    "exit_time": "datetime64[ns]",
+    "direction": "int64",
+    "gross_pnl": "float64",
+    "native_cost": "float64",
+    "stress_cost": "float64",
+    "pnl": "float64",
+    "stress_pnl": "float64",
+    "fold_id": "object",
+    "regime": "object",
+}
+
+
+def empty_trade_frame(*, extra_columns: Sequence[str] = ()) -> pd.DataFrame:
+    """Return the common typed empty trade schema used by simulations."""
+
+    extras = tuple(extra_columns)
+    if len(set(extras)) != len(extras) or any(
+        type(name) is not str or not name or name in _TRADE_COLUMN_DTYPES
+        for name in extras
+    ):
+        raise ValueError("extra trade columns must be unique non-empty names")
+    columns = {
+        name: pd.Series(dtype=dtype)
+        for name, dtype in _TRADE_COLUMN_DTYPES.items()
+    }
+    columns.update({name: pd.Series(dtype="object") for name in extras})
+    return pd.DataFrame(columns)
+
+
+def concat_simulation_trades(
+    frames: Sequence[pd.DataFrame],
+    *,
+    extra_columns: Sequence[str] = (),
+) -> pd.DataFrame:
+    """Concatenate trade frames without pandas empty-frame dtype inference."""
+
+    values = tuple(frames)
+    if not values or any(not isinstance(frame, pd.DataFrame) for frame in values):
+        raise TypeError("trade concatenation requires at least one DataFrame")
+    required = set(_TRADE_COLUMN_DTYPES).union(extra_columns)
+    if any(set(frame.columns) != required for frame in values):
+        raise ValueError("trade frame schema differs from the common schema")
+    populated = tuple(frame for frame in values if not frame.empty)
+    if not populated:
+        return empty_trade_frame(extra_columns=extra_columns)
+    result = pd.concat(populated, ignore_index=True)
+    for name, dtype in _TRADE_COLUMN_DTYPES.items():
+        if dtype == "datetime64[ns]":
+            result[name] = pd.to_datetime(result[name], errors="raise")
+        elif dtype in {"int64", "float64"}:
+            result[name] = result[name].astype(dtype, copy=False)
+    return result
 
 
 def _window_payload(window: Any) -> dict[str, Any]:

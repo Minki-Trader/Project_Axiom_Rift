@@ -12,7 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Mapping
+from typing import Mapping, Sequence
 
 from axiom_rift.core.canonical import parse_canonical
 from axiom_rift.core.identity import canonical_digest
@@ -24,6 +24,10 @@ AUTHORITY_LATCH_SCHEMA = "source_authority_latch.v1"
 AUTHORITY_LATCH_STATUS = "unresolved"
 AUTHORITY_RECOVERY_POLICY = "new_source_contract_only"
 AUTHORITY_TRANSITION_EVIDENCE = "authority_invalidation"
+SOURCE_REPLACEMENT_LINEAGE_SCHEMA = "source_replacement_lineage.v1"
+SOURCE_REPLACEMENT_CAPABILITY_SET_SCHEMA = (
+    "source_replacement_capability_set.v1"
+)
 
 
 class SourceAuthoritySurface(str, Enum):
@@ -82,6 +86,81 @@ def _exact_mapping(
     if not isinstance(value, Mapping) or set(value) != fields:
         raise ValueError(f"{name} has an invalid schema")
     return value
+
+
+def source_replacement_capability_id(
+    *,
+    mission_id: str,
+    original_axis_id: str,
+    original_axis_identity: str,
+    invalidation_id: str,
+    invalidated_source_contract_id: str,
+) -> str:
+    """Identify the exact recovery capability an external outage may block."""
+
+    _ascii("source replacement capability Mission id", mission_id)
+    _ascii("source replacement capability axis id", original_axis_id)
+    _prefixed_digest(
+        "source replacement capability axis identity",
+        original_axis_identity,
+        prefix="axis:",
+    )
+    _prefixed_digest(
+        "source replacement capability invalidation",
+        invalidation_id,
+        prefix="source-authority-invalidation:",
+    )
+    _prefixed_digest(
+        "source replacement capability invalidated contract",
+        invalidated_source_contract_id,
+        prefix="source:",
+    )
+    return "source-replacement-capability:" + canonical_digest(
+        domain="source-replacement-capability",
+        payload={
+            "invalidation_id": invalidation_id,
+            "invalidated_source_contract_id": invalidated_source_contract_id,
+            "mission_id": mission_id,
+            "original_axis_id": original_axis_id,
+            "original_axis_identity": original_axis_identity,
+        },
+    )
+
+
+def source_replacement_capability_set_id(
+    capability_ids: Sequence[str],
+) -> str:
+    """Bind two or more exact source-replacement capabilities as one set.
+
+    A genuine external outage may make several invalidated source axes
+    unavailable through the same indispensable dependency.  The aggregate is
+    deterministic and cannot hide a non-source blocker because the Writer
+    derives every member from the current effective-axis projection.
+    """
+
+    if isinstance(capability_ids, (str, bytes)):
+        raise ValueError(
+            "source replacement capability set must be a sequence of identities"
+        )
+    typed = tuple(capability_ids)
+    if len(typed) < 2 or len(typed) != len(set(typed)):
+        raise ValueError(
+            "source replacement capability set requires distinct multiple identities"
+        )
+    for capability_id in typed:
+        _prefixed_digest(
+            "source replacement capability set member",
+            capability_id,
+            prefix="source-replacement-capability:",
+        )
+    ordered = tuple(sorted(typed))
+    return "source-replacement-capability-set:" + canonical_digest(
+        domain="source-replacement-capability-set",
+        payload={
+            "capability_ids": list(ordered),
+            "schema": SOURCE_REPLACEMENT_CAPABILITY_SET_SCHEMA,
+        },
+    )
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -382,14 +461,174 @@ class SourceAuthorityLatch:
         )
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SourceReplacementLineage:
+    """Additive retirement of one invalidated source axis into a new axis.
+
+    The original Portfolio snapshot and permanent source latch remain
+    untouched.  This identity only states that a distinct, eligible
+    SourceContract was bound to a distinct Portfolio axis before the old axis
+    stopped participating in scheduling or Mission-terminal blocker counts.
+    """
+
+    mission_id: str
+    portfolio_snapshot_id: str
+    original_axis_id: str
+    original_axis_identity: str
+    invalidation_id: str
+    invalidated_source_contract_id: str
+    replacement_source_contract_id: str
+    replacement_source_state_record_id: str
+    replacement_axis_id: str
+    replacement_axis_identity: str
+
+    def __post_init__(self) -> None:
+        _ascii("source replacement Mission id", self.mission_id)
+        _prefixed_digest(
+            "source replacement Portfolio snapshot",
+            self.portfolio_snapshot_id,
+            prefix="portfolio:",
+        )
+        _ascii("source replacement original axis id", self.original_axis_id)
+        _prefixed_digest(
+            "source replacement original axis identity",
+            self.original_axis_identity,
+            prefix="axis:",
+        )
+        _prefixed_digest(
+            "source replacement invalidation",
+            self.invalidation_id,
+            prefix="source-authority-invalidation:",
+        )
+        _prefixed_digest(
+            "source replacement invalidated contract",
+            self.invalidated_source_contract_id,
+            prefix="source:",
+        )
+        _prefixed_digest(
+            "source replacement contract",
+            self.replacement_source_contract_id,
+            prefix="source:",
+        )
+        _digest(
+            "source replacement state record",
+            self.replacement_source_state_record_id,
+        )
+        _ascii("source replacement axis id", self.replacement_axis_id)
+        _prefixed_digest(
+            "source replacement axis identity",
+            self.replacement_axis_identity,
+            prefix="axis:",
+        )
+        if (
+            self.invalidated_source_contract_id
+            == self.replacement_source_contract_id
+        ):
+            raise ValueError(
+                "source replacement requires a distinct SourceContract identity"
+            )
+        if (
+            self.original_axis_id == self.replacement_axis_id
+            or self.original_axis_identity == self.replacement_axis_identity
+        ):
+            raise ValueError(
+                "source replacement requires a distinct Portfolio axis"
+            )
+
+    @property
+    def identity(self) -> str:
+        return "source-replacement-lineage:" + canonical_digest(
+            domain="source-replacement-lineage",
+            payload=self.to_identity_payload(),
+        )
+
+    @property
+    def capability_id(self) -> str:
+        """Capability whose external absence can pause this exact recovery."""
+
+        return source_replacement_capability_id(
+            mission_id=self.mission_id,
+            original_axis_id=self.original_axis_id,
+            original_axis_identity=self.original_axis_identity,
+            invalidation_id=self.invalidation_id,
+            invalidated_source_contract_id=self.invalidated_source_contract_id,
+        )
+
+    def to_identity_payload(self) -> dict[str, str]:
+        return {
+            "invalidation_id": self.invalidation_id,
+            "invalidated_source_contract_id": self.invalidated_source_contract_id,
+            "mission_id": self.mission_id,
+            "original_axis_id": self.original_axis_id,
+            "original_axis_identity": self.original_axis_identity,
+            "portfolio_snapshot_id": self.portfolio_snapshot_id,
+            "replacement_axis_id": self.replacement_axis_id,
+            "replacement_axis_identity": self.replacement_axis_identity,
+            "replacement_source_contract_id": self.replacement_source_contract_id,
+            "replacement_source_state_record_id": (
+                self.replacement_source_state_record_id
+            ),
+            "schema": SOURCE_REPLACEMENT_LINEAGE_SCHEMA,
+        }
+
+    @classmethod
+    def from_mapping(cls, value: object) -> SourceReplacementLineage:
+        payload = _exact_mapping(
+            "source replacement lineage",
+            value,
+            fields=frozenset(
+                {
+                    "invalidation_id",
+                    "invalidated_source_contract_id",
+                    "mission_id",
+                    "original_axis_id",
+                    "original_axis_identity",
+                    "portfolio_snapshot_id",
+                    "replacement_axis_id",
+                    "replacement_axis_identity",
+                    "replacement_source_contract_id",
+                    "replacement_source_state_record_id",
+                    "schema",
+                }
+            ),
+        )
+        if payload["schema"] != SOURCE_REPLACEMENT_LINEAGE_SCHEMA:
+            raise ValueError("source replacement lineage schema is unsupported")
+        return cls(
+            mission_id=payload["mission_id"],  # type: ignore[arg-type]
+            portfolio_snapshot_id=payload["portfolio_snapshot_id"],  # type: ignore[arg-type]
+            original_axis_id=payload["original_axis_id"],  # type: ignore[arg-type]
+            original_axis_identity=payload["original_axis_identity"],  # type: ignore[arg-type]
+            invalidation_id=payload["invalidation_id"],  # type: ignore[arg-type]
+            invalidated_source_contract_id=payload[
+                "invalidated_source_contract_id"
+            ],  # type: ignore[arg-type]
+            replacement_source_contract_id=payload[
+                "replacement_source_contract_id"
+            ],  # type: ignore[arg-type]
+            replacement_source_state_record_id=payload[
+                "replacement_source_state_record_id"
+            ],  # type: ignore[arg-type]
+            replacement_axis_id=payload["replacement_axis_id"],  # type: ignore[arg-type]
+            replacement_axis_identity=payload[
+                "replacement_axis_identity"
+            ],  # type: ignore[arg-type]
+        )
+
+
 __all__ = [
     "AUDIT_MANIFEST_SCHEMA",
     "AUTHORITY_LATCH_SCHEMA",
     "AUTHORITY_RECOVERY_POLICY",
     "AUTHORITY_TRANSITION_EVIDENCE",
+    "SOURCE_REPLACEMENT_LINEAGE_SCHEMA",
+    "SOURCE_REPLACEMENT_CAPABILITY_SET_SCHEMA",
     "SourceAuthorityAuditManifest",
     "SourceAuthorityInvalidation",
     "SourceAuthorityLatch",
     "SourceAuthorityReason",
     "SourceAuthoritySurface",
+    "SourceReplacementLineage",
+    "source_replacement_capability_id",
+    "source_replacement_capability_set_id",
 ]

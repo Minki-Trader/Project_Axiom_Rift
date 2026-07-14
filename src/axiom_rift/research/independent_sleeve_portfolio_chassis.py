@@ -32,13 +32,12 @@ SELECTION_TOTAL_EXPOSURES = 577
 _PROFILES = ("router_control", "target_downside_control", "dual_independent_slots")
 _THIS_FILE = Path(__file__).resolve()
 _FIVE_MINUTES_NS = 300_000_000_000
-_DECISION_IMPLEMENTATION_SHA256 = "2126add8388c5128487fe990f2b0d08598e9685f811aff2b046d0f210e675c60"
 
 
 def independent_sleeve_portfolio_chassis_implementation_sha256() -> str:
-    """Return the implementation identity frozen by DEC-0088."""
+    """Bind prospective chassis identity to the current file bytes."""
 
-    return _DECISION_IMPLEMENTATION_SHA256
+    return sha256(_THIS_FILE.read_bytes()).hexdigest()
 
 
 def independent_sleeve_portfolio_followup_implementation_sha256() -> str:

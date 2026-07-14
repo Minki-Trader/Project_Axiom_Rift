@@ -38,7 +38,11 @@ from axiom_rift.operations.permits import (  # noqa: E402
 from axiom_rift.operations.validation import (  # noqa: E402
     EvidenceValidatorRegistry,
 )
-from axiom_rift.operations.writer import StateWriter, TransitionResult  # noqa: E402
+from axiom_rift.operations.writer import (  # noqa: E402
+    RecoveryRequired,
+    StateWriter,
+    TransitionResult,
+)
 from axiom_rift.research.discovery import OBSERVED_MATERIAL_ID  # noqa: E402
 from axiom_rift.research.forest_replay import (  # noqa: E402
     CompositeValidationPlan,
@@ -47,6 +51,8 @@ from axiom_rift.research.forest_replay import (  # noqa: E402
     build_p0_composite_validation_plan,
     compute_p0_forest_replay,
     forest_replay_dependency_paths,
+    forest_replay_implementation_artifact,
+    forest_replay_implementation_identity,
 )
 from axiom_rift.research.governance import (  # noqa: E402
     DiagnosisConfidence,
@@ -630,8 +636,17 @@ def _study_permit(writer: StateWriter, design: ForestStudyDesign) -> Permit:
 def _finalize_job_inputs(
     writer: StateWriter, design: ForestStudyDesign
 ) -> str:
+    component_implementation = writer.evidence.finalize(
+        forest_replay_implementation_artifact()
+    )
+    expected_component_hash = forest_replay_implementation_identity().rsplit(
+        ":", 1
+    )[-1]
+    if component_implementation.sha256 != expected_component_hash:
+        raise RuntimeError("forest replay implementation artifact identity changed")
     source_hashes = sorted(
-        {
+        {component_implementation.sha256}
+        | {
             writer.evidence.finalize(path.read_bytes()).sha256
             for path in forest_replay_dependency_paths()
         }
@@ -1281,7 +1296,10 @@ def main() -> None:
     arguments = parse_arguments()
     registry = EvidenceValidatorRegistry((ScientificAdjudicationValidatorV2(),))
     writer = StateWriter(ROOT, validation_registry=registry)
-    writer.recover()
+    try:
+        writer.require_stable_head()
+    except RecoveryRequired:
+        writer.recover()
     report_hash, predecessor_revision, predecessor_event_id = (
         verify_production_preconditions(writer)
     )

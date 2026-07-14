@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import dataclasses
+from hashlib import sha256
 import unittest
 
 from axiom_rift.core.canonical import (
@@ -9,7 +10,13 @@ from axiom_rift.core.canonical import (
     canonical_text,
     parse_canonical,
 )
-from axiom_rift.core.identity import ComponentSpec, ExecutableSpec, canonical_digest
+from axiom_rift.core.identity import (
+    ComponentSpec,
+    ExecutableSpec,
+    canonical_digest,
+    canonical_identity_bytes,
+    parse_canonical_identity_bytes,
+)
 
 
 CANONICAL_FIXTURE = {"z": [3, True, None], "a": {"x": "ASCII", "n": -7}}
@@ -98,6 +105,36 @@ class CanonicalJSONTests(unittest.TestCase):
             canonical_digest(domain="fixture", payload=CANONICAL_FIXTURE),
             canonical_digest(domain="other", payload=CANONICAL_FIXTURE),
         )
+
+    def test_canonical_identity_bytes_are_the_exact_digest_preimage(self) -> None:
+        framed = canonical_identity_bytes(
+            domain="fixture", payload=CANONICAL_FIXTURE
+        )
+        self.assertEqual(sha256(framed).hexdigest(), CANONICAL_DIGEST_GOLDEN)
+        self.assertTrue(framed.endswith(CANONICAL_GOLDEN))
+
+    def test_canonical_identity_bytes_round_trip_strictly(self) -> None:
+        framed = canonical_identity_bytes(
+            domain="fixture", payload=CANONICAL_FIXTURE
+        )
+        self.assertEqual(
+            parse_canonical_identity_bytes(framed),
+            ("fixture", CANONICAL_FIXTURE),
+        )
+        noncanonical = (
+            framed[: -len(CANONICAL_GOLDEN)]
+            + b'{ "a":{"n":-7,"x":"ASCII"},"z":[3,true,null]}'
+        )
+        for label, malformed in (
+            ("prefix", b"X" + framed[1:]),
+            ("truncated", framed[:12]),
+            ("noncanonical", noncanonical),
+        ):
+            with self.subTest(label=label):
+                with self.assertRaises(ValueError):
+                    parse_canonical_identity_bytes(malformed)
+        with self.assertRaises(TypeError):
+            parse_canonical_identity_bytes(framed.decode("latin-1"))  # type: ignore[arg-type]
 
     def test_python_values_outside_profile_are_rejected(self) -> None:
         rejected = (

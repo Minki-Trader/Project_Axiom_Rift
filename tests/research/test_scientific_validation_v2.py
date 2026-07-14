@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -16,6 +17,16 @@ from axiom_rift.operations.validation import (
     validator_implementation_sha256,
 )
 from axiom_rift.research.validation import SCIENTIFIC_DISCOVERY_VALIDATOR_ID
+from axiom_rift.research.evidence_proofs import (
+    COST_EXECUTION_PROOF_KIND,
+    PAIRED_CONTROL_PROOF_KIND,
+    TEMPORAL_STABILITY_PROOF_KIND,
+    ScientificEvidenceProofError,
+    build_mode_proof,
+    build_proof_references,
+    parse_proof_requirements,
+    proof_requirements_for_modes,
+)
 from axiom_rift.research.validation_v2 import (
     SCIENTIFIC_ADJUDICATION_PROFILE_SCHEMA,
     SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
@@ -45,6 +56,11 @@ FAMILY_HASH = multiplicity_family_registration_hash(
     method=SCIENTIFIC_V2_MULTIPLICITY_METHOD,
     ordered_member_ids=FAMILY_MEMBERS,
 )
+PROOF_OUTPUTS = {
+    PAIRED_CONTROL_PROOF_KIND: "proofs/causal-contrast.json",
+    COST_EXECUTION_PROOF_KIND: "proofs/cost-execution.json",
+    TEMPORAL_STABILITY_PROOF_KIND: "proofs/temporal-stability.json",
+}
 
 
 def _criterion(
@@ -180,6 +196,10 @@ def _plan(
         evidence_modes=MODES,
         criteria=criteria,
         adjudication_profile=profile,
+        proof_requirements=proof_requirements_for_modes(
+            evidence_modes=MODES,
+            output_names=PROOF_OUTPUTS,
+        ),
         candidate_eligible_on_pass=candidate_eligible_on_pass,
     )
 
@@ -233,6 +253,7 @@ def _measurement(*, evidence_depth: str = "discovery") -> dict[str, object]:
                 "raw_pvalue_ppm": 20_000,
             }
         ],
+        "proofs": [],
         "schema": SCIENTIFIC_MEASUREMENT_V2_SCHEMA,
     }
 
@@ -243,6 +264,91 @@ def _request(
     plan: dict[str, object],
     measurement: dict[str, object],
 ) -> EvidenceValidationRequest:
+    measurement = deepcopy(measurement)
+    requirements = parse_proof_requirements(
+        plan["proof_requirements"], evidence_modes=MODES
+    )
+    bindings_by_mode: dict[str, list[dict[str, object]]] = {
+        mode: [] for mode in MODES
+    }
+    for criterion in plan["criteria"]:
+        bindings_by_mode[criterion["evidence_mode"]].append(
+            {
+                "claim_id": criterion["claim_id"],
+                "metric": criterion["metric"],
+                "value": measurement["metrics"][criterion["claim_id"]][
+                    criterion["metric"]
+                ],
+            }
+        )
+    metric_bindings = {
+        mode: sorted(
+            values,
+            key=lambda item: (str(item["claim_id"]), str(item["metric"])),
+        )
+        for mode, values in bindings_by_mode.items()
+    }
+    mode_proofs = {
+        PAIRED_CONTROL_PROOF_KIND: build_mode_proof(
+            evidence_mode="causal_contrast",
+            proof_kind=PAIRED_CONTROL_PROOF_KIND,
+            mission_id=MISSION_ID,
+            executable_id=EXECUTABLE_ID,
+            job_id=JOB_ID,
+            job_hash=JOB_HASH,
+            proof={
+                "calendar_identity": "calendar:" + "1" * 64,
+                "control_executable_id": "executable:" + "c" * 64,
+                "delta_metric": "primary_control_delta_micropoints",
+                "metric_bindings": metric_bindings["causal_contrast"],
+                "paired_observation_count": 120,
+                "subject_executable_id": EXECUTABLE_ID,
+                "uncertainty_metric": "primary_control_raw_pvalue_ppm",
+            },
+        ),
+        COST_EXECUTION_PROOF_KIND: build_mode_proof(
+            evidence_mode="cost_and_execution",
+            proof_kind=COST_EXECUTION_PROOF_KIND,
+            mission_id=MISSION_ID,
+            executable_id=EXECUTABLE_ID,
+            job_id=JOB_ID,
+            job_hash=JOB_HASH,
+            proof={
+                "cost_contract": "cost:fixed-test-spread-and-stress",
+                "metric_bindings": metric_bindings["cost_and_execution"],
+                "native_cost_observation_count": 120,
+                "stress_cost_observation_count": 120,
+                "unresolved_cost_observation_count": 0,
+            },
+        ),
+        TEMPORAL_STABILITY_PROOF_KIND: build_mode_proof(
+            evidence_mode="temporal_stability",
+            proof_kind=TEMPORAL_STABILITY_PROOF_KIND,
+            mission_id=MISSION_ID,
+            executable_id=EXECUTABLE_ID,
+            job_id=JOB_ID,
+            job_hash=JOB_HASH,
+            proof={
+                "calendar_identity": "calendar:" + "1" * 64,
+                "metric_bindings": metric_bindings["temporal_stability"],
+                "observation_count": 120,
+                "window_count": 9,
+            },
+        ),
+    }
+    proof_payloads = {
+        PROOF_OUTPUTS[kind]: canonical_bytes(value)
+        for kind, value in mode_proofs.items()
+    }
+    measurement["proofs"] = list(
+        build_proof_references(
+            requirements=requirements,
+            artifact_hashes={
+                output_name: sha256(content).hexdigest()
+                for output_name, content in proof_payloads.items()
+            },
+        )
+    )
     plan_content = canonical_bytes(plan)
     measurement_content = canonical_bytes(measurement)
     plan_hash = sha256(plan_content).hexdigest()
@@ -267,10 +373,14 @@ def _request(
         "plan": plan_content,
         "measurement": measurement_content,
         "result": result_content,
+        **proof_payloads,
     }
     artifacts: list[ValidationArtifact] = []
     for output_name, content in payloads.items():
-        path = root / f"{output_name}.json"
+        path = root / output_name
+        if path.suffix != ".json":
+            path = path.with_suffix(".json")
+        path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(content)
         artifacts.append(
             ValidationArtifact(
@@ -350,6 +460,70 @@ class ScientificValidationV2Tests(unittest.TestCase):
             {item["decision_role"] for item in adjudication["criteria"]},
         )
 
+    def test_missing_or_hash_drifted_mode_proof_is_rejected(self) -> None:
+        with TemporaryDirectory() as root:
+            request = _request(
+                Path(root), plan=_plan(), measurement=_measurement()
+            )
+            missing = replace(
+                request,
+                artifacts=tuple(
+                    artifact
+                    for artifact in request.artifacts
+                    if artifact.output_name
+                    != PROOF_OUTPUTS[TEMPORAL_STABILITY_PROOF_KIND]
+                ),
+            )
+            with self.assertRaises(EvidenceValidationError):
+                self._validate(missing)
+
+            target = next(
+                artifact
+                for artifact in request.artifacts
+                if artifact.output_name
+                == PROOF_OUTPUTS[TEMPORAL_STABILITY_PROOF_KIND]
+            )
+            drifted_content = target.read_bytes().replace(
+                b'"window_count":9', b'"window_count":8'
+            )
+            self.assertNotEqual(drifted_content, target.read_bytes())
+            drifted_path = Path(root) / "proofs/drifted-temporal.json"
+            drifted_path.write_bytes(drifted_content)
+            drifted_artifact = ValidationArtifact(
+                output_name=target.output_name,
+                sha256=sha256(drifted_content).hexdigest(),
+                _source=drifted_path,
+            )
+            hash_drifted = replace(
+                request,
+                artifacts=tuple(
+                    drifted_artifact if artifact is target else artifact
+                    for artifact in request.artifacts
+                ),
+            )
+            with self.assertRaises(EvidenceValidationError):
+                self._validate(hash_drifted)
+
+    def test_paired_control_proof_cannot_reuse_subject_as_control(self) -> None:
+        with self.assertRaises(ScientificEvidenceProofError):
+            build_mode_proof(
+                evidence_mode="causal_contrast",
+                proof_kind=PAIRED_CONTROL_PROOF_KIND,
+                mission_id=MISSION_ID,
+                executable_id=EXECUTABLE_ID,
+                job_id=JOB_ID,
+                job_hash=JOB_HASH,
+                proof={
+                    "calendar_identity": "calendar:" + "1" * 64,
+                    "control_executable_id": EXECUTABLE_ID,
+                    "delta_metric": "primary_control_delta_micropoints",
+                    "metric_bindings": [],
+                    "paired_observation_count": 120,
+                    "subject_executable_id": EXECUTABLE_ID,
+                    "uncertainty_metric": "primary_control_raw_pvalue_ppm",
+                },
+            )
+
     def test_b04_is_decisive_only_when_profile_registers_risk_gate(self) -> None:
         with TemporaryDirectory() as root:
             request = _request(
@@ -414,6 +588,7 @@ class ScientificValidationV2Tests(unittest.TestCase):
                 evidence_modes=MODES,
                 criteria=tuple(incomplete["criteria"]),
                 adjudication_profile=incomplete["adjudication_profile"],
+                proof_requirements=tuple(incomplete["proof_requirements"]),
             )
 
         drifted = deepcopy(_plan())
@@ -431,6 +606,7 @@ class ScientificValidationV2Tests(unittest.TestCase):
                 evidence_modes=MODES,
                 criteria=tuple(drifted["criteria"]),
                 adjudication_profile=drifted["adjudication_profile"],
+                proof_requirements=tuple(drifted["proof_requirements"]),
             )
 
         missing_result = _measurement()

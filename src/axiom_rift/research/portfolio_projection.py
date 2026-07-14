@@ -13,7 +13,7 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
-from axiom_rift.core.identity import ComponentSpec
+from axiom_rift.core.identity import ComponentSpec, ExecutableSpec
 from axiom_rift.research.chassis import (
     ArchitectureChassisSpec,
     ArchitectureRole,
@@ -22,7 +22,12 @@ from axiom_rift.research.chassis import (
     architecture_component_semantic_surface_identity,
 )
 from axiom_rift.research.governance import ResearchLayer
-from axiom_rift.research.portfolio import PortfolioAxis
+from axiom_rift.research.portfolio import (
+    DecisionOption,
+    PortfolioAction,
+    PortfolioAxis,
+    PortfolioDecision,
+)
 
 
 class PortfolioProjectionError(ValueError):
@@ -104,6 +109,153 @@ def component_surface_registry(
         surface: by_identity[sorted(by_identity)[0]]
         for surface, by_identity in sorted(candidates.items())
     }
+
+
+def executable_from_identity_payload(value: Mapping[str, Any]) -> ExecutableSpec:
+    """Rebuild one ExecutableSpec and prove exact payload equivalence."""
+
+    try:
+        normalized = parse_canonical(canonical_bytes(dict(value)))
+    except (TypeError, ValueError) as exc:
+        raise PortfolioProjectionError("Executable payload is not canonical") from exc
+    expected_fields = {
+        "clock_contract",
+        "component_identities",
+        "component_manifests",
+        "cost_contract",
+        "data_contract",
+        "engine_contract",
+        "parameters",
+        "schema",
+        "source_contracts",
+        "split_contract",
+    }
+    if (
+        not isinstance(normalized, dict)
+        or normalized.get("schema") != "executable_spec.v1"
+        or set(normalized) != expected_fields
+        or not isinstance(normalized.get("component_manifests"), list)
+        or not isinstance(normalized.get("component_identities"), list)
+        or not isinstance(normalized.get("source_contracts"), list)
+    ):
+        raise PortfolioProjectionError("Executable identity payload is malformed")
+    try:
+        components = tuple(
+            component_from_identity_payload(item)
+            for item in normalized["component_manifests"]
+        )
+        executable = ExecutableSpec(
+            display_name="rehydrated durable Portfolio baseline",
+            components=components,
+            parameters=normalized["parameters"],
+            data_contract=normalized["data_contract"],
+            split_contract=normalized["split_contract"],
+            clock_contract=normalized["clock_contract"],
+            cost_contract=normalized["cost_contract"],
+            engine_contract=normalized["engine_contract"],
+            source_contracts=tuple(normalized["source_contracts"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise PortfolioProjectionError("Executable identity cannot be rebuilt") from exc
+    if (
+        executable.to_identity_payload() != normalized
+        or list(executable.component_identities)
+        != normalized["component_identities"]
+    ):
+        raise PortfolioProjectionError("Executable payload changed on rebuild")
+    return executable
+
+
+def portfolio_decision_from_projection(
+    value: Mapping[str, Any],
+) -> PortfolioDecision:
+    """Rebuild a legacy or replay-bound Portfolio Decision exactly."""
+
+    try:
+        normalized = parse_canonical(canonical_bytes(dict(value)))
+    except (TypeError, ValueError) as exc:
+        raise PortfolioProjectionError("Portfolio Decision is not canonical") from exc
+    base_fields = {
+        "architecture_chassis",
+        "architecture_chassis_identity",
+        "baseline_executable",
+        "baseline_executable_id",
+        "chosen_option_id",
+        "commitment_batches",
+        "decision_id",
+        "locks_future_portfolio",
+        "options",
+        "rationale",
+        "recent_positive_lineage_id",
+        "schema",
+    }
+    if (
+        not isinstance(normalized, dict)
+        or set(normalized) not in (
+            base_fields,
+            base_fields | {"replay_obligation_ids"},
+        )
+        or normalized.get("schema") not in {
+            "portfolio_decision.v1",
+            "portfolio_decision.v2",
+        }
+        or not isinstance(normalized.get("options"), list)
+    ):
+        raise PortfolioProjectionError("Portfolio Decision fields are malformed")
+    try:
+        options = tuple(
+            DecisionOption(
+                option_id=item["option_id"],
+                action=PortfolioAction(item["action"]),
+                target_id=item["target_id"],
+                expected_information_value=item["expected_information_value"],
+                opportunity_cost=item["opportunity_cost"],
+                omission_reason=item["omission_reason"],
+            )
+            for item in normalized["options"]
+        )
+        baseline_payload = normalized["baseline_executable"]
+        baseline = (
+            None
+            if baseline_payload is None
+            else executable_from_identity_payload(baseline_payload)
+        )
+        decision = PortfolioDecision(
+            decision_id=normalized["decision_id"],
+            chosen_option_id=normalized["chosen_option_id"],
+            options=options,
+            rationale=normalized["rationale"],
+            commitment_batches=normalized["commitment_batches"],
+            baseline_executable=baseline,
+            replay_obligation_ids=tuple(
+                normalized.get("replay_obligation_ids", ())
+            ),
+            recent_positive_lineage_id=normalized["recent_positive_lineage_id"],
+            locks_future_portfolio=normalized["locks_future_portfolio"],
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise PortfolioProjectionError("Portfolio Decision cannot be rebuilt") from exc
+    if (
+        decision.to_identity_payload() != normalized
+        or (None if baseline is None else baseline.identity)
+        != normalized.get("baseline_executable_id")
+        or (
+            None
+            if decision.architecture_chassis is None
+            else decision.architecture_chassis.identity
+        )
+        != normalized.get("architecture_chassis_identity")
+        or (
+            None
+            if decision.architecture_chassis is None
+            else decision.architecture_chassis.to_identity_payload()
+        )
+        != normalized.get("architecture_chassis")
+    ):
+        raise PortfolioProjectionError(
+            "Portfolio Decision identity payload changed on rebuild"
+        )
+    return decision
 
 
 def architecture_chassis_from_identity_payload(
@@ -255,6 +407,8 @@ __all__ = [
     "architecture_chassis_from_identity_payload",
     "component_from_identity_payload",
     "component_surface_registry",
+    "executable_from_identity_payload",
     "portfolio_axes_from_projection",
     "portfolio_axis_from_projection",
+    "portfolio_decision_from_projection",
 ]

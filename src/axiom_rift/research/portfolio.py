@@ -23,6 +23,62 @@ class BatchSpecError(ValueError):
     """Raised when a Batch is not bounded and fully frozen."""
 
 
+class ConcurrentFamilyEvaluationMode(str, Enum):
+    """How one exact preregistered family reaches its evidence engine."""
+
+    CONCURRENT = "concurrent"
+    VECTORIZED = "vectorized"
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ConcurrentFamilyManifest:
+    """Exact Executable membership for one concurrent selection family."""
+
+    evaluation_mode: ConcurrentFamilyEvaluationMode
+    executable_ids: tuple[str, ...]
+    identity: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.evaluation_mode, ConcurrentFamilyEvaluationMode):
+            raise BatchSpecError("concurrent family evaluation mode must be typed")
+        if type(self.executable_ids) is not tuple or len(self.executable_ids) < 2:
+            raise BatchSpecError(
+                "concurrent family requires at least two exact Executable identities"
+            )
+        for executable_id in self.executable_ids:
+            if (
+                type(executable_id) is not str
+                or not executable_id.startswith("executable:")
+                or len(executable_id) != 75
+                or any(
+                    character not in "0123456789abcdef"
+                    for character in executable_id.removeprefix("executable:")
+                )
+            ):
+                raise BatchSpecError(
+                    "concurrent family member must be an exact Executable identity"
+                )
+        if len(set(self.executable_ids)) != len(self.executable_ids):
+            raise BatchSpecError("concurrent family Executable identities must be unique")
+        digest = canonical_digest(
+            domain="concurrent-family-manifest",
+            payload=self.to_identity_payload(),
+        )
+        object.__setattr__(self, "identity", f"concurrent-family:{digest}")
+
+    @property
+    def family_size(self) -> int:
+        return len(self.executable_ids)
+
+    def to_identity_payload(self) -> dict[str, CanonicalValue]:
+        return {
+            "evaluation_mode": self.evaluation_mode.value,
+            "executable_ids": list(self.executable_ids),
+            "family_size": self.family_size,
+            "schema": "concurrent_family_manifest.v1",
+        }
+
+
 class PortfolioDecisionError(ValueError):
     """Raised when a Portfolio decision violates allocation boundaries."""
 
@@ -395,6 +451,10 @@ class BatchSpec:
     max_wall_seconds: int = field(compare=False)
     stop_rule: str = field(compare=False)
     source_contract_ids: tuple[str, ...] = field(default=(), compare=False)
+    concurrent_family: ConcurrentFamilyManifest | None = field(
+        default=None,
+        compare=False,
+    )
     acceptance_profile: InitVar[object]
     adaptive_basis: InitVar[object]
     _acceptance_bytes: bytes = field(init=False, repr=False, compare=False)
@@ -434,7 +494,38 @@ class BatchSpec:
         if type(acceptance_profile) is not dict or not acceptance_profile:
             raise BatchSpecError("acceptance_profile must be a non-empty object")
 
-        acceptance_bytes = canonical_bytes(acceptance_profile)
+        acceptance_payload = dict(acceptance_profile)
+        if "concurrent_family" in acceptance_payload:
+            raise BatchSpecError(
+                "concurrent_family is reserved for the typed Batch manifest"
+            )
+        declared_family_size = acceptance_payload.pop(
+            "concurrent_family_size", None
+        )
+        if self.concurrent_family is None:
+            if declared_family_size is not None:
+                raise BatchSpecError(
+                    "concurrent_family_size requires a typed concurrent family manifest"
+                )
+        else:
+            if not isinstance(self.concurrent_family, ConcurrentFamilyManifest):
+                raise BatchSpecError("concurrent_family must be a typed manifest")
+            if (
+                declared_family_size is not None
+                and declared_family_size != self.concurrent_family.family_size
+            ):
+                raise BatchSpecError(
+                    "acceptance family size differs from the exact typed manifest"
+                )
+            if self.max_trials != self.concurrent_family.family_size:
+                raise BatchSpecError(
+                    "concurrent family size must equal the frozen Batch trial bound"
+                )
+            acceptance_payload["concurrent_family"] = (
+                self.concurrent_family.to_identity_payload()
+            )
+
+        acceptance_bytes = canonical_bytes(acceptance_payload)
         basis_bytes = canonical_bytes(adaptive_basis)
         object.__setattr__(self, "_acceptance_bytes", acceptance_bytes)
         object.__setattr__(self, "_basis_bytes", basis_bytes)
@@ -494,6 +585,7 @@ class PortfolioDecision:
     rationale: str
     commitment_batches: int | None
     baseline_executable: ExecutableSpec | None = field(default=None, repr=False)
+    replay_obligation_ids: tuple[str, ...] = ()
     recent_positive_lineage_id: str | None = None
     locks_future_portfolio: bool = False
     architecture_chassis: ArchitectureChassisSpec | None = field(init=False, repr=False)
@@ -550,6 +642,24 @@ class PortfolioDecision:
             raise PortfolioDecisionError(
                 "Portfolio Decision baseline must be an ExecutableSpec"
             )
+        if type(self.replay_obligation_ids) is not tuple:
+            raise PortfolioDecisionError(
+                "replay_obligation_ids must be a frozen tuple"
+            )
+        replay_obligation_ids = tuple(sorted(self.replay_obligation_ids))
+        if len(replay_obligation_ids) != len(set(replay_obligation_ids)):
+            raise PortfolioDecisionError("replay obligation identities must be unique")
+        for obligation_id in replay_obligation_ids:
+            if type(obligation_id) is not str or not obligation_id.isascii():
+                raise PortfolioDecisionError("replay obligation identity is invalid")
+            digest = obligation_id.removeprefix("historical-replay-obligation:")
+            if obligation_id == digest or len(digest) != 64 or any(
+                character not in "0123456789abcdef" for character in digest
+            ):
+                raise PortfolioDecisionError("replay obligation identity is invalid")
+        object.__setattr__(
+            self, "replay_obligation_ids", replay_obligation_ids
+        )
         architecture = (
             None
             if self.baseline_executable is None
@@ -581,7 +691,7 @@ class PortfolioDecision:
         )
 
     def to_identity_payload(self) -> dict[str, CanonicalValue]:
-        return {
+        payload: dict[str, CanonicalValue] = {
             "architecture_chassis": (
                 None
                 if self.architecture_chassis is None
@@ -625,6 +735,11 @@ class PortfolioDecision:
                 else "portfolio_decision.v2"
             ),
         }
+        # Preserve byte-for-byte legacy identities unless a Decision actually
+        # binds typed historical replay work.
+        if self.replay_obligation_ids:
+            payload["replay_obligation_ids"] = list(self.replay_obligation_ids)
+        return payload
 
 
 DecisionKind = PortfolioAction
@@ -633,6 +748,8 @@ DecisionKind = PortfolioAction
 __all__ = [
     "BatchSpec",
     "BatchSpecError",
+    "ConcurrentFamilyEvaluationMode",
+    "ConcurrentFamilyManifest",
     "DecisionKind",
     "DecisionOption",
     "PortfolioAction",

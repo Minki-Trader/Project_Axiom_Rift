@@ -16,11 +16,6 @@ from axiom_rift.research.us30_sector_rotation_discovery import (
 from axiom_rift.research.us30_source import us30_source_contract
 
 
-REGISTERED_SOURCE_IMPLEMENTATION_SHA256 = (
-    "1a01da137a28b8da8f7c079ff96fe43b7561ec7bd75efaac7230a823b0699b37"
-)
-
-
 def source_usage_component() -> ComponentSpec:
     contract = us30_source_contract()
     return ComponentSpec(
@@ -43,15 +38,6 @@ def source_usage_component() -> ComponentSpec:
     )
 
 
-def _registered_engine_contract(current: ExecutableSpec) -> str:
-    marker = ":source_module_"
-    prefix, suffix = current.engine_contract.split(marker, 1)
-    _, tail = suffix.split(":raw_", 1)
-    return (
-        f"{prefix}{marker}{REGISTERED_SOURCE_IMPLEMENTATION_SHA256}:raw_{tail}"
-    )
-
-
 def us30_sector_rotation_registered_executable(
     configuration: US30SectorRotationConfiguration,
     raw_sha256: str,
@@ -67,7 +53,7 @@ def us30_sector_rotation_registered_executable(
         split_contract=current.split_contract,
         clock_contract=current.clock_contract,
         cost_contract=current.cost_contract,
-        engine_contract=_registered_engine_contract(current),
+        engine_contract=current.engine_contract,
         source_contracts=current.source_contracts,
     )
 
@@ -98,7 +84,7 @@ def us30_sector_rotation_registered_baseline(raw_sha256: str) -> ExecutableSpec:
         split_contract=current.split_contract,
         clock_contract=current.clock_contract,
         cost_contract=current.cost_contract,
-        engine_contract=_registered_engine_contract(current),
+        engine_contract=current.engine_contract,
         source_contracts=current.source_contracts,
     )
 
@@ -169,7 +155,6 @@ def project_registered_us30_sector_rotation_evaluation(
 
 
 __all__ = [
-    "REGISTERED_SOURCE_IMPLEMENTATION_SHA256",
     "source_usage_component",
     "project_registered_us30_sector_rotation_evaluation",
     "us30_sector_rotation_registered_baseline",

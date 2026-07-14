@@ -14,6 +14,12 @@ from pathlib import Path
 from typing import Any
 
 import axiom_rift.research.adjudication as adjudication_module
+import axiom_rift.research.analog_state_family as analog_family_module
+import axiom_rift.research.analog_state_trace as analog_trace_module
+import axiom_rift.research.audit_integrity_proof as audit_proof_module
+import axiom_rift.research.evidence_proofs as evidence_proof_module
+import axiom_rift.research.selection_inference as selection_inference_module
+import axiom_rift.research.scientific_trace as scientific_trace_module
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.validation import (
@@ -33,6 +39,14 @@ from axiom_rift.research.adjudication import (
     adjudicate_plan_measurement,
     bonferroni_concurrent_family,
     scientific_adjudication_manifest,
+)
+from axiom_rift.research.evidence_proofs import (
+    ProofReference,
+    ProofRequirement,
+    ScientificEvidenceProofError,
+    parse_proof_references,
+    parse_proof_requirements,
+    validate_proof_artifacts,
 )
 
 
@@ -57,6 +71,7 @@ _PLAN_FIELDS = {
     "executable_id",
     "mission_id",
     "planned_claims",
+    "proof_requirements",
     "schema",
 }
 _CRITERION_FIELDS = {
@@ -97,6 +112,7 @@ _MEASUREMENT_FIELDS = {
     "metrics",
     "mission_id",
     "multiplicity",
+    "proofs",
     "schema",
 }
 _RESULT_FIELDS = {
@@ -408,7 +424,14 @@ def _expected_role(criterion: _Criterion, profile: _Profile) -> str:
     return "component"
 
 
-def _parse_plan(value: object) -> tuple[dict[str, Any], tuple[_Criterion, ...], _Profile]:
+def _parse_plan(
+    value: object,
+) -> tuple[
+    dict[str, Any],
+    tuple[_Criterion, ...],
+    _Profile,
+    tuple[ProofRequirement, ...],
+]:
     if (
         not isinstance(value, dict)
         or set(value) != _PLAN_FIELDS
@@ -431,6 +454,14 @@ def _parse_plan(value: object) -> tuple[dict[str, Any], tuple[_Criterion, ...], 
     modes = _sorted_ascii_sequence(
         "plan evidence modes", value["evidence_modes"], allow_empty=False
     )
+    try:
+        proof_requirements = parse_proof_requirements(
+            value["proof_requirements"], evidence_modes=modes
+        )
+    except ScientificEvidenceProofError as exc:
+        raise EvidenceValidationError(
+            "scientific v2 proof requirements are invalid"
+        ) from exc
     raw_criteria = value["criteria"]
     if not isinstance(raw_criteria, (list, tuple)) or not raw_criteria:
         raise EvidenceValidationError("scientific v2 plan requires criteria")
@@ -522,7 +553,7 @@ def _parse_plan(value: object) -> tuple[dict[str, Any], tuple[_Criterion, ...], 
         raise EvidenceValidationError(
             "scientific v2 candidate policy requires promotion gates"
         )
-    return value, criteria, profile
+    return value, criteria, profile, proof_requirements
 
 
 def build_validation_plan_v2(
@@ -534,6 +565,7 @@ def build_validation_plan_v2(
     evidence_modes: tuple[str, ...],
     criteria: tuple[Mapping[str, object], ...],
     adjudication_profile: Mapping[str, object],
+    proof_requirements: tuple[Mapping[str, object], ...],
     candidate_eligible_on_pass: bool = False,
 ) -> dict[str, object]:
     """Build and fully validate one canonical-ready v2 plan."""
@@ -547,6 +579,7 @@ def build_validation_plan_v2(
         "executable_id": executable_id,
         "mission_id": mission_id,
         "planned_claims": list(planned_claims),
+        "proof_requirements": [_plain(item) for item in proof_requirements],
         "schema": SCIENTIFIC_VALIDATION_PLAN_V2_SCHEMA,
     }
     _parse_plan(plan)
@@ -657,10 +690,12 @@ def _parse_measurement(
     criteria: tuple[_Criterion, ...],
     profile: _Profile,
     claims: tuple[str, ...],
+    proof_requirements: tuple[ProofRequirement, ...],
 ) -> tuple[
     dict[str, Any],
     dict[str, dict[str, int | None]],
     tuple[MultiplicityAssessment, ...],
+    tuple[ProofReference, ...],
 ]:
     if (
         not isinstance(value, dict)
@@ -705,7 +740,15 @@ def _parse_measurement(
         criteria=criteria,
         metrics=metrics,
     )
-    return value, metrics, multiplicity
+    try:
+        proof_references = parse_proof_references(
+            value["proofs"], requirements=proof_requirements
+        )
+    except ScientificEvidenceProofError as exc:
+        raise EvidenceValidationError(
+            "scientific v2 proof references are invalid"
+        ) from exc
+    return value, metrics, multiplicity, proof_references
 
 
 def _parse_result(value: object) -> dict[str, Any]:
@@ -726,7 +769,23 @@ def _parse_result(value: object) -> dict[str, Any]:
 
 _THIS_IMPLEMENTATION = Path(__file__).resolve()
 _ADJUDICATION_DEPENDENCY = Path(adjudication_module.__file__).resolve()
-SCIENTIFIC_VALIDATION_V2_DEPENDENCIES = (_ADJUDICATION_DEPENDENCY,)
+_ANALOG_FAMILY_DEPENDENCY = Path(analog_family_module.__file__).resolve()
+_ANALOG_TRACE_DEPENDENCY = Path(analog_trace_module.__file__).resolve()
+_AUDIT_PROOF_DEPENDENCY = Path(audit_proof_module.__file__).resolve()
+_EVIDENCE_PROOF_DEPENDENCY = Path(evidence_proof_module.__file__).resolve()
+_SELECTION_INFERENCE_DEPENDENCY = Path(
+    selection_inference_module.__file__
+).resolve()
+_SCIENTIFIC_TRACE_DEPENDENCY = Path(scientific_trace_module.__file__).resolve()
+SCIENTIFIC_VALIDATION_V2_DEPENDENCIES = (
+    _ADJUDICATION_DEPENDENCY,
+    _ANALOG_FAMILY_DEPENDENCY,
+    _ANALOG_TRACE_DEPENDENCY,
+    _AUDIT_PROOF_DEPENDENCY,
+    _EVIDENCE_PROOF_DEPENDENCY,
+    _SELECTION_INFERENCE_DEPENDENCY,
+    _SCIENTIFIC_TRACE_DEPENDENCY,
+)
 SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID = validator_identity(
     protocol=SCIENTIFIC_VALIDATION_V2_PROTOCOL,
     domains=SCIENTIFIC_VALIDATION_V2_DOMAINS,
@@ -780,9 +839,9 @@ class ScientificAdjudicationValidatorV2:
         captured = tuple(
             (artifact, artifact.read_bytes()) for artifact in request.artifacts
         )
-        if len(captured) != 3:
+        if len(captured) < 4:
             raise EvidenceValidationError(
-                "scientific v2 requires exactly plan, measurement, and result"
+                "scientific v2 requires plan, measurement, result, and proof"
             )
         parsed: list[tuple[Any, dict[str, Any]]] = []
         for artifact, content in captured:
@@ -795,16 +854,6 @@ class ScientificAdjudicationValidatorV2:
             if not isinstance(value, dict):
                 raise EvidenceValidationError("scientific v2 artifact must be an object")
             parsed.append((artifact, value))
-
-        allowed_schemas = {
-            SCIENTIFIC_VALIDATION_PLAN_V2_SCHEMA,
-            SCIENTIFIC_MEASUREMENT_V2_SCHEMA,
-            SCIENTIFIC_RESULT_SCHEMA,
-        }
-        if {value.get("schema") for _, value in parsed} != allowed_schemas:
-            raise EvidenceValidationError(
-                "scientific v2 artifact schemas are incomplete or unknown"
-            )
 
         def unique(schema: str) -> tuple[Any, dict[str, Any]]:
             matches = [item for item in parsed if item[1].get("schema") == schema]
@@ -844,7 +893,7 @@ class ScientificAdjudicationValidatorV2:
             raise EvidenceValidationError("scientific v2 evidence subject is invalid")
         executable_id = _ascii("evidence executable_id", subject["id"])
 
-        plan, criteria, profile = _parse_plan(plan_value)
+        plan, criteria, profile, proof_requirements = _parse_plan(plan_value)
         claims = _sorted_ascii_sequence(
             "binding planned claims", binding["planned_claims"], allow_empty=False
         )
@@ -860,11 +909,12 @@ class ScientificAdjudicationValidatorV2:
         ):
             raise EvidenceValidationError("scientific v2 plan differs from binding")
 
-        measurement, metrics, multiplicity = _parse_measurement(
+        measurement, metrics, multiplicity, proof_references = _parse_measurement(
             measurement_value,
             criteria=criteria,
             profile=profile,
             claims=claims,
+            proof_requirements=proof_requirements,
         )
         if (
             measurement["mission_id"] != request.mission_id
@@ -913,6 +963,67 @@ class ScientificAdjudicationValidatorV2:
                 "scientific v2 observations differ from preregistration"
             )
 
+        output_names = tuple(artifact.output_name for artifact, _ in parsed)
+        if len(set(output_names)) != len(output_names):
+            raise EvidenceValidationError(
+                "scientific v2 artifact output names must be unique"
+            )
+        core_outputs = {
+            plan_artifact.output_name,
+            measurement_artifact.output_name,
+            result_artifact.output_name,
+        }
+        proof_values = {
+            artifact.output_name: value
+            for artifact, value in parsed
+            if artifact.output_name not in core_outputs
+        }
+        proof_hashes = {
+            artifact.output_name: artifact.sha256
+            for artifact, _ in parsed
+            if artifact.output_name not in core_outputs
+        }
+        expected_bindings: dict[str, list[dict[str, object]]] = {
+            mode: [] for mode in modes
+        }
+        for criterion in criteria:
+            expected_bindings[criterion.evidence_mode].append(
+                {
+                    "claim_id": criterion.claim_id,
+                    "metric": criterion.metric,
+                    "value": metrics[criterion.claim_id][criterion.metric],
+                }
+            )
+        normalized_bindings = {
+            mode: tuple(
+                sorted(
+                    values,
+                    key=lambda item: (str(item["claim_id"]), str(item["metric"])),
+                )
+            )
+            for mode, values in expected_bindings.items()
+        }
+        try:
+            demonstrated_modes = validate_proof_artifacts(
+                requirements=proof_requirements,
+                references=proof_references,
+                artifacts=proof_values,
+                artifact_hashes=proof_hashes,
+                expected_metric_bindings_by_mode=normalized_bindings,
+                mission_id=request.mission_id,
+                executable_id=executable_id,
+                job_id=request.job_id,
+                job_hash=request.job_hash,
+            )
+        except ScientificEvidenceProofError as exc:
+            raise EvidenceValidationError(
+                "scientific v2 evidence-mode proof validation failed"
+            ) from exc
+        if demonstrated_modes != modes:
+            raise EvidenceValidationError(
+                "scientific v2 demonstrated modes differ from preregistration"
+            )
+
         try:
             adjudication_profile = AdjudicationProfile(
                 decisive_risk_criterion_ids=frozenset(
@@ -953,7 +1064,7 @@ class ScientificAdjudicationValidatorV2:
             claims=claims,
             measurement_artifact_hashes=(measurement_artifact.sha256,),
             facts={
-                "executed_evidence_modes": list(modes),
+                "executed_evidence_modes": list(demonstrated_modes),
                 "scientific_adjudication": scientific_adjudication_manifest(
                     adjudication
                 ),

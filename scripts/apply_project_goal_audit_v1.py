@@ -19,7 +19,7 @@ from axiom_rift.core.canonical import canonical_bytes, parse_canonical  # noqa: 
 from axiom_rift.operations.validation import (  # noqa: E402
     EvidenceValidatorRegistry,
 )
-from axiom_rift.operations.writer import StateWriter  # noqa: E402
+from axiom_rift.operations.writer import RecoveryRequired, StateWriter  # noqa: E402
 from axiom_rift.research.adjudication import (  # noqa: E402
     adjudicate_plan_measurement,
 )
@@ -114,6 +114,9 @@ EXPECTED_INVARIANT_KIND_COUNTS = {
 }
 EXPECTED_LEGACY_SCIENTIFIC_COMPLETIONS = 470
 EXPECTED_VALIDITY_OVERRIDE_COUNT = 34
+HISTORICAL_V1_VALIDATOR_ID = (
+    "validator:bf4491b3f1773c654e89b5e10a3fac226e5f9ab52ed1d6252d56e7733c477d97"
+)
 HISTORICAL_CHUNK_SIZE = 20
 EXPECTED_LEGACY_STATE_COUNTS = {
     "not_evaluable": 8,
@@ -1689,6 +1692,214 @@ def validate_correction_progress(
     return observed_prefix
 
 
+def validate_completed_correction_ancestor(
+    writer: StateWriter,
+    *,
+    root: Path = ROOT,
+) -> dict[str, object]:
+    """Validate the immutable V1 chain without rejecting a legal later suffix."""
+
+    steps = correction_steps()
+    prefix = inspect_correction_prefix(writer, steps=steps)
+    if prefix != len(steps):
+        raise RuntimeError("Project Goal audit correction chain is incomplete")
+    report_bytes, report_hash = read_frozen_audit_report(root)
+    writer.evidence.verify(report_hash)
+
+    operations: list[Any] = []
+    with LocalIndex(writer.index_path) as index:
+        for step in steps:
+            operation = index.get("operation", step.operation_id)
+            if operation is None:
+                raise RuntimeError("completed correction operation is absent")
+            operations.append(operation)
+    events = tuple(_operation_event(writer, operation) for operation in operations)
+
+    withdrawal = events[0].get("payload")
+    withdrawal_manifest = (
+        None if not isinstance(withdrawal, Mapping) else withdrawal.get("manifest")
+    )
+    withdrawal_hash = (
+        None
+        if not isinstance(withdrawal, Mapping)
+        else withdrawal.get("manifest_artifact_hash")
+    )
+    if (
+        not isinstance(withdrawal_manifest, Mapping)
+        or withdrawal_manifest.get("report_artifact_hash") != report_hash
+        or type(withdrawal_hash) is not str
+        or writer.evidence.read_verified(withdrawal_hash)
+        != canonical_bytes(withdrawal_manifest)
+    ):
+        raise RuntimeError("completed correction report binding differs")
+
+    authority = events[1].get("payload")
+    if (
+        not isinstance(authority, Mapping)
+        or authority.get("schema") != "authority_manifest_migration.v1"
+        or authority.get("boundary") != "active_stable"
+        or authority.get("trial_delta") != 0
+        or authority.get("holdout_delta") != 0
+        or authority.get("scientific_claim") != "none"
+        or not isinstance(authority.get("new_manifest_digest"), str)
+        or not isinstance(authority.get("replacements"), list)
+    ):
+        raise RuntimeError("completed correction authority boundary differs")
+    replacement_paths: set[str] = set()
+    for row in authority["replacements"]:
+        if not isinstance(row, Mapping):
+            raise RuntimeError("completed authority replacement is malformed")
+        relative = row.get("path")
+        digest = row.get("artifact_sha256")
+        if type(relative) is not str or type(digest) is not str:
+            raise RuntimeError("completed authority replacement is incomplete")
+        content = writer.evidence.read_verified(digest)
+        if sha256(content).hexdigest() != row.get("new_sha256"):
+            raise RuntimeError("completed authority replacement evidence differs")
+        replacement_paths.add(relative)
+    if replacement_paths != {
+        "OPERATING_DIRECTION.md",
+        "contracts/evidence.yaml",
+        "contracts/operations.yaml",
+        "contracts/runtime.yaml",
+        "contracts/science.yaml",
+    }:
+        raise RuntimeError("completed authority replacement path set differs")
+
+    protocol = events[2].get("payload")
+    if (
+        not isinstance(protocol, Mapping)
+        or protocol.get("schema") != "research_protocol_activation.v1"
+        or protocol.get("protocol") != "scientific_adjudication_v2"
+        or protocol.get("validator_id") != HISTORICAL_V1_VALIDATOR_ID
+        or protocol.get("audit_artifact_hash") != report_hash
+        or protocol.get("authority_manifest_digest")
+        != authority.get("new_manifest_digest")
+    ):
+        raise RuntimeError("completed correction protocol activation differs")
+
+    expected_sources = build_source_corrections(report_hash)
+    for event, correction in zip(events[3:8], expected_sources, strict=True):
+        payload = event.get("payload")
+        if (
+            not isinstance(payload, Mapping)
+            or {key: value for key, value in payload.items() if key != "evidence"}
+            != correction.invalidation.to_identity_payload()
+        ):
+            raise RuntimeError("completed source invalidation differs")
+
+    historical_events = events[8:-1]
+    completion_ids: set[str] = set()
+    replay_ids: dict[str, set[str]] = {"p0": set(), "p1": set()}
+    validity_override_count = 0
+    request_count = 0
+    for operation, event in zip(
+        operations[8:-1], historical_events, strict=True
+    ):
+        payload = event.get("payload")
+        requests = None if not isinstance(payload, Mapping) else payload.get("requests")
+        result = operation.payload.get("result")
+        if (
+            not isinstance(payload, Mapping)
+            or payload.get("audit_artifact_hash") != report_hash
+            or not isinstance(requests, list)
+            or not isinstance(result, Mapping)
+            or result.get("trial_delta") != 0
+            or result.get("holdout_delta") != 0
+            or result.get("candidate_delta") != 0
+        ):
+            raise RuntimeError("completed historical correction chunk differs")
+        for request in requests:
+            if not isinstance(request, Mapping):
+                raise RuntimeError("completed historical request is malformed")
+            completion_id = request.get("completion_record_id")
+            priority = request.get("replay_priority")
+            overrides = request.get("validity_overrides")
+            if (
+                type(completion_id) is not str
+                or completion_id in completion_ids
+                or priority not in {"none", "p0", "p1"}
+                or not isinstance(overrides, list)
+            ):
+                raise RuntimeError("completed historical request identity differs")
+            completion_ids.add(completion_id)
+            request_count += 1
+            validity_override_count += len(overrides)
+            if priority in replay_ids:
+                replay_ids[priority].add(completion_id)
+    if (
+        request_count != EXPECTED_LEGACY_SCIENTIFIC_COMPLETIONS
+        or validity_override_count != EXPECTED_VALIDITY_OVERRIDE_COUNT
+        or replay_ids["p0"] != P0_REPLAY_COMPLETIONS
+        or replay_ids["p1"] != P1_REPLAY_COMPLETIONS
+    ):
+        raise RuntimeError("completed historical correction inventory differs")
+
+    close_event = events[-1]
+    current = writer.read_control()
+    boundary_revision = EXPECTED_INITIAL_REVISION + len(steps)
+    suffix_event_count = validate_completed_correction_suffix_boundary(
+        current=current,
+        close_event=close_event,
+        boundary_revision=boundary_revision,
+    )
+    return {
+        "boundary_event_id": close_event["event_id"],
+        "boundary_revision": boundary_revision,
+        "current_revision": current["revision"],
+        "historical_adjudication_count": request_count,
+        "mode": "completed_immutable_ancestor",
+        "operation_count": len(steps),
+        "report_sha256": sha256(report_bytes).hexdigest(),
+        "source_invalidation_count": len(expected_sources),
+        "suffix_event_count": suffix_event_count,
+        "validity_override_count": validity_override_count,
+    }
+
+
+def validate_completed_correction_suffix_boundary(
+    *,
+    current: object,
+    close_event: Mapping[str, Any],
+    boundary_revision: int,
+) -> int:
+    """Require one exact correction boundary and permit any later stable head."""
+
+    close_control = close_event.get("control")
+    close_payload = close_event.get("payload")
+    close_science = (
+        None if not isinstance(close_control, Mapping) else close_control.get("scientific")
+    )
+    if (
+        close_event.get("sequence") != boundary_revision
+        or not isinstance(close_payload, Mapping)
+        or close_payload.get("outcome") != "superseded"
+        or not isinstance(close_control, Mapping)
+        or close_control.get("next_action") != EXPECTED_FINAL_ACTION
+        or not isinstance(close_science, Mapping)
+        or close_science.get("active_mission") != EXPECTED_MISSION_ID
+        or close_science.get("active_initiative") is not None
+        or close_science.get("holdout_reveals") != 0
+        or close_science.get("claim") != "none"
+    ):
+        raise RuntimeError("completed correction terminal boundary differs")
+
+    current_head = (
+        None
+        if not isinstance(current, Mapping)
+        else current.get("heads", {}).get("journal", {})
+    )
+    if (
+        not isinstance(current, Mapping)
+        or not isinstance(current_head, Mapping)
+        or type(current.get("revision")) is not int
+        or current["revision"] < boundary_revision
+        or current_head.get("sequence") != current["revision"]
+    ):
+        raise RuntimeError("current control is not a legal correction suffix")
+    return current["revision"] - boundary_revision
+
+
 def _finalize_exact_evidence(
     writer: StateWriter,
     content: bytes,
@@ -1785,7 +1996,28 @@ def apply_corrections(
 
     registry = EvidenceValidatorRegistry((ScientificAdjudicationValidatorV2(),))
     writer = writer_factory(root, validation_registry=registry)
-    recovery = writer.recover()
+    try:
+        stable = writer.require_stable_head()
+        recovery: Mapping[str, object] = {
+            "control_revision": stable["control_revision"],
+            "index_record_count": stable["index_record_count"],
+            "journal_event_id": stable["journal_event_id"],
+            "mode": "stable_head_no_recovery",
+            "projection_digest": stable["projection_digest"],
+        }
+    except RecoveryRequired:
+        recovery = {"mode": "explicit_recovery", **writer.recover()}
+    completed_prefix = inspect_correction_prefix(writer)
+    if completed_prefix == len(correction_steps()):
+        completed = validate_completed_correction_ancestor(writer, root=root)
+        return {
+            **completed,
+            "applied_step_count": 0,
+            "final_revision": completed["boundary_revision"],
+            "initial_prefix": completed_prefix,
+            "recovery": recovery,
+            "schema": "project_goal_audit_v1_correction_result.v1",
+        }
     plan = build_correction_plan(writer, root=root)
     prefix = inspect_correction_prefix(writer, steps=plan.steps)
     if prefix == 0:
@@ -1860,6 +2092,15 @@ def main() -> None:
             (ScientificAdjudicationValidatorV2(),)
         ),
     )
+    completed_prefix = inspect_correction_prefix(writer)
+    if completed_prefix == len(correction_steps()):
+        print(
+            json.dumps(
+                validate_completed_correction_ancestor(writer, root=ROOT),
+                sort_keys=True,
+            )
+        )
+        return
     plan = build_correction_plan(writer, root=ROOT)
     prefix = validate_correction_progress(writer, plan=plan)
     summary = {

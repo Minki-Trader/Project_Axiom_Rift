@@ -9,17 +9,15 @@ import numpy as np
 import pandas as pd
 import scipy
 from axiom_rift.core.identity import ComponentSpec,ExecutableSpec
-from axiom_rift.research.discovery import OBSERVED_MATERIAL_ID,ROLLING_SPLIT_SHA256,SELECTION_BOOTSTRAP_SAMPLES,SELECTION_SEED,SimulationResult,discovery_implementation_sha256,simulate_fixed_hold
+from axiom_rift.research.discovery import OBSERVED_MATERIAL_ID,ROLLING_SPLIT_SHA256,SELECTION_BOOTSTRAP_SAMPLES,SELECTION_SEED,SimulationResult,concat_simulation_trades,discovery_implementation_sha256,simulate_fixed_hold
 from axiom_rift.research.regime_direction_router_chassis import loader_implementation_sha256,regime_direction_router_components
 
 SELECTION_TOTAL_EXPOSURES=581
 _PROFILES=("router_control","session_dense_positive_subject")
 _THIS_FILE=Path(__file__).resolve()
-_DECISION_IMPLEMENTATION_SHA256="dec0fa798505400f4fb7978d0d267dbe5c813e8d2dd28fac3e1c709db4deab2c"
 def session_dense_positive_sleeve_chassis_implementation_sha256()->str:
-    # Freeze the exact Portfolio Decision identity while the pre-Study packaging
-    # repair moves the session gate ahead of cost and intent accounting.
-    return _DECISION_IMPLEMENTATION_SHA256
+    """Bind prospective chassis identity to the current file bytes."""
+    return sha256(_THIS_FILE.read_bytes()).hexdigest()
 @dataclass(frozen=True,slots=True)
 class SessionDensePositiveSleeveConfiguration:
     profile:str
@@ -47,7 +45,7 @@ def executable_configuration_map()->dict[str,SessionDensePositiveSleeveConfigura
 class _Slot:holding_bars:int;signal_sign:int=1
 def _slot(*,frame,score,volatility,run,hold,test_start,test_end,fold_id,regime_cutoffs,effective_spread,name):
     x=simulate_fixed_hold(frame=frame,score=score,volatility=volatility,run=run,threshold=1.0,configuration=_Slot(hold),test_start=test_start,test_end=test_end,fold_id=fold_id,regime_cutoffs=regime_cutoffs,effective_spread=effective_spread)
-    if not x.trades.empty:x.trades=x.trades.assign(slot=name)
+    x.trades=x.trades.assign(slot=pd.Series(name,index=x.trades.index,dtype="object"))
     x.intent_rows=tuple((name,*r) for r in x.intent_rows);return x
 def simulate_session_dense_positive_sleeves(*,frame:pd.DataFrame,score:np.ndarray,volatility:np.ndarray,run:np.ndarray,threshold:float,configuration:SessionDensePositiveSleeveConfiguration,test_start:pd.Timestamp,test_end:pd.Timestamp,fold_id:str,regime_cutoffs:tuple[float,float],effective_spread:np.ndarray|None=None)->SimulationResult:
     del threshold;v=np.asarray(score,float)
@@ -56,6 +54,6 @@ def simulate_session_dense_positive_sleeves(*,frame:pd.DataFrame,score:np.ndarra
     if configuration.profile=="session_dense_positive_subject":
         target=v[:,1].copy();entry_hours=pd.to_datetime(frame["time"],errors="raise").shift(-1).dt.hour.to_numpy();target[~np.isin(entry_hours,np.arange(15,23))]=np.nan
         slots.append(_slot(frame=frame,score=target,volatility=volatility,run=run,hold=6,test_start=test_start,test_end=test_end,fold_id=fold_id,regime_cutoffs=regime_cutoffs,effective_spread=sp,name="target_direction"))
-    trades=pd.concat([x.trades for x in slots],ignore_index=True)
+    trades=concat_simulation_trades([x.trades for x in slots],extra_columns=("slot",))
     trades=trades.sort_values(["decision_time","slot"],kind="stable").reset_index(drop=True);return SimulationResult(trades,tuple(r for x in slots for r in x.intent_rows),sum(x.unresolved_cost_signal_count for x in slots),sum(x.gap_excluded_signal_count for x in slots),sum(x.causality_violation_count for x in slots))
 __all__=["SELECTION_TOTAL_EXPOSURES","SessionDensePositiveSleeveConfiguration","executable_configuration_map","loader_implementation_sha256","session_dense_positive_sleeve_baseline","session_dense_positive_sleeve_chassis_implementation_sha256","session_dense_positive_sleeve_components","session_dense_positive_sleeve_configurations","session_dense_positive_sleeve_executable","simulate_session_dense_positive_sleeves"]

@@ -1,14 +1,20 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import date, timedelta
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from axiom_rift.core.canonical import canonical_bytes
-from axiom_rift.core.identity import ExecutableSpec
+from axiom_rift.core.identity import (
+    ExecutableSpec,
+    parse_canonical_identity_bytes,
+)
 from axiom_rift.operations.validation import (
+    EvidenceValidationError,
     EvidenceValidationRequest,
     EvidenceValidatorRegistry,
     ValidationArtifact,
@@ -18,6 +24,7 @@ from axiom_rift.operations.permits import (
     PermitKind,
     SubjectKind,
 )
+from axiom_rift.operations.study_close_delivery import StudyCloseGuardCapability
 from axiom_rift.operations.writer import StateWriter
 from axiom_rift.research.chassis import (
     ArchitectureChassisSpec,
@@ -33,17 +40,29 @@ from axiom_rift.research.forest_replay import (
     P0_COMPOSITE_MEASUREMENT_OUTPUT,
     P0_COMPOSITE_PLAN_OUTPUT,
     P0_COMPOSITE_RESULT_OUTPUT,
+    P0_COMPOSITE_SUPPORT_OUTPUT,
+    P0_PNL_ATTRIBUTION,
     P0_REPLAY_CLAIMS,
     P0_REPLAY_EVIDENCE_MODES,
+    P0_STATISTICAL_OUTPUT,
     build_p0_composite_validation_plan,
     build_p0_forest_bundle,
     forest_replay_dependency_paths,
+    forest_replay_implementation_artifact,
+    forest_replay_implementation_identity,
+    forest_replay_implementation_manifest,
     p0_replay_family_inventory_hash,
 )
 from axiom_rift.research.governance import (
     MissionResearchIntake,
     REQUIRED_INTAKE_SURFACES,
     ResearchLayer,
+)
+from axiom_rift.research.evidence_proofs import (
+    AUDIT_INTEGRITY_MODE,
+    ScientificEvidenceProofError,
+    TERMINAL_EVIDENCE_MODES,
+    _validate_statistical_manifest,
 )
 from axiom_rift.research.portfolio import (
     BatchSpec,
@@ -53,6 +72,10 @@ from axiom_rift.research.portfolio import (
     PortfolioDecision,
     PortfolioDecisionError,
     PortfolioSnapshot,
+)
+from axiom_rift.research.protocol import (
+    ResearchProtocol,
+    ResearchProtocolActivation,
 )
 from axiom_rift.storage.index import LocalIndex
 from axiom_rift.research.selection_inference import (
@@ -75,6 +98,38 @@ HISTORICAL_CONTEXT = HistoricalSearchContext(
     context_id="history:p0-selected-after-470-test",
     prior_global_exposure_count=470,
 )
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _finalize_forest_job_implementation(
+    writer: StateWriter, *, callable_identity: str
+) -> tuple[str, list[str]]:
+    component_implementation = writer.evidence.finalize(
+        forest_replay_implementation_artifact()
+    )
+    expected_component_hash = forest_replay_implementation_identity().rsplit(
+        ":", 1
+    )[-1]
+    if component_implementation.sha256 != expected_component_hash:
+        raise AssertionError("forest replay implementation artifact identity changed")
+    source_hashes = sorted(
+        {component_implementation.sha256}
+        | {
+            writer.evidence.finalize(path.read_bytes()).sha256
+            for path in forest_replay_dependency_paths()
+        }
+    )
+    implementation = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "artifact_hashes": source_hashes,
+                "callable_identity": callable_identity,
+                "protocol": "python.source.p0_composite_reanalysis.v1",
+                "schema": "job_implementation_evidence.v1",
+            }
+        )
+    )
+    return implementation.sha256, source_hashes
 
 
 def _metrics(net_profit_micropoints: int) -> dict[str, int]:
@@ -329,7 +384,7 @@ class ForestReplayTests(unittest.TestCase):
                 architecture_chassis=architecture,
             )
 
-    def test_plan_is_pre_job_and_job_identity_changes_only_measurement_result(self) -> None:
+    def test_plan_and_statistics_are_pre_job_while_support_is_execution_bound(self) -> None:
         plan_bytes = canonical_bytes(dict(self.replay_plan.plan))
         self.assertNotIn(JOB_ID.encode("ascii"), plan_bytes)
         self.assertNotIn(JOB_HASH.encode("ascii"), plan_bytes)
@@ -344,7 +399,14 @@ class ForestReplayTests(unittest.TestCase):
             self.bundle.validation_artifacts.plan_hash,
             alternate.validation_artifacts.plan_hash,
         )
-        self.assertEqual(self.bundle.support_manifest(), alternate.support_manifest())
+        self.assertEqual(
+            self.bundle.statistical_manifest(), alternate.statistical_manifest()
+        )
+        self.assertNotEqual(
+            self.bundle.support_manifest(), alternate.support_manifest()
+        )
+        self.assertEqual(self.bundle.support_manifest()["job_id"], JOB_ID)
+        self.assertEqual(self.bundle.support_manifest()["job_hash"], JOB_HASH)
         self.assertNotEqual(
             self.bundle.validation_artifacts.measurement_hash,
             alternate.validation_artifacts.measurement_hash,
@@ -356,6 +418,13 @@ class ForestReplayTests(unittest.TestCase):
 
     def test_support_binds_common_parents_statistics_and_post_selection_limits(self) -> None:
         support = self.bundle.support_manifest()
+        self.assertFalse(support["economic_composite"])
+        self.assertEqual(support["pnl_attribution"], P0_PNL_ATTRIBUTION)
+        self.assertEqual(support["calendar"]["date_count"], 42)
+        self.assertEqual(
+            support["calendar"]["missing_day_policy"],
+            "exact_shared_calendar_no_implicit_zero_fill",
+        )
         self.assertEqual(
             support["historical_search_context"], HISTORICAL_CONTEXT.manifest()
         )
@@ -379,6 +448,10 @@ class ForestReplayTests(unittest.TestCase):
                 parent["sha256"],
             )
         self.assertEqual(len(support["post_selection_diagnostics"]), 6)
+        self.assertEqual(len(support["members"]), 6)
+        self.assertTrue(
+            all(member["descriptive_metrics"] for member in support["members"])
+        )
         for diagnostic in support["post_selection_diagnostics"]:
             self.assertEqual(
                 diagnostic["decisive_value_kind"],
@@ -393,6 +466,19 @@ class ForestReplayTests(unittest.TestCase):
             support["claim_limits"],
         )
 
+    def test_statistical_pvalue_must_recompute_from_durable_exceedance_count(self) -> None:
+        statistical = deepcopy(self.bundle.statistical_manifest())
+        raw = statistical["hypotheses"][0]["block_results"][0]["raw"]
+        point = raw["point_pvalue_ppm"]
+        upper = raw["monte_carlo_upper_pvalue_ppm"]
+        raw["point_pvalue_ppm"] = point + 1 if point < upper else point - 1
+
+        with self.assertRaisesRegex(
+            ScientificEvidenceProofError,
+            "do not recompute from exceedance counts",
+        ):
+            _validate_statistical_manifest(statistical)
+
     def test_composite_claims_never_impersonate_selection_correction(self) -> None:
         artifacts = self.bundle.validation_artifacts
         self.assertEqual(tuple(artifacts.plan["planned_claims"]), P0_REPLAY_CLAIMS)
@@ -400,6 +486,10 @@ class ForestReplayTests(unittest.TestCase):
             tuple(artifacts.plan["evidence_modes"]), P0_REPLAY_EVIDENCE_MODES
         )
         self.assertFalse(artifacts.plan["candidate_eligible_on_pass"])
+        self.assertEqual(P0_REPLAY_EVIDENCE_MODES, (AUDIT_INTEGRITY_MODE,))
+        self.assertTrue(
+            set(P0_REPLAY_EVIDENCE_MODES).isdisjoint(TERMINAL_EVIDENCE_MODES)
+        )
         self.assertEqual(
             artifacts.plan["adjudication_profile"]["promotion_criterion_ids"], []
         )
@@ -421,7 +511,7 @@ class ForestReplayTests(unittest.TestCase):
         ):
             self.assertNotIn(prohibited, surface)
 
-    def test_one_composite_artifact_triplet_is_consumable_by_validator_v2(self) -> None:
+    def test_one_composite_artifact_bundle_is_consumable_by_validator_v2(self) -> None:
         artifacts = self.bundle.validation_artifacts
         classes = self.bundle.output_classes()
         self.assertEqual(classes, self.replay_plan.output_classes())
@@ -437,6 +527,8 @@ class ForestReplayTests(unittest.TestCase):
                 P0_COMPOSITE_PLAN_OUTPUT,
                 P0_COMPOSITE_MEASUREMENT_OUTPUT,
                 P0_COMPOSITE_RESULT_OUTPUT,
+                P0_COMPOSITE_SUPPORT_OUTPUT,
+                P0_STATISTICAL_OUTPUT,
             },
         )
         validator = ScientificAdjudicationValidatorV2()
@@ -487,6 +579,59 @@ class ForestReplayTests(unittest.TestCase):
             P0_COMPOSITE_RESULT_OUTPUT,
         )
 
+    def test_measurement_self_report_cannot_override_durable_member_proofs(self) -> None:
+        artifacts = self.bundle.validation_artifacts
+        payloads = dict(self.bundle.artifact_bytes())
+        measurement = deepcopy(artifacts.measurement)
+        measurement["metrics"]["audit_reanalysis_integrity"][
+            "replayed_member_count"
+        ] = 5
+        measurement_content = canonical_bytes(measurement)
+        measurement_hash = sha256(measurement_content).hexdigest()
+        result = deepcopy(artifacts.result)
+        for observation in result["observations"]:
+            observation["measurement_artifact_hash"] = measurement_hash
+        payloads[P0_COMPOSITE_MEASUREMENT_OUTPUT] = measurement_content
+        payloads[P0_COMPOSITE_RESULT_OUTPUT] = canonical_bytes(result)
+
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            declared: list[ValidationArtifact] = []
+            for output_name, storage_class in self.bundle.output_classes().items():
+                if storage_class != "durable_evidence":
+                    continue
+                path = root / output_name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(payloads[output_name])
+                declared.append(
+                    ValidationArtifact(
+                        output_name=output_name,
+                        sha256=sha256(payloads[output_name]).hexdigest(),
+                        _source=path,
+                    )
+                )
+            request = EvidenceValidationRequest(
+                domain="scientific",
+                validator_id=SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
+                validation_plan_hash=artifacts.plan_hash,
+                job_id=JOB_ID,
+                job_hash=JOB_HASH,
+                mission_id=MISSION_ID,
+                evidence_subject={
+                    "kind": "Executable",
+                    "id": self.bundle.executable_id,
+                },
+                binding=artifacts.binding(
+                    validator_id=SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID
+                ),
+                result_manifest=result,
+                artifacts=tuple(declared),
+            )
+            with self.assertRaisesRegex(
+                EvidenceValidationError, "proof validation failed"
+            ):
+                ScientificAdjudicationValidatorV2().validate(request)
+
     def test_family_order_and_current_implementation_are_fail_closed(self) -> None:
         with self.assertRaisesRegex(ForestReplayError, "exact P0 inventory"):
             build_p0_forest_bundle(
@@ -503,6 +648,14 @@ class ForestReplayTests(unittest.TestCase):
         self.assertEqual(
             dependency_hashes,
             {sha256(path.read_bytes()).hexdigest() for path in forest_replay_dependency_paths()},
+        )
+        self.assertEqual(
+            implementation["dependency_artifact_hashes"],
+            sorted(dependency_hashes),
+        )
+        self.assertEqual(
+            implementation["implementation_bundle_schema"],
+            "component_implementation_bundle.v1",
         )
 
     def test_materialization_is_idempotent_and_drift_closed(self) -> None:
@@ -521,8 +674,80 @@ class ForestReplayTests(unittest.TestCase):
         paths = forest_replay_dependency_paths()
         self.assertEqual(len(paths), len(set(paths)))
         self.assertTrue(all(path.is_file() for path in paths))
+        relative_paths = {
+            path.relative_to(REPOSITORY_ROOT / "src").as_posix()
+            for path in paths
+        }
+        self.assertTrue(
+            {
+                "axiom_rift/operations/validation.py",
+                "axiom_rift/research/analog_state_family.py",
+                "axiom_rift/research/analog_state_trace.py",
+                "axiom_rift/research/audit_integrity_proof.py",
+                "axiom_rift/research/equity_premium_trade_chassis.py",
+                "axiom_rift/research/implementation_closure.py",
+                "axiom_rift/research/scientific_trace.py",
+                (
+                    "axiom_rift/research/"
+                    "session_dense_positive_sleeve_chassis.py"
+                ),
+            }.issubset(relative_paths)
+        )
+        self.assertTrue(
+            {
+                "axiom_rift/research/regime_direction_router_discovery.py",
+                "axiom_rift/research/three_way_regime_router_discovery.py",
+            }.isdisjoint(relative_paths)
+        )
         canonical_bytes(self.bundle.surface_manifest()).decode("ascii")
         canonical_bytes(self.bundle.support_manifest()).decode("ascii")
+
+    def test_transitive_source_mutation_reidentifies_forest_bundle(self) -> None:
+        original_manifest = forest_replay_implementation_manifest()
+        original_identity = forest_replay_implementation_identity()
+        target = next(
+            path
+            for path in forest_replay_dependency_paths()
+            if path.name == "analog_state_family.py"
+        )
+        original_read_bytes = Path.read_bytes
+        original_content = original_read_bytes(target)
+        original_hash = sha256(original_content).hexdigest()
+        mutated_hash = sha256(original_content + b"\n").hexdigest()
+
+        def one_byte_mutation(path: Path) -> bytes:
+            content = original_read_bytes(path)
+            if path.resolve() == target.resolve():
+                return content + b"\n"
+            return content
+
+        with patch.object(Path, "read_bytes", one_byte_mutation):
+            mutated_manifest = forest_replay_implementation_manifest()
+            mutated_identity = forest_replay_implementation_identity()
+
+        original_hashes = set(
+            original_manifest["dependency_artifact_hashes"]
+        )
+        mutated_hashes = set(mutated_manifest["dependency_artifact_hashes"])
+        self.assertIn(original_hash, original_hashes)
+        self.assertNotIn(original_hash, mutated_hashes)
+        self.assertIn(mutated_hash, mutated_hashes)
+        self.assertEqual(
+            original_hashes - {original_hash},
+            mutated_hashes - {mutated_hash},
+        )
+        self.assertNotEqual(original_identity, mutated_identity)
+
+    def test_implementation_artifact_is_the_component_identity_preimage(self) -> None:
+        expected = forest_replay_implementation_identity().rsplit(":", 1)[-1]
+        artifact = forest_replay_implementation_artifact()
+        self.assertEqual(
+            sha256(artifact).hexdigest(),
+            expected,
+        )
+        domain, payload = parse_canonical_identity_bytes(artifact)
+        self.assertEqual(domain, "forest-replay-implementation")
+        self.assertEqual(payload, self.bundle.support_manifest()["implementation"])
 
     def test_writer_declaration_paths_and_implementation_evidence_are_valid(self) -> None:
         repository_root = Path(__file__).resolve().parents[2]
@@ -536,21 +761,15 @@ class ForestReplayTests(unittest.TestCase):
                 engineering_fixture=True,
                 foundation_root=repository_root,
             )
-            source_hashes = sorted(
-                {
-                    writer.evidence.finalize(path.read_bytes()).sha256
-                    for path in forest_replay_dependency_paths()
-                }
-            )
-            implementation = writer.evidence.finalize(
-                canonical_bytes(
-                    {
-                        "artifact_hashes": source_hashes,
-                        "callable_identity": callable_identity,
-                        "protocol": "python.source.p0_composite_reanalysis.v1",
-                        "schema": "job_implementation_evidence.v1",
-                    }
+            implementation_identity, source_hashes = (
+                _finalize_forest_job_implementation(
+                    writer,
+                    callable_identity=callable_identity,
                 )
+            )
+            self.assertIn(
+                forest_replay_implementation_identity().rsplit(":", 1)[-1],
+                source_hashes,
             )
             spec = {
                 "budget": {"compute_seconds": 600, "wall_seconds": 900},
@@ -560,7 +779,7 @@ class ForestReplayTests(unittest.TestCase):
                     "kind": "Executable",
                 },
                 "expected_outputs": list(self.replay_plan.expected_outputs()),
-                "implementation_identity": implementation.sha256,
+                "implementation_identity": implementation_identity,
                 "input_hashes": list(self.replay_plan.job_input_hashes()),
                 "log_path": "local/jobs/p0-forest/job.log",
                 "output_classes": self.replay_plan.output_classes(),
@@ -583,6 +802,9 @@ class ForestReplayTests(unittest.TestCase):
                 permit_authority=PermitAuthority(b"q" * 32),
                 engineering_fixture=False,
                 foundation_root=repository_root,
+                study_close_guard_capability=(
+                    StudyCloseGuardCapability.ISOLATED_ENGINEERING_FIXTURE
+                ),
                 validation_registry=EvidenceValidatorRegistry(
                     (ScientificAdjudicationValidatorV2(),)
                 ),
@@ -614,7 +836,7 @@ class ForestReplayTests(unittest.TestCase):
             )
         self.assertTrue(validated.scientific_eligible)
         self.assertFalse(validated.candidate_eligible)
-        self.assertEqual(trace["declared_artifact_count"], 3)
+        self.assertEqual(trace["declared_artifact_count"], 5)
 
     def test_full_writer_lifecycle_uses_baseline_trial_and_storage_classes(self) -> None:
         repository_root = Path(__file__).resolve().parents[2]
@@ -690,6 +912,9 @@ class ForestReplayTests(unittest.TestCase):
                 clock=lambda: FIXED_NOW,
                 engineering_fixture=False,
                 foundation_root=repository_root,
+                study_close_guard_capability=(
+                    StudyCloseGuardCapability.ISOLATED_ENGINEERING_FIXTURE
+                ),
                 validation_registry=EvidenceValidatorRegistry(
                     (ScientificAdjudicationValidatorV2(),)
                 ),
@@ -773,6 +998,27 @@ class ForestReplayTests(unittest.TestCase):
             writer.record_portfolio_snapshot(
                 snapshot=snapshot,
                 operation_id="p0-forest-life-portfolio",
+            )
+            protocol_audit = writer.evidence.finalize(
+                canonical_bytes(
+                    {
+                        "finding": "validator v2 proof protocol is available",
+                        "schema": "research_protocol_audit.v1",
+                    }
+                )
+            )
+            protocol_control = writer.read_control()
+            assert protocol_control is not None
+            writer.activate_research_protocol(
+                activation=ResearchProtocolActivation(
+                    protocol=ResearchProtocol.SCIENTIFIC_ADJUDICATION_V2,
+                    validator_id=SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
+                    authority_manifest_digest=protocol_control["authority"][
+                        "manifest_digest"
+                    ],
+                    audit_artifact_hash=protocol_audit.sha256,
+                ),
+                operation_id="p0-forest-life-protocol-v2",
             )
             decision = PortfolioDecision(
                 decision_id="DEC-P0-FOREST-LIFECYCLE",
@@ -911,20 +1157,10 @@ class ForestReplayTests(unittest.TestCase):
             callable_identity = (
                 "axiom_rift.research.forest_replay.compute_p0_forest_replay"
             )
-            source_hashes = sorted(
-                {
-                    writer.evidence.finalize(path.read_bytes()).sha256
-                    for path in forest_replay_dependency_paths()
-                }
-            )
-            implementation = writer.evidence.finalize(
-                canonical_bytes(
-                    {
-                        "artifact_hashes": source_hashes,
-                        "callable_identity": callable_identity,
-                        "protocol": "python.source.p0_composite_reanalysis.v1",
-                        "schema": "job_implementation_evidence.v1",
-                    }
+            implementation_identity, source_hashes = (
+                _finalize_forest_job_implementation(
+                    writer,
+                    callable_identity=callable_identity,
                 )
             )
             spec = {
@@ -935,7 +1171,7 @@ class ForestReplayTests(unittest.TestCase):
                     "kind": "Executable",
                 },
                 "expected_outputs": list(replay_plan.expected_outputs()),
-                "implementation_identity": implementation.sha256,
+                "implementation_identity": implementation_identity,
                 "input_hashes": list(replay_plan.job_input_hashes()),
                 "log_path": "local/jobs/p0-forest/lifecycle.log",
                 "output_classes": replay_plan.output_classes(),
@@ -1041,7 +1277,7 @@ class ForestReplayTests(unittest.TestCase):
                 completion.payload["scientific"]["validation_trace"][
                     "declared_artifact_count"
                 ],
-                3,
+                5,
             )
 
 

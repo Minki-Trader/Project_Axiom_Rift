@@ -24,12 +24,12 @@ from axiom_rift.research.volatility_clock_label_discovery import deterministic_s
 
 
 _THIS_FILE = Path(__file__).resolve()
-_JOB_IMPLEMENTATION_SHA256 = "fe6485e811126675d7b10518c9e5a026b56efde1e8d2e78242167c945b58c7db"
 
 
 def high_vol_target_reversal_discovery_implementation_sha256() -> str:
-    # Preserve the declared running Job identity across the registered Repair.
-    return _JOB_IMPLEMENTATION_SHA256
+    """Bind prospective work to the current implementation bytes."""
+
+    return sha256(_THIS_FILE.read_bytes()).hexdigest()
 
 
 def _threshold(score: np.ndarray, mask: np.ndarray, quantile_bp: int) -> float:
@@ -165,5 +165,4 @@ def project_high_vol_target_reversal_evaluation(surface: Mapping[str, Any], *, j
 
 
 __all__ = ["compute_registered_high_vol_target_reversal_surface", "project_high_vol_target_reversal_evaluation", "high_vol_target_reversal_discovery_implementation_sha256"]
-
 

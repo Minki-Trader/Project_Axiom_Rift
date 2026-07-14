@@ -105,6 +105,54 @@ class EvidenceValidationRequest:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class ExternalChangeValidationRequest:
+    """A non-Job validator request at an exact blocked-Mission boundary."""
+
+    validator_id: str
+    validation_plan_hash: str
+    boundary_id: str
+    condition_id: str
+    mission_id: str
+    evidence_subject: Mapping[str, str]
+    binding: Mapping[str, Any]
+    result_manifest: Mapping[str, Any]
+    artifacts: tuple[ValidationArtifact, ...]
+    engineering_fixture: bool = False
+    domain: str = field(default="external", init=False)
+
+    def __post_init__(self) -> None:
+        validator_digest = _ascii(
+            "validator_id", self.validator_id
+        ).removeprefix("validator:")
+        _digest("validator identity", validator_digest)
+        _digest("validation_plan_hash", self.validation_plan_hash)
+        _digest("blocked Mission boundary", self.boundary_id)
+        condition_identity = _ascii(
+            "external resume condition", self.condition_id
+        )
+        if not condition_identity.startswith("external-resume-condition:"):
+            raise EvidenceValidationError(
+                "external resume condition identity prefix is invalid"
+            )
+        condition_digest = condition_identity.removeprefix(
+            "external-resume-condition:"
+        )
+        _digest("external resume condition identity", condition_digest)
+        _ascii("mission_id", self.mission_id)
+        if not self.artifacts:
+            raise EvidenceValidationError(
+                "external change validator requires durable artifacts"
+            )
+        object.__setattr__(
+            self, "evidence_subject", _freeze_canonical(self.evidence_subject)
+        )
+        object.__setattr__(self, "binding", _freeze_canonical(self.binding))
+        object.__setattr__(
+            self, "result_manifest", _freeze_canonical(self.result_manifest)
+        )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class ValidatedEvidence:
     verdict: str
     claims: tuple[str, ...] = ()
@@ -157,7 +205,10 @@ class EvidenceValidator(Protocol):
     implementation_path: Path
     protocol: str
 
-    def validate(self, request: EvidenceValidationRequest) -> ValidatedEvidence: ...
+    def validate(
+        self,
+        request: EvidenceValidationRequest | ExternalChangeValidationRequest,
+    ) -> ValidatedEvidence: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -282,7 +333,8 @@ class EvidenceValidatorRegistry:
             )
 
     def validate(
-        self, request: EvidenceValidationRequest
+        self,
+        request: EvidenceValidationRequest | ExternalChangeValidationRequest,
     ) -> tuple[ValidatedEvidence, ValidationTrace]:
         validator = self._validators.get(request.validator_id)
         if validator is None or request.domain not in validator.domains:
@@ -465,6 +517,7 @@ __all__ = [
     "ENGINEERING_RUNTIME_PLAN_HASH",
     "ENGINEERING_VALIDATOR_ID",
     "EngineeringFixtureValidator",
+    "ExternalChangeValidationRequest",
     "EvidenceValidationError",
     "EvidenceValidationRequest",
     "EvidenceValidator",

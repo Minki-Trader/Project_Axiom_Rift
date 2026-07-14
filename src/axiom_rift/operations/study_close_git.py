@@ -16,11 +16,40 @@ from typing import Any, Mapping, Sequence
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.operations.study_close_checkpoint import (
     CHECKPOINT_PATH,
+    CHECKPOINT_SCHEMA,
     EMPTY_CLOSE_CHAIN_DIGEST,
+    CheckpointPathBlob,
+    HistoricalKpiBackfillProof,
     JournalDeliveryCursor,
+    LEGACY_CHECKPOINT_SCHEMA,
     StudyCloseCheckpointError,
     StudyCloseDeliveryCheckpoint,
     advance_close_chain,
+    validate_checkpoint_transition,
+    validate_no_close_suffix,
+)
+from axiom_rift.operations.study_close_backfill import (
+    HistoricalBackfillProofError,
+    backfill_trailer_commits,
+    historical_backfill_event,
+    historical_backfill_sources,
+)
+from axiom_rift.operations.study_close_backfill_git import (
+    BackfillCommitMetadata,
+    BackfillCommitSnapshot,
+    authenticate_git_backfill_proof,
+    build_git_authenticated_backfill_proof,
+)
+from axiom_rift.operations.study_close_delivery import (
+    StudyCloseCheckpointPlan,
+    StudyCloseDeliveryPolicyError,
+    StudyCloseGuardCapability,
+    canonical_milestone_paths,
+    exact_staging_paths,
+    project_checkpoint_maintenance,
+    project_checkpoint_v2_upgrade,
+    prospective_closes,
+    validate_delivery_checkpoint,
 )
 from axiom_rift.storage.journal import (
     DurableJournal,
@@ -36,6 +65,7 @@ from axiom_rift.storage.study_kpi import StudyKpiProjectionRow, render_study_kpi
 
 CONTROL_PATH = "state/control.json"
 KPI_PATH = "records/STUDY_KPI.md"
+REPAIR_MANIFEST_PATH = "records/STUDY_CLOSE_DELIVERY_REPAIR.json"
 BASE_REQUIRED_PATHS = (CONTROL_PATH, KPI_PATH)
 # Kept as the exact legacy checkpoint surface for compatibility callers.
 REQUIRED_PATHS = (CONTROL_PATH, LEGACY_JOURNAL_RELATIVE_PATH, KPI_PATH)
@@ -52,6 +82,11 @@ _HEX = frozenset("0123456789abcdef")
 _CHECKPOINT_INIT_TRAILER = "Axiom-Study-Close-Checkpoint"
 _MAX_TRACKED_SUFFIX_BYTES = 2 * DurableJournal.MAX_SEGMENT_BYTES
 _MAX_TRACKED_SUFFIX_EVENTS = 2 * DurableJournal.MAX_SEGMENT_EVENTS
+_ORIGIN_ATTEMPT_RELATIVE_PATH = "local/study-close-origin-attempt.json"
+_ORIGIN_ATTEMPT_SCHEMA = "study_close_origin_attempt.v1"
+_ORIGIN_REMOTE = "origin"
+_ORIGIN_REMOTE_REF = "origin/main"
+_ORIGIN_PUSH_TIMEOUT_SECONDS = 30
 
 
 class StudyCloseDeliveryError(RuntimeError):
@@ -88,13 +123,77 @@ class _JournalCursor:
             "previous_event_id": self.previous_event_id,
             "sequence": self.sequence,
         }
+def _require_git_repository(
+    root: Path,
+    *,
+    capability: StudyCloseGuardCapability | None = None,
+) -> bool:
+    if capability is StudyCloseGuardCapability.ISOLATED_ENGINEERING_FIXTURE:
+        try:
+            _git(root, "rev-parse", "--show-toplevel")
+        except (OSError, subprocess.CalledProcessError):
+            return False
+        raise StudyCloseDeliveryError(
+            "engineering-fixture delivery capability cannot target a Git repository"
+        )
+    if capability is not None:
+        raise StudyCloseDeliveryError("Study-close guard capability is invalid")
+    _verified_git_repository_root(str(root))
+    return True
 
 
-def require_study_close_guard_ready(repository_root: str | Path) -> None:
+@lru_cache(maxsize=16)
+def _verified_git_repository_root(root_value: str) -> None:
+    root = Path(root_value)
+    try:
+        top = Path(str(_git(root, "rev-parse", "--show-toplevel"))).resolve()
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise StudyCloseDeliveryError(
+            "real scientific delivery requires a verifiable Git repository"
+        ) from exc
+    if top != root:
+        raise StudyCloseDeliveryError(
+            "Study-close delivery root differs from the Git repository root"
+        )
+
+
+def require_local_main(repository_root: str | Path) -> None:
+    """Require the delivery operation to run on the checked-out main branch."""
+
+    root = Path(repository_root).resolve()
+    _require_git_repository(root)
+    try:
+        branch = str(_git(root, "symbolic-ref", "--short", "HEAD"))
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise StudyCloseDeliveryError(
+            "Study-close delivery cannot verify the local main branch"
+        ) from exc
+    if branch != "main":
+        raise StudyCloseDeliveryError(
+            "Study-close delivery must run on checked-out local main"
+        )
+    try:
+        head = str(_git(root, "rev-parse", "HEAD"))
+        main = str(_git(root, "rev-parse", "main"))
+    except (OSError, subprocess.CalledProcessError) as exc:
+        raise StudyCloseDeliveryError(
+            "Study-close delivery cannot verify the local main branch"
+        ) from exc
+    if head != main:
+        raise StudyCloseDeliveryError(
+            "Study-close delivery must run on checked-out local main"
+        )
+
+
+def require_study_close_guard_ready(
+    repository_root: str | Path,
+    *,
+    capability: StudyCloseGuardCapability | None = None,
+) -> None:
     """Fail closed unless the tracked Study-close commit trigger is active."""
 
     root = Path(repository_root).resolve()
-    if not (root / ".git").exists():
+    if not _require_git_repository(root, capability=capability):
         return
     try:
         hooks_path = str(_git(root, "config", "--get", "core.hooksPath"))
@@ -127,6 +226,41 @@ def _git(root: Path, *arguments: str, binary: bool = False) -> bytes | str:
     return result.stdout if binary else result.stdout.decode("ascii").strip()
 
 
+@dataclass(frozen=True, slots=True)
+class _OriginGitResult:
+    returncode: int
+    stdout: bytes
+    stderr: bytes
+
+
+def _run_origin_git(root: Path, *arguments: str) -> _OriginGitResult:
+    environment = os.environ.copy()
+    environment["GIT_TERMINAL_PROMPT"] = "0"
+    environment["GCM_INTERACTIVE"] = "Never"
+    try:
+        completed = subprocess.run(
+            ("git", *arguments),
+            cwd=root,
+            check=False,
+            capture_output=True,
+            timeout=_ORIGIN_PUSH_TIMEOUT_SECONDS,
+            env=environment,
+        )
+        return _OriginGitResult(
+            returncode=completed.returncode,
+            stdout=completed.stdout,
+            stderr=completed.stderr,
+        )
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout if isinstance(exc.stdout, bytes) else b""
+        stderr = exc.stderr if isinstance(exc.stderr, bytes) else b""
+        return _OriginGitResult(
+            returncode=124,
+            stdout=stdout,
+            stderr=stderr + b"bounded Git delivery timeout",
+        )
+
+
 def _ancestor(root: Path, commit: str, reference: str) -> bool:
     return (
         subprocess.run(
@@ -137,6 +271,217 @@ def _ancestor(root: Path, commit: str, reference: str) -> bool:
         ).returncode
         == 0
     )
+
+
+def _origin_attempt_path(root: Path) -> Path:
+    return root / _ORIGIN_ATTEMPT_RELATIVE_PATH
+
+
+def _origin_ref_commit(root: Path) -> str | None:
+    result = _run_origin_git(root, "rev-parse", "--verify", _ORIGIN_REMOTE_REF)
+    if result.returncode != 0:
+        return None
+    try:
+        value = result.stdout.decode("ascii").strip()
+    except UnicodeDecodeError:
+        return None
+    if len(value) not in {40, 64} or any(
+        character not in "0123456789abcdef" for character in value
+    ):
+        return None
+    return value
+
+
+def _origin_attempt_body(
+    *,
+    checkpoint_digest: str,
+    target_commit: str,
+    attempt_main_head: str,
+    fetch: _OriginGitResult,
+    push: _OriginGitResult,
+    observed_remote_before: str | None,
+    observed_remote_after: str | None,
+    outcome: str,
+) -> dict[str, Any]:
+    return {
+        "attempt_main_head": attempt_main_head,
+        "checkpoint_digest": checkpoint_digest,
+        "fetch_returncode": fetch.returncode,
+        "fetch_stderr_sha256": sha256(fetch.stderr).hexdigest(),
+        "fetch_stdout_sha256": sha256(fetch.stdout).hexdigest(),
+        "observed_remote_after": observed_remote_after,
+        "observed_remote_before": observed_remote_before,
+        "outcome": outcome,
+        "push_returncode": push.returncode,
+        "push_stderr_sha256": sha256(push.stderr).hexdigest(),
+        "push_stdout_sha256": sha256(push.stdout).hexdigest(),
+        "remote_ref": _ORIGIN_REMOTE_REF,
+        "schema": _ORIGIN_ATTEMPT_SCHEMA,
+        "target_commit": target_commit,
+    }
+
+
+def _write_origin_attempt(root: Path, body: Mapping[str, Any]) -> None:
+    payload = {
+        **body,
+        "receipt_sha256": sha256(canonical_bytes(body)).hexdigest(),
+    }
+    path = _origin_attempt_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    content = canonical_bytes(payload) + b"\n"
+    try:
+        with temporary.open("wb", buffering=0) as handle:
+            if handle.write(content) != len(content):
+                raise OSError("short origin-attempt receipt write")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, path)
+    finally:
+        try:
+            temporary.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _matching_origin_attempt(
+    root: Path,
+    *,
+    checkpoint_digest: str,
+    target_commit: str,
+    attempt_main_head: str,
+) -> bool:
+    try:
+        content = _origin_attempt_path(root).read_bytes()
+        if not content.endswith(b"\n") or content.count(b"\n") != 1:
+            return False
+        value = parse_canonical(content[:-1])
+    except (OSError, TypeError, ValueError):
+        return False
+    expected = {
+        "attempt_main_head",
+        "checkpoint_digest",
+        "fetch_returncode",
+        "fetch_stderr_sha256",
+        "fetch_stdout_sha256",
+        "observed_remote_after",
+        "observed_remote_before",
+        "outcome",
+        "push_returncode",
+        "push_stderr_sha256",
+        "push_stdout_sha256",
+        "receipt_sha256",
+        "remote_ref",
+        "schema",
+        "target_commit",
+    }
+    if not isinstance(value, dict) or set(value) != expected:
+        return False
+    receipt = value.pop("receipt_sha256")
+    if (
+        value.get("schema") != _ORIGIN_ATTEMPT_SCHEMA
+        or value.get("remote_ref") != _ORIGIN_REMOTE_REF
+        or value.get("checkpoint_digest") != checkpoint_digest
+        or value.get("target_commit") != target_commit
+        or value.get("attempt_main_head") != attempt_main_head
+        or value.get("outcome") not in {"delivered", "delivery_debt"}
+        or type(value.get("push_returncode")) is not int
+        or type(value.get("fetch_returncode")) is not int
+    ):
+        return False
+    for key in (
+        "fetch_stderr_sha256",
+        "fetch_stdout_sha256",
+        "push_stderr_sha256",
+        "push_stdout_sha256",
+    ):
+        try:
+            _digest(value.get(key), f"origin receipt {key}")
+        except _AuditCacheStale:
+            return False
+    return (
+        type(receipt) is str
+        and receipt == sha256(canonical_bytes(value)).hexdigest()
+    )
+
+
+@lru_cache(maxsize=32)
+def _ensure_origin_delivery_observed(
+    root_value: str,
+    main_head: str,
+    checkpoint_digest: str,
+    target_commit: str,
+) -> None:
+    """Refresh origin and make one bounded non-force push attempt per main head."""
+
+    root = Path(root_value)
+    if _matching_origin_attempt(
+        root,
+        checkpoint_digest=checkpoint_digest,
+        target_commit=target_commit,
+        attempt_main_head=main_head,
+    ):
+        return
+    fetch = _run_origin_git(
+        root,
+        "fetch",
+        "--no-tags",
+        _ORIGIN_REMOTE,
+        "main:refs/remotes/origin/main",
+    )
+    observed_before = _origin_ref_commit(root)
+    if (
+        fetch.returncode == 0
+        and observed_before is not None
+        and _ancestor(root, target_commit, _ORIGIN_REMOTE_REF)
+    ):
+        observed = _OriginGitResult(returncode=0, stdout=b"", stderr=b"")
+        try:
+            _write_origin_attempt(
+                root,
+                _origin_attempt_body(
+                    checkpoint_digest=checkpoint_digest,
+                    target_commit=target_commit,
+                    attempt_main_head=main_head,
+                    fetch=fetch,
+                    push=observed,
+                    observed_remote_before=observed_before,
+                    observed_remote_after=observed_before,
+                    outcome="delivered",
+                ),
+            )
+        except OSError:
+            pass
+        return
+    push = _run_origin_git(
+        root,
+        "push",
+        "--porcelain",
+        _ORIGIN_REMOTE,
+        "main:main",
+    )
+    observed_after = _origin_ref_commit(root)
+    delivered = (
+        push.returncode == 0
+        and observed_after is not None
+        and _ancestor(root, target_commit, _ORIGIN_REMOTE_REF)
+    )
+    body = _origin_attempt_body(
+        checkpoint_digest=checkpoint_digest,
+        target_commit=target_commit,
+        attempt_main_head=main_head,
+        fetch=fetch,
+        push=push,
+        observed_remote_before=observed_before,
+        observed_remote_after=observed_after,
+        outcome="delivered" if delivered else "delivery_debt",
+    )
+    try:
+        _write_origin_attempt(root, body)
+    except OSError:
+        # The bounded attempt already occurred. A later process safely retries
+        # if the non-authoritative local receipt could not be retained.
+        pass
 
 
 def _snapshot(root: Path, commit: str, path: str) -> bytes:
@@ -154,6 +499,18 @@ def _optional_git_file(root: Path, specifier: str, path: str) -> bytes | None:
     return value
 
 
+def _optional_worktree_file(root: Path, path: str) -> bytes | None:
+    candidate = root / Path(path)
+    try:
+        return candidate.read_bytes()
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        raise StudyCloseDeliveryError(
+            f"checkpoint authority input is unavailable: {path}"
+        ) from exc
+
+
 def _journal_paths_from_git(root: Path, *arguments: str) -> tuple[str, ...]:
     try:
         output = str(_git(root, *arguments))
@@ -162,11 +519,7 @@ def _journal_paths_from_git(root: Path, *arguments: str) -> tuple[str, ...]:
     return tuple(path for path in output.splitlines() if path)
 
 
-def _worktree_journal(root: Path) -> JournalSnapshot:
-    def load(path: str) -> bytes | None:
-        candidate = root / Path(path)
-        return candidate.read_bytes() if candidate.is_file() else None
-
+def _worktree_journal_paths(root: Path) -> tuple[str, ...]:
     paths: list[str] = []
     legacy = root / LEGACY_JOURNAL_RELATIVE_PATH
     if legacy.is_file():
@@ -178,6 +531,72 @@ def _worktree_journal(root: Path) -> JournalSnapshot:
             for candidate in directory.iterdir()
             if candidate.is_file() and not candidate.name.startswith(".")
         )
+    return tuple(sorted(paths))
+
+
+def _require_clean_checkpoint_authority_inputs(
+    root: Path,
+    *,
+    allow_staged_checkpoint: bool,
+) -> None:
+    """Bind full-maintenance input bytes to main, index, and worktree."""
+
+    fixed = (CONTROL_PATH, KPI_PATH, REPAIR_MANIFEST_PATH)
+    main_journal = _journal_paths_from_git(
+        root,
+        "ls-tree",
+        "-r",
+        "--name-only",
+        "main",
+        "--",
+        LEGACY_JOURNAL_RELATIVE_PATH,
+        JOURNAL_DIRECTORY_RELATIVE_PATH,
+    )
+    index_journal = _journal_paths_from_git(
+        root,
+        "ls-files",
+        "--cached",
+        "--",
+        LEGACY_JOURNAL_RELATIVE_PATH,
+        JOURNAL_DIRECTORY_RELATIVE_PATH,
+    )
+    worktree_journal = _worktree_journal_paths(root)
+    if not (set(main_journal) == set(index_journal) == set(worktree_journal)):
+        raise StudyCloseDeliveryError(
+            "checkpoint full maintenance requires identical main, index, and "
+            "worktree Journal path sets"
+        )
+    for path in (*fixed, *sorted(set(main_journal))):
+        main_content = _optional_git_file(root, "main:", path)
+        index_content = _optional_git_file(root, ":", path)
+        worktree_content = _optional_worktree_file(root, path)
+        if not (main_content == index_content == worktree_content):
+            raise StudyCloseDeliveryError(
+                "checkpoint full maintenance requires identical main, index, "
+                f"and worktree authority bytes: {path}"
+            )
+    main_checkpoint = _optional_git_file(root, "main:", CHECKPOINT_PATH)
+    index_checkpoint = _optional_git_file(root, ":", CHECKPOINT_PATH)
+    worktree_checkpoint = _optional_worktree_file(root, CHECKPOINT_PATH)
+    if allow_staged_checkpoint:
+        if index_checkpoint is None or index_checkpoint != worktree_checkpoint:
+            raise StudyCloseDeliveryError(
+                "staged checkpoint bytes differ from the worktree"
+            )
+    elif not (
+        main_checkpoint == index_checkpoint == worktree_checkpoint
+    ):
+        raise StudyCloseDeliveryError(
+            "checkpoint full maintenance requires a clean tracked checkpoint"
+        )
+
+
+def _worktree_journal(root: Path) -> JournalSnapshot:
+    def load(path: str) -> bytes | None:
+        candidate = root / Path(path)
+        return candidate.read_bytes() if candidate.is_file() else None
+
+    paths = list(_worktree_journal_paths(root))
     return read_journal_snapshot(load, listed_paths=paths)
 
 
@@ -642,7 +1061,8 @@ def _scan_tracked_journal_suffix(
         total_bytes += len(content)
         if total_bytes > _MAX_TRACKED_SUFFIX_BYTES:
             raise _AuditCacheStale(
-                "Journal suffix exceeds the tracked maintenance bound"
+                "Journal suffix exceeds the tracked maintenance bound; run the "
+                "explicit no-close checkpoint maintenance action"
             )
         pieces.append((path, next_offset, content))
         next_offset = end
@@ -679,7 +1099,8 @@ def _scan_tracked_journal_suffix(
             events.append(event)
             if len(events) > _MAX_TRACKED_SUFFIX_EVENTS:
                 raise _AuditCacheStale(
-                    "Journal suffix exceeds the tracked event bound"
+                    "Journal suffix exceeds the tracked event bound; run the "
+                    "explicit no-close checkpoint maintenance action"
                 )
             previous = event["event_id"]
             sequence += 1
@@ -694,7 +1115,7 @@ def _scan_tracked_journal_suffix(
 
 
 def _repair_manifest_digest(root: Path) -> str | None:
-    repair_path = root / "records" / "STUDY_CLOSE_DELIVERY_REPAIR.json"
+    repair_path = root / REPAIR_MANIFEST_PATH
     return (
         sha256(repair_path.read_bytes()).hexdigest()
         if repair_path.is_file()
@@ -704,7 +1125,7 @@ def _repair_manifest_digest(root: Path) -> str | None:
 
 def _repair_manifest_digest_from_index(root: Path) -> str | None:
     content = _optional_git_file(
-        root, ":", "records/STUDY_CLOSE_DELIVERY_REPAIR.json"
+        root, ":", REPAIR_MANIFEST_PATH
     )
     return None if content is None else sha256(content).hexdigest()
 
@@ -743,6 +1164,167 @@ def _checkpoint_projection(
     )
 
 
+def _historical_backfill_event(
+    events: Sequence[Mapping[str, Any]],
+) -> Mapping[str, Any] | None:
+    try:
+        return historical_backfill_event(events)
+    except HistoricalBackfillProofError as exc:
+        raise StudyCloseDeliveryError(str(exc)) from exc
+
+
+def _historical_backfill_sources(
+    events: Sequence[Mapping[str, Any]],
+    event: Mapping[str, Any],
+):
+    try:
+        return historical_backfill_sources(events, event)
+    except HistoricalBackfillProofError as exc:
+        raise StudyCloseDeliveryError(str(exc)) from exc
+
+
+def _backfill_trailer_commits(
+    root: Path, reference: str = "main"
+) -> dict[tuple[str, int], list[str]]:
+    output = str(_git(root, "log", reference, "--format=%H%x1f%B%x1e"))
+    return backfill_trailer_commits(output)
+
+
+def _commit_parent_tree_message(root: Path, commit: str) -> tuple[str, str, str]:
+    output = str(
+        _git(root, "show", "-s", "--format=%P%x1f%T%x1f%B", commit)
+    )
+    parts = output.split("\x1f", 2)
+    if len(parts) != 3 or len(parts[0].split()) != 1:
+        raise StudyCloseDeliveryError(
+            "historical KPI backfill commit metadata is malformed"
+        )
+    return parts[0].strip(), parts[1].strip(), parts[2]
+
+
+def _build_historical_backfill_proof(
+    root: Path,
+    events: Sequence[Mapping[str, Any]],
+    *,
+    ancestry_anchor: str,
+) -> HistoricalKpiBackfillProof | None:
+    event = _historical_backfill_event(events)
+    if event is None:
+        return None
+    commits = _backfill_trailer_commits(root)
+    matches = commits.get((event["event_id"], event["sequence"]), [])
+    if len(matches) != 1:
+        raise StudyCloseDeliveryError(
+            "historical KPI backfill lacks one authenticated commit"
+        )
+    commit = matches[0]
+    parent, tree, message = _commit_parent_tree_message(root, commit)
+    try:
+        journal = _commit_journal(root, commit, validate_events=True)
+        commit_events, _cursor = _checkpoint_projection(
+            journal=journal,
+            control_content=_snapshot(root, commit, CONTROL_PATH),
+            kpi_content=_snapshot(root, commit, KPI_PATH),
+        )
+        parent_journal = _parent_journal(root, commit)
+    except (OSError, subprocess.CalledProcessError, JournalIntegrityError) as exc:
+        raise StudyCloseDeliveryError(
+            "historical KPI backfill commit snapshot is invalid"
+        ) from exc
+    if parent_journal is None:
+        raise StudyCloseDeliveryError(
+            "historical KPI backfill source ancestry is absent"
+        )
+    previous = parent_journal if journal.layout == "segmented" else None
+    required = _required_paths(journal) | _manifest_transition_paths(
+        previous, journal
+    )
+    changed = frozenset(
+        str(
+            _git(
+                root,
+                "diff-tree",
+                "--root",
+                "--no-commit-id",
+                "--name-only",
+                "-r",
+                commit,
+            )
+        ).splitlines()
+    )
+    bindings = tuple(
+        CheckpointPathBlob(
+            path=path,
+            blob=str(_git(root, "rev-parse", f"{commit}:{path}")),
+        )
+        for path in sorted(required)
+    )
+    try:
+        return build_git_authenticated_backfill_proof(
+            events=events,
+            ancestry_anchor=ancestry_anchor,
+            trailer_commits=commits,
+            commit_is_ancestor=_ancestor(root, commit, ancestry_anchor),
+            metadata=BackfillCommitMetadata(
+                parent=parent, tree=tree, message=message
+            ),
+            snapshot=BackfillCommitSnapshot(
+                events=tuple(commit_events),
+                parent_events=tuple(_events(parent_journal)),
+                required_path_blobs=bindings,
+                changed_paths=changed,
+            ),
+        )
+    except HistoricalBackfillProofError as exc:
+        raise StudyCloseDeliveryError(str(exc)) from exc
+
+
+def _authenticate_historical_backfill_proof(
+    root: Path,
+    proof: HistoricalKpiBackfillProof | None,
+    *,
+    checkpoint_parent: str,
+) -> None:
+    if proof is None:
+        return
+    parent, tree, message = _commit_parent_tree_message(root, proof.commit)
+    observed: dict[str, str] = {}
+    try:
+        for binding in proof.path_blobs:
+            observed[binding.path] = str(
+                _git(root, "rev-parse", f"{proof.commit}:{binding.path}")
+            )
+    except subprocess.CalledProcessError as exc:
+        raise StudyCloseDeliveryError(
+            "historical KPI backfill path/blob is unavailable"
+        ) from exc
+    try:
+        authenticate_git_backfill_proof(
+            proof,
+            metadata=BackfillCommitMetadata(
+                parent=parent, tree=tree, message=message
+            ),
+            observed_path_blobs=observed,
+            commit_in_anchor=_ancestor(
+                root, proof.commit, proof.ancestry_anchor
+            ),
+            anchor_in_checkpoint_parent=_ancestor(
+                root, proof.ancestry_anchor, checkpoint_parent
+            ),
+        )
+    except HistoricalBackfillProofError as exc:
+        raise StudyCloseDeliveryError(str(exc)) from exc
+
+
+
+def _validate_delivery_checkpoint(*args: Any, **kwargs: Any) -> None:
+    try:
+        validate_delivery_checkpoint(*args, **kwargs)
+    except StudyCloseDeliveryPolicyError as exc:
+        raise StudyCloseDeliveryError(str(exc)) from exc
+
+
+
 def _full_audit_checkpoint(
     root: Path,
     *,
@@ -756,9 +1338,10 @@ def _full_audit_checkpoint(
         kpi_content=kpi_content,
     )
     close_count, close_chain_digest = _close_chain(_prospective_closes(events))
-    return StudyCloseDeliveryCheckpoint(
+    parent_main = str(_git(root, "rev-parse", "HEAD"))
+    checkpoint = StudyCloseDeliveryCheckpoint(
         basis="full_audit",
-        parent_main=str(_git(root, "rev-parse", "HEAD")),
+        parent_main=parent_main,
         previous_checkpoint_commit=None,
         previous_checkpoint_digest=None,
         cursor=cursor,
@@ -769,7 +1352,18 @@ def _full_audit_checkpoint(
         kpi_sha256=sha256(kpi_content).hexdigest(),
         last_study_close_event_id=None,
         last_study_close_revision=None,
+        historical_kpi_backfill=_build_historical_backfill_proof(
+            root, events, ancestry_anchor=parent_main
+        ),
     )
+    _validate_delivery_checkpoint(
+        checkpoint,
+        kpi_content=kpi_content,
+        close_chain=(close_count, close_chain_digest),
+        events=events,
+        cursor=cursor,
+    )
+    return checkpoint
 
 
 def _checkpoint_commit_info(
@@ -878,9 +1472,14 @@ def _authenticate_tracked_checkpoint(
         raise StudyCloseDeliveryError("checkpoint commit control hash differs")
     if sha256(_snapshot(root, commit, KPI_PATH)).hexdigest() != checkpoint.kpi_sha256:
         raise StudyCloseDeliveryError("checkpoint commit KPI hash differs")
-    if checkpoint.basis == "full_audit":
+    _authenticate_historical_backfill_proof(
+        root,
+        checkpoint.historical_kpi_backfill,
+        checkpoint_parent=checkpoint.parent_main,
+    )
+    if checkpoint.basis in {"full_audit", "checkpoint_upgrade", "maintenance"}:
         _validate_checkpoint_init_trailers(message, checkpoint)
-    else:
+    if checkpoint.basis == "study_close":
         assert checkpoint.last_study_close_event_id is not None
         assert checkpoint.last_study_close_revision is not None
         required = {
@@ -898,6 +1497,7 @@ def _authenticate_tracked_checkpoint(
             checkpoint.last_study_close_event_id,
             checkpoint.last_study_close_revision,
         )
+    if checkpoint.basis != "full_audit":
         previous_commit = checkpoint.previous_checkpoint_commit
         previous_digest = checkpoint.previous_checkpoint_digest
         if previous_commit is None or previous_digest is None:
@@ -919,6 +1519,23 @@ def _authenticate_tracked_checkpoint(
         if prior.checkpoint_digest != previous_digest:
             raise StudyCloseDeliveryError(
                 "previous Study-close checkpoint digest differs"
+            )
+        if checkpoint.schema == CHECKPOINT_SCHEMA:
+            transition_closes: tuple[tuple[str, int], ...] = ()
+            if checkpoint.basis == "study_close":
+                assert checkpoint.last_study_close_event_id is not None
+                assert checkpoint.last_study_close_revision is not None
+                transition_closes = (
+                    (
+                        checkpoint.last_study_close_event_id,
+                        checkpoint.last_study_close_revision,
+                    ),
+                )
+            _validate_delivery_checkpoint(
+                checkpoint,
+                kpi_content=_snapshot(root, commit, KPI_PATH),
+                previous=prior,
+                suffix_closes=transition_closes,
             )
     if _trailer_commits(root, f"{commit}..{main_head}"):
         raise StudyCloseDeliveryError(
@@ -954,10 +1571,15 @@ def _checkpoint_from_staged_close(
     control_content: bytes | None = None,
     kpi_content: bytes | None = None,
 ) -> StudyCloseDeliveryCheckpoint:
+    require_local_main(root)
     previous = _head_checkpoint(root)
     if previous is None:
         raise StudyCloseDeliveryError(
             "Study close requires an initialized tracked checkpoint"
+        )
+    if previous.schema != CHECKPOINT_SCHEMA:
+        raise StudyCloseDeliveryError(
+            "Study close requires the explicit checkpoint v2 full-maintenance upgrade"
         )
     previous_commit, _parent, _message = _checkpoint_commit_info(root)
     if journal is None or control_content is None or kpi_content is None:
@@ -1009,7 +1631,7 @@ def _checkpoint_from_staged_close(
             "delivery repair manifest changed outside a full checkpoint audit"
         )
     close_event_id, close_revision = closes[0]
-    return StudyCloseDeliveryCheckpoint(
+    checkpoint = StudyCloseDeliveryCheckpoint(
         basis="study_close",
         parent_main=str(_git(root, "rev-parse", "HEAD")),
         previous_checkpoint_commit=previous_commit,
@@ -1026,7 +1648,15 @@ def _checkpoint_from_staged_close(
         kpi_sha256=sha256(kpi_content).hexdigest(),
         last_study_close_event_id=close_event_id,
         last_study_close_revision=close_revision,
+        historical_kpi_backfill=previous.historical_kpi_backfill,
     )
+    _validate_delivery_checkpoint(
+        checkpoint,
+        kpi_content=kpi_content,
+        previous=previous,
+        suffix_events=suffix,
+    )
+    return checkpoint
 
 
 def _write_tracked_checkpoint(
@@ -1056,13 +1686,14 @@ def initialize_study_close_delivery_checkpoint(
     """Create the first tracked checkpoint only after an explicit full audit."""
 
     root = Path(repository_root).resolve()
+    require_local_main(root)
     if _head_checkpoint(root) is not None or (root / CHECKPOINT_PATH).exists():
         raise StudyCloseDeliveryError("tracked Study-close checkpoint already exists")
     unstaged = set(str(_git(root, "diff", "--name-only")).splitlines())
     sensitive = {
         CONTROL_PATH,
         KPI_PATH,
-        "records/STUDY_CLOSE_DELIVERY_REPAIR.json",
+        REPAIR_MANIFEST_PATH,
         *[path for path in unstaged if _journal_path(path)],
     }
     if unstaged & sensitive:
@@ -1086,13 +1717,247 @@ def initialize_study_close_delivery_checkpoint(
     return checkpoint
 
 
+def check_study_close_delivery_checkpoint_v2_upgrade(
+    repository_root: str | Path,
+    *,
+    allow_staged_checkpoint: bool = False,
+) -> StudyCloseDeliveryCheckpoint:
+    """Fully validate and project, but do not write, the explicit v2 upgrade."""
+
+    root = Path(repository_root).resolve()
+    require_local_main(root)
+    checkpoint_content = _optional_git_file(root, "main:", CHECKPOINT_PATH)
+    if checkpoint_content is None:
+        raise StudyCloseDeliveryError(
+            "checkpoint v2 upgrade requires the tracked v1 checkpoint"
+        )
+    main_head = str(_git(root, "rev-parse", "main"))
+    previous, previous_commit = _cached_authenticated_checkpoint(
+        str(root), main_head, checkpoint_content
+    )
+    if previous.schema == CHECKPOINT_SCHEMA:
+        raise StudyCloseDeliveryError("tracked Study-close checkpoint is already v2")
+    if previous.schema != LEGACY_CHECKPOINT_SCHEMA:
+        raise StudyCloseDeliveryError("tracked Study-close checkpoint version differs")
+    _require_clean_checkpoint_authority_inputs(
+        root, allow_staged_checkpoint=allow_staged_checkpoint
+    )
+    changed = set(str(_git(root, "diff", "--name-only")).splitlines()) | set(
+        str(_git(root, "diff", "--cached", "--name-only")).splitlines()
+    )
+    projection_changes = {
+        path
+        for path in changed
+        if path in {CONTROL_PATH, KPI_PATH, CHECKPOINT_PATH}
+        or _journal_path(path)
+    }
+    if allow_staged_checkpoint:
+        projection_changes.discard(CHECKPOINT_PATH)
+    if projection_changes:
+        raise StudyCloseDeliveryError(
+            "checkpoint v2 upgrade requires clean projection paths"
+        )
+    _perform_full_audit(root)
+    try:
+        journal = _commit_journal(root, main_head, validate_events=True)
+        control_content = _snapshot(root, main_head, CONTROL_PATH)
+        kpi_content = _snapshot(root, main_head, KPI_PATH)
+    except (OSError, subprocess.CalledProcessError, JournalIntegrityError) as exc:
+        raise StudyCloseDeliveryError(
+            "checkpoint v2 upgrade snapshot is invalid"
+        ) from exc
+    events, cursor = _checkpoint_projection(
+        journal=journal,
+        control_content=control_content,
+        kpi_content=kpi_content,
+    )
+    if previous.cursor.sequence > len(events):
+        raise StudyCloseDeliveryError("legacy checkpoint exceeds current Journal")
+    suffix = events[previous.cursor.sequence :]
+    close_count, close_chain_digest = _close_chain(_prospective_closes(events))
+    checkpoint = project_checkpoint_v2_upgrade(
+        previous=previous,
+        previous_commit=previous_commit,
+        parent_main=main_head,
+        cursor=cursor,
+        close_chain=(close_count, close_chain_digest),
+        repair_manifest_digest=_repair_manifest_digest_from_index(root),
+        control_content=control_content,
+        kpi_content=kpi_content,
+        historical_kpi_backfill=_build_historical_backfill_proof(
+            root, events, ancestry_anchor=main_head
+        ),
+    )
+    _validate_delivery_checkpoint(
+        checkpoint,
+        kpi_content=kpi_content,
+        previous=previous,
+        suffix_events=suffix,
+    )
+    return checkpoint
+
+
+def prepare_study_close_delivery_checkpoint_v2_upgrade(
+    repository_root: str | Path,
+) -> StudyCloseDeliveryCheckpoint:
+    """Write the explicitly full-audited v2 upgrade for a later coherent commit."""
+
+    root = Path(repository_root).resolve()
+    checkpoint = check_study_close_delivery_checkpoint_v2_upgrade(root)
+    _write_tracked_checkpoint(root, checkpoint)
+    return checkpoint
+
+
+def check_study_close_delivery_checkpoint_maintenance(
+    repository_root: str | Path,
+    *,
+    allow_staged_checkpoint: bool = False,
+) -> StudyCloseDeliveryCheckpoint:
+    """Fully audit and project one v2 no-close cursor-only maintenance step."""
+
+    root = Path(repository_root).resolve()
+    require_local_main(root)
+    checkpoint_content = _optional_git_file(root, "main:", CHECKPOINT_PATH)
+    if checkpoint_content is None:
+        raise StudyCloseDeliveryError(
+            "checkpoint maintenance requires the tracked v2 checkpoint"
+        )
+    main_head = str(_git(root, "rev-parse", "main"))
+    previous, previous_commit = _cached_authenticated_checkpoint(
+        str(root), main_head, checkpoint_content
+    )
+    if previous.schema != CHECKPOINT_SCHEMA:
+        raise StudyCloseDeliveryError("checkpoint maintenance requires v2")
+    _require_clean_checkpoint_authority_inputs(
+        root, allow_staged_checkpoint=allow_staged_checkpoint
+    )
+    _perform_full_audit(root)
+    try:
+        journal = _commit_journal(root, main_head, validate_events=True)
+        control_content = _snapshot(root, main_head, CONTROL_PATH)
+        kpi_content = _snapshot(root, main_head, KPI_PATH)
+    except (OSError, subprocess.CalledProcessError, JournalIntegrityError) as exc:
+        raise StudyCloseDeliveryError(
+            "checkpoint maintenance snapshot is invalid"
+        ) from exc
+    events, cursor = _checkpoint_projection(
+        journal=journal,
+        control_content=control_content,
+        kpi_content=kpi_content,
+    )
+    if previous.cursor.sequence > len(events):
+        raise StudyCloseDeliveryError("checkpoint maintenance Journal regressed")
+    suffix = events[previous.cursor.sequence :]
+    suffix_closes = _prospective_closes(suffix)
+    if suffix_closes:
+        raise StudyCloseDeliveryError(
+            "checkpoint maintenance cannot absorb a Study close"
+        )
+    close_count, close_chain_digest = _close_chain(_prospective_closes(events))
+    if (
+        close_count != previous.prospective_close_count
+        or close_chain_digest != previous.prospective_close_chain_digest
+    ):
+        raise StudyCloseDeliveryError(
+            "checkpoint maintenance changed the authenticated close chain"
+        )
+    checkpoint = project_checkpoint_maintenance(
+        previous=previous,
+        previous_commit=previous_commit,
+        parent_main=main_head,
+        cursor=cursor,
+        repair_manifest_digest=_repair_manifest_digest_from_index(root),
+        control_content=control_content,
+        kpi_content=kpi_content,
+    )
+    _validate_delivery_checkpoint(
+        checkpoint,
+        kpi_content=kpi_content,
+        previous=previous,
+        suffix_closes=suffix_closes,
+    )
+    return checkpoint
+
+
+def prepare_study_close_delivery_checkpoint_maintenance(
+    repository_root: str | Path,
+) -> StudyCloseDeliveryCheckpoint:
+    """Write one explicit full-maintenance v2 no-close cursor checkpoint."""
+
+    root = Path(repository_root).resolve()
+    checkpoint = check_study_close_delivery_checkpoint_maintenance(root)
+    _write_tracked_checkpoint(root, checkpoint)
+    return checkpoint
+
+
+
+def check_study_close_delivery_checkpoint(
+    repository_root: str | Path,
+    *,
+    allowed_milestone_paths: Sequence[str] = (),
+) -> StudyCloseCheckpointPlan:
+    """Validate exact staging and render one checkpoint without writing it."""
+
+    root = Path(repository_root).resolve()
+    require_local_main(root)
+    try:
+        allowed = canonical_milestone_paths(allowed_milestone_paths)
+    except StudyCloseDeliveryPolicyError as exc:
+        raise StudyCloseDeliveryError(str(exc)) from exc
+    try:
+        journal = _index_journal(root)
+        control_content = _git(root, "show", f":{CONTROL_PATH}", binary=True)
+        kpi_content = _git(root, "show", f":{KPI_PATH}", binary=True)
+    except (subprocess.CalledProcessError, JournalIntegrityError) as exc:
+        raise StudyCloseDeliveryError(
+            "checkpoint preflight requires staged Journal, control, and KPI"
+        ) from exc
+    assert isinstance(control_content, bytes) and isinstance(kpi_content, bytes)
+    previous = _head_journal(root)
+    projection_paths = _required_paths(journal) | _manifest_transition_paths(
+        previous, journal
+    )
+    staged = set(str(_git(root, "diff", "--cached", "--name-only")).splitlines())
+    unstaged = set(str(_git(root, "diff", "--name-only")).splitlines())
+    try:
+        expected = exact_staging_paths(
+            projection_paths=tuple(projection_paths),
+            allowed_milestone_paths=allowed,
+            staged_paths=tuple(staged),
+            unstaged_paths=tuple(unstaged),
+            protected_paths=(
+                CONTROL_PATH,
+                KPI_PATH,
+                *tuple(path for path in projection_paths if _journal_path(path)),
+            ),
+        )
+    except StudyCloseDeliveryPolicyError as exc:
+        raise StudyCloseDeliveryError(str(exc)) from exc
+    checkpoint = _checkpoint_from_staged_close(
+        root,
+        journal=journal,
+        control_content=control_content,
+        kpi_content=kpi_content,
+    )
+    return StudyCloseCheckpointPlan(
+        checkpoint=checkpoint,
+        required_staged_paths=expected,
+        allowed_milestone_paths=allowed,
+    )
+
+
 def prepare_study_close_delivery_checkpoint(
     repository_root: str | Path,
+    *,
+    allowed_milestone_paths: Sequence[str] = (),
 ) -> StudyCloseDeliveryCheckpoint:
     """Render the exact checkpoint that must accompany one staged Study close."""
 
     root = Path(repository_root).resolve()
-    checkpoint = _checkpoint_from_staged_close(root)
+    plan = check_study_close_delivery_checkpoint(
+        root, allowed_milestone_paths=allowed_milestone_paths
+    )
+    checkpoint = plan.checkpoint
     _write_tracked_checkpoint(root, checkpoint)
     return checkpoint
 
@@ -1411,6 +2276,8 @@ def validate_commit_message(repository_root: str | Path, message_path: str | Pat
     head_checkpoint = _head_checkpoint(root)
     checkpoint_staged = CHECKPOINT_PATH in staged
     checkpoint_unstaged = CHECKPOINT_PATH in unstaged
+    if pending_close or checkpoint_staged or checkpoint_unstaged:
+        require_local_main(root)
     if head_checkpoint is None and checkpoint_staged:
         if pending_close or checkpoint_unstaged:
             raise StudyCloseDeliveryError(
@@ -1422,7 +2289,7 @@ def validate_commit_message(repository_root: str | Path, message_path: str | Pat
             if path in {
                 CONTROL_PATH,
                 KPI_PATH,
-                "records/STUDY_CLOSE_DELIVERY_REPAIR.json",
+                REPAIR_MANIFEST_PATH,
             }
             or _journal_path(path)
         }
@@ -1463,6 +2330,87 @@ def validate_commit_message(repository_root: str | Path, message_path: str | Pat
         raise StudyCloseDeliveryError(
             "untracked checkpoint bytes cannot enter a commit"
         )
+    if (
+        head_checkpoint is not None
+        and head_checkpoint.schema == LEGACY_CHECKPOINT_SCHEMA
+        and checkpoint_staged
+        and not pending_close
+    ):
+        if checkpoint_unstaged or staged != {CHECKPOINT_PATH}:
+            raise StudyCloseDeliveryError(
+                "checkpoint v2 upgrade must be one exact checkpoint-only milestone"
+            )
+        try:
+            staged_content = _git(
+                root, "show", f":{CHECKPOINT_PATH}", binary=True
+            )
+            assert isinstance(staged_content, bytes)
+            staged_checkpoint = StudyCloseDeliveryCheckpoint.from_bytes(
+                staged_content
+            )
+        except (
+            AssertionError,
+            subprocess.CalledProcessError,
+            StudyCloseCheckpointError,
+        ) as exc:
+            raise StudyCloseDeliveryError(
+                "staged checkpoint v2 upgrade is malformed"
+            ) from exc
+        if (
+            staged_checkpoint.schema != CHECKPOINT_SCHEMA
+            or staged_checkpoint.basis != "checkpoint_upgrade"
+        ):
+            raise StudyCloseDeliveryError(
+                "staged checkpoint is not the explicit v2 upgrade"
+            )
+        expected = check_study_close_delivery_checkpoint_v2_upgrade(
+            root, allow_staged_checkpoint=True
+        )
+        if staged_content != expected.render():
+            raise StudyCloseDeliveryError(
+                "staged checkpoint v2 upgrade differs from the full audit"
+            )
+        _validate_checkpoint_init_trailers(message, expected)
+        return
+    if (
+        head_checkpoint is not None
+        and head_checkpoint.schema == CHECKPOINT_SCHEMA
+        and checkpoint_staged
+        and not pending_close
+    ):
+        if checkpoint_unstaged or staged != {CHECKPOINT_PATH}:
+            raise StudyCloseDeliveryError(
+                "checkpoint maintenance must be one exact checkpoint-only milestone"
+            )
+        try:
+            staged_content = _git(
+                root, "show", f":{CHECKPOINT_PATH}", binary=True
+            )
+            assert isinstance(staged_content, bytes)
+            staged_checkpoint = StudyCloseDeliveryCheckpoint.from_bytes(
+                staged_content
+            )
+        except (
+            AssertionError,
+            subprocess.CalledProcessError,
+            StudyCloseCheckpointError,
+        ) as exc:
+            raise StudyCloseDeliveryError(
+                "staged checkpoint maintenance is malformed"
+            ) from exc
+        if staged_checkpoint.basis != "maintenance":
+            raise StudyCloseDeliveryError(
+                "staged no-close checkpoint is not maintenance"
+            )
+        expected = check_study_close_delivery_checkpoint_maintenance(
+            root, allow_staged_checkpoint=True
+        )
+        if staged_content != expected.render():
+            raise StudyCloseDeliveryError(
+                "staged checkpoint maintenance differs from the full audit"
+            )
+        _validate_checkpoint_init_trailers(message, expected)
+        return
     if head_checkpoint is not None and (checkpoint_staged or checkpoint_unstaged):
         if not pending_close or checkpoint_unstaged:
             raise StudyCloseDeliveryError(
@@ -1542,15 +2490,7 @@ def validate_commit_message(repository_root: str | Path, message_path: str | Pat
 
 
 def _prospective_closes(events: Sequence[Mapping[str, Any]]) -> list[tuple[str, int]]:
-    result: list[tuple[str, int]] = []
-    for event in events:
-        if any(
-            record.get("kind") == "study-kpi"
-            and record.get("payload", {}).get("provenance") == "prospective_close"
-            for record in event.get("index_records", [])
-        ):
-            result.append((event["event_id"], event["sequence"]))
-    return result
+    return prospective_closes(events)
 
 
 def _trailer_commits(
@@ -1640,7 +2580,7 @@ def _perform_full_audit(
     except (OSError, JournalIntegrityError) as exc:
         raise StudyCloseDeliveryError("worktree Journal audit failed") from exc
     trailer_commits = _trailer_commits(root)
-    repair_path = root / "records" / "STUDY_CLOSE_DELIVERY_REPAIR.json"
+    repair_path = root / REPAIR_MANIFEST_PATH
     repaired: dict[tuple[str, int], str] = {}
     if repair_path.is_file():
         repair = json.loads(repair_path.read_bytes())
@@ -1695,9 +2635,21 @@ def audit_all_study_close_deliveries(repository_root: str | Path) -> None:
     """Rebuild the local high-water cache after auditing every Study close."""
 
     root = Path(repository_root).resolve()
-    if not (root / ".git").exists():
-        return
+    _require_git_repository(root)
     journal, closes = _perform_full_audit(root)
+    try:
+        control_content = (root / CONTROL_PATH).read_bytes()
+        kpi_content = (root / KPI_PATH).read_bytes()
+    except OSError as exc:
+        raise StudyCloseDeliveryError(
+            "full Study-close audit projection is unavailable"
+        ) from exc
+    _full_audit_checkpoint(
+        root,
+        journal=journal,
+        control_content=control_content,
+        kpi_content=kpi_content,
+    )
     cursor = _cursor_from_snapshot(root, journal)
     close_count, close_chain_digest = _close_chain(closes)
     main_head = str(_git(root, "rev-parse", "main"))
@@ -1713,41 +2665,108 @@ def audit_all_study_close_deliveries(repository_root: str | Path) -> None:
     )
 
 
-def require_all_study_close_deliveries(repository_root: str | Path) -> None:
+def _inspect_tracked_study_close_delivery(
+    root: Path,
+) -> tuple[StudyCloseDeliveryCheckpoint, str, str]:
+    """Authenticate the tracked checkpoint and local suffix without I/O writes."""
+
+    checkpoint_path = root / CHECKPOINT_PATH
+    try:
+        checkpoint_content = checkpoint_path.read_bytes()
+    except OSError as exc:
+        raise StudyCloseDeliveryError(
+            "tracked Study-close checkpoint is unavailable"
+        ) from exc
+    main_head = str(_git(root, "rev-parse", "main"))
+    checkpoint, checkpoint_commit = _cached_authenticated_checkpoint(
+        str(root), main_head, checkpoint_content
+    )
+    if checkpoint.repair_manifest_digest != _repair_manifest_digest(root):
+        raise StudyCloseDeliveryError(
+            "delivery repair manifest differs from tracked checkpoint"
+        )
+    try:
+        suffix_events, next_cursor = _scan_tracked_journal_suffix(
+            root, checkpoint.cursor
+        )
+    except _AuditCacheStale as exc:
+        raise StudyCloseDeliveryError(
+            f"tracked Study-close Journal suffix is invalid: {exc}"
+        ) from exc
+    new_closes = _prospective_closes(suffix_events)
+    if new_closes:
+        raise StudyCloseDeliveryError(
+            "Study close exists after the tracked delivery checkpoint"
+        )
+    try:
+        current_kpi = (root / KPI_PATH).read_bytes()
+        current_control = json.loads((root / CONTROL_PATH).read_bytes())
+        if (
+            current_control["revision"] != next_cursor.sequence
+            or current_control["heads"]["journal"]["sequence"]
+            != next_cursor.sequence
+            or current_control["heads"]["journal"]["event_id"]
+            != next_cursor.event_id
+        ):
+            raise StudyCloseCheckpointError(
+                "current control and Journal suffix heads differ"
+            )
+        validate_no_close_suffix(
+            checkpoint,
+            suffix_closes=new_closes,
+            current_cursor=next_cursor,
+            current_kpi_sha256=sha256(current_kpi).hexdigest(),
+        )
+    except (OSError, KeyError, TypeError, ValueError, StudyCloseCheckpointError) as exc:
+        raise StudyCloseDeliveryError(
+            "tracked Study-close current projection is invalid"
+        ) from exc
+    return checkpoint, checkpoint_commit, main_head
+
+
+def inspect_tracked_study_close_delivery(
+    repository_root: str | Path,
+    *,
+    capability: StudyCloseGuardCapability | None = None,
+) -> StudyCloseDeliveryCheckpoint:
+    """Read-only local authentication for planning and diagnostics."""
+
+    root = Path(repository_root).resolve()
+    if not _require_git_repository(root, capability=capability):
+        raise StudyCloseDeliveryError(
+            "tracked Study-close inspection requires a Git repository"
+        )
+    if not (root / CHECKPOINT_PATH).is_file():
+        raise StudyCloseDeliveryError(
+            "tracked Study-close checkpoint is unavailable"
+        )
+    checkpoint, _checkpoint_commit, _main_head = (
+        _inspect_tracked_study_close_delivery(root)
+    )
+    return checkpoint
+
+
+def require_all_study_close_deliveries(
+    repository_root: str | Path,
+    *,
+    capability: StudyCloseGuardCapability | None = None,
+) -> None:
     """Guard the boundary from a verified high-water plus the new suffix."""
 
     root = Path(repository_root).resolve()
-    if not (root / ".git").exists():
+    if not _require_git_repository(root, capability=capability):
         return
     checkpoint_path = root / CHECKPOINT_PATH
     if checkpoint_path.is_file():
-        try:
-            checkpoint_content = checkpoint_path.read_bytes()
-        except OSError as exc:
-            raise StudyCloseDeliveryError(
-                "tracked Study-close checkpoint is unavailable"
-            ) from exc
-        main_head = str(_git(root, "rev-parse", "main"))
-        checkpoint, _checkpoint_commit = _cached_authenticated_checkpoint(
-            str(root), main_head, checkpoint_content
+        checkpoint, checkpoint_commit, main_head = (
+            _inspect_tracked_study_close_delivery(root)
         )
-        if checkpoint.repair_manifest_digest != _repair_manifest_digest(root):
-            raise StudyCloseDeliveryError(
-                "delivery repair manifest differs from tracked checkpoint"
-            )
-        try:
-            suffix_events, _next_cursor = _scan_tracked_journal_suffix(
-                root, checkpoint.cursor
-            )
-        except _AuditCacheStale as exc:
-            raise StudyCloseDeliveryError(
-                "tracked Study-close Journal suffix is invalid"
-            ) from exc
-        new_closes = _prospective_closes(suffix_events)
-        if new_closes:
-            raise StudyCloseDeliveryError(
-                "Study close exists after the tracked delivery checkpoint"
-            )
+        _ensure_origin_delivery_observed(
+            str(root),
+            main_head,
+            checkpoint.checkpoint_digest,
+            checkpoint_commit,
+        )
         return
     if _head_checkpoint(root) is not None:
         raise StudyCloseDeliveryError(
@@ -1821,12 +2840,21 @@ __all__ = [
     "BASE_REQUIRED_PATHS",
     "CHECKPOINT_PATH",
     "REQUIRED_PATHS",
+    "StudyCloseCheckpointPlan",
     "StudyCloseDeliveryError",
+    "StudyCloseGuardCapability",
     "audit_all_study_close_deliveries",
+    "check_study_close_delivery_checkpoint",
+    "check_study_close_delivery_checkpoint_maintenance",
+    "check_study_close_delivery_checkpoint_v2_upgrade",
     "initialize_study_close_delivery_checkpoint",
     "prepare_study_close_delivery_checkpoint",
+    "prepare_study_close_delivery_checkpoint_maintenance",
+    "prepare_study_close_delivery_checkpoint_v2_upgrade",
     "render_projection",
     "require_all_study_close_deliveries",
+    "inspect_tracked_study_close_delivery",
+    "require_local_main",
     "require_study_close_guard_ready",
     "validate_commit_message",
 ]

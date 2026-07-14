@@ -16,7 +16,7 @@ from axiom_rift.research.us30_downside_spillover_discovery import (
 
 RAW_SHA256 = "6d638467069a756a7a3897b587ec16a4b9ff76df8718186c2a81905d6d0488d4"
 AXIS_ARCHITECTURE = (
-    "architecture-family:f1175e7f095617b13586293f02746ad1f650bc217927719edc3b41653ec9c3e3"
+    "architecture-family:2111ed244692f5fe5be625c53c03d73a77206d6560b6b46f515139cd5037cc6d"
 )
 
 

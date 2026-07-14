@@ -25,11 +25,20 @@ from axiom_rift.operations.permits import (
     SubjectKind,
     SubjectRef,
 )
+from axiom_rift.operations.external_dependency import (
+    ExternalChangeEvidence,
+    ExternalDependencyContractError,
+    ExternalRecoveryPlan,
+    ExternalResumeAction,
+    external_plan_from_binding,
+)
+from axiom_rift.operations.study_close_delivery import StudyCloseGuardCapability
 from axiom_rift.operations.validation import (
     EngineeringFixtureValidator,
     EvidenceValidationError,
     EvidenceValidationRequest,
     EvidenceValidatorRegistry,
+    ExternalChangeValidationRequest,
     ValidationArtifact,
 )
 from axiom_rift.storage.evidence import EvidenceStore
@@ -378,6 +387,9 @@ def _require_authority_document_bytes(
 def _require_study_evidence_modes(question: Mapping[str, Any]) -> tuple[str, ...]:
     allowed = {
         "ablation",
+        # A descriptive replay may verify historical audit integrity without
+        # creating scientific depth or Mission-terminal evidence credit.
+        "audit_integrity",
         "causal_contrast",
         "cost_and_execution",
         "extreme_or_boundary",
@@ -396,6 +408,26 @@ def _require_study_evidence_modes(question: Mapping[str, Any]) -> tuple[str, ...
     ):
         raise TransitionError("Study evidence_modes are invalid")
     return tuple(sorted(modes))
+
+
+def _terminal_scientific_evidence_modes(
+    modes: Sequence[str],
+) -> tuple[str, ...]:
+    """Exclude descriptive audit work from Mission-terminal science credit."""
+
+    return tuple(sorted({mode for mode in modes if mode != "audit_integrity"}))
+
+
+def _effective_completion_scope(index: LocalIndex, completion: IndexRecord):
+    from axiom_rift.operations.evidence_scope_projection import (
+        EvidenceScopeProjectionError,
+        effective_completion_evidence_scope,
+    )
+
+    try:
+        return effective_completion_evidence_scope(index, completion)
+    except EvidenceScopeProjectionError as exc:
+        raise RecoveryRequired(str(exc)) from exc
 
 
 def _record(
@@ -419,6 +451,169 @@ def _record(
         event_stream=event_stream,
         event_sequence=event_sequence,
     )
+
+
+def _exact_source_replacement_wait_capability(
+    *,
+    mission_id: str,
+    terminal_axes: Mapping[str, Mapping[str, Any]],
+    terminal_resolutions: Mapping[str, Any],
+    terminal_hard_blockers: Sequence[str],
+) -> str | None:
+    """Derive the only external-wait capability for source-only blockers.
+
+    Every current hard blocker must be an unresolved audit-invalidated source.
+    The residual source-free projection must contain no replay or scope blocker;
+    this prevents invalidation precedence from hiding an internal obligation.
+    Already replaced invalidations are excluded from the exact pending set.
+    """
+
+    from axiom_rift.research.effective_axis import (
+        EffectiveAxisStatus,
+        resolve_effective_axis,
+    )
+    from axiom_rift.research.source_authority import (
+        source_replacement_capability_id,
+        source_replacement_capability_set_id,
+    )
+
+    if not terminal_hard_blockers:
+        return None
+    capability_ids: list[str] = []
+    for axis_id in sorted(terminal_hard_blockers):
+        axis = terminal_axes.get(axis_id)
+        resolution = terminal_resolutions.get(axis_id)
+        if (
+            not isinstance(axis, Mapping)
+            or resolution is None
+            or resolution.effective_status
+            is not EffectiveAxisStatus.BLOCKED_BY_INVALIDATED_SOURCE
+            or resolution.blocking_replay_obligation_ids
+            or any(item.blocks_terminal for item in resolution.replay_bindings)
+        ):
+            return None
+        residual = resolve_effective_axis(
+            axis_id=resolution.axis_id,
+            axis_identity=resolution.axis_identity,
+            snapshot_status=resolution.snapshot_status,
+            source_contract_ids=resolution.source_contract_ids,
+            invalidations=(),
+            source_replacements=(),
+            replay_bindings=resolution.replay_bindings,
+            evidence_scope_bindings=resolution.evidence_scope_bindings,
+        )
+        if not residual.terminal_eligible:
+            return None
+        replaced_sources = {
+            item.invalidated_source_contract_id
+            for item in resolution.source_replacements
+        }
+        unresolved = tuple(
+            item
+            for item in resolution.invalidations
+            if item.source_contract_id not in replaced_sources
+        )
+        if not unresolved:
+            return None
+        axis_identity = axis.get("axis_identity")
+        if axis_identity != resolution.axis_identity:
+            return None
+        capability_ids.extend(
+            source_replacement_capability_id(
+                mission_id=mission_id,
+                original_axis_id=axis_id,
+                original_axis_identity=axis_identity,
+                invalidation_id=invalidation.invalidation_record_id,
+                invalidated_source_contract_id=(
+                    invalidation.source_contract_id
+                ),
+            )
+            for invalidation in unresolved
+        )
+    if len(capability_ids) != len(set(capability_ids)):
+        return None
+    if len(capability_ids) == 1:
+        return capability_ids[0]
+    try:
+        return source_replacement_capability_set_id(capability_ids)
+    except ValueError:
+        return None
+
+
+def _concurrent_family_executable_ids(
+    batch_record: IndexRecord,
+) -> tuple[str, ...] | None:
+    """Rebuild and verify the exact typed family frozen into one Batch."""
+
+    from axiom_rift.research.portfolio import (
+        BatchSpecError,
+        ConcurrentFamilyEvaluationMode,
+        ConcurrentFamilyManifest,
+    )
+
+    spec = batch_record.payload.get("spec")
+    acceptance = None if not isinstance(spec, dict) else spec.get("acceptance_profile")
+    if not isinstance(acceptance, dict):
+        raise RecoveryRequired("Batch acceptance profile is unavailable")
+    payload = acceptance.get("concurrent_family")
+    if payload is None:
+        return None
+    if not isinstance(payload, dict):
+        raise RecoveryRequired("concurrent family manifest is malformed")
+    try:
+        manifest = ConcurrentFamilyManifest(
+            evaluation_mode=ConcurrentFamilyEvaluationMode(
+                payload["evaluation_mode"]
+            ),
+            executable_ids=tuple(payload["executable_ids"]),
+        )
+    except (BatchSpecError, KeyError, TypeError, ValueError) as exc:
+        raise RecoveryRequired("concurrent family manifest is malformed") from exc
+    if (
+        payload != manifest.to_identity_payload()
+        or spec.get("max_trials") != manifest.family_size
+    ):
+        raise RecoveryRequired(
+            "concurrent family manifest differs from the frozen Batch bound"
+        )
+    return manifest.executable_ids
+
+
+def _require_concurrent_family_registration(
+    index: LocalIndex,
+    *,
+    batch_record: IndexRecord,
+    evidence_subject: Mapping[str, Any],
+) -> None:
+    """Block family engine entry until every exact member is durably counted."""
+
+    executable_ids = _concurrent_family_executable_ids(batch_record)
+    if executable_ids is None:
+        return
+    subject_id = evidence_subject.get("id")
+    if (
+        evidence_subject.get("kind") != "Executable"
+        or subject_id not in executable_ids
+    ):
+        raise TransitionError(
+            "concurrent family Job subject is outside the exact frozen family"
+        )
+    missing: list[str] = []
+    for executable_id in executable_ids:
+        trial = index.get("trial", executable_id)
+        if trial is None:
+            trial = index.get("engineering-evaluation-fixture", executable_id)
+        if (
+            trial is None
+            or trial.fingerprint != executable_id.removeprefix("executable:")
+            or trial.status not in {"evaluated", "engineering_only"}
+        ):
+            missing.append(executable_id)
+    if missing:
+        raise TransitionError(
+            "concurrent family Job cannot start before every exact family trial "
+            f"is registered ({len(missing)} missing)"
+        )
 
 
 def ready_control_body() -> dict[str, Any]:
@@ -484,6 +679,7 @@ class StateWriter:
         permit_authority: PermitAuthority | None = None,
         clock: Callable[[], str] = _now_utc,
         engineering_fixture: bool = False,
+        study_close_guard_capability: StudyCloseGuardCapability | None = None,
         foundation_root: str | Path | None = None,
         validation_registry: EvidenceValidatorRegistry | None = None,
     ) -> None:
@@ -496,6 +692,18 @@ class StateWriter:
             raise TransitionError(
                 "engineering_fixture state must be isolated outside a Git worktree"
             )
+        if study_close_guard_capability is not None and (
+            study_close_guard_capability
+            is not StudyCloseGuardCapability.ISOLATED_ENGINEERING_FIXTURE
+            or engineering_fixture
+            or any(
+                (candidate / ".git").exists()
+                for candidate in (self.root.resolve(), *self.root.resolve().parents)
+            )
+        ):
+            raise TransitionError(
+                "Study-close guard capability must be an isolated non-Git fixture"
+            )
         self.control = ControlStore(self.root / "state" / "control.json")
         self.journal = DurableJournal(self.root / LEGACY_JOURNAL_RELATIVE_PATH)
         self._journal_write_capability = _issue_journal_write_capability()
@@ -505,6 +713,7 @@ class StateWriter:
         self.permit_authority = permit_authority
         self.clock = clock
         self.engineering_fixture = engineering_fixture
+        self.study_close_guard_capability = study_close_guard_capability
         self.validation_registry = (
             validation_registry
             if validation_registry is not None
@@ -1156,6 +1365,30 @@ class StateWriter:
     def read_control(self) -> dict[str, Any] | None:
         return self.control.read()
 
+    def require_stable_head(self) -> dict[str, Any]:
+        """Return a read-only stable-head report without attempting recovery.
+
+        Forest inspection commands use this bounded gate instead of calling
+        ``recover()`` on every read.  Any control, Journal, index, projection,
+        or authority-head mismatch fails closed through ``RecoveryRequired``;
+        repair remains an explicit operator action.
+        """
+
+        with WriterLock(self.lock_path):
+            with self._open_authoritative_index() as index:
+                current = self._require_stable_locked(index)
+                assert current is not None
+                projection_digest, projection_valid = index.projection_guard()
+                if not projection_valid:
+                    raise RecoveryRequired("local index projection requires recovery")
+                return {
+                    "control": _copy(current),
+                    "control_revision": current["revision"],
+                    "index_record_count": index.record_count(),
+                    "journal_event_id": current["heads"]["journal"]["event_id"],
+                    "projection_digest": projection_digest,
+                }
+
     def verify_running_job_execution(
         self,
         execution: RunningJobExecution,
@@ -1345,11 +1578,17 @@ class StateWriter:
                 )
                 if (
                     declaration is None
+                    or declaration.kind != "job-declared"
+                    or declaration.record_id != producer.job_id
+                    or declaration.status != "declared"
+                    or declaration.subject != f"Job:{producer.job_id}"
                     or declaration.fingerprint != producer.job_hash
+                    or producer.job_id != f"job:{producer.job_hash}"
                     or declaration.payload.get("mission_id")
                     != current["scientific"]["active_mission"]
                     or declaration.payload.get("study_id") != expected_study_id
                     or not isinstance(declared_spec, dict)
+                    or declared_spec.get("runtime_binding") is not None
                     or declared_spec.get("callable_identity")
                     != expected_callable_identity
                     or declared_spec.get("evidence_subject") != expected_subject
@@ -1358,16 +1597,95 @@ class StateWriter:
                     or declared_spec.get("output_classes") != expected_classes
                 ):
                     raise TransitionError("cache producer declaration is unavailable")
-                work_fingerprint = declaration.payload.get("work_fingerprint")
-                head = (
-                    None
-                    if not isinstance(work_fingerprint, str)
-                    else index.event_head(f"job-attempt:{work_fingerprint}")
+                start = index.get("job-started", producer.start_record_id)
+                permit_stream = f"permit:{producer.job_permit_id}"
+                issued = index.event_record(permit_stream, 1)
+                consumed = index.event_record(permit_stream, 2)
+                engine_entry_id = canonical_digest(
+                    domain="job-engine-entry",
+                    payload=producer.payload(),
+                )
+                engine_entry = index.get("job-engine-entry", engine_entry_id)
+                try:
+                    issued_permit = (
+                        None if issued is None else Permit.from_mapping(issued.payload)
+                    )
+                except (KeyError, TypeError, ValueError) as exc:
+                    raise TransitionError(
+                        "cache producer start provenance is invalid"
+                    ) from exc
+                expected_start_id = canonical_digest(
+                    domain="job-start",
+                    payload={
+                        "job_id": producer.job_id,
+                        "job_permit": producer.job_permit_id,
+                        "runtime_permit": None,
+                    },
+                )
+                if (
+                    start is None
+                    or start.kind != "job-started"
+                    or start.record_id != producer.start_record_id
+                    or producer.start_record_id != expected_start_id
+                    or start.status != "running"
+                    or start.subject != f"Job:{producer.job_id}"
+                    or start.fingerprint != producer.job_hash
+                    or start.payload
+                    != {
+                        "job_permit_id": producer.job_permit_id,
+                        "runtime": None,
+                    }
+                    or issued is None
+                    or issued.kind != "permit-issued"
+                    or issued.status != "issued"
+                    or issued.fingerprint != producer.job_permit_id
+                    or issued_permit is None
+                    or issued_permit.permit_id != producer.job_permit_id
+                    or issued_permit.kind is not PermitKind.JOB
+                    or issued_permit.subject.kind is not SubjectKind.JOB
+                    or issued_permit.subject.subject_id != producer.job_id
+                    or issued_permit.input_hash != producer.job_hash
+                    or issued_permit.actions != ("start_job",)
+                    or not issued_permit.one_shot
+                    or consumed is None
+                    or consumed.kind != "permit-consumed"
+                    or consumed.status != "consumed"
+                    or consumed.fingerprint != producer.job_permit_id
+                    or consumed.payload
+                    != {
+                        "one_shot": True,
+                        "permit_id": producer.job_permit_id,
+                    }
+                    or consumed.authority_event_id != start.authority_event_id
+                    or consumed.authority_sequence != start.authority_sequence
+                    or engine_entry is None
+                    or engine_entry.kind != "job-engine-entry"
+                    or engine_entry.record_id != engine_entry_id
+                    or engine_entry.status != "validated"
+                    or engine_entry.subject != f"Job:{producer.job_id}"
+                    or engine_entry.fingerprint != producer.job_hash
+                    or engine_entry.payload
+                    != {
+                        "execution": producer.payload(),
+                        "permit_consumption_record_id": consumed.record_id,
+                    }
+                    or engine_entry.authority_event_id != start.authority_event_id
+                    or engine_entry.authority_sequence != start.authority_sequence
+                ):
+                    raise TransitionError(
+                        "cache producer start provenance is unavailable"
+                    )
+                exact_completions = tuple(
+                    record
+                    for record in index.records_by_fingerprint(producer.job_hash)
+                    if record.kind == "job-completed"
+                    and record.subject == f"Job:{producer.job_id}"
+                    and record.payload.get("job_id") == producer.job_id
+                    and record.payload.get("start_record_id")
+                    == producer.start_record_id
                 )
                 completion = (
-                    None
-                    if head is None
-                    else index.get(head.record_kind, head.record_id)
+                    exact_completions[0] if len(exact_completions) == 1 else None
                 )
                 scientific = (
                     None if completion is None else completion.payload.get("scientific")
@@ -1380,9 +1698,16 @@ class StateWriter:
                     if not isinstance(scientific, dict)
                     else scientific.get("verdict")
                 )
+                effective_scope = (
+                    None
+                    if completion is None or not isinstance(scientific, dict)
+                    else _effective_completion_scope(index, completion)
+                )
                 if (
                     completion is None
                     or completion.kind != "job-completed"
+                    or completion.subject != f"Job:{producer.job_id}"
+                    or completion.fingerprint != producer.job_hash
                     or completion.payload.get("job_id") != producer.job_id
                     or completion.payload.get("start_record_id")
                     != producer.start_record_id
@@ -1406,7 +1731,8 @@ class StateWriter:
                     != "durable_evidence"
                     or not isinstance(scientific, dict)
                     or scientific_verdict not in {"passed", "failed", "not_evaluable"}
-                    or scientific.get("scientific_eligible") is not True
+                    or effective_scope is None
+                    or effective_scope.scientific_eligible is not True
                     or completion.status not in {
                         "success",
                         "failed",
@@ -2149,6 +2475,48 @@ class StateWriter:
             )
 
     @staticmethod
+    def _active_mission_stable_boundary(current: Mapping[str, Any]) -> bool:
+        """Recognize the exact no-Initiative Mission scheduling boundary."""
+
+        science = current["scientific"]
+        mission_id = science.get("active_mission")
+        authorizations = current.get("authorizations")
+        raw_action = current.get("next_action")
+        try:
+            resume_action = ExternalResumeAction.from_next_action(raw_action)
+        except (ExternalDependencyContractError, TypeError):
+            resume_action = None
+        stable_action = (
+            resume_action is not None
+            and resume_action.kind == "choose_next_initiative_or_terminal"
+            and resume_action.mission_id == mission_id
+            and resume_action.to_next_action() == raw_action
+        )
+        return (
+            type(mission_id) is str
+            and stable_action
+            and science.get("active_initiative") is None
+            and all(
+                science.get(name) is None
+                for name in (
+                    "active_study",
+                    "active_batch",
+                    "active_job",
+                    "active_repair",
+                    "active_executable",
+                    "active_lineage",
+                    "active_release",
+                    "active_holdout_evaluation",
+                )
+            )
+            and isinstance(authorizations, dict)
+            and set(authorizations) == {f"Mission:{mission_id}"}
+            and science.get("claim") == "none"
+            and science.get("holdout_reveals") == 0
+            and science.get("required_future_holdout_id") is None
+        )
+
+    @staticmethod
     def _authority_migration_boundary(
         current: Mapping[str, Any], *, allow_active_stable_boundary: bool
     ) -> str | None:
@@ -2178,14 +2546,19 @@ class StateWriter:
         initiative_id = science.get("active_initiative")
         active_stable = (
             allow_active_stable_boundary
-            and current["next_action"].get("kind") == "portfolio_decision"
-            and type(mission_id) is str
-            and type(initiative_id) is str
-            and all(science.get(name) is None for name in inactive_names)
-            and isinstance(active_authorizations, dict)
-            and set(active_authorizations)
-            == {f"Mission:{mission_id}", f"Initiative:{initiative_id}"}
-            and science.get("claim") == "none"
+            and (
+                (
+                    current["next_action"].get("kind") == "portfolio_decision"
+                    and type(mission_id) is str
+                    and type(initiative_id) is str
+                    and all(science.get(name) is None for name in inactive_names)
+                    and isinstance(active_authorizations, dict)
+                    and set(active_authorizations)
+                    == {f"Mission:{mission_id}", f"Initiative:{initiative_id}"}
+                    and science.get("claim") == "none"
+                )
+                or StateWriter._active_mission_stable_boundary(current)
+            )
         )
         return "active_stable" if active_stable else None
 
@@ -2344,6 +2717,7 @@ class StateWriter:
     ) -> TransitionResult:
         """Activate exact staged authority bytes without rewriting prior state."""
 
+        self.require_study_close_delivery_guard()
         _require_ascii("authority migration reason", reason)
         _require_ascii("operation_id", operation_id)
         if type(allow_active_stable_boundary) is not bool:
@@ -3079,6 +3453,7 @@ class StateWriter:
         *,
         activation: Any,
         operation_id: str,
+        allow_active_stable_boundary: bool = False,
     ) -> TransitionResult:
         """Activate or rebind the prospective protocol to current authority."""
 
@@ -3092,6 +3467,10 @@ class StateWriter:
 
         if not isinstance(activation, ResearchProtocolActivation):
             raise TransitionError("research protocol activation must be typed")
+        if type(allow_active_stable_boundary) is not bool:
+            raise TransitionError(
+                "active stable research protocol boundary flag must be bool"
+            )
         if (
             activation.protocol
             is not ResearchProtocol.SCIENTIFIC_ADJUDICATION_V2
@@ -3124,11 +3503,36 @@ class StateWriter:
                 raise TransitionError(
                     "research protocol activation is bound to another authority"
                 )
+            portfolio_boundary = (
+                isinstance(science.get("active_mission"), str)
+                and isinstance(science.get("active_initiative"), str)
+                and current.get("next_action", {}).get("kind")
+                == "portfolio_decision"
+                and all(
+                    science.get(name) is None
+                    for name in (
+                        "active_batch",
+                        "active_executable",
+                        "active_holdout_evaluation",
+                        "active_job",
+                        "active_lineage",
+                        "active_release",
+                        "active_repair",
+                        "active_study",
+                    )
+                )
+            )
+            mission_boundary = (
+                allow_active_stable_boundary
+                and self._active_mission_stable_boundary(current)
+            )
+            if not (portfolio_boundary or mission_boundary):
+                raise TransitionError(
+                    "research protocol activation requires the stable Portfolio "
+                    "boundary or its explicit stable Mission boundary"
+                )
             if (
                 not isinstance(science.get("active_mission"), str)
-                or not isinstance(science.get("active_initiative"), str)
-                or current.get("next_action", {}).get("kind")
-                != "portfolio_decision"
                 or any(
                     science.get(name) is not None
                     for name in (
@@ -3144,7 +3548,7 @@ class StateWriter:
                 )
             ):
                 raise TransitionError(
-                    "research protocol activation requires the stable Portfolio boundary"
+                    "research protocol activation has active scientific subwork"
                 )
             stream = "research-protocol:scientific"
             prior_head = index.event_head(stream)
@@ -3234,6 +3638,22 @@ class StateWriter:
             portfolio_head = index.event_head(
                 f"portfolio:{science['active_mission']}"
             )
+            replay_constraints = self._replay_scheduler_constraints(
+                index,
+                mission_id=science["active_mission"],
+            )
+            incoming_replay = {
+                name: current["next_action"].get(name)
+                for name in (
+                    "pending_replay_obligation_ids",
+                    "required_replay_priority",
+                )
+                if current["next_action"].get(name) is not None
+            }
+            if incoming_replay != (replay_constraints or {}):
+                raise TransitionError(
+                    "Initiative admission replay scheduler authority is stale"
+                )
             research_intake_id: str | None = None
             if not self.engineering_fixture:
                 next_action = current["next_action"]
@@ -3279,6 +3699,8 @@ class StateWriter:
                     "kind": "portfolio_decision",
                     "portfolio_snapshot_id": snapshot.record_id,
                 }
+                if replay_constraints is not None:
+                    body["next_action"].update(replay_constraints)
             authorization = self._authorization(
                 kind=SubjectKind.INITIATIVE,
                 subject_id=initiative_id,
@@ -3345,12 +3767,26 @@ class StateWriter:
                 raise TransitionError(
                     "Initiative close cannot bypass research diagnosis or review"
                 )
+            replay_heads = self._historical_replay_obligation_heads(
+                _index,
+                mission_id=science["active_mission"],
+            )
+            if any(head.status == "in_progress" for _, head in replay_heads):
+                raise TransitionError(
+                    "Initiative close cannot strand an in-progress historical replay"
+                )
             science["active_initiative"] = None
             self._drop_authorization(body, SubjectKind.INITIATIVE, initiative_id)
             body["next_action"] = {
                 "kind": "choose_next_initiative_or_terminal",
                 "mission_id": science["active_mission"],
             }
+            replay_constraints = self._replay_scheduler_constraints(
+                _index,
+                mission_id=science["active_mission"],
+            )
+            if replay_constraints is not None:
+                body["next_action"].update(replay_constraints)
             fingerprint = _digest(
                 {"initiative_id": initiative_id, "outcome": outcome},
                 domain="initiative-close",
@@ -3415,6 +3851,90 @@ class StateWriter:
                 "withdrawn Portfolio Decision lost its accepted provenance"
             )
         return None
+
+    @staticmethod
+    def _historical_replay_obligation_heads(
+        index: LocalIndex,
+        *,
+        mission_id: str,
+    ) -> tuple[tuple[Any, IndexRecord], ...]:
+        from axiom_rift.operations.replay_projection import (
+            ReplayProjectionError,
+            obligation_heads,
+        )
+
+        try:
+            return obligation_heads(index, mission_id=mission_id)
+        except ReplayProjectionError as exc:
+            raise RecoveryRequired(str(exc)) from exc
+
+    @classmethod
+    def _replay_scheduler_constraints(
+        cls,
+        index: LocalIndex,
+        *,
+        mission_id: str,
+    ) -> dict[str, Any] | None:
+        from axiom_rift.operations.replay_projection import (
+            ReplayProjectionError,
+            scheduler_constraints,
+        )
+
+        try:
+            return scheduler_constraints(index, mission_id=mission_id)
+        except ReplayProjectionError as exc:
+            raise RecoveryRequired(str(exc)) from exc
+
+    @staticmethod
+    def _with_replay_scheduler_constraints(
+        action: Mapping[str, Any],
+        constraints: Mapping[str, Any] | None,
+    ) -> dict[str, Any]:
+        from axiom_rift.operations.replay_projection import (
+            with_scheduler_constraints,
+        )
+
+        return with_scheduler_constraints(action, constraints)
+
+    @staticmethod
+    def _effective_axis_resolution(
+        index: LocalIndex,
+        axis: Mapping[str, Any],
+        *,
+        prospective_source_ids: Sequence[str] = (),
+    ) -> Any:
+        from axiom_rift.operations.effective_axis_projection import (
+            EffectiveAxisProjectionError,
+            effective_axis_resolution,
+        )
+
+        try:
+            return effective_axis_resolution(
+                index,
+                axis,
+                prospective_source_ids=prospective_source_ids,
+            )
+        except EffectiveAxisProjectionError as exc:
+            raise RecoveryRequired(str(exc)) from exc
+
+    @staticmethod
+    def _mission_effective_axis_blockers(
+        index: LocalIndex,
+        *,
+        mission_id: str,
+    ) -> tuple[Any, ...]:
+        from axiom_rift.operations.effective_axis_projection import (
+            EffectiveAxisProjectionError,
+            mission_effective_axis_blockers,
+        )
+
+        try:
+            return mission_effective_axis_blockers(
+                index,
+                mission_id=mission_id,
+            )
+        except EffectiveAxisProjectionError as exc:
+            raise RecoveryRequired(str(exc)) from exc
 
     @staticmethod
     def _axis_architecture_anchor(
@@ -4410,6 +4930,7 @@ class StateWriter:
             controlled_domains: list[str] | None = None
             portfolio_action: str | None = None
             commitment_batches: int | None = None
+            replay_obligation_ids: tuple[str, ...] = ()
             if not self.engineering_fixture:
                 if (
                     portfolio_axis_id is None
@@ -4445,6 +4966,23 @@ class StateWriter:
                     != portfolio_snapshot_id
                 ):
                     raise TransitionError("Study Portfolio Decision is unavailable or stale")
+                from axiom_rift.operations.replay_projection import (
+                    ReplayProjectionError,
+                    ReplayTransitionError,
+                    require_study_pending,
+                )
+
+                try:
+                    replay_obligation_ids = require_study_pending(
+                        _index,
+                        mission_id=science["active_mission"],
+                        decision_payload=decision.payload,
+                        next_action=next_action,
+                    )
+                except ReplayProjectionError as exc:
+                    raise RecoveryRequired(str(exc)) from exc
+                except ReplayTransitionError as exc:
+                    raise TransitionError(str(exc)) from exc
                 options = {
                     option["option_id"]: option
                     for option in decision.payload.get("options", [])
@@ -4673,6 +5211,11 @@ class StateWriter:
                         warning.warning_id for warning in trial_context.semantic_warnings
                     ],
                     "warning_scheduler_weight": trial_context.warning_scheduler_weight,
+                    **(
+                        {"replay_obligation_ids": list(replay_obligation_ids)}
+                        if replay_obligation_ids
+                        else {}
+                    ),
                 },
             )
             return body, [consumption, record], {
@@ -5436,6 +5979,172 @@ class StateWriter:
             payload=invalidation.to_identity_payload(),
             prepare=prepare,
             crash_after=crash_after,
+        )
+
+    def record_source_replacement_lineage(
+        self,
+        *,
+        lineage: Any,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Retire one invalidated old axis into a distinct eligible source axis."""
+
+        from axiom_rift.operations.effective_axis_projection import (
+            EffectiveAxisProjectionError,
+            validate_source_replacement_lineage,
+        )
+        from axiom_rift.research.effective_axis import EffectiveAxisStatus
+        from axiom_rift.research.source_authority import SourceReplacementLineage
+
+        self._require_study_close_delivery_guard()
+        if not isinstance(lineage, SourceReplacementLineage):
+            raise TransitionError(
+                "source replacement lineage must be a typed additive record"
+            )
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            science = current["scientific"]
+            mission_id = science.get("active_mission")
+            if mission_id != lineage.mission_id or any(
+                science.get(name) is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_holdout_evaluation",
+                    "active_job",
+                    "active_lineage",
+                    "active_release",
+                    "active_repair",
+                    "active_study",
+                )
+            ):
+                raise TransitionError(
+                    "source replacement requires a stable active Mission boundary"
+                )
+            active_initiative = science.get("active_initiative")
+            next_action = current.get("next_action")
+            stable_portfolio_boundary = (
+                isinstance(active_initiative, str)
+                and isinstance(next_action, dict)
+                and next_action.get("kind") == "portfolio_decision"
+            )
+            if not (
+                stable_portfolio_boundary
+                or self._active_mission_stable_boundary(current)
+            ):
+                raise TransitionError(
+                    "source replacement cannot bypass pending research direction"
+                )
+            portfolio_head = index.event_head(f"portfolio:{mission_id}")
+            snapshot = (
+                None
+                if portfolio_head is None
+                else index.get(portfolio_head.record_kind, portfolio_head.record_id)
+            )
+            raw_axes = None if snapshot is None else snapshot.payload.get("axes")
+            if (
+                snapshot is None
+                or snapshot.record_id != lineage.portfolio_snapshot_id
+                or snapshot.subject != f"Mission:{mission_id}"
+                or not isinstance(raw_axes, list)
+            ):
+                raise TransitionError(
+                    "source replacement is not bound to the current Portfolio"
+                )
+            axes = {
+                axis.get("axis_id"): axis
+                for axis in raw_axes
+                if isinstance(axis, dict) and isinstance(axis.get("axis_id"), str)
+            }
+            original_axis = axes.get(lineage.original_axis_id)
+            replacement_axis = axes.get(lineage.replacement_axis_id)
+            if (
+                len(axes) != len(raw_axes)
+                or original_axis is None
+                or replacement_axis is None
+            ):
+                raise TransitionError(
+                    "source replacement Portfolio axes are unavailable"
+                )
+            try:
+                binding = validate_source_replacement_lineage(
+                    index,
+                    lineage,
+                    require_current_replacement_source=True,
+                )
+            except EffectiveAxisProjectionError as exc:
+                raise TransitionError(str(exc)) from exc
+            original_resolution = self._effective_axis_resolution(
+                index, original_axis
+            )
+            replacement_resolution = self._effective_axis_resolution(
+                index, replacement_axis
+            )
+            exact_invalidation = any(
+                item.source_contract_id
+                == lineage.invalidated_source_contract_id
+                and item.invalidation_record_id == lineage.invalidation_id
+                for item in original_resolution.invalidations
+            )
+            if (
+                original_resolution.effective_status
+                is not EffectiveAxisStatus.BLOCKED_BY_INVALIDATED_SOURCE
+                or not exact_invalidation
+                or not replacement_resolution.selectable
+                or binding.record_id != lineage.identity
+            ):
+                raise TransitionError(
+                    "source replacement does not retire one exact blocked axis "
+                    "into a selectable replacement axis"
+                )
+            stream = (
+                f"source-replacement:{mission_id}:"
+                f"{lineage.original_axis_identity}:"
+                f"{lineage.invalidated_source_contract_id}"
+            )
+            if index.event_head(stream) is not None:
+                raise TransitionError(
+                    "source replacement lineage is already recorded"
+                )
+            payload = {
+                "candidate_delta": 0,
+                "claim_delta": "none",
+                "holdout_delta": 0,
+                "lineage": lineage.to_identity_payload(),
+                "scientific_credit": 0,
+                "terminal_scientific_credit": 0,
+                "trial_delta": 0,
+            }
+            record = _record(
+                kind="source-replacement-lineage",
+                record_id=lineage.identity,
+                subject=f"Axis:{lineage.original_axis_identity}",
+                status="retired_original_axis",
+                fingerprint=lineage.identity.removeprefix(
+                    "source-replacement-lineage:"
+                ),
+                payload=payload,
+                event_stream=stream,
+                event_sequence=1,
+            )
+            return self._body(current), [record], {
+                "candidate_delta": 0,
+                "claim_delta": "none",
+                "holdout_delta": 0,
+                "original_axis_id": lineage.original_axis_id,
+                "replacement_axis_id": lineage.replacement_axis_id,
+                "source_replacement_lineage_id": lineage.identity,
+                "trial_delta": 0,
+            }
+
+        return self._commit(
+            event_kind="source_replacement_lineage_recorded",
+            operation_id=operation_id,
+            subject=f"Axis:{lineage.original_axis_identity}",
+            payload={"lineage": lineage.to_identity_payload()},
+            prepare=prepare,
         )
 
     def open_batch(
@@ -6800,6 +7509,22 @@ class StateWriter:
                 != {"kind": "judge_study", "study_id": study_id}
             ):
                 raise TransitionError("Study close is not the exact next action")
+            from axiom_rift.operations.replay_projection import (
+                ReplayProjectionError,
+                ReplayTransitionError,
+                require_study_execution_complete,
+            )
+
+            try:
+                require_study_execution_complete(
+                    _index,
+                    mission_id=study_record.payload.get("mission_id"),
+                    study=study_record,
+                )
+            except ReplayProjectionError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except ReplayTransitionError as exc:
+                raise TransitionError(str(exc)) from exc
             kpi_payload = self._study_kpi_payload(
                 index=_index,
                 study_id=study_id,
@@ -6934,6 +7659,17 @@ class StateWriter:
         if len(batch_closes) != 1:
             raise TransitionError("Study diagnosis final Batch close is ambiguous")
         references.add(("batch-close", batch_closes[0].record_id))
+        for completion in index.records_by_kind("job-completed"):
+            job_id = completion.payload.get("job_id")
+            declaration = (
+                None
+                if not isinstance(job_id, str)
+                else index.get("job-declared", job_id)
+            )
+            if declaration is not None and declaration.payload.get(
+                "study_id"
+            ) == study_id:
+                references.add(("job-completed", completion.record_id))
         for memory in index.records_by_kind("negative-memory"):
             if memory.payload.get("study_id") == study_id:
                 references.add(("negative-memory", memory.record_id))
@@ -7210,6 +7946,31 @@ class StateWriter:
                     "trigger_record_id": trigger_record.record_id,
                 }
                 records = [diagnosis_record, trigger_record]
+            from axiom_rift.operations.replay_projection import (
+                ReplayProjectionError,
+                ReplayTransitionError,
+                require_diagnosed_replay,
+            )
+
+            try:
+                replay_obligation_ids = require_diagnosed_replay(
+                    index,
+                    mission_id=science["active_mission"],
+                    study=study,
+                    diagnosis_id=diagnosis.identity,
+                )
+            except ReplayProjectionError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except ReplayTransitionError as exc:
+                raise TransitionError(str(exc)) from exc
+            if replay_obligation_ids:
+                body["next_action"] = {
+                    "kind": "resolve_historical_replay_obligations",
+                    "replay_obligation_ids": list(replay_obligation_ids),
+                    "resume_next_action": body["next_action"],
+                    "study_diagnosis_id": diagnosis.identity,
+                    "study_id": diagnosis.study_id,
+                }
             return body, records, {
                 "architecture_review_trigger_id": (
                     None if trigger_record is None else trigger_record.record_id
@@ -7506,36 +8267,10 @@ class StateWriter:
             if holdout_id.removeprefix("holdout:") not in input_hashes:
                 raise TransitionError("holdout identity must be a bound Job input")
         if external_binding is not None:
-            if not isinstance(external_binding, dict) or set(external_binding) != {
-                "blocked_mission_capability",
-                "dependency_id",
-                "dependency_kind",
-                "exact_resume_action",
-                "recovery_kind",
-                "recovery_path_id",
-                "result_manifest_output",
-                "required_external_change",
-                "validation_plan_hash",
-                "validator_id",
-            }:
-                raise TransitionError("external dependency binding schema is invalid")
-            if external_binding["dependency_kind"] not in {
-                "broker_service",
-                "market_data_service",
-                "vendor_runtime",
-                "operating_system_service",
-                "hardware_service",
-            }:
-                raise TransitionError("external dependency kind is not typed")
-            if external_binding["recovery_kind"] not in {
-                "external_probe",
-                "local_recovery",
-                "safe_substitute_search",
-                "escalation_probe",
-            }:
-                raise TransitionError("external recovery kind is not typed")
-            for name, field_value in external_binding.items():
-                _require_ascii(name, field_value)
+            try:
+                external_plan_from_binding(external_binding)
+            except ExternalDependencyContractError as exc:
+                raise TransitionError(str(exc)) from exc
             if evidence_subject["kind"] != "Mission":
                 raise TransitionError("external dependency Job must bind the Mission")
 
@@ -7833,11 +8568,8 @@ class StateWriter:
 
         identity = spec["implementation_identity"]
         try:
-            implementation_artifact = self.evidence.verify(identity)
             implementation_manifest = parse_canonical(
-                (
-                    self.evidence._root / implementation_artifact.relative_path
-                ).read_bytes()
+                self.evidence.read_verified(identity)
             )
         except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
             raise TransitionError(
@@ -7869,10 +8601,7 @@ class StateWriter:
         for source_hash in implementation_manifest["artifact_hashes"]:
             try:
                 _require_digest("implementation artifact", source_hash)
-                source_artifact = self.evidence.verify(source_hash)
-                source_bytes = (
-                    self.evidence._root / source_artifact.relative_path
-                ).read_bytes()
+                source_bytes = self.evidence.read_verified(source_hash)
                 if _hardcoded_control_ids(source_bytes):
                     raise TransitionError(
                         "Job implementation hardcodes a Mission or Study identity; "
@@ -7970,6 +8699,14 @@ class StateWriter:
         self._require_study_close_delivery_guard()
         spec = self._normalize_job_spec(spec)
         self._validate_job_spec(spec)
+        external_binding = spec.get("external_dependency_binding")
+        if isinstance(external_binding, dict):
+            try:
+                self.evidence.verify(external_binding["validation_plan_hash"])
+            except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+                raise TransitionError(
+                    "external validation plan evidence is absent or corrupt"
+                ) from exc
         self._preflight_scientific_binding(spec)
         work_basis = {
             "callable_identity": spec["callable_identity"],
@@ -7994,6 +8731,26 @@ class StateWriter:
                 raise TransitionError("Job requires an active Mission")
             if science["active_job"] is not None:
                 raise TransitionError("another parent Job is active")
+            active_batch = science.get("active_batch")
+            if isinstance(active_batch, dict):
+                batch_record = _index.get("batch-open", active_batch["id"])
+                if batch_record is None:
+                    raise RecoveryRequired(
+                        "active Batch declaration is unavailable at Job declaration"
+                    )
+                _require_concurrent_family_registration(
+                    _index,
+                    batch_record=batch_record,
+                    evidence_subject=spec["evidence_subject"],
+                )
+            external_binding = spec.get("external_dependency_binding")
+            external_plan: ExternalRecoveryPlan | None = None
+            external_plan_records: list[IndexRecord] = []
+            if isinstance(external_binding, dict):
+                try:
+                    external_plan = external_plan_from_binding(external_binding)
+                except ExternalDependencyContractError as exc:
+                    raise TransitionError(str(exc)) from exc
             scientific_binding = spec.get("scientific_binding")
             protocol_head = _index.event_head("research-protocol:scientific")
             if (
@@ -8069,9 +8826,75 @@ class StateWriter:
                     isinstance(science.get("active_study"), str)
                     and isinstance(spec.get("source_binding"), dict)
                 )
-                external_allowed = isinstance(
-                    spec.get("external_dependency_binding"), dict
-                )
+                external_allowed = False
+                if external_plan is not None and isinstance(external_binding, dict):
+                    mission_id = science["active_mission"]
+                    if external_plan.condition.resume_action.mission_id != mission_id:
+                        raise TransitionError(
+                            "external recovery plan is bound to another Mission"
+                        )
+                    if any(
+                        science.get(name) is not None
+                        for name in (
+                            "active_batch",
+                            "active_executable",
+                            "active_holdout_evaluation",
+                            "active_initiative",
+                            "active_lineage",
+                            "active_release",
+                            "active_repair",
+                            "active_study",
+                        )
+                    ):
+                        raise TransitionError(
+                            "external recovery Job requires disposed subordinate work"
+                        )
+                    plan_record = _index.get(
+                        "external-recovery-plan", external_plan.identity
+                    )
+                    path = external_plan.path(
+                        external_binding["recovery_path_id"]
+                    )
+                    first_path = external_plan.paths[0]
+                    first_boundary = (
+                        plan_record is None
+                        and path == first_path
+                        and external_plan.boundary_event_id
+                        == current.get("heads", {}).get("journal", {}).get(
+                            "event_id"
+                        )
+                        and next_action
+                        == external_plan.condition.resume_action.to_next_action()
+                    )
+                    continuation_boundary = (
+                        plan_record is not None
+                        and plan_record.subject == f"Mission:{mission_id}"
+                        and plan_record.payload == external_plan.to_identity_payload()
+                        and isinstance(next_action, dict)
+                        and next_action.get("kind")
+                        == "declare_external_dependency_job"
+                        and next_action.get("recovery_plan_id")
+                        == external_plan.identity
+                        and next_action.get("recovery_path_id")
+                        == path.recovery_path_id
+                        and isinstance(
+                            next_action.get("prior_completion_record_ids"), list
+                        )
+                    )
+                    external_allowed = first_boundary or continuation_boundary
+                    if first_boundary:
+                        external_plan_records.append(
+                            _record(
+                                kind="external-recovery-plan",
+                                record_id=external_plan.identity,
+                                subject=f"Mission:{mission_id}",
+                                status="active",
+                                fingerprint=external_plan.identity.removeprefix(
+                                    "external-recovery-plan:"
+                                ),
+                                payload=external_plan.to_identity_payload(),
+                            )
+                        )
                 if not any(
                     (
                         batch_allowed,
@@ -8109,6 +8932,40 @@ class StateWriter:
                         )
             mission_id = science["active_mission"]
             implementation_manifest = self._require_job_implementation_evidence(spec)
+            component_implementation_hashes: tuple[str, ...] = ()
+            if (
+                not self.engineering_fixture
+                and spec["evidence_subject"]["kind"] == "Executable"
+            ):
+                from axiom_rift.research.implementation_closure import (
+                    ImplementationClosureError,
+                    require_job_implementation_closure,
+                )
+
+                subject_trial = _index.get(
+                    "trial", spec["evidence_subject"]["id"]
+                )
+                executable_manifest = (
+                    None
+                    if subject_trial is None
+                    else subject_trial.payload.get("executable")
+                )
+                if not isinstance(executable_manifest, dict):
+                    raise TransitionError(
+                        "Executable Job subject lacks its exact trial manifest"
+                    )
+                try:
+                    component_implementation_hashes = (
+                        require_job_implementation_closure(
+                            executable_manifest=executable_manifest,
+                            job_artifact_hashes=implementation_manifest[
+                                "artifact_hashes"
+                            ],
+                            artifact_reader=self.evidence.read_verified,
+                        )
+                    )
+                except ImplementationClosureError as exc:
+                    raise TransitionError(str(exc)) from exc
             job_hash = _digest(
                 {"mission_id": mission_id, "spec": dict(spec)}, domain="job"
             )
@@ -8169,7 +9026,7 @@ class StateWriter:
                     raise IdenticalFailedRetryError(
                         "failed Job work cannot be retried without changed-cause proof"
                     )
-                changed_artifact = self.evidence.verify(changed_proof)
+                changed_bytes = self.evidence.read_verified(changed_proof)
                 prior_failure = previous_attempt.payload.get("failure")
                 previous_job_id = previous_attempt.payload.get("job_id")
                 previous_declaration = (
@@ -8217,11 +9074,7 @@ class StateWriter:
                         "changed-cause proof does not change implementation artifacts"
                     )
                 try:
-                    changed_manifest = parse_canonical(
-                        (
-                            self.evidence._root / changed_artifact.relative_path
-                        ).read_bytes()
-                    )
+                    changed_manifest = parse_canonical(changed_bytes)
                 except ValueError as exc:
                     raise IdenticalFailedRetryError(
                         "changed-cause proof is not a canonical manifest"
@@ -8403,13 +9256,22 @@ class StateWriter:
                     "batch_id": None if not isinstance(batch, dict) else batch["id"],
                     "success_fingerprint": success_fingerprint,
                     "work_fingerprint": work_fingerprint,
+                    **(
+                        {
+                            "component_implementation_hashes": list(
+                                component_implementation_hashes
+                            )
+                        }
+                        if component_implementation_hashes
+                        else {}
+                    ),
                 },
                 event_stream=f"job-attempt:{work_fingerprint}",
                 event_sequence=(
                     1 if attempt_head is None else attempt_head.sequence + 1
                 ),
             )
-            return body, [*reservation_records, record], {
+            return body, [*external_plan_records, *reservation_records, record], {
                 "job_id": job_id,
                 "job_hash": job_hash,
             }
@@ -8840,9 +9702,15 @@ class StateWriter:
                     if declaration is None:
                         raise TransitionError("candidate evidence Job declaration is absent")
                     scientific = evidence.payload.get("scientific")
+                    effective_scope = (
+                        None
+                        if not isinstance(scientific, dict)
+                        else _effective_completion_scope(_index, evidence)
+                    )
                     if (
                         not isinstance(scientific, dict)
-                        or scientific.get("scientific_eligible") is not True
+                        or effective_scope is None
+                        or effective_scope.scientific_eligible is not True
                         or scientific.get("executable_id") != executable_id
                         or scientific.get("evidence_depth")
                         not in {"discovery", "confirmation"}
@@ -8854,7 +9722,7 @@ class StateWriter:
                     if scientific["evidence_depth"] == "confirmation":
                         confirmation_eligible = (
                             confirmation_eligible
-                            or scientific.get("candidate_eligible") is True
+                            or effective_scope.candidate_eligible is True
                         )
                     declared_subject = declaration.payload["spec"]["evidence_subject"]
                     if declared_subject != {
@@ -9919,6 +10787,25 @@ class StateWriter:
             if study_record is None:
                 raise TransitionError("active Study declaration is unavailable")
             material_identity = study_record.payload["material_identity"]
+            from axiom_rift.operations.replay_projection import (
+                ReplayProjectionError,
+                ReplayTransitionError,
+                prepare_execution_progress,
+            )
+
+            try:
+                replay_obligation_ids, replay_progress_records = (
+                    prepare_execution_progress(
+                        index,
+                        study_record=study_record,
+                        executable_id=executable_id,
+                        executable_payload=executable.to_identity_payload(),
+                    )
+                )
+            except ReplayProjectionError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except ReplayTransitionError as exc:
+                raise TransitionError(str(exc)) from exc
             component_records: list[IndexRecord] = []
             executable_surface_record: IndexRecord | None = None
             if not self.engineering_fixture:
@@ -9981,7 +10868,11 @@ class StateWriter:
                     raise RecoveryRequired(
                         "counted Executable lacks its semantic surface projection"
                     )
-                return self._body(current), [], {"trial_delta": 0, "cache_hit": True}
+                return self._body(current), replay_progress_records, {
+                    "trial_delta": 0,
+                    "cache_hit": True,
+                    "replay_obligation_ids": list(replay_obligation_ids),
+                }
             if not self.engineering_fixture:
                 component_records.extend(
                     self._project_executable_components(index, executable)
@@ -10036,11 +10927,17 @@ class StateWriter:
                         "portfolio_snapshot_id"
                     ),
                     "study_id": study_id,
+                    **(
+                        {"replay_obligation_ids": list(replay_obligation_ids)}
+                        if replay_obligation_ids
+                        else {}
+                    ),
                 },
                 event_stream=f"batch-trials:{batch['id']}",
                 event_sequence=evaluated_count + 1,
             )
             records = [
+                *replay_progress_records,
                 *component_records,
                 *(
                     []
@@ -10202,6 +11099,10 @@ class StateWriter:
             sequence = 1 if head is None else head.sequence + 1
             required_target_axis_ids: list[str] = []
             constraint_source_id: str | None = None
+            replay_constraints = self._replay_scheduler_constraints(
+                index,
+                mission_id=snapshot.mission_id,
+            )
             if head is None:
                 standard = snapshot.exhaustion_standard_value()
                 if not self.engineering_fixture and not isinstance(standard, dict):
@@ -10263,6 +11164,18 @@ class StateWriter:
                 if prior is None or prior.kind != "portfolio-snapshot":
                     raise TransitionError("current Portfolio snapshot is unavailable")
                 next_action = current["next_action"]
+                next_replay = {
+                    name: next_action.get(name)
+                    for name in (
+                        "pending_replay_obligation_ids",
+                        "required_replay_priority",
+                    )
+                    if next_action.get(name) is not None
+                }
+                if next_replay != (replay_constraints or {}):
+                    raise TransitionError(
+                        "Portfolio mutation replay scheduler authority is stale"
+                    )
                 decision_id = next_action.get("decision_id")
                 decision = (
                     None
@@ -10411,6 +11324,8 @@ class StateWriter:
                         "required_target_axis_ids": required_target_axis_ids,
                     }
                 )
+            if replay_constraints is not None:
+                body["next_action"].update(replay_constraints)
             record = _record(
                 kind="portfolio-snapshot",
                 record_id=snapshot.identity,
@@ -10489,20 +11404,48 @@ class StateWriter:
             axes_by_id = {
                 axis["axis_id"]: axis for axis in snapshot.payload["axes"]
             }
-            eligible_targets = {
-                axis["axis_id"]
+            effective_axes = {
+                axis["axis_id"]: self._effective_axis_resolution(_index, axis)
                 for axis in snapshot.payload["axes"]
-                if axis["status"] != "pruned"
             }
-            if any(option.target_id not in eligible_targets for option in decision.options):
-                raise TransitionError("Portfolio Decision names an undeclared target axis")
+            option_eligible_targets = {
+                axis_id
+                for axis_id, resolution in effective_axes.items()
+                if resolution.decision_option_eligible
+            }
+            if any(
+                option.target_id not in option_eligible_targets
+                for option in decision.options
+            ):
+                raise TransitionError(
+                    "Portfolio Decision names an undeclared or effectively blocked target axis"
+                )
+            chosen_effective_axis = effective_axes[decision.chosen.target_id]
+            if chosen_effective_axis.requires_reopen and decision.chosen.action not in {
+                PortfolioAction.PRESERVE,
+                PortfolioAction.PRUNE,
+            }:
+                raise TransitionError(
+                    "deferred Portfolio axis requires an exact preserve/reopen "
+                    "Decision before scientific work"
+                )
+            if (
+                not chosen_effective_axis.selectable
+                and not chosen_effective_axis.requires_reopen
+            ):
+                raise TransitionError(
+                    "Portfolio Decision chosen axis is effectively blocked"
+                )
             required_target_axis_ids = next_action.get("required_target_axis_ids")
             if required_target_axis_ids is not None and (
                 not isinstance(required_target_axis_ids, list)
                 or not required_target_axis_ids
                 or required_target_axis_ids != sorted(set(required_target_axis_ids))
                 or any(type(item) is not str for item in required_target_axis_ids)
-                or any(item not in eligible_targets for item in required_target_axis_ids)
+                or any(
+                    item not in option_eligible_targets
+                    for item in required_target_axis_ids
+                )
                 or decision.chosen.target_id not in required_target_axis_ids
             ):
                 raise TransitionError(
@@ -10519,19 +11462,6 @@ class StateWriter:
                 raise TransitionError(
                     "Portfolio Decision constrained axes lack their exact source"
                 )
-            scheduler_constraints = None
-            if required_target_axis_ids is not None or constraint_source_id is not None:
-                scheduler_constraints = {
-                    "constraint_source_id": constraint_source_id,
-                    "required_target_axis_ids": required_target_axis_ids,
-                }
-            if (
-                decision.recent_positive_lineage_id is not None
-                and decision.recent_positive_lineage_id not in eligible_targets
-                and _index.get("lineage", decision.recent_positive_lineage_id) is None
-            ):
-                raise TransitionError("recent-positive reference is not durable")
-            target_axis = axes_by_id[decision.chosen.target_id]
             work_actions = {
                 PortfolioAction.COMPLEMENTARY_SLEEVE,
                 PortfolioAction.CONTRAST,
@@ -10540,6 +11470,44 @@ class StateWriter:
                 PortfolioAction.ROTATE,
                 PortfolioAction.SYNTHESIZE,
             }
+            from axiom_rift.operations.replay_projection import (
+                ReplayProjectionError,
+                ReplayTransitionError,
+                validate_decision_selection,
+            )
+
+            try:
+                replay_constraints = validate_decision_selection(
+                    _index,
+                    mission_id=science["active_mission"],
+                    next_action=next_action,
+                    replay_obligation_ids=decision.replay_obligation_ids,
+                    action=decision.chosen.action.value,
+                    target_axis_id=decision.chosen.target_id,
+                    work_actions=frozenset(item.value for item in work_actions),
+                )
+            except ReplayProjectionError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except ReplayTransitionError as exc:
+                raise TransitionError(str(exc)) from exc
+            scheduler_constraints = (
+                {
+                    "constraint_source_id": constraint_source_id,
+                    "required_target_axis_ids": required_target_axis_ids,
+                }
+                if required_target_axis_ids is not None
+                or constraint_source_id is not None
+                else None
+            )
+            if replay_constraints is not None:
+                scheduler_constraints = {**(scheduler_constraints or {}), **replay_constraints}
+            if (
+                decision.recent_positive_lineage_id is not None
+                and decision.recent_positive_lineage_id not in option_eligible_targets
+                and _index.get("lineage", decision.recent_positive_lineage_id) is None
+            ):
+                raise TransitionError("recent-positive reference is not durable")
+            target_axis = axes_by_id[decision.chosen.target_id]
             baseline = decision.baseline_executable
             architecture = decision.architecture_chassis
             component_records: list[IndexRecord] = []
@@ -10668,6 +11636,16 @@ class StateWriter:
                 component_records = self._project_executable_components(
                     _index, baseline
                 )
+                effective_target = self._effective_axis_resolution(
+                    _index,
+                    target_axis,
+                    prospective_source_ids=baseline.source_contracts,
+                )
+                if not effective_target.selectable:
+                    raise TransitionError(
+                        "Portfolio Decision baseline uses an invalidated source; "
+                        "a new SourceContract and axis are required"
+                    )
             elif (
                 not self.engineering_fixture
                 and (baseline is not None or architecture is not None)
@@ -10839,6 +11817,10 @@ class StateWriter:
                 "target_axis_identity": target_axis["axis_identity"],
                 "portfolio_snapshot_id": snapshot.record_id,
             }
+            if decision.replay_obligation_ids:
+                body["next_action"]["replay_obligation_ids"] = list(
+                    decision.replay_obligation_ids
+                )
             if next_kind == "execute_portfolio_decision" and not self.engineering_fixture:
                 assert baseline is not None and architecture is not None
                 body["next_action"].update(
@@ -10877,6 +11859,8 @@ class StateWriter:
                     body["next_action"]["constraint_source_id"] = (
                         constraint_source_id
                     )
+                if replay_constraints is not None:
+                    body["next_action"].update(replay_constraints)
             record = _record(
                 kind="portfolio-decision",
                 record_id=decision.identity,
@@ -10887,6 +11871,9 @@ class StateWriter:
                     **decision.to_identity_payload(),
                     "architecture_review_id": architecture_review_id,
                     "baseline_provenance": baseline_provenance,
+                    "effective_axis": effective_axes[
+                        decision.chosen.target_id
+                    ].to_projection_payload(),
                     "portfolio_snapshot_id": snapshot.record_id,
                     "scheduler_constraints": scheduler_constraints,
                     "study_diagnosis_id": diagnosis_id,
@@ -11007,8 +11994,8 @@ class StateWriter:
                 axis.get("axis_id")
                 for axis in axes
                 if isinstance(axis, dict)
-                and axis.get("status") != "pruned"
                 and isinstance(axis.get("axis_id"), str)
+                and self._effective_axis_resolution(index, axis).selectable
             }
             chosen_options = tuple(
                 option
@@ -11111,10 +12098,16 @@ class StateWriter:
             }
             constraints = decision.payload.get("scheduler_constraints")
             if constraints is not None:
+                allowed_constraint_fields = {
+                    "constraint_source_id",
+                    "pending_replay_obligation_ids",
+                    "required_replay_priority",
+                    "required_target_axis_ids",
+                }
                 if (
                     not isinstance(constraints, dict)
-                    or set(constraints)
-                    != {"constraint_source_id", "required_target_axis_ids"}
+                    or not constraints
+                    or not set(constraints).issubset(allowed_constraint_fields)
                 ):
                     raise RecoveryRequired(
                         "withdrawn Decision scheduler constraints are malformed"
@@ -11148,6 +12141,23 @@ class StateWriter:
                     raise RecoveryRequired(
                         "withdrawn Decision constrained axes lack their source"
                     )
+                replay_constraints = self._replay_scheduler_constraints(
+                    index,
+                    mission_id=mission_id,
+                )
+                stored_replay = {
+                    name: constraints.get(name)
+                    for name in (
+                        "pending_replay_obligation_ids",
+                        "required_replay_priority",
+                    )
+                    if constraints.get(name) is not None
+                }
+                if stored_replay != (replay_constraints or {}):
+                    raise RecoveryRequired(
+                        "withdrawn Decision replay constraints are stale"
+                    )
+                replacement_action.update(stored_replay)
             diagnosis_id = decision.payload.get("study_diagnosis_id")
             if isinstance(diagnosis_id, str):
                 replacement_action["study_diagnosis_id"] = diagnosis_id
@@ -11553,6 +12563,607 @@ class StateWriter:
             )
         )
 
+    def plan_historical_replay_correction(
+        self,
+        *,
+        adjudication_record_ids: Sequence[str],
+        replay_study_id: str,
+    ) -> dict[str, Any]:
+        """Build a read-only, exact correction plan; never mutate canonical state."""
+
+        normalized_ids = tuple(sorted(adjudication_record_ids))
+        if (
+            not normalized_ids
+            or len(normalized_ids) != len(set(normalized_ids))
+            or any(type(item) is not str for item in normalized_ids)
+        ):
+            raise TransitionError("replay correction adjudication ids are invalid")
+        validate_study_id(replay_study_id)
+        with WriterLock(self.lock_path):
+            with self._open_authoritative_index() as index:
+                current = self._require_stable_locked(index)
+                assert current is not None
+                mission_id = current["scientific"].get("active_mission")
+                if not isinstance(mission_id, str):
+                    raise TransitionError(
+                        "replay correction plan requires an active Mission"
+                    )
+                from axiom_rift.operations.replay_projection import (
+                    ReplayProjectionError,
+                    ReplayTransitionError,
+                    build_correction_plan,
+                )
+
+                try:
+                    return build_correction_plan(
+                        index,
+                        mission_id=mission_id,
+                        adjudication_record_ids=normalized_ids,
+                        replay_study_id=replay_study_id,
+                    )
+                except ReplayProjectionError as exc:
+                    raise RecoveryRequired(str(exc)) from exc
+                except ReplayTransitionError as exc:
+                    raise TransitionError(str(exc)) from exc
+
+    def record_historical_replay_correction(
+        self,
+        *,
+        adjudication_record_ids: Sequence[str],
+        satisfactions: Sequence[Any],
+        operation_id: str,
+    ) -> TransitionResult:
+        """Backfill replay streams and bind already-completed audit-only replay."""
+
+        from axiom_rift.research.replay_obligation import ReplaySatisfaction
+        from axiom_rift.operations.replay_projection import (
+            ReplayProjectionError,
+            ReplayTransitionError,
+            prepare_correction,
+        )
+
+        normalized_ids = tuple(sorted(adjudication_record_ids))
+        normalized_satisfactions = tuple(
+            sorted(satisfactions, key=lambda item: getattr(item, "obligation_id", ""))
+        )
+        if (
+            not normalized_ids
+            or len(normalized_ids) != len(set(normalized_ids))
+            or any(type(item) is not str for item in normalized_ids)
+            or not normalized_satisfactions
+            or any(
+                not isinstance(item, ReplaySatisfaction)
+                for item in normalized_satisfactions
+            )
+            or len(
+                {item.obligation_id for item in normalized_satisfactions}
+            )
+            != len(normalized_satisfactions)
+        ):
+            raise TransitionError("historical replay correction request is invalid")
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("historical replay correction requires control")
+            science = current["scientific"]
+            mission_id = science.get("active_mission")
+            if not isinstance(mission_id, str) or any(
+                science.get(name) is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_holdout_evaluation",
+                    "active_job",
+                    "active_lineage",
+                    "active_release",
+                    "active_repair",
+                    "active_study",
+                )
+            ):
+                raise TransitionError(
+                    "historical replay correction requires a stable Mission boundary"
+                )
+            try:
+                records, constraints, result = prepare_correction(
+                    index,
+                    mission_id=mission_id,
+                    adjudication_record_ids=normalized_ids,
+                    satisfactions=normalized_satisfactions,
+                )
+            except ReplayProjectionError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except ReplayTransitionError as exc:
+                raise TransitionError(str(exc)) from exc
+            body = self._body(current)
+            body["next_action"] = self._with_replay_scheduler_constraints(
+                body["next_action"], constraints
+            )
+            return body, records, result
+
+        return self._commit(
+            event_kind="historical_replay_correction_recorded",
+            operation_id=operation_id,
+            subject="ProjectGoal:OPERATING_DIRECTION.md",
+            payload={
+                "adjudication_record_ids": list(normalized_ids),
+                "satisfactions": [
+                    item.to_identity_payload()
+                    for item in normalized_satisfactions
+                ],
+            },
+            prepare=prepare,
+        )
+
+    def resolve_historical_replay_obligations(
+        self,
+        *,
+        satisfactions: Sequence[Any],
+        operation_id: str,
+    ) -> TransitionResult:
+        """Resolve exact in-progress replay after its mandatory Study diagnosis."""
+
+        from axiom_rift.research.replay_obligation import ReplaySatisfaction
+        from axiom_rift.operations.replay_projection import (
+            ReplayProjectionError,
+            ReplayTransitionError,
+            prepare_resolution,
+        )
+
+        normalized = tuple(
+            sorted(satisfactions, key=lambda item: getattr(item, "obligation_id", ""))
+        )
+        if (
+            not normalized
+            or any(not isinstance(item, ReplaySatisfaction) for item in normalized)
+            or len({item.obligation_id for item in normalized}) != len(normalized)
+        ):
+            raise TransitionError("replay resolution request is invalid")
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("replay resolution requires control")
+            mission_id = current["scientific"].get("active_mission")
+            next_action = current.get("next_action")
+            if not isinstance(mission_id, str) or not isinstance(next_action, dict):
+                raise TransitionError("replay resolution requires an active Mission")
+            try:
+                records, constraints, result = prepare_resolution(
+                    index,
+                    mission_id=mission_id,
+                    next_action=next_action,
+                    satisfactions=normalized,
+                )
+            except ReplayProjectionError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except ReplayTransitionError as exc:
+                raise TransitionError(str(exc)) from exc
+            body = self._body(current)
+            body["next_action"] = self._with_replay_scheduler_constraints(
+                next_action["resume_next_action"], constraints
+            )
+            return body, records, result
+
+        return self._commit(
+            event_kind="historical_replay_obligations_resolved",
+            operation_id=operation_id,
+            subject="Mission:active",
+            payload={
+                "satisfactions": [item.to_identity_payload() for item in normalized]
+            },
+            prepare=prepare,
+        )
+
+    def defer_historical_replay_obligations(
+        self,
+        *,
+        deferrals: Sequence[Any],
+        operation_id: str,
+    ) -> TransitionResult:
+        """Defer replay only against durable basis and one exact resume condition."""
+
+        from axiom_rift.research.replay_obligation import ReplayDeferral
+        from axiom_rift.operations.replay_projection import (
+            ReplayProjectionError,
+            ReplayTransitionError,
+            prepare_deferral,
+        )
+
+        normalized = tuple(
+            sorted(deferrals, key=lambda item: getattr(item, "obligation_id", ""))
+        )
+        if (
+            not normalized
+            or any(not isinstance(item, ReplayDeferral) for item in normalized)
+            or len({item.obligation_id for item in normalized}) != len(normalized)
+        ):
+            raise TransitionError("replay deferral request is invalid")
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("replay deferral requires control")
+            mission_id = current["scientific"].get("active_mission")
+            if not isinstance(mission_id, str):
+                raise TransitionError("replay deferral requires an active Mission")
+            try:
+                records, constraints, result = prepare_deferral(
+                    index,
+                    mission_id=mission_id,
+                    deferrals=normalized,
+                )
+            except ReplayProjectionError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except ReplayTransitionError as exc:
+                raise TransitionError(str(exc)) from exc
+            deferred_ids = {item.obligation_id for item in normalized}
+            action = current["next_action"]
+            if (
+                action.get("kind") == "resolve_historical_replay_obligations"
+                and set(action.get("replay_obligation_ids", ())) == deferred_ids
+                and isinstance(action.get("resume_next_action"), dict)
+            ):
+                action = action["resume_next_action"]
+            body = self._body(current)
+            body["next_action"] = self._with_replay_scheduler_constraints(
+                action, constraints
+            )
+            return body, records, result
+
+        return self._commit(
+            event_kind="historical_replay_obligations_deferred",
+            operation_id=operation_id,
+            subject="Mission:active",
+            payload={
+                "deferrals": [item.to_identity_payload() for item in normalized]
+            },
+            prepare=prepare,
+        )
+
+    def resume_historical_replay_obligations(
+        self,
+        *,
+        resumes: Sequence[Any],
+        operation_id: str,
+    ) -> TransitionResult:
+        """Requeue exact deferred replay after one stored finite trigger."""
+
+        from axiom_rift.research.replay_obligation import (
+            ReplayRepairBasisKind,
+            ReplayRepairProvenance,
+            ReplayResumeEvidence,
+        )
+        from axiom_rift.operations.replay_projection import (
+            ReplayProjectionError,
+            ReplayTransitionError,
+            prepare_resume,
+            scheduler_constraints,
+        )
+
+        normalized = tuple(
+            sorted(resumes, key=lambda item: getattr(item, "obligation_id", ""))
+        )
+        if (
+            not normalized
+            or any(not isinstance(item, ReplayResumeEvidence) for item in normalized)
+            or len({item.obligation_id for item in normalized}) != len(normalized)
+        ):
+            raise TransitionError("replay resume request is invalid")
+        self._require_study_close_delivery_guard()
+
+        def repair_provenance(
+            previous_completion: IndexRecord,
+            previous_declaration: IndexRecord,
+            declaration: IndexRecord,
+            diagnosis: IndexRecord,
+        ) -> ReplayRepairProvenance:
+            previous_spec = previous_declaration.payload.get("spec")
+            spec = declaration.payload.get("spec")
+            failure = previous_completion.payload.get("failure")
+            if not isinstance(previous_spec, Mapping) or not isinstance(spec, Mapping):
+                raise TransitionError(
+                    "replay repair Job provenance is malformed"
+                )
+            previous_manifest = self._require_job_implementation_evidence(
+                previous_spec
+            )
+            repaired_manifest = self._require_job_implementation_evidence(spec)
+            changed_proof = spec.get("changed_cause_proof_hash")
+            if not isinstance(changed_proof, str):
+                raise TransitionError(
+                    "replay repair changed-cause provenance is absent"
+                )
+            _require_digest("replay changed-cause proof", changed_proof)
+            try:
+                changed_manifest = parse_canonical(
+                    self.evidence.read_verified(changed_proof)
+                )
+            except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+                raise TransitionError(
+                    "replay repair changed-cause proof is unavailable"
+                ) from exc
+            previous_identity = previous_spec.get("implementation_identity")
+            repaired_identity = spec.get("implementation_identity")
+            new_evidence = (
+                None
+                if not isinstance(changed_manifest, Mapping)
+                else changed_manifest.get("new_evidence_hashes")
+            )
+            common_invalid = (
+                not isinstance(changed_manifest, Mapping)
+                or changed_manifest.get("changed_dimension") != "implementation"
+                or changed_manifest.get("previous_implementation_identity")
+                != previous_identity
+                or changed_manifest.get("new_implementation_identity")
+                != repaired_identity
+                or previous_identity == repaired_identity
+                or type(changed_manifest.get("explanation")) is not str
+                or not changed_manifest["explanation"]
+                or not changed_manifest["explanation"].isascii()
+                or not isinstance(new_evidence, list)
+                or not new_evidence
+                or any(type(item) is not str for item in new_evidence)
+                or len(new_evidence) != len(set(new_evidence))
+                or repaired_identity not in new_evidence
+                or previous_spec.get("changed_cause_proof_hash") == changed_proof
+            )
+            basis_kind: ReplayRepairBasisKind
+            failure_signature: str | None
+            invalid_criterion_ids: tuple[str, ...]
+            prior_reproduction: set[str]
+            if previous_completion.status == "failed":
+                reproduction = (
+                    None
+                    if not isinstance(failure, Mapping)
+                    else failure.get("minimum_reproduction_evidence")
+                )
+                failure_signature = (
+                    None
+                    if not isinstance(failure, Mapping)
+                    else failure.get("failure_signature")
+                )
+                if (
+                    common_invalid
+                    or set(changed_manifest) != {
+                        "changed_dimension",
+                        "explanation",
+                        "new_evidence_hashes",
+                        "new_implementation_identity",
+                        "prior_failure_signature",
+                        "previous_implementation_identity",
+                        "schema",
+                    }
+                    or changed_manifest.get("schema") != "job_changed_cause.v1"
+                    or not isinstance(failure_signature, str)
+                    or changed_manifest.get("prior_failure_signature")
+                    != failure_signature
+                    or not isinstance(reproduction, list)
+                    or any(type(item) is not str for item in reproduction)
+                    or changed_proof in reproduction
+                ):
+                    raise TransitionError(
+                        "replay repair changed-cause proof does not bind the exact failure"
+                    )
+                _require_digest(
+                    "replay prior failure signature", failure_signature
+                )
+                basis_kind = ReplayRepairBasisKind.OPERATIONAL_FAILURE
+                invalid_criterion_ids = ()
+                prior_reproduction = set(reproduction)
+            elif previous_completion.status == "success":
+                raw_invalid = (
+                    None
+                    if not isinstance(changed_manifest, Mapping)
+                    else changed_manifest.get("invalid_criterion_ids")
+                )
+                if (
+                    common_invalid
+                    or set(changed_manifest) != {
+                        "changed_dimension",
+                        "explanation",
+                        "invalid_criterion_ids",
+                        "new_evidence_hashes",
+                        "new_implementation_identity",
+                        "previous_implementation_identity",
+                        "prior_completion_record_id",
+                        "schema",
+                        "study_diagnosis_id",
+                        "validation_plan_hash",
+                    }
+                    or changed_manifest.get("schema")
+                    != "replay_scientific_repair.v1"
+                    or changed_manifest.get("prior_completion_record_id")
+                    != previous_completion.record_id
+                    or changed_manifest.get("study_diagnosis_id")
+                    != diagnosis.record_id
+                    or not isinstance(raw_invalid, list)
+                    or not raw_invalid
+                    or any(type(item) is not str for item in raw_invalid)
+                    or len(raw_invalid) != len(set(raw_invalid))
+                ):
+                    raise TransitionError(
+                        "replay scientific repair proof does not bind exact invalid evidence"
+                    )
+                basis_kind = ReplayRepairBasisKind.SCIENTIFIC_INVALIDITY
+                failure_signature = None
+                invalid_criterion_ids = tuple(sorted(raw_invalid))
+                prior_reproduction = set()
+            else:
+                raise TransitionError(
+                    "replay repair basis is neither failed nor scientifically invalid"
+                )
+            if (
+                not isinstance(changed_manifest, Mapping)
+                or not isinstance(new_evidence, list)
+            ):
+                raise TransitionError(
+                    "replay repair changed-cause proof is malformed"
+                )
+            for evidence_hash in new_evidence:
+                _require_digest("replay changed-cause evidence", evidence_hash)
+                try:
+                    self.evidence.verify(evidence_hash)
+                except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+                    raise TransitionError(
+                        "replay repair changed-cause evidence is unavailable"
+                    ) from exc
+                if evidence_hash in prior_reproduction:
+                    raise TransitionError(
+                        "replay repair reuses prior failure reproduction evidence"
+                    )
+            if any(
+                artifact_hash not in new_evidence
+                for artifact_hash in repaired_manifest["artifact_hashes"]
+            ):
+                raise TransitionError(
+                    "replay repair proof omits implementation artifact bytes"
+                )
+            protocol = repaired_manifest.get("protocol")
+            if previous_manifest.get("protocol") != protocol:
+                raise TransitionError(
+                    "replay repair changes its implementation protocol"
+                )
+            scientific_binding = spec.get("scientific_binding")
+            if (
+                not isinstance(scientific_binding, Mapping)
+                or scientific_binding != previous_spec.get("scientific_binding")
+            ):
+                raise TransitionError(
+                    "replay repair changes its scientific binding"
+                )
+            plan_hash = scientific_binding.get("validation_plan_hash")
+            if not isinstance(plan_hash, str):
+                raise TransitionError(
+                    "replay repair validation plan is absent"
+                )
+            _require_digest("replay repair validation plan", plan_hash)
+            try:
+                plan_artifact = self.evidence.verify(plan_hash)
+                plan = parse_canonical(
+                    (self.evidence._root / plan_artifact.relative_path).read_bytes()
+                )
+            except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+                raise TransitionError(
+                    "replay repair validation plan is unavailable"
+                ) from exc
+            criteria = None if not isinstance(plan, Mapping) else plan.get("criteria")
+            evidence_subject = spec.get("evidence_subject")
+            criterion_ids = (
+                ()
+                if not isinstance(criteria, list)
+                else tuple(
+                    item.get("criterion_id")
+                    for item in criteria
+                    if isinstance(item, Mapping)
+                )
+            )
+            if (
+                not isinstance(plan, Mapping)
+                or plan.get("schema") != "scientific_validation_plan.v2"
+                or plan.get("mission_id") != declaration.payload.get("mission_id")
+                or not isinstance(evidence_subject, Mapping)
+                or plan.get("executable_id") != evidence_subject.get("id")
+                or not criterion_ids
+                or len(criterion_ids) != len(criteria)
+                or any(type(item) is not str for item in criterion_ids)
+                or len(criterion_ids) != len(set(criterion_ids))
+                or any(item not in criterion_ids for item in invalid_criterion_ids)
+                or (
+                    basis_kind is ReplayRepairBasisKind.SCIENTIFIC_INVALIDITY
+                    and changed_manifest.get("validation_plan_hash") != plan_hash
+                )
+            ):
+                raise TransitionError(
+                    "replay repair validation plan is not subject-bound"
+                )
+            return ReplayRepairProvenance(
+                basis_kind=basis_kind,
+                prior_completion_record_id=previous_completion.record_id,
+                study_diagnosis_id=diagnosis.record_id,
+                protocol_id=protocol,
+                validation_plan_hash=plan_hash,
+                criterion_ids=tuple(criterion_ids),
+                previous_implementation_identity=previous_identity,
+                repaired_implementation_identity=repaired_identity,
+                changed_cause_proof_hash=changed_proof,
+                prior_failure_signature=failure_signature,
+                invalid_criterion_ids=invalid_criterion_ids,
+                new_evidence_hashes=tuple(new_evidence),
+            )
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("replay resume requires control")
+            science = current["scientific"]
+            mission_id = science.get("active_mission")
+            next_action = current.get("next_action")
+            if (
+                not isinstance(mission_id, str)
+                or not isinstance(next_action, dict)
+                or any(
+                    science.get(name) is not None
+                    for name in (
+                        "active_batch",
+                        "active_executable",
+                        "active_holdout_evaluation",
+                        "active_job",
+                        "active_release",
+                        "active_repair",
+                        "active_study",
+                    )
+                )
+                or next_action.get("kind")
+                in {
+                    "close_mission",
+                    "diagnose_study",
+                    "resolve_historical_replay_obligations",
+                    "review_architecture",
+                }
+            ):
+                raise TransitionError(
+                    "replay resume requires a stable schedulable Mission boundary"
+                )
+            current_constraints = scheduler_constraints(
+                index, mission_id=mission_id
+            )
+            projected_constraints = {
+                name: next_action.get(name)
+                for name in (
+                    "pending_replay_obligation_ids",
+                    "required_replay_priority",
+                )
+                if next_action.get(name) is not None
+            }
+            if projected_constraints != (current_constraints or {}):
+                raise TransitionError(
+                    "replay resume scheduler authority is absent or stale"
+                )
+            try:
+                records, constraints, result = prepare_resume(
+                    index,
+                    mission_id=mission_id,
+                    resumes=normalized,
+                    repair_provenance=repair_provenance,
+                )
+            except ReplayProjectionError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except ReplayTransitionError as exc:
+                raise TransitionError(str(exc)) from exc
+            body = self._body(current)
+            body["next_action"] = self._with_replay_scheduler_constraints(
+                next_action, constraints
+            )
+            return body, records, result
+
+        return self._commit(
+            event_kind="historical_replay_obligations_resumed",
+            operation_id=operation_id,
+            subject="Mission:active",
+            payload={
+                "resumes": [item.to_identity_payload() for item in normalized]
+            },
+            prepare=prepare,
+        )
+
     def record_historical_scientific_adjudications(
         self,
         *,
@@ -11569,6 +13180,13 @@ class StateWriter:
             profile_manifest,
         )
         from axiom_rift.research.adjudication import AdjudicationProfile
+        from axiom_rift.research.replay_obligation import (
+            derive_historical_replay_obligation,
+        )
+        from axiom_rift.operations.replay_projection import (
+            constraints_for_pending,
+            initial_obligation_record,
+        )
 
         _require_digest("historical audit artifact", audit_artifact_hash)
         self.evidence.verify(audit_artifact_hash)
@@ -11641,6 +13259,7 @@ class StateWriter:
 
             records: list[IndexRecord] = []
             derived: list[HistoricalScientificAdjudication] = []
+            new_replay_obligations: list[Any] = []
             for request in normalized:
                 completion = index.get(
                     "job-completed", request.completion_record_id
@@ -11845,9 +13464,47 @@ class StateWriter:
                         event_sequence=sequence,
                     )
                 )
+                if item.disposition.value == "replay_required":
+                    try:
+                        obligation = derive_historical_replay_obligation(
+                            governing_mission_id=science["active_mission"],
+                            historical_adjudication_id=item.identity,
+                            adjudication_payload=item.to_identity_payload(),
+                        )
+                    except ValueError as exc:
+                        raise RecoveryRequired(
+                            "derived historical replay obligation is malformed"
+                        ) from exc
+                    if index.get(
+                        "historical-replay-obligation", obligation.identity
+                    ) is not None:
+                        raise RecoveryRequired(
+                            "historical replay obligation identity already exists"
+                        )
+                    records.append(initial_obligation_record(obligation))
+                    new_replay_obligations.append(obligation)
                 derived.append(item)
-            return self._body(current), records, {
+            body = self._body(current)
+            existing_pending = [
+                obligation
+                for obligation, head in self._historical_replay_obligation_heads(
+                    index,
+                    mission_id=science["active_mission"],
+                )
+                if head.status == "pending"
+            ]
+            combined_pending = [*existing_pending, *new_replay_obligations]
+            replay_constraints = constraints_for_pending(combined_pending)
+            if replay_constraints is not None:
+                body["next_action"] = self._with_replay_scheduler_constraints(
+                    body["next_action"],
+                    replay_constraints,
+                )
+            return body, records, {
                 "adjudication_record_ids": [item.identity for item in derived],
+                "replay_obligation_ids": [
+                    item.identity for item in new_replay_obligations
+                ],
                 "audit_artifact_hash": audit_artifact_hash,
                 "candidate_delta": 0,
                 "holdout_delta": 0,
@@ -11865,8 +13522,13 @@ class StateWriter:
             prepare=prepare,
         )
 
+    def require_study_close_delivery_guard(self) -> None:
+        """Public fail-closed preflight for coherent scientific mutations."""
+
+        self._require_study_close_delivery_guard()
+
     def _require_study_close_delivery_guard(self) -> None:
-        if self.engineering_fixture or not (self.root / ".git").exists():
+        if self.engineering_fixture:
             return
         from axiom_rift.operations.study_close_git import (
             StudyCloseDeliveryError,
@@ -11875,8 +13537,17 @@ class StateWriter:
         )
 
         try:
-            require_study_close_guard_ready(self.root)
-            require_all_study_close_deliveries(self.root)
+            capability = getattr(self, "study_close_guard_capability", None)
+            if capability is None:
+                require_study_close_guard_ready(self.root)
+                require_all_study_close_deliveries(self.root)
+            else:
+                require_study_close_guard_ready(
+                    self.root, capability=capability
+                )
+                require_all_study_close_deliveries(
+                    self.root, capability=capability
+                )
         except (OSError, RuntimeError, StudyCloseDeliveryError) as exc:
             raise TransitionError(
                 "Scientific transition is blocked by the Study-close Git guard"
@@ -11923,6 +13594,11 @@ class StateWriter:
                 evidence = index.get("job-completed", reference)
                 failure = None if evidence is None else evidence.payload.get("failure")
                 scientific = None if evidence is None else evidence.payload.get("scientific")
+                effective_scope = (
+                    None
+                    if evidence is None or not isinstance(scientific, dict)
+                    else _effective_completion_scope(index, evidence)
+                )
                 legacy_scientific_failure = (
                     evidence is not None
                     and evidence.status == "failed"
@@ -11942,11 +13618,13 @@ class StateWriter:
                     )
                     or not isinstance(scientific, dict)
                     or scientific.get("verdict") != "failed"
-                    or scientific.get("scientific_eligible") is not True
+                    or effective_scope is None
+                    or effective_scope.scientific_eligible is not True
+                    or effective_scope.candidate_eligible is not False
                     or scientific.get("executable_id") != memory.executable_identity
                 ):
                     raise TransitionError("negative memory evidence reference is invalid")
-                evidence_modes = scientific.get("executed_evidence_modes")
+                evidence_modes = list(effective_scope.evidence_modes)
                 normalized_modes = _require_study_evidence_modes(
                     {"evidence_modes": evidence_modes}
                 )
@@ -12292,6 +13970,23 @@ class StateWriter:
             if declaration is None:
                 raise TransitionError("Job declaration is unavailable at start")
             declared_spec = declaration.payload["spec"]
+            batch_id = declaration.payload.get("batch_id")
+            if isinstance(batch_id, str):
+                active_batch = body["scientific"].get("active_batch")
+                batch_record = index.get("batch-open", batch_id)
+                if (
+                    not isinstance(active_batch, dict)
+                    or active_batch.get("id") != batch_id
+                    or batch_record is None
+                ):
+                    raise RecoveryRequired(
+                        "Job start lost its active frozen Batch declaration"
+                    )
+                _require_concurrent_family_registration(
+                    index,
+                    batch_record=batch_record,
+                    evidence_subject=declared_spec["evidence_subject"],
+                )
             runtime_binding = declared_spec.get("runtime_binding")
             for domain, binding_name in (
                 ("scientific", "component_parity_binding"),
@@ -12988,6 +14683,11 @@ class StateWriter:
         }
         if (
             validated.verdict != expected_verdict
+            or validated.claims
+            or validated.artifact_roles
+            or validated.scientific_eligible
+            or validated.candidate_eligible
+            or validated.release_eligible
             or set(validated.measurement_artifact_hashes) != durable_hashes
             or dict(validated.facts) != expected_facts
         ):
@@ -13510,11 +15210,16 @@ class StateWriter:
                             "available"
                             if outcome == "success"
                             else (
-                            "external_unavailable"
+                                "external_unavailable"
                                 if external_manifest is not None
-                                and external_manifest["verdict"]
-                                in {"failed", "not_evaluable"}
-                                else "local_failure"
+                                and external_manifest["verdict"] == "failed"
+                                else (
+                                    "external_unresolved"
+                                    if external_manifest is not None
+                                    and external_manifest["verdict"]
+                                    == "not_evaluable"
+                                    else "local_failure"
+                                )
                             )
                         ),
                         fingerprint=external_binding["dependency_id"],
@@ -13951,6 +15656,204 @@ class StateWriter:
                 "disposition": disposition,
                 "negative_memory_id": negative_memory_id,
             },
+            prepare=prepare,
+        )
+
+    def judge_external_dependency_evidence(
+        self,
+        *,
+        completion_record_id: str,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Consume one Mission-scoped external recovery result exactly once."""
+
+        _require_digest("completion_record_id", completion_record_id)
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            body = self._body(current)
+            science = body["scientific"]
+            if science.get("active_job") is not None or science.get(
+                "active_repair"
+            ) is not None:
+                raise TransitionError(
+                    "external Job judgement requires a stable completion"
+                )
+            completion = index.get("job-completed", completion_record_id)
+            next_action = body.get("next_action")
+            if (
+                completion is None
+                or not isinstance(next_action, dict)
+                or next_action
+                != {
+                    "job_id": completion.payload.get("job_id"),
+                    "kind": "judge_job_evidence",
+                }
+            ):
+                raise TransitionError(
+                    "external Job judgement is not the exact next action"
+                )
+            job_id = completion.payload.get("job_id")
+            declaration = (
+                None
+                if not isinstance(job_id, str)
+                else index.get("job-declared", job_id)
+            )
+            binding = (
+                None
+                if declaration is None
+                else declaration.payload.get("spec", {}).get(
+                    "external_dependency_binding"
+                )
+            )
+            if (
+                declaration is None
+                or declaration.payload.get("mission_id")
+                != science.get("active_mission")
+                or not isinstance(binding, dict)
+            ):
+                raise TransitionError(
+                    "external Job judgement lacks exact Mission provenance"
+                )
+            try:
+                plan = external_plan_from_binding(binding)
+                path = plan.path(binding["recovery_path_id"])
+            except ExternalDependencyContractError as exc:
+                raise TransitionError(str(exc)) from exc
+            plan_record = index.get("external-recovery-plan", plan.identity)
+            if (
+                plan_record is None
+                or plan_record.status != "active"
+                or plan_record.subject != f"Mission:{science['active_mission']}"
+                or plan_record.payload != plan.to_identity_payload()
+            ):
+                raise RecoveryRequired(
+                    "external Job judgement lost its frozen recovery plan"
+                )
+            attempt_id = canonical_digest(
+                domain="external-dependency-attempt",
+                payload={
+                    "completion_record_id": completion_record_id,
+                    "dependency_id": plan.condition.dependency_id,
+                    "recovery_path_id": path.recovery_path_id,
+                },
+            )
+            attempt = index.get("external-dependency-attempt", attempt_id)
+            external = completion.payload.get("external")
+            if (
+                attempt is None
+                or attempt.payload.get("completion_record_id")
+                != completion_record_id
+                or not isinstance(external, dict)
+            ):
+                raise TransitionError(
+                    "external Job judgement lacks its validator-derived attempt"
+                )
+            verdict = external.get("verdict")
+            expected = {
+                "failed": ("failed", "external_unavailable"),
+                "not_evaluable": ("not_evaluable", "external_unresolved"),
+                "passed": ("success", "available"),
+            }
+            if verdict not in expected or (
+                completion.status,
+                attempt.status,
+            ) != expected[verdict]:
+                raise TransitionError(
+                    "external Job outcome differs from its validator verdict"
+                )
+            stream = f"external-recovery:{plan.identity}"
+            decision_head = index.event_head(stream)
+            decision_count = 0 if decision_head is None else decision_head.sequence
+            if decision_count >= len(plan.paths) or plan.paths[decision_count] != path:
+                raise TransitionError(
+                    "external recovery result is outside the next frozen path"
+                )
+            prior_completion_ids: list[str] = []
+            for sequence in range(1, decision_count + 1):
+                prior = index.event_record(stream, sequence)
+                if (
+                    prior is None
+                    or prior.kind != "external-dependency-judgement"
+                    or prior.status != "failed"
+                ):
+                    raise RecoveryRequired(
+                        "external recovery decision history is malformed"
+                    )
+                prior_completion = prior.payload.get("completion_record_id")
+                if not isinstance(prior_completion, str):
+                    raise RecoveryRequired(
+                        "external recovery decision lost its completion"
+                    )
+                prior_completion_ids.append(prior_completion)
+            all_completion_ids = [*prior_completion_ids, completion_record_id]
+            blocker_credit = (
+                verdict == "failed"
+                and external.get("indispensable_to_mission_terminal") is True
+                and external.get("contract_valid_next_action_found") is False
+                and external.get("safe_substitute_found") is False
+            )
+            if verdict == "passed":
+                body["next_action"] = plan.condition.resume_action.to_next_action()
+                disposition = "resume_mission_action"
+            elif verdict == "not_evaluable":
+                body["next_action"] = plan.condition.resume_action.to_next_action()
+                disposition = "restore_without_blocker_credit"
+            elif not blocker_credit:
+                body["next_action"] = plan.condition.resume_action.to_next_action()
+                disposition = "restore_non_blocking_external_failure"
+            elif decision_count + 1 < len(plan.paths):
+                next_path = plan.paths[decision_count + 1]
+                body["next_action"] = {
+                    "kind": "declare_external_dependency_job",
+                    "prior_completion_record_ids": all_completion_ids,
+                    "recovery_path_id": next_path.recovery_path_id,
+                    "recovery_plan_id": plan.identity,
+                }
+                disposition = "continue_external_recovery"
+            else:
+                body["next_action"] = {
+                    "completion_record_ids": all_completion_ids,
+                    "dependency_id": plan.condition.dependency_id,
+                    "kind": "record_external_blocker",
+                    "recovery_plan_id": plan.identity,
+                }
+                disposition = "record_external_blocker"
+            decision_payload = {
+                "blocker_credit": blocker_credit,
+                "completion_record_id": completion_record_id,
+                "disposition": disposition,
+                "recovery_path_id": path.recovery_path_id,
+                "recovery_plan_id": plan.identity,
+                "verdict": verdict,
+            }
+            decision_id = canonical_digest(
+                domain="external-dependency-judgement",
+                payload=decision_payload,
+            )
+            record = _record(
+                kind="external-dependency-judgement",
+                record_id=decision_id,
+                subject=f"Job:{job_id}",
+                status=verdict,
+                fingerprint=completion.fingerprint,
+                payload=decision_payload,
+                event_stream=stream,
+                event_sequence=decision_count + 1,
+            )
+            return body, [record], {
+                "completion_record_id": completion_record_id,
+                "disposition": disposition,
+                "recovery_plan_id": plan.identity,
+                "verdict": verdict,
+            }
+
+        return self._commit(
+            event_kind="external_dependency_evidence_judged",
+            operation_id=operation_id,
+            subject="Job:completed",
+            payload={"completion_record_id": completion_record_id},
             prepare=prepare,
         )
 
@@ -14721,13 +16624,19 @@ class StateWriter:
                 raise TransitionError("no revealed holdout awaits evaluation")
             completion = index.get("job-completed", completion_record_id)
             scientific = None if completion is None else completion.payload.get("scientific")
+            effective_scope = (
+                None
+                if completion is None or not isinstance(scientific, dict)
+                else _effective_completion_scope(index, completion)
+            )
             if (
                 completion is None
                 or completion.payload.get("job_id") != active["job_id"]
                 or not isinstance(scientific, dict)
                 or scientific.get("executable_id") != active["executable_id"]
                 or scientific.get("evidence_depth") != "confirmation"
-                or scientific.get("scientific_eligible") is not True
+                or effective_scope is None
+                or effective_scope.scientific_eligible is not True
             ):
                 raise TransitionError(
                     "holdout disposition lacks its validator-derived evaluation"
@@ -14753,7 +16662,7 @@ class StateWriter:
             if candidate is None or candidate.record_id != active["candidate_id"]:
                 raise TransitionError("holdout candidate activation changed")
             if verdict == "passed":
-                if scientific.get("candidate_eligible") is not True:
+                if effective_scope.candidate_eligible is not True:
                     raise TransitionError(
                         "passed holdout did not authorize the frozen candidate"
                     )
@@ -14887,6 +16796,11 @@ class StateWriter:
         """
 
         scientific = completion.payload.get("scientific")
+        effective_scope = (
+            None
+            if not isinstance(scientific, dict)
+            else _effective_completion_scope(index, completion)
+        )
         executable_id = (
             None
             if not isinstance(scientific, dict)
@@ -14895,8 +16809,9 @@ class StateWriter:
         if (
             completion.status != "success"
             or not isinstance(scientific, dict)
-            or scientific.get("scientific_eligible") is not True
-            or scientific.get("candidate_eligible") is not True
+            or effective_scope is None
+            or effective_scope.scientific_eligible is not True
+            or effective_scope.candidate_eligible is not True
             or not isinstance(executable_id, str)
         ):
             return None
@@ -15141,6 +17056,12 @@ class StateWriter:
                     raise TransitionError(
                         "axis disposition is stale or belongs to another Portfolio"
                     )
+                if not self._effective_axis_resolution(
+                    index, axis
+                ).terminal_eligible:
+                    raise TransitionError(
+                        "axis disposition cannot interpret replay- or scope-blocked authority"
+                    )
                 try:
                     required_references = required_axis_scientific_references(
                         index,
@@ -15364,13 +17285,38 @@ class StateWriter:
             if snapshot is None or snapshot.subject != f"Mission:{science['active_mission']}":
                 raise TransitionError("exhaustion Portfolio snapshot is unavailable")
             axes = {axis["axis_id"]: axis for axis in snapshot.payload["axes"]}
-            families = {axis["mechanism_family"] for axis in axes.values()}
+            axis_resolutions = {
+                axis_id: self._effective_axis_resolution(index, axis)
+                for axis_id, axis in axes.items()
+            }
+            blocked_axis_ids = sorted(
+                axis_id
+                for axis_id, resolution in axis_resolutions.items()
+                if not resolution.terminal_eligible
+            )
+            mission_axis_blockers = self._mission_effective_axis_blockers(
+                index,
+                mission_id=science["active_mission"],
+            )
+            if blocked_axis_ids or mission_axis_blockers:
+                raise TransitionError(
+                    "exhaustion cannot bypass unresolved replay or source authority"
+                )
+            eligible_axes = {
+                axis_id: axis
+                for axis_id, axis in axes.items()
+                if axis_resolutions[axis_id].terminal_eligible
+            }
+            families = {
+                axis["mechanism_family"] for axis in eligible_axes.values()
+            }
             research_layers = {
-                axis.get("primary_research_layer") for axis in axes.values()
+                axis.get("primary_research_layer")
+                for axis in eligible_axes.values()
             }
             resolved_architectures = [
                 self._axis_architecture_anchor(index, axis)
-                for axis in axes.values()
+                for axis in eligible_axes.values()
             ]
             architecture_families = {
                 (
@@ -15390,8 +17336,8 @@ class StateWriter:
                     "exhaustion Portfolio lacks its preregistered standard"
                 )
             if (
-                set(normalized) != set(axes)
-                or len(axes) < standard["minimum_axes"]
+                set(normalized) != set(eligible_axes)
+                or len(eligible_axes) < standard["minimum_axes"]
                 or len(families) < standard["minimum_mechanism_families"]
                 or len(research_layers)
                 < standard["minimum_primary_research_layers"]
@@ -15406,15 +17352,19 @@ class StateWriter:
             family_executables: dict[str, set[str]] = {
                 family: set() for family in families
             }
-            axis_studies: dict[str, set[str]] = {axis_id: set() for axis_id in axes}
-            axis_modes: dict[str, set[str]] = {axis_id: set() for axis_id in axes}
+            axis_studies: dict[str, set[str]] = {
+                axis_id: set() for axis_id in eligible_axes
+            }
+            axis_modes: dict[str, set[str]] = {
+                axis_id: set() for axis_id in eligible_axes
+            }
             global_executables: set[str] = set()
             scientifically_exhausted_axes: set[str] = set()
             carried_forward_axes: set[str] = set()
             retired_families: set[str] = set()
             disposition_summaries: dict[str, dict[str, Any]] = {}
             for axis_id, references in normalized.items():
-                axis_identity = axes[axis_id]["axis_identity"]
+                axis_identity = eligible_axes[axis_id]["axis_identity"]
                 stream = (
                     f"axis-disposition:{science['active_mission']}:{axis_identity}"
                 )
@@ -15555,7 +17505,11 @@ class StateWriter:
                     )
                 for binding in bindings:
                     axis_studies[axis_id].update(binding.study_ids)
-                    axis_modes[axis_id].update(binding.evidence_modes)
+                    axis_modes[axis_id].update(
+                        _terminal_scientific_evidence_modes(
+                            binding.evidence_modes
+                        )
+                    )
                 negative_bindings = tuple(
                     binding for binding in bindings if binding.negative_memory_ids
                 )
@@ -15572,7 +17526,7 @@ class StateWriter:
                         "axis scientific-exhaustion projection has drifted"
                     )
                 if scientifically_exhausted:
-                    family = axes[axis_id]["mechanism_family"]
+                    family = eligible_axes[axis_id]["mechanism_family"]
                     retired_families.add(family)
                     scientifically_exhausted_axes.add(axis_id)
                     for binding in negative_bindings:
@@ -15620,10 +17574,16 @@ class StateWriter:
             unresolved_positive_axes: set[str] = set()
             for completion in index.records_by_kind("job-completed"):
                 scientific = completion.payload.get("scientific")
+                effective_scope = (
+                    None
+                    if not isinstance(scientific, dict)
+                    else _effective_completion_scope(index, completion)
+                )
                 if (
                     completion.status != "success"
                     or not isinstance(scientific, dict)
-                    or scientific.get("candidate_eligible") is not True
+                    or effective_scope is None
+                    or effective_scope.candidate_eligible is not True
                 ):
                     continue
                 declaration = index.get(
@@ -15746,10 +17706,46 @@ class StateWriter:
                     "active_job",
                     "active_repair",
                     "active_executable",
+                    "active_holdout_evaluation",
+                    "active_lineage",
+                    "active_release",
                 )
             ):
                 raise TransitionError("external blocker requires preserved, disposed work")
             mission_id = science["active_mission"]
+            next_action = current.get("next_action")
+            if (
+                not isinstance(next_action, dict)
+                or next_action.get("kind") != "record_external_blocker"
+                or next_action.get("dependency_id") != dependency_id
+                or next_action.get("completion_record_ids")
+                != list(completion_record_ids)
+                or not isinstance(next_action.get("recovery_plan_id"), str)
+            ):
+                raise TransitionError(
+                    "external blocker is not the exact judged recovery action"
+                )
+            plan_record = index.get(
+                "external-recovery-plan", next_action["recovery_plan_id"]
+            )
+            try:
+                recovery_plan = ExternalRecoveryPlan.from_identity_payload(
+                    {} if plan_record is None else plan_record.payload
+                )
+            except ExternalDependencyContractError as exc:
+                raise RecoveryRequired(
+                    "external blocker recovery plan is unavailable"
+                ) from exc
+            if (
+                plan_record is None
+                or plan_record.record_id != recovery_plan.identity
+                or plan_record.subject != f"Mission:{mission_id}"
+                or recovery_plan.condition.dependency_id != dependency_id
+                or len(completion_record_ids) != len(recovery_plan.paths)
+            ):
+                raise TransitionError(
+                    "external blocker differs from its exact recovery plan"
+                )
             attempts: list[IndexRecord] = []
             recovery_kinds: set[str] = set()
             recovery_paths: set[str] = set()
@@ -15759,7 +17755,8 @@ class StateWriter:
             blocked_capabilities: set[str] = set()
             reproduction_evidence: set[str] = set()
             completed_jobs: list[str] = []
-            for completion_id in completion_record_ids:
+            recovery_stream = f"external-recovery:{recovery_plan.identity}"
+            for ordinal, completion_id in enumerate(completion_record_ids, start=1):
                 completion = index.get("job-completed", completion_id)
                 failure = None if completion is None else completion.payload.get("failure")
                 external = None if completion is None else completion.payload.get("external")
@@ -15776,15 +17773,24 @@ class StateWriter:
                         "external_dependency_binding"
                     )
                 )
+                decision = index.event_record(recovery_stream, ordinal)
+                try:
+                    attempt_plan = (
+                        None
+                        if not isinstance(binding, dict)
+                        else external_plan_from_binding(binding)
+                    )
+                except ExternalDependencyContractError as exc:
+                    raise TransitionError(str(exc)) from exc
                 if (
                     completion is None
-                    or completion.status not in {"failed", "not_evaluable"}
+                    or completion.status != "failed"
                     or not isinstance(failure, dict)
                     or failure.get("failure_kind") != "external_dependency"
                     or failure.get("external_dependency_id") != dependency_id
                     or not isinstance(external, dict)
                     or external.get("dependency_id") != dependency_id
-                    or external.get("verdict") not in {"failed", "not_evaluable"}
+                    or external.get("verdict") != "failed"
                     or external.get("indispensable_to_mission_terminal") is not True
                     or external.get("contract_valid_next_action_found") is not False
                     or external.get("safe_substitute_found") is not False
@@ -15794,6 +17800,15 @@ class StateWriter:
                     or declaration.payload.get("mission_id") != mission_id
                     or not isinstance(binding, dict)
                     or binding.get("dependency_id") != dependency_id
+                    or attempt_plan != recovery_plan
+                    or binding.get("recovery_path_id")
+                    != recovery_plan.paths[ordinal - 1].recovery_path_id
+                    or decision is None
+                    or decision.kind != "external-dependency-judgement"
+                    or decision.status != "failed"
+                    or decision.payload.get("blocker_credit") is not True
+                    or decision.payload.get("completion_record_id")
+                    != completion_id
                 ):
                     raise TransitionError(
                         "blocker completion is not typed external dependency evidence"
@@ -15870,6 +17885,8 @@ class StateWriter:
                     "external blocker evidence is stale or not the latest consecutive state"
                 )
             blocker_payload = {
+                "candidate_delta": 0,
+                "claim_delta": "none",
                 "cause": {
                     "blocked_mission_capability": next(
                         iter(blocked_capabilities)
@@ -15883,6 +17900,7 @@ class StateWriter:
                 "exhausted_recovery_kinds": sorted(recovery_kinds),
                 "exhausted_recovery_paths": sorted(recovery_paths),
                 "minimum_reproduction_evidence": sorted(reproduction_evidence),
+                "holdout_delta": 0,
                 "preserved_state": {
                     "control_revision": current["revision"],
                     "journal_event_id": current["heads"]["journal"]["event_id"],
@@ -15890,8 +17908,20 @@ class StateWriter:
                 },
                 "required_external_change": next(iter(required_changes)),
                 "safe_substitute_absent": True,
+                "scientific_credit": 0,
                 "contract_valid_next_action_absent": True,
                 "indispensable_to_mission_terminal": True,
+                "mission_resume_next_action": (
+                    recovery_plan.condition.resume_action.to_next_action()
+                ),
+                "recovery_plan": recovery_plan.to_identity_payload(),
+                "recovery_plan_id": recovery_plan.identity,
+                "resume_condition": (
+                    recovery_plan.condition.to_identity_payload()
+                ),
+                "resume_condition_id": recovery_plan.condition.identity,
+                "terminal_scientific_credit": 0,
+                "trial_delta": 0,
             }
             blocker_id = canonical_digest(
                 domain="external-blocker", payload=blocker_payload
@@ -15963,6 +17993,93 @@ class StateWriter:
                 )
             ):
                 raise TransitionError("Mission terminal has active subordinate work")
+            effective_axis_blockers = self._mission_effective_axis_blockers(
+                index,
+                mission_id=mission_id,
+            )
+            if effective_axis_blockers:
+                raise TransitionError(
+                    "Mission terminal cannot bypass replay- or scope-blocked axis authority"
+                )
+            portfolio_snapshots = [
+                record
+                for record in index.records_by_kind("portfolio-snapshot")
+                if record.subject == f"Mission:{mission_id}"
+                and record.authority_sequence is not None
+            ]
+            if not portfolio_snapshots and outcome != "blocked_external":
+                raise TransitionError(
+                    "Mission terminal requires a durable Portfolio snapshot"
+                )
+            terminal_snapshot = (
+                None
+                if not portfolio_snapshots
+                else max(
+                    portfolio_snapshots,
+                    key=lambda record: record.authority_sequence,
+                )
+            )
+            terminal_axes = (
+                {}
+                if terminal_snapshot is None
+                else {
+                    axis["axis_id"]: axis
+                    for axis in terminal_snapshot.payload.get("axes", [])
+                    if isinstance(axis, dict)
+                    and isinstance(axis.get("axis_id"), str)
+                }
+            )
+            if terminal_snapshot is not None and len(terminal_axes) != len(
+                terminal_snapshot.payload.get("axes", [])
+            ):
+                raise RecoveryRequired(
+                    "Mission terminal Portfolio axis inventory is malformed"
+                )
+            terminal_resolutions = {
+                axis_id: self._effective_axis_resolution(index, axis)
+                for axis_id, axis in terminal_axes.items()
+            }
+            terminal_hard_blockers = sorted(
+                axis_id
+                for axis_id, resolution in terminal_resolutions.items()
+                if not resolution.terminal_eligible
+            )
+            if terminal_hard_blockers:
+                exact_source_replacement_wait = False
+                if outcome == "blocked_external":
+                    blocker_basis = index.get("external-blocker", basis_record_id)
+                    try:
+                        blocker_plan_probe = (
+                            ExternalRecoveryPlan.from_identity_payload(
+                                {}
+                                if blocker_basis is None
+                                else blocker_basis.payload.get(
+                                    "recovery_plan", {}
+                                )
+                            )
+                        )
+                    except ExternalDependencyContractError:
+                        blocker_plan_probe = None
+                    if blocker_plan_probe is not None:
+                        expected_capability = (
+                            _exact_source_replacement_wait_capability(
+                                mission_id=mission_id,
+                                terminal_axes=terminal_axes,
+                                terminal_resolutions=terminal_resolutions,
+                                terminal_hard_blockers=terminal_hard_blockers,
+                            )
+                        )
+                        exact_source_replacement_wait = (
+                            expected_capability is not None
+                            and blocker_plan_probe.condition.blocked_mission_capability
+                            == expected_capability
+                        )
+                if not exact_source_replacement_wait:
+                    raise TransitionError(
+                        "Mission terminal cannot bypass unresolved Portfolio axis "
+                        "authority; blocked_external requires the exact source-"
+                        "replacement capability"
+                    )
             if outcome == "completed_pre_live_handoff":
                 basis = index.get("release", basis_record_id)
                 active_release = science.get("active_release")
@@ -15996,6 +18113,10 @@ class StateWriter:
                 self._drop_authorization(body, SubjectKind.EXECUTABLE, executable_id)
             elif outcome == "closed_no_candidate":
                 basis = index.get("exhaustion-audit", basis_record_id)
+                if terminal_snapshot is None:
+                    raise RecoveryRequired(
+                        "negative terminal lost its Portfolio snapshot"
+                    )
                 if (
                     science["active_executable"] is not None
                     or science.get("active_release") is not None
@@ -16005,8 +18126,23 @@ class StateWriter:
                     or basis.subject != f"Mission:{mission_id}"
                 ):
                     raise TransitionError("negative terminal requires an exhaustion audit")
+                if (
+                    basis.payload.get("portfolio_snapshot_id")
+                    != terminal_snapshot.record_id
+                ):
+                    raise TransitionError(
+                        "negative terminal authority changed after its exhaustion audit"
+                    )
             else:
                 basis = index.get("external-blocker", basis_record_id)
+                try:
+                    blocker_plan = ExternalRecoveryPlan.from_identity_payload(
+                        {} if basis is None else basis.payload.get("recovery_plan", {})
+                    )
+                except ExternalDependencyContractError as exc:
+                    raise TransitionError(
+                        "blocked terminal lacks its typed resume condition"
+                    ) from exc
                 dependency_id = (
                     None
                     if basis is None
@@ -16034,6 +18170,10 @@ class StateWriter:
                     or dependency_head is None
                     or dependency_latest is None
                     or dependency_latest.status != "external_unavailable"
+                    or basis.payload.get("recovery_plan_id")
+                    != blocker_plan.identity
+                    or basis.payload.get("resume_condition_id")
+                    != blocker_plan.condition.identity
                 ):
                     raise TransitionError("blocked terminal requires a complete external blocker")
             expected_authorizations = {f"Mission:{mission_id}"}
@@ -16071,6 +18211,9 @@ class StateWriter:
                 body["next_action"] = {
                     "basis_record_id": basis_record_id,
                     "kind": "await_external_change",
+                    "mission_resume_next_action": basis.payload[
+                        "mission_resume_next_action"
+                    ],
                     "predecessor_mission_close_record_id": record_id,
                     "predecessor_mission_id": mission_id,
                     "required_external_change": basis.payload.get(
@@ -16079,6 +18222,7 @@ class StateWriter:
                             "required_external_change"
                         ),
                     ),
+                    "resume_condition_id": basis.payload["resume_condition_id"],
                 }
             else:
                 body["next_action"] = {
@@ -16100,6 +18244,14 @@ class StateWriter:
                     "mission_ordinal": mission_ordinal,
                     "project_goal_authority": project_goal_authority,
                     "project_goal_complete": project_goal_complete,
+                    **(
+                        {
+                            "terminal_scientific_credit": 0,
+                            "unresolved_axis_ids": terminal_hard_blockers,
+                        }
+                        if outcome == "blocked_external"
+                        else {}
+                    ),
                 },
                 event_stream=project_stream,
                 event_sequence=project_sequence,
@@ -16116,6 +18268,366 @@ class StateWriter:
             subject="Mission:active",
             payload={"outcome": outcome, "basis_record_id": basis_record_id},
             prepare=prepare,
+        )
+
+    def resume_blocked_mission(
+        self,
+        *,
+        basis_record_id: str,
+        mission_close_record_id: str,
+        evidence: ExternalChangeEvidence,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Reenter the same blocked Mission from exact validated availability."""
+
+        self._require_study_close_delivery_guard()
+        if self.engineering_fixture:
+            raise TransitionError(
+                "engineering fixtures cannot reenter blocked Missions"
+            )
+        _require_digest("external blocker basis", basis_record_id)
+        _require_digest("blocked Mission close", mission_close_record_id)
+        if not isinstance(evidence, ExternalChangeEvidence):
+            raise TransitionError(
+                "blocked Mission reentry requires typed external change evidence"
+            )
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            body = self._body(current)
+            science = body["scientific"]
+            boundary = body.get("next_action")
+            if (
+                science.get("active_mission") is not None
+                or any(
+                    science.get(name) is not None
+                    for name in (
+                        "active_batch",
+                        "active_executable",
+                        "active_holdout_evaluation",
+                        "active_initiative",
+                        "active_job",
+                        "active_lineage",
+                        "active_release",
+                        "active_repair",
+                        "active_study",
+                    )
+                )
+                or body.get("authorizations") != {}
+                or not isinstance(boundary, dict)
+                or boundary.get("kind") != "await_external_change"
+                or boundary.get("basis_record_id") != basis_record_id
+                or boundary.get("predecessor_mission_close_record_id")
+                != mission_close_record_id
+            ):
+                raise TransitionError(
+                    "blocked Mission reentry is not at its exact wait boundary"
+                )
+            mission_id = boundary.get("predecessor_mission_id")
+            blocker = index.get("external-blocker", basis_record_id)
+            close_record = index.get("mission-close", mission_close_record_id)
+            mission_open = (
+                None
+                if not isinstance(mission_id, str)
+                else index.get("mission-open", mission_id)
+            )
+            try:
+                plan = ExternalRecoveryPlan.from_identity_payload(
+                    {} if blocker is None else blocker.payload.get("recovery_plan", {})
+                )
+            except ExternalDependencyContractError as exc:
+                raise RecoveryRequired(
+                    "blocked Mission reentry lost its typed recovery plan"
+                ) from exc
+            condition = plan.condition
+            if (
+                blocker is None
+                or blocker.status != "complete"
+                or blocker.subject != f"Mission:{mission_id}"
+                or blocker.payload.get("resume_condition_id")
+                != condition.identity
+                or blocker.payload.get("mission_resume_next_action")
+                != condition.resume_action.to_next_action()
+                or close_record is None
+                or close_record.status != "blocked_external"
+                or close_record.subject != f"Mission:{mission_id}"
+                or close_record.payload.get("basis_record_id") != basis_record_id
+                or mission_open is None
+                or evidence.condition_id != condition.identity
+                or boundary.get("resume_condition_id") != condition.identity
+                or boundary.get("mission_resume_next_action")
+                != condition.resume_action.to_next_action()
+            ):
+                raise TransitionError(
+                    "blocked Mission reentry differs from its exact terminal"
+                )
+            try:
+                self.evidence.verify(condition.validation_plan_hash)
+            except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+                raise RecoveryRequired(
+                    "blocked Mission validation plan is absent or corrupt"
+                ) from exc
+            dependency_head = index.event_head(
+                f"external-dependency:{condition.dependency_id}"
+            )
+            dependency_latest = (
+                None
+                if dependency_head is None
+                else index.get(
+                    dependency_head.record_kind, dependency_head.record_id
+                )
+            )
+            if (
+                dependency_head is None
+                or dependency_latest is None
+                or dependency_latest.status != "external_unavailable"
+            ):
+                raise TransitionError(
+                    "blocked Mission dependency state is no longer the exact outage"
+                )
+            project_head = index.event_head("project-goal:OPERATING_DIRECTION.md")
+            if project_head is None or project_head.record_id != mission_close_record_id:
+                raise TransitionError(
+                    "blocked Mission close is not the current Project Goal boundary"
+                )
+            output_manifest = dict(evidence.output_manifest)
+            result_hash = output_manifest[evidence.result_manifest_output]
+            result_artifact = self.evidence.verify(result_hash)
+            try:
+                result_manifest = parse_canonical(
+                    (
+                        self.evidence._root / result_artifact.relative_path
+                    ).read_bytes()
+                )
+            except ValueError as exc:
+                raise TransitionError(
+                    "external change result manifest is not canonical"
+                ) from exc
+            required_result = {
+                "blocker_basis_record_id",
+                "condition_id",
+                "measurement_artifact_hashes",
+                "mission_close_record_id",
+                "mission_id",
+                "schema",
+            }
+            measurement_hashes = sorted(
+                artifact_hash
+                for output_name, artifact_hash in evidence.output_manifest
+                if output_name != evidence.result_manifest_output
+            )
+            if (
+                not isinstance(result_manifest, dict)
+                or set(result_manifest) != required_result
+                or result_manifest.get("schema")
+                != "external_change_evidence.v1"
+                or result_manifest.get("blocker_basis_record_id")
+                != basis_record_id
+                or result_manifest.get("condition_id") != condition.identity
+                or result_manifest.get("mission_close_record_id")
+                != mission_close_record_id
+                or result_manifest.get("mission_id") != mission_id
+                or result_manifest.get("measurement_artifact_hashes")
+                != measurement_hashes
+            ):
+                raise TransitionError(
+                    "external change result differs from the blocked Mission"
+                )
+            artifacts: list[ValidationArtifact] = []
+            for output_name, artifact_hash in evidence.output_manifest:
+                artifact = self.evidence.verify(artifact_hash)
+                artifacts.append(
+                    ValidationArtifact(
+                        output_name=output_name,
+                        sha256=artifact_hash,
+                        _source=self.evidence._root / artifact.relative_path,
+                    )
+                )
+            validation_binding = {
+                "blocked_mission_capability": (
+                    condition.blocked_mission_capability
+                ),
+                "dependency_id": condition.dependency_id,
+                "result_manifest_output": evidence.result_manifest_output,
+                "resume_condition_id": condition.identity,
+            }
+            request = ExternalChangeValidationRequest(
+                validator_id=condition.validator_id,
+                validation_plan_hash=condition.validation_plan_hash,
+                boundary_id=mission_close_record_id,
+                condition_id=condition.identity,
+                mission_id=mission_id,
+                evidence_subject={"kind": "Mission", "id": mission_id},
+                binding=validation_binding,
+                result_manifest=result_manifest,
+                artifacts=tuple(artifacts),
+                engineering_fixture=False,
+            )
+            try:
+                validated, trace = self.validation_registry.validate(request)
+            except EvidenceValidationError as exc:
+                raise TransitionError(
+                    f"registered external reentry validation failed: {exc}"
+                ) from exc
+            expected_facts = {
+                "blocked_mission_capability": (
+                    condition.blocked_mission_capability
+                ),
+                "dependency_id": condition.dependency_id,
+                "external_change_satisfied": True,
+                "resume_condition_id": condition.identity,
+            }
+            if (
+                validated.verdict != "passed"
+                or dict(validated.facts) != expected_facts
+                or sorted(validated.measurement_artifact_hashes)
+                != measurement_hashes
+                or validated.claims
+                or validated.artifact_roles
+                or validated.scientific_eligible
+                or validated.candidate_eligible
+                or validated.release_eligible
+            ):
+                raise TransitionError(
+                    "external change validator did not satisfy the exact condition"
+                )
+            validation_payload = {
+                "blocker_basis_record_id": basis_record_id,
+                "condition_id": condition.identity,
+                "facts": expected_facts,
+                "measurement_artifact_hashes": measurement_hashes,
+                "mission_close_record_id": mission_close_record_id,
+                "mission_id": mission_id,
+                "result_manifest_hash": result_hash,
+                "validation_plan_hash": condition.validation_plan_hash,
+                "validation_trace": {
+                    "declared_artifact_count": trace.declared_artifact_count,
+                    "opened_artifact_count": trace.opened_artifact_count,
+                    "validator_id": trace.validator_id,
+                },
+                "validator_id": condition.validator_id,
+            }
+            validation_id = canonical_digest(
+                domain="external-change-validation",
+                payload=validation_payload,
+            )
+            availability = _record(
+                kind="external-change-validation",
+                record_id=validation_id,
+                subject=f"Mission:{mission_id}",
+                status="available",
+                fingerprint=condition.dependency_id,
+                payload=validation_payload,
+                event_stream=f"external-dependency:{condition.dependency_id}",
+                event_sequence=dependency_head.sequence + 1,
+            )
+            authorization_head = index.event_head(
+                f"mission-authorization:{mission_id}"
+            )
+            previous_authorization = (
+                None
+                if authorization_head is None
+                else index.get(
+                    authorization_head.record_kind,
+                    authorization_head.record_id,
+                )
+            )
+            if authorization_head is not None and (
+                previous_authorization is None
+                or previous_authorization.kind != "mission-authorization"
+                or previous_authorization.subject != f"Mission:{mission_id}"
+                or previous_authorization.payload.get("authorization_epoch")
+                != authorization_head.sequence + 1
+            ):
+                raise RecoveryRequired(
+                    "blocked Mission authorization history is malformed"
+                )
+            authorization_sequence = (
+                1 if authorization_head is None else authorization_head.sequence + 1
+            )
+            authorization_epoch = authorization_sequence + 1
+            activation_hash = canonical_digest(
+                domain="mission-reentry-activation",
+                payload={
+                    "authorization_epoch": authorization_epoch,
+                    "basis_record_id": basis_record_id,
+                    "external_change_validation_id": validation_id,
+                    "goal_hash": mission_open.payload.get("goal_hash"),
+                    "mission_close_record_id": mission_close_record_id,
+                    "mission_id": mission_id,
+                },
+            )
+            authorization = self._authorization(
+                kind=SubjectKind.MISSION,
+                subject_id=mission_id,
+                semantic_hash=activation_hash,
+                epoch=authorization_epoch,
+            )
+            reentry_payload = {
+                "authorization_epoch": authorization_epoch,
+                "authorization_hash": authorization.authorization_hash,
+                "basis_record_id": basis_record_id,
+                "external_change_validation_id": validation_id,
+                "mission_close_record_id": mission_close_record_id,
+                "mission_id": mission_id,
+                "mission_ordinal": mission_open.payload.get("mission_ordinal"),
+                "project_goal_complete": False,
+                "resume_next_action": condition.resume_action.to_next_action(),
+                "trial_delta": 0,
+                "claim_delta": 0,
+                "holdout_delta": 0,
+            }
+            reentry_id = canonical_digest(
+                domain="mission-reentry", payload=reentry_payload
+            )
+            reentry = _record(
+                kind="mission-reentry",
+                record_id=reentry_id,
+                subject=f"Mission:{mission_id}",
+                status="active",
+                fingerprint=activation_hash,
+                payload=reentry_payload,
+                event_stream="project-goal:OPERATING_DIRECTION.md",
+                event_sequence=project_head.sequence + 1,
+            )
+            authorization_record = _record(
+                kind="mission-authorization",
+                record_id=activation_hash,
+                subject=f"Mission:{mission_id}",
+                status="active",
+                fingerprint=authorization.authorization_hash,
+                payload={
+                    **authorization.payload(),
+                    "basis_record_id": basis_record_id,
+                    "external_change_validation_id": validation_id,
+                    "mission_close_record_id": mission_close_record_id,
+                },
+                event_stream=f"mission-authorization:{mission_id}",
+                event_sequence=authorization_sequence,
+            )
+            science["active_mission"] = mission_id
+            body["next_action"] = condition.resume_action.to_next_action()
+            self._bind_authorization(body, authorization)
+            return body, [availability, authorization_record, reentry], {
+                "authorization_epoch": authorization_epoch,
+                "external_change_validation_id": validation_id,
+                "mission_id": mission_id,
+                "mission_reentry_id": reentry_id,
+                "project_goal_complete": False,
+            }
+
+        return self._commit(
+            event_kind="blocked_mission_reentered",
+            operation_id=operation_id,
+            subject="ProjectGoal:OPERATING_DIRECTION.md",
+            payload={
+                "basis_record_id": basis_record_id,
+                "evidence_id": evidence.identity,
+                "mission_close_record_id": mission_close_record_id,
+            },
+            prepare=prepare,
+            evidence_blobs=(),
         )
 
     def withdraw_terminal_basis(

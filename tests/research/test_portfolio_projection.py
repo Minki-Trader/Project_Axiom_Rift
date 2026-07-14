@@ -5,12 +5,18 @@ import unittest
 from axiom_rift.research.chassis import ArchitectureChassisSpec
 from axiom_rift.research.forest_replay import build_p0_composite_validation_plan
 from axiom_rift.research.governance import ResearchLayer
-from axiom_rift.research.portfolio import PortfolioAxis
+from axiom_rift.research.portfolio import (
+    DecisionOption,
+    PortfolioAction,
+    PortfolioAxis,
+    PortfolioDecision,
+)
 from axiom_rift.research.portfolio_projection import (
     PortfolioProjectionError,
     architecture_chassis_from_identity_payload,
     component_surface_registry,
     portfolio_axis_from_projection,
+    portfolio_decision_from_projection,
 )
 from axiom_rift.research.selection_inference import HistoricalSearchContext
 
@@ -107,6 +113,75 @@ class PortfolioProjectionTests(unittest.TestCase):
                 self.architecture.to_identity_payload(),
                 incomplete,
             )
+
+    def test_empty_replay_binding_preserves_legacy_decision_identity(self) -> None:
+        options = (
+            DecisionOption(
+                option_id="deepen-replay",
+                action=PortfolioAction.DEEPEN,
+                target_id=self.axis.axis_id,
+                expected_information_value="positive",
+                opportunity_cost="one bounded Batch",
+            ),
+            DecisionOption(
+                option_id="new-mechanism",
+                action=PortfolioAction.NEW_MECHANISM,
+                target_id="axis-independent-control",
+                expected_information_value="independent",
+                opportunity_cost="one alternative Batch",
+                omission_reason="the bounded replay is selected first",
+            ),
+        )
+        legacy = PortfolioDecision(
+            decision_id="DEC-LEGACY-IDENTITY",
+            chosen_option_id="deepen-replay",
+            options=options,
+            rationale="preserve the exact historical Decision byte surface",
+            commitment_batches=1,
+            baseline_executable=self.plan.baseline_executable,
+        )
+        explicit_empty = PortfolioDecision(
+            decision_id="DEC-LEGACY-IDENTITY",
+            chosen_option_id="deepen-replay",
+            options=options,
+            rationale="preserve the exact historical Decision byte surface",
+            commitment_batches=1,
+            baseline_executable=self.plan.baseline_executable,
+            replay_obligation_ids=(),
+        )
+        self.assertEqual(explicit_empty.identity, legacy.identity)
+        self.assertEqual(
+            explicit_empty.to_identity_payload(), legacy.to_identity_payload()
+        )
+        self.assertNotIn("replay_obligation_ids", legacy.to_identity_payload())
+        rebuilt = portfolio_decision_from_projection(legacy.to_identity_payload())
+        self.assertEqual(rebuilt.identity, legacy.identity)
+        self.assertEqual(rebuilt.to_identity_payload(), legacy.to_identity_payload())
+
+        bound = PortfolioDecision(
+            decision_id="DEC-LEGACY-IDENTITY",
+            chosen_option_id="deepen-replay",
+            options=options,
+            rationale="preserve the exact historical Decision byte surface",
+            commitment_batches=1,
+            baseline_executable=self.plan.baseline_executable,
+            replay_obligation_ids=(
+                "historical-replay-obligation:" + "2" * 64,
+                "historical-replay-obligation:" + "1" * 64,
+            ),
+        )
+        self.assertNotEqual(bound.identity, legacy.identity)
+        self.assertEqual(
+            bound.to_identity_payload()["replay_obligation_ids"],
+            [
+                "historical-replay-obligation:" + "1" * 64,
+                "historical-replay-obligation:" + "2" * 64,
+            ],
+        )
+        self.assertEqual(
+            portfolio_decision_from_projection(bound.to_identity_payload()).identity,
+            bound.identity,
+        )
 
 
 if __name__ == "__main__":

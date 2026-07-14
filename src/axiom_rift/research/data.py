@@ -6,7 +6,7 @@ import hashlib
 import io
 import json
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Iterable, Mapping
 
 import numpy as np
@@ -29,6 +29,20 @@ _SOURCE_FIELDS = (
 )
 _ELIGIBLE_FIELDS = _SOURCE_FIELDS[:-1]
 _NUMERIC_FIELDS = _ELIGIBLE_FIELDS[1:]
+_OBSERVED_DEVELOPMENT_FIELDS = frozenset(
+    {
+        "path",
+        "sha256",
+        "byte_count",
+        "row_count",
+        "first_time",
+        "last_time",
+        "parent_dataset_sha256",
+        "split_artifact_sha256",
+        "derivation",
+    }
+)
+_OBSERVED_DEVELOPMENT_DERIVATION = "exact_prefix_before_quarantined_tail"
 
 
 class DevelopmentDataError(ValueError):
@@ -98,6 +112,15 @@ def _mapping(value: object, name: str) -> Mapping[str, object]:
     return value
 
 
+def _exact_mapping(
+    value: object, name: str, *, fields: frozenset[str]
+) -> Mapping[str, object]:
+    payload = _mapping(value, name)
+    if set(payload) != fields:
+        raise DevelopmentDataError(f"{name} fields differ from the exact schema")
+    return payload
+
+
 def _list(value: object, name: str) -> list[object]:
     if type(value) is not list:
         raise DevelopmentDataError(f"{name} must be a list")
@@ -163,6 +186,50 @@ def _resolve_inside(root: Path, value: object, name: str) -> Path:
         candidate.relative_to(root)
     except ValueError as exc:
         raise DevelopmentDataError(f"{name} must resolve inside the repository") from exc
+    return candidate
+
+
+def _resolve_observed_development_path(root: Path, value: object) -> Path:
+    name = "data.observed_development.path"
+    text = _ascii(value, name)
+    relative = PurePosixPath(text)
+    lane = PurePosixPath("data/processed/datasets")
+    if (
+        any(
+            character
+            not in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_./-"
+            for character in text
+        )
+        or relative.is_absolute()
+        or any(part in {"", ".", ".."} for part in relative.parts)
+        or relative.as_posix() != text
+        or relative.parts[: len(lane.parts)] != lane.parts
+        or len(relative.parts) <= len(lane.parts)
+    ):
+        raise DevelopmentDataError(
+            "data.observed_development.path must remain in its canonical data lane"
+        )
+    candidate = root.joinpath(*relative.parts)
+    cursor = candidate
+    while cursor != root:
+        is_junction = getattr(cursor, "is_junction", None)
+        if cursor.is_symlink() or bool(
+            is_junction is not None and is_junction()
+        ):
+            raise DevelopmentDataError(
+                "data.observed_development.path traverses a link-like path"
+            )
+        cursor = cursor.parent
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as exc:
+        raise DevelopmentDataError(
+            "data.observed_development.path is unavailable"
+        ) from exc
+    if resolved != candidate or not candidate.is_file():
+        raise DevelopmentDataError(
+            "data.observed_development.path is not a confined regular file"
+        )
     return candidate
 
 
@@ -344,6 +411,78 @@ def _scan_source(
         parser_input=prefix,
         prefix_sha256=prefix_hash.hexdigest(),
         prefix_byte_count=prefix.getbuffer().nbytes,
+    )
+
+
+def _scan_observed_development(
+    path: Path,
+    *,
+    expected_sha256: str,
+    expected_byte_count: int,
+    expected_fields: tuple[str, ...],
+    expected_row_count: int,
+    expected_first_time: str,
+    expected_last_time: str,
+) -> _ScanResult:
+    """Verify and buffer an already materialized development-only CSV."""
+
+    expected_header = b",".join(field.encode("ascii") for field in expected_fields)
+    expected_first = expected_first_time.encode("ascii")
+    expected_last = expected_last_time.encode("ascii")
+    digest = hashlib.sha256()
+    parser_input = io.BytesIO()
+    byte_count = 0
+    row_count = 0
+    first_time: bytes | None = None
+    last_time: bytes | None = None
+
+    try:
+        with path.open("rb") as handle:
+            header = handle.readline()
+            if not header:
+                raise DevelopmentDataError("observed development CSV is empty")
+            digest.update(header)
+            parser_input.write(header)
+            byte_count += len(header)
+            if _record_body(header, "observed development CSV header") != expected_header:
+                raise DevelopmentDataError(
+                    "observed development CSV schema or field order changed"
+                )
+            for raw_line in handle:
+                digest.update(raw_line)
+                parser_input.write(raw_line)
+                byte_count += len(raw_line)
+                row_count += 1
+                record = _record_body(raw_line, "observed development CSV")
+                timestamp = _raw_timestamp(record, "observed development CSV")
+                if first_time is None:
+                    first_time = timestamp
+                last_time = timestamp
+    except OSError as exc:
+        parser_input.close()
+        raise DevelopmentDataError(
+            f"cannot scan observed development CSV: {path}"
+        ) from exc
+    except Exception:
+        parser_input.close()
+        raise
+
+    checks = (
+        (digest.hexdigest() == expected_sha256, "observed development SHA256 changed"),
+        (byte_count == expected_byte_count, "observed development byte count changed"),
+        (row_count == expected_row_count, "observed development row count changed"),
+        (first_time == expected_first, "observed development first time changed"),
+        (last_time == expected_last, "observed development last time changed"),
+    )
+    for valid, message in checks:
+        if not valid:
+            parser_input.close()
+            raise DevelopmentDataError(message)
+    parser_input.seek(0)
+    return _ScanResult(
+        parser_input=parser_input,
+        prefix_sha256=expected_sha256,
+        prefix_byte_count=byte_count,
     )
 
 
@@ -596,17 +735,105 @@ class ObservedDevelopmentLoader:
             source_first_time=source_first_time,
             development_last_time=development_last_time,
         )
-        scan = _scan_source(
-            source_path,
-            expected_sha256=dataset_sha256,
-            expected_fields=_SOURCE_FIELDS,
-            expected_row_count=source_row_count,
-            development_row_count=development_row_count,
-            expected_first_time=source_first_text,
-            expected_development_last_time=development_last_text,
-            expected_quarantine_start=quarantine_start_text,
-            expected_source_last_time=source_last_text,
-        )
+        if "observed_development" in data_manifest:
+            prefix = _exact_mapping(
+                data_manifest.get("observed_development"),
+                "data.observed_development",
+                fields=_OBSERVED_DEVELOPMENT_FIELDS,
+            )
+            prefix_path = _resolve_observed_development_path(
+                self._root, prefix.get("path")
+            )
+            prefix_sha256 = _sha256(
+                prefix.get("sha256"), "data.observed_development.sha256"
+            )
+            prefix_byte_count = _integer(
+                prefix.get("byte_count"),
+                "data.observed_development.byte_count",
+                positive=True,
+            )
+            prefix_row_count = _integer(
+                prefix.get("row_count"),
+                "data.observed_development.row_count",
+                positive=True,
+            )
+            prefix_first_text = _ascii(
+                prefix.get("first_time"), "data.observed_development.first_time"
+            )
+            prefix_last_text = _ascii(
+                prefix.get("last_time"), "data.observed_development.last_time"
+            )
+            prefix_first_time = _timestamp(
+                prefix_first_text, "data.observed_development.first_time"
+            )
+            prefix_last_time = _timestamp(
+                prefix_last_text, "data.observed_development.last_time"
+            )
+            parent_dataset_sha256 = _sha256(
+                prefix.get("parent_dataset_sha256"),
+                "data.observed_development.parent_dataset_sha256",
+            )
+            prefix_split_sha256 = _sha256(
+                prefix.get("split_artifact_sha256"),
+                "data.observed_development.split_artifact_sha256",
+            )
+            derivation = _ascii(
+                prefix.get("derivation"), "data.observed_development.derivation"
+            )
+            checks = (
+                (
+                    prefix_path != source_path,
+                    "observed development must be distinct from the full processed source",
+                ),
+                (
+                    parent_dataset_sha256 == dataset_sha256,
+                    "observed development names a different parent dataset",
+                ),
+                (
+                    prefix_split_sha256 == split_sha256,
+                    "observed development names different rolling windows",
+                ),
+                (
+                    prefix_row_count == development_row_count,
+                    "observed development row count differs from the split boundary",
+                ),
+                (
+                    prefix_first_time == source_first_time,
+                    "observed development first time differs from the parent dataset",
+                ),
+                (
+                    prefix_last_time == development_last_time,
+                    "observed development last time differs from the exposure boundary",
+                ),
+                (
+                    derivation == _OBSERVED_DEVELOPMENT_DERIVATION,
+                    "observed development derivation differs",
+                ),
+            )
+            for valid, message in checks:
+                if not valid:
+                    raise DevelopmentDataError(message)
+            scan = _scan_observed_development(
+                prefix_path,
+                expected_sha256=prefix_sha256,
+                expected_byte_count=prefix_byte_count,
+                expected_fields=_SOURCE_FIELDS,
+                expected_row_count=prefix_row_count,
+                expected_first_time=prefix_first_text,
+                expected_last_time=prefix_last_text,
+            )
+        else:
+            scan = _scan_source(
+                source_path,
+                expected_sha256=dataset_sha256,
+                expected_fields=_SOURCE_FIELDS,
+                expected_row_count=source_row_count,
+                development_row_count=development_row_count,
+                expected_first_time=source_first_text,
+                expected_development_last_time=development_last_text,
+                expected_quarantine_start=quarantine_start_text,
+                expected_source_last_time=source_last_text,
+            )
         try:
             frame = _parse_and_validate(
                 scan.parser_input,

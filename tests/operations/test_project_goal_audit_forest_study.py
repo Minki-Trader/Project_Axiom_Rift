@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from hashlib import sha256
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
 from scripts.apply_project_goal_audit_v1 import (
@@ -16,11 +19,21 @@ from scripts.run_project_goal_audit_v1_forest_study import (
     OPERATION_PREFIX,
     ROOT,
     STUDY_CLOSE_STEPS,
+    _job_spec,
     build_forest_study_design,
 )
+from axiom_rift.core.canonical import parse_canonical
 from axiom_rift.operations.validation import EvidenceValidatorRegistry
 from axiom_rift.operations.writer import StateWriter
+from axiom_rift.research.forest_replay import (
+    forest_replay_dependency_paths,
+    forest_replay_implementation_artifact,
+    forest_replay_implementation_identity,
+)
 from axiom_rift.research.governance import ResearchLayer
+from axiom_rift.research.implementation_closure import (
+    require_job_implementation_closure,
+)
 from axiom_rift.research.validation_v2 import ScientificAdjudicationValidatorV2
 
 
@@ -79,12 +92,62 @@ class ProjectGoalAuditForestStudyTests(unittest.TestCase):
         classes = design.replay_plan.output_classes()
         self.assertEqual(
             sum(value == "durable_evidence" for value in classes.values()),
-            3,
+            5,
         )
         self.assertEqual(
             sum(value == "reproducible_cache" for value in classes.values()),
-            11,
+            9,
         )
+
+    def test_job_spec_closes_the_exact_component_implementation_bundle(self) -> None:
+        project_writer = StateWriter(
+            ROOT,
+            validation_registry=EvidenceValidatorRegistry(
+                (ScientificAdjudicationValidatorV2(),)
+            ),
+        )
+        _, report_hash = read_frozen_audit_report(ROOT)
+        design = build_forest_study_design(
+            project_writer,
+            report_hash=report_hash,
+            base_snapshot_id=EXPECTED_PORTFOLIO_SNAPSHOT_ID,
+            bootstrap_samples=199,
+            block_lengths=(2, 5),
+            base_seed=991,
+        )
+
+        with TemporaryDirectory() as temporary:
+            writer = StateWriter(
+                Path(temporary),
+                engineering_fixture=True,
+                foundation_root=ROOT,
+            )
+            spec = _job_spec(writer, design)
+            manifest = parse_canonical(
+                writer.evidence.read_verified(spec["implementation_identity"])
+            )
+            expected = forest_replay_implementation_identity().rsplit(":", 1)[-1]
+            self.assertEqual(
+                set(manifest["artifact_hashes"]),
+                {expected}
+                | {
+                    sha256(path.read_bytes()).hexdigest()
+                    for path in forest_replay_dependency_paths()
+                },
+            )
+            self.assertEqual(
+                require_job_implementation_closure(
+                    executable_manifest=(
+                        design.replay_plan.executable.to_identity_payload()
+                    ),
+                    job_artifact_hashes=manifest["artifact_hashes"],
+                    artifact_reader=writer.evidence.read_verified,
+                ),
+                (expected,),
+            )
+            component_bytes = writer.evidence.read_verified(expected)
+            self.assertEqual(component_bytes, forest_replay_implementation_artifact())
+            self.assertEqual(sha256(component_bytes).hexdigest(), expected)
 
 
 if __name__ == "__main__":

@@ -5,6 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from axiom_rift.operations.evidence_scope_projection import (
+    EvidenceScopeProjectionError,
+    effective_completion_evidence_scope,
+)
 from axiom_rift.research.axis_disposition import (
     AxisEvidenceKind,
     AxisEvidenceReference,
@@ -15,6 +19,13 @@ from axiom_rift.storage.index import IndexRecord, LocalIndex
 
 class AxisDispositionEvidenceError(ValueError):
     """Raised when disposition evidence is absent, stale, or misbound."""
+
+
+def _effective_scope(index: LocalIndex, completion: IndexRecord):
+    try:
+        return effective_completion_evidence_scope(index, completion)
+    except EvidenceScopeProjectionError as exc:
+        raise AxisDispositionEvidenceError(str(exc)) from exc
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,19 +142,14 @@ def _job_completion_binding(
     adjudication = (
         None if not isinstance(scientific, dict) else scientific.get("adjudication")
     )
-    candidate_eligible = (
-        None
-        if not isinstance(scientific, dict)
-        else scientific.get("candidate_eligible")
-    )
+    scope = _effective_scope(index, completion)
     if (
         completion.status != "success"
         or not isinstance(scientific, dict)
-        or scientific.get("scientific_eligible") is not True
+        or scope.scientific_eligible is not True
         or not isinstance(adjudication, dict)
         or adjudication.get("schema") != "scientific_adjudication.v1"
-        or type(candidate_eligible) is not bool
-        or adjudication.get("candidate_eligible") is not candidate_eligible
+        or adjudication.get("candidate_eligible") is not scope.candidate_eligible
         or declaration is None
         or declaration.payload.get("mission_id") != mission_id
     ):
@@ -168,16 +174,12 @@ def _job_completion_binding(
         raise AxisDispositionEvidenceError(
             "axis Job completion subject is not bound to its trial"
         )
-    modes = _ascii_list(
-        "axis Job completion evidence modes",
-        scientific.get("executed_evidence_modes"),
-    )
     return AxisEvidenceBinding(
         state=_state_from_adjudication(adjudication),
-        candidate_eligible=candidate_eligible,
+        candidate_eligible=scope.candidate_eligible,
         study_ids=(study_id,),
         executable_ids=(executable_id,),
-        evidence_modes=modes,
+        evidence_modes=scope.evidence_modes,
     )
 
 
@@ -220,6 +222,16 @@ def _historical_adjudication_binding(
         raise AxisDispositionEvidenceError(
             "historical axis adjudication is stale or not candidate-ineligible"
         )
+    scope = _effective_scope(index, completion)
+    if (
+        scope.overlay_record_id is not None
+        or scope.scientific_eligible is not True
+        or scope.scientific_credit != 1
+        or scope.terminal_credit != 1
+    ):
+        raise AxisDispositionEvidenceError(
+            "historical axis adjudication binds a zero-credit completion"
+        )
     _, study_id = _require_trial_binding(
         index,
         executable_id=executable_id,
@@ -258,16 +270,12 @@ def _historical_adjudication_binding(
         raise AxisDispositionEvidenceError(
             "historical axis adjudication effective state is invalid"
         )
-    modes = _ascii_list(
-        "historical axis evidence modes",
-        scientific.get("executed_evidence_modes"),
-    )
     return AxisEvidenceBinding(
         state=state,
         candidate_eligible=False,
         study_ids=(study_id,),
         executable_ids=(executable_id,),
-        evidence_modes=modes,
+        evidence_modes=scope.evidence_modes,
     )
 
 
@@ -314,13 +322,15 @@ def _negative_memory_binding(
         scientific = (
             None if completion is None else completion.payload.get("scientific")
         )
+        scope = None if completion is None else _effective_scope(index, completion)
         if (
             completion is None
             or completion.status not in {"success", "failed"}
             or not isinstance(scientific, dict)
-            or scientific.get("scientific_eligible") is not True
+            or scope is None
+            or scope.scientific_eligible is not True
             or scientific.get("verdict") != "failed"
-            or scientific.get("candidate_eligible") is not False
+            or scope.candidate_eligible is not False
             or scientific.get("executable_id") != executable_id
         ):
             raise AxisDispositionEvidenceError(
@@ -329,7 +339,7 @@ def _negative_memory_binding(
         completion_modes.update(
             _ascii_list(
                 "negative-memory completion evidence modes",
-                scientific.get("executed_evidence_modes"),
+                list(scope.evidence_modes),
             )
         )
     if set(modes) != completion_modes:
@@ -408,6 +418,7 @@ def required_axis_scientific_references(
             or scientific.get("scientific_eligible") is not True
         ):
             continue
+        scope = _effective_scope(index, completion)
         job_id = completion.payload.get("job_id")
         declaration = (
             None
@@ -441,6 +452,17 @@ def required_axis_scientific_references(
             raise AxisDispositionEvidenceError(
                 "scientific completion has stale Portfolio axis lineage"
             )
+        if scope.overlay_record_id is not None:
+            # Completion-scoped authority takes precedence over any historical
+            # adjudication stream.  Neither record may restore scientific or
+            # terminal credit removed by the additive overlay.
+            continue
+        if (
+            scope.scientific_eligible is not True
+            or scope.scientific_credit != 1
+            or scope.terminal_credit != 1
+        ):
+            continue
         historical_head = index.event_head(
             f"historical-adjudication:{completion.record_id}"
         )

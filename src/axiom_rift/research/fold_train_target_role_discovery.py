@@ -26,11 +26,12 @@ from axiom_rift.research.volatility_clock_label_discovery import deterministic_s
 
 
 _THIS_FILE = Path(__file__).resolve()
-_JOB_IMPLEMENTATION_SHA256 = "3692e4820cebad2b74a93778d0e337a5a75eadfa7efe98307c363ee3df65446a"
 
 
 def fold_train_target_role_discovery_implementation_sha256() -> str:
-    return _JOB_IMPLEMENTATION_SHA256
+    """Bind prospective work to the current implementation bytes."""
+
+    return sha256(_THIS_FILE.read_bytes()).hexdigest()
 
 
 def _threshold(score: np.ndarray, mask: np.ndarray, quantile_bp: int) -> float:
@@ -182,5 +183,4 @@ def project_fold_train_target_role_evaluation(surface: Mapping[str, Any], *, job
 
 
 __all__ = ["compute_registered_fold_train_target_role_surface", "project_fold_train_target_role_evaluation", "fold_train_target_role_discovery_implementation_sha256"]
-
 

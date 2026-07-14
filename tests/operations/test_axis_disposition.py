@@ -1,10 +1,19 @@
 from __future__ import annotations
 
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
 from axiom_rift.core.identity import canonical_digest
+from axiom_rift.operations.axis_disposition import (
+    AxisDispositionEvidenceError,
+    derive_axis_evidence_binding,
+    required_axis_scientific_references,
+)
+from axiom_rift.operations.evidence_scope_projection import (
+    evidence_scope_overlay_record,
+)
 from axiom_rift.operations.writer import StateWriter, TransitionError
 from axiom_rift.research.axis_disposition import (
     AxisDisposition,
@@ -14,9 +23,13 @@ from axiom_rift.research.axis_disposition import (
     AxisEvidenceReference,
     AxisEvidenceState,
 )
+from axiom_rift.research.effective_evidence_scope import (
+    HistoricalEvidenceScopeOverlay,
+)
 from axiom_rift.research.portfolio import PortfolioSnapshot
 from axiom_rift.storage.index import IndexRecord, LocalIndex
 from tests.operations.test_writer import (
+    FIXTURE_DELIVERY_CAPABILITY,
     FIXED_NOW,
     REPO_ROOT,
     PortfolioAxis,
@@ -68,6 +81,7 @@ class AxisDispositionWriterTests(unittest.TestCase):
             self.temp.name,
             clock=lambda: FIXED_NOW,
             foundation_root=REPO_ROOT,
+            study_close_guard_capability=FIXTURE_DELIVERY_CAPABILITY,
         )
         self.writer.initialize_ready()
         self.mission_id = "MIS-DISPOSITION"
@@ -461,6 +475,143 @@ class AxisDispositionWriterTests(unittest.TestCase):
         )
         return disposition_id
 
+    def test_zero_credit_overlay_precedes_historical_adjudication(self) -> None:
+        records, completion_id, executable_id, study_id = self._job_records(
+            axis_index=1,
+            tag="historical-zero-credit",
+            state="unresolved",
+        )
+        valid_records, valid_completion_id, _valid_executable_id, _valid_study_id = (
+            self._job_records(
+                axis_index=1,
+                tag="valid-after-zero-credit",
+                state="confirmed",
+            )
+        )
+        records.extend(valid_records)
+        historical_id = "historical-adjudication:" + _digest(
+            "axis-disposition-historical",
+            "zero-credit",
+        )
+        records.append(
+            IndexRecord(
+                kind="historical-scientific-adjudication",
+                record_id=historical_id,
+                subject=f"Study:{study_id}",
+                status="not_evaluable_qualification",
+                fingerprint=historical_id.removeprefix(
+                    "historical-adjudication:"
+                ),
+                payload={
+                    "adjudication": {
+                        "candidate_eligible": False,
+                        "invalid_metrics": [],
+                        "state": "unresolved",
+                    },
+                    "completion_record_id": completion_id,
+                    "effective_state": "not_evaluable",
+                    "executable_id": executable_id,
+                    "schema": "historical_scientific_adjudication.v2",
+                    "study_id": study_id,
+                    "validity_overrides": [],
+                },
+                event_stream=f"historical-adjudication:{completion_id}",
+                event_sequence=1,
+            )
+        )
+        replay_study_id = "STU-DISPOSITION-AUDIT-ONLY"
+        replay_obligation_id = "historical-replay-obligation:" + _digest(
+            "axis-disposition-replay-obligation",
+            "zero-credit",
+        )
+        replay_resolution_id = "historical-replay-satisfaction:" + _digest(
+            "axis-disposition-replay-satisfaction",
+            "zero-credit",
+        )
+        records.extend(
+            (
+                IndexRecord(
+                    kind="study-open",
+                    record_id=replay_study_id,
+                    subject=f"Study:{replay_study_id}",
+                    status="open",
+                    fingerprint=_digest(
+                        "axis-disposition-replay-study",
+                        "zero-credit",
+                    ),
+                    payload={"mission_id": self.mission_id},
+                ),
+                IndexRecord(
+                    kind="historical-replay-obligation-resolution",
+                    record_id=replay_resolution_id,
+                    subject=f"Mission:{self.mission_id}",
+                    status="satisfied",
+                    fingerprint=replay_resolution_id.removeprefix(
+                        "historical-replay-satisfaction:"
+                    ),
+                    payload={
+                        "obligation_id": replay_obligation_id,
+                        "resolution": {
+                            "evidence_record_ids": [completion_id],
+                            "obligation_id": replay_obligation_id,
+                            "replay_study_id": replay_study_id,
+                            "resolution_scope": "audit_only",
+                        },
+                    },
+                ),
+            )
+        )
+        overlay = HistoricalEvidenceScopeOverlay(
+            completion_record_id=completion_id,
+            governing_mission_id=self.mission_id,
+            replay_study_id=replay_study_id,
+            replay_obligation_ids=(replay_obligation_id,),
+            replay_resolution_ids=(replay_resolution_id,),
+        )
+        records.append(evidence_scope_overlay_record(overlay))
+
+        def seed(current, _index):
+            assert current is not None
+            return self.writer._body(current), records, {"seeded": True}
+
+        self.writer._commit(
+            event_kind="axis_disposition_zero_credit_fixture_seeded",
+            operation_id="axis-disposition-zero-credit-seed",
+            subject=f"Mission:{self.mission_id}",
+            payload={"completion_record_id": completion_id},
+            prepare=seed,
+        )
+
+        with LocalIndex(self.writer.index_path) as index:
+            self.assertEqual(
+                required_axis_scientific_references(
+                    index,
+                    mission_id=self.mission_id,
+                    axis_id=self.axes[1].axis_id,
+                    axis_identity=self.axes[1].identity,
+                ),
+                (
+                    AxisEvidenceReference(
+                        kind=AxisEvidenceKind.JOB_COMPLETION,
+                        record_id=valid_completion_id,
+                    ),
+                ),
+            )
+            with self.assertRaisesRegex(
+                AxisDispositionEvidenceError,
+                "zero-credit completion",
+            ):
+                derive_axis_evidence_binding(
+                    index,
+                    reference=AxisEvidenceReference(
+                        kind=AxisEvidenceKind.HISTORICAL_ADJUDICATION,
+                        record_id=historical_id,
+                    ),
+                    mission_id=self.mission_id,
+                    axis_id=self.axes[1].axis_id,
+                    axis_identity=self.axes[1].identity,
+                )
+
     def _dispositions(self, evidence: dict[str, object]) -> tuple[AxisDisposition, ...]:
         negative = evidence["negative"]
         negative_completions = evidence["negative_completions"]
@@ -630,6 +781,15 @@ class AxisDispositionWriterTests(unittest.TestCase):
                 dispositions=(forged_state,),
                 operation_id="reject-forged-axis-state",
             )
+        with patch.object(
+            self.writer,
+            "_effective_axis_resolution",
+            return_value=SimpleNamespace(terminal_eligible=False),
+        ), self.assertRaisesRegex(TransitionError, "scope-blocked"):
+            self.writer.record_axis_dispositions(
+                dispositions=dispositions,
+                operation_id="reject-effective-axis-blocked-dispositions",
+            )
         before = self.writer.read_control()
         recorded = self.writer.record_axis_dispositions(
             dispositions=dispositions,
@@ -642,10 +802,24 @@ class AxisDispositionWriterTests(unittest.TestCase):
         self.assertEqual(recorded.result["candidate_delta"], 0)
         self.assertEqual(recorded.result["trial_delta"], 0)
 
+        frontier = {
+            item.axis_id: self._frontier(item) for item in dispositions
+        }
+        with patch.object(
+            self.writer,
+            "_mission_effective_axis_blockers",
+            return_value=(SimpleNamespace(obligation_id="blocked"),),
+        ), self.assertRaisesRegex(TransitionError, "unresolved replay"):
+            self.writer.accept_exhaustion_audit(
+                frontiers=frontier,
+                diversity_basis="three layers and three mechanisms remain explicit",
+                opportunity_cost_audit=(
+                    "carry partial and invalid axes forward while retiring only exact negatives"
+                ),
+                operation_id="reject-effective-axis-blocked-exhaustion",
+            )
         accepted = self.writer.accept_exhaustion_audit(
-            frontiers={
-                item.axis_id: self._frontier(item) for item in dispositions
-            },
+            frontiers=frontier,
             diversity_basis="three layers and three mechanisms remain explicit",
             opportunity_cost_audit=(
                 "carry partial and invalid axes forward while retiring only exact negatives"
@@ -669,6 +843,16 @@ class AxisDispositionWriterTests(unittest.TestCase):
             [self.axes[0].axis_id, self.axes[1].axis_id],
         )
         self.assertEqual(audit.payload["unique_negative_executable_count"], 2)
+        with patch.object(
+            self.writer,
+            "_mission_effective_axis_blockers",
+            return_value=(SimpleNamespace(obligation_id="blocked"),),
+        ), self.assertRaisesRegex(TransitionError, "scope-blocked"):
+            self.writer.close_mission(
+                outcome="closed_no_candidate",
+                basis_record_id=accepted.result["basis_record_id"],
+                operation_id="reject-effective-axis-blocked-terminal",
+            )
         closed = self.writer.close_mission(
             outcome="closed_no_candidate",
             basis_record_id=accepted.result["basis_record_id"],

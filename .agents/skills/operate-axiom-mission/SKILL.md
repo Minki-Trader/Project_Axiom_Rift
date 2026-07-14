@@ -1,6 +1,6 @@
 ---
 name: operate-axiom-mission
-description: Operate the persistent Axiom Project Goal through one active first or successor Mission, including bare or one-line /goal intake, mandatory Mission research intake, Study-close delivery, diagnosis and architecture-review routing, continuation, Decisions, Repairs, blockers, Mission terminals, reentry, closeout, and Git observation. Use for /goal, exact next-action routing, or any request that may change canonical control state.
+description: Operate the persistent Axiom Project Goal through one active first or successor Mission, including bare or one-line /goal intake, mandatory Mission research intake, audit correction, authority migration, replay routing, Study-close delivery, diagnosis and architecture-review routing, continuation, Decisions, Repairs, blockers, Mission terminals, reentry, closeout, and Git observation. Use for /goal, exact next-action routing, or any request that may change canonical control state.
 ---
 
 # Operate Axiom Project Goal
@@ -47,6 +47,17 @@ Use the repository as authority. Do not depend on chat history.
    commit-msg validation repeats the complete audit. After initialization, a
    missing, modified, or malformed tracked checkpoint blocks later science and
    never falls back to the ignored cache or a routine complete-history scan.
+   The active checkpoint schema is v2. Upgrade v1 only through the explicit
+   full-maintenance path, which authenticates the exact twenty-one-row
+   historical backfill source set and binds each source close, commit, tree,
+   path blob, trailer or typed attestation, ancestry, and deterministic KPI
+   bytes. Routine operation uses the fast bounded suffix guard; a complete
+   reconstruction or exact-staging audit runs only when explicitly required.
+   Close and no-close boundaries are monotone and a no-close boundary cannot
+   advance the authenticated close count.
+   On a real worktree, absence of `.git`, HEAD, local main, the required hook,
+   or the tracked checkpoint fails closed. Only a typed isolated engineering
+   fixture may omit those surfaces, and it has no scientific authority.
 6. If an active Job or Repair exists, resume or dispose it before opening work.
 
 ## Goal Intake
@@ -120,6 +131,16 @@ scientific work.
   before declaring another scientific Job; same-authority duplicate activation
   is not work.
 - Treat Git as recovery and delivery observation, never as state-transition authority.
+- Route audit-created ReplayObligations through the writer as additive P0 or P1
+  records with pending, in_progress, satisfied, or deferred state. Preserve the
+  original event and apply the writer-derived effective evidence-scope and axis
+  overlays. Match each new Executable to at most one exact original Executable;
+  never bind by position, first trial, display order, or Study membership.
+- Require Component -> Executable -> Job implementation closure before a real
+  Job declaration. Every participating Component binds current bytes and
+  semantic dependencies, the Executable contains those identities, and Job
+  artifacts cover their implementations. Reject historical modules with
+  embedded Mission or Study identities as prospective implementations.
 
 ## Mandatory Study Close Delivery
 
@@ -128,7 +149,10 @@ delivery trigger.  Before any later Portfolio action, Study, Batch, or Job:
 
 1. Require the writer-created `study-kpi` record and the matching row in
    `records/STUDY_KPI.md`.
-2. Run focused checks for the closed Study and the KPI projection.
+2. Run focused checks for the closed Study and the KPI projection. When a
+   repository-wide run is justified, use the Git-index-bound tracked-test
+   manifest with exact path and byte hashes and report excluded untracked tests;
+   do not let unrelated user files become acceptance authority.
 3. On local `main`, stage only the exact Study milestone paths. They include
    `state/control.json`, `records/STUDY_KPI.md`, the Journal path resolved from
    the staged snapshot, and the Study-scoped code, tests, or compact records
@@ -177,6 +201,15 @@ revision, and required-path blob IDs in
 no scientific state or KPI, does not rewrite history, and does not duplicate a
 Study-close snapshot.
 
+## Validation Economy
+
+Choose validation in proportion to the changed reusable surface and the claim
+at risk. Focused checks and the fast bounded checkpoint guard are the routine
+path. A tracked full suite, complete-history reconstruction, or exact-staging
+audit belongs to a coherent engineering or delivery milestone and is not a
+per-Job prerequisite. Do not delay an otherwise permitted bounded scientific
+Job for unrelated slow validation. Test success remains engineering evidence.
+
 ## Repair
 
 Freeze scientific identity and counts. Record cause, minimum reproduction,
@@ -201,7 +234,20 @@ semantics change, stop calling the work Repair and register a new Executable.
   standard defect is bound into the exact successor Mission intake and its new
   standard. The terminal closes only the current Mission; keep the API Goal
   active and continue through the exact predecessor-bound successor.
-- A genuine external blocker requires no safe in-scope substitute, exhausted recovery paths, an exact external change, and an exact resume action.
+- A genuine external blocker requires no safe in-scope substitute, exhausted
+  recovery paths, an exact external change, and an exact resume action. Freeze
+  one typed ordered recovery plan at the exact current Journal event. Judge
+  each completed external Job before another path may start. A failed verdict
+  advances only when indispensability, no substitute, and no contract-valid
+  next action remain validator-derived; otherwise restore the stored Mission
+  action without blocker credit. Only the final credit-bearing failed verdict
+  may propose the blocker. A passed verdict restores the stored Mission action.
+  A `not_evaluable` verdict also restores that action but contributes no
+  blocker credit.
+- Bind the recovery plan identity to its stable-boundary event. Continuations
+  keep that identity. After a passed or `not_evaluable` restoration, a
+  recurrent outage may use the same condition and path semantics only through
+  a new plan bound to the new current Journal boundary; reject a stale plan.
 - External unavailability must be derived by a registered external validator;
   caller failure prose cannot establish a blocker attempt.
 - A blocker validator must also establish that the dependency blocks one exact
@@ -210,6 +256,12 @@ semantics change, stop calling the work Repair and register a new Executable.
 - At a genuine external blocker, keep the API Goal active and wait for the
   exact resume condition. Do not manufacture a successor, completion, or
   scientific failure while the condition is unchanged.
+- `blocked_external` does not require a Portfolio snapshot when research never
+  opened. Its close must preserve the typed resume condition and exact Mission
+  action. Reenter only the same Mission from that exact wait boundary after a
+  registered validator derives `passed` availability from durable evidence.
+  Issue a fresh Mission authorization epoch, restore the preserved action, and
+  add no trial, claim, holdout, candidate, Release, or scientific credit.
 - Never create live or live-ready authority.
 - A pending positive terminal may be withdrawn only by invalidating its exact
   frozen active Release through `release_disposed`; all unrelated transitions

@@ -8,7 +8,7 @@ from hashlib import sha256
 from .canonical import CanonicalValue, canonical_bytes, parse_canonical
 
 
-_DIGEST_PREFIX = b"axiom-rift\x00identity\x00sha256\x00v1\x00"
+CANONICAL_IDENTITY_PREFIX = b"axiom-rift\x00identity\x00sha256\x00v1\x00"
 _COMPONENT_SCHEMA = "component_spec.v1"
 _EXECUTABLE_SCHEMA = "executable_spec.v1"
 
@@ -45,19 +45,56 @@ def _ascii_tuple(
     return normalized
 
 
-def canonical_digest(*, domain: str, payload: object) -> str:
-    """Return a domain-separated SHA-256 digest of a canonical payload."""
+def canonical_identity_bytes(*, domain: str, payload: object) -> bytes:
+    """Return the deterministic domain-framed bytes used by identities."""
 
     domain_bytes = _ascii_text("domain", domain).encode("ascii")
     if len(domain_bytes) > 0xFFFFFFFF:
         raise ValueError("domain is too long")
-    framed = (
-        _DIGEST_PREFIX
+    return (
+        CANONICAL_IDENTITY_PREFIX
         + len(domain_bytes).to_bytes(4, "big")
         + domain_bytes
         + canonical_bytes(payload)
     )
-    return sha256(framed).hexdigest()
+
+
+def parse_canonical_identity_bytes(
+    document: bytes,
+) -> tuple[str, CanonicalValue]:
+    """Parse one exact identity frame and reject every noncanonical byte."""
+
+    if type(document) is not bytes:
+        raise TypeError("identity document must be bytes")
+    length_offset = len(CANONICAL_IDENTITY_PREFIX)
+    domain_offset = length_offset + 4
+    if not document.startswith(CANONICAL_IDENTITY_PREFIX):
+        raise ValueError("identity document prefix is invalid")
+    if len(document) < domain_offset:
+        raise ValueError("identity document is truncated before domain length")
+    domain_length = int.from_bytes(
+        document[length_offset:domain_offset], "big"
+    )
+    payload_offset = domain_offset + domain_length
+    if len(document) <= payload_offset:
+        raise ValueError("identity document domain or payload is truncated")
+    try:
+        domain = document[domain_offset:payload_offset].decode("ascii")
+    except UnicodeDecodeError as exc:
+        raise ValueError("identity document domain must be ASCII") from exc
+    _ascii_text("domain", domain)
+    payload = parse_canonical(document[payload_offset:])
+    if canonical_identity_bytes(domain=domain, payload=payload) != document:
+        raise ValueError("identity document is not canonical")
+    return domain, payload
+
+
+def canonical_digest(*, domain: str, payload: object) -> str:
+    """Return a domain-separated SHA-256 digest of a canonical payload."""
+
+    return sha256(
+        canonical_identity_bytes(domain=domain, payload=payload)
+    ).hexdigest()
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

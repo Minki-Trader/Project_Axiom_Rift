@@ -16,10 +16,33 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
+from axiom_rift.core import canonical as canonical_module
+from axiom_rift.core import identity as identity_module
 from axiom_rift.core.canonical import canonical_bytes
-from axiom_rift.core.identity import ComponentSpec, ExecutableSpec, canonical_digest
-from axiom_rift.research import p0_replay_adapters as adapter_module
-from axiom_rift.research import selection_inference as selection_module
+from axiom_rift.core.identity import (
+    ComponentSpec,
+    ExecutableSpec,
+    canonical_digest,
+    canonical_identity_bytes,
+)
+from axiom_rift.operations import validation as operations_validation_module
+from axiom_rift.research import (
+    adjudication as adjudication_module,
+    analog_state_family as analog_family_module,
+    analog_state_trace as analog_trace_module,
+    audit_integrity_proof as audit_proof_module,
+    chassis as chassis_module,
+    data as data_module,
+    discovery as discovery_module,
+    evidence_proofs as evidence_proof_module,
+    governance as governance_module,
+    implementation_closure as implementation_closure_module,
+    p0_replay_adapters as adapter_module,
+    p0_replay_inventory as replay_inventory_module,
+    scientific_trace as scientific_trace_module,
+    selection_inference as selection_module,
+    validation_v2 as validation_v2_module,
+)
 from axiom_rift.research.adjudication import adjudicate_plan_measurement
 from axiom_rift.research.chassis import (
     ArchitectureChassisSpec,
@@ -31,14 +54,26 @@ from axiom_rift.research.discovery import (
     OBSERVED_MATERIAL_ID,
     ROLLING_SPLIT_SHA256,
 )
+from axiom_rift.research.evidence_proofs import (
+    AUDIT_INTEGRITY_MODE,
+    AUDIT_STATISTICAL_PROOF_KIND,
+    AUDIT_SUPPORT_PROOF_KIND,
+    P0_FOREST_SUPPORT_SCHEMA,
+    build_proof_references,
+    parse_proof_requirements,
+    proof_requirements_for_modes,
+)
 from axiom_rift.research.governance import ResearchLayer
+from axiom_rift.research.implementation_closure import (
+    semantic_dependency_closure,
+)
 from axiom_rift.research.p0_replay_adapters import (
     AxisReplay,
     ForestReplayError,
     P0_AXIS_REPLAY_SCHEMA,
     P0_AXIS_SPECS,
     P0AxisSpec,
-    forest_replay_adapter_dependency_paths,
+    forest_replay_adapter_dependency_graph,
     replay_p0_axes,
 )
 from axiom_rift.research.p0_replay_inventory import p0_replay_inventory_sha256
@@ -59,7 +94,6 @@ from axiom_rift.research.validation_v2 import (
 
 
 P0_FOREST_REPLAY_SCHEMA = "p0_forest_composite_reanalysis.v2"
-P0_FOREST_SUPPORT_SCHEMA = "p0_forest_composite_support.v2"
 P0_REPLAY_STAGE = "discovery"
 P0_COMPOSITE_AUTHORITY = "post_selection_descriptive_audit_only"
 P0_REPLAY_CLAIMS = (
@@ -68,11 +102,13 @@ P0_REPLAY_CLAIMS = (
     "within_replayed_set_descriptive_sensitivity",
 )
 P0_REPLAY_EVIDENCE_MODES = (
-    "causal_contrast",
-    "cost_and_execution",
-    "sensitivity_or_stress",
-    "temporal_stability",
+    AUDIT_INTEGRITY_MODE,
 )
+P0_PNL_ATTRIBUTION = {
+    "daily_pnl": "decision_day",
+    "monthly_drawdown": "exit_day",
+    "timezone_basis": "source_timestamp_observed_coordinate",
+}
 
 P0_DAILY_PNL_OUTPUT = "local/cache/p0-forest/support/daily-pnl.json"
 P0_INFERENCE_OUTPUT = "local/cache/p0-forest/support/inference.json"
@@ -124,15 +160,118 @@ def _axis_output(spec: P0AxisSpec) -> str:
     )
 
 
-def forest_replay_dependency_paths() -> tuple[Path, ...]:
-    """Return the exact ordered implementation dependency set."""
+def _module_source(module: object) -> Path:
+    value = getattr(module, "__file__", None)
+    if type(value) is not str:
+        raise ForestReplayError("semantic dependency module has no source path")
+    return Path(value)
 
-    values = (
-        Path(__file__).resolve(),
-        Path(adapter_module.__file__).resolve(),
-        *forest_replay_adapter_dependency_paths(),
+
+def _merge_semantic_dependency_graphs(
+    *graphs: Mapping[Path, tuple[Path, ...]],
+) -> dict[Path, tuple[Path, ...]]:
+    merged: dict[Path, list[Path]] = {}
+    for graph in graphs:
+        for node, dependencies in graph.items():
+            bucket = merged.setdefault(node, [])
+            for dependency in dependencies:
+                if dependency not in bucket:
+                    bucket.append(dependency)
+    return {node: tuple(dependencies) for node, dependencies in merged.items()}
+
+
+def forest_replay_dependency_graph() -> dict[Path, tuple[Path, ...]]:
+    """Declare the executed project-source graph behind the forest Job.
+
+    Edges bind delegated calculations and the scientific validator identity
+    path.  They intentionally exclude package initializers, type-only imports,
+    and legacy discovery runners that this replay never calls.
+    """
+
+    forest = Path(__file__)
+    canonical = _module_source(canonical_module)
+    identity = _module_source(identity_module)
+    operations_validation = _module_source(operations_validation_module)
+    adjudication = _module_source(adjudication_module)
+    analog_family = _module_source(analog_family_module)
+    analog_trace = _module_source(analog_trace_module)
+    audit_proof = _module_source(audit_proof_module)
+    chassis = _module_source(chassis_module)
+    data = _module_source(data_module)
+    discovery = _module_source(discovery_module)
+    evidence_proof = _module_source(evidence_proof_module)
+    governance = _module_source(governance_module)
+    implementation_closure = _module_source(implementation_closure_module)
+    adapter = _module_source(adapter_module)
+    inventory = _module_source(replay_inventory_module)
+    scientific_trace = _module_source(scientific_trace_module)
+    selection = _module_source(selection_module)
+    validation_v2 = _module_source(validation_v2_module)
+    graph = {
+        forest: (
+            adjudication,
+            adapter,
+            canonical,
+            chassis,
+            discovery,
+            evidence_proof,
+            governance,
+            identity,
+            implementation_closure,
+            inventory,
+            selection,
+            validation_v2,
+        ),
+        adjudication: (),
+        analog_family: (data, discovery, identity, selection),
+        analog_trace: (
+            analog_family,
+            canonical,
+            discovery,
+            identity,
+            scientific_trace,
+            selection,
+        ),
+        audit_proof: (identity, selection),
+        canonical: (),
+        chassis: (canonical, governance, identity),
+        data: (identity,),
+        discovery: (canonical, data, identity),
+        evidence_proof: (audit_proof, canonical, scientific_trace),
+        governance: (identity,),
+        identity: (canonical,),
+        implementation_closure: (),
+        inventory: (canonical,),
+        operations_validation: (canonical, identity),
+        scientific_trace: (),
+        selection: (adjudication, canonical, identity, inventory),
+        validation_v2: (
+            adjudication,
+            analog_family,
+            analog_trace,
+            audit_proof,
+            canonical,
+            evidence_proof,
+            identity,
+            operations_validation,
+            scientific_trace,
+            selection,
+        ),
+    }
+    return _merge_semantic_dependency_graphs(
+        forest_replay_adapter_dependency_graph(),
+        graph,
     )
-    return tuple(dict.fromkeys(values))
+
+
+def forest_replay_dependency_paths() -> tuple[Path, ...]:
+    """Return the deterministic recursive forest implementation closure."""
+
+    return semantic_dependency_closure(
+        roots=(Path(__file__),),
+        dependency_graph=forest_replay_dependency_graph(),
+        source_root=Path(__file__).resolve().parents[2],
+    )
 
 
 def forest_replay_implementation_manifest() -> dict[str, Any]:
@@ -145,11 +284,25 @@ def forest_replay_implementation_manifest() -> dict[str, Any]:
     ]
     if len({item["module"] for item in dependencies}) != len(dependencies):
         raise ForestReplayError("replay dependency module names collide")
+    dependency_artifact_hashes = sorted(
+        {item["sha256"] for item in dependencies}
+    )
     return {
+        "dependency_artifact_hashes": dependency_artifact_hashes,
         "dependencies": dependencies,
+        "implementation_bundle_schema": "component_implementation_bundle.v1",
         "schema": "forest_replay_implementation.v2",
         "self_sha256": sha256(Path(__file__).resolve().read_bytes()).hexdigest(),
     }
+
+
+def forest_replay_implementation_artifact() -> bytes:
+    """Return the exact content-addressable bytes behind Component identity."""
+
+    return canonical_identity_bytes(
+        domain="forest-replay-implementation",
+        payload=forest_replay_implementation_manifest(),
+    )
 
 
 def forest_replay_implementation_identity() -> str:
@@ -213,6 +366,7 @@ def _analysis_plan_manifest(
         "authority": P0_COMPOSITE_AUTHORITY,
         "candidate_eligible": False,
         "decisive_value_kind": "none_post_selection_descriptive_only",
+        "economic_composite": False,
         "family_inventory_hash": p0_replay_family_inventory_hash(),
         "inventory_artifact_sha256": p0_replay_inventory_sha256(),
         "historical_search_context": historical_context.manifest(),
@@ -220,6 +374,7 @@ def _analysis_plan_manifest(
         "ordered_legacy_members": list(p0_replay_family_inventory()),
         "replayed_set_id": P0_REPLAY_FAMILY_ID,
         "schema": "p0_composite_audit_reanalysis_plan.v1",
+        "pnl_attribution": dict(P0_PNL_ATTRIBUTION),
         "statistics": {
             "alpha_ppm": alpha_ppm,
             "base_seed": base_seed,
@@ -254,8 +409,10 @@ def _composite_parameters(analysis_plan: Mapping[str, Any]) -> dict[str, Any]:
     plan = dict(analysis_plan)
     return {
         "authority": P0_COMPOSITE_AUTHORITY,
+        "economic_composite": False,
         "family_inventory_hash": plan["family_inventory_hash"],
         "historical_search_context": plan["historical_search_context"],
+        "pnl_attribution": plan["pnl_attribution"],
         "statistics": plan["statistics"],
     }
 
@@ -464,19 +621,23 @@ def _criterion(
 
 def _composite_criteria() -> tuple[dict[str, Any], ...]:
     values = (
-        ("A01-replayed-member-completeness", "audit_reanalysis_integrity", "component", "sensitivity_or_stress", "replayed_member_count", "eq", 6),
-        ("C01-feature-prefix-invariance", "audit_reanalysis_integrity", "validity", "causal_contrast", "prefix_invariance_mismatch_count", "eq", 0),
-        ("C02-decision-append-invariance", "audit_reanalysis_integrity", "validity", "causal_contrast", "append_invariance_mismatch_count", "eq", 0),
-        ("C03-decision-time-causality", "audit_reanalysis_integrity", "validity", "causal_contrast", "causality_violation_count", "eq", 0),
-        ("C04-resolved-cost", "audit_reanalysis_integrity", "validity", "cost_and_execution", "unknown_cost_unresolved_signal_count", "eq", 0),
-        ("C05-finite-metrics", "audit_reanalysis_integrity", "validity", "causal_contrast", "nonfinite_metric_count", "eq", 0),
-        ("H01-history-context-bound", "historical_post_selection_diagnostic", "component", "temporal_stability", "historical_context_record_count", "eq", 1),
-        ("H02-no-candidate-authority", "historical_post_selection_diagnostic", "component", "temporal_stability", "candidate_authority_count", "eq", 0),
-        ("H03-point-values-retained", "historical_post_selection_diagnostic", "component", "temporal_stability", "raw_point_pvalue_record_count", "eq", 6),
-        ("H04-mc-upper-values-retained", "historical_post_selection_diagnostic", "component", "temporal_stability", "raw_monte_carlo_upper_record_count", "eq", 6),
-        ("S01-common-parent-artifacts", "within_replayed_set_descriptive_sensitivity", "component", "sensitivity_or_stress", "common_parent_artifact_count", "eq", 3),
-        ("S02-family-inventory-completeness", "within_replayed_set_descriptive_sensitivity", "component", "sensitivity_or_stress", "family_inventory_member_count", "eq", 6),
-        ("S03-bootstrap-seed-completeness", "within_replayed_set_descriptive_sensitivity", "component", "temporal_stability", "bootstrap_seed_record_count", "ge", 1),
+        ("A01-replayed-member-completeness", "audit_reanalysis_integrity", "component", AUDIT_INTEGRITY_MODE, "replayed_member_count", "eq", 6),
+        ("C01-feature-prefix-invariance", "audit_reanalysis_integrity", "validity", AUDIT_INTEGRITY_MODE, "prefix_invariance_mismatch_count", "eq", 0),
+        ("C02-decision-append-invariance", "audit_reanalysis_integrity", "validity", AUDIT_INTEGRITY_MODE, "append_invariance_mismatch_count", "eq", 0),
+        ("C03-decision-time-causality", "audit_reanalysis_integrity", "validity", AUDIT_INTEGRITY_MODE, "causality_violation_count", "eq", 0),
+        ("C04-resolved-cost", "audit_reanalysis_integrity", "validity", AUDIT_INTEGRITY_MODE, "unknown_cost_unresolved_signal_count", "eq", 0),
+        ("C05-finite-metrics", "audit_reanalysis_integrity", "validity", AUDIT_INTEGRITY_MODE, "nonfinite_metric_count", "eq", 0),
+        ("C06-not-economic-composite", "audit_reanalysis_integrity", "component", AUDIT_INTEGRITY_MODE, "economic_composite_count", "eq", 0),
+        ("C07-decision-day-attribution", "audit_reanalysis_integrity", "component", AUDIT_INTEGRITY_MODE, "decision_day_attribution_count", "eq", 1),
+        ("C08-explicit-calendar", "audit_reanalysis_integrity", "component", AUDIT_INTEGRITY_MODE, "calendar_date_count", "ge", 1),
+        ("H01-history-context-bound", "historical_post_selection_diagnostic", "component", AUDIT_INTEGRITY_MODE, "historical_context_record_count", "eq", 1),
+        ("H02-no-candidate-authority", "historical_post_selection_diagnostic", "component", AUDIT_INTEGRITY_MODE, "candidate_authority_count", "eq", 0),
+        ("H03-point-values-retained", "historical_post_selection_diagnostic", "component", AUDIT_INTEGRITY_MODE, "raw_point_pvalue_record_count", "eq", 6),
+        ("H04-mc-upper-values-retained", "historical_post_selection_diagnostic", "component", AUDIT_INTEGRITY_MODE, "raw_monte_carlo_upper_record_count", "eq", 6),
+        ("S01-common-parent-artifacts", "within_replayed_set_descriptive_sensitivity", "component", AUDIT_INTEGRITY_MODE, "common_parent_artifact_count", "eq", 3),
+        ("S02-family-inventory-completeness", "within_replayed_set_descriptive_sensitivity", "component", AUDIT_INTEGRITY_MODE, "family_inventory_member_count", "eq", 6),
+        ("S03-bootstrap-seed-completeness", "within_replayed_set_descriptive_sensitivity", "component", AUDIT_INTEGRITY_MODE, "bootstrap_seed_record_count", "ge", 1),
+        ("S04-durable-proof-completeness", "within_replayed_set_descriptive_sensitivity", "component", AUDIT_INTEGRITY_MODE, "durable_proof_artifact_count", "eq", 2),
     )
     return tuple(
         _criterion(
@@ -603,9 +764,11 @@ class CompositeValidationPlan:
 
     def output_classes(self) -> dict[str, str]:
         durable = {
+            P0_COMPOSITE_SUPPORT_OUTPUT,
             P0_COMPOSITE_PLAN_OUTPUT,
             P0_COMPOSITE_MEASUREMENT_OUTPUT,
             P0_COMPOSITE_RESULT_OUTPUT,
+            P0_STATISTICAL_OUTPUT,
         }
         return {
             path: (
@@ -632,6 +795,13 @@ def _build_v2_plan(*, mission_id: str, executable_id: str) -> dict[str, object]:
         "promotion_criterion_ids": [],
         "schema": SCIENTIFIC_ADJUDICATION_PROFILE_SCHEMA,
     }
+    proof_requirements = proof_requirements_for_modes(
+        evidence_modes=P0_REPLAY_EVIDENCE_MODES,
+        output_names={
+            AUDIT_SUPPORT_PROOF_KIND: P0_COMPOSITE_SUPPORT_OUTPUT,
+            AUDIT_STATISTICAL_PROOF_KIND: P0_STATISTICAL_OUTPUT,
+        },
+    )
     return build_validation_plan_v2(
         mission_id=mission_id,
         executable_id=executable_id,
@@ -640,6 +810,7 @@ def _build_v2_plan(*, mission_id: str, executable_id: str) -> dict[str, object]:
         evidence_modes=P0_REPLAY_EVIDENCE_MODES,
         criteria=_composite_criteria(),
         adjudication_profile=profile,
+        proof_requirements=proof_requirements,
         candidate_eligible_on_pass=False,
     )
 
@@ -805,9 +976,13 @@ def _member_diagnostic(
 def _support_manifest(
     *,
     replay_plan: CompositeValidationPlan,
+    job_id: str,
+    job_hash: str,
     axes: tuple[AxisReplay, ...],
     inference: SelectionInferenceResult,
 ) -> dict[str, Any]:
+    _ascii("job_id", job_id)
+    _digest("job_hash", job_hash)
     daily = _daily_pnl_payload(axes)
     daily_bytes = canonical_bytes(daily)
     inference_bytes = inference.manifest_bytes()
@@ -819,6 +994,7 @@ def _support_manifest(
                 canonical_bytes(axis.manifest())
             ).hexdigest(),
             "configuration_id": axis.spec.configuration_id,
+            "descriptive_metrics": dict(axis.evaluation["metrics"]),
             "legacy_evaluation_sha256": axis.spec.legacy_evaluation_sha256,
             "legacy_executable_id": axis.spec.executable_id,
             "legacy_study_id": axis.spec.study_id,
@@ -829,6 +1005,14 @@ def _support_manifest(
     return {
         "analysis_plan": dict(replay_plan.analysis_plan),
         "authority": P0_COMPOSITE_AUTHORITY,
+        "calendar": {
+            "calendar_identity": inference.calendar_identity,
+            "daily_pnl_identity": inference.daily_pnl_identity,
+            "date_count": inference.date_count,
+            "first_date": inference.first_date,
+            "last_date": inference.last_date,
+            "missing_day_policy": "exact_shared_calendar_no_implicit_zero_fill",
+        },
         "candidate_authority": "none",
         "claim_limits": [
             "child_surfaces_are_support_not_new_study_closes",
@@ -855,11 +1039,16 @@ def _support_manifest(
         "baseline_executable_id": replay_plan.baseline_executable.identity,
         "composite_executable_id": replay_plan.executable_id,
         "dataset_sha256": DATASET_SHA256,
+        "economic_composite": False,
         "family_inventory_hash": p0_replay_family_inventory_hash(),
         "inventory_artifact_sha256": p0_replay_inventory_sha256(),
         "historical_search_context": inference.historical_context.manifest(),
         "implementation": forest_replay_implementation_manifest(),
+        "job_hash": job_hash,
+        "job_id": job_id,
         "members": members,
+        "mission_id": replay_plan.mission_id,
+        "pnl_attribution": dict(P0_PNL_ATTRIBUTION),
         "post_selection_diagnostics": [
             _member_diagnostic(axis=axis, inference=inference, ordinal=ordinal)
             for ordinal, axis in enumerate(axes, start=1)
@@ -884,28 +1073,46 @@ def _support_manifest(
 
 
 def _measurement_metrics(
-    *, axes: tuple[AxisReplay, ...], inference: SelectionInferenceResult
+    *, support: Mapping[str, Any], statistical: Mapping[str, Any]
 ) -> dict[str, dict[str, int]]:
+    members = tuple(support["members"])
+    hypotheses = tuple(statistical["hypotheses"])
     validity = {
-        metric: sum(int(axis.evaluation["metrics"][metric]) for axis in axes)
+        metric: sum(
+            int(member["descriptive_metrics"][metric]) for member in members
+        )
         for metric in _VALIDITY_METRICS
     }
     diagnostic: dict[str, int] = {
         "candidate_authority_count": 0,
         "historical_context_record_count": 1,
-        "raw_monte_carlo_upper_record_count": len(inference.hypotheses),
-        "raw_point_pvalue_record_count": len(inference.hypotheses),
+        "raw_monte_carlo_upper_record_count": sum(
+            int("monte_carlo_upper_pvalue_ppm" in item["raw"])
+            for item in hypotheses
+        ),
+        "raw_point_pvalue_record_count": sum(
+            int("point_pvalue_ppm" in item["raw"])
+            for item in hypotheses
+        ),
     }
     return {
         "audit_reanalysis_integrity": {
-            "replayed_member_count": len(axes),
+            "calendar_date_count": int(support["calendar"]["date_count"]),
+            "decision_day_attribution_count": int(
+                support["pnl_attribution"]["daily_pnl"] == "decision_day"
+            ),
+            "economic_composite_count": int(support["economic_composite"]),
+            "replayed_member_count": len(members),
             **validity,
         },
         "historical_post_selection_diagnostic": diagnostic,
         "within_replayed_set_descriptive_sensitivity": {
-            "bootstrap_seed_record_count": len(inference.seeds),
-            "common_parent_artifact_count": 3,
-            "family_inventory_member_count": len(P0_AXIS_SPECS),
+            "bootstrap_seed_record_count": len(statistical["seeds"]),
+            "common_parent_artifact_count": len(
+                support["common_parent_artifacts"]
+            ),
+            "durable_proof_artifact_count": 2,
+            "family_inventory_member_count": len(members),
         },
     }
 
@@ -913,12 +1120,20 @@ def _measurement_metrics(
 @dataclass(frozen=True, slots=True)
 class CompositeValidationArtifacts:
     replay_plan: CompositeValidationPlan
+    support: Mapping[str, Any]
+    statistical: Mapping[str, Any]
     measurement: Mapping[str, Any]
     result: Mapping[str, Any]
     adjudication_state: str
 
     def __post_init__(self) -> None:
-        for value in (self.replay_plan.plan, self.measurement, self.result):
+        for value in (
+            self.replay_plan.plan,
+            self.support,
+            self.statistical,
+            self.measurement,
+            self.result,
+        ):
             canonical_bytes(dict(value))
         _ascii("adjudication_state", self.adjudication_state)
 
@@ -960,15 +1175,42 @@ def _build_validation_artifacts(
 ) -> CompositeValidationArtifacts:
     _ascii("job_id", job_id)
     _digest("job_hash", job_hash)
+    statistical = inference.statistical_manifest()
+    support = _support_manifest(
+        replay_plan=replay_plan,
+        job_id=job_id,
+        job_hash=job_hash,
+        axes=axes,
+        inference=inference,
+    )
+    proof_requirements = parse_proof_requirements(
+        replay_plan.plan["proof_requirements"],
+        evidence_modes=P0_REPLAY_EVIDENCE_MODES,
+    )
+    proof_references = build_proof_references(
+        requirements=proof_requirements,
+        artifact_hashes={
+            P0_COMPOSITE_SUPPORT_OUTPUT: sha256(
+                canonical_bytes(support)
+            ).hexdigest(),
+            P0_STATISTICAL_OUTPUT: sha256(
+                canonical_bytes(statistical)
+            ).hexdigest(),
+        },
+    )
     measurement = {
         "evidence_depth": P0_REPLAY_STAGE,
         "evidence_modes": list(P0_REPLAY_EVIDENCE_MODES),
         "executable_id": replay_plan.executable_id,
         "job_hash": job_hash,
         "job_id": job_id,
-        "metrics": _measurement_metrics(axes=axes, inference=inference),
+        "metrics": _measurement_metrics(
+            support=support,
+            statistical=statistical,
+        ),
         "mission_id": replay_plan.mission_id,
         "multiplicity": [],
+        "proofs": list(proof_references),
         "schema": SCIENTIFIC_MEASUREMENT_V2_SCHEMA,
     }
     measurement_hash = sha256(canonical_bytes(measurement)).hexdigest()
@@ -990,6 +1232,8 @@ def _build_validation_artifacts(
     adjudication = adjudicate_plan_measurement(replay_plan.plan, measurement)
     return CompositeValidationArtifacts(
         replay_plan=replay_plan,
+        support=support,
+        statistical=statistical,
         measurement=measurement,
         result=result,
         adjudication_state=adjudication.state,
@@ -1033,11 +1277,10 @@ class ForestReplayBundle:
         return _daily_pnl_payload(self.axes)
 
     def support_manifest(self) -> dict[str, Any]:
-        return _support_manifest(
-            replay_plan=self.replay_plan,
-            axes=self.axes,
-            inference=self.inference,
-        )
+        return dict(self.validation_artifacts.support)
+
+    def statistical_manifest(self) -> dict[str, Any]:
+        return dict(self.validation_artifacts.statistical)
 
     def surface_manifest(self) -> dict[str, Any]:
         support_bytes = canonical_bytes(self.support_manifest())
@@ -1074,7 +1317,7 @@ class ForestReplayBundle:
             P0_DAILY_PNL_OUTPUT: canonical_bytes(self.daily_pnl_artifact()),
             P0_INFERENCE_OUTPUT: self.inference.manifest_bytes(),
             P0_STATISTICAL_OUTPUT: canonical_bytes(
-                self.inference.statistical_manifest()
+                self.statistical_manifest()
             ),
             P0_COMPOSITE_SUPPORT_OUTPUT: canonical_bytes(
                 self.support_manifest()
@@ -1139,7 +1382,7 @@ def build_p0_forest_bundle(
     axes: tuple[AxisReplay, ...],
     inference: SelectionInferenceResult,
 ) -> ForestReplayBundle:
-    """Build one composite measurement/result pair after the Job is known."""
+    """Build one Job-bound validation bundle after the Job is known."""
 
     _verify_replay_result(
         replay_plan=replay_plan,
@@ -1205,14 +1448,20 @@ __all__ = [
     "P0_COMPOSITE_MEASUREMENT_OUTPUT",
     "P0_COMPOSITE_PLAN_OUTPUT",
     "P0_COMPOSITE_RESULT_OUTPUT",
+    "P0_COMPOSITE_SUPPORT_OUTPUT",
     "P0_FOREST_REPLAY_SCHEMA",
+    "P0_FOREST_SUPPORT_SCHEMA",
+    "P0_PNL_ATTRIBUTION",
     "P0_REPLAY_CLAIMS",
     "P0_REPLAY_EVIDENCE_MODES",
+    "P0_STATISTICAL_OUTPUT",
     "P0AxisSpec",
     "build_p0_composite_validation_plan",
     "build_p0_forest_bundle",
     "compute_p0_forest_replay",
+    "forest_replay_dependency_graph",
     "forest_replay_dependency_paths",
+    "forest_replay_implementation_artifact",
     "forest_replay_implementation_identity",
     "forest_replay_implementation_manifest",
     "p0_replay_family_inventory",

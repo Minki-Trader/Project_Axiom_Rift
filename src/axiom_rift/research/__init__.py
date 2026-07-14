@@ -33,6 +33,8 @@ from .chassis import (
 from .portfolio import (
     BatchSpec,
     BatchSpecError,
+    ConcurrentFamilyEvaluationMode,
+    ConcurrentFamilyManifest,
     DecisionKind,
     DecisionOption,
     PortfolioAction,
@@ -92,6 +94,8 @@ __all__ = [
     "ComponentParityDimension",
     "ComponentParityEvidence",
     "ControlledStudyChassis",
+    "ConcurrentFamilyEvaluationMode",
+    "ConcurrentFamilyManifest",
     "DecisionKind",
     "DecisionOption",
     "DiagnosisConfidence",

@@ -14,6 +14,7 @@ from axiom_rift.core.identity import ComponentSpec,ExecutableSpec,canonical_dige
 from axiom_rift.research import data as data_module
 from axiom_rift.research.data import load_observed_development
 from axiom_rift.research.discovery import DATASET_SHA256,OBSERVED_MATERIAL_ID,ROLLING_SPLIT_SHA256,SELECTION_BOOTSTRAP_SAMPLES,SELECTION_SEED,DiscoveryBoundaryError,_claim_limits,_consecutive_run,_evaluate_configuration,_fold_payloads,_paired_control_pvalue,_selection_adjusted_pvalues,_selection_method,_time_ns,_validate_engine_environment,_validate_fold_payloads,_validate_production_data,causal_effective_spread,discovery_implementation_sha256
+from axiom_rift.research.analog_state_family import CURRENT_H48_N15_ANALOG_FAMILY,calibrate_analog_selector,fit_fold_analog_family,raw_analog_features
 SELECTION_TOTAL_EXPOSURES=496;SELECTOR_QUANTILE_BP=8_500;HORIZON=48;NEIGHBORS=15;LIBRARY_STRIDE=24;_PROFILES=("knn_path_geometry_15","knn_return_magnitude_control_15");_THIS_FILE=Path(__file__).resolve()
 def analog_implementation_sha256()->str:return sha256(_THIS_FILE.read_bytes()).hexdigest()
 def loader_implementation_sha256()->str:return sha256(Path(data_module.__file__).resolve().read_bytes()).hexdigest()
@@ -32,22 +33,13 @@ def analog_components()->tuple[ComponentSpec,...]:return (ComponentSpec(display_
 def analog_executable(c:AnalogConfiguration)->ExecutableSpec:return ExecutableSpec(display_name=f"analog state {c.configuration_id}",components=analog_components(),parameters=c.semantic_parameters(),data_contract=f"data:{OBSERVED_MATERIAL_ID}",split_contract=f"split:{ROLLING_SPLIT_SHA256}:rolling_windows_9_observed_development",clock_contract="clock:fpmarkets_m5_bar_open_completed_plus_5m_v2",cost_contract="cost:bid_bar_spread_point_0_01_causal_zero_repair_half_spread_stress_v2",engine_contract=f"engine:analog_state_v2:python{'.'.join(str(v) for v in sys.version_info[:3])}:numpy{np.__version__}:pandas{pd.__version__}:scipy{scipy.__version__}:implementation_{analog_implementation_sha256()}:loader_{loader_implementation_sha256()}:shared_{discovery_implementation_sha256()}:bootstrap_{SELECTION_BOOTSTRAP_SAMPLES}:blocks_5_10_20:bonferroni_{SELECTION_TOTAL_EXPOSURES}:seed_{SELECTION_SEED}")
 def executable_configuration_map()->dict[str,AnalogConfiguration]:return {analog_executable(c).identity:c for c in analog_configurations()}
 def _raw_features(frame:pd.DataFrame,profile:str)->tuple[np.ndarray,np.ndarray,np.ndarray]:
-    if profile not in _PROFILES:raise ValueError("analog profile invalid")
-    close=frame["close"].to_numpy(float);log=np.log(close);ret=np.full(len(close),np.nan);ret[1:]=np.diff(log);series=pd.Series(ret);vol192=series.rolling(192,min_periods=192).std(ddof=1).to_numpy(float);vol48=series.rolling(48,min_periods=48).std(ddof=1).to_numpy(float);columns=[]
-    if profile=="knn_path_geometry_15":
-        endpoint=np.full(len(close),np.nan);endpoint[48:]=log[48:]-log[:-48];path=pd.Series(np.abs(ret)).rolling(48,min_periods=48).sum().to_numpy(float);columns.append(np.divide(endpoint,path,out=np.full(len(close),np.nan),where=np.isfinite(path)&(path>0)));columns.append(series.rolling(96,min_periods=96).skew().to_numpy(float));span=frame["high"].to_numpy(float)-frame["low"].to_numpy(float);body=np.divide(close-frame["open"].to_numpy(float),span,out=np.full(len(close),np.nan),where=span>0);columns.append(pd.Series(body).rolling(24,min_periods=24).mean().to_numpy(float));columns.append(np.divide(vol48,vol192,out=np.full(len(close),np.nan),where=np.isfinite(vol192)&(vol192>0))-1.0)
-    else:
-        for period in (12,48,192):
-            change=np.full(len(close),np.nan);change[period:]=log[period:]-log[:-period];columns.append(np.divide(change,vol192*np.sqrt(period),out=np.full(len(close),np.nan),where=np.isfinite(vol192)&(vol192>0)))
-    return np.column_stack(columns),vol192,_consecutive_run(_time_ns(frame))
+    try:feature_protocol=CURRENT_H48_N15_ANALOG_FAMILY.profile(profile).feature_protocol
+    except KeyError as exc:raise ValueError("analog profile invalid") from exc
+    return raw_analog_features(frame,feature_protocol=feature_protocol)
 def fit_fold_analog(frame:pd.DataFrame,profile:str,train_start:pd.Timestamp,train_end:pd.Timestamp)->tuple[np.ndarray,np.ndarray,np.ndarray]:
-    x,vol,run=_raw_features(frame,profile);time=pd.to_datetime(frame["time"],errors="raise");log=np.log(frame["close"].to_numpy(float));target=np.full(len(log),np.nan);target[:-HORIZON]=log[HORIZON:]-log[:-HORIZON];future_time=time.shift(-HORIZON);train=((time>=train_start)&(time<=train_end)).to_numpy()&np.isfinite(target)&np.isfinite(x).all(axis=1)&(future_time<=train_end).to_numpy();indices=np.flatnonzero(train)[::LIBRARY_STRIDE]
-    if len(indices)<NEIGHBORS+100:raise DiscoveryBoundaryError("analog library too small")
-    library=x[indices];mean=library.mean(axis=0);std=library.std(axis=0,ddof=0);std=np.where(std>0,std,1.0);zlib=(library-mean)/std;valid=np.isfinite(x).all(axis=1);zall=np.zeros_like(x,float);zall[valid]=(x[valid]-mean)/std;tree=cKDTree(zlib);_,neighbors=tree.query(zall,k=NEIGHBORS+1,workers=1);neighbor_rows=indices[neighbors];neighbor_targets=target[neighbor_rows];self_match=neighbor_rows==np.arange(len(x))[:,None];has_self=self_match.any(axis=1);neighbor_targets=np.where(self_match,np.nan,neighbor_targets);score=np.where(has_self,np.nanmean(neighbor_targets,axis=1),neighbor_targets[:,:NEIGHBORS].mean(axis=1));score[~valid]=np.nan;score[run<193]=np.nan;return score,vol,run
+    return fit_fold_analog_family(frame,family=CURRENT_H48_N15_ANALOG_FAMILY,profile_id=profile,train_start=train_start,train_end=train_end)
 def calibrate_selector(score:np.ndarray,mask:np.ndarray)->float:
-    v=np.abs(score[mask&np.isfinite(score)])
-    if len(v)<1000:raise DiscoveryBoundaryError("analog selector too small")
-    return float(np.quantile(v,SELECTOR_QUANTILE_BP/10000,method="higher"))
+    return calibrate_analog_selector(score,mask,selector_quantile_bp=SELECTOR_QUANTILE_BP)
 def _matched(results:list[Any],profile:str,sign:int)->Any:
     found=[r for r in results if r.configuration.profile==profile and r.configuration.signal_sign==sign]
     if len(found)!=1:raise DiscoveryBoundaryError("analog control not unique")

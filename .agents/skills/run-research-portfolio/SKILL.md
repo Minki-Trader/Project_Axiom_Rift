@@ -1,6 +1,6 @@
 ---
 name: run-research-portfolio
-description: Direct Axiom quantitative research from Mission intake through history audit, hypothesis-axis Portfolio design, baseline Study execution, evidence diagnosis, constrained follow-up, architecture saturation review, candidate synthesis, and negative memory. Use for record_research_intake, build_portfolio, portfolio_decision, execute_portfolio_decision, diagnose_study, review_architecture, or any data, source, feature, label, model, calibration, selector, trade, lifecycle, risk, execution, Study, Batch, Executable, Lineage, evidence, candidate, synthesis, or next-scientific-direction work.
+description: Direct Axiom quantitative research from Mission intake through history audit, effective-axis and replay-obligation handling, hypothesis-axis Portfolio design, baseline Study execution, atomic evidence diagnosis, constrained follow-up, architecture saturation review, candidate synthesis, and negative memory. Use for record_research_intake, build_portfolio, portfolio_decision, execute_portfolio_decision, diagnose_study, review_architecture, or any data, source, feature, label, model, calibration, selector, trade, lifecycle, risk, execution, Study, Batch, Executable, Lineage, evidence, candidate, synthesis, or next-scientific-direction work.
 ---
 
 # Run Research Portfolio
@@ -62,6 +62,13 @@ history summary from the durable index.
 Maintain unrelated causal axes and compare expected information value,
 identifiability, uncertainty, compute cost, and opportunity cost.
 
+Use plural quant-team lenses for causality, statistics, data, execution,
+economics, risk, and architecture. Record material disagreement at the claim
+boundary and resolve it with evidence and opportunity cost. Do not collapse the
+Decision into one universal scalar score, rigid calendar rotation, or a serial
+single-branch policy. The harness enforces permits, identity, budgets, and claim
+scope; the research director retains bounded autonomous judgment.
+
 Every axis declares one immutable primary `ResearchLayer`, one stable
 `system_architecture_family`, typed changed and controlled domains, `why_now`,
 and a stop or reopen condition. A non-synthesis axis changes exactly its one
@@ -109,7 +116,28 @@ as implicit zero PnL.
 - Consume the Decision's finite Batch commitment mechanically.
 - Count each unique Executable. Reuse identical success and reject unchanged
   failed retry.
+- When one vectorized or cached engine evaluates a concurrent family, register
+  every exact family Executable before the first member computation starts.
+  A crash prefix must never contain evaluated family members that were absent
+  from durable trial and exposure accounting.
+- Treat `reproducible_cache` as evictable local acceleration, never scientific
+  or terminal authority. A consumer may rematerialize missing bytes only from
+  the exact durable producer completion and subject trace after canonical byte
+  and hash verification. Existing mismatched bytes fail closed; cache absence
+  alone never changes a Study or Mission disposition.
 - Query semantic warnings; a caller-created equivalence object is not authority.
+- Treat comparison state and scientific state separately. A metric comparison
+  may pass, fail, or be not_evaluable while its claim contribution is supported,
+  contradicted, unresolved, invalid, or diagnostic. Use only scientific state
+  for scheduler, negative-memory, exhaustion, or terminal reasoning.
+- An evidence-mode label, caller declaration, prior verdict, or cache artifact
+  is not capability. The registered validator must recompute the exact protocol
+  from durable subject-bound inputs and open the validation plan, atomic
+  support, statistical proof, execution trace, and result manifest. Preserve
+  protocol, data, split, Executable, decision, entry, exit, fold, regime,
+  intent, gross PnL, native and stress cost, net PnL, and result attribution.
+  Audit-integrity work has only `audit_integrity` effective scope and receives
+  no scientific, economic, candidate, exhaustion, or terminal credit.
 
 Prefer the smallest interpretable baseline contrast that can falsify the
 question. Hold the common chassis fixed and change the declared primary layer.
@@ -143,6 +171,10 @@ An audit-invalidated source head is latched. Ordinary same-semantics
 recertification cannot restore it; follow its exact resolution policy, normally
 a new source contract. Qualify every historical scientific result whose trial
 binds that source as not evaluable through an additive provenance-bound overlay.
+Keep the original Portfolio snapshot immutable. Read scheduling, architecture,
+and terminal state through the current effective-axis projection, which applies
+source invalidations, replay obligations, and evidence-scope overlays. Do not
+schedule or credit an invalidated source axis until its typed resolution.
 
 After a holdout reveal, never retune or refreeze from pre-reveal evidence.
 Require a registered later development receipt and new post-registration
@@ -164,6 +196,23 @@ successful Job may carry a failed scientific verdict, while an engineering or
 source failure carries no scientific verdict. Use component-aware evidence to
 preserve partial positives and exact contradicted claims instead of collapsing
 the whole Executable into one universal negative.
+
+When an audit creates a replay duty, operate its typed P0 or P1
+ReplayObligation through pending, in_progress, satisfied, or deferred state.
+Bind the exact original Study, adjudication, Executable, criteria, and evidence
+  scope. Match each prospective Executable to at most one exact original
+  Executable; never use first-trial, position, display order, or family-level
+  fallback. Satisfy only after the registered validator recomputes the original
+  subject-bound criteria. Otherwise retain the unresolved duty or record a typed
+  defer condition and exact resume condition. P0 blocks the affected credit. P1
+  gets the highest-information-value bounded opportunity without freezing
+  unrelated valid forest work.
+
+An audit-only satisfaction removes scientific, economic, candidate, exhaustion,
+and terminal credit only from its exact completion. It never excludes the whole
+causal axis. Keep open or preserved axes selectable; expose a historical prune
+whose corrected completion may have mattered as `deferred_requires_reopen`, so
+the Portfolio must explicitly preserve, reopen, or re-establish a valid prune.
 
 The writer derives allowed local actions and research-layer branches from the
 typed evidence state. The next Decision must either follow that branch,
@@ -200,6 +249,12 @@ and completeness non-compensatorily. Material Decisions retain at least one
 structurally diversifying option and record omission reasons. Record preserve,
 prune, deepen, rotate, contrast, new mechanism, complementary sleeve,
 recombine, or synthesize with exact evidence scope and next action.
+
+Call a result an economic composite only when the engine executes the actual
+member trade rows with declared entry and exit timing, exposure netting, native
+and stressed costs, and portfolio drawdown attribution. A component-summary
+bundle, combined significance result, or composite label is not economic
+evidence.
 
 Do not mutate a Portfolio while a Study or Batch is active. Axis meaning is
 immutable inside a Mission. A `closed_no_candidate` proposal requires every

@@ -24,6 +24,7 @@ from axiom_rift.research.discovery import (
     compute_trend_score,
     discovery_implementation_sha256,
     execution_pnl,
+    execution_pnl_breakdown,
     loader_implementation_sha256,
     project_trend_evaluation,
     simulate_fixed_hold,
@@ -124,6 +125,25 @@ class TrendDiscoveryTests(unittest.TestCase):
         self.assertAlmostEqual(short_native, 0.97)
         self.assertLess(long_stress, long_native)
         self.assertLess(short_stress, short_native)
+        long_breakdown = execution_pnl_breakdown(
+            direction=1,
+            entry_bid=100.0,
+            exit_bid=101.0,
+            entry_spread_points=2.0,
+            exit_spread_points=3.0,
+        )
+        short_breakdown = execution_pnl_breakdown(
+            direction=-1,
+            entry_bid=101.0,
+            exit_bid=100.0,
+            entry_spread_points=2.0,
+            exit_spread_points=3.0,
+        )
+        self.assertAlmostEqual(long_breakdown.gross_pnl, 1.0)
+        self.assertAlmostEqual(long_breakdown.native_cost, 0.02)
+        self.assertAlmostEqual(long_breakdown.stress_cost, 0.045)
+        self.assertAlmostEqual(short_breakdown.native_cost, 0.03)
+        self.assertAlmostEqual(short_breakdown.stress_cost, 0.055)
 
     def test_decision_time_is_bar_close_and_equals_next_open(self) -> None:
         frame = synthetic_frame(200)
@@ -153,6 +173,14 @@ class TrendDiscoveryTests(unittest.TestCase):
         )
         self.assertEqual(trade.decision_time, trade.entry_time)
         self.assertEqual(result.causality_violation_count, 0)
+        self.assertAlmostEqual(
+            trade.gross_pnl - trade.native_cost,
+            trade.pnl,
+        )
+        self.assertAlmostEqual(
+            trade.gross_pnl - trade.stress_cost,
+            trade.stress_pnl,
+        )
 
     def test_unresolved_cost_preserves_position_occupancy(self) -> None:
         frame = synthetic_frame(120)

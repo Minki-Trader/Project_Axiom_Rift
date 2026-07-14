@@ -236,16 +236,52 @@ def validate_control(control: Mapping[str, Any]) -> None:
         expected_external_keys = {
             "basis_record_id",
             "kind",
+            "mission_resume_next_action",
             "predecessor_mission_close_record_id",
             "predecessor_mission_id",
             "required_external_change",
+            "resume_condition_id",
         }
+        resume_action = next_action.get("mission_resume_next_action")
+        resume_condition = next_action.get("resume_condition_id")
+        resume_action_keys = (
+            {"kind", "mission_id", "research_intake_id"}
+            if isinstance(resume_action, dict)
+            and resume_action.get("kind") == "open_initiative"
+            else {"kind", "mission_id"}
+        )
         if (
             set(next_action) != expected_external_keys
             or not _is_digest(next_action.get("basis_record_id"))
             or not _is_digest(next_action.get("predecessor_mission_close_record_id"))
             or not _is_ascii_text(next_action.get("predecessor_mission_id"))
             or not _is_ascii_text(next_action.get("required_external_change"))
+            or not isinstance(resume_condition, str)
+            or not resume_condition.startswith("external-resume-condition:")
+            or not _is_digest(
+                resume_condition.removeprefix("external-resume-condition:")
+            )
+            or not isinstance(resume_action, dict)
+            or set(resume_action) != resume_action_keys
+            or resume_action.get("kind")
+            not in {"choose_next_initiative_or_terminal", "open_initiative"}
+            or resume_action.get("mission_id")
+            != next_action.get("predecessor_mission_id")
+            or any(not _is_ascii_text(value) for value in resume_action.values())
+            or (
+                resume_action.get("kind") == "open_initiative"
+                and (
+                    not isinstance(resume_action.get("research_intake_id"), str)
+                    or not resume_action["research_intake_id"].startswith(
+                        "research-intake:"
+                    )
+                    or not _is_digest(
+                        resume_action["research_intake_id"].removeprefix(
+                            "research-intake:"
+                        )
+                    )
+                )
+            )
         ):
             raise ControlStateError("external-change boundary is malformed")
     project_goal_complete_boundary = next_action.get("kind") == "project_goal_complete"

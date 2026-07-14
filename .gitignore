@@ -10,6 +10,11 @@ venv/
 local/
 .foundation_work/
 
+# Reconstructible local state projection; the Journal remains authority.
+state/index.sqlite3
+state/index.sqlite3-shm
+state/index.sqlite3-wal
+
 # Broker and processed data are local and not recoverable from Git.
 data/raw/**
 data/processed/**

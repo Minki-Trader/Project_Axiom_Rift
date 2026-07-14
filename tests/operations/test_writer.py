@@ -9,6 +9,14 @@ import unittest
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.core.identity import ComponentSpec, ExecutableSpec, canonical_digest
 from axiom_rift.operations.permits import PermitAuthority, PermitError, PermitKind, SubjectKind
+from axiom_rift.operations.study_close_delivery import StudyCloseGuardCapability
+from axiom_rift.operations.external_dependency import (
+    ExternalChangeEvidence,
+    ExternalRecoveryPath,
+    ExternalRecoveryPlan,
+    ExternalResumeAction,
+    ExternalResumeCondition,
+)
 from axiom_rift.operations.writer import (
     IdenticalFailedRetryError,
     InjectedCrash,
@@ -16,6 +24,8 @@ from axiom_rift.operations.writer import (
     RunningJobExecution,
     StateWriter,
     TransitionError,
+    _require_study_evidence_modes,
+    _terminal_scientific_evidence_modes,
 )
 from axiom_rift.operations.validation import (
     ENGINEERING_RUNTIME_PLAN_HASH,
@@ -111,6 +121,52 @@ FIXED_NOW = "2026-07-11T00:00:00Z"
 FIXED_EXPIRY = "2026-07-12T00:00:00Z"
 REPO_ROOT = Path(__file__).resolve().parents[2]
 OBSERVED_MATERIAL_ID = "36caaaeef95d4bfeac4e3df7b2108702a4e64632c94e88d46528ac0cccbd2065"
+FIXTURE_DELIVERY_CAPABILITY = (
+    StudyCloseGuardCapability.ISOLATED_ENGINEERING_FIXTURE
+)
+_FIXTURE_IMPLEMENTATION_BYTES: dict[str, bytes] = {}
+_AUTHORITY_AND_FOUNDATION_PATHS = (
+    "OPERATING_DIRECTION.md",
+    "contracts/operations.yaml",
+    "contracts/science.yaml",
+    "contracts/evidence.yaml",
+    "contracts/runtime.yaml",
+    "foundation/market.yaml",
+    "foundation/environment.yaml",
+    "foundation/data.yaml",
+    "foundation/data_exposure.yaml",
+    "foundation/prior_scientific_memory.yaml",
+    "foundation/origin.yaml",
+)
+
+
+def legacy_scientific_fixture_foundation(root: Path) -> Path:
+    """Copy a synthetic pre-V2 authority for legacy validator lifecycle tests."""
+
+    target = root / "legacy-scientific-fixture-authority"
+    replacements = 0
+    for relative in _AUTHORITY_AND_FOUNDATION_PATHS:
+        source = REPO_ROOT / relative
+        destination = target / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        content = source.read_bytes()
+        marker = b"scientific_adjudication_v2:"
+        if marker in content:
+            replacements += content.count(marker)
+            content = content.replace(marker, b"scientific_fixture_v1:")
+        destination.write_bytes(content)
+    if replacements != 2:
+        raise AssertionError("legacy scientific fixture authority marker count drifted")
+    return target
+
+
+def fixture_component_implementation(name: str) -> str:
+    source = canonical_bytes(
+        {"implementation": name, "schema": "fixture_component_source.v1"}
+    )
+    source_hash = sha256(source).hexdigest()
+    _FIXTURE_IMPLEMENTATION_BYTES[source_hash] = source
+    return f"{name}@sha256:{source_hash}"
 
 
 def source_audit_report_bytes(
@@ -257,7 +313,11 @@ def digest(domain: str, value: object) -> str:
 
 
 def job_implementation_identity(
-    writer: StateWriter, *, callable_identity: str, revision: int = 1
+    writer: StateWriter,
+    *,
+    callable_identity: str,
+    revision: int = 1,
+    component_hashes: tuple[str, ...] = (),
 ) -> str:
     source = writer.evidence.finalize(
         canonical_bytes(
@@ -268,10 +328,15 @@ def job_implementation_identity(
             }
         )
     )
+    for component_hash in component_hashes:
+        artifact = writer.evidence.finalize(
+            _FIXTURE_IMPLEMENTATION_BYTES[component_hash]
+        )
+        assert artifact.sha256 == component_hash
     manifest = writer.evidence.finalize(
         canonical_bytes(
             {
-                "artifact_hashes": [source.sha256],
+                "artifact_hashes": sorted({source.sha256, *component_hashes}),
                 "callable_identity": callable_identity,
                 "protocol": "python.source.fixture.v1",
                 "schema": "job_implementation_evidence.v1",
@@ -286,10 +351,26 @@ def job_spec(
     evidence_subject: dict[str, str] | None = None,
 ) -> dict[str, object]:
     callable_identity = "fixture.callable"
+    subject = evidence_subject or {"kind": "Study", "id": "STU-FIXTURE"}
+    component_hashes: tuple[str, ...] = ()
+    if subject["kind"] == "Executable":
+        with LocalIndex(writer.index_path) as index:
+            trial = index.get("trial", subject["id"])
+        if trial is not None:
+            component_hashes = tuple(
+                sorted(
+                    manifest["implementation"].rsplit("@sha256:", 1)[1]
+                    for manifest in trial.payload["executable"][
+                        "component_manifests"
+                    ]
+                )
+            )
     return {
         "callable_identity": callable_identity,
         "implementation_identity": job_implementation_identity(
-            writer, callable_identity=callable_identity
+            writer,
+            callable_identity=callable_identity,
+            component_hashes=component_hashes,
         ),
         "input_hashes": [digest("input", {"fixture": 1})],
         "budget": {"compute_seconds": 30, "wall_seconds": 30, "trials": 1},
@@ -298,8 +379,7 @@ def job_spec(
         "log_path": "local/jobs/fixture.log",
         "timeout_or_stop_rule": "stop_at_30_seconds",
         "resume_action": "resume_fixture_job",
-        "evidence_subject": evidence_subject
-        or {"kind": "Study", "id": "STU-FIXTURE"},
+        "evidence_subject": subject,
         "worker_claims": [
             {
                 "worker_id": "worker-a",
@@ -554,7 +634,9 @@ def scientific_executable_spec(
         value = ComponentSpec(
             display_name=f"{tag} {domain} scientific component",
             protocol=f"{domain}.scientific_boundary_fixture.v1",
-            implementation=f"fixture.scientific.{domain}.{variant}",
+            implementation=fixture_component_implementation(
+                f"fixture.scientific.{domain}.{variant}"
+            ),
             spec={
                 "architecture_variant": variant,
                 "fixture_semantics": domain,
@@ -590,7 +672,9 @@ def changed_domain_executable(
     changed = ComponentSpec(
         display_name=f"{domain} changed fixture",
         protocol=original.protocol,
-        implementation=f"{original.implementation}.changed.{change_tag}",
+        implementation=fixture_component_implementation(
+            f"{original.protocol}.changed.{change_tag}"
+        ),
         spec={**original.specification(), "scientific_change": change_tag},
         semantic_dependencies=original.semantic_dependencies,
     )
@@ -615,12 +699,17 @@ class WriterTests(unittest.TestCase):
         self.temporary = TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
+        foundation_root = (
+            legacy_scientific_fixture_foundation(self.root)
+            if self._testMethodName == "test_holdout_seal_and_one_time_permit"
+            else REPO_ROOT
+        )
         self.writer = StateWriter(
             self.root,
             permit_authority=PermitAuthority(b"p" * 32),
             clock=lambda: FIXED_NOW,
             engineering_fixture=True,
-            foundation_root=REPO_ROOT,
+            foundation_root=foundation_root,
         )
         self.writer.initialize_ready()
 
@@ -639,6 +728,109 @@ class WriterTests(unittest.TestCase):
     def test_engineering_fixture_cannot_target_the_real_worktree(self) -> None:
         with self.assertRaises(TransitionError):
             StateWriter(REPO_ROOT, engineering_fixture=True)
+
+    def test_stable_head_read_is_bounded_and_does_not_mutate_authority(self) -> None:
+        control_before = self.writer.read_control()
+        journal_before = self.writer.journal.tail()[0]
+        with LocalIndex(self.writer.index_path) as index:
+            count_before = index.record_count()
+            projection_before = index.projection_guard()
+        report = self.writer.require_stable_head()
+        self.assertEqual(report["control"], control_before)
+        self.assertEqual(report["control_revision"], control_before["revision"])
+        self.assertEqual(report["index_record_count"], count_before)
+        self.assertEqual(report["projection_digest"], projection_before[0])
+        self.assertEqual(self.writer.read_control(), control_before)
+        self.assertEqual(self.writer.journal.tail()[0], journal_before)
+        with LocalIndex(self.writer.index_path) as index:
+            self.assertEqual(index.record_count(), count_before)
+            self.assertEqual(index.projection_guard(), projection_before)
+
+    def test_audit_integrity_is_valid_but_has_no_terminal_science_credit(self) -> None:
+        self.assertEqual(
+            _require_study_evidence_modes(
+                {"evidence_modes": ["audit_integrity"]}
+            ),
+            ("audit_integrity",),
+        )
+        self.assertEqual(
+            _terminal_scientific_evidence_modes(("audit_integrity",)),
+            (),
+        )
+        self.assertEqual(
+            _terminal_scientific_evidence_modes(
+                ("causal_contrast", "audit_integrity")
+            ),
+            ("causal_contrast",),
+        )
+
+    def test_stable_mission_authority_and_protocol_boundary_is_explicit(self) -> None:
+        self.open_mission_and_initiative()
+        self.writer.close_initiative(
+            outcome="completed",
+            operation_id="stable-mission-close-initiative",
+        )
+        control = self.writer.read_control()
+        assert control is not None
+        self.assertIsNone(
+            self.writer._authority_migration_boundary(
+                control,
+                allow_active_stable_boundary=False,
+            )
+        )
+        self.assertEqual(
+            self.writer._authority_migration_boundary(
+                control,
+                allow_active_stable_boundary=True,
+            ),
+            "active_stable",
+        )
+        audit = self.writer.evidence.finalize(b"stable Mission protocol audit")
+        self.writer.validation_registry = EvidenceValidatorRegistry(
+            (ScientificAdjudicationValidatorV2(),)
+        )
+        activation = ResearchProtocolActivation(
+            protocol=ResearchProtocol.SCIENTIFIC_ADJUDICATION_V2,
+            validator_id=ScientificAdjudicationValidatorV2.validator_id,
+            authority_manifest_digest=control["authority"]["manifest_digest"],
+            audit_artifact_hash=audit.sha256,
+        )
+        with self.assertRaisesRegex(TransitionError, "explicit stable Mission"):
+            self.writer.activate_research_protocol(
+                activation=activation,
+                operation_id="reject-implicit-stable-mission-protocol",
+            )
+        activated = self.writer.activate_research_protocol(
+            activation=activation,
+            operation_id="activate-at-explicit-stable-mission",
+            allow_active_stable_boundary=True,
+        )
+        self.assertEqual(activated.result["ordinal"], 1)
+
+    def test_stable_mission_protocol_flag_does_not_widen_other_boundaries(self) -> None:
+        self.writer.open_mission(
+            mission_id="MIS-NOT-STABLE",
+            goal=mission_goal("protocol boundary negative fixture"),
+            operation_id="open-not-stable-mission",
+        )
+        control = self.writer.read_control()
+        assert control is not None
+        audit = self.writer.evidence.finalize(b"not stable protocol audit")
+        self.writer.validation_registry = EvidenceValidatorRegistry(
+            (ScientificAdjudicationValidatorV2(),)
+        )
+        activation = ResearchProtocolActivation(
+            protocol=ResearchProtocol.SCIENTIFIC_ADJUDICATION_V2,
+            validator_id=ScientificAdjudicationValidatorV2.validator_id,
+            authority_manifest_digest=control["authority"]["manifest_digest"],
+            audit_artifact_hash=audit.sha256,
+        )
+        with self.assertRaisesRegex(TransitionError, "explicit stable Mission"):
+            self.writer.activate_research_protocol(
+                activation=activation,
+                operation_id="reject-record-intake-boundary-protocol",
+                allow_active_stable_boundary=True,
+            )
 
     def test_job_implementation_rejects_hardcoded_study_identity(self) -> None:
         callable_identity = "fixture.generic.runner"
@@ -1303,6 +1495,7 @@ class WriterTests(unittest.TestCase):
                 root,
                 permit_authority=PermitAuthority(b"x" * 32),
                 clock=lambda: FIXED_NOW,
+                study_close_guard_capability=FIXTURE_DELIVERY_CAPABILITY,
                 foundation_root=REPO_ROOT,
             )
             writer.initialize_ready()
@@ -1317,6 +1510,40 @@ class WriterTests(unittest.TestCase):
                 operation_id="external-validator-intake",
             )
             plan = writer.evidence.finalize(b"external validation plan fixture")
+            recovery_plan = ExternalRecoveryPlan(
+                boundary_event_id=writer.read_control()["heads"]["journal"][  # type: ignore[index]
+                    "event_id"
+                ],
+                condition=ExternalResumeCondition(
+                    dependency_id="fpmarkets-history-service",
+                    dependency_kind="market_data_service",
+                    blocked_mission_capability=(
+                        "indispensable broker history acquisition"
+                    ),
+                    required_external_change=(
+                        "broker history service becomes available"
+                    ),
+                    validator_id="validator:" + "f" * 64,
+                    validation_plan_hash=plan.sha256,
+                    resume_action=ExternalResumeAction.from_next_action(
+                        writer.read_control()["next_action"]  # type: ignore[index]
+                    ),
+                ),
+                paths=(
+                    ExternalRecoveryPath(
+                        recovery_kind="external_probe",
+                        recovery_path_id="broker-history-probe",
+                    ),
+                    ExternalRecoveryPath(
+                        recovery_kind="local_recovery",
+                        recovery_path_id="broker-history-local-recovery",
+                    ),
+                    ExternalRecoveryPath(
+                        recovery_kind="safe_substitute_search",
+                        recovery_path_id="broker-history-substitute-search",
+                    ),
+                ),
+            )
             spec = job_spec(
                 writer,
                 {"kind": "Mission", "id": "MIS-EXTERNAL-VALIDATOR"}
@@ -1336,6 +1563,7 @@ class WriterTests(unittest.TestCase):
                 "exact_resume_action": "resume_fixture_job",
                 "recovery_kind": "external_probe",
                 "recovery_path_id": "broker-history-probe",
+                "recovery_plan": recovery_plan.to_identity_payload(),
                 "result_manifest_output": result_name,
                 "required_external_change": "broker history service becomes available",
                 "validation_plan_hash": plan.sha256,
@@ -1368,7 +1596,12 @@ class WriterTests(unittest.TestCase):
 
     def test_empty_mission_cannot_forge_negative_or_external_terminal(self) -> None:
         with TemporaryDirectory() as root:
-            writer = StateWriter(root, clock=lambda: FIXED_NOW, foundation_root=REPO_ROOT)
+            writer = StateWriter(
+                root,
+                clock=lambda: FIXED_NOW,
+                study_close_guard_capability=FIXTURE_DELIVERY_CAPABILITY,
+                foundation_root=REPO_ROOT,
+            )
             writer.initialize_ready()
             writer.open_mission(
                 mission_id="MIS-EMPTY",
@@ -1410,6 +1643,7 @@ class WriterTests(unittest.TestCase):
                 root,
                 permit_authority=PermitAuthority(b"g" * 32),
                 clock=lambda: FIXED_NOW,
+                study_close_guard_capability=FIXTURE_DELIVERY_CAPABILITY,
                 foundation_root=REPO_ROOT,
             )
             writer.initialize_ready()
@@ -1430,6 +1664,92 @@ class WriterTests(unittest.TestCase):
                     ),
                     operation_id="reject-pre-intake-guessed-study-job",
                 )
+
+    def test_deferred_axis_requires_preserve_before_work_but_remains_an_option(self) -> None:
+        self.open_mission_and_initiative()
+        open_axis = PortfolioAxis(
+            axis_id="axis-open-work",
+            causal_question="Does the open axis add bounded information?",
+            mechanism_family="open-work-family",
+        )
+        deferred_axis = PortfolioAxis(
+            axis_id="axis-deferred-work",
+            causal_question="Should the deferred axis be explicitly reopened?",
+            mechanism_family="deferred-work-family",
+            status="deferred",
+        )
+        snapshot = PortfolioSnapshot(
+            mission_id="MIS-FIXTURE",
+            axes=(open_axis, deferred_axis),
+            opportunity_cost_basis="preserve the deferred forest branch",
+        )
+        self.writer.record_portfolio_snapshot(
+            snapshot=snapshot,
+            operation_id="deferred-axis-snapshot",
+        )
+        direct_work = PortfolioDecision(
+            decision_id="DEC-DEFERRED-DIRECT-WORK",
+            chosen_option_id="work-deferred",
+            options=(
+                DecisionOption(
+                    option_id="work-deferred",
+                    action=PortfolioAction.CONTRAST,
+                    target_id=deferred_axis.axis_id,
+                    expected_information_value="unknown until explicitly reopened",
+                    opportunity_cost="one unauthorized Batch",
+                ),
+                DecisionOption(
+                    option_id="retain-open",
+                    action=PortfolioAction.CONTRAST,
+                    target_id=open_axis.axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="defer one Batch",
+                    omission_reason="the invalid direct work was nominally chosen",
+                ),
+            ),
+            rationale="exercise the deferred-axis work guard",
+            commitment_batches=1,
+        )
+        with self.assertRaisesRegex(
+            TransitionError,
+            "requires an exact preserve/reopen Decision",
+        ):
+            self.writer.record_portfolio_decision(
+                decision=direct_work,
+                operation_id="reject-deferred-axis-direct-work",
+            )
+
+        reopen = PortfolioDecision(
+            decision_id="DEC-DEFERRED-PRESERVE",
+            chosen_option_id="preserve-deferred",
+            options=(
+                DecisionOption(
+                    option_id="preserve-deferred",
+                    action=PortfolioAction.PRESERVE,
+                    target_id=deferred_axis.axis_id,
+                    expected_information_value="retain and explicitly reopen the branch",
+                    opportunity_cost="one structural snapshot transition",
+                ),
+                DecisionOption(
+                    option_id="retain-open",
+                    action=PortfolioAction.CONTRAST,
+                    target_id=open_axis.axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="defer one Batch",
+                    omission_reason="the deferred branch needs explicit preservation",
+                ),
+            ),
+            rationale="use the typed structural boundary before scientific work",
+            commitment_batches=1,
+        )
+        self.writer.record_portfolio_decision(
+            decision=reopen,
+            operation_id="preserve-deferred-axis",
+        )
+        control = self.writer.read_control()
+        assert control is not None
+        self.assertEqual(control["next_action"]["kind"], "record_portfolio_snapshot")
+        self.assertEqual(control["next_action"]["action"], "preserve")
 
     def test_portfolio_decision_requires_a_current_declared_target(self) -> None:
         self.open_mission_and_initiative()
@@ -2630,7 +2950,18 @@ class WriterTests(unittest.TestCase):
         )
         after = self.writer.read_control()
         assert before is not None and after is not None
-        self.assertEqual(after["next_action"], before["next_action"])
+        self.assertEqual(
+            after["next_action"]["kind"], before["next_action"]["kind"]
+        )
+        self.assertEqual(
+            after["next_action"]["portfolio_snapshot_id"],
+            before["next_action"]["portfolio_snapshot_id"],
+        )
+        self.assertEqual(after["next_action"]["required_replay_priority"], "p0")
+        self.assertEqual(
+            after["next_action"]["pending_replay_obligation_ids"],
+            recorded.result["replay_obligation_ids"],
+        )
         self.assertEqual(after["scientific"], before["scientific"])
         self.assertEqual(recorded.result["trial_delta"], 0)
         self.assertEqual(recorded.result["holdout_delta"], 0)
@@ -3017,6 +3348,7 @@ class WriterTests(unittest.TestCase):
                 root,
                 permit_authority=PermitAuthority(b"m" * 32),
                 clock=lambda: FIXED_NOW,
+                study_close_guard_capability=FIXTURE_DELIVERY_CAPABILITY,
                 foundation_root=REPO_ROOT,
             )
             writer.initialize_ready()
@@ -4999,11 +5331,13 @@ class ScientificLifecycleTests(unittest.TestCase):
 
     def _build_frozen_candidate(self, root: str):
         validator = ScientificFixtureValidator()
+        foundation_root = legacy_scientific_fixture_foundation(Path(root))
         writer = StateWriter(
             root,
             permit_authority=PermitAuthority(b"h" * 32),
             clock=lambda: FIXED_NOW,
-            foundation_root=REPO_ROOT,
+            study_close_guard_capability=FIXTURE_DELIVERY_CAPABILITY,
+            foundation_root=foundation_root,
             validation_registry=EvidenceValidatorRegistry((validator,)),
         )
         writer.initialize_ready()
@@ -5307,6 +5641,7 @@ class ScientificLifecycleTests(unittest.TestCase):
                 temporary,
                 permit_authority=PermitAuthority(b"u" * 32),
                 clock=lambda: FIXED_NOW,
+                study_close_guard_capability=FIXTURE_DELIVERY_CAPABILITY,
                 foundation_root=REPO_ROOT,
             )
             writer.initialize_ready()
@@ -6202,17 +6537,23 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
         *,
         writer: StateWriter,
         plan_hash: str,
+        recovery_plan: ExternalRecoveryPlan,
         recovery_kind: str,
         ordinal: int,
         indispensable: bool,
         contract_valid_next_action_found: bool,
+        verdict: str = "failed",
+        judge: bool = True,
+        tag: str = "external",
     ) -> str:
         dependency_id = "required-broker-history-service"
         observed_state = "service unavailable after bounded probe"
         required_change = "broker history service becomes available"
         blocked_capability = "indispensable FPMarkets US100 history acquisition"
-        result_name = f"evidence/external-{ordinal}-result"
-        measurement_name = f"evidence/external-{ordinal}-measurement"
+        recovery_path = recovery_plan.paths[ordinal - 1]
+        self.assertEqual(recovery_path.recovery_kind, recovery_kind)
+        result_name = f"evidence/{tag}-{ordinal}-result"
+        measurement_name = f"evidence/{tag}-{ordinal}-measurement"
         spec = job_spec(
             writer, {"kind": "Mission", "id": "MIS-EXTERNAL-BLOCKER"}
         )
@@ -6228,14 +6569,15 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
             "dependency_kind": "market_data_service",
             "exact_resume_action": "resume_fixture_job",
             "recovery_kind": recovery_kind,
-            "recovery_path_id": f"recovery-path-{ordinal}",
+            "recovery_path_id": recovery_path.recovery_path_id,
+            "recovery_plan": recovery_plan.to_identity_payload(),
             "result_manifest_output": result_name,
             "required_external_change": required_change,
             "validation_plan_hash": plan_hash,
             "validator_id": ExternalFixtureValidator.validator_id,
         }
         declared = writer.declare_job(
-            spec=spec, operation_id=f"external-{ordinal}-declare"
+            spec=spec, operation_id=f"{tag}-{ordinal}-declare"
         )
         permit = writer.issue_permit(
             kind=PermitKind.JOB,
@@ -6246,9 +6588,9 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
             scope=("job",),
             expires_at_utc=FIXED_EXPIRY,
             one_shot=True,
-            operation_id=f"external-{ordinal}-permit",
+            operation_id=f"{tag}-{ordinal}-permit",
         )
-        writer.start_job(permit=permit, operation_id=f"external-{ordinal}-start")
+        writer.start_job(permit=permit, operation_id=f"{tag}-{ordinal}-start")
         facts = {
             "blocked_mission_capability": blocked_capability,
             "contract_valid_next_action_found": contract_valid_next_action_found,
@@ -6264,7 +6606,7 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
                 {
                     "facts": facts,
                     "schema": "external_boundary_measurement.v1",
-                    "verdict": "failed",
+                    "verdict": verdict,
                 }
             )
         )
@@ -6286,13 +6628,9 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
                 }
             )
         )
-        completed = writer.complete_job(
-            outcome="failed",
-            output_manifest={
-                result_name: result.sha256,
-                measurement_name: measurement.sha256,
-            },
-            failure={
+        failure = None
+        if verdict != "passed":
+            failure = {
                 "external_dependency_id": dependency_id,
                 "failure_kind": "external_dependency",
                 "interrupted_action": spec["callable_identity"],
@@ -6300,16 +6638,31 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
                 "observed_external_state": observed_state,
                 "resume_action": spec["resume_action"],
                 "root_cause": "validated required external service outage",
+            }
+        completed = writer.complete_job(
+            outcome=("success" if verdict == "passed" else verdict),
+            output_manifest={
+                result_name: result.sha256,
+                measurement_name: measurement.sha256,
             },
-            operation_id=f"external-{ordinal}-complete",
+            failure=failure,
+            operation_id=f"{tag}-{ordinal}-complete",
         )
+        if judge:
+            writer.judge_external_dependency_evidence(
+                completion_record_id=completed.result["completion_record_id"],
+                operation_id=f"{tag}-{ordinal}-judge",
+            )
         return completed.result["completion_record_id"]
 
-    def _writer(self, root: str) -> tuple[StateWriter, str]:
+    def _writer(
+        self, root: str
+    ) -> tuple[StateWriter, str, ExternalRecoveryPlan]:
         writer = StateWriter(
             root,
             permit_authority=PermitAuthority(b"e" * 32),
             clock=lambda: FIXED_NOW,
+            study_close_guard_capability=FIXTURE_DELIVERY_CAPABILITY,
             foundation_root=REPO_ROOT,
             validation_registry=EvidenceValidatorRegistry(
                 (ExternalFixtureValidator(),)
@@ -6329,7 +6682,42 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
         plan = writer.evidence.finalize(
             canonical_bytes({"schema": "external_boundary_plan.v1"})
         )
-        return writer, plan.sha256
+        resume_action = ExternalResumeAction.from_next_action(
+            writer.read_control()["next_action"]  # type: ignore[index]
+        )
+        recovery_plan = ExternalRecoveryPlan(
+            boundary_event_id=writer.read_control()["heads"]["journal"][  # type: ignore[index]
+                "event_id"
+            ],
+            condition=ExternalResumeCondition(
+                dependency_id="required-broker-history-service",
+                dependency_kind="market_data_service",
+                blocked_mission_capability=(
+                    "indispensable FPMarkets US100 history acquisition"
+                ),
+                required_external_change=(
+                    "broker history service becomes available"
+                ),
+                validator_id=ExternalFixtureValidator.validator_id,
+                validation_plan_hash=plan.sha256,
+                resume_action=resume_action,
+            ),
+            paths=tuple(
+                ExternalRecoveryPath(
+                    recovery_kind=recovery_kind,
+                    recovery_path_id=f"recovery-path-{ordinal}",
+                )
+                for ordinal, recovery_kind in enumerate(
+                    (
+                        "external_probe",
+                        "local_recovery",
+                        "safe_substitute_search",
+                    ),
+                    start=1,
+                )
+            ),
+        )
+        return writer, plan.sha256, recovery_plan
 
     def test_blocker_requires_validated_indispensability_and_no_next_action(self) -> None:
         recovery_kinds = (
@@ -6338,11 +6726,12 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
             "safe_substitute_search",
         )
         with TemporaryDirectory() as root:
-            writer, plan_hash = self._writer(root)
+            writer, plan_hash, recovery_plan = self._writer(root)
             completions = tuple(
                 self._run_attempt(
                     writer=writer,
                     plan_hash=plan_hash,
+                    recovery_plan=recovery_plan,
                     recovery_kind=recovery_kind,
                     ordinal=ordinal,
                     indispensable=True,
@@ -6365,24 +6754,316 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
             )
 
         with TemporaryDirectory() as root:
-            writer, plan_hash = self._writer(root)
+            writer, plan_hash, recovery_plan = self._writer(root)
+            completion_id = self._run_attempt(
+                writer=writer,
+                plan_hash=plan_hash,
+                recovery_plan=recovery_plan,
+                recovery_kind="external_probe",
+                ordinal=1,
+                indispensable=False,
+                contract_valid_next_action_found=True,
+            )
+            self.assertEqual(
+                writer.read_control()["next_action"],  # type: ignore[index]
+                recovery_plan.condition.resume_action.to_next_action(),
+            )
+            with LocalIndex(writer.index_path) as index:
+                decisions = index.records_by_kind(
+                    "external-dependency-judgement"
+                )
+            self.assertEqual(
+                decisions[-1].payload,
+                {
+                    "blocker_credit": False,
+                    "completion_record_id": completion_id,
+                    "disposition": "restore_non_blocking_external_failure",
+                    "recovery_path_id": "recovery-path-1",
+                    "recovery_plan_id": recovery_plan.identity,
+                    "verdict": "failed",
+                },
+            )
+
+    def test_external_completion_must_be_judged_before_the_next_path(self) -> None:
+        with TemporaryDirectory() as root:
+            writer, plan_hash, recovery_plan = self._writer(root)
+            completion_id = self._run_attempt(
+                writer=writer,
+                plan_hash=plan_hash,
+                recovery_plan=recovery_plan,
+                recovery_kind="external_probe",
+                ordinal=1,
+                indispensable=True,
+                contract_valid_next_action_found=False,
+                judge=False,
+            )
+            with self.assertRaisesRegex(TransitionError, "cannot preempt"):
+                self._run_attempt(
+                    writer=writer,
+                    plan_hash=plan_hash,
+                    recovery_plan=recovery_plan,
+                    recovery_kind="local_recovery",
+                    ordinal=2,
+                    indispensable=True,
+                    contract_valid_next_action_found=False,
+                )
+            judged = writer.judge_external_dependency_evidence(
+                completion_record_id=completion_id,
+                operation_id="external-preemption-judge",
+            )
+            self.assertEqual(judged.result["verdict"], "failed")
+            self.assertEqual(
+                writer.read_control()["next_action"],  # type: ignore[index]
+                {
+                    "kind": "declare_external_dependency_job",
+                    "prior_completion_record_ids": [completion_id],
+                    "recovery_path_id": "recovery-path-2",
+                    "recovery_plan_id": recovery_plan.identity,
+                },
+            )
+
+    def test_passed_and_not_evaluable_restore_the_exact_mission_action(self) -> None:
+        for verdict in ("passed", "not_evaluable"):
+            with self.subTest(verdict=verdict), TemporaryDirectory() as root:
+                writer, plan_hash, recovery_plan = self._writer(root)
+                self._run_attempt(
+                    writer=writer,
+                    plan_hash=plan_hash,
+                    recovery_plan=recovery_plan,
+                    recovery_kind="external_probe",
+                    ordinal=1,
+                    indispensable=True,
+                    contract_valid_next_action_found=False,
+                    verdict=verdict,
+                )
+                self.assertEqual(
+                    writer.read_control()["next_action"],  # type: ignore[index]
+                    recovery_plan.condition.resume_action.to_next_action(),
+                )
+                with LocalIndex(writer.index_path) as index:
+                    decisions = index.records_by_kind(
+                        "external-dependency-judgement"
+                    )
+                    attempts = index.records_by_kind(
+                        "external-dependency-attempt"
+                    )
+                self.assertEqual(decisions[-1].status, verdict)
+                self.assertEqual(
+                    decisions[-1].payload["disposition"],
+                    (
+                        "resume_mission_action"
+                        if verdict == "passed"
+                        else "restore_without_blocker_credit"
+                    ),
+                )
+                self.assertEqual(
+                    attempts[-1].status,
+                    "available" if verdict == "passed" else "external_unresolved",
+                )
+
+    def test_recurrent_outage_replans_at_a_new_exact_boundary(self) -> None:
+        with TemporaryDirectory() as root:
+            writer, plan_hash, recovery_plan = self._writer(root)
+            self._run_attempt(
+                writer=writer,
+                plan_hash=plan_hash,
+                recovery_plan=recovery_plan,
+                recovery_kind="external_probe",
+                ordinal=1,
+                indispensable=True,
+                contract_valid_next_action_found=False,
+                verdict="passed",
+            )
+            restored = writer.read_control()
+            assert restored is not None
+            recurrent_plan = ExternalRecoveryPlan(
+                boundary_event_id=restored["heads"]["journal"]["event_id"],
+                condition=recovery_plan.condition,
+                paths=recovery_plan.paths,
+            )
+            self.assertNotEqual(recurrent_plan.identity, recovery_plan.identity)
+            stale_plan = ExternalRecoveryPlan(
+                boundary_event_id=recovery_plan.boundary_event_id,
+                condition=recovery_plan.condition,
+                paths=tuple(
+                    ExternalRecoveryPath(
+                        recovery_kind=path.recovery_kind,
+                        recovery_path_id=f"stale-{path.recovery_path_id}",
+                    )
+                    for path in recovery_plan.paths
+                ),
+            )
+            with self.assertRaisesRegex(TransitionError, "cannot preempt"):
+                self._run_attempt(
+                    writer=writer,
+                    plan_hash=plan_hash,
+                    recovery_plan=stale_plan,
+                    recovery_kind="external_probe",
+                    ordinal=1,
+                    indispensable=True,
+                    contract_valid_next_action_found=False,
+                    tag="stale-recurrence",
+                )
+            self._run_attempt(
+                writer=writer,
+                plan_hash=plan_hash,
+                recovery_plan=recurrent_plan,
+                recovery_kind="external_probe",
+                ordinal=1,
+                indispensable=True,
+                contract_valid_next_action_found=False,
+                verdict="not_evaluable",
+                tag="accepted-recurrence",
+            )
+            self.assertEqual(
+                writer.read_control()["next_action"],  # type: ignore[index]
+                recurrent_plan.condition.resume_action.to_next_action(),
+            )
+
+    def test_blocked_terminal_without_portfolio_reenters_same_mission(self) -> None:
+        with TemporaryDirectory() as root:
+            writer, plan_hash, recovery_plan = self._writer(root)
+            initial_control = writer.read_control()
+            assert initial_control is not None
+            initial_authorization_hash = initial_control["authorizations"][
+                "Mission:MIS-EXTERNAL-BLOCKER"
+            ]["authorization_hash"]
             completions = tuple(
                 self._run_attempt(
                     writer=writer,
                     plan_hash=plan_hash,
+                    recovery_plan=recovery_plan,
                     recovery_kind=recovery_kind,
                     ordinal=ordinal,
-                    indispensable=False,
-                    contract_valid_next_action_found=True,
+                    indispensable=True,
+                    contract_valid_next_action_found=False,
                 )
-                for ordinal, recovery_kind in enumerate(recovery_kinds, start=1)
+                for ordinal, recovery_kind in enumerate(
+                    (
+                        "external_probe",
+                        "local_recovery",
+                        "safe_substitute_search",
+                    ),
+                    start=1,
+                )
+            )
+            blocker = writer.record_external_blocker(
+                dependency_id="required-broker-history-service",
+                completion_record_ids=completions,
+                operation_id="external-reentry-blocker",
+            )
+            writer.close_mission(
+                outcome="blocked_external",
+                basis_record_id=blocker.result["basis_record_id"],
+                operation_id="external-reentry-close",
+            )
+            blocked = writer.read_control()
+            assert blocked is not None
+            close_id = blocked["next_action"][
+                "predecessor_mission_close_record_id"
+            ]
+            self.assertEqual(blocked["next_action"]["kind"], "await_external_change")
+            with LocalIndex(writer.index_path) as index:
+                self.assertEqual(index.records_by_kind("portfolio-snapshot"), ())
+
+            expected_facts = {
+                "blocked_mission_capability": (
+                    recovery_plan.condition.blocked_mission_capability
+                ),
+                "dependency_id": recovery_plan.condition.dependency_id,
+                "external_change_satisfied": True,
+                "resume_condition_id": recovery_plan.condition.identity,
+            }
+            measurement = writer.evidence.finalize(
+                canonical_bytes(
+                    {
+                        "facts": expected_facts,
+                        "schema": "external_boundary_measurement.v1",
+                        "verdict": "passed",
+                    }
+                )
+            )
+            result = writer.evidence.finalize(
+                canonical_bytes(
+                    {
+                        "blocker_basis_record_id": blocker.result[
+                            "basis_record_id"
+                        ],
+                        "condition_id": recovery_plan.condition.identity,
+                        "measurement_artifact_hashes": [measurement.sha256],
+                        "mission_close_record_id": close_id,
+                        "mission_id": "MIS-EXTERNAL-BLOCKER",
+                        "schema": "external_change_evidence.v1",
+                    }
+                )
+            )
+            evidence = ExternalChangeEvidence(
+                condition_id=recovery_plan.condition.identity,
+                result_manifest_output="evidence/external-change-result",
+                output_manifest=(
+                    ("evidence/external-change-result", result.sha256),
+                    ("evidence/external-change-measurement", measurement.sha256),
+                ),
+            )
+            stale_evidence = ExternalChangeEvidence(
+                condition_id="external-resume-condition:" + "0" * 64,
+                result_manifest_output=evidence.result_manifest_output,
+                output_manifest=evidence.output_manifest,
             )
             with self.assertRaises(TransitionError):
-                writer.record_external_blocker(
-                    dependency_id="required-broker-history-service",
-                    completion_record_ids=completions,
-                    operation_id="reject-optional-external-blocker",
+                writer.resume_blocked_mission(
+                    basis_record_id=blocker.result["basis_record_id"],
+                    mission_close_record_id=close_id,
+                    evidence=stale_evidence,
+                    operation_id="reject-stale-external-reentry",
                 )
+            resumed = writer.resume_blocked_mission(
+                basis_record_id=blocker.result["basis_record_id"],
+                mission_close_record_id=close_id,
+                evidence=evidence,
+                operation_id="accept-external-reentry",
+            )
+            self.assertEqual(resumed.result["authorization_epoch"], 2)
+            control = writer.read_control()
+            assert control is not None
+            self.assertEqual(
+                control["scientific"]["active_mission"],
+                "MIS-EXTERNAL-BLOCKER",
+            )
+            self.assertEqual(
+                control["next_action"],
+                recovery_plan.condition.resume_action.to_next_action(),
+            )
+            self.assertEqual(
+                control["authorizations"]["Mission:MIS-EXTERNAL-BLOCKER"][
+                    "authorization_epoch"
+                ],
+                2,
+            )
+            self.assertNotEqual(
+                control["authorizations"]["Mission:MIS-EXTERNAL-BLOCKER"][
+                    "authorization_hash"
+                ],
+                initial_authorization_hash,
+            )
+            reused = writer.resume_blocked_mission(
+                basis_record_id=blocker.result["basis_record_id"],
+                mission_close_record_id=close_id,
+                evidence=evidence,
+                operation_id="accept-external-reentry",
+            )
+            self.assertTrue(reused.reused)
+            with self.assertRaises(TransitionError):
+                writer.resume_blocked_mission(
+                    basis_record_id=blocker.result["basis_record_id"],
+                    mission_close_record_id=close_id,
+                    evidence=evidence,
+                    operation_id="reject-replayed-external-reentry",
+                )
+            with LocalIndex(writer.index_path) as index:
+                self.assertEqual(len(index.records_by_kind("mission-open")), 1)
+                self.assertEqual(len(index.records_by_kind("mission-reentry")), 1)
+                self.assertEqual(index.records_by_kind("trial"), ())
 
 
 class CrashRecoveryTests(unittest.TestCase):
@@ -6534,6 +7215,7 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             self.temporary.name,
             permit_authority=PermitAuthority(b"q" * 32),
             clock=lambda: FIXED_NOW,
+            study_close_guard_capability=FIXTURE_DELIVERY_CAPABILITY,
             foundation_root=REPO_ROOT,
             validation_registry=EvidenceValidatorRegistry(
                 (ComponentParityFixtureValidator(),)
@@ -6703,6 +7385,148 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             baseline_executable=portfolio_axis_baseline(self.axes[target_index]),
         )
         return decision
+
+    def test_executable_job_requires_component_source_closure(self) -> None:
+        decision = self._decision(
+            tag="IMPLEMENTATION-CLOSURE",
+            target_index=0,
+            action=PortfolioAction.DEEPEN,
+        )
+        self.writer.record_portfolio_decision(
+            decision=decision,
+            operation_id="implementation-closure-decision",
+        )
+        axis = self.axes[0]
+        assert decision.baseline_executable is not None
+        assert decision.architecture_chassis is not None
+        controlled_chassis = ControlledStudyChassis(
+            baseline_executable=decision.baseline_executable,
+            changed_domains=axis.changed_domains,
+            controlled_domains=axis.controlled_domains,
+            architecture=decision.architecture_chassis,
+        )
+        question = study_question("Executable Job implementation closure")
+        proposal = {"mechanism": "component source closure"}
+        study_hash = self.writer.study_input_hash(
+            question=question,
+            material_identity=OBSERVED_MATERIAL_ID,
+            semantic_proposal=proposal,
+            controlled_chassis=controlled_chassis,
+            portfolio_axis_id=axis.axis_id,
+            portfolio_axis_identity=axis.identity,
+            portfolio_decision_id=decision.identity,
+        )
+        study_permit = self.writer.issue_permit(
+            kind=PermitKind.STUDY,
+            subject_kind=SubjectKind.INITIATIVE,
+            subject_id="INI-DIRECTION",
+            input_hash=study_hash,
+            actions=("open_study",),
+            scope=(
+                "study",
+                f"decision:{decision.identity}",
+                f"axis:{axis.identity}",
+                f"baseline:{decision.baseline_executable.identity}",
+                f"chassis:{decision.architecture_chassis.identity}",
+                f"snapshot:{self.snapshot.identity}",
+            ),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="implementation-closure-study-permit",
+        )
+        opened = self.writer.open_study(
+            study_id="STU-IMPLEMENTATION-CLOSURE",
+            question=question,
+            material_identity=OBSERVED_MATERIAL_ID,
+            material_display_name="foundation observed material",
+            semantic_proposal=proposal,
+            controlled_chassis=controlled_chassis,
+            portfolio_axis_id=axis.axis_id,
+            portfolio_axis_identity=axis.identity,
+            portfolio_decision_id=decision.identity,
+            permit=study_permit,
+            operation_id="implementation-closure-study-open",
+        )
+        batch = batch_spec(
+            batch_id="BAT-IMPLEMENTATION-CLOSURE",
+            study_id="STU-IMPLEMENTATION-CLOSURE",
+            study_hash=opened.result["study_hash"],
+        )
+        batch_permit = self.writer.issue_permit(
+            kind=PermitKind.BATCH,
+            subject_kind=SubjectKind.STUDY,
+            subject_id="STU-IMPLEMENTATION-CLOSURE",
+            input_hash=batch.identity.removeprefix("batch:"),
+            actions=("open_batch",),
+            scope=("batch",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="implementation-closure-batch-permit",
+        )
+        self.writer.open_batch(
+            batch_spec=batch,
+            permit=batch_permit,
+            operation_id="implementation-closure-batch-open",
+        )
+        executable = changed_domain_executable(
+            decision.baseline_executable,
+            domain="calibration",
+            change_tag="implementation-closure",
+        )
+        self.writer.register_trial(
+            executable=executable,
+            operation_id="implementation-closure-trial",
+        )
+
+        incomplete = job_spec(
+            self.writer,
+            {"kind": "Executable", "id": executable.identity},
+        )
+        incomplete_source = self.writer.evidence.finalize(
+            b"incomplete fixture Job source"
+        )
+        incomplete_callable = "fixture.incomplete_component_closure"
+        incomplete_manifest = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "artifact_hashes": [incomplete_source.sha256],
+                    "callable_identity": incomplete_callable,
+                    "protocol": "python.source.fixture.v1",
+                    "schema": "job_implementation_evidence.v1",
+                }
+            )
+        )
+        incomplete["callable_identity"] = incomplete_callable
+        incomplete["implementation_identity"] = incomplete_manifest.sha256
+        with self.assertRaisesRegex(
+            TransitionError, "omits Component source bytes"
+        ):
+            self.writer.declare_job(
+                spec=incomplete,
+                operation_id="reject-incomplete-component-closure",
+            )
+
+        complete = job_spec(
+            self.writer,
+            {"kind": "Executable", "id": executable.identity},
+        )
+        declared = self.writer.declare_job(
+            spec=complete,
+            operation_id="accept-complete-component-closure",
+        )
+        expected_hashes = sorted(
+            {
+                component.implementation.rsplit("@sha256:", 1)[1]
+                for component in executable.components
+            }
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            record = index.get("job-declared", declared.result["job_id"])
+        assert record is not None
+        self.assertEqual(
+            record.payload["component_implementation_hashes"],
+            expected_hashes,
+        )
 
     def _accept_component_parity_for_decision(
         self,
