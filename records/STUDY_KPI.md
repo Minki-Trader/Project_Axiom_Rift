@@ -117,3 +117,4 @@ Journal record. The full immutable identity remains there. Missing KPI is `-`.
 | 000106 | 2026-07-14 17:01 | STU-0106 | EXE-5f137007f9c7 | 3,285,320,000 | 1.074 | 1,126 | 206.0487% | preserved |
 | 000107 | 2026-07-14 23:00 | STU-0107 | EXE-0fc036a7825f | 7,010,130,000 | 1.067 | 1,916 | 90.5338% | preserved |
 | 000108 | 2026-07-15 00:05 | STU-0108 | EXE-eabf4c41722a | -12,214,400,000 | 0.803 | 2,345 | 117.3945% | preserved |
+| 000109 | 2026-07-15 01:08 | STU-0109 | EXE-e84d855c8cfa | 268,140,000 | 0.866 | 226 | 196.248% | preserved |
