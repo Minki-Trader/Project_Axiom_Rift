@@ -630,8 +630,14 @@ def _distribution_search_paths() -> tuple[str, ...]:
     )
     result: list[str] = []
     for path in ordered:
-        if path and path not in result:
-            result.append(path)
+        if not path:
+            continue
+        candidate = Path(path)
+        if not candidate.is_dir():
+            continue
+        resolved = str(candidate.resolve())
+        if resolved not in result:
+            result.append(resolved)
     return tuple(result)
 
 
