@@ -36,6 +36,7 @@ from axiom_rift.research.adjudication import (
     VALIDITY_METRICS,
     AdjudicationProfile,
     MultiplicityAssessment,
+    ScientificAdjudication,
     adjudicate_plan_measurement,
     bonferroni_concurrent_family,
     scientific_adjudication_manifest,
@@ -61,6 +62,15 @@ SCIENTIFIC_V2_DECISION_ROLES = frozenset(
     {"component", "multiplicity", "risk_diagnostic", "risk_gate", "validity"}
 )
 SCIENTIFIC_V2_MULTIPLICITY_METHOD = "bonferroni_concurrent_family.v1"
+SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD = (
+    "synchronized_max_moving_block_familywise.v1"
+)
+SCIENTIFIC_V2_MULTIPLICITY_METHODS = frozenset(
+    {
+        SCIENTIFIC_V2_MULTIPLICITY_METHOD,
+        SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD,
+    }
+)
 
 _PLAN_FIELDS = {
     "adjudication_profile",
@@ -200,7 +210,7 @@ def multiplicity_family_registration_hash(
     family = _ascii("multiplicity family_id", family_id)
     alpha = _ppm("multiplicity alpha_ppm", alpha_ppm, allow_zero=False)
     registered_method = _ascii("multiplicity method", method)
-    if registered_method != SCIENTIFIC_V2_MULTIPLICITY_METHOD:
+    if registered_method not in SCIENTIFIC_V2_MULTIPLICITY_METHODS:
         raise EvidenceValidationError(
             "scientific v2 multiplicity method is not registered"
         )
@@ -305,7 +315,7 @@ def _multiplicity_registration(value: object) -> _MultiplicityRegistration:
             "scientific v2 multiplicity family_size must be positive"
         )
     method = _ascii("multiplicity method", value["method"])
-    if method != SCIENTIFIC_V2_MULTIPLICITY_METHOD:
+    if method not in SCIENTIFIC_V2_MULTIPLICITY_METHODS:
         raise EvidenceValidationError(
             "scientific v2 multiplicity method is not registered"
         )
@@ -382,28 +392,11 @@ def _parse_profile(value: object) -> _Profile:
             "scientific v2 multiplicity registrations must be sorted and unique"
         )
     family_metadata: dict[str, tuple[object, ...]] = {}
-    family_counts: dict[str, int] = {}
-    family_members: dict[str, set[str]] = {}
     for item in multiplicity:
         previous = family_metadata.setdefault(item.family_id, item.family_metadata)
         if previous != item.family_metadata:
             raise EvidenceValidationError(
                 "scientific v2 family metadata must be internally consistent"
-            )
-        family_counts[item.family_id] = family_counts.get(item.family_id, 0) + 1
-        members = family_members.setdefault(item.family_id, set())
-        if item.member_id in members:
-            raise EvidenceValidationError(
-                "scientific v2 multiplicity family member is registered twice"
-            )
-        members.add(item.member_id)
-    for item in multiplicity:
-        if (
-            family_counts[item.family_id] != item.family_size
-            or family_members[item.family_id] != set(item.ordered_member_ids)
-        ):
-            raise EvidenceValidationError(
-                "scientific v2 multiplicity family registration is incomplete"
             )
     return _Profile(
         decisive_risk_criterion_ids=decisive,
@@ -655,26 +648,50 @@ def _parse_multiplicity_results(
             "adjusted_pvalue_ppm", raw["adjusted_pvalue_ppm"]
         )
         criterion = criterion_by_id[criterion_id]
-        if metrics[criterion.claim_id][criterion.metric] != raw_pvalue:
-            raise EvidenceValidationError(
-                "scientific v2 raw p-value differs from its measurement metric"
-            )
+        measured_pvalue = metrics[criterion.claim_id][criterion.metric]
         try:
-            expected_assessment = bonferroni_concurrent_family(
-                criterion_id=criterion_id,
-                family_id=registration.family_id,
-                family_size=registration.family_size,
-                alpha_ppm=registration.alpha_ppm,
-                raw_pvalue_ppm=raw_pvalue,
-            )
+            if registration.method == SCIENTIFIC_V2_MULTIPLICITY_METHOD:
+                if measured_pvalue != raw_pvalue:
+                    raise EvidenceValidationError(
+                        "scientific v2 raw p-value differs from its "
+                        "measurement metric"
+                    )
+                expected_assessment = bonferroni_concurrent_family(
+                    criterion_id=criterion_id,
+                    family_id=registration.family_id,
+                    family_size=registration.family_size,
+                    alpha_ppm=registration.alpha_ppm,
+                    raw_pvalue_ppm=raw_pvalue,
+                )
+                if (
+                    adjusted_pvalue
+                    != expected_assessment.adjusted_pvalue_ppm
+                ):
+                    raise EvidenceValidationError(
+                        "scientific v2 adjusted p-value differs from raw "
+                        "family adjustment"
+                    )
+            else:
+                if measured_pvalue != adjusted_pvalue:
+                    raise EvidenceValidationError(
+                        "scientific v2 familywise p-value differs from its "
+                        "measurement metric"
+                    )
+                expected_assessment = MultiplicityAssessment(
+                    adjusted_pvalue_ppm=adjusted_pvalue,
+                    alpha_ppm=registration.alpha_ppm,
+                    criterion_id=criterion_id,
+                    family_id=registration.family_id,
+                    family_size=registration.family_size,
+                    method=registration.method,
+                    raw_pvalue_ppm=raw_pvalue,
+                )
+        except EvidenceValidationError:
+            raise
         except ValueError as exc:
             raise EvidenceValidationError(
                 "scientific v2 multiplicity result is invalid"
             ) from exc
-        if adjusted_pvalue != expected_assessment.adjusted_pvalue_ppm:
-            raise EvidenceValidationError(
-                "scientific v2 adjusted p-value differs from raw family adjustment"
-            )
         results.append(expected_assessment)
     identities = tuple(item.criterion_id for item in results)
     if identities != tuple(sorted(registration_by_id)):
@@ -751,6 +768,82 @@ def _parse_measurement(
     return value, metrics, multiplicity, proof_references
 
 
+def _adjudicate_parsed_measurement_v2(
+    *,
+    plan: Mapping[str, Any],
+    profile: _Profile,
+    metrics: Mapping[str, Mapping[str, int | None]],
+    multiplicity: tuple[MultiplicityAssessment, ...],
+) -> ScientificAdjudication:
+    """Apply the exact parsed v2 profile to one parsed measurement.
+
+    Keeping this bridge in the validation module prevents producers and
+    orchestration code from silently dropping multiplicity or decisive-risk
+    registrations when they need the rich adjudication before StateWriter
+    validates the finalized evidence bundle.
+    """
+
+    try:
+        adjudication_profile = AdjudicationProfile(
+            decisive_risk_criterion_ids=frozenset(
+                profile.decisive_risk_criterion_ids
+            ),
+            multiplicity=multiplicity,
+        )
+        return adjudicate_plan_measurement(
+            plan,
+            {"metrics": metrics},
+            profile=adjudication_profile,
+        )
+    except ValueError as exc:
+        raise EvidenceValidationError(
+            "scientific v2 adjudication input is invalid"
+        ) from exc
+
+
+def adjudicate_validation_measurement_v2(
+    plan: Mapping[str, Any],
+    measurement: Mapping[str, Any],
+) -> ScientificAdjudication:
+    """Validate and adjudicate a v2 plan/measurement pair consistently.
+
+    This is the producer-side counterpart of the full evidence validator.  It
+    validates the complete plan and measurement schemas, exact multiplicity
+    registrations, and direct plan bindings.  Proof artifact contents remain
+    the StateWriter validator's responsibility at Job completion.
+    """
+
+    parsed_plan, criteria, profile, proof_requirements = _parse_plan(
+        dict(plan)
+    )
+    claims = tuple(parsed_plan["planned_claims"])
+    modes = tuple(parsed_plan["evidence_modes"])
+    parsed_measurement, metrics, multiplicity, _ = _parse_measurement(
+        dict(measurement),
+        criteria=criteria,
+        profile=profile,
+        claims=claims,
+        proof_requirements=proof_requirements,
+    )
+    if (
+        parsed_measurement["mission_id"] != parsed_plan["mission_id"]
+        or parsed_measurement["executable_id"]
+        != parsed_plan["executable_id"]
+        or parsed_measurement["evidence_depth"]
+        != parsed_plan["evidence_depth"]
+        or tuple(parsed_measurement["evidence_modes"]) != modes
+    ):
+        raise EvidenceValidationError(
+            "scientific v2 measurement differs from its validation plan"
+        )
+    return _adjudicate_parsed_measurement_v2(
+        plan=parsed_plan,
+        profile=profile,
+        metrics=metrics,
+        multiplicity=multiplicity,
+    )
+
+
 def _parse_result(value: object) -> dict[str, Any]:
     if (
         not isinstance(value, dict)
@@ -780,13 +873,25 @@ _SCIENTIFIC_TRACE_DEPENDENCY = Path(scientific_trace_module.__file__).resolve()
 _ANALOG_SCOPED_JOB_DEPENDENCY = (
     Path(__file__).with_name("analog_state_scoped_job.py").resolve()
 )
+_DRAWDOWN_REPLAY_DEPENDENCY = (
+    Path(__file__).with_name("drawdown_state_replay.py").resolve()
+)
+_FIXED_HOLD_TRACE_DEPENDENCY = (
+    Path(__file__).with_name("fixed_hold_family_trace.py").resolve()
+)
+_HISTORICAL_FAMILY_REPLAY_DEPENDENCY = (
+    Path(__file__).with_name("historical_family_replay.py").resolve()
+)
 SCIENTIFIC_VALIDATION_V2_DEPENDENCIES = (
     _ADJUDICATION_DEPENDENCY,
     _ANALOG_FAMILY_DEPENDENCY,
     _ANALOG_TRACE_DEPENDENCY,
     _ANALOG_SCOPED_JOB_DEPENDENCY,
     _AUDIT_PROOF_DEPENDENCY,
+    _DRAWDOWN_REPLAY_DEPENDENCY,
     _EVIDENCE_PROOF_DEPENDENCY,
+    _FIXED_HOLD_TRACE_DEPENDENCY,
+    _HISTORICAL_FAMILY_REPLAY_DEPENDENCY,
     _SELECTION_INFERENCE_DEPENDENCY,
     _SCIENTIFIC_TRACE_DEPENDENCY,
 )
@@ -1028,22 +1133,12 @@ class ScientificAdjudicationValidatorV2:
                 "scientific v2 demonstrated modes differ from preregistration"
             )
 
-        try:
-            adjudication_profile = AdjudicationProfile(
-                decisive_risk_criterion_ids=frozenset(
-                    profile.decisive_risk_criterion_ids
-                ),
-                multiplicity=multiplicity,
-            )
-            adjudication = adjudicate_plan_measurement(
-                plan,
-                {"metrics": metrics},
-                profile=adjudication_profile,
-            )
-        except ValueError as exc:
-            raise EvidenceValidationError(
-                "scientific v2 adjudication input is invalid"
-            ) from exc
+        adjudication = _adjudicate_parsed_measurement_v2(
+            plan=plan,
+            profile=profile,
+            metrics=metrics,
+            multiplicity=multiplicity,
+        )
         # The writer has a legacy three-state surface.  Preserve partial
         # positives as non-terminal evidence; only exact contradiction is a
         # coarse scientific failure.
@@ -1091,7 +1186,10 @@ __all__ = [
     "SCIENTIFIC_V2_CRITERION_OPERATORS",
     "SCIENTIFIC_V2_DECISION_ROLES",
     "SCIENTIFIC_V2_MULTIPLICITY_METHOD",
+    "SCIENTIFIC_V2_MULTIPLICITY_METHODS",
+    "SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD",
     "ScientificAdjudicationValidatorV2",
+    "adjudicate_validation_measurement_v2",
     "build_validation_plan_v2",
     "multiplicity_family_registration_hash",
 ]

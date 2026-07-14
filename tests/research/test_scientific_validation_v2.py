@@ -36,6 +36,7 @@ from axiom_rift.research.validation_v2 import (
     SCIENTIFIC_VALIDATION_V2_DOMAINS,
     SCIENTIFIC_VALIDATION_V2_PROTOCOL,
     SCIENTIFIC_V2_MULTIPLICITY_METHOD,
+    SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD,
     ScientificAdjudicationValidatorV2,
     build_validation_plan_v2,
     multiplicity_family_registration_hash,
@@ -561,6 +562,59 @@ class ScientificValidationV2Tests(unittest.TestCase):
             with self.assertRaises(EvidenceValidationError):
                 self._validate(request)
 
+    def test_synchronized_familywise_method_uses_exact_family_and_raw_pair(
+        self,
+    ) -> None:
+        plan = deepcopy(_plan())
+        measurement = _measurement()
+        for registration in plan["adjudication_profile"]["multiplicity"]:
+            registration["method"] = SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD
+            registration["family_registration_hash"] = (
+                multiplicity_family_registration_hash(
+                    family_id=registration["family_id"],
+                    alpha_ppm=registration["alpha_ppm"],
+                    method=SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD,
+                    ordered_member_ids=tuple(
+                        registration["ordered_member_ids"]
+                    ),
+                )
+            )
+        for result in measurement["multiplicity"]:
+            result["method"] = SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD
+            result["family_registration_hash"] = (
+                multiplicity_family_registration_hash(
+                    family_id=result["family_id"],
+                    alpha_ppm=result["alpha_ppm"],
+                    method=SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD,
+                    ordered_member_ids=tuple(result["ordered_member_ids"]),
+                )
+            )
+        measurement["metrics"]["selection_control"][
+            "primary_control_raw_pvalue_ppm"
+        ] = 60_000
+        measurement["metrics"]["selection_control"][
+            "selection_raw_pvalue_ppm"
+        ] = 40_000
+        with TemporaryDirectory() as root:
+            request = _request(
+                Path(root),
+                plan=plan,
+                measurement=measurement,
+            )
+            validated = self._validate(request)
+        multiplicity = validated.facts["scientific_adjudication"][
+            "multiplicity"
+        ]
+        self.assertEqual(
+            {item["method"] for item in multiplicity},
+            {SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD},
+        )
+        self.assertEqual(
+            {(item["raw_pvalue_ppm"], item["adjusted_pvalue_ppm"])
+             for item in multiplicity},
+            {(20_000, 40_000), (30_000, 60_000)},
+        )
+
     def test_exact_schema_rejects_project_history_input(self) -> None:
         plan = deepcopy(_plan())
         plan["adjudication_profile"]["multiplicity"][0][
@@ -574,11 +628,11 @@ class ScientificValidationV2Tests(unittest.TestCase):
             with self.assertRaises(EvidenceValidationError):
                 self._validate(request)
 
-    def test_prospective_family_registration_is_exact_and_complete(self) -> None:
+    def test_prospective_family_registration_is_exact_and_subject_bound(self) -> None:
         incomplete = deepcopy(_plan())
         incomplete["adjudication_profile"]["multiplicity"].pop()
         with self.assertRaisesRegex(
-            EvidenceValidationError, "family registration is incomplete"
+            EvidenceValidationError, "profile differs from its criteria"
         ):
             build_validation_plan_v2(
                 mission_id=MISSION_ID,

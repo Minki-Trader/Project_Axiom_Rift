@@ -20,6 +20,9 @@ ANALOG_STATE_TRACE_PROTOCOL_ID = "analog_state.concurrent_four_config.v1"
 ANALOG_SCOPED_TRACE_PROTOCOL_ID = (
     "analog_state.concurrent_four_config.scoped_query.v2"
 )
+DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID = (
+    "drawdown_state.concurrent_four_config.replay.v2"
+)
 
 _TRACE_FIELDS = {
     "adapter_implementation_sha256",
@@ -82,6 +85,7 @@ def trace_proof_kinds(
     if protocol_id not in {
         ANALOG_STATE_TRACE_PROTOCOL_ID,
         ANALOG_SCOPED_TRACE_PROTOCOL_ID,
+        DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID,
     }:
         raise ScientificTraceError("scientific trace protocol is not registered")
     if evidence_mode not in {
@@ -202,6 +206,36 @@ def validate_trace_calculation_pair(
             trace=trace,
             calculation=calculation,
         )
+    elif protocol_id == DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID:
+        parameters = calculation.get("parameters")
+        if not isinstance(parameters, Mapping):
+            raise ScientificTraceError(
+                "drawdown replay calculation parameters are invalid"
+            )
+        historical_count = parameters.get(
+            "historical_context_prior_global_exposure_count"
+        )
+        if type(historical_count) is not int:
+            raise ScientificTraceError(
+                "drawdown replay historical context is invalid"
+            )
+        from axiom_rift.research.drawdown_state_replay import (
+            drawdown_replay_protocol_definition,
+        )
+        from axiom_rift.research.fixed_hold_family_trace import (
+            FIXED_HOLD_TRACE_VALIDATOR,
+            validate_fixed_hold_trace_calculation,
+        )
+
+        definition = drawdown_replay_protocol_definition(
+            historical_context_prior_global_exposure_count=historical_count
+        )
+        derived_metrics = validate_fixed_hold_trace_calculation(
+            trace=trace,
+            calculation=calculation,
+            definition=definition,
+            validator=FIXED_HOLD_TRACE_VALIDATOR,
+        )
     else:
         raise ScientificTraceError("scientific trace protocol is not registered")
 
@@ -225,6 +259,7 @@ __all__ = [
     "ANALOG_SCOPED_TRACE_PROTOCOL_ID",
     "ATOMIC_TRACE_PROOF_KIND",
     "CALCULATION_PROOF_KIND",
+    "DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID",
     "SCIENTIFIC_CALCULATION_PROOF_SCHEMA",
     "SCIENTIFIC_EVALUATION_TRACE_SCHEMA",
     "ScientificTraceError",
