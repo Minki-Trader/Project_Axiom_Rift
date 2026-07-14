@@ -16,9 +16,33 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
     fixed_hold_replay_job_budget,
     operation_steps,
 )
+from axiom_rift.operations.replay_projection import with_scheduler_constraints
 
 
 class FixedHoldReplayWorkflowTests(unittest.TestCase):
+    def test_exhausted_replay_queue_omits_scheduler_constraint_fields(
+        self,
+    ) -> None:
+        base = {
+            "kind": "choose_next_initiative_or_terminal",
+            "mission_id": "MIS-9001",
+        }
+        self.assertEqual(with_scheduler_constraints(base, None), base)
+        self.assertEqual(
+            with_scheduler_constraints(
+                base,
+                {
+                    "pending_replay_obligation_ids": ["obligation-a"],
+                    "required_replay_priority": "p1",
+                },
+            ),
+            {
+                **base,
+                "pending_replay_obligation_ids": ["obligation-a"],
+                "required_replay_priority": "p1",
+            },
+        )
+
     def _spec(self) -> FixedHoldReplayMissionSpec:
         return FixedHoldReplayMissionSpec(
             mission_id="MIS-9001",

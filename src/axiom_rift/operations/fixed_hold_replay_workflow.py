@@ -27,6 +27,8 @@ from axiom_rift.operations.effective_axis_projection import (
 from axiom_rift.operations.replay_projection import (
     obligation_heads,
     replay_evidence_record_ids,
+    scheduler_constraints,
+    with_scheduler_constraints,
 )
 from axiom_rift.operations.strict_operation_chain import (
     OperationStep,
@@ -2050,9 +2052,20 @@ def verify_diagnose_postconditions(
             for obligation_id, head in p1.items()
             if head.status == "pending"
         )
+        constraints = scheduler_constraints(
+            index,
+            mission_id=design.spec.mission_id,
+        )
         portfolio_head = index.event_head(
             f"portfolio:{design.spec.mission_id}"
         )
+    expected_next_action = with_scheduler_constraints(
+        {
+            "kind": "choose_next_initiative_or_terminal",
+            "mission_id": design.spec.mission_id,
+        },
+        constraints,
+    )
     if (
         control is None
         or target is None
@@ -2068,13 +2081,7 @@ def verify_diagnose_postconditions(
                 "active_study",
             )
         )
-        or control.get("next_action")
-        != {
-            "kind": "choose_next_initiative_or_terminal",
-            "mission_id": design.spec.mission_id,
-            "pending_replay_obligation_ids": pending,
-            "required_replay_priority": "p1",
-        }
+        or control.get("next_action") != expected_next_action
         or portfolio_head is None
         or portfolio_head.record_id != expected_snapshot.identity
     ):
