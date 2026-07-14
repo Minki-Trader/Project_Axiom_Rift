@@ -730,6 +730,56 @@ def _protocol_activation_operation_id(
     )
 
 
+def _recorded_protocol_activation_operation_ids(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+) -> tuple[str, ...]:
+    """Preserve every prior validator activation in strict replay order."""
+
+    index_path = getattr(writer, "index_path", None)
+    if index_path is None:
+        return ()
+    prefix = design.spec.operation_prefix
+    legacy_id = prefix + "activate-current-v2-protocol"
+    versioned_prefix = prefix + "activate-v2-protocol-"
+    ordered: list[tuple[int, str]] = []
+    with LocalIndex(index_path) as index:
+        for operation in index.records_by_kind("operation"):
+            if not (
+                operation.record_id == legacy_id
+                or operation.record_id.startswith(versioned_prefix)
+            ):
+                continue
+            result = operation.payload.get("result")
+            activation_id = (
+                result.get("activation_record_id")
+                if isinstance(result, Mapping)
+                else None
+            )
+            activation = (
+                index.get("research-protocol-activation", activation_id)
+                if isinstance(activation_id, str)
+                else None
+            )
+            if (
+                operation.status != "success"
+                or operation.payload.get("event_kind")
+                != "research_protocol_activated"
+                or activation is None
+                or activation.kind != "research-protocol-activation"
+                or type(activation.event_sequence) is not int
+            ):
+                raise RuntimeError(
+                    "recorded replay protocol activation is malformed"
+                )
+            ordered.append((activation.event_sequence, operation.record_id))
+    ordered.sort()
+    operation_ids = tuple(operation_id for _ordinal, operation_id in ordered)
+    if len(operation_ids) != len(set(operation_ids)):
+        raise RuntimeError("replay protocol activation history is ambiguous")
+    return operation_ids
+
+
 def _protocol_activation_step_needed(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
@@ -1064,10 +1114,19 @@ def operation_steps(
         )
         for member in design.members
     )
-    if _protocol_activation_step_needed(writer, design):
+    activation_operation_ids = list(
+        _recorded_protocol_activation_operation_ids(writer, design)
+    )
+    current_activation_operation_id = _protocol_activation_operation_id(design)
+    if (
+        _protocol_activation_step_needed(writer, design)
+        and current_activation_operation_id not in activation_operation_ids
+    ):
+        activation_operation_ids.append(current_activation_operation_id)
+    for activation_operation_id in activation_operation_ids:
         steps.append(
             OperationStep(
-                _protocol_activation_operation_id(design),
+                activation_operation_id,
                 "research_protocol_activated",
                 STUDY_CLOSE_STAGE,
             )

@@ -167,6 +167,40 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
 
     @patch(
         "axiom_rift.operations.fixed_hold_replay_workflow."
+        "_recorded_protocol_activation_operation_ids",
+        return_value=(
+            "fixture-fixed-hold-replay-activate-current-v2-protocol",
+        ),
+    )
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow."
+        "_protocol_activation_step_needed",
+        return_value=True,
+    )
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow._member_completion",
+        return_value=None,
+    )
+    def test_protocol_rebind_preserves_prior_activation_in_strict_chain(
+        self,
+        _completion,
+        _activation_needed,
+        _recorded_activations,
+    ) -> None:
+        design = self._design()
+        steps = operation_steps(SimpleNamespace(), design)
+        self.assertEqual(len(steps), 41)
+        self.assertEqual(
+            tuple(step.operation_id for step in steps[12:14]),
+            (
+                "fixture-fixed-hold-replay-activate-current-v2-protocol",
+                _protocol_activation_operation_id(design),
+            ),
+        )
+        self.assertTrue(steps[14].operation_id.endswith("-declare-job"))
+
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow."
         "_member_repair_chain_complete",
         side_effect=lambda _writer, _design, member: member.ordinal == 1,
     )
