@@ -870,30 +870,24 @@ _SELECTION_INFERENCE_DEPENDENCY = Path(
     selection_inference_module.__file__
 ).resolve()
 _SCIENTIFIC_TRACE_DEPENDENCY = Path(scientific_trace_module.__file__).resolve()
-_ANALOG_SCOPED_JOB_DEPENDENCY = (
-    Path(__file__).with_name("analog_state_scoped_job.py").resolve()
+_P0_REPLAY_INVENTORY_DEPENDENCY = (
+    Path(__file__).with_name("p0_replay_inventory.json").resolve()
 )
-_DRAWDOWN_REPLAY_DEPENDENCY = (
-    Path(__file__).with_name("drawdown_state_replay.py").resolve()
-)
-_FIXED_HOLD_TRACE_DEPENDENCY = (
-    Path(__file__).with_name("fixed_hold_family_trace.py").resolve()
-)
-_HISTORICAL_FAMILY_REPLAY_DEPENDENCY = (
-    Path(__file__).with_name("historical_family_replay.py").resolve()
-)
-SCIENTIFIC_VALIDATION_V2_DEPENDENCIES = (
-    _ADJUDICATION_DEPENDENCY,
-    _ANALOG_FAMILY_DEPENDENCY,
-    _ANALOG_TRACE_DEPENDENCY,
-    _ANALOG_SCOPED_JOB_DEPENDENCY,
-    _AUDIT_PROOF_DEPENDENCY,
-    _DRAWDOWN_REPLAY_DEPENDENCY,
-    _EVIDENCE_PROOF_DEPENDENCY,
-    _FIXED_HOLD_TRACE_DEPENDENCY,
-    _HISTORICAL_FAMILY_REPLAY_DEPENDENCY,
-    _SELECTION_INFERENCE_DEPENDENCY,
-    _SCIENTIFIC_TRACE_DEPENDENCY,
+SCIENTIFIC_VALIDATION_V2_DEPENDENCIES = tuple(
+    sorted(
+        {
+            _ADJUDICATION_DEPENDENCY,
+            _ANALOG_FAMILY_DEPENDENCY,
+            _ANALOG_TRACE_DEPENDENCY,
+            _AUDIT_PROOF_DEPENDENCY,
+            _EVIDENCE_PROOF_DEPENDENCY,
+            _P0_REPLAY_INVENTORY_DEPENDENCY,
+            _SELECTION_INFERENCE_DEPENDENCY,
+            _SCIENTIFIC_TRACE_DEPENDENCY,
+            *scientific_trace_module.scientific_trace_validation_dependency_paths(),
+        },
+        key=lambda value: value.as_posix(),
+    )
 )
 SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID = validator_identity(
     protocol=SCIENTIFIC_VALIDATION_V2_PROTOCOL,

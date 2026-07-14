@@ -101,6 +101,9 @@ from axiom_rift.research.replay_obligation import (  # noqa: E402
     ReplayResumeConditionKind,
     ReplaySatisfaction,
 )
+from axiom_rift.research.replay_exposure import (  # noqa: E402
+    derive_frozen_family_exposure_context,
+)
 from axiom_rift.research.trials import NegativeMemory, TrialAccountant  # noqa: E402
 from axiom_rift.research.validation_v2 import (  # noqa: E402
     SCIENTIFIC_VALIDATION_V2_DEPENDENCIES,
@@ -272,14 +275,26 @@ def _require_historical_non_p1_exposure(
     p1_executable_ids = {member.executable.identity for member in members}
     if len(p1_executable_ids) != 4:
         raise RuntimeError("P1 replay executable exclusion set is not exact")
-    historical_trial_count = sum(
-        record.record_id not in p1_executable_ids
-        for record in index.records_by_kind("trial")
-    )
+    trials = tuple(index.records_by_kind("trial"))
     prior_floor = TrialAccountant.from_foundation(
         writer.foundation_root
     ).prior_global_multiplicity_floor
-    historical_exposure = prior_floor + historical_trial_count
+    context = derive_frozen_family_exposure_context(
+        trials=trials,
+        prior_global_exposure_floor=prior_floor,
+        study_id=STUDY_ID,
+        expected_family_size=4,
+        # The legacy STU-0061 Executables predate embedded context fields.
+        # Exact family ids and the first immutable trial sequence bind the
+        # frozen head; the constant below remains the independent check.
+        parameter_name=None,
+        allow_unregistered=True,
+    )
+    if context.family_executable_ids and (
+        set(context.family_executable_ids) != p1_executable_ids
+    ):
+        raise RuntimeError("STU-0061 replay registered family drifted")
+    historical_exposure = context.prior_global_exposure_count
     if historical_exposure != ANALOG_REPLAY_PRIOR_GLOBAL_EXPOSURE_COUNT:
         raise RuntimeError(
             "STU-0061 replay historical non-P1 exposure context drifted"
@@ -862,6 +877,91 @@ def _implementation_identity(
         if materialize
         else sha256(content).hexdigest()
     )
+
+
+def _require_completed_job_spec_compatible(
+    writer: StateWriter,
+    *,
+    actual: object,
+    expected_current: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    """Verify old Job semantics without assigning current code identities.
+
+    Implementation bytes, their input hashes, and the validator identity are
+    prospective version bindings. A completed Job retains those historical
+    values after repository code advances. Every invariant field, validation
+    plan, stored source closure, and stored input byte remains mandatory.
+    """
+
+    if not isinstance(actual, Mapping):
+        raise RuntimeError("completed P1 replay Job specification is absent")
+    versioned_fields = {
+        "implementation_identity",
+        "input_hashes",
+        "scientific_binding",
+    }
+    if {
+        key: value
+        for key, value in actual.items()
+        if key not in versioned_fields
+    } != {
+        key: value
+        for key, value in expected_current.items()
+        if key not in versioned_fields
+    }:
+        raise RuntimeError("completed P1 replay Job semantics drifted")
+    actual_binding = actual.get("scientific_binding")
+    expected_binding = expected_current.get("scientific_binding")
+    if not isinstance(actual_binding, Mapping) or not isinstance(
+        expected_binding, Mapping
+    ):
+        raise RuntimeError("completed P1 replay scientific binding is absent")
+    if {
+        key: value
+        for key, value in actual_binding.items()
+        if key != "validator_id"
+    } != {
+        key: value
+        for key, value in expected_binding.items()
+        if key != "validator_id"
+    }:
+        raise RuntimeError("completed P1 replay scientific plan drifted")
+    validator_id = actual_binding.get("validator_id")
+    validator_digest = (
+        validator_id.removeprefix("validator:")
+        if isinstance(validator_id, str)
+        else ""
+    )
+    if len(validator_digest) != 64 or any(
+        character not in "0123456789abcdef"
+        for character in validator_digest
+    ):
+        raise RuntimeError("completed P1 replay validator identity is invalid")
+    inputs = actual.get("input_hashes")
+    if (
+        not isinstance(inputs, list)
+        or inputs != sorted(set(inputs))
+        or any(
+            type(value) is not str
+            or len(value) != 64
+            or any(character not in "0123456789abcdef" for character in value)
+            for value in inputs
+        )
+    ):
+        raise RuntimeError("completed P1 replay Job inputs are invalid")
+    try:
+        writer.evidence.read_verified(
+            str(actual_binding["validation_plan_hash"])
+        )
+        writer._require_job_implementation_evidence(
+            actual,
+            allowed_historical_control_ids=("STU-0061",),
+        )
+    except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+        raise RuntimeError(
+            "completed P1 replay Job source closure is unavailable"
+        ) from exc
+    return actual_binding
 
 
 def _job_cache_contract(
@@ -1683,7 +1783,6 @@ def validate_replay_prefix_semantics(
                 )
                 if (
                     declaration is None
-                    or declaration.payload.get("spec") != expected_spec
                     or declaration.payload.get("study_id") != STUDY_ID
                     or declaration.payload.get("batch_id")
                     != design.batch_spec.identity
@@ -1692,6 +1791,11 @@ def validate_replay_prefix_semantics(
                     raise RuntimeError(
                         f"completed P1 replay {stem} Job declaration drifted"
                     )
+                _require_completed_job_spec_compatible(
+                    writer,
+                    actual=declaration.payload.get("spec"),
+                    expected_current=expected_spec,
+                )
             if done(stem + "-job-permit"):
                 declaration_result = _operation_result(
                     writer, operation_stem + "-declare-job"
@@ -1741,6 +1845,28 @@ def validate_replay_prefix_semantics(
                 declaration_result = _operation_result(
                     writer, operation_stem + "-declare-job"
                 )
+                declaration = index.get(
+                    "job-declared",
+                    str(declaration_result.get("job_id")),
+                )
+                declared_spec = (
+                    None if declaration is None else declaration.payload.get("spec")
+                )
+                declared_binding = (
+                    None
+                    if not isinstance(declared_spec, Mapping)
+                    else declared_spec.get("scientific_binding")
+                )
+                historical_validator_id = (
+                    None
+                    if not isinstance(declared_binding, Mapping)
+                    else declared_binding.get("validator_id")
+                )
+                validation_trace = (
+                    None
+                    if not isinstance(scientific, Mapping)
+                    else scientific.get("validation_trace")
+                )
                 if (
                     completion is None
                     or completion.status != "success"
@@ -1751,7 +1877,10 @@ def validate_replay_prefix_semantics(
                     or not isinstance(scientific, Mapping)
                     or scientific.get("executable_id") != member.executable.identity
                     or scientific.get("validator_id")
-                    != ScientificAdjudicationValidatorV2.validator_id
+                    != historical_validator_id
+                    or not isinstance(validation_trace, Mapping)
+                    or validation_trace.get("validator_id")
+                    != historical_validator_id
                     or scientific.get("validation_plan_hash")
                     != member.replay_plan.plan_hash
                     or scientific.get("scientific_eligible") is not True

@@ -17,6 +17,10 @@ from axiom_rift.operations.validation import (
     validator_implementation_sha256,
 )
 from axiom_rift.research.validation import SCIENTIFIC_DISCOVERY_VALIDATOR_ID
+from axiom_rift.research.scientific_trace import (
+    SCIENTIFIC_TRACE_PROTOCOL_IDS,
+    scientific_trace_validation_dependency_paths,
+)
 from axiom_rift.research.evidence_proofs import (
     COST_EXECUTION_PROOF_KIND,
     PAIRED_CONTROL_PROOF_KIND,
@@ -433,6 +437,33 @@ class ScientificValidationV2Tests(unittest.TestCase):
                 domains=SCIENTIFIC_VALIDATION_V2_DOMAINS,
                 implementation_sha256=implementation_hash,
             ),
+        )
+
+    def test_v2_identity_covers_every_lazy_trace_protocol_dependency(self) -> None:
+        dependency_paths = set(SCIENTIFIC_VALIDATION_V2_DEPENDENCIES)
+        trace_paths = set(scientific_trace_validation_dependency_paths())
+        self.assertTrue(trace_paths.issubset(dependency_paths))
+        self.assertEqual(len(SCIENTIFIC_TRACE_PROTOCOL_IDS), 7)
+        self.assertTrue(
+            {
+                "composite_consensus_replay.py",
+                "composite_router_replay.py",
+                "distribution_asymmetry_replay.py",
+                "historical_family_stu0016.py",
+                "historical_family_stu0017.py",
+                "historical_family_stu0032.py",
+                "historical_family_stu0048.py",
+                "historical_family_stu0051.py",
+                "volatility_duration_replay.py",
+            }.issubset({path.name for path in trace_paths})
+        )
+        self.assertIn(
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "axiom_rift"
+            / "research"
+            / "p0_replay_inventory.json",
+            dependency_paths,
         )
 
     def test_discovery_passes_with_b04_diagnostic_but_never_candidate(self) -> None:

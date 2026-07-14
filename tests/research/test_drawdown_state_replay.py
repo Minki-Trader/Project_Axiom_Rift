@@ -22,7 +22,9 @@ from axiom_rift.research.drawdown_state_replay import (
 )
 from axiom_rift.research.drawdown_state_replay_job import (
     CALLABLE_IDENTITY,
+    RUNTIME_ADAPTER,
     build_drawdown_replay_job_plan,
+    drawdown_replay_job_implementation_artifact,
     drawdown_replay_job_implementation_sha256,
     materialize_drawdown_replay_job_implementation,
 )
@@ -37,6 +39,9 @@ from axiom_rift.research.fixed_hold_family_trace import (
     bind_fixed_hold_family_trace,
     build_fixed_hold_trace_calculation,
 )
+from axiom_rift.research.fixed_hold_replay_runtime import (
+    fixed_hold_replay_runtime_dependency_paths,
+)
 from axiom_rift.research.historical_family_replay import (
     STU0048_HISTORICAL_FAMILY,
 )
@@ -46,9 +51,7 @@ from axiom_rift.research.scientific_trace import (
     trace_proof_kinds,
     validate_trace_calculation_pair,
 )
-from axiom_rift.research.validation_v2 import (
-    adjudicate_validation_measurement_v2,
-)
+from axiom_rift.research.validation_v2 import adjudicate_validation_measurement_v2
 
 
 HISTORICAL_CONTEXT_COUNT = 578
@@ -79,7 +82,33 @@ class DrawdownReplayBoundaryTests(unittest.TestCase):
             manifest["schema"],
             "job_implementation_evidence.v1",
         )
-        self.assertEqual(len(manifest["artifact_hashes"]), 4)
+        expected_artifacts = {
+            sha256(drawdown_replay_job_implementation_artifact()).hexdigest(),
+            *(
+                sha256(path.read_bytes()).hexdigest()
+                for path in fixed_hold_replay_runtime_dependency_paths(
+                    RUNTIME_ADAPTER
+                )
+            ),
+        }
+        self.assertEqual(set(manifest["artifact_hashes"]), expected_artifacts)
+        dependency_names = {
+            path.name
+            for path in fixed_hold_replay_runtime_dependency_paths(
+                RUNTIME_ADAPTER
+            )
+        }
+        self.assertIn("historical_family_stu0048.py", dependency_names)
+        self.assertTrue(
+            dependency_names.isdisjoint(
+                {
+                    "historical_family_stu0016.py",
+                    "historical_family_stu0017.py",
+                    "historical_family_stu0032.py",
+                    "historical_family_stu0051.py",
+                }
+            )
+        )
 
     def test_family_identity_is_new_exact_and_context_bound(self) -> None:
         definition = drawdown_replay_protocol_definition(

@@ -510,16 +510,35 @@ class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
         self.assertEqual(summary["reproducible_cache_output_count"], 1)
         self.assertEqual(summary["historical_non_p1_exposure_count"], 574)
 
-    def test_historical_exposure_excludes_all_four_preregistered_p1_trials(
+    def test_historical_exposure_freezes_before_all_four_p1_trials(
         self,
     ) -> None:
         members = subject.ordered_replay_members()
         historical = tuple(
-            SimpleNamespace(record_id=f"executable:{index:064x}")
+            IndexRecord(
+                kind="trial",
+                record_id=f"executable:{index:064x}",
+                subject="Mission:MIS-HISTORICAL",
+                status="evaluated",
+                fingerprint=f"{index:064x}",
+                payload={"study_id": "STU-HISTORICAL"},
+                authority_sequence=index + 1,
+            )
             for index in range(556)
         )
         p1 = tuple(
-            SimpleNamespace(record_id=member.executable.identity)
+            IndexRecord(
+                kind="trial",
+                record_id=member.executable.identity,
+                subject=f"Study:{subject.STUDY_ID}",
+                status="registered",
+                fingerprint=f"{member.ordinal + 600:064x}",
+                payload={
+                    "executable": member.executable.to_identity_payload(),
+                    "study_id": subject.STUDY_ID,
+                },
+                authority_sequence=556 + member.ordinal,
+            )
             for member in members
         )
         index = SimpleNamespace(
@@ -540,16 +559,26 @@ class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
                 ),
                 574,
             )
-            foreign = SimpleNamespace(record_id="executable:" + "f" * 64)
+            foreign = IndexRecord(
+                kind="trial",
+                record_id="executable:" + "f" * 64,
+                subject="Mission:MIS-LATER",
+                status="evaluated",
+                fingerprint="f" * 64,
+                payload={"study_id": "STU-LATER"},
+                authority_sequence=561,
+            )
             index.records_by_kind = lambda kind: (
                 historical + p1 + (foreign,) if kind == "trial" else ()
             )
-            with self.assertRaisesRegex(RuntimeError, "context drifted"):
+            self.assertEqual(
                 subject._require_historical_non_p1_exposure(
                     writer,
                     index,
                     members,
-                )
+                ),
+                574,
+            )
 
     def test_close_provenance_uses_durable_traces_without_requiring_cache_file(
         self,

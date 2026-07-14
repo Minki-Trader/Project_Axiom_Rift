@@ -39,9 +39,6 @@ from axiom_rift.research.replay_exposure import (
     derive_frozen_family_exposure_context,
 )
 from axiom_rift.research.trials import TrialAccountant
-from axiom_rift.research.validation_v2 import (
-    SCIENTIFIC_VALIDATION_V2_DEPENDENCIES,
-)
 from axiom_rift.storage.index import LocalIndex
 
 
@@ -154,10 +151,6 @@ def fixed_hold_replay_runtime_dependency_paths(
                 Path(trials_module.__file__).resolve(),
                 Path(index_module.__file__).resolve(),
                 *adapter.dependency_paths,
-                *(
-                    Path(value).resolve()
-                    for value in SCIENTIFIC_VALIDATION_V2_DEPENDENCIES
-                ),
             },
             key=lambda value: value.as_posix(),
         )

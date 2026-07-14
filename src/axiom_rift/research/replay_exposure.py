@@ -37,7 +37,7 @@ def derive_frozen_family_exposure_context(
     prior_global_exposure_floor: int,
     study_id: str,
     expected_family_size: int,
-    parameter_name: str,
+    parameter_name: str | None,
     allow_unregistered: bool,
 ) -> FrozenFamilyExposureContext:
     """Derive the pre-family count from immutable trial authority order.
@@ -48,7 +48,8 @@ def derive_frozen_family_exposure_context(
     """
 
     _ascii("replay Study id", study_id)
-    _ascii("replay exposure parameter", parameter_name)
+    if parameter_name is not None:
+        _ascii("replay exposure parameter", parameter_name)
     if (
         type(prior_global_exposure_floor) is not int
         or prior_global_exposure_floor < 0
@@ -93,28 +94,29 @@ def derive_frozen_family_exposure_context(
         for record in values
         if record.authority_sequence is not None
     )
-    contexts: set[int] = set()
-    for record in family:
-        executable = record.payload.get("executable")
-        parameters = (
-            None
-            if not isinstance(executable, Mapping)
-            else executable.get("parameters")
-        )
-        context = (
-            None
-            if not isinstance(parameters, Mapping)
-            else parameters.get(parameter_name)
-        )
-        if type(context) is not int or context < 0:
-            raise ReplayExposureError(
-                "registered replay family exposure context is invalid"
+    if parameter_name is not None:
+        contexts: set[int] = set()
+        for record in family:
+            executable = record.payload.get("executable")
+            parameters = (
+                None
+                if not isinstance(executable, Mapping)
+                else executable.get("parameters")
             )
-        contexts.add(context)
-    if contexts != {frozen_count}:
-        raise ReplayExposureError(
-            "registered replay family differs from its frozen exposure head"
-        )
+            context = (
+                None
+                if not isinstance(parameters, Mapping)
+                else parameters.get(parameter_name)
+            )
+            if type(context) is not int or context < 0:
+                raise ReplayExposureError(
+                    "registered replay family exposure context is invalid"
+                )
+            contexts.add(context)
+        if contexts != {frozen_count}:
+            raise ReplayExposureError(
+                "registered replay family differs from its frozen exposure head"
+            )
     return FrozenFamilyExposureContext(
         prior_global_exposure_count=frozen_count,
         family_executable_ids=family_ids,

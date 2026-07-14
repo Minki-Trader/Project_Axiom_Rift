@@ -9,6 +9,7 @@ invokes the corresponding repository-owned pure recomputer.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 
@@ -35,6 +36,52 @@ DISTRIBUTION_ASYMMETRY_REPLAY_TRACE_PROTOCOL_ID = (
 VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID = (
     "volatility_duration.concurrent_four_config.replay.v1"
 )
+
+# Keep protocol dispatch and validator source identity on one closed registry.
+# The dispatcher imports these implementations lazily to avoid module cycles,
+# so an ordinary import graph cannot protect the validator identity from a
+# changed protocol implementation.  validation_v2 consumes this exact list.
+SCIENTIFIC_TRACE_PROTOCOL_IDS = frozenset(
+    {
+        ANALOG_STATE_TRACE_PROTOCOL_ID,
+        ANALOG_SCOPED_TRACE_PROTOCOL_ID,
+        COMPOSITE_CONSENSUS_REPLAY_TRACE_PROTOCOL_ID,
+        COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID,
+        DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID,
+        DISTRIBUTION_ASYMMETRY_REPLAY_TRACE_PROTOCOL_ID,
+        VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID,
+    }
+)
+_SCIENTIFIC_TRACE_VALIDATION_DEPENDENCY_NAMES = (
+    "analog_state_family.py",
+    "analog_state_replay.py",
+    "analog_state_replay_v2.py",
+    "analog_state_scoped_job.py",
+    "analog_state_trace.py",
+    "composite_consensus_replay.py",
+    "composite_router_replay.py",
+    "distribution_asymmetry_replay.py",
+    "drawdown_state_replay.py",
+    "fixed_hold_family_trace.py",
+    "historical_family_replay.py",
+    "historical_family_stu0016.py",
+    "historical_family_stu0017.py",
+    "historical_family_stu0032.py",
+    "historical_family_stu0048.py",
+    "historical_family_stu0051.py",
+    "routed_sleeve_replay.py",
+    "volatility_duration_replay.py",
+)
+
+
+def scientific_trace_validation_dependency_paths() -> tuple[Path, ...]:
+    """Return every lazy protocol source that can adjudicate an artifact."""
+
+    root = Path(__file__).resolve().parent
+    paths = tuple(root / name for name in _SCIENTIFIC_TRACE_VALIDATION_DEPENDENCY_NAMES)
+    if len(paths) != len(set(paths)) or any(not path.is_file() for path in paths):
+        raise RuntimeError("scientific trace validator dependency registry drifted")
+    return paths
 
 _TRACE_FIELDS = {
     "adapter_implementation_sha256",
@@ -96,15 +143,7 @@ def trace_proof_kinds(
 ) -> dict[str, str]:
     """Return the closed proof pair for one supported protocol and mode."""
 
-    if protocol_id not in {
-        ANALOG_STATE_TRACE_PROTOCOL_ID,
-        ANALOG_SCOPED_TRACE_PROTOCOL_ID,
-        COMPOSITE_CONSENSUS_REPLAY_TRACE_PROTOCOL_ID,
-        COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID,
-        DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID,
-        DISTRIBUTION_ASYMMETRY_REPLAY_TRACE_PROTOCOL_ID,
-        VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID,
-    }:
+    if protocol_id not in SCIENTIFIC_TRACE_PROTOCOL_IDS:
         raise ScientificTraceError("scientific trace protocol is not registered")
     if evidence_mode not in {
         "causal_contrast",
@@ -390,8 +429,10 @@ __all__ = [
     "DISTRIBUTION_ASYMMETRY_REPLAY_TRACE_PROTOCOL_ID",
     "SCIENTIFIC_CALCULATION_PROOF_SCHEMA",
     "SCIENTIFIC_EVALUATION_TRACE_SCHEMA",
+    "SCIENTIFIC_TRACE_PROTOCOL_IDS",
     "ScientificTraceError",
     "VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID",
+    "scientific_trace_validation_dependency_paths",
     "trace_proof_kinds",
     "validate_trace_calculation_pair",
 ]
