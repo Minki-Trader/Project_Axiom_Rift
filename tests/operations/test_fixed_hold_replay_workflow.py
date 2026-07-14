@@ -12,6 +12,7 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
     _member_repair_chain_complete,
     _protocol_activation_operation_id,
     _projection_payloads,
+    _terminal_replay_reconstruction_allowed,
     fixed_hold_replay_batch_budget,
     fixed_hold_replay_job_budget,
     operation_steps,
@@ -20,6 +21,50 @@ from axiom_rift.operations.replay_projection import with_scheduler_constraints
 
 
 class FixedHoldReplayWorkflowTests(unittest.TestCase):
+    def test_terminal_reconstruction_requires_complete_exact_diagnosis_chain(
+        self,
+    ) -> None:
+        spec = self._spec()
+        expected_events = {
+            "diagnose-study": "study_diagnosis_recorded",
+            "resolve-replay": "historical_replay_obligations_resolved",
+            "disposition-decision": "portfolio_decision_recorded",
+            "disposition-snapshot": "portfolio_snapshot_recorded",
+            "close-initiative": "initiative_closed",
+        }
+        records = {
+            spec.operation_prefix + suffix: SimpleNamespace(
+                status="success",
+                payload={
+                    "event_kind": event_kind,
+                    "result": (
+                        {"initiative_id": spec.initiative_id}
+                        if suffix == "close-initiative"
+                        else {}
+                    ),
+                },
+            )
+            for suffix, event_kind in expected_events.items()
+        }
+        index = SimpleNamespace(
+            get=lambda _kind, record_id: records.get(record_id)
+        )
+        terminal = SimpleNamespace(status="satisfied")
+        self.assertTrue(
+            _terminal_replay_reconstruction_allowed(index, spec, terminal)
+        )
+        records.pop(spec.operation_prefix + "disposition-snapshot")
+        self.assertFalse(
+            _terminal_replay_reconstruction_allowed(index, spec, terminal)
+        )
+        self.assertFalse(
+            _terminal_replay_reconstruction_allowed(
+                index,
+                spec,
+                SimpleNamespace(status="pending"),
+            )
+        )
+
     def test_exhausted_replay_queue_omits_scheduler_constraint_fields(
         self,
     ) -> None:

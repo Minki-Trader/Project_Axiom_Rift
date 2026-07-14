@@ -363,6 +363,52 @@ def _projection_payloads(
     return tuple(values)
 
 
+def _terminal_replay_reconstruction_allowed(
+    index: LocalIndex,
+    spec: FixedHoldReplayMissionSpec,
+    target_head: IndexRecord,
+) -> bool:
+    """Permit read-only reconstruction only after the exact diagnosis chain."""
+
+    if target_head.status not in {"satisfied", "deferred"}:
+        return False
+    expected = (
+        ("diagnose-study", {"study_diagnosis_recorded"}),
+        (
+            "resolve-replay",
+            {
+                "historical_replay_obligations_resolved",
+                "historical_replay_obligations_deferred",
+            },
+        ),
+        ("disposition-decision", {"portfolio_decision_recorded"}),
+        ("disposition-snapshot", {"portfolio_snapshot_recorded"}),
+        ("close-initiative", {"initiative_closed"}),
+    )
+    records = tuple(
+        index.get("operation", spec.operation_prefix + suffix)
+        for suffix, _event_kinds in expected
+    )
+    if any(record is None for record in records):
+        return False
+    if any(
+        record.status != "success"
+        or record.payload.get("event_kind") not in event_kinds
+        for record, (_suffix, event_kinds) in zip(
+            records,
+            expected,
+            strict=True,
+        )
+        if record is not None
+    ):
+        return False
+    close_result = records[-1].payload.get("result")
+    return (
+        isinstance(close_result, Mapping)
+        and close_result.get("initiative_id") == spec.initiative_id
+    )
+
+
 def build_fixed_hold_replay_design(
     writer: StateWriter,
     *,
@@ -410,12 +456,23 @@ def build_fixed_hold_replay_design(
                 mission_id=spec.mission_id,
             )
         }
-    target = obligations.get(spec.target_obligation_id)
+        target = obligations.get(spec.target_obligation_id)
+        terminal_reconstruction = (
+            target is not None
+            and _terminal_replay_reconstruction_allowed(
+                index,
+                spec,
+                target[1],
+            )
+        )
     if (
         any(axis.axis_id == spec.axis_id for axis in prior_axes)
         or not selectable
         or target is None
-        or target[1].status not in {"pending", "in_progress"}
+        or (
+            target[1].status not in {"pending", "in_progress"}
+            and not terminal_reconstruction
+        )
     ):
         raise RuntimeError("replay axis, bridge, or obligation boundary is invalid")
     obligation, _target_head = target
