@@ -208,7 +208,10 @@ def drawdown_replay_configurations() -> tuple[DrawdownReplayConfiguration, ...]:
         for member in STU0048_HISTORICAL_FAMILY.members
     )
     if tuple(value.ordinal for value in values) != (1, 2, 3, 4):
-        raise RuntimeError("STU-0048 drawdown family order drifted")
+        raise RuntimeError(
+            f"{STU0048_HISTORICAL_FAMILY.original_study_id} drawdown family "
+            "order drifted"
+        )
     return values
 
 
@@ -317,7 +320,10 @@ def drawdown_replay_components() -> tuple[ComponentSpec, ...]:
         semantic_dependencies=(execution.identity,),
     )
     synthesis = ComponentSpec(
-        display_name="registered STU-0048 replay member",
+        display_name=(
+            "registered "
+            f"{STU0048_HISTORICAL_FAMILY.original_study_id} replay member"
+        ),
         protocol="synthesis.historical_fixed_hold_member.v2",
         implementation=_local("drawdown_replay_executable"),
         spec={
@@ -332,7 +338,10 @@ def drawdown_replay_components() -> tuple[ComponentSpec, ...]:
         semantic_dependencies=(risk.identity,),
     )
     portfolio = ComponentSpec(
-        display_name="exact concurrent STU-0048 replay inference",
+        display_name=(
+            "exact concurrent "
+            f"{STU0048_HISTORICAL_FAMILY.original_study_id} replay inference"
+        ),
         protocol="portfolio.concurrent_fixed_hold_family_inference.v2",
         implementation=(
             "axiom_rift.research.fixed_hold_family_trace."
@@ -378,7 +387,8 @@ def _drawdown_replay_shared_parameters(
         < DRAWDOWN_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT
     ):
         raise ValueError(
-            "historical context cannot precede the original STU-0048 family"
+            "historical context cannot precede the original "
+            f"{STU0048_HISTORICAL_FAMILY.original_study_id} family"
         )
     return {
         "alpha_ppm": DRAWDOWN_REPLAY_ALPHA_PPM,
@@ -411,9 +421,15 @@ def drawdown_replay_executable(
     historical_context_prior_global_exposure_count: int,
 ) -> ExecutableSpec:
     if configuration not in drawdown_replay_configurations():
-        raise ValueError("configuration is outside the exact STU-0048 family")
+        raise ValueError(
+            "configuration is outside the exact "
+            f"{STU0048_HISTORICAL_FAMILY.original_study_id} family"
+        )
     return ExecutableSpec(
-        display_name=f"STU-0048 replay {configuration.configuration_id}",
+        display_name=(
+            f"{STU0048_HISTORICAL_FAMILY.original_study_id} replay "
+            f"{configuration.configuration_id}"
+        ),
         components=drawdown_replay_components(),
         parameters={
             **configuration.semantic_parameters(),
@@ -445,7 +461,10 @@ def drawdown_replay_baseline_executable(
     """
 
     return ExecutableSpec(
-        display_name="STU-0048 non-evaluated comparison anchor",
+        display_name=(
+            f"{STU0048_HISTORICAL_FAMILY.original_study_id} "
+            "non-evaluated comparison anchor"
+        ),
         components=drawdown_replay_components(),
         parameters={
             **_drawdown_replay_shared_parameters(
@@ -824,7 +843,11 @@ def _load_historical_evaluations(
             or value.get("schema") != "drawdown_state_evaluation.v1"
             or value.get("subject_configuration_id") != configuration_id
         ):
-            raise RuntimeError("historical STU-0048 evaluation binding drifted")
+            raise RuntimeError(
+                "historical "
+                f"{STU0048_HISTORICAL_FAMILY.original_study_id} evaluation "
+                "binding drifted"
+            )
         evaluations[configuration_id] = value
     return evaluations
 
@@ -899,7 +922,9 @@ def _assert_historical_raw_parity(
         }
         if mismatches:
             raise RuntimeError(
-                "prospective STU-0048 raw results differ from historical "
+                "prospective "
+                f"{STU0048_HISTORICAL_FAMILY.original_study_id} raw results "
+                "differ from historical "
                 f"evidence for {configuration.configuration_id}: "
                 f"{mismatches}"
             )

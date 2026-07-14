@@ -14,6 +14,7 @@ import axiom_rift.research.fixed_hold_family_trace as fixed_hold_trace_module
 import axiom_rift.research.fixed_hold_trace_engine as trace_engine_module
 import axiom_rift.research.governance as governance_module
 import axiom_rift.research.historical_family_replay as historical_family_module
+import axiom_rift.research.historical_family_stu0032 as historical_family_binding_module
 import axiom_rift.research.scientific_trace as scientific_trace_module
 import axiom_rift.research.selection_inference as selection_inference_module
 import axiom_rift.storage.evidence as evidence_module
@@ -107,6 +108,7 @@ RUNTIME_ADAPTER = FixedHoldReplayRuntimeAdapter(
                 Path(fixed_hold_trace_module.__file__).resolve(),
                 Path(governance_module.__file__).resolve(),
                 Path(historical_family_module.__file__).resolve(),
+                Path(historical_family_binding_module.__file__).resolve(),
                 Path(parity_module.__file__).resolve(),
                 Path(replay_module.__file__).resolve(),
                 Path(scientific_trace_module.__file__).resolve(),

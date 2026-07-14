@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.operations.writer import _hardcoded_control_ids
+import axiom_rift.research.historical_family_replay as historical_family_module
+import axiom_rift.research.historical_family_stu0016 as stu0016_module
+import axiom_rift.research.historical_family_stu0017 as stu0017_module
 from axiom_rift.research.historical_family_replay import (
     ALL_P1_HISTORICAL_FAMILY_CATALOG,
     ALL_P1_HISTORICAL_FAMILY_CATALOG_DIGEST,
@@ -115,6 +120,24 @@ def executable_values(value: object) -> tuple[str, ...]:
 
 
 class HistoricalFamilyReplayTests(unittest.TestCase):
+    def test_authority_bindings_are_isolated_from_reusable_family_data(
+        self,
+    ) -> None:
+        self.assertEqual(
+            _hardcoded_control_ids(
+                Path(historical_family_module.__file__).read_bytes()
+            ),
+            (),
+        )
+        self.assertEqual(
+            _hardcoded_control_ids(Path(stu0016_module.__file__).read_bytes()),
+            ("STU-0016",),
+        )
+        self.assertEqual(
+            _hardcoded_control_ids(Path(stu0017_module.__file__).read_bytes()),
+            ("STU-0017",),
+        )
+
     def test_builtin_catalog_is_exact_ascii_and_digest_frozen(self) -> None:
         self.assertEqual(
             tuple(

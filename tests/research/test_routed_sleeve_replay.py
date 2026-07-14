@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import unittest
 
 from axiom_rift.core.canonical import parse_canonical
+from axiom_rift.operations.writer import _hardcoded_control_ids
 from axiom_rift.research.composite_consensus_replay import (
     COMPOSITE_CONSENSUS_REPLAY_HISTORICAL_CONTEXT_ID,
     composite_consensus_replay_configurations,
@@ -201,6 +202,9 @@ class RoutedSleeveReplayTests(unittest.TestCase):
                 "axiom_rift/research/composite_router_replay.py",
                 "axiom_rift/research/composite_router_replay_job.py",
                 "axiom_rift/research/composite_router_study.py",
+                "axiom_rift/research/historical_family_stu0016.py",
+                "axiom_rift/research/historical_family_stu0017.py",
+                "STU-0016",
             ),
             (
                 CONSENSUS_RUNTIME_ADAPTER,
@@ -210,13 +214,29 @@ class RoutedSleeveReplayTests(unittest.TestCase):
                 "axiom_rift/research/composite_consensus_replay.py",
                 "axiom_rift/research/composite_consensus_replay_job.py",
                 "axiom_rift/research/composite_consensus_study.py",
+                "axiom_rift/research/historical_family_stu0017.py",
+                "axiom_rift/research/historical_family_stu0016.py",
+                "STU-0017",
             ),
         )
-        for runtime, artifact_builder, identity_builder, materialize, adapter, job, old in cases:
+        for (
+            runtime,
+            artifact_builder,
+            identity_builder,
+            materialize,
+            adapter,
+            job,
+            old,
+            binding,
+            foreign_binding,
+            allowed_study_id,
+        ) in cases:
             artifact = parse_canonical(artifact_builder())
             paths = {value["path"] for value in artifact["dependencies"]}
             self.assertIn(adapter, paths)
             self.assertIn(job, paths)
+            self.assertIn(binding, paths)
+            self.assertNotIn(foreign_binding, paths)
             self.assertIn(
                 "axiom_rift/research/routed_sleeve_trace_engine.py",
                 paths,
@@ -229,6 +249,23 @@ class RoutedSleeveReplayTests(unittest.TestCase):
                 materialize(writer),  # type: ignore[arg-type]
                 identity,
             )
+            manifest = parse_canonical(writer.evidence.artifacts[identity])
+            manifest_hashes = set(manifest["artifact_hashes"])
+            dependency_hashes = {
+                value["sha256"] for value in artifact["dependencies"]
+            }
+            self.assertTrue(dependency_hashes.issubset(manifest_hashes))
+            self.assertTrue(
+                dependency_hashes.issubset(writer.evidence.artifacts)
+            )
+            hardcoded = {
+                control_id
+                for source_hash in manifest_hashes
+                for control_id in _hardcoded_control_ids(
+                    writer.evidence.artifacts[source_hash]
+                )
+            }
+            self.assertEqual(hardcoded, {allowed_study_id})
 
     def test_each_member_gets_one_shared_cache_job_plan(self) -> None:
         cases = (

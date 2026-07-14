@@ -10,6 +10,8 @@ Executable parameter boundary.
 from __future__ import annotations
 
 from dataclasses import InitVar, dataclass, field
+from functools import partial
+from importlib import import_module
 from typing import Any
 
 from axiom_rift.core.canonical import (
@@ -480,8 +482,8 @@ _STU0048_IDS = {
     ),
 }
 
-STU0048_HISTORICAL_FAMILY = HistoricalFamilySpec(
-    original_study_id="STU-0048",
+_build_stu0048_historical_family = partial(
+    HistoricalFamilySpec,
     original_batch_id=(
         "batch:ed48b5be86d9c772bcdd1dda59472376386077898f2e23d004a1d7ee90fdbd4b"
     ),
@@ -572,8 +574,8 @@ _STU0051_IDS = {
     ),
 }
 
-STU0051_HISTORICAL_FAMILY = HistoricalFamilySpec(
-    original_study_id="STU-0051",
+_build_stu0051_historical_family = partial(
+    HistoricalFamilySpec,
     original_batch_id=(
         "batch:0898237a60c32ed2a3d66d3160a49c041bd2afcd683d48943a14fd8b06e38b7c"
     ),
@@ -779,8 +781,8 @@ _STU0032_CONTROL_KEYS = {
     ),
 }
 
-STU0032_HISTORICAL_FAMILY = HistoricalFamilySpec(
-    original_study_id="STU-0032",
+_build_stu0032_historical_family = partial(
+    HistoricalFamilySpec,
     original_batch_id=(
         "batch:43b527cd0392c0b0c142a160636d58ff4d72baa4adb3661a1ed6902d6414cb9a"
     ),
@@ -914,8 +916,8 @@ _STU0016_ROWS = tuple(
     )
 )
 
-STU0016_HISTORICAL_FAMILY = HistoricalFamilySpec(
-    original_study_id="STU-0016",
+_build_stu0016_historical_family = partial(
+    HistoricalFamilySpec,
     original_batch_id=(
         "batch:c8c8f757ccfc444360a260aeb905b4254f2a0241ae2ff1e09663eb354bf2f937"
     ),
@@ -1000,8 +1002,8 @@ _STU0017_ROWS = tuple(
     )
 )
 
-STU0017_HISTORICAL_FAMILY = HistoricalFamilySpec(
-    original_study_id="STU-0017",
+_build_stu0017_historical_family = partial(
+    HistoricalFamilySpec,
     original_batch_id=(
         "batch:7dbabdea68fffba4789a5dd92509610a652a84be95e6ed45fa49f659f37e928e"
     ),
@@ -1024,34 +1026,68 @@ STU0017_HISTORICAL_FAMILY = HistoricalFamilySpec(
 )
 
 
-P1_HISTORICAL_FAMILY_CATALOG = historical_family_catalog(
-    (
-        STU0048_HISTORICAL_FAMILY,
-        STU0051_HISTORICAL_FAMILY,
-        STU0032_HISTORICAL_FAMILY,
-    )
-)
-P1_HISTORICAL_FAMILY_CATALOG_DIGEST = historical_family_catalog_digest(
-    P1_HISTORICAL_FAMILY_CATALOG
-)
-P1_ROUTED_HISTORICAL_FAMILY_CATALOG = historical_family_catalog(
-    (
-        STU0016_HISTORICAL_FAMILY,
-        STU0017_HISTORICAL_FAMILY,
-    )
-)
-P1_ROUTED_HISTORICAL_FAMILY_CATALOG_DIGEST = (
-    historical_family_catalog_digest(P1_ROUTED_HISTORICAL_FAMILY_CATALOG)
-)
-ALL_P1_HISTORICAL_FAMILY_CATALOG = historical_family_catalog(
-    (
-        *P1_HISTORICAL_FAMILY_CATALOG,
-        *P1_ROUTED_HISTORICAL_FAMILY_CATALOG,
-    )
-)
-ALL_P1_HISTORICAL_FAMILY_CATALOG_DIGEST = historical_family_catalog_digest(
-    ALL_P1_HISTORICAL_FAMILY_CATALOG
-)
+_LAZY_EXPORTS = {
+    "ALL_P1_HISTORICAL_FAMILY_CATALOG": (
+        "axiom_rift.research.historical_family_catalogs",
+        "ALL_P1_HISTORICAL_FAMILY_CATALOG",
+    ),
+    "ALL_P1_HISTORICAL_FAMILY_CATALOG_DIGEST": (
+        "axiom_rift.research.historical_family_catalogs",
+        "ALL_P1_HISTORICAL_FAMILY_CATALOG_DIGEST",
+    ),
+    "P1_HISTORICAL_FAMILY_CATALOG": (
+        "axiom_rift.research.historical_family_catalogs",
+        "P1_HISTORICAL_FAMILY_CATALOG",
+    ),
+    "P1_HISTORICAL_FAMILY_CATALOG_DIGEST": (
+        "axiom_rift.research.historical_family_catalogs",
+        "P1_HISTORICAL_FAMILY_CATALOG_DIGEST",
+    ),
+    "P1_ROUTED_HISTORICAL_FAMILY_CATALOG": (
+        "axiom_rift.research.historical_family_catalogs",
+        "P1_ROUTED_HISTORICAL_FAMILY_CATALOG",
+    ),
+    "P1_ROUTED_HISTORICAL_FAMILY_CATALOG_DIGEST": (
+        "axiom_rift.research.historical_family_catalogs",
+        "P1_ROUTED_HISTORICAL_FAMILY_CATALOG_DIGEST",
+    ),
+    "STU0016_HISTORICAL_FAMILY": (
+        "axiom_rift.research.historical_family_stu0016",
+        "STU0016_HISTORICAL_FAMILY",
+    ),
+    "STU0017_HISTORICAL_FAMILY": (
+        "axiom_rift.research.historical_family_stu0017",
+        "STU0017_HISTORICAL_FAMILY",
+    ),
+    "STU0032_HISTORICAL_FAMILY": (
+        "axiom_rift.research.historical_family_stu0032",
+        "STU0032_HISTORICAL_FAMILY",
+    ),
+    "STU0048_HISTORICAL_FAMILY": (
+        "axiom_rift.research.historical_family_stu0048",
+        "STU0048_HISTORICAL_FAMILY",
+    ),
+    "STU0051_HISTORICAL_FAMILY": (
+        "axiom_rift.research.historical_family_stu0051",
+        "STU0051_HISTORICAL_FAMILY",
+    ),
+}
+
+
+def __getattr__(name: str) -> object:
+    """Load one exact authority binding or the explicit navigation catalog."""
+
+    route = _LAZY_EXPORTS.get(name)
+    if route is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attribute_name = route
+    value = getattr(import_module(module_name), attribute_name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *_LAZY_EXPORTS})
 
 
 __all__ = [

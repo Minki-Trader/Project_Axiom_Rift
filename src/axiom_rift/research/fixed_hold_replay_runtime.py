@@ -110,6 +110,10 @@ class FixedHoldReplayRuntimeAdapter:
             raise ValueError(
                 "adapter source must bind both runtime and Component closure"
             )
+        if not set(components).issubset(dependencies):
+            raise ValueError(
+                "Component sources must be contained in the runtime closure"
+            )
         if not callable(self.definition_builder) or not callable(self.trace_builder):
             raise TypeError("fixed-hold runtime builders must be callable")
         object.__setattr__(self, "adapter_source_path", source)
@@ -192,17 +196,13 @@ def _implementation_manifest(adapter: FixedHoldReplayRuntimeAdapter) -> bytes:
     closure_hash = sha256(
         fixed_hold_replay_job_implementation_artifact(adapter)
     ).hexdigest()
+    dependency_hashes = {
+        sha256(path.read_bytes()).hexdigest()
+        for path in fixed_hold_replay_runtime_dependency_paths(adapter)
+    }
     return canonical_bytes(
         {
-            "artifact_hashes": sorted(
-                {
-                    closure_hash,
-                    *(
-                        sha256(path.read_bytes()).hexdigest()
-                        for path in adapter.component_source_paths
-                    ),
-                }
-            ),
+            "artifact_hashes": sorted({closure_hash, *dependency_hashes}),
             "callable_identity": adapter.callable_identity,
             "protocol": adapter.job_implementation_protocol,
             "schema": "job_implementation_evidence.v1",
@@ -221,26 +221,27 @@ def materialize_fixed_hold_replay_job_implementation(
     *,
     adapter: FixedHoldReplayRuntimeAdapter,
 ) -> str:
-    """Store exact source closure plus Writer-readable Component sources."""
+    """Store every source byte in the exact runtime closure."""
 
     closure = fixed_hold_replay_job_implementation_artifact(adapter)
     closure_artifact = writer.evidence.finalize(closure)
     if closure_artifact.sha256 != sha256(closure).hexdigest():
         raise RuntimeError("fixed-hold runtime closure identity drifted")
-    component_hashes = tuple(
+    dependency_paths = fixed_hold_replay_runtime_dependency_paths(adapter)
+    dependency_hashes = tuple(
         sorted(
             writer.evidence.finalize(path.read_bytes()).sha256
-            for path in adapter.component_source_paths
+            for path in dependency_paths
         )
     )
-    expected_component_hashes = tuple(
+    expected_dependency_hashes = tuple(
         sorted(
             sha256(path.read_bytes()).hexdigest()
-            for path in adapter.component_source_paths
+            for path in dependency_paths
         )
     )
-    if component_hashes != expected_component_hashes:
-        raise RuntimeError("fixed-hold Component source identity drifted")
+    if dependency_hashes != expected_dependency_hashes:
+        raise RuntimeError("fixed-hold runtime dependency identity drifted")
     manifest = _implementation_manifest(adapter)
     implementation = writer.evidence.finalize(manifest)
     expected = fixed_hold_replay_job_implementation_sha256(adapter)

@@ -7,6 +7,7 @@ from pathlib import Path
 import axiom_rift.research.composite_consensus_discovery as source_module
 import axiom_rift.research.composite_consensus_replay as replay_module
 import axiom_rift.research.composite_consensus_replay_parity as parity_module
+import axiom_rift.research.historical_family_stu0017 as historical_family_binding_module
 from axiom_rift.operations.writer import RunningJobExecution, StateWriter
 from axiom_rift.research.composite_consensus_discovery import (
     calibrate_router,
@@ -53,6 +54,9 @@ RUNTIME_ADAPTER = build_routed_sleeve_runtime_adapter(
     artifact_namespace=ARTIFACT_NAMESPACE,
     adapter_source_path=Path(replay_module.__file__).resolve(),
     job_source_path=_THIS_FILE,
+    historical_family_binding_path=Path(
+        historical_family_binding_module.__file__
+    ).resolve(),
     source_module_path=Path(source_module.__file__).resolve(),
     parity_module_path=Path(parity_module.__file__).resolve(),
     configurations=composite_consensus_replay_configurations,
