@@ -2610,6 +2610,55 @@ def _diagnosis(
             {},
         ).get("state")
     )
+    if engineering_failure is not None:
+        rationale = (
+            "A typed unrecovered Repair ended execution without creating "
+            "scientific evidence; this is an engineering gap."
+        )
+        counterfactual = (
+            "A same-protocol engineering Repair could make the exact family "
+            "evaluable without changing its scientific semantics."
+        )
+        reopen_condition = (
+            "Reopen through the exact same-protocol Repair lineage."
+        )
+    elif interpretation.all_criteria_recomputed:
+        rationale = (
+            "The exact concurrent family recomputed every original criterion; "
+            f"the target scientific state is {state}."
+        )
+        counterfactual = (
+            "New registered development material could change the family state "
+            "without changing this historical replay result."
+        )
+        # This is a scientific continuation boundary, not an implementation
+        # repair.  Reuse the condition preregistered on the exact replay axis
+        # instead of inventing a contradictory diagnosis-time condition.
+        reopen_condition = design.replay_axis.stop_or_reopen_condition
+    else:
+        unavailable = (
+            interpretation.reason_code
+            == "original_criterion_recomputation_unavailable"
+        )
+        rationale = (
+            "The exact original criterion inventory was unavailable."
+            if unavailable
+            else "The exact original criterion inventory was not fully recomputed."
+        )
+        counterfactual = (
+            "Registering the exact original criterion inventory and its required "
+            "data could make the same frozen family evaluable."
+            if unavailable
+            else "Registering the exact missing criterion inputs could complete "
+            "the same frozen-family evaluation."
+        )
+        reopen_condition = (
+            "Reopen only when the exact original criterion inventory and its "
+            "required registered data are available for the same frozen family."
+            if unavailable
+            else "Reopen only when the exact missing criterion inputs are "
+            "registered for the same frozen family."
+        )
     return StudyDiagnosis(
         study_id=design.spec.study_id,
         study_close_record_id=_study_close_record(writer, design).record_id,
@@ -2619,31 +2668,9 @@ def _diagnosis(
             if interpretation.all_criteria_recomputed
             else DiagnosisConfidence.LOW
         ),
-        rationale=(
-            "A typed unrecovered Repair ended execution without creating "
-            "scientific evidence; this is an engineering gap."
-            if engineering_failure is not None
-            else
-            "The exact concurrent family recomputed every original criterion; "
-            f"the target scientific state is {state}."
-            if interpretation.all_criteria_recomputed
-            else "The exact original criterion inventory was unavailable or invalid."
-        ),
-        counterfactual=(
-            "A same-protocol engineering Repair could make the exact family "
-            "evaluable without changing its scientific semantics."
-            if engineering_failure is not None
-            else
-            "New registered development material could change the family state "
-            "without changing this historical replay result."
-        ),
-        reopen_condition=(
-            "Reopen through the exact same-protocol Repair lineage."
-            if engineering_failure is not None
-            else
-            "Reopen only when repaired implementation or registered data permits "
-            "the same exact family and criterion inventory."
-        ),
+        rationale=rationale,
+        counterfactual=counterfactual,
+        reopen_condition=reopen_condition,
     )
 
 

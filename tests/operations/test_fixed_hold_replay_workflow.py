@@ -106,6 +106,93 @@ class _AcceptedHistoricalFamilyAuthorityReached(RuntimeError):
 
 
 class FixedHoldReplayWorkflowTests(unittest.TestCase):
+    def test_diagnosis_uses_cause_specific_reopen_authority(self) -> None:
+        registered_condition = (
+            "stop after the exact family; reopen only with new registered material"
+        )
+        completion = SimpleNamespace(
+            payload={
+                "scientific": {
+                    "adjudication": {"state": "partial_positive"}
+                }
+            }
+        )
+        design = SimpleNamespace(
+            criterion_ids=("criterion-a",),
+            replay_axis=SimpleNamespace(
+                stop_or_reopen_condition=registered_condition
+            ),
+            spec=SimpleNamespace(study_id="STU-FIXTURE"),
+            target_member=object(),
+        )
+        close_record = SimpleNamespace(record_id="a" * 64)
+        cases = (
+            (
+                "engineering-gap",
+                (object(), SimpleNamespace()),
+                ReplayInterpretation(
+                    all_criteria_recomputed=False,
+                    close_outcome="not_evaluable",
+                    diagnosis_state=workflow_module.EvidenceState.ENGINEERING_GAP,
+                    disposition=workflow_module.PortfolioAction.PRESERVE,
+                    reason_code="unrecovered_same_protocol_engineering_gap",
+                ),
+            ),
+            (
+                "criterion-incomplete",
+                None,
+                ReplayInterpretation(
+                    all_criteria_recomputed=False,
+                    close_outcome="not_evaluable",
+                    diagnosis_state=workflow_module.EvidenceState.NOT_IDENTIFIABLE,
+                    disposition=workflow_module.PortfolioAction.PRESERVE,
+                    reason_code="original_criterion_recomputation_incomplete",
+                ),
+            ),
+            (
+                "complete-success",
+                None,
+                ReplayInterpretation(
+                    all_criteria_recomputed=True,
+                    close_outcome="preserved",
+                    diagnosis_state=(
+                        workflow_module.EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION
+                    ),
+                    disposition=workflow_module.PortfolioAction.PRESERVE,
+                    reason_code="exact_original_criteria_recomputed",
+                ),
+            ),
+        )
+        for name, engineering_failure, interpretation in cases:
+            with self.subTest(name=name), patch.multiple(
+                workflow_module,
+                _engineering_failure_member=Mock(
+                    return_value=engineering_failure
+                ),
+                _member_completion=Mock(return_value=completion),
+                _study_close_record=Mock(return_value=close_record),
+                _workflow_interpretation=Mock(return_value=interpretation),
+            ):
+                diagnosis = workflow_module._diagnosis(object(), design)
+            if name == "engineering-gap":
+                self.assertIn("Repair", diagnosis.reopen_condition)
+                self.assertIn("engineering", diagnosis.counterfactual)
+            elif name == "criterion-incomplete":
+                self.assertIn("missing criterion", diagnosis.reopen_condition)
+                self.assertNotIn("repair", diagnosis.reopen_condition.lower())
+                self.assertNotIn(
+                    "implementation", diagnosis.reopen_condition.lower()
+                )
+            else:
+                self.assertEqual(
+                    diagnosis.reopen_condition,
+                    registered_condition,
+                )
+                self.assertNotIn("repair", diagnosis.reopen_condition.lower())
+                self.assertNotIn(
+                    "implementation", diagnosis.reopen_condition.lower()
+                )
+
     def test_candidate_postcondition_uses_exact_executable_history(self) -> None:
         executable_id = "executable:" + "a" * 64
         stream = f"candidate:{executable_id}"
