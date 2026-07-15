@@ -14045,6 +14045,7 @@ class StateWriter:
                 ReplayProjectionError,
                 ReplayTransitionError,
                 validate_decision_selection,
+                validate_replay_review_basis,
             )
 
             try:
@@ -14061,14 +14062,17 @@ class StateWriter:
                 raise RecoveryRequired(str(exc)) from exc
             except ReplayTransitionError as exc:
                 raise TransitionError(str(exc)) from exc
-            if review is not None and any(
-                ("historical-replay-obligation", obligation_id)
-                not in review_basis
-                for obligation_id in decision.replay_obligation_ids
-            ):
-                raise TransitionError(
-                    "quant-team review omits its replay-obligation basis"
-                )
+            if review is not None:
+                try:
+                    validate_replay_review_basis(
+                        constraints=replay_constraints,
+                        selected_obligation_ids=decision.replay_obligation_ids,
+                        review_basis=review_basis,
+                    )
+                except ReplayProjectionError as exc:
+                    raise RecoveryRequired(str(exc)) from exc
+                except ReplayTransitionError as exc:
+                    raise TransitionError(str(exc)) from exc
             scheduler_constraints = None
             if continuation is not None:
                 scheduler_constraints = {

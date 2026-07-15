@@ -8,7 +8,7 @@ the Journal, or the index; StateWriter owns the single commit boundary.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from hashlib import sha256
 from typing import Any, Callable
@@ -389,6 +389,130 @@ def validate_snapshot_scheduler_projection(
     )
 
 
+def _obligation_affected_axis_identity(
+    index: LocalIndex,
+    obligation: HistoricalReplayObligation,
+) -> str:
+    """Resolve the immutable axis whose historical credit is under replay."""
+
+    study = index.get("study-open", obligation.original_study_id)
+    trial = index.get("trial", obligation.original_executable_id)
+    completion = index.get(
+        "job-completed", obligation.original_completion_record_id
+    )
+    declaration = (
+        None
+        if completion is None
+        else index.get("job-declared", completion.payload.get("job_id", ""))
+    )
+    close_record = index.get(
+        "study-close", obligation.original_study_close_record_id
+    )
+    study_payload = {} if study is None else study.payload
+    trial_payload = {} if trial is None else trial.payload
+    scientific = (
+        None if completion is None else completion.payload.get("scientific")
+    )
+    job_id = None if completion is None else completion.payload.get("job_id")
+    axis_id = study_payload.get("portfolio_axis_id")
+    axis_identity = study_payload.get("portfolio_axis_identity")
+    historical_mission_id = study_payload.get("mission_id")
+    axis_digest = (
+        ""
+        if type(axis_identity) is not str
+        else axis_identity.removeprefix("axis:")
+    )
+    if (
+        study is None
+        or study.subject != f"Study:{obligation.original_study_id}"
+        or study.status not in {"open", "closed"}
+        or type(axis_id) is not str
+        or not axis_id
+        or not axis_id.isascii()
+        or type(historical_mission_id) is not str
+        or not historical_mission_id
+        or not historical_mission_id.isascii()
+        or type(axis_identity) is not str
+        or len(axis_digest) != 64
+        or any(character not in "0123456789abcdef" for character in axis_digest)
+        or trial is None
+        or trial.status != "evaluated"
+        or trial.fingerprint
+        != obligation.original_executable_id.removeprefix("executable:")
+        or trial_payload.get("mission_id") != historical_mission_id
+        or trial_payload.get("study_id") != obligation.original_study_id
+        or trial_payload.get("portfolio_axis_id") != axis_id
+        or trial_payload.get("portfolio_axis_identity") != axis_identity
+        or completion is None
+        or completion.status not in {"success", "failed", "not_evaluable"}
+        or not isinstance(scientific, Mapping)
+        or scientific.get("executable_id") != obligation.original_executable_id
+        or declaration is None
+        or type(job_id) is not str
+        or declaration.record_id != job_id
+        or declaration.subject != f"Job:{job_id}"
+        or completion.subject != f"Job:{job_id}"
+        or declaration.payload.get("mission_id") != historical_mission_id
+        or declaration.payload.get("study_id") != obligation.original_study_id
+        or declaration.payload.get("spec", {}).get("evidence_subject")
+        != {"kind": "Executable", "id": obligation.original_executable_id}
+        or close_record is None
+        or close_record.subject != f"Study:{obligation.original_study_id}"
+        or close_record.status not in {*_STUDY_OUTCOMES, "failed"}
+        or close_record.payload.get("study_id") != obligation.original_study_id
+    ):
+        raise ReplayProjectionError(
+            "historical replay affected-axis lineage is malformed or ambiguous"
+        )
+    return axis_identity
+
+
+def _decision_target_axis_identity(
+    index: LocalIndex,
+    *,
+    mission_id: str,
+    next_action: Mapping[str, Any],
+    target_axis_id: str,
+) -> str:
+    """Resolve the exact current target instead of trusting its display id."""
+
+    snapshot_id = next_action.get("portfolio_snapshot_id")
+    snapshot = (
+        None
+        if type(snapshot_id) is not str
+        else index.get("portfolio-snapshot", snapshot_id)
+    )
+    axes = None if snapshot is None else snapshot.payload.get("axes")
+    matches = (
+        ()
+        if not isinstance(axes, list)
+        else tuple(
+            axis
+            for axis in axes
+            if isinstance(axis, Mapping)
+            and axis.get("axis_id") == target_axis_id
+        )
+    )
+    identity = None if len(matches) != 1 else matches[0].get("axis_identity")
+    digest = (
+        "" if type(identity) is not str else identity.removeprefix("axis:")
+    )
+    if (
+        snapshot is None
+        or snapshot.subject != f"Mission:{mission_id}"
+        or snapshot.status != "current"
+        or snapshot.payload.get("mission_id") != mission_id
+        or len(matches) != 1
+        or type(identity) is not str
+        or len(digest) != 64
+        or any(character not in "0123456789abcdef" for character in digest)
+    ):
+        raise ReplayProjectionError(
+            "Portfolio Decision target-axis projection is malformed or ambiguous"
+        )
+    return identity
+
+
 def validate_decision_selection(
     index: LocalIndex,
     *,
@@ -401,7 +525,15 @@ def validate_decision_selection(
 ) -> dict[str, Any] | None:
     """Validate one Decision against the current highest-priority queue."""
 
-    constraints = scheduler_constraints(index, mission_id=mission_id)
+    current_heads = obligation_heads(index, mission_id=mission_id)
+    pending_pairs = tuple(
+        (obligation, head)
+        for obligation, head in current_heads
+        if head.status == ReplayObligationStatus.PENDING.value
+    )
+    constraints = constraints_for_pending(
+        obligation for obligation, _head in pending_pairs
+    )
     projected = {
         name: next_action.get(name)
         for name in ("pending_replay_obligation_ids", "required_replay_priority")
@@ -414,7 +546,15 @@ def validate_decision_selection(
     pending = set(
         () if constraints is None else constraints["pending_replay_obligation_ids"]
     )
-    selected = set(replay_obligation_ids)
+    selected_ids = tuple(replay_obligation_ids)
+    if (
+        selected_ids != tuple(sorted(set(selected_ids)))
+        or any(type(item) is not str for item in selected_ids)
+    ):
+        raise ReplayTransitionError(
+            "Portfolio Decision replay binding is not sorted and unique"
+        )
+    selected = set(selected_ids)
     diagnosis_id = next_action.get("study_diagnosis_id")
     diagnosis = (
         None
@@ -435,23 +575,97 @@ def validate_decision_selection(
             "Portfolio Decision names a non-pending replay obligation"
         )
     if constraints is not None:
+        priority = ReplayPriority(constraints["required_replay_priority"])
         if diagnosis_cleanup:
             pass
-        elif action in work_actions and not selected:
+        elif selected and action in work_actions:
+            pass
+        elif selected:
+            raise ReplayTransitionError(
+                "pending replay permits only bound scientific work"
+            )
+        elif priority is ReplayPriority.P0 and action in work_actions:
             raise ReplayTransitionError(
                 "scientific work cannot bypass the highest-priority replay queue"
             )
-        elif action not in work_actions and (
-            action != "new_mechanism" or selected
-        ):
+        elif priority is ReplayPriority.P0 and action != "new_mechanism":
             raise ReplayTransitionError(
                 "pending replay permits only bound work or a new-mechanism bridge"
+            )
+        elif priority is ReplayPriority.P1 and (
+            action in work_actions
+            or action in {"new_mechanism", "preserve", "prune"}
+        ):
+            target_identity = _decision_target_axis_identity(
+                index,
+                mission_id=mission_id,
+                next_action=next_action,
+                target_axis_id=target_axis_id,
+            )
+            affected_identities = {
+                _obligation_affected_axis_identity(index, obligation)
+                for obligation, _head in pending_pairs
+                if obligation.identity in pending
+            }
+            if target_identity in affected_identities:
+                raise ReplayTransitionError(
+                    "pending P1 replay blocks unbound work on its affected axis"
+                )
+        elif priority is ReplayPriority.P1:
+            raise ReplayTransitionError(
+                "pending P1 replay permits only exact bound work or unrelated "
+                "bounded forest work"
             )
     elif selected:
         raise ReplayTransitionError(
             "Portfolio Decision replay binding lacks scheduler authority"
         )
     return constraints
+
+
+def validate_replay_review_basis(
+    *,
+    constraints: Mapping[str, Any] | None,
+    selected_obligation_ids: Sequence[str],
+    review_basis: Collection[tuple[str, str]],
+) -> None:
+    """Require bounded queue consideration without forcing a P1 allocation.
+
+    A selected replay must be cited exactly.  When the highest-priority queue
+    is deliberately not selected, a real quant-team review must still cite at
+    least one currently exposed obligation.  This prevents silent starvation
+    while leaving the review free to choose higher-value unrelated work.
+    """
+
+    selected = tuple(selected_obligation_ids)
+    if selected:
+        if any(
+            ("historical-replay-obligation", obligation_id) not in review_basis
+            for obligation_id in selected
+        ):
+            raise ReplayTransitionError(
+                "quant-team review omits its selected replay-obligation basis"
+            )
+        return
+    if constraints is None:
+        return
+    pending = constraints.get("pending_replay_obligation_ids")
+    if (
+        not isinstance(pending, list)
+        or not pending
+        or pending != sorted(set(pending))
+        or any(type(item) is not str for item in pending)
+    ):
+        raise ReplayProjectionError(
+            "replay scheduler review queue is malformed"
+        )
+    if not any(
+        ("historical-replay-obligation", obligation_id) in review_basis
+        for obligation_id in pending
+    ):
+        raise ReplayTransitionError(
+            "quant-team review omits the highest-priority replay opportunity"
+        )
 
 
 def require_study_pending(
@@ -3520,6 +3734,7 @@ __all__ = [
     "require_study_pending",
     "scheduler_constraints",
     "validate_decision_selection",
+    "validate_replay_review_basis",
     "validate_snapshot_scheduler_projection",
     "with_scheduler_constraints",
 ]

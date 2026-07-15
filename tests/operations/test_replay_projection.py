@@ -31,6 +31,7 @@ from axiom_rift.operations.replay_projection import (
     require_study_execution_complete,
     satisfaction_record,
     validate_decision_selection,
+    validate_replay_review_basis,
     validate_snapshot_scheduler_projection,
     with_scheduler_constraints,
 )
@@ -148,10 +149,92 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
             )
             for token in range(1, 5)
         )
+        self.affected_axis_id = "axis-historical-replay"
+        self.affected_axis_identity = "axis:" + "a" * 64
+        self.unrelated_axis_id = "axis-unrelated"
+        self.unrelated_axis_identity = "axis:" + "b" * 64
         records: list[IndexRecord] = []
         for token, obligation in enumerate(self.obligations, start=1):
+            historical_mission_id = f"MIS-HIST-{token:04d}"
+            job_id = f"job:{token + 70:064x}"
             records.extend(
                 (
+                    IndexRecord(
+                        kind="study-open",
+                        record_id=obligation.original_study_id,
+                        subject=f"Study:{obligation.original_study_id}",
+                        status="closed",
+                        fingerprint=f"{token + 80:064x}",
+                        payload={
+                            "mission_id": historical_mission_id,
+                            "portfolio_axis_id": self.affected_axis_id,
+                            "portfolio_axis_identity": (
+                                self.affected_axis_identity
+                            ),
+                        },
+                    ),
+                    IndexRecord(
+                        kind="trial",
+                        record_id=obligation.original_executable_id,
+                        subject=f"Batch:BAT-HIST-{token:04d}",
+                        status="evaluated",
+                        fingerprint=(
+                            obligation.original_executable_id.removeprefix(
+                                "executable:"
+                            )
+                        ),
+                        payload={
+                            "executable": {"schema": "historical_fixture.v1"},
+                            "mission_id": historical_mission_id,
+                            "portfolio_axis_id": self.affected_axis_id,
+                            "portfolio_axis_identity": (
+                                self.affected_axis_identity
+                            ),
+                            "study_id": obligation.original_study_id,
+                        },
+                    ),
+                    IndexRecord(
+                        kind="job-declared",
+                        record_id=job_id,
+                        subject=f"Job:{job_id}",
+                        status="declared",
+                        fingerprint=f"{token + 71:064x}",
+                        payload={
+                            "mission_id": historical_mission_id,
+                            "study_id": obligation.original_study_id,
+                            "spec": {
+                                "evidence_subject": {
+                                    "id": obligation.original_executable_id,
+                                    "kind": "Executable",
+                                }
+                            },
+                        },
+                    ),
+                    IndexRecord(
+                        kind="job-completed",
+                        record_id=obligation.original_completion_record_id,
+                        subject=f"Job:{job_id}",
+                        status="success",
+                        fingerprint=f"{token + 72:064x}",
+                        payload={
+                            "job_id": job_id,
+                            "scientific": {
+                                "executable_id": (
+                                    obligation.original_executable_id
+                                )
+                            },
+                        },
+                    ),
+                    IndexRecord(
+                        kind="study-close",
+                        record_id=(
+                            obligation.original_study_close_record_id
+                        ),
+                        subject=f"Study:{obligation.original_study_id}",
+                        status="failed",
+                        fingerprint=f"{token + 50:064x}",
+                        payload={"study_id": obligation.original_study_id},
+                    ),
                     IndexRecord(
                         kind="historical-scientific-adjudication",
                         record_id=obligation.historical_adjudication_id,
@@ -179,6 +262,34 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
             },
         )
         self.index.put(self.study)
+
+    def _put_scheduler_snapshot(self, snapshot_id: str) -> None:
+        self.index.put(
+            IndexRecord(
+                kind="portfolio-snapshot",
+                record_id=snapshot_id,
+                subject=f"Mission:{MISSION_ID}",
+                status="current",
+                fingerprint="c" * 64,
+                payload={
+                    "axes": [
+                        {
+                            "axis_id": self.affected_axis_id,
+                            "axis_identity": self.affected_axis_identity,
+                        },
+                        {
+                            "axis_id": self.unrelated_axis_id,
+                            "axis_identity": self.unrelated_axis_identity,
+                        },
+                        {
+                            "axis_id": "axis-completed-replay",
+                            "axis_identity": "axis:" + "c" * 64,
+                        },
+                    ],
+                    "mission_id": MISSION_ID,
+                },
+            )
+        )
 
     def test_legacy_correction_plan_name_delegates_to_explicit_audit(self) -> None:
         expected = {"schema": "historical_replay_correction_plan.fixture"}
@@ -509,10 +620,304 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
             [p0.identity],
         )
 
+    def test_p0_pending_keeps_unbound_scientific_work_blocked(self) -> None:
+        payload = _adjudication_payload(1, ReplayPriority.P0)
+        p0 = derive_historical_replay_obligation(
+            governing_mission_id=MISSION_ID,
+            historical_adjudication_id=(
+                "historical-adjudication:" + "f" * 64
+            ),
+            adjudication_payload=payload,
+        )
+        self.index.put_many(
+            (
+                IndexRecord(
+                    kind="historical-scientific-adjudication",
+                    record_id=p0.historical_adjudication_id,
+                    subject=f"Study:{p0.original_study_id}",
+                    status="replay_required",
+                    fingerprint="f" * 64,
+                    payload=payload,
+                ),
+                initial_obligation_record(p0),
+            )
+        )
+        snapshot_id = "portfolio:" + "d" * 64
+        self._put_scheduler_snapshot(snapshot_id)
+        constraints = constraints_for_pending((*self.obligations, p0))
+        assert constraints is not None
+        with self.assertRaisesRegex(
+            ReplayTransitionError,
+            "cannot bypass the highest-priority replay queue",
+        ):
+            validate_decision_selection(
+                self.index,
+                mission_id=MISSION_ID,
+                next_action={
+                    "kind": "portfolio_decision",
+                    "portfolio_snapshot_id": snapshot_id,
+                    **constraints,
+                },
+                replay_obligation_ids=(),
+                action="deepen",
+                target_axis_id=self.unrelated_axis_id,
+                work_actions=frozenset(
+                    {
+                        "complementary_sleeve",
+                        "contrast",
+                        "deepen",
+                        "recombine",
+                        "rotate",
+                        "synthesize",
+                    }
+                ),
+            )
+
+    def test_p1_pending_allows_unrelated_forest_work_without_selection(
+        self,
+    ) -> None:
+        snapshot_id = "portfolio:" + "e" * 64
+        self._put_scheduler_snapshot(snapshot_id)
+        constraints = constraints_for_pending(self.obligations)
+        assert constraints is not None
+        next_action = {
+            "kind": "portfolio_decision",
+            "portfolio_snapshot_id": snapshot_id,
+            **constraints,
+        }
+        work_actions = frozenset(
+            {
+                "complementary_sleeve",
+                "contrast",
+                "deepen",
+                "recombine",
+                "rotate",
+                "synthesize",
+            }
+        )
+        for action in (
+            *sorted(work_actions),
+            "new_mechanism",
+            "preserve",
+            "prune",
+        ):
+            with self.subTest(action=action):
+                self.assertEqual(
+                    validate_decision_selection(
+                        self.index,
+                        mission_id=MISSION_ID,
+                        next_action=next_action,
+                        replay_obligation_ids=(),
+                        action=action,
+                        target_axis_id=self.unrelated_axis_id,
+                        work_actions=work_actions,
+                    ),
+                    constraints,
+                )
+        with self.assertRaisesRegex(
+            ReplayTransitionError,
+            "only exact bound work or unrelated bounded forest work",
+        ):
+            validate_decision_selection(
+                self.index,
+                mission_id=MISSION_ID,
+                next_action=next_action,
+                replay_obligation_ids=(),
+                action="caller_boolean_bypass",
+                target_axis_id=self.unrelated_axis_id,
+                work_actions=work_actions,
+            )
+
+    def test_selected_p1_requires_exact_pending_obligation_binding(self) -> None:
+        snapshot_id = "portfolio:" + "1" * 64
+        self._put_scheduler_snapshot(snapshot_id)
+        constraints = constraints_for_pending(self.obligations)
+        assert constraints is not None
+        next_action = {
+            "kind": "portfolio_decision",
+            "portfolio_snapshot_id": snapshot_id,
+            **constraints,
+        }
+        work_actions = frozenset({"deepen"})
+        selected = self.obligations[0].identity
+        self.assertEqual(
+            validate_decision_selection(
+                self.index,
+                mission_id=MISSION_ID,
+                next_action=next_action,
+                replay_obligation_ids=(selected,),
+                action="deepen",
+                target_axis_id=self.unrelated_axis_id,
+                work_actions=work_actions,
+            ),
+            constraints,
+        )
+        with self.assertRaisesRegex(
+            ReplayTransitionError,
+            "non-pending replay obligation",
+        ):
+            validate_decision_selection(
+                self.index,
+                mission_id=MISSION_ID,
+                next_action=next_action,
+                replay_obligation_ids=(
+                    "historical-replay-obligation:" + "0" * 64,
+                ),
+                action="deepen",
+                target_axis_id=self.unrelated_axis_id,
+                work_actions=work_actions,
+            )
+        with self.assertRaisesRegex(
+            ReplayTransitionError,
+            "not sorted and unique",
+        ):
+            validate_decision_selection(
+                self.index,
+                mission_id=MISSION_ID,
+                next_action=next_action,
+                replay_obligation_ids=(selected, selected),
+                action="deepen",
+                target_axis_id=self.unrelated_axis_id,
+                work_actions=work_actions,
+            )
+
+    def test_quant_team_review_considers_p1_without_forcing_allocation(self) -> None:
+        constraints = constraints_for_pending(self.obligations)
+        assert constraints is not None
+        first = self.obligations[0].identity
+        second = self.obligations[1].identity
+
+        validate_replay_review_basis(
+            constraints=constraints,
+            selected_obligation_ids=(),
+            review_basis={
+                ("portfolio-snapshot", "portfolio:" + "1" * 64),
+                ("historical-replay-obligation", first),
+            },
+        )
+        with self.assertRaisesRegex(
+            ReplayTransitionError,
+            "omits the highest-priority replay opportunity",
+        ):
+            validate_replay_review_basis(
+                constraints=constraints,
+                selected_obligation_ids=(),
+                review_basis={
+                    ("portfolio-snapshot", "portfolio:" + "1" * 64),
+                },
+            )
+        with self.assertRaisesRegex(
+            ReplayTransitionError,
+            "omits its selected replay-obligation basis",
+        ):
+            validate_replay_review_basis(
+                constraints=constraints,
+                selected_obligation_ids=(first, second),
+                review_basis={
+                    ("historical-replay-obligation", first),
+                },
+            )
+        validate_replay_review_basis(
+            constraints=constraints,
+            selected_obligation_ids=(first, second),
+            review_basis={
+                ("historical-replay-obligation", first),
+                ("historical-replay-obligation", second),
+            },
+        )
+
+    def test_p1_pending_blocks_unbound_work_on_exact_affected_axis(self) -> None:
+        snapshot_id = "portfolio:" + "2" * 64
+        self._put_scheduler_snapshot(snapshot_id)
+        constraints = constraints_for_pending(self.obligations)
+        assert constraints is not None
+        next_action = {
+            "kind": "portfolio_decision",
+            "portfolio_snapshot_id": snapshot_id,
+            **constraints,
+        }
+        work_actions = frozenset(
+            {
+                "complementary_sleeve",
+                "contrast",
+                "deepen",
+                "recombine",
+                "rotate",
+                "synthesize",
+            }
+        )
+        for action in (
+            *sorted(work_actions),
+            "new_mechanism",
+            "preserve",
+            "prune",
+        ):
+            with self.subTest(action=action):
+                with self.assertRaisesRegex(
+                    ReplayTransitionError,
+                    "blocks unbound work on its affected axis",
+                ):
+                    validate_decision_selection(
+                        self.index,
+                        mission_id=MISSION_ID,
+                        next_action=next_action,
+                        replay_obligation_ids=(),
+                        action=action,
+                        target_axis_id=self.affected_axis_id,
+                        work_actions=work_actions,
+                    )
+
+    def test_p1_unrelated_work_fails_closed_on_forged_original_lineage(
+        self,
+    ) -> None:
+        obligation = self.obligations[0]
+        completion = self.index.get(
+            "job-completed", obligation.original_completion_record_id
+        )
+        assert completion is not None
+        declaration = self.index.get(
+            "job-declared", completion.payload["job_id"]
+        )
+        assert declaration is not None
+        original_get = self.index.get
+
+        def forged_get(kind: str, record_id: str) -> IndexRecord | None:
+            record = original_get(kind, record_id)
+            if kind == "job-declared" and record_id == declaration.record_id:
+                assert record is not None
+                return replace(
+                    record,
+                    subject="Job:swapped-lineage-authority",
+                )
+            return record
+
+        snapshot_id = "portfolio:" + "3" * 64
+        self._put_scheduler_snapshot(snapshot_id)
+        constraints = constraints_for_pending(self.obligations)
+        assert constraints is not None
+        with patch.object(self.index, "get", side_effect=forged_get):
+            with self.assertRaisesRegex(
+                ReplayProjectionError,
+                "affected-axis lineage is malformed or ambiguous",
+            ):
+                validate_decision_selection(
+                    self.index,
+                    mission_id=MISSION_ID,
+                    next_action={
+                        "kind": "portfolio_decision",
+                        "portfolio_snapshot_id": snapshot_id,
+                        **constraints,
+                    },
+                    replay_obligation_ids=(),
+                    action="deepen",
+                    target_axis_id=self.unrelated_axis_id,
+                    work_actions=frozenset({"deepen"}),
+                )
+
     def test_diagnosis_cleanup_may_dispose_exact_axis_with_pending_replays(
         self,
     ) -> None:
-        axis_id = "axis-completed-replay"
+        axis_id = self.affected_axis_id
         snapshot_id = "portfolio:" + "7" * 64
         diagnosis_id = "diagnosis:" + "8" * 64
         self.index.put(
@@ -531,6 +936,7 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
         )
         constraints = constraints_for_pending(self.obligations)
         assert constraints is not None
+        self._put_scheduler_snapshot(snapshot_id)
         next_action = {
             "kind": "portfolio_decision",
             **constraints,
@@ -611,10 +1017,7 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
                 },
                 constraints=constraints,
             )
-        with self.assertRaisesRegex(
-            ReplayTransitionError,
-            "pending replay permits only bound work or a new-mechanism bridge",
-        ):
+        self.assertEqual(
             validate_decision_selection(
                 self.index,
                 mission_id=MISSION_ID,
@@ -623,7 +1026,9 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
                 action="prune",
                 target_axis_id="axis-unrelated",
                 work_actions=work_actions,
-            )
+            ),
+            constraints,
+        )
 
 
 class MultiplicityReplaySatisfactionTests(unittest.TestCase):
