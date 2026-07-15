@@ -51,6 +51,18 @@ def _git(root: Path, *arguments: str) -> bytes:
     return subprocess.run(
         ("git", *arguments),
         cwd=root,
+        env=_git_environment(),
+        check=True,
+        capture_output=True,
+        timeout=_LOCAL_SUBPROCESS_TIMEOUT_SECONDS,
+    ).stdout
+
+
+def _isolated_git(root: Path, *arguments: str) -> bytes:
+    return subprocess.run(
+        ("git", *arguments),
+        cwd=root,
+        env=_isolated_git_environment(),
         check=True,
         capture_output=True,
         timeout=_LOCAL_SUBPROCESS_TIMEOUT_SECONDS,
@@ -571,23 +583,6 @@ def _regular_tree_modes(root: Path, index_tree: str) -> dict[str, str]:
     return result
 
 
-def _restore_independent_index_modes(
-    sandbox: Path, modes: Mapping[str, str]
-) -> None:
-    """Restore Git modes that a Windows worktree cannot represent."""
-
-    groups = {
-        "100644": tuple(path for path, mode in modes.items() if mode == "100644"),
-        "100755": tuple(path for path, mode in modes.items() if mode == "100755"),
-    }
-    if sum(len(paths) for paths in groups.values()) != len(modes):
-        raise RuntimeError("frozen index tree has an unsupported regular-file mode")
-    for mode, paths in groups.items():
-        flag = "--chmod=+x" if mode == "100755" else "--chmod=-x"
-        for offset in range(0, len(paths), 128):
-            _git(sandbox, "update-index", flag, "--", *paths[offset : offset + 128])
-
-
 def _is_link_like(path: Path) -> bool:
     if path.is_symlink():
         return True
@@ -1040,6 +1035,26 @@ def _sanitized_host_environment() -> dict[str, str]:
     return environment
 
 
+def _git_environment() -> dict[str, str]:
+    """Keep normal Git attributes while dropping direct repository overrides."""
+
+    environment = os.environ.copy()
+    for key in tuple(environment):
+        if key.upper().startswith("GIT_"):
+            environment.pop(key, None)
+    environment["GIT_TERMINAL_PROMPT"] = "0"
+    return environment
+
+
+def _isolated_git_environment() -> dict[str, str]:
+    """Run sandbox Git without caller config, object, or repository overrides."""
+
+    environment = _sanitized_host_environment()
+    environment["GIT_CONFIG_NOSYSTEM"] = "1"
+    environment["GIT_TERMINAL_PROMPT"] = "0"
+    return environment
+
+
 def _runtime_discovery_environment() -> dict[str, str]:
     """Expose only host location inputs needed by trusted ``site`` discovery."""
 
@@ -1145,19 +1160,25 @@ def _python_runtime() -> tuple[dict[str, object], tuple[str, ...]]:
                 continue
             normalized = name.lower().replace("_", "-")
             pytest_present = pytest_present or normalized == "pytest"
-            record_digest: str | None = None
-            for item in distribution.files or ():
-                relative = PurePosixPath(*Path(str(item)).parts).as_posix()
-                if not relative.endswith(".dist-info/RECORD"):
-                    continue
-                candidate = Path(distribution.locate_file(item))
-                if candidate.is_file():
-                    record_digest = sha256(candidate.read_bytes()).hexdigest()
-                break
+            # ``Distribution.files`` parses the whole RECORD and stats every
+            # installed file before returning its paths.  On the research
+            # runtime that means more than 60,000 filesystem probes for every
+            # focused test invocation even though this manifest binds only the
+            # distribution RECORD.  ``read_text`` is the public direct metadata
+            # boundary and avoids turning environment attestation into the
+            # dominant validation cost.  Its documented text boundary may
+            # normalize platform newlines, so name the digest for those text
+            # semantics instead of claiming a raw-file byte digest.
+            record = distribution.read_text("RECORD")
+            record_digest = (
+                None
+                if record is None
+                else sha256(record.encode("utf-8")).hexdigest()
+            )
             inventory.append(
                 {
                     "distribution": normalized,
-                    "record_sha256": record_digest,
+                    "record_text_sha256": record_digest,
                     "root_ordinal": ordinal,
                     "version": distribution.version,
                 }
@@ -1264,26 +1285,36 @@ def _manifest(
                 "mode": "focused_no_recovery",
             }
         )
-    for path in tracked:
+    selected_files = tuple(
+        sorted({value.split("::", 1)[0] for value in selected})
+    )
+    for path in selected_files:
         try:
             (root / Path(path)).read_bytes()
         except OSError as exc:
-            raise RuntimeError(f"tracked test is unavailable: {path}") from exc
-    blobs = _tree_test_blob_ids(root, index_tree, tracked)
-    contents = _batch_blob_contents(root, blobs)
-    worktree_blobs = _worktree_blob_ids(root, tracked)
-    entries: list[dict[str, str]] = []
-    for path, blob, content, worktree_blob in zip(
-        tracked,
-        blobs,
-        contents,
-        worktree_blobs,
+            raise RuntimeError(f"selected tracked test is unavailable: {path}") from exc
+    selected_blobs = _tree_test_blob_ids(root, index_tree, selected_files)
+    selected_worktree_blobs = _worktree_blob_ids(root, selected_files)
+    for path, blob, worktree_blob in zip(
+        selected_files,
+        selected_blobs,
+        selected_worktree_blobs,
         strict=True,
     ):
         if worktree_blob != blob:
             raise RuntimeError(
-                "tracked test worktree bytes differ from the Git index blob: " + path
+                "selected tracked test worktree bytes differ from the Git "
+                "index blob: " + path
             )
+    blobs = _tree_test_blob_ids(root, index_tree, tracked)
+    contents = _batch_blob_contents(root, blobs)
+    entries: list[dict[str, str]] = []
+    for path, blob, content in zip(
+        tracked,
+        blobs,
+        contents,
+        strict=True,
+    ):
         entries.append(
             {"blob": blob, "path": path, "sha256": sha256(content).hexdigest()}
         )
@@ -1306,7 +1337,7 @@ def _manifest(
         "python_runtime": python_runtime,
         "runtime_projection": runtime_projection,
         "sandbox_origin_policy": "detached_no_remote_no_push",
-        "schema": "tracked_pytest_manifest.v2",
+        "schema": "tracked_pytest_manifest.v3",
         "selection": {
             "authority": "subset_of_frozen_git_index_test_manifest",
             "mode": "focused" if focused else "all_tracked",
@@ -1910,7 +1941,7 @@ def _verify_independent_git_metadata(sandbox: Path, source_root: Path) -> None:
     alternates = git_directory / "objects" / "info" / "alternates"
     if alternates.exists() or _is_link_like(alternates):
         raise RuntimeError("isolated Git metadata retains an object alternate")
-    if _git(sandbox, "remote").strip():
+    if _isolated_git(sandbox, "remote").strip():
         raise RuntimeError("isolated Git metadata retains a remote")
     needles = {
         str(source_root.resolve()).encode("utf-8").lower(),
@@ -1934,60 +1965,89 @@ def _verify_independent_git_metadata(sandbox: Path, source_root: Path) -> None:
 def _checkout_independent_index_tree(
     root: Path, sandbox: Path, *, index_tree: str
 ) -> None:
-    frozen_modes = _regular_tree_modes(root, index_tree)
-    subprocess.run(
-        (
-            "git",
-            "clone",
-            "--shared",
-            "--no-checkout",
-            "--quiet",
-            str(root),
-            str(sandbox),
-        ),
+    # Fail before materialization if the frozen tree contains links or other
+    # non-regular entries.  The returned modes remain encoded in the tree and
+    # are loaded directly into the independent index below.
+    _regular_tree_modes(root, index_tree)
+    object_format = (
+        _git(root, "rev-parse", "--show-object-format").decode("ascii").strip()
+    )
+    if object_format not in {"sha1", "sha256"}:
+        raise RuntimeError("source Git object format is unsupported")
+    if sandbox.exists() or _is_link_like(sandbox):
+        if (
+            _is_link_like(sandbox)
+            or not sandbox.is_dir()
+            or any(sandbox.iterdir())
+        ):
+            raise RuntimeError("isolated Git destination is not an empty directory")
+    else:
+        sandbox.mkdir()
+    _isolated_git(
+        sandbox,
+        "init",
+        "--quiet",
+        "--initial-branch=isolated",
+        f"--object-format={object_format}",
+        "--template=",
+    )
+
+    # Transfer only the frozen index tree and its reachable blobs.  A shared
+    # clone followed by deleting .git and re-adding the whole worktree hashed
+    # every large journal/data fixture twice on every focused run.  The pack is
+    # self-contained: no alternate, remote, source path, or history is retained.
+    packed = subprocess.run(
+        ("git", "pack-objects", "--stdout", "--revs"),
         cwd=root,
+        env=_isolated_git_environment(),
+        input=f"{index_tree}\n".encode("ascii"),
+        check=True,
+        capture_output=True,
+        timeout=_LOCAL_SUBPROCESS_TIMEOUT_SECONDS,
+    ).stdout
+    if not packed:
+        raise RuntimeError("frozen index tree object pack is empty")
+    subprocess.run(
+        ("git", "index-pack", "--stdin", "--strict"),
+        cwd=sandbox,
+        env=_isolated_git_environment(),
+        input=packed,
         check=True,
         capture_output=True,
         timeout=_LOCAL_SUBPROCESS_TIMEOUT_SECONDS,
     )
-    _git(sandbox, "read-tree", index_tree)
-    _git(sandbox, "checkout-index", "--all", "--force")
-    observed_tree = _git(sandbox, "write-tree").decode("ascii").strip()
+    _isolated_git(sandbox, "read-tree", index_tree)
+    _isolated_git(sandbox, "checkout-index", "--all", "--force")
+    observed_tree = _isolated_git(sandbox, "write-tree").decode("ascii").strip()
     if observed_tree != index_tree:
         raise RuntimeError("isolated pytest index tree differs")
-
-    shared_git = sandbox / ".git"
-    if (
-        _is_link_like(shared_git)
-        or not shared_git.is_dir()
-        or shared_git.resolve(strict=True).parent != sandbox
-    ):
-        raise RuntimeError("shared Git metadata is not a confined directory")
-    shutil.rmtree(shared_git)
-    _git(sandbox, "init", "--quiet", "--initial-branch=isolated")
-    _git(sandbox, "config", "user.email", "isolated-test@example.invalid")
-    _git(sandbox, "config", "user.name", "Axiom Isolated Test")
-    _git(sandbox, "add", "--force", "--all")
-    _restore_independent_index_modes(sandbox, frozen_modes)
-    sealed_tree = _git(sandbox, "write-tree").decode("ascii").strip()
-    if sealed_tree != index_tree:
-        raise RuntimeError("independent Git snapshot tree differs")
-    _git(
-        sandbox,
-        "-c",
-        "core.hooksPath=.git/disabled-hooks",
-        "commit",
-        "--quiet",
-        "--no-gpg-sign",
-        "-m",
-        "Isolated tracked-test snapshot",
+    commit_environment = _isolated_git_environment()
+    commit_environment.update(
+        {
+            "GIT_AUTHOR_EMAIL": "isolated-test@example.invalid",
+            "GIT_AUTHOR_NAME": "Axiom Isolated Test",
+            "GIT_COMMITTER_EMAIL": "isolated-test@example.invalid",
+            "GIT_COMMITTER_NAME": "Axiom Isolated Test",
+        }
     )
+    commit = subprocess.run(
+        ("git", "commit-tree", index_tree),
+        cwd=sandbox,
+        env=commit_environment,
+        input=b"Isolated tracked-test snapshot\n",
+        check=True,
+        capture_output=True,
+        timeout=_LOCAL_SUBPROCESS_TIMEOUT_SECONDS,
+    ).stdout.decode("ascii").strip()
+    if not commit:
+        raise RuntimeError("independent Git snapshot commit is absent")
+    _isolated_git(sandbox, "update-ref", "refs/heads/isolated", commit)
     committed_tree = (
-        _git(sandbox, "rev-parse", "HEAD^{tree}").decode("ascii").strip()
+        _isolated_git(sandbox, "rev-parse", "HEAD^{tree}").decode("ascii").strip()
     )
     if committed_tree != index_tree:
         raise RuntimeError("independent Git commit tree differs")
-    _git(sandbox, "config", "core.hooksPath", ".githooks")
+    _isolated_git(sandbox, "config", "core.hooksPath", ".githooks")
     _verify_independent_git_metadata(sandbox, root)
 
 

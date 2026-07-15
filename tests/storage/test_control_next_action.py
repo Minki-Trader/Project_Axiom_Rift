@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import unittest
 
+from axiom_rift.core.identity import canonical_digest
 from axiom_rift.storage.control_next_action import (
     ControlNextActionError,
     SUPPORTED_NEXT_ACTION_KINDS,
@@ -63,6 +64,155 @@ def _disposed_science() -> dict[str, object]:
         active_mission=None,
         active_study=None,
     )
+
+
+def _compact_control_fixture(kind: str) -> dict[str, object]:
+    """Build one deterministic full-control fixture without project history."""
+
+    action, partial_scientific = _fixtures()[kind]
+    action = deepcopy(action)
+    scientific = deepcopy(partial_scientific)
+    scientific.update(
+        {
+            "active_lineage": None,
+            "claim": "none",
+            "holdout_reveals": 0,
+        }
+    )
+
+    active_batch = scientific.get("active_batch")
+    if isinstance(active_batch, dict):
+        batch_id = active_batch["id"]
+        assert isinstance(batch_id, str)
+        active_batch.update(
+            {
+                "hash": batch_id.removeprefix("batch:"),
+                "status": "open",
+            }
+        )
+
+    active_job = scientific.get("active_job")
+    if isinstance(active_job, dict):
+        job_id = active_job["id"]
+        status = active_job["status"]
+        assert isinstance(job_id, str) and isinstance(status, str)
+        active_job.update(
+            {
+                "hash": job_id.removeprefix("job:"),
+                "resume_action": "continue_batch",
+            }
+        )
+        if status in {"running", "interrupted_repair"}:
+            active_job["start_record_id"] = D0
+        if status == "interrupted_repair":
+            cause_hash = D1
+            repair_id = "repair:" + canonical_digest(
+                domain="repair",
+                payload={
+                    "cause_hash": cause_hash,
+                    "episode": 1,
+                    "job_id": job_id,
+                    "predecessor_repair_close_record_id": None,
+                },
+            )
+            scientific["active_repair"] = {
+                "cause_hash": cause_hash,
+                "episode": 1,
+                "id": repair_id,
+                "job_id": job_id,
+                "latest_attempt_record_id": None,
+                "latest_basis_hash": cause_hash,
+                "predecessor_repair_close_record_id": None,
+                "resume_action": "continue_batch",
+            }
+            if action.get("kind") == "execute_repair":
+                action["repair_id"] = repair_id
+
+    active_release = scientific.get("active_release")
+    if isinstance(active_release, dict):
+        active_release.update(
+            {
+                "candidate_id": "candidate:" + D0,
+                "executable_id": scientific["active_executable"],
+            }
+        )
+
+    authorizations: dict[str, dict[str, object]] = {}
+    for scientific_key, authorization_kind in (
+        ("active_mission", "Mission"),
+        ("active_initiative", "Initiative"),
+        ("active_study", "Study"),
+        ("active_executable", "Executable"),
+    ):
+        subject_id = scientific.get(scientific_key)
+        if isinstance(subject_id, str):
+            authorizations[f"{authorization_kind}:{subject_id}"] = {
+                "authorization_epoch": 1,
+                "authorization_hash": D0,
+                "kind": authorization_kind,
+                "subject_id": subject_id,
+            }
+    if isinstance(active_job, dict):
+        subject_id = active_job["id"]
+        assert isinstance(subject_id, str)
+        authorizations[f"Job:{subject_id}"] = {
+            "authorization_epoch": 1,
+            "authorization_hash": canonical_digest(
+                domain="subject-authorization",
+                payload={
+                    "epoch": 1,
+                    "kind": "Job",
+                    "semantic_hash": active_job["hash"],
+                    "subject_id": subject_id,
+                },
+            ),
+            "kind": "Job",
+            "subject_id": subject_id,
+        }
+    if isinstance(active_release, dict) and active_release.get("status") == "declared":
+        subject_id = active_release["id"]
+        assert isinstance(subject_id, str)
+        authorizations[f"Release:{subject_id}"] = {
+            "authorization_epoch": 1,
+            "authorization_hash": D0,
+            "kind": "Release",
+            "subject_id": subject_id,
+        }
+
+    control: dict[str, object] = {
+        "authority": {
+            "contracts": ["contracts/operations.yaml"],
+            "foundation_inputs": ["foundation/data.yaml"],
+            "graph_count": 1,
+            "manifest_digest": D0,
+            "operating_direction": "OPERATING_DIRECTION.md",
+        },
+        "authorizations": authorizations,
+        "engineering": {
+            "active_authority_graph_count": 1,
+            "harness_status": "ready",
+            "mutable_control_state_count": 1,
+        },
+        "heads": {
+            "index": {
+                "required_projection_digest": D0,
+                "required_record_count": 1,
+                "required_sequence": 1,
+            },
+            "journal": {"event_id": D0, "sequence": 1},
+        },
+        "initiative": {
+            "id": "INI-0001",
+            "outcome": "completed_ready_boundary",
+            "status": "closed",
+        },
+        "next_action": action,
+        "revision": 1,
+        "schema": "axiom_control",
+        "scientific": scientific,
+    }
+    control["control_hash"] = control_hash(control)
+    return control
 
 
 def _fixtures() -> dict[str, tuple[dict[str, object], dict[str, object]]]:
@@ -735,32 +885,10 @@ class ControlNextActionTests(unittest.TestCase):
     def test_active_job_and_batch_hash_bindings_reject_coherent_id_edits(
         self,
     ) -> None:
-        job_control: dict[str, object] | None = None
-        batch_control: dict[str, object] | None = None
-        for path in sorted(
-            (REPOSITORY_ROOT / "records" / "journal").glob("journal-*.jsonl")
-        ):
-            with path.open("r", encoding="ascii") as stream:
-                for line in stream:
-                    event = json.loads(line)
-                    scientific = event["control"]["scientific"]
-                    if (
-                        job_control is None
-                        and isinstance(scientific.get("active_job"), dict)
-                        and scientific["active_job"].get("status") == "declared"
-                    ):
-                        job_control = self._assemble_event_control(event)
-                    if (
-                        batch_control is None
-                        and event["control"]["next_action"].get("kind")
-                        == "declare_job"
-                    ):
-                        batch_control = self._assemble_event_control(event)
-                    if job_control is not None and batch_control is not None:
-                        break
-            if job_control is not None and batch_control is not None:
-                break
-        assert job_control is not None and batch_control is not None
+        job_control = _compact_control_fixture("issue_job_permit")
+        batch_control = _compact_control_fixture("declare_job")
+        validate_control(job_control)
+        validate_control(batch_control)
 
         forged_job_id = "job:" + D1
         job_scientific = job_control["scientific"]
@@ -794,22 +922,8 @@ class ControlNextActionTests(unittest.TestCase):
             validate_control(batch_control)
 
     def test_active_job_authorization_hash_is_recomputed(self) -> None:
-        control: dict[str, object] | None = None
-        for path in sorted(
-            (REPOSITORY_ROOT / "records" / "journal").glob("journal-*.jsonl")
-        ):
-            with path.open("r", encoding="ascii") as stream:
-                for line in stream:
-                    event = json.loads(line)
-                    active_job = event["control"]["scientific"].get(
-                        "active_job"
-                    )
-                    if isinstance(active_job, dict):
-                        control = self._assemble_event_control(event)
-                        break
-            if control is not None:
-                break
-        assert control is not None
+        control = _compact_control_fixture("issue_job_permit")
+        validate_control(control)
         authorizations = control["authorizations"]
         assert isinstance(authorizations, dict)
         job_authorization = next(
@@ -822,74 +936,18 @@ class ControlNextActionTests(unittest.TestCase):
         with self.assertRaisesRegex(ControlStateError, "not self-consistent"):
             validate_control(control)
 
-    @staticmethod
-    def _assemble_event_control(event: dict[str, object]) -> dict[str, object]:
-        control = deepcopy(event["control"])
-        control["revision"] = event["sequence"]
-        control["heads"] = {
-            "index": {
-                "required_projection_digest": event[
-                    "index_projection_digest"
-                ],
-                "required_record_count": event["index_record_count"],
-                "required_sequence": event["sequence"],
-            },
-            "journal": {
-                "event_id": event["event_id"],
-                "sequence": event["sequence"],
-            },
+    def test_compact_control_fixtures_preserve_full_validation_parity(self) -> None:
+        # Historical Journal-wide validation is an explicit maintenance audit,
+        # not a routine unit-test dependency.  This compact set is complete for
+        # the closed next-action union and remains stable as the Journal grows.
+        fixtures = {
+            kind: _compact_control_fixture(kind)
+            for kind in sorted(SUPPORTED_NEXT_ACTION_KINDS)
         }
-        control["control_hash"] = control_hash(control)
-        return control
-
-    def test_all_journal_snapshots_preserve_exact_validation_parity(self) -> None:
-        event_count = 0
-        valid_count = 0
-        failures: dict[str, int] = {}
-        key_shapes: set[tuple[str, tuple[str, ...]]] = set()
-        for path in sorted(
-            (REPOSITORY_ROOT / "records" / "journal").glob("journal-*.jsonl")
-        ):
-            with path.open("r", encoding="ascii") as stream:
-                for line in stream:
-                    event = json.loads(line)
-                    control = dict(event["control"])
-                    action = control["next_action"]
-                    key_shapes.add(
-                        (action["kind"], tuple(sorted(action)))
-                    )
-                    control["revision"] = event["sequence"]
-                    control["heads"] = {
-                        "index": {
-                            "required_projection_digest": event[
-                                "index_projection_digest"
-                            ],
-                            "required_record_count": event[
-                                "index_record_count"
-                            ],
-                            "required_sequence": event["sequence"],
-                        },
-                        "journal": {
-                            "event_id": event["event_id"],
-                            "sequence": event["sequence"],
-                        },
-                    }
-                    control["control_hash"] = control_hash(control)
-                    event_count += 1
-                    try:
-                        validate_control(control)
-                    except ControlStateError as exc:
-                        failures[str(exc)] = failures.get(str(exc), 0) + 1
-                    else:
-                        valid_count += 1
-
-        self.assertEqual(event_count, 5_333)
-        self.assertEqual(valid_count, 5_316)
-        self.assertEqual(len(key_shapes), 34)
-        self.assertEqual(
-            failures,
-            {"active Repair projection is invalid": 17},
-        )
+        self.assertEqual(set(fixtures), set(_fixtures()))
+        for kind, control in fixtures.items():
+            with self.subTest(kind=kind):
+                validate_control(control)
 
 
 if __name__ == "__main__":

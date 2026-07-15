@@ -613,6 +613,7 @@ class TrackedTestRunnerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
         self.assertIn("1 passed", result.stdout)
         manifest = json.loads(result.stdout.splitlines()[0])
+        self.assertEqual(manifest["schema"], "tracked_pytest_manifest.v3")
         self.assertEqual(manifest["tracked_test_count"], 2)
         self.assertEqual(
             [item["path"] for item in manifest["tracked_tests"]],
@@ -633,6 +634,75 @@ class TrackedTestRunnerTests(unittest.TestCase):
             {"authority": "none", "mode": "focused_no_recovery"},
         )
         self.assertEqual(manifest["execution_timeout_seconds"], 1800)
+
+    def test_focused_selection_ignores_unselected_worktree_drift(self) -> None:
+        other = self.root / "tests" / "test_other.py"
+        other.write_text("def test_other():\n    assert True\n", encoding="ascii")
+        run(self.root, "git", "add", "tests/test_other.py")
+        other.write_text(
+            "raise AssertionError('unselected worktree test was observed')\n",
+            encoding="ascii",
+        )
+
+        result = self.invoke(
+            "--select",
+            "tests/test_tracked.py",
+            "--no-manifest-file",
+            "--",
+            "-q",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertIn("1 passed", result.stdout)
+        manifest = json.loads(result.stdout.splitlines()[0])
+        self.assertEqual(manifest["tracked_test_count"], 2)
+
+    def test_focused_selection_imports_unselected_helper_from_index(self) -> None:
+        tracked = self.root / "tests" / "test_tracked.py"
+        helper = self.root / "tests" / "test_helper.py"
+        tracked.write_text(
+            "from test_helper import VALUE\n\n"
+            "def test_tracked():\n"
+            "    assert VALUE == 'frozen-index'\n",
+            encoding="ascii",
+        )
+        helper.write_text("VALUE = 'frozen-index'\n", encoding="ascii")
+        run(self.root, "git", "add", "tests/test_tracked.py", "tests/test_helper.py")
+        helper.write_text(
+            "raise AssertionError('unselected worktree helper was imported')\n",
+            encoding="ascii",
+        )
+
+        result = self.invoke(
+            "--select",
+            "tests/test_tracked.py",
+            "--no-manifest-file",
+            "--",
+            "-q",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertIn("1 passed", result.stdout)
+
+    def test_focused_selection_rejects_selected_worktree_drift(self) -> None:
+        tracked = self.root / "tests" / "test_tracked.py"
+        tracked.write_text(
+            "raise AssertionError('selected worktree differs')\n",
+            encoding="ascii",
+        )
+
+        result = self.invoke(
+            "--select",
+            "tests/test_tracked.py",
+            "--manifest-only",
+            "--no-manifest-file",
+        )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn(
+            "selected tracked test worktree bytes differ",
+            json.loads(result.stderr)["error"],
+        )
 
     def test_focused_exact_node_prefix_is_allowed(self) -> None:
         tracked = self.root / "tests" / "test_tracked.py"
@@ -927,6 +997,43 @@ class TrackedTestRunnerTests(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "changed during"):
                 subject._manifest(self.root.resolve(), pytest_args=())
 
+    def test_runtime_inventory_reads_record_without_enumerating_installed_files(
+        self,
+    ) -> None:
+        subject = load_runner_module()
+        record = "pytest/__init__.py,sha256=fixture,1\n"
+
+        class Distribution:
+            metadata = {"Name": "pytest"}
+            version = "9.0.2"
+
+            @property
+            def files(self):
+                raise AssertionError("runtime inventory enumerated installed files")
+
+            @staticmethod
+            def read_text(name: str) -> str | None:
+                return record if name == "RECORD" else None
+
+        with patch.object(
+            subject,
+            "_distribution_search_paths",
+            return_value=(str(self.root),),
+        ), patch.object(
+            subject.metadata,
+            "distributions",
+            return_value=(Distribution(),),
+        ):
+            runtime, roots = subject._python_runtime()
+
+        self.assertEqual(roots, (str(self.root),))
+        self.assertEqual(runtime["distribution_count"], 1)
+        self.assertNotIn("record_sha256", runtime["inventory"][0])
+        self.assertEqual(
+            runtime["inventory"][0]["record_text_sha256"],
+            sha256(record.encode("utf-8")).hexdigest(),
+        )
+
     def test_nested_snapshot_reuses_only_parent_bound_runtime_roots(self) -> None:
         subject = load_runner_module()
         runtime_roots = subject._distribution_search_paths()
@@ -964,6 +1071,13 @@ class TrackedTestRunnerTests(unittest.TestCase):
 
     def test_independent_git_metadata_contains_no_source_repository_path(self) -> None:
         self.configure_protected_development_inputs()
+        source_head = subprocess.run(
+            ("git", "rev-parse", "HEAD"),
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
         tree = subprocess.run(
             ("git", "write-tree"),
             cwd=self.root,
@@ -984,12 +1098,182 @@ class TrackedTestRunnerTests(unittest.TestCase):
             self.assertFalse(
                 (sandbox / ".git" / "objects" / "info" / "alternates").exists()
             )
+            self.assertEqual(
+                subprocess.run(
+                    ("git", "rev-list", "--all", "--count"),
+                    cwd=sandbox,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout.strip(),
+                "1",
+            )
+            self.assertNotEqual(
+                subprocess.run(
+                    ("git", "cat-file", "-e", source_head),
+                    cwd=sandbox,
+                    check=False,
+                    capture_output=True,
+                ).returncode,
+                0,
+            )
+            self.assertEqual(
+                subprocess.run(
+                    ("git", "rev-parse", "--show-object-format"),
+                    cwd=sandbox,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout.strip(),
+                subprocess.run(
+                    ("git", "rev-parse", "--show-object-format"),
+                    cwd=self.root,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout.strip(),
+            )
             for candidate in (sandbox / ".git").rglob("*"):
                 if candidate.is_file():
                     content = candidate.read_bytes().lower()
                     self.assertFalse(
                         any(needle in content for needle in source_needles)
                     )
+
+    def test_independent_snapshot_survives_source_object_removal(self) -> None:
+        tree = subprocess.run(
+            ("git", "write-tree"),
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        subject = load_runner_module()
+        with TemporaryDirectory(prefix="independent-object-test-") as temporary:
+            sandbox = Path(temporary).resolve()
+            subject._checkout_independent_index_tree(
+                self.root.resolve(), sandbox, index_tree=tree
+            )
+            source_objects = self.root / ".git" / "objects"
+            hidden_objects = self.root / ".git" / "objects.audit-hidden"
+            source_objects.rename(hidden_objects)
+            try:
+                completed = subprocess.run(
+                    ("git", "fsck", "--full", "--strict", "--no-reflogs"),
+                    cwd=sandbox,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(
+                    completed.returncode,
+                    0,
+                    completed.stderr or completed.stdout,
+                )
+                self.assertIn(
+                    "assert True",
+                    (sandbox / "tests" / "test_tracked.py").read_text("ascii"),
+                )
+            finally:
+                hidden_objects.rename(source_objects)
+
+    def test_independent_snapshot_rejects_nonregular_index_entry(self) -> None:
+        blob = subprocess.run(
+            ("git", "hash-object", "-w", "--stdin"),
+            cwd=self.root,
+            input=b"synthetic-link-target",
+            check=True,
+            capture_output=True,
+        ).stdout.decode("ascii").strip()
+        run(
+            self.root,
+            "git",
+            "update-index",
+            "--add",
+            "--cacheinfo",
+            f"120000,{blob},synthetic-link",
+        )
+        tree = subprocess.run(
+            ("git", "write-tree"),
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        subject = load_runner_module()
+        with TemporaryDirectory(prefix="independent-link-test-") as temporary:
+            sandbox = Path(temporary).resolve() / "repository"
+            with self.assertRaisesRegex(RuntimeError, "non-regular"):
+                subject._checkout_independent_index_tree(
+                    self.root.resolve(), sandbox, index_tree=tree
+                )
+            self.assertFalse(sandbox.exists())
+
+    def test_independent_snapshot_ignores_host_git_overrides(self) -> None:
+        tree = subprocess.run(
+            ("git", "write-tree"),
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        subject = load_runner_module()
+        with TemporaryDirectory(prefix="independent-env-test-") as temporary:
+            base = Path(temporary).resolve()
+            sandbox = base / "repository"
+            hostile_config = base / "hostile.gitconfig"
+            hostile_config.write_text(
+                "[core]\n\tbare = true\n",
+                encoding="ascii",
+            )
+            with patch.dict(
+                os.environ,
+                {
+                    "GIT_ALTERNATE_OBJECT_DIRECTORIES": str(base / "alternate"),
+                    "GIT_CONFIG_GLOBAL": str(hostile_config),
+                    "GIT_DIR": str(base / "wrong-git-dir"),
+                    "GIT_OBJECT_DIRECTORY": str(base / "wrong-objects"),
+                    "GIT_WORK_TREE": str(base / "wrong-worktree"),
+                },
+                clear=False,
+            ):
+                subject._checkout_independent_index_tree(
+                    self.root.resolve(), sandbox, index_tree=tree
+                )
+            self.assertEqual(
+                (sandbox / "tests" / "test_tracked.py").read_text("ascii"),
+                "def test_tracked():\n    assert True\n",
+            )
+
+    def test_independent_snapshot_uses_object_transfer_without_clone_or_add(self) -> None:
+        tree = subprocess.run(
+            ("git", "write-tree"),
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        subject = load_runner_module()
+        observed: list[tuple[str, ...]] = []
+        actual_run = subprocess.run
+
+        def observed_run(arguments, *args, **kwargs):
+            observed.append(tuple(str(value) for value in arguments))
+            return actual_run(arguments, *args, **kwargs)
+
+        with TemporaryDirectory(prefix="independent-command-test-") as temporary:
+            sandbox = Path(temporary).resolve()
+            with patch.object(subject.subprocess, "run", side_effect=observed_run):
+                subject._checkout_independent_index_tree(
+                    self.root.resolve(), sandbox, index_tree=tree
+                )
+
+        git_commands = [command[1] for command in observed if command[:1] == ("git",)]
+        self.assertIn("pack-objects", git_commands)
+        self.assertIn("index-pack", git_commands)
+        self.assertIn("commit-tree", git_commands)
+        self.assertNotIn("clone", git_commands)
+        self.assertNotIn("add", git_commands)
 
     def test_independent_snapshot_preserves_executable_index_modes(self) -> None:
         hooks = self.root / ".githooks"
