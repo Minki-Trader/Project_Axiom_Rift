@@ -327,8 +327,6 @@ class ImplementationIdentityTests(unittest.TestCase):
         self.assertTrue(paths)
         violations: list[str] = []
         for path in paths:
-            if path.name.startswith("tlt_source"):
-                continue
             tree = ast.parse(path.read_text(encoding="ascii"), filename=str(path))
             for node in ast.walk(tree):
                 if not isinstance(node, (ast.Assign, ast.AnnAssign)):

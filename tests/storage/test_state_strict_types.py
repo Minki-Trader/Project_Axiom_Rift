@@ -8,24 +8,56 @@ import unittest
 from unittest.mock import patch
 
 import axiom_rift.storage.atomic_file as atomic_file_module
+from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.operations.writer import ready_control_body
 from axiom_rift.storage.state import (
     ControlStateError,
     ControlStore,
     WriterLock,
     control_hash,
+    seal_control,
     validate_control,
 )
-
-
-REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-
 
 class ControlStrictTypeTests(unittest.TestCase):
     @staticmethod
     def _control() -> dict[str, object]:
-        return json.loads(
-            (REPOSITORY_ROOT / "state" / "control.json").read_text("ascii")
-        )
+        body = ready_control_body()
+        body["authority"]["manifest_digest"] = "a" * 64
+        body["engineering"]["commissioning_fixture"] = True
+        body["scientific"]["active_mission"] = "MIS-ACTIVE"
+        body["scientific"]["active_initiative"] = "INI-ACTIVE"
+        body["authorizations"] = {
+            "Mission:MIS-ACTIVE": {
+                "authorization_epoch": 1,
+                "authorization_hash": "2" * 64,
+                "kind": "Mission",
+                "subject_id": "MIS-ACTIVE",
+            },
+            "Initiative:INI-ACTIVE": {
+                "authorization_epoch": 1,
+                "authorization_hash": "3" * 64,
+                "kind": "Initiative",
+                "subject_id": "INI-ACTIVE",
+            },
+        }
+        body["next_action"] = {
+            "kind": "portfolio_decision",
+            "portfolio_snapshot_id": "portfolio:" + "1" * 64,
+        }
+        body["revision"] = 1
+        body["heads"] = {
+            "journal": {
+                "sequence": 1,
+                "event_id": "b" * 64,
+            },
+            "index": {
+                "required_sequence": 1,
+                "required_record_count": 3,
+                "required_projection_digest": "c" * 64,
+            },
+        }
+        return seal_control(body)
 
     def _assert_control_rejected(
         self,
@@ -194,9 +226,7 @@ class ControlStrictTypeTests(unittest.TestCase):
                 self._assert_control_rejected(mutate, message)
 
     def test_boolean_index_sequence_cannot_equal_integer_revision(self) -> None:
-        original = json.loads(
-            (REPOSITORY_ROOT / "state" / "control.json").read_text("ascii")
-        )
+        original = self._control()
         for path in (
             ("heads", "journal", "sequence"),
             ("heads", "index", "required_sequence"),
@@ -306,9 +336,7 @@ class ControlStrictTypeTests(unittest.TestCase):
             self.assertFalse(target.exists())
 
     def test_control_reader_rejects_link_aliases(self) -> None:
-        control_payload = (
-            REPOSITORY_ROOT / "state" / "control.json"
-        ).read_bytes()
+        control_payload = canonical_bytes(self._control())
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             target = root / "target.json"
@@ -351,9 +379,7 @@ class ControlStrictTypeTests(unittest.TestCase):
                     self.fail("linked parent must not receive a writer lock")
             self.assertFalse((outside / "created").exists())
 
-            control = json.loads(
-                (REPOSITORY_ROOT / "state" / "control.json").read_text("ascii")
-            )
+            control = self._control()
             outside_control = outside / "control.json"
             outside_control.write_text(json.dumps(control), encoding="ascii")
             with self.assertRaisesRegex(ControlStateError, "became unavailable"):
@@ -373,9 +399,7 @@ class ControlStrictTypeTests(unittest.TestCase):
                 residue.symlink_to(outside)
             except OSError as exc:
                 self.skipTest(f"symbolic links unavailable: {exc}")
-            control = json.loads(
-                (REPOSITORY_ROOT / "state" / "control.json").read_text("ascii")
-            )
+            control = self._control()
 
             observed = ControlStore(path).replace(control)
             self.assertEqual(ControlStore(path).read(), observed)
@@ -388,9 +412,7 @@ class ControlStrictTypeTests(unittest.TestCase):
             path = root / "control.json"
             foreign = root / "foreign.json"
             foreign.write_bytes(b"foreign-must-not-change")
-            control = json.loads(
-                (REPOSITORY_ROOT / "state" / "control.json").read_text("ascii")
-            )
+            control = self._control()
             original_directory_identity = atomic_file_module._directory_identity
             captured: dict[str, Path] = {}
             calls = 0
@@ -425,9 +447,7 @@ class ControlStrictTypeTests(unittest.TestCase):
     def test_control_atomic_replace_cleanup_does_not_mask_primary_error(self) -> None:
         with TemporaryDirectory() as temporary:
             path = Path(temporary) / "control.json"
-            control = json.loads(
-                (REPOSITORY_ROOT / "state" / "control.json").read_text("ascii")
-            )
+            control = self._control()
 
             with (
                 patch.object(

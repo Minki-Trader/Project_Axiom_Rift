@@ -148,6 +148,7 @@ class CorrectionFixture:
         self.git_origin = "a" * 40
         self.git_origin_is_ancestor = True
         self.git_index_clean = True
+        self.authority_paths_changed = tuple(SUBJECT.AUTHORITY_PATHS_CHANGED)
         for relative in AUTHORITY_PATHS:
             content = (REPO_ROOT / relative).read_bytes()
             target = self.root / relative
@@ -164,11 +165,12 @@ class CorrectionFixture:
         self.reviewed_historical_family_source_sha256 = sha256(
             historical_family_source.read_bytes()
         ).hexdigest()
-        predecessor_contract = self.predecessor_root / CHANGED_PATH
-        predecessor_contract.write_bytes(
-            predecessor_contract.read_bytes()
-            + b"\n# correction recovery fixture predecessor\n"
-        )
+        for relative in self.authority_paths_changed:
+            predecessor_contract = self.predecessor_root / relative
+            predecessor_contract.write_bytes(
+                predecessor_contract.read_bytes()
+                + b"\n# correction recovery fixture predecessor\n"
+            )
         for relative in AUTHORITY_PATHS:
             materialized = self.materialized_predecessor_root / relative
             materialized.parent.mkdir(parents=True, exist_ok=True)
@@ -201,9 +203,8 @@ class CorrectionFixture:
             root=self.root,
         )
         self.reviewed_authority_replacement_sha256 = {
-            CHANGED_PATH: sha256(
-                (self.root / CHANGED_PATH).read_bytes()
-            ).hexdigest()
+            relative: sha256((self.root / relative).read_bytes()).hexdigest()
+            for relative in self.authority_paths_changed
         }
         plan = self.predecessor_writer.plan_historical_replay_satisfaction_invalidation(
             obligation_id=self.obligation_id
@@ -572,7 +573,10 @@ class CorrectionFixture:
         return obligation.identity
 
     def replacements(self) -> dict[str, bytes]:
-        return {CHANGED_PATH: (self.root / CHANGED_PATH).read_bytes()}
+        return {
+            relative: (self.root / relative).read_bytes()
+            for relative in self.authority_paths_changed
+        }
 
     def _capture_git_blobs(self) -> dict[str, bytes]:
         paths = [self.root / "state" / "control.json"]
@@ -720,7 +724,11 @@ class CorrectionFixture:
             )
         )
         stack.enter_context(
-            patch.object(SUBJECT, "AUTHORITY_PATHS_CHANGED", (CHANGED_PATH,))
+            patch.object(
+                SUBJECT,
+                "AUTHORITY_PATHS_CHANGED",
+                self.authority_paths_changed,
+            )
         )
         stack.enter_context(
             patch.object(
@@ -800,10 +808,21 @@ class ExhaustiveAuditReplayCorrectionTests(unittest.TestCase):
         before = {path: sha256(path.read_bytes()).hexdigest() for path in paths}
         with self.fixture.patch_subject():
             plan = SUBJECT._read_only_plan()
+            expected_changed_paths = tuple(SUBJECT.AUTHORITY_PATHS_CHANGED)
+            expected_manifest_sha256 = SUBJECT.REVIEWED_INVALIDATION_MANIFEST_SHA256
         after = {path: sha256(path.read_bytes()).hexdigest() for path in paths}
         self.assertEqual(after, before)
         self.assertEqual(plan["replay_obligation_id"], self.fixture.obligation_id)
         self.assertIsNotNone(plan["replay_invalidation_plan"])
+        self.assertEqual(
+            set(plan["authority_replacement_sha256"]),
+            set(expected_changed_paths),
+        )
+        self.assertEqual(len(plan["authority_replacement_sha256"]), 4)
+        self.assertEqual(
+            plan["replay_invalidation_plan"]["audit_manifest_sha256"],
+            expected_manifest_sha256,
+        )
 
     def test_every_correction_reader_rejects_v1_without_materialization(self) -> None:
         index_path = self.fixture.root / "local" / "index.sqlite"
@@ -1514,58 +1533,6 @@ class ExhaustiveAuditReplayCorrectionTests(unittest.TestCase):
         with patch.object(sys, "argv", [str(SCRIPT_PATH), "--recover"]):
             with self.assertRaisesRegex(SystemExit, "requires --apply"):
                 SUBJECT.main()
-
-
-class LiveRootCorrectionPlanTests(unittest.TestCase):
-    @unittest.skipUnless(
-        (REPO_ROOT / "local" / "index.sqlite").is_file(),
-        "requires the live read-only Axiom projection",
-    )
-    def test_live_root_plan_is_read_only_and_still_binds_four_contracts(
-        self,
-    ) -> None:
-        def snapshot() -> tuple[tuple[str, int, str], ...]:
-            paths = [
-                REPO_ROOT / "state" / "control.json",
-                REPO_ROOT / "local" / "index.sqlite",
-                *(sorted((REPO_ROOT / "records" / "journal").glob("*"))),
-            ]
-            return tuple(
-                (
-                    path.relative_to(REPO_ROOT).as_posix(),
-                    path.stat().st_size,
-                    sha256(path.read_bytes()).hexdigest(),
-                )
-                for path in paths
-                if path.is_file()
-            )
-
-        before = snapshot()
-        status_before = subprocess.run(
-            ("git", "status", "--porcelain=v1", "--untracked-files=all"),
-            cwd=REPO_ROOT,
-            check=True,
-            capture_output=True,
-        ).stdout
-        plan = SUBJECT._read_only_plan()
-        status_after = subprocess.run(
-            ("git", "status", "--porcelain=v1", "--untracked-files=all"),
-            cwd=REPO_ROOT,
-            check=True,
-            capture_output=True,
-        ).stdout
-        self.assertEqual(snapshot(), before)
-        self.assertEqual(status_after, status_before)
-        self.assertEqual(
-            set(plan["authority_replacement_sha256"]),
-            set(SUBJECT.AUTHORITY_PATHS_CHANGED),
-        )
-        self.assertEqual(len(plan["authority_replacement_sha256"]), 4)
-        if plan["replay_invalidation_plan"] is not None:
-            self.assertEqual(
-                plan["replay_invalidation_plan"]["audit_manifest_sha256"],
-                SUBJECT.REVIEWED_INVALIDATION_MANIFEST_SHA256,
-            )
 
 
 if __name__ == "__main__":
