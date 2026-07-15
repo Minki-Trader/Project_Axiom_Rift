@@ -53,15 +53,39 @@ def _micropoints(value: object) -> int:
     return int(round(float(value) * 1_000_000))
 
 
-def _score_digest(values: np.ndarray) -> str:
-    array = np.asarray(values, dtype="<f8").copy()
-    array[np.isnan(array)] = np.nan
-    material = (
-        b"fixed-hold-score-vector.v1\0"
-        + len(array).to_bytes(8, "big")
-        + array.tobytes(order="C")
-    )
-    return sha256(material).hexdigest()
+def _causal_surface_digest(
+    surfaces: tuple[tuple[str, np.ndarray], ...],
+) -> str:
+    """Hash every causal input surface consumed by one replay simulation."""
+
+    if type(surfaces) is not tuple or not surfaces:
+        raise ValueError("causal replay surfaces are absent")
+    digest = sha256()
+    digest.update(b"fixed-hold-causal-input-surfaces.v1\0")
+    digest.update(len(surfaces).to_bytes(4, "big"))
+    names: set[str] = set()
+    for name, values in surfaces:
+        if (
+            type(name) is not str
+            or not name
+            or not name.isascii()
+            or name in names
+        ):
+            raise ValueError("causal replay surface name is invalid")
+        names.add(name)
+        encoded_name = name.encode("ascii")
+        array = np.asarray(values, dtype="<f8").copy(order="C")
+        if array.ndim == 0:
+            raise ValueError("causal replay surface is not an array")
+        array[np.isnan(array)] = np.nan
+        digest.update(len(encoded_name).to_bytes(4, "big"))
+        digest.update(encoded_name)
+        digest.update(array.ndim.to_bytes(4, "big"))
+        for size in array.shape:
+            digest.update(int(size).to_bytes(8, "big"))
+        digest.update(array.nbytes.to_bytes(8, "big"))
+        digest.update(memoryview(array).cast("B"))
+    return digest.hexdigest()
 
 
 def _time_position_map(frame: pd.DataFrame) -> dict[int, int]:
@@ -347,15 +371,29 @@ def compute_fixed_hold_family_trace(
                 selector_calibrator(prefix[0], prefix_mask),
             )
             compared = len(prefix[0])
+            full_causal_surfaces = (
+                ("score", full[0][:compared]),
+                ("volatility", full[1][:compared]),
+                ("run", full[2][:compared]),
+                ("effective_spread", spread[:compared]),
+            )
+            prefix_causal_surfaces = (
+                ("score", prefix[0]),
+                ("volatility", prefix[1]),
+                ("run", prefix[2]),
+                ("effective_spread", prefix_spreads[fold_id]),
+            )
             comparisons.append(
                 {
                     "compared_row_count": compared,
                     "fold_id": fold_id,
-                    "full_feature_values_sha256": _score_digest(
-                        full[0][:compared]
+                    "full_feature_values_sha256": _causal_surface_digest(
+                        full_causal_surfaces
                     ),
                     "invariance_key": profile,
-                    "prefix_feature_values_sha256": _score_digest(prefix[0]),
+                    "prefix_feature_values_sha256": _causal_surface_digest(
+                        prefix_causal_surfaces
+                    ),
                 }
             )
     comparisons.sort(

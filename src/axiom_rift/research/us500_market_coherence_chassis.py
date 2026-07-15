@@ -14,6 +14,10 @@ from axiom_rift.core.identity import ComponentSpec, ExecutableSpec
 from axiom_rift.research.fold_train_target_role_chassis import (
     SELECTION_TOTAL_EXPOSURES as PRIOR_TOTAL_EXPOSURES,
 )
+from axiom_rift.research.external_observed_development import (
+    US500_OBSERVED_DEVELOPMENT_SPEC,
+    external_observed_development_loader_implementation_sha256,
+)
 from axiom_rift.research.high_vol_target_reversal_chassis import (
     high_vol_target_reversal_configurations,
     high_vol_target_reversal_executable,
@@ -107,6 +111,23 @@ def us500_market_coherence_components() -> tuple[ComponentSpec, ...]:
         implementation=_local("simulate_us500_market_coherence"),
         spec={
             "raw_sha256": US500_RAW_SHA256,
+            "raw_sha256_role": "acquisition_identity_only",
+            "development_prefix_sha256": (
+                US500_OBSERVED_DEVELOPMENT_SPEC.prefix_sha256
+            ),
+            "development_prefix_byte_count": (
+                US500_OBSERVED_DEVELOPMENT_SPEC.prefix_byte_count
+            ),
+            "development_prefix_row_count": (
+                US500_OBSERVED_DEVELOPMENT_SPEC.row_count
+            ),
+            "development_material_identity": (
+                US500_OBSERVED_DEVELOPMENT_SPEC.material_identity
+            ),
+            "development_source_key": "US500",
+            "development_loader_implementation_sha256": (
+                external_observed_development_loader_implementation_sha256()
+            ),
             "source_contract_id": contract.source_contract_id,
             "mapping_identity": contract.mapping_identity,
             "schema_identity": contract.schema_identity,
@@ -116,7 +137,10 @@ def us500_market_coherence_components() -> tuple[ComponentSpec, ...]:
             "join": "exact_timestamp_no_fill_no_asof_no_offset_inference",
             "dependent_sleeve_missing_action": "fail_closed",
         },
-        semantic_dependencies=(contract.source_contract_id,),
+        semantic_dependencies=(
+            contract.source_contract_id,
+            f"external-development-material:{US500_OBSERVED_DEVELOPMENT_SPEC.material_identity}",
+        ),
     )
     regime = ComponentSpec(
         display_name="fixed US100-US500 sign coherence state",
@@ -188,7 +212,13 @@ def us500_market_coherence_executable(
         cost_contract=baseline.cost_contract,
         engine_contract=(
             f"{baseline.engine_contract}:"
-            f"us500_market_coherence_chassis_sha256_{implementation}"
+            f"us500_market_coherence_chassis_sha256_{implementation}:"
+            "external_development_material_"
+            f"{US500_OBSERVED_DEVELOPMENT_SPEC.material_identity}:"
+            "external_development_prefix_"
+            f"{US500_OBSERVED_DEVELOPMENT_SPEC.prefix_sha256}:"
+            "external_development_loader_"
+            f"{external_observed_development_loader_implementation_sha256()}"
         ),
         source_contracts=(us500_source_contract().source_contract_id,),
     )

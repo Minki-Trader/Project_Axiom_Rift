@@ -20,6 +20,7 @@ import pandas as pd
 
 from axiom_rift.research.data import load_observed_development
 from axiom_rift.research.discovery import (
+    _causal_prefix_mismatch_count,
     _daily_series,
     _fold_payloads,
     _micropoints,
@@ -38,9 +39,9 @@ from axiom_rift.research.fixed_hold_family_trace import (
     expected_fixed_hold_family_inventory,
 )
 from axiom_rift.research.fixed_hold_trace_engine import (
+    _causal_surface_digest,
     _configuration_value,
     _intent_rows,
-    _score_digest,
     _trade_rows,
 )
 
@@ -54,6 +55,13 @@ ScoreRouter = Callable[..., np.ndarray]
 SpreadBuilder = Callable[[np.ndarray, np.ndarray], np.ndarray]
 RawParityValidator = Callable[[Path, Mapping[str, Any]], None]
 _THIS_FILE = Path(__file__).resolve()
+_ROUTED_FEATURE_NAMES = (
+    "volume",
+    "reversion",
+    "volatility_sleeve",
+    "realized_volatility",
+    "run",
+)
 
 
 def routed_sleeve_trace_engine_implementation_sha256() -> str:
@@ -68,13 +76,7 @@ def _feature_arrays(features: object) -> tuple[np.ndarray, ...]:
     try:
         values = tuple(
             np.asarray(getattr(features, name), dtype=float)
-            for name in (
-                "volume",
-                "reversion",
-                "volatility_sleeve",
-                "realized_volatility",
-                "run",
-            )
+            for name in _ROUTED_FEATURE_NAMES
         )
     except AttributeError as exc:
         raise ValueError("routed sleeve feature surface is incomplete") from exc
@@ -490,39 +492,46 @@ def compute_routed_sleeve_family_trace(
             routed[(profile, fold_id, "full")] = full_score
             routed[(profile, fold_id, "prefix")] = prefix_score
             compared = len(prefix_score)
-            for prefix_value, full_value in zip(
-                _feature_arrays(prefix_features[fold_id])[:-1],
-                full_arrays[:-1],
-                strict=True,
-            ):
-                mismatches += int(
-                    (~np.isclose(
-                        prefix_value,
-                        full_value[:compared],
-                        rtol=0.0,
-                        atol=0.0,
-                        equal_nan=True,
-                    )).sum()
-                )
-            mismatches += int(
-                (~np.isclose(
-                    prefix_score,
-                    full_score[:compared],
-                    rtol=0.0,
-                    atol=0.0,
-                    equal_nan=True,
-                )).sum()
+            prefix_arrays = _feature_arrays(prefix_features[fold_id])
+            full_causal_surfaces = (
+                *tuple(
+                    (name, values[:compared])
+                    for name, values in zip(
+                        _ROUTED_FEATURE_NAMES,
+                        full_arrays,
+                        strict=True,
+                    )
+                ),
+                ("routed_score", full_score[:compared]),
+                ("effective_spread", spread[:compared]),
+            )
+            prefix_causal_surfaces = (
+                *tuple(
+                    (name, values)
+                    for name, values in zip(
+                        _ROUTED_FEATURE_NAMES,
+                        prefix_arrays,
+                        strict=True,
+                    )
+                ),
+                ("routed_score", prefix_score),
+                ("effective_spread", prefix_spreads[fold_id]),
+            )
+            mismatches += _causal_prefix_mismatch_count(
+                full_surfaces=full_causal_surfaces,
+                prefix_surfaces=prefix_causal_surfaces,
+                compared_row_count=compared,
             )
             comparisons.append(
                 {
                     "compared_row_count": compared,
                     "fold_id": fold_id,
-                    "full_feature_values_sha256": _score_digest(
-                        full_score[:compared]
+                    "full_feature_values_sha256": _causal_surface_digest(
+                        full_causal_surfaces
                     ),
                     "invariance_key": profile,
-                    "prefix_feature_values_sha256": _score_digest(
-                        prefix_score
+                    "prefix_feature_values_sha256": _causal_surface_digest(
+                        prefix_causal_surfaces
                     ),
                 }
             )

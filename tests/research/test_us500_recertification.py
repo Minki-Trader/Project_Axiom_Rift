@@ -8,6 +8,7 @@ import unittest
 
 from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.operations.validation import (
+    EvidenceValidationError,
     EvidenceValidationRequest,
     EvidenceValidatorRegistry,
     ValidationArtifact,
@@ -203,6 +204,23 @@ class US500RecertificationTests(unittest.TestCase):
             SourceTransitionEvidence.SAME_SEMANTICS_RECERTIFICATION.value,
             measurement,
         )
+
+    def test_validator_rejects_bool_latency_as_invalid_runtime_schema(self) -> None:
+        measurement = build_recertification_measurement(
+            source_state_record_id="f" * 64,
+            source_state_status="suspended",
+            source_state_payload=suspended_state_payload(),
+            runtime_probe=runtime_probe(),
+        )
+        measurement["runtime_probe"]["retrieval_latency_ms"] = True
+        with self.assertRaisesRegex(
+            EvidenceValidationError,
+            "runtime probe schema is invalid",
+        ):
+            self._validate(
+                SourceTransitionEvidence.SAME_SEMANTICS_RECERTIFICATION.value,
+                measurement,
+            )
 
     def test_recertification_plans_are_distinct(self) -> None:
         self.assertNotEqual(

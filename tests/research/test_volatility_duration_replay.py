@@ -107,15 +107,14 @@ class VolatilityDurationReplayTests(unittest.TestCase):
         self.assertEqual(len(self.definition.prospective_executable_ids), 4)
         self.assertEqual(
             self.definition.prospective_executable_ids,
-            (
-                "executable:"
-                "8392b61ce0b248381ac51be7975cacb75d7d74467b0903393656cbc2491f88e4",
-                "executable:"
-                "3a90958f5e1dca92bf61f7ed5abd0375ce1c15c8cab161512ffb480b37f0f915",
-                "executable:"
-                "d8f54d95a5a630377d9a82f7c2801d362008304d1e3096e1fb3117966799d905",
-                "executable:"
-                "eabf4c41722ac77fadccff0b669be9e9226cd250fd911878c8d594b7acbc7990",
+            tuple(
+                volatility_duration_replay_executable(
+                    configuration,
+                    historical_context_prior_global_exposure_count=(
+                        HISTORICAL_CONTEXT_COUNT
+                    ),
+                ).identity
+                for configuration in self.configurations
             ),
         )
 

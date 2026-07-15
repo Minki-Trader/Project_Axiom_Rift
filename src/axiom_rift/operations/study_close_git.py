@@ -60,6 +60,10 @@ from axiom_rift.storage.journal import (
     LEGACY_JOURNAL_RELATIVE_PATH,
     read_journal_snapshot,
 )
+from axiom_rift.storage.atomic_file import (
+    AtomicFileError,
+    replace_stable_regular_file,
+)
 from axiom_rift.storage.study_kpi import StudyKpiProjectionRow, render_study_kpi
 
 
@@ -87,6 +91,7 @@ _ORIGIN_ATTEMPT_SCHEMA = "study_close_origin_attempt.v1"
 _ORIGIN_REMOTE = "origin"
 _ORIGIN_REMOTE_REF = "origin/main"
 _ORIGIN_PUSH_TIMEOUT_SECONDS = 30
+_LOCAL_GIT_TIMEOUT_SECONDS = 2 * 60
 
 
 class StudyCloseDeliveryError(RuntimeError):
@@ -95,6 +100,20 @@ class StudyCloseDeliveryError(RuntimeError):
 
 class _AuditCacheStale(RuntimeError):
     """The rebuildable local audit cache no longer matches repository bytes."""
+
+
+def _write_local_file_atomically(
+    path: Path,
+    content: bytes,
+    *,
+    short_write_error: str,
+) -> None:
+    """Replace one local file through the shared identity-stable boundary."""
+
+    try:
+        replace_stable_regular_file(path, content)
+    except AtomicFileError as exc:
+        raise OSError(f"{short_write_error}: {exc}") from exc
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,9 +239,16 @@ def require_study_close_guard_ready(
 
 
 def _git(root: Path, *arguments: str, binary: bool = False) -> bytes | str:
-    result = subprocess.run(
-        ("git", *arguments), cwd=root, check=True, capture_output=True
-    )
+    try:
+        result = subprocess.run(
+            ("git", *arguments),
+            cwd=root,
+            check=True,
+            capture_output=True,
+            timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise StudyCloseDeliveryError("bounded local Git command timed out") from exc
     return result.stdout if binary else result.stdout.decode("ascii").strip()
 
 
@@ -262,15 +288,19 @@ def _run_origin_git(root: Path, *arguments: str) -> _OriginGitResult:
 
 
 def _ancestor(root: Path, commit: str, reference: str) -> bool:
-    return (
-        subprocess.run(
+    try:
+        completed = subprocess.run(
             ("git", "merge-base", "--is-ancestor", commit, reference),
             cwd=root,
             check=False,
             capture_output=True,
-        ).returncode
-        == 0
-    )
+            timeout=_LOCAL_GIT_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise StudyCloseDeliveryError(
+            "bounded local Git ancestry check timed out"
+        ) from exc
+    return completed.returncode == 0
 
 
 def _origin_attempt_path(root: Path) -> Path:
@@ -327,21 +357,12 @@ def _write_origin_attempt(root: Path, body: Mapping[str, Any]) -> None:
         "receipt_sha256": sha256(canonical_bytes(body)).hexdigest(),
     }
     path = _origin_attempt_path(root)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
     content = canonical_bytes(payload) + b"\n"
-    try:
-        with temporary.open("wb", buffering=0) as handle:
-            if handle.write(content) != len(content):
-                raise OSError("short origin-attempt receipt write")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    finally:
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
+    _write_local_file_atomically(
+        path,
+        content,
+        short_write_error="short origin-attempt receipt write",
+    )
 
 
 def _matching_origin_attempt(
@@ -707,7 +728,10 @@ def _verify_sealed_segment_bytes(
 
 @lru_cache(maxsize=2)
 def _sealed_journal_verifier(root: str) -> DurableJournal:
-    return DurableJournal(Path(root) / LEGACY_JOURNAL_RELATIVE_PATH)
+    return DurableJournal(
+        Path(root) / LEGACY_JOURNAL_RELATIVE_PATH,
+        create_parent=False,
+    )
 
 
 def _cursor_from_snapshot(root: Path, snapshot: JournalSnapshot) -> _JournalCursor:
@@ -1001,7 +1025,10 @@ def _scan_tracked_journal_suffix(
 ) -> tuple[list[dict[str, Any]], JournalDeliveryCursor]:
     """Verify one tracked boundary and parse only the bounded later Journal bytes."""
 
-    verifier = DurableJournal(root / LEGACY_JOURNAL_RELATIVE_PATH)
+    verifier = DurableJournal(
+        root / LEGACY_JOURNAL_RELATIVE_PATH,
+        create_parent=False,
+    )
     if cursor.sequence:
         assert cursor.event_offset is not None and cursor.event_id is not None
         try:
@@ -1664,20 +1691,11 @@ def _write_tracked_checkpoint(
 ) -> None:
     path = root / CHECKPOINT_PATH
     content = checkpoint.render()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        with temporary.open("wb", buffering=0) as handle:
-            if handle.write(content) != len(content):
-                raise OSError("short tracked checkpoint write")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    finally:
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
+    _write_local_file_atomically(
+        path,
+        content,
+        short_write_error="short tracked checkpoint write",
+    )
 
 
 def initialize_study_close_delivery_checkpoint(
@@ -2004,20 +2022,11 @@ def _write_audit_cache(root: Path, body: Mapping[str, Any]) -> None:
     path = _cache_path(root)
     payload = {**body, "cache_digest": sha256(canonical_bytes(body)).hexdigest()}
     content = canonical_bytes(payload) + b"\n"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
-    try:
-        with temporary.open("wb", buffering=0) as handle:
-            if handle.write(content) != len(content):
-                raise OSError("short audit cache write")
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, path)
-    finally:
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
+    _write_local_file_atomically(
+        path,
+        content,
+        short_write_error="short audit cache write",
+    )
 
 
 def _load_audit_cache(root: Path) -> tuple[dict[str, Any], _JournalCursor] | None:
@@ -2256,7 +2265,16 @@ def validate_commit_message(repository_root: str | Path, message_path: str | Pat
     root = Path(repository_root).resolve()
     staged = set(str(_git(root, "diff", "--cached", "--name-only")).splitlines())
     unstaged = set(str(_git(root, "diff", "--name-only")).splitlines())
-    journal_delta = {path for path in staged | unstaged if _journal_path(path)}
+    changed = staged | unstaged
+    journal_delta = {path for path in changed if _journal_path(path)}
+    projection_delta = journal_delta | (
+        changed & {CHECKPOINT_PATH, *BASE_REQUIRED_PATHS}
+    )
+    if not projection_delta:
+        # The hook protects Study-close projection and checkpoint boundaries.
+        # An unrelated code or documentation commit cannot contain or split
+        # those bytes, so reading the complete Journal here adds no authority.
+        return
     try:
         worktree = _worktree_journal(root)
     except (OSError, JournalIntegrityError) as exc:

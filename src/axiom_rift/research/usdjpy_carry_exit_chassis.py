@@ -17,6 +17,10 @@ from axiom_rift.research.discovery import (
     execution_pnl,
     simulate_fixed_hold,
 )
+from axiom_rift.research.external_observed_development import (
+    USDJPY_OBSERVED_DEVELOPMENT_SPEC,
+    external_observed_development_loader_implementation_sha256,
+)
 from axiom_rift.research.high_vol_target_reversal_chassis import (
     high_vol_target_reversal_configurations,
     high_vol_target_reversal_executable,
@@ -123,6 +127,23 @@ def usdjpy_carry_exit_components() -> tuple[ComponentSpec, ...]:
         implementation=_local("simulate_usdjpy_carry_exit"),
         spec={
             "raw_sha256": USDJPY_RAW_SHA256,
+            "raw_sha256_role": "acquisition_identity_only",
+            "development_prefix_sha256": (
+                USDJPY_OBSERVED_DEVELOPMENT_SPEC.prefix_sha256
+            ),
+            "development_prefix_byte_count": (
+                USDJPY_OBSERVED_DEVELOPMENT_SPEC.prefix_byte_count
+            ),
+            "development_prefix_row_count": (
+                USDJPY_OBSERVED_DEVELOPMENT_SPEC.row_count
+            ),
+            "development_material_identity": (
+                USDJPY_OBSERVED_DEVELOPMENT_SPEC.material_identity
+            ),
+            "development_source_key": "USDJPY",
+            "development_loader_implementation_sha256": (
+                external_observed_development_loader_implementation_sha256()
+            ),
             "source_contract_id": contract.source_contract_id,
             "mapping_identity": contract.mapping_identity,
             "schema_identity": contract.schema_identity,
@@ -133,7 +154,10 @@ def usdjpy_carry_exit_components() -> tuple[ComponentSpec, ...]:
             "entry_missing_state_action": "no_entry",
             "holding_missing_or_stale_action": "next_exact_open_safe_exit",
         },
-        semantic_dependencies=(contract.source_contract_id,),
+        semantic_dependencies=(
+            contract.source_contract_id,
+            f"external-development-material:{USDJPY_OBSERVED_DEVELOPMENT_SPEC.material_identity}",
+        ),
     )
     state = ComponentSpec(
         display_name="completed USDJPY one-FX-day carry state",
@@ -227,7 +251,13 @@ def usdjpy_carry_exit_executable(
         cost_contract=baseline.cost_contract,
         engine_contract=(
             f"{baseline.engine_contract}:"
-            f"usdjpy_carry_exit_chassis_sha256_{implementation}"
+            f"usdjpy_carry_exit_chassis_sha256_{implementation}:"
+            "external_development_material_"
+            f"{USDJPY_OBSERVED_DEVELOPMENT_SPEC.material_identity}:"
+            "external_development_prefix_"
+            f"{USDJPY_OBSERVED_DEVELOPMENT_SPEC.prefix_sha256}:"
+            "external_development_loader_"
+            f"{external_observed_development_loader_implementation_sha256()}"
         ),
         source_contracts=(usdjpy_source_contract().source_contract_id,),
     )
@@ -545,7 +575,10 @@ def simulate_usdjpy_carry_exit(
         name="regime_router",
     )
     target = routed[:, 1].copy()
-    entry_hours = pd.to_datetime(frame["time"], errors="raise").shift(-1).dt.hour
+    entry_hours = (
+        pd.to_datetime(frame["time"], errors="raise")
+        + pd.Timedelta(minutes=5)
+    ).dt.hour
     target[~entry_hours.isin(range(15, 23)).to_numpy()] = np.nan
     macro = _target_carry_exit_slot(
         frame=frame,

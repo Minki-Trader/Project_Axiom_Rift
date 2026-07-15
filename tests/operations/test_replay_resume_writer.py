@@ -214,6 +214,7 @@ class ReplayResumeWriterTests(unittest.TestCase):
             body = self.writer._body(current)
             body["next_action"] = {
                 "kind": "choose_next_initiative_or_terminal",
+                "mission_id": MISSION_ID,
                 "pending_replay_obligation_ids": [obligation.identity],
                 "required_replay_priority": ReplayPriority.P1.value,
             }

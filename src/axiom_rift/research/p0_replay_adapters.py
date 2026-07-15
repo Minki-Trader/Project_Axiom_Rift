@@ -34,6 +34,7 @@ from axiom_rift.research import (
     positive_direction_sleeve_chassis as positive_chassis_module,
     positive_direction_sleeve_discovery as positive_module,
     p0_replay_inventory as replay_inventory_module,
+    p0_selection_inference as p0_selection_module,
     regime_direction_router_chassis as regime_chassis_module,
     selection_inference as selection_module,
     session_dense_positive_sleeve_chassis as session_dense_chassis_module,
@@ -83,12 +84,12 @@ from axiom_rift.research.positive_direction_sleeve_discovery import (
     target_direction_score,
 )
 from axiom_rift.research.p0_replay_inventory import load_p0_replay_inventory
+from axiom_rift.research.p0_selection_inference import (
+    P0_REPLAY_EXECUTABLE_IDS,
+)
 from axiom_rift.research.regime_direction_router_chassis import (
     regime_direction_router_configurations,
     simulate_regime_direction_router,
-)
-from axiom_rift.research.selection_inference import (
-    P0_REPLAY_EXECUTABLE_IDS,
 )
 from axiom_rift.research.three_way_regime_router_chassis import (
     simulate_three_way_regime_router,
@@ -203,6 +204,7 @@ def forest_replay_adapter_dependency_graph(
     positive = _module_source(positive_module)
     positive_chassis = _module_source(positive_chassis_module)
     inventory = _module_source(replay_inventory_module)
+    p0_selection = _module_source(p0_selection_module)
     high_vol = _module_source(high_vol_module)
     high_vol_chassis = _module_source(high_vol_chassis_module)
     implementation_closure = _module_source(implementation_closure_module)
@@ -219,6 +221,7 @@ def forest_replay_adapter_dependency_graph(
             high_vol_chassis,
             implementation_closure,
             inventory,
+            p0_selection,
             positive,
             positive_chassis,
             regime_chassis,
@@ -239,10 +242,11 @@ def forest_replay_adapter_dependency_graph(
         implementation_closure: (),
         identity: (canonical,),
         inventory: (canonical,),
+        p0_selection: (inventory, selection),
         positive: (discovery,),
         positive_chassis: (discovery,),
         regime_chassis: (discovery,),
-        selection: (canonical, identity, inventory),
+        selection: (canonical, identity),
         session_dense_chassis: (discovery,),
         synthesis: (equity_premium,),
         equity_premium: (

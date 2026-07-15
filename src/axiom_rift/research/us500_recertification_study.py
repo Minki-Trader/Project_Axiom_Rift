@@ -9,7 +9,8 @@ from pathlib import Path
 from typing import Mapping
 
 from axiom_rift.core.canonical import canonical_bytes
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.running_job_context import RunningJobExecutionContext
 from axiom_rift.research.sources import SourceTransitionEvidence
 from axiom_rift.research.us500_recertification import (
     build_drift_measurement,
@@ -87,7 +88,7 @@ def _execute(
     callable_identity: str,
 ) -> SourceJobPacket:
     root = Path(repository_root).resolve()
-    writer = StateWriter(root)
+    writer = RunningJobExecutionContext(root)
     binding = writer.verify_running_job_execution(
         execution,
         expected_callable_identity=callable_identity,
@@ -109,11 +110,8 @@ def _execute(
         or source_binding.get("result_manifest_output") != names["result"]
     ):
         raise ValueError("running Job is not bound to the US500 recertification edge")
-    with writer._open_authoritative_index() as index:
-        head = index.event_head(f"source:{source_id}")
-        state = None if head is None else index.get(head.record_kind, head.record_id)
-    if state is None:
-        raise ValueError("current US500 source state is absent")
+    state = writer.project_bound_source_state(source_contract_id=source_id)
+    source_state_payload = state.payload()
     if transition_evidence == SourceTransitionEvidence.DRIFT.value:
         observed_at = datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace(
             "+00:00", "Z"
@@ -121,7 +119,7 @@ def _execute(
         measurement = build_drift_measurement(
             source_state_record_id=state.record_id,
             source_state_status=state.status,
-            source_state_payload=state.payload,
+            source_state_payload=source_state_payload,
             observed_at_utc=observed_at,
         )
     else:
@@ -129,7 +127,7 @@ def _execute(
         measurement = build_recertification_measurement(
             source_state_record_id=state.record_id,
             source_state_status=state.status,
-            source_state_payload=state.payload,
+            source_state_payload=source_state_payload,
             runtime_probe=probe,
         )
         observed_at = measurement["observed_at_utc"]

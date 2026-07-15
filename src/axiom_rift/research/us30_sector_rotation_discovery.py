@@ -10,7 +10,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
-from io import BytesIO
 from math import ceil, sqrt
 from pathlib import Path
 import sys
@@ -26,6 +25,12 @@ from axiom_rift.core.identity import ComponentSpec, ExecutableSpec, canonical_di
 from axiom_rift.research import data as data_module
 from axiom_rift.research import us30_source as us30_source_module
 from axiom_rift.research.data import ObservedDevelopmentData, load_observed_development
+from axiom_rift.research.external_observed_development import (
+    ExternalObservedDevelopmentError,
+    US30_OBSERVED_DEVELOPMENT_SPEC,
+    external_observed_development_loader_implementation_sha256,
+    load_external_observed_development,
+)
 from axiom_rift.research.discovery import (
     DATASET_SHA256,
     OBSERVED_MATERIAL_ID,
@@ -46,8 +51,6 @@ from axiom_rift.research.discovery import (
     execution_pnl,
 )
 from axiom_rift.research.us30_source import (
-    US30_COLUMNS,
-    US30_RAW_RELATIVE_PATH,
     us30_source_contract,
 )
 
@@ -109,18 +112,11 @@ def us30_source_implementation_sha256() -> str:
     return _file_sha256(Path(us30_source_module.__file__).resolve())
 
 
-def _raw_path(repository_root: str | Path) -> Path:
-    root = Path(repository_root).resolve()
-    target = (root / US30_RAW_RELATIVE_PATH).resolve()
-    if root not in target.parents or not target.is_file():
-        raise US30SectorRotationBoundaryError(
-            "US30 raw snapshot is absent or outside the repository"
-        )
-    return target
-
-
 def us30_raw_sha256(repository_root: str | Path) -> str:
-    return _file_sha256(_raw_path(repository_root))
+    """Return the immutable acquisition identity without opening raw bytes."""
+
+    Path(repository_root).resolve()
+    return US30_OBSERVED_DEVELOPMENT_SPEC.parent_raw_sha256
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,165 +136,38 @@ class US30ObservedDevelopment:
     metadata: US30DevelopmentMetadata
 
 
-@dataclass(frozen=True, slots=True)
-class _SourceScan:
-    parser_input: BytesIO
-    raw_sha256: str
-    prefix_sha256: str
-    prefix_byte_count: int
-    row_count: int
-
-
-def _record_body(raw_line: bytes, name: str) -> bytes:
-    body = raw_line[:-1] if raw_line.endswith(b"\n") else raw_line
-    body = body[:-1] if body.endswith(b"\r") else body
-    if not body:
-        raise US30SectorRotationBoundaryError(f"{name} contains an empty record")
-    return body
-
-
-def _timestamp_bytes(record: bytes) -> bytes:
-    stamp, separator, _ = record.partition(b",")
-    if not separator or len(stamp) != 19:
-        raise US30SectorRotationBoundaryError(
-            "US30 source timestamp field boundary is invalid"
-        )
-    punctuation = {4: 46, 7: 46, 10: 32, 13: 58, 16: 58}
-    if any(stamp[index] != expected for index, expected in punctuation.items()) or any(
-        not 48 <= value <= 57
-        for index, value in enumerate(stamp)
-        if index not in punctuation
-    ):
-        raise US30SectorRotationBoundaryError(
-            "US30 source timestamp is invalid"
-        )
-    minute = 10 * (stamp[14] - 48) + stamp[15] - 48
-    if stamp[17:19] != b"00" or minute >= 60 or minute % 5 != 0:
-        raise US30SectorRotationBoundaryError(
-            "US30 source timestamp is off the M5 grid"
-        )
-    return stamp
-
-
-def _scan_us30_source(path: Path, *, expected_raw_sha256: str) -> _SourceScan:
-    expected = _require_digest(expected_raw_sha256, "expected US30 raw hash")
-    expected_header = b",".join(field.encode("ascii") for field in US30_COLUMNS)
-    boundary = DEVELOPMENT_END.strftime(_TIME_FORMAT).encode("ascii")
-    full_hash = sha256()
-    prefix_hash = sha256()
-    prefix = BytesIO()
-    previous: bytes | None = None
-    copied_rows = 0
-    saw_later = False
-    try:
-        with path.open("rb") as handle:
-            header = handle.readline()
-            if not header or _record_body(header, "US30 header") != expected_header:
-                raise US30SectorRotationBoundaryError(
-                    "US30 raw schema or field order differs"
-                )
-            full_hash.update(header)
-            prefix_hash.update(header)
-            prefix.write(header)
-            for raw_line in handle:
-                full_hash.update(raw_line)
-                record = _record_body(raw_line, "US30 source")
-                stamp = _timestamp_bytes(record)
-                if previous is not None and stamp <= previous:
-                    raise US30SectorRotationBoundaryError(
-                        "US30 source timestamps are not strictly increasing"
-                    )
-                previous = stamp
-                if stamp <= boundary:
-                    if saw_later:
-                        raise US30SectorRotationBoundaryError(
-                            "US30 development row follows the quarantined tail"
-                        )
-                    prefix_hash.update(raw_line)
-                    prefix.write(raw_line)
-                    copied_rows += 1
-                else:
-                    saw_later = True
-    except OSError as exc:
-        prefix.close()
-        raise US30SectorRotationBoundaryError(
-            "US30 raw snapshot cannot be scanned"
-        ) from exc
-    observed = full_hash.hexdigest()
-    if observed != expected:
-        prefix.close()
-        raise US30SectorRotationBoundaryError("US30 raw SHA256 changed")
-    if copied_rows == 0 or not saw_later:
-        prefix.close()
-        raise US30SectorRotationBoundaryError(
-            "US30 source does not expose the exact development/tail boundary"
-        )
-    prefix.seek(0)
-    return _SourceScan(
-        parser_input=prefix,
-        raw_sha256=observed,
-        prefix_sha256=prefix_hash.hexdigest(),
-        prefix_byte_count=prefix.getbuffer().nbytes,
-        row_count=copied_rows,
-    )
-
-
 def load_us30_observed_development(
     repository_root: str | Path,
     *,
     expected_raw_sha256: str | None = None,
 ) -> US30ObservedDevelopment:
-    """Parse only US30 rows at or before the registered development boundary."""
+    """Load only the registered US30 development-prefix artifact."""
 
-    path = _raw_path(repository_root)
-    expected = us30_raw_sha256(repository_root) if expected_raw_sha256 is None else expected_raw_sha256
-    scan = _scan_us30_source(path, expected_raw_sha256=expected)
-    try:
-        frame = pd.read_csv(
-            scan.parser_input,
-            usecols=["time", "close"],
-            dtype={"time": "string", "close": "float64"},
-            engine="c",
-        )
-    except (OSError, TypeError, ValueError, pd.errors.ParserError) as exc:
+    expected = US30_OBSERVED_DEVELOPMENT_SPEC.parent_raw_sha256
+    if expected_raw_sha256 is not None and _require_digest(
+        expected_raw_sha256, "expected US30 raw hash"
+    ) != expected:
         raise US30SectorRotationBoundaryError(
-            "US30 development prefix cannot be parsed"
-        ) from exc
-    finally:
-        scan.parser_input.close()
-    if tuple(frame.columns) != ("time", "close") or len(frame) != scan.row_count:
-        raise US30SectorRotationBoundaryError(
-            "US30 parsed development schema or row count differs"
+            "US30 acquisition identity differs"
         )
     try:
-        frame["time"] = pd.to_datetime(frame["time"], format=_TIME_FORMAT, errors="raise")
-    except (TypeError, ValueError) as exc:
+        loaded = load_external_observed_development(repository_root, "US30")
+    except ExternalObservedDevelopmentError as exc:
         raise US30SectorRotationBoundaryError(
-            "US30 development timestamps are invalid"
+            "US30 observed-development prefix is invalid"
         ) from exc
-    time = frame["time"]
-    close = frame["close"].to_numpy(dtype=float)
-    if (
-        time.isna().any()
-        or time.duplicated().any()
-        or not time.is_monotonic_increasing
-        or time.iloc[-1] > DEVELOPMENT_END
-        or np.any(~np.isfinite(close))
-        or np.any(close <= 0)
-    ):
-        raise US30SectorRotationBoundaryError(
-            "US30 development prefix violates its data boundary"
-        )
+    frame = loaded.frame
+    metadata = loaded.metadata
     return US30ObservedDevelopment(
         frame=frame,
         metadata=US30DevelopmentMetadata(
-            raw_sha256=scan.raw_sha256,
-            development_prefix_sha256=scan.prefix_sha256,
-            prefix_byte_count=scan.prefix_byte_count,
+            raw_sha256=metadata.parent_raw_sha256,
+            development_prefix_sha256=metadata.development_prefix_sha256,
+            prefix_byte_count=metadata.prefix_byte_count,
             development_row_count=len(frame),
-            first_time=pd.Timestamp(time.iloc[0]),
-            last_time=pd.Timestamp(time.iloc[-1]),
-            source_path=path,
+            first_time=metadata.first_time,
+            last_time=metadata.last_time,
+            source_path=metadata.source_path,
         ),
     )
 
@@ -377,7 +246,10 @@ def us30_sector_rotation_components(raw_sha256: str) -> tuple[ComponentSpec, ...
             display_name="exact causal US30 and US100 relative strength",
             protocol="feature.us30_sector_rotation_12_sigma48.v1",
             implementation=_local_implementation("compute_relative_strength_features"),
-            semantic_dependencies=(source_id,),
+            semantic_dependencies=(
+                source_id,
+                f"external-development-material:{US30_OBSERVED_DEVELOPMENT_SPEC.material_identity}",
+            ),
             spec={
                 "availability": "both_completed_bars_at_event_time_plus_5m",
                 "development_end": str(DEVELOPMENT_END),
@@ -386,6 +258,23 @@ def us30_sector_rotation_components(raw_sha256: str) -> tuple[ComponentSpec, ...
                 "nonconsecutive_action": "joint_run_reset_and_rewarm_49_bars",
                 "profiles": list(_PROFILES),
                 "raw_sha256": raw,
+                "raw_sha256_role": "acquisition_identity_only",
+                "development_prefix_sha256": (
+                    US30_OBSERVED_DEVELOPMENT_SPEC.prefix_sha256
+                ),
+                "development_prefix_byte_count": (
+                    US30_OBSERVED_DEVELOPMENT_SPEC.prefix_byte_count
+                ),
+                "development_prefix_row_count": (
+                    US30_OBSERVED_DEVELOPMENT_SPEC.row_count
+                ),
+                "development_material_identity": (
+                    US30_OBSERVED_DEVELOPMENT_SPEC.material_identity
+                ),
+                "development_source_key": "US30",
+                "development_loader_implementation_sha256": (
+                    external_observed_development_loader_implementation_sha256()
+                ),
                 "source_identities": source,
                 "volatility": "sample_std_ddof1_last48_one_bar_log_returns",
             },
@@ -474,6 +363,12 @@ def us30_sector_rotation_executable(
         parameters={
             **configuration.semantic_parameters(),
             "source_contract_identities": source,
+            "source_development_material_identity": (
+                US30_OBSERVED_DEVELOPMENT_SPEC.material_identity
+            ),
+            "source_development_prefix_sha256": (
+                US30_OBSERVED_DEVELOPMENT_SPEC.prefix_sha256
+            ),
             "source_raw_sha256": raw,
         },
         data_contract=f"data:{OBSERVED_MATERIAL_ID}",
@@ -493,7 +388,10 @@ def us30_sector_rotation_executable(
             "numpy2_3_4:pandas2_3_3:scipy1_16_3:"
             f"implementation_{us30_sector_rotation_implementation_sha256()}:"
             f"trend_{trend_dependency_sha256()}:loader_{loader_implementation_sha256()}:"
+            f"external_loader_{external_observed_development_loader_implementation_sha256()}:"
             f"source_module_{us30_source_implementation_sha256()}:raw_{raw}:"
+            f"development_material_{US30_OBSERVED_DEVELOPMENT_SPEC.material_identity}:"
+            f"development_prefix_{US30_OBSERVED_DEVELOPMENT_SPEC.prefix_sha256}:"
             f"source_{source['source_contract_id']}:mapping_{source['mapping_identity']}:"
             f"schema_{source['schema_identity']}:field_{source['field_identity']}:"
             f"clock_{source['clock_identity']}:availability_{source['availability_identity']}:"
@@ -790,6 +688,7 @@ def _prefix_mismatch_count(
     end: pd.Timestamp,
 ) -> int:
     full_mask = pd.to_datetime(full.joined_frame["time"], errors="raise") <= end
+    target_mask = pd.to_datetime(full.target_frame["time"], errors="raise") <= end
     expected_frame = full.joined_frame.loc[full_mask].reset_index(drop=True)
     if len(expected_frame) != len(prefix.joined_frame):
         return abs(len(expected_frame) - len(prefix.joined_frame)) + 1
@@ -802,6 +701,7 @@ def _prefix_mismatch_count(
         (full.features.score(profile)[full_mask.to_numpy()], prefix.features.score(profile)),
         (full.features.us100_volatility[full_mask.to_numpy()], prefix.features.us100_volatility),
         (full.features.joint_run[full_mask.to_numpy()], prefix.features.joint_run),
+        (full.effective_spread[target_mask.to_numpy()], prefix.effective_spread),
     )
     for left, right in pairs:
         if len(left) != len(right):

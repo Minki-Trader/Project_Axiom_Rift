@@ -14,6 +14,15 @@ import stat as stat_module
 
 from axiom_rift.core.canonical import CanonicalJSONError, canonical_bytes, parse_canonical
 from axiom_rift.core.identity import canonical_digest
+from axiom_rift.storage.atomic_file import (
+    AtomicFileError,
+    replace_stable_regular_file,
+)
+from axiom_rift.storage.path_boundary import (
+    PathBoundaryError,
+    ensure_link_free_directory_chain,
+    require_link_free_directory_chain,
+)
 
 
 LEGACY_JOURNAL_RELATIVE_PATH = "records/journal.jsonl"
@@ -27,6 +36,7 @@ JOURNAL_STORAGE_MIGRATION_SCHEMA = "journal_storage_migration.v1"
 _MAX_EVENT_BYTES = 1_048_576
 _MAX_SEGMENT_BYTES = 32 * 1_048_576
 _MAX_SEGMENT_EVENTS = 5_000
+_TAIL_READ_CHUNK_BYTES = 64 * 1_024
 _WRITE_CAPABILITY_SENTINEL = object()
 _HEX = frozenset("0123456789abcdef")
 
@@ -144,7 +154,7 @@ def _require_exact_keys(value: Mapping[str, Any], expected: set[str], label: str
 def _require_int(
     value: object, label: str, *, minimum: int = 0
 ) -> int:
-    if isinstance(value, bool) or not isinstance(value, int) or value < minimum:
+    if type(value) is not int or value < minimum:
         raise JournalIntegrityError(f"{label} is invalid")
     return value
 
@@ -374,20 +384,29 @@ def _validate_event(
 ) -> dict[str, Any]:
     if event.get("schema") != "journal_event":
         raise JournalIntegrityError("unexpected journal event schema")
-    if event.get("sequence") != expected_sequence:
+    sequence = event.get("sequence")
+    if (
+        type(expected_sequence) is not int
+        or expected_sequence < 1
+        or type(sequence) is not int
+        or sequence != expected_sequence
+    ):
         raise JournalIntegrityError("journal sequence mismatch")
+    if expected_offset is not None and (
+        type(expected_offset) is not int or expected_offset < 0
+    ):
+        raise JournalIntegrityError("expected journal byte offset is invalid")
     if event.get("previous_event_id") != expected_previous:
         raise JournalIntegrityError("journal previous-event mismatch")
     journal_offset = event.get("journal_offset")
     if (
-        isinstance(journal_offset, bool)
-        or not isinstance(journal_offset, int)
+        type(journal_offset) is not int
         or journal_offset < 0
         or (expected_offset is not None and journal_offset != expected_offset)
     ):
         raise JournalIntegrityError("journal byte offset mismatch")
     record_count = event.get("index_record_count")
-    if isinstance(record_count, bool) or not isinstance(record_count, int) or record_count < 1:
+    if type(record_count) is not int or record_count < 1:
         raise JournalIntegrityError("journal index record count is invalid")
     _require_digest(event.get("index_projection_digest"), "journal index projection digest")
     event_id = event.get("event_id")
@@ -619,16 +638,10 @@ def _fsync_directory(path: Path) -> None:
 
 
 def _atomic_write(path: Path, content: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    temporary = path.with_name(f".{path.name}.tmp")
-    with temporary.open("wb", buffering=0) as handle:
-        written = handle.write(content)
-        if written != len(content):
-            raise JournalError(f"short write for {path.name}")
-        handle.flush()
-        os.fsync(handle.fileno())
-    os.replace(temporary, path)
-    _fsync_directory(path.parent)
+    try:
+        replace_stable_regular_file(path, content)
+    except AtomicFileError as exc:
+        raise JournalError("Journal atomic write boundary is invalid") from exc
 
 
 class DurableJournal:
@@ -641,9 +654,22 @@ class DurableJournal:
         _MAX_SEGMENT_BYTES + _MAX_EVENT_BYTES
     )
 
-    def __init__(self, path: str | Path) -> None:
+    def __init__(
+        self,
+        path: str | Path,
+        *,
+        create_parent: bool = True,
+    ) -> None:
+        if type(create_parent) is not bool:
+            raise ValueError("Journal create_parent must be boolean")
         self.path = Path(path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if create_parent:
+            try:
+                ensure_link_free_directory_chain(self.path.parent)
+            except PathBoundaryError as exc:
+                raise JournalError(
+                    "Journal directory boundary is invalid"
+                ) from exc
         self.repository_root = self.path.parent.parent
         self.manifest_path = self.repository_root / JOURNAL_MANIFEST_RELATIVE_PATH
         self.segment_directory = self.repository_root / JOURNAL_DIRECTORY_RELATIVE_PATH
@@ -933,6 +959,27 @@ class DurableJournal:
             if path.is_file() and not path.name.startswith(".")
         )
 
+    def _validate_segment_layout_paths(self, manifest: Mapping[str, Any]) -> None:
+        referenced = {
+            JOURNAL_MANIFEST_RELATIVE_PATH,
+            manifest["active_segment"]["path"],
+            *[item["path"] for item in manifest["sealed_segments"]],
+            *[item["seal_path"] for item in manifest["sealed_segments"]],
+        }
+        declared = {
+            path
+            for path in self._listed_paths()
+            if path == JOURNAL_MANIFEST_RELATIVE_PATH
+            or (
+                path.startswith(JOURNAL_DIRECTORY_RELATIVE_PATH + "/")
+                and (path.endswith(".jsonl") or path.endswith(".seal.json"))
+            )
+        }
+        if declared != referenced:
+            raise JournalIntegrityError(
+                "unreferenced or missing Journal segment exists"
+            )
+
     def _snapshot(self) -> JournalSnapshot:
         return read_journal_snapshot(self._load_file, listed_paths=self._listed_paths())
 
@@ -949,18 +996,241 @@ class DurableJournal:
 
     def _segmented_cache_key(self, manifest: Mapping[str, Any]) -> tuple[Any, ...]:
         rows: list[Any] = [manifest["manifest_digest"]]
-        for relative in (
-            *[item["path"] for item in manifest["sealed_segments"]],
-            *[item["seal_path"] for item in manifest["sealed_segments"]],
-            manifest["active_segment"]["path"],
-        ):
+        declared: list[tuple[str, int | None]] = []
+        for descriptor in manifest["sealed_segments"]:
+            declared.append((descriptor["path"], descriptor["byte_length"]))
+            declared.append((descriptor["seal_path"], None))
+        declared.append((manifest["active_segment"]["path"], None))
+        for relative, expected_size in declared:
             path = self._absolute(relative)
             try:
-                stat = path.stat()
+                value = path.stat()
             except OSError as exc:
                 raise JournalIntegrityError("Journal segment is unavailable") from exc
-            rows.append((relative, stat.st_size, stat.st_mtime_ns, stat.st_ino))
+            if not stat_module.S_ISREG(value.st_mode):
+                raise JournalIntegrityError("Journal segment is not a regular file")
+            if expected_size is not None and value.st_size != expected_size:
+                raise JournalIntegrityError(
+                    "sealed Journal segment byte length differs"
+                )
+            rows.append(
+                (
+                    relative,
+                    value.st_size,
+                    value.st_mtime_ns,
+                    value.st_ctime_ns,
+                    value.st_ino,
+                    value.st_dev,
+                )
+            )
         return tuple(rows)
+
+    def _read_segment_boundary_frames(
+        self, path: Path
+    ) -> tuple[int, bytes | None, bytes | None, int | None]:
+        """Read only the first and last bounded frames from one stable segment."""
+
+        try:
+            path_before = self._file_signature(path)
+            with path.open("rb") as handle:
+                opened_before = self._file_signature_from_stat(os.fstat(handle.fileno()))
+                size = opened_before.size
+                if size == 0:
+                    first_framed = None
+                    last_framed = None
+                    last_offset = None
+                else:
+                    first_framed = handle.readline(self.MAX_EVENT_BYTES + 2)
+                    maximum_window = min(size, self.MAX_EVENT_BYTES + 2)
+                    window_size = min(maximum_window, _TAIL_READ_CHUNK_BYTES)
+                    window_offset = size - window_size
+                    handle.seek(window_offset)
+                    window = handle.read(window_size)
+                    if len(window) != window_size:
+                        raise JournalIntegrityError(
+                            "Journal segment changed while its boundary was read"
+                        )
+                    if not window.endswith(b"\n"):
+                        raise TornJournalError(
+                            "journal segment has an incomplete tail"
+                        )
+                    split = window[:-1].rfind(b"\n")
+                    while split < 0 and window_offset > 0:
+                        if len(window) == maximum_window:
+                            raise TornJournalError(
+                                "journal tail exceeds the event bound"
+                            )
+                        prefix_size = min(
+                            _TAIL_READ_CHUNK_BYTES,
+                            window_offset,
+                            maximum_window - len(window),
+                        )
+                        window_offset -= prefix_size
+                        handle.seek(window_offset)
+                        prefix = handle.read(prefix_size)
+                        if len(prefix) != prefix_size:
+                            raise JournalIntegrityError(
+                                "Journal segment changed while its boundary was read"
+                            )
+                        window = prefix + window
+                        split = window[:-1].rfind(b"\n")
+                    if split >= 0:
+                        last_framed = window[split + 1 :]
+                        last_offset = window_offset + split + 1
+                    else:
+                        last_framed = window
+                        last_offset = 0
+                opened_after = self._file_signature_from_stat(os.fstat(handle.fileno()))
+            path_after = self._file_signature(path)
+        except OSError as exc:
+            raise JournalIntegrityError("Journal segment is unavailable") from exc
+        if (
+            opened_before != opened_after
+            or path_before != path_after
+            or not opened_after.same_file_bytes(path_after)
+        ):
+            raise JournalIntegrityError(
+                "Journal segment changed while its boundary was read"
+            )
+        return size, first_framed, last_framed, last_offset
+
+    def _parse_bounded_frame(self, framed: bytes, *, label: str) -> dict[str, Any]:
+        if (
+            not framed.endswith(b"\n")
+            or framed == b"\n"
+            or len(framed) > self.MAX_EVENT_BYTES
+        ):
+            raise TornJournalError(
+                f"{label} is empty, incomplete, or exceeds the event bound"
+            )
+        try:
+            value = parse_canonical(framed[:-1])
+        except CanonicalJSONError as exc:
+            raise JournalIntegrityError(f"{label} is not canonical") from exc
+        if not isinstance(value, dict):
+            raise JournalIntegrityError(f"{label} must be an object")
+        return value
+
+    def _sealed_segment_boundary_tail(
+        self,
+        descriptor: Mapping[str, Any],
+        *,
+        expected_previous: str | None,
+    ) -> dict[str, Any]:
+        seal_content, _ = self._read_stable_file(
+            self._absolute(descriptor["seal_path"])
+        )
+        if len(seal_content) > self.MAX_EVENT_BYTES:
+            raise JournalIntegrityError("Journal segment seal exceeds the bound")
+        _parse_seal(seal_content, descriptor)
+        size, first_framed, last_framed, last_offset = (
+            self._read_segment_boundary_frames(self._absolute(descriptor["path"]))
+        )
+        if (
+            size != descriptor["byte_length"]
+            or first_framed is None
+            or last_framed is None
+            or last_offset is None
+        ):
+            raise JournalIntegrityError("sealed Journal segment boundary differs")
+        first_value = self._parse_bounded_frame(
+            first_framed, label="sealed Journal first record"
+        )
+        first = self.validate_event(
+            first_value,
+            expected_sequence=descriptor["first_sequence"],
+            expected_previous=expected_previous,
+            expected_offset=descriptor["start_offset"],
+        )
+        if first["event_id"] != descriptor["first_event_id"]:
+            raise JournalIntegrityError("sealed Journal first identity differs")
+        if last_offset == 0:
+            tail = first
+            if (
+                descriptor["last_sequence"] != descriptor["first_sequence"]
+                or descriptor["last_event_id"] != descriptor["first_event_id"]
+            ):
+                raise JournalIntegrityError("sealed Journal range differs")
+        else:
+            last_value = self._parse_bounded_frame(
+                last_framed, label="sealed Journal last record"
+            )
+            previous = _require_digest(
+                last_value.get("previous_event_id"),
+                "sealed Journal last previous event id",
+            )
+            tail = self.validate_event(
+                last_value,
+                expected_sequence=descriptor["last_sequence"],
+                expected_previous=previous,
+                expected_offset=descriptor["start_offset"] + last_offset,
+            )
+            if descriptor["last_sequence"] <= descriptor["first_sequence"]:
+                raise JournalIntegrityError("sealed Journal range differs")
+        if (
+            tail["event_id"] != descriptor["last_event_id"]
+            or last_offset + len(last_framed) != descriptor["byte_length"]
+        ):
+            raise JournalIntegrityError("sealed Journal last boundary differs")
+        return tail
+
+    def _segmented_tail(
+        self, manifest: Mapping[str, Any]
+    ) -> tuple[JournalHead, dict[str, Any] | None]:
+        sealed = manifest["sealed_segments"]
+        sealed_tail: dict[str, Any] | None = None
+        if sealed:
+            predecessor = None if len(sealed) == 1 else sealed[-2]["last_event_id"]
+            sealed_tail = self._sealed_segment_boundary_tail(
+                sealed[-1], expected_previous=predecessor
+            )
+
+        active = manifest["active_segment"]
+        size, first_framed, last_framed, last_offset = (
+            self._read_segment_boundary_frames(self._absolute(active["path"]))
+        )
+        if size == 0:
+            if sealed_tail is None:
+                return JournalHead(0, None), None
+            return (
+                JournalHead(sealed_tail["sequence"], sealed_tail["event_id"]),
+                sealed_tail,
+            )
+        if first_framed is None or last_framed is None or last_offset is None:
+            raise JournalIntegrityError("active Journal segment boundary differs")
+        first_value = self._parse_bounded_frame(
+            first_framed, label="active Journal first record"
+        )
+        first = self.validate_event(
+            first_value,
+            expected_sequence=active["first_sequence"],
+            expected_previous=active["previous_event_id"],
+            expected_offset=active["start_offset"],
+        )
+        if last_offset == 0:
+            tail = first
+        else:
+            last_value = self._parse_bounded_frame(
+                last_framed, label="active Journal last record"
+            )
+            sequence = _require_int(
+                last_value.get("sequence"),
+                "active Journal last sequence",
+                minimum=active["first_sequence"] + 1,
+            )
+            previous = _require_digest(
+                last_value.get("previous_event_id"),
+                "active Journal last previous event id",
+            )
+            tail = self.validate_event(
+                last_value,
+                expected_sequence=sequence,
+                expected_previous=previous,
+                expected_offset=active["start_offset"] + last_offset,
+            )
+        if last_offset + len(last_framed) != size:
+            raise JournalIntegrityError("active Journal last boundary differs")
+        return JournalHead(tail["sequence"], tail["event_id"]), tail
 
     def _legacy_tail(self) -> tuple[JournalHead, dict[str, Any] | None]:
         if not self.path.exists() or self.path.stat().st_size == 0:
@@ -990,11 +1260,15 @@ class DurableJournal:
             raise JournalIntegrityError("journal tail must be an object")
         sequence = value.get("sequence")
         event_id = value.get("event_id")
-        if isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 1:
+        if type(sequence) is not int or sequence < 1:
             raise JournalIntegrityError("journal tail sequence is invalid")
         if not isinstance(event_id, str):
             raise JournalIntegrityError("journal tail event_id is invalid")
-        if value.get("journal_offset") != line_offset:
+        journal_offset = value.get("journal_offset")
+        if (
+            type(journal_offset) is not int
+            or journal_offset != line_offset
+        ):
             raise JournalIntegrityError("journal tail byte offset mismatch")
         if canonical_digest(domain="journal-event", payload=_base(value)) != event_id:
             raise JournalIntegrityError("journal tail hash mismatch")
@@ -1009,13 +1283,18 @@ class DurableJournal:
             if not segmented and self._listed_paths():
                 raise JournalIntegrityError("Journal segments exist without a manifest")
             return self._legacy_tail()
-        manifest = _parse_manifest(self.manifest_path.read_bytes())
+        manifest_content = self.manifest_path.read_bytes()
+        manifest = _parse_manifest(manifest_content)
+        self._validate_segment_layout_paths(manifest)
         key = self._segmented_cache_key(manifest)
         if self._tail_cache is not None and self._tail_cache[0] == key:
             return self._tail_cache[1], self._tail_cache[2]
-        snapshot = self._snapshot()
-        tail = None if not snapshot.events else dict(snapshot.events[-1])
-        result = (snapshot.head, tail)
+        result = self._segmented_tail(manifest)
+        if self.manifest_path.read_bytes() != manifest_content:
+            raise JournalIntegrityError("Journal manifest changed during tail read")
+        self._validate_segment_layout_paths(manifest)
+        if self._segmented_cache_key(manifest) != key:
+            raise JournalIntegrityError("Journal segment changed during tail read")
         self._tail_cache = (key, result[0], result[1])
         return result
 
@@ -1035,7 +1314,7 @@ class DurableJournal:
         expected_sequence: int,
         expected_event_id: str,
     ) -> dict[str, Any]:
-        if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0:
+        if type(offset) is not int or offset < 0:
             raise JournalIntegrityError("journal lookup offset is invalid")
         legacy = self.path.is_file()
         segmented = self.manifest_path.is_file()
@@ -1447,8 +1726,19 @@ class DurableJournal:
             active_path = self._absolute(manifest["active_segment"]["path"])
             if manifest["active_segment"]["start_offset"] != journal_offset:
                 raise JournalIntegrityError("rotated Journal global offset changed")
-        active_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            ensure_link_free_directory_chain(active_path.parent)
+        except PathBoundaryError as exc:
+            raise JournalError(
+                "Journal append directory boundary is invalid"
+            ) from exc
         with active_path.open("ab", buffering=0) as handle:
+            try:
+                require_link_free_directory_chain(active_path.parent)
+            except PathBoundaryError as exc:
+                raise JournalError(
+                    "Journal append directory changed"
+                ) from exc
             written = handle.write(framed)
             if written != len(framed):
                 raise JournalError("journal append was short")

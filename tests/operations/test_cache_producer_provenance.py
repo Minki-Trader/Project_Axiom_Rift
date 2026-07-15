@@ -14,10 +14,10 @@ from axiom_rift.operations.permits import (
     SubjectKind,
     SubjectRef,
 )
-from axiom_rift.operations.writer import (
+from axiom_rift.operations.running_job import (
+    RunningJobAuthority,
+    RunningJobAuthorityError,
     RunningJobExecution,
-    StateWriter,
-    TransitionError,
 )
 from axiom_rift.storage.index import EventHead, IndexRecord
 
@@ -73,7 +73,7 @@ class CacheProducerProvenanceTests(unittest.TestCase):
     def _fixture(
         self,
     ) -> tuple[
-        StateWriter,
+        RunningJobAuthority,
         _Index,
         RunningJobExecution,
         dict[str, object],
@@ -265,7 +265,7 @@ class CacheProducerProvenanceTests(unittest.TestCase):
                 fingerprint=retry_completion.fingerprint,
             ),
         )
-        writer = object.__new__(StateWriter)
+        writer = object.__new__(RunningJobAuthority)
         writer.lock_path = Path("unused-cache-producer-lock")
         writer._open_authoritative_index = lambda: index  # type: ignore[method-assign]
         writer._require_stable_locked = lambda _: {  # type: ignore[method-assign]
@@ -285,17 +285,20 @@ class CacheProducerProvenanceTests(unittest.TestCase):
 
     def _verify(
         self,
-        writer: StateWriter,
+        writer: RunningJobAuthority,
         execution: RunningJobExecution,
         arguments: dict[str, object],
     ) -> None:
         with (
             patch(
-                "axiom_rift.operations.writer.WriterLock",
-                side_effect=lambda _: nullcontext(),
+                "axiom_rift.operations.running_job.WriterLock",
+                side_effect=lambda _path, **_kwargs: nullcontext(),
             ),
             patch(
-                "axiom_rift.operations.writer._effective_completion_scope",
+                (
+                    "axiom_rift.operations.running_job."
+                    "effective_completion_evidence_scope"
+                ),
                 return_value=SimpleNamespace(scientific_eligible=True),
             ),
         ):
@@ -320,7 +323,7 @@ class CacheProducerProvenanceTests(unittest.TestCase):
             job_permit_id="f" * 64,
             start_record_id=execution.start_record_id,
         )
-        with self.assertRaisesRegex(TransitionError, "start provenance"):
+        with self.assertRaisesRegex(RunningJobAuthorityError, "start provenance"):
             self._verify(writer, forged_execution, arguments)
 
         index.replace(
@@ -332,7 +335,7 @@ class CacheProducerProvenanceTests(unittest.TestCase):
                 },
             )
         )
-        with self.assertRaisesRegex(TransitionError, "completion"):
+        with self.assertRaisesRegex(RunningJobAuthorityError, "completion"):
             self._verify(writer, execution, arguments)
 
 

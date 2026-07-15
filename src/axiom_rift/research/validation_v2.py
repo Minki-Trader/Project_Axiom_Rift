@@ -13,13 +13,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import axiom_rift.research.adjudication as adjudication_module
-import axiom_rift.research.analog_state_family as analog_family_module
-import axiom_rift.research.analog_state_trace as analog_trace_module
-import axiom_rift.research.audit_integrity_proof as audit_proof_module
-import axiom_rift.research.evidence_proofs as evidence_proof_module
-import axiom_rift.research.selection_inference as selection_inference_module
-import axiom_rift.research.scientific_trace as scientific_trace_module
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.validation import (
@@ -48,6 +41,10 @@ from axiom_rift.research.evidence_proofs import (
     parse_proof_references,
     parse_proof_requirements,
     validate_proof_artifacts,
+)
+from axiom_rift.research.scientific_trace import (
+    FIXED_HOLD_TRACE_PROTOCOL_IDS,
+    SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
 )
 
 
@@ -84,6 +81,7 @@ _PLAN_FIELDS = {
     "proof_requirements",
     "schema",
 }
+_PLAN_WITH_PROTOCOL_DEFINITION_FIELDS = _PLAN_FIELDS | {"protocol_definition"}
 _CRITERION_FIELDS = {
     "claim_id",
     "criterion_id",
@@ -270,6 +268,20 @@ class _MultiplicityRegistration:
             self.family_registration_hash,
         )
 
+    def manifest(self) -> dict[str, object]:
+        """Project the exact prospective registration without result fields."""
+
+        return {
+            "alpha_ppm": self.alpha_ppm,
+            "criterion_id": self.criterion_id,
+            "family_id": self.family_id,
+            "family_registration_hash": self.family_registration_hash,
+            "family_size": self.family_size,
+            "member_id": self.member_id,
+            "method": self.method,
+            "ordered_member_ids": list(self.ordered_member_ids),
+        }
+
 
 @dataclass(frozen=True, slots=True)
 class _Profile:
@@ -427,10 +439,28 @@ def _parse_plan(
 ]:
     if (
         not isinstance(value, dict)
-        or set(value) != _PLAN_FIELDS
+        or set(value)
+        not in (_PLAN_FIELDS, _PLAN_WITH_PROTOCOL_DEFINITION_FIELDS)
         or value.get("schema") != SCIENTIFIC_VALIDATION_PLAN_V2_SCHEMA
     ):
         raise EvidenceValidationError("scientific v2 validation plan schema is invalid")
+    if "protocol_definition" in value:
+        from axiom_rift.research.fixed_hold_family_trace import (
+            fixed_hold_protocol_definition_from_manifest,
+        )
+
+        try:
+            definition = fixed_hold_protocol_definition_from_manifest(
+                value["protocol_definition"]
+            )
+        except ValueError as exc:
+            raise EvidenceValidationError(
+                "scientific v2 protocol definition is invalid"
+            ) from exc
+        if definition.protocol_id not in FIXED_HOLD_TRACE_PROTOCOL_IDS:
+            raise EvidenceValidationError(
+                "scientific v2 plan protocol definition is not fixed-hold"
+            )
     _ascii("plan mission_id", value["mission_id"])
     _ascii("plan executable_id", value["executable_id"])
     depth = value["evidence_depth"]
@@ -560,6 +590,7 @@ def build_validation_plan_v2(
     adjudication_profile: Mapping[str, object],
     proof_requirements: tuple[Mapping[str, object], ...],
     candidate_eligible_on_pass: bool = False,
+    protocol_definition: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     """Build and fully validate one canonical-ready v2 plan."""
 
@@ -575,6 +606,8 @@ def build_validation_plan_v2(
         "proof_requirements": [_plain(item) for item in proof_requirements],
         "schema": SCIENTIFIC_VALIDATION_PLAN_V2_SCHEMA,
     }
+    if protocol_definition is not None:
+        plan["protocol_definition"] = _plain(protocol_definition)
     _parse_plan(plan)
     canonical_bytes(plan)
     return plan
@@ -861,32 +894,89 @@ def _parse_result(value: object) -> dict[str, Any]:
 
 
 _THIS_IMPLEMENTATION = Path(__file__).resolve()
-_ADJUDICATION_DEPENDENCY = Path(adjudication_module.__file__).resolve()
-_ANALOG_FAMILY_DEPENDENCY = Path(analog_family_module.__file__).resolve()
-_ANALOG_TRACE_DEPENDENCY = Path(analog_trace_module.__file__).resolve()
-_AUDIT_PROOF_DEPENDENCY = Path(audit_proof_module.__file__).resolve()
-_EVIDENCE_PROOF_DEPENDENCY = Path(evidence_proof_module.__file__).resolve()
-_SELECTION_INFERENCE_DEPENDENCY = Path(
-    selection_inference_module.__file__
-).resolve()
-_SCIENTIFIC_TRACE_DEPENDENCY = Path(scientific_trace_module.__file__).resolve()
-_P0_REPLAY_INVENTORY_DEPENDENCY = (
-    Path(__file__).with_name("p0_replay_inventory.json").resolve()
+_AXIOM_PACKAGE_ROOT = _THIS_IMPLEMENTATION.parents[1]
+_SOURCE_ROOT = _AXIOM_PACKAGE_ROOT.parent
+_RESEARCH_ROOT = _THIS_IMPLEMENTATION.parent
+
+
+def project_dependency_paths_with_package_initializers(
+    paths: tuple[Path, ...],
+) -> tuple[Path, ...]:
+    """Bind local source bytes plus every package initializer Python executes."""
+
+    if type(paths) is not tuple or not paths:
+        raise RuntimeError("project dependency registry must be a non-empty tuple")
+    resolved_paths: set[Path] = set()
+    for raw_path in paths:
+        if not isinstance(raw_path, Path):
+            raise RuntimeError("project dependency registry must contain Paths")
+        path = raw_path.resolve()
+        if not path.is_file():
+            raise RuntimeError("project dependency registry contains a missing file")
+        try:
+            path.relative_to(_SOURCE_ROOT)
+        except ValueError as exc:
+            raise RuntimeError(
+                "project dependency registry escapes the source root"
+            ) from exc
+        resolved_paths.add(path)
+        parent = path.parent
+        while parent != _SOURCE_ROOT:
+            initializer = parent / "__init__.py"
+            if initializer.is_file():
+                resolved_paths.add(initializer.resolve())
+            parent = parent.parent
+    return tuple(sorted(resolved_paths, key=lambda value: value.as_posix()))
+
+
+# This semantic registry is path-only: importing the validator must not import
+# numerical producers merely to discover their ``__file__`` values.  It binds
+# the eager scientific core and every repository-owned lazy recomputer.  The
+# operational import closure is inferred separately by validation integrity
+# and belongs to Job execution identity rather than scientific claim identity.
+_RESEARCH_VALIDATION_DEPENDENCY_NAMES = (
+    "adjudication.py",
+    "analog_state_family.py",
+    "analog_state_fit_v2.py",
+    "analog_state_replay.py",
+    "analog_state_replay_v2.py",
+    "analog_state_scoped_job.py",
+    "analog_state_trace.py",
+    "analog_state_trace_rows.py",
+    "audit_integrity_proof.py",
+    "chassis.py",
+    "composite_consensus_discovery.py",
+    "composite_router_discovery.py",
+    "data.py",
+    "discovery.py",
+    "evidence_proofs.py",
+    "fixed_hold_family_trace.py",
+    "fixed_hold_shared_trace.py",
+    "fixed_hold_trace_engine.py",
+    "governance.py",
+    "historical_family_binding.py",
+    "p0_replay_inventory.json",
+    "p0_replay_inventory.py",
+    "replay_coverage.py",
+    "reproducible_cache.py",
+    "reversion_discovery.py",
+    "routed_sleeve_trace_engine.py",
+    "scientific_trace.py",
+    "selection_inference.py",
+    "volatility_discovery.py",
+    "volume_price_discovery.py",
 )
 SCIENTIFIC_VALIDATION_V2_DEPENDENCIES = tuple(
     sorted(
         {
-            _ADJUDICATION_DEPENDENCY,
-            _ANALOG_FAMILY_DEPENDENCY,
-            _ANALOG_TRACE_DEPENDENCY,
-            _AUDIT_PROOF_DEPENDENCY,
-            _EVIDENCE_PROOF_DEPENDENCY,
-            _P0_REPLAY_INVENTORY_DEPENDENCY,
-            _SELECTION_INFERENCE_DEPENDENCY,
-            _SCIENTIFIC_TRACE_DEPENDENCY,
-            *scientific_trace_module.scientific_trace_validation_dependency_paths(),
+            _AXIOM_PACKAGE_ROOT / "core" / "canonical.py",
+            _AXIOM_PACKAGE_ROOT / "core" / "identity.py",
+            *(
+                _RESEARCH_ROOT / name
+                for name in _RESEARCH_VALIDATION_DEPENDENCY_NAMES
+            ),
         },
-        key=lambda value: value.as_posix(),
+        key=lambda path: path.as_posix(),
     )
 )
 SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID = validator_identity(
@@ -1086,6 +1176,56 @@ class ScientificAdjudicationValidatorV2:
             for artifact, _ in parsed
             if artifact.output_name not in core_outputs
         }
+        calculation_proofs = tuple(
+            value
+            for value in proof_values.values()
+            if value.get("schema") == SCIENTIFIC_CALCULATION_PROOF_SCHEMA
+        )
+        plan_definition = plan.get("protocol_definition")
+        calculations_with_definition = tuple(
+            value
+            for value in calculation_proofs
+            if "protocol_definition" in value
+        )
+        if plan_definition is None:
+            if calculations_with_definition:
+                raise EvidenceValidationError(
+                    "scientific v2 calculation has an unplanned protocol definition"
+                )
+        else:
+            if (
+                len(calculation_proofs) != 1
+                or len(calculations_with_definition) != 1
+            ):
+                raise EvidenceValidationError(
+                    "scientific v2 fixed-hold plan requires one bound calculation"
+                )
+            from axiom_rift.research.fixed_hold_family_trace import (
+                fixed_hold_protocol_definition_from_manifest,
+            )
+
+            try:
+                planned_definition = fixed_hold_protocol_definition_from_manifest(
+                    plan_definition
+                )
+                calculated_definition = (
+                    fixed_hold_protocol_definition_from_manifest(
+                        calculations_with_definition[0]["protocol_definition"]
+                    )
+                )
+            except ValueError as exc:
+                raise EvidenceValidationError(
+                    "scientific v2 bound protocol definition is invalid"
+                ) from exc
+            if (
+                planned_definition.manifest()
+                != calculated_definition.manifest()
+                or calculations_with_definition[0].get("protocol_id")
+                != planned_definition.protocol_id
+            ):
+                raise EvidenceValidationError(
+                    "scientific v2 plan and calculation definitions differ"
+                )
         expected_bindings: dict[str, list[dict[str, object]]] = {
             mode: [] for mode in modes
         }
@@ -1158,6 +1298,9 @@ class ScientificAdjudicationValidatorV2:
             measurement_artifact_hashes=(measurement_artifact.sha256,),
             facts={
                 "executed_evidence_modes": list(demonstrated_modes),
+                "multiplicity_registrations": [
+                    item.manifest() for item in profile.multiplicity
+                ],
                 "scientific_adjudication": scientific_adjudication_manifest(
                     adjudication
                 ),
@@ -1186,4 +1329,5 @@ __all__ = [
     "adjudicate_validation_measurement_v2",
     "build_validation_plan_v2",
     "multiplicity_family_registration_hash",
+    "project_dependency_paths_with_package_initializers",
 ]

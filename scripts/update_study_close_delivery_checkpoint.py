@@ -23,6 +23,9 @@ from axiom_rift.operations.study_close_git import (  # noqa: E402
 )
 
 
+LOCAL_GIT_TIMEOUT_SECONDS = 2 * 60
+
+
 def _emit(value: object, *, stream: object = sys.stdout) -> None:
     print(
         json.dumps(value, ensure_ascii=True, separators=(",", ":"), sort_keys=True),
@@ -121,8 +124,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                     cwd=ROOT,
                     check=True,
                     capture_output=True,
+                    timeout=LOCAL_GIT_TIMEOUT_SECONDS,
                 )
-    except (OSError, subprocess.CalledProcessError, StudyCloseDeliveryError) as exc:
+    except (
+        OSError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        StudyCloseDeliveryError,
+    ) as exc:
         _emit(_error_payload(exc), stream=sys.stderr)
         return 1
     next_command = (

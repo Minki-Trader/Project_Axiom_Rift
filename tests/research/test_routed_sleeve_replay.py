@@ -4,8 +4,14 @@ from hashlib import sha256
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
-from axiom_rift.core.canonical import parse_canonical
+from axiom_rift.core.canonical import canonical_bytes, parse_canonical
+from axiom_rift.core.identity import canonical_digest
+from axiom_rift.operations.validation import (
+    validator_identity,
+    validator_implementation_sha256,
+)
 from axiom_rift.operations.writer import _hardcoded_control_ids
 from axiom_rift.research.composite_consensus_replay import (
     COMPOSITE_CONSENSUS_REPLAY_HISTORICAL_CONTEXT_ID,
@@ -44,6 +50,9 @@ from axiom_rift.research.composite_router_replay_parity import (
 from axiom_rift.research.fixed_hold_family_trace import (
     FIXED_HOLD_REPLAY_EVIDENCE_MODES,
 )
+from axiom_rift.research.fixed_hold_replay_runtime import (
+    fixed_hold_replay_runtime_dependency_paths,
+)
 from axiom_rift.research.historical_family_replay import (
     STU0016_HISTORICAL_FAMILY,
     STU0017_HISTORICAL_FAMILY,
@@ -52,6 +61,13 @@ from axiom_rift.research.scientific_trace import (
     COMPOSITE_CONSENSUS_REPLAY_TRACE_PROTOCOL_ID,
     COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID,
     trace_proof_kinds,
+)
+from axiom_rift.research.validation_v2 import (
+    SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
+    SCIENTIFIC_VALIDATION_V2_DEPENDENCIES,
+    SCIENTIFIC_VALIDATION_V2_DOMAINS,
+    SCIENTIFIC_VALIDATION_V2_PROTOCOL,
+    ScientificAdjudicationValidatorV2,
 )
 from axiom_rift.storage.evidence import EvidenceStore
 
@@ -307,6 +323,168 @@ class RoutedSleeveReplayTests(unittest.TestCase):
             self.assertTrue(
                 all(len(value.expected_outputs()) == 5 for value in plans[1:])
             )
+
+    def test_foreign_frozen_reconstruction_drift_is_identity_neutral(self) -> None:
+        configuration = composite_router_replay_configurations()[0]
+        executable = composite_router_replay_executable(
+            configuration,
+            historical_context_prior_global_exposure_count=(
+                HISTORICAL_CONTEXT_COUNT
+            ),
+        )
+        plan = build_composite_router_replay_job_plan(
+            mission_id="MIS-0006",
+            study_id="STU-0110",
+            executable_id=executable.identity,
+            historical_context_prior_global_exposure_count=(
+                HISTORICAL_CONTEXT_COUNT
+            ),
+        )
+        baseline_job_implementation = (
+            composite_router_replay_job_implementation_sha256()
+        )
+        baseline_plan_hash = plan.plan_hash
+        baseline_binding = plan.scientific_binding()
+        baseline_inputs = plan.job_input_hashes()
+        foreign = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "axiom_rift"
+            / "research"
+            / "historical_family_stu0017.py"
+        ).resolve()
+        generic_binding = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "axiom_rift"
+            / "research"
+            / "historical_family_binding.py"
+        ).resolve()
+        self.assertIn(generic_binding, SCIENTIFIC_VALIDATION_V2_DEPENDENCIES)
+        self.assertNotIn(foreign, SCIENTIFIC_VALIDATION_V2_DEPENDENCIES)
+        self.assertNotIn(
+            foreign,
+            fixed_hold_replay_runtime_dependency_paths(
+                ROUTER_RUNTIME_ADAPTER
+            ),
+        )
+        original_read_bytes = Path.read_bytes
+
+        def perturb(path: Path) -> bytes:
+            content = original_read_bytes(path)
+            if path.resolve() == foreign:
+                return content + b"\n# foreign frozen reconstruction drift\n"
+            return content
+
+        with patch.object(Path, "read_bytes", perturb):
+            validator = ScientificAdjudicationValidatorV2()
+            changed_validator_id = validator_identity(
+                protocol=SCIENTIFIC_VALIDATION_V2_PROTOCOL,
+                domains=SCIENTIFIC_VALIDATION_V2_DOMAINS,
+                implementation_sha256=validator_implementation_sha256(
+                    implementation_path=validator.implementation_path,
+                    dependency_paths=SCIENTIFIC_VALIDATION_V2_DEPENDENCIES,
+                ),
+            )
+            changed_job_implementation = (
+                composite_router_replay_job_implementation_sha256()
+            )
+        self.assertEqual(
+            changed_validator_id,
+            SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
+        )
+        self.assertEqual(
+            changed_job_implementation,
+            baseline_job_implementation,
+        )
+        self.assertEqual(plan.plan_hash, baseline_plan_hash)
+        self.assertEqual(plan.job_input_hashes(), baseline_inputs)
+
+        changed_binding = {
+            **baseline_binding,
+            "validator_id": changed_validator_id,
+        }
+
+        def identities(binding: dict[str, object]) -> tuple[str, str]:
+            spec = {
+                "callable_identity": ROUTER_RUNTIME_ADAPTER.callable_identity,
+                "evidence_subject": {
+                    "kind": "Executable",
+                    "id": executable.identity,
+                },
+                "implementation_identity": baseline_job_implementation,
+                "scientific_binding": binding,
+            }
+            job_identity = canonical_digest(
+                domain="job",
+                payload={"mission_id": "MIS-0006", "spec": spec},
+            )
+            work = canonical_digest(
+                domain="job-work",
+                payload={
+                    "mission_id": "MIS-0006",
+                    "work": {
+                        "callable_identity": spec["callable_identity"],
+                        "evidence_subject": spec["evidence_subject"],
+                        "scientific_binding": binding,
+                    },
+                },
+            )
+            success = canonical_digest(
+                domain="job-success-cache",
+                payload={
+                    "implementation_identity": baseline_job_implementation,
+                    "mission_id": "MIS-0006",
+                    "work_fingerprint": work,
+                },
+            )
+            return job_identity, success
+
+        baseline_identities = identities(baseline_binding)
+        changed_identities = identities(changed_binding)
+        self.assertEqual(baseline_identities, changed_identities)
+        self.assertEqual(
+            sha256(canonical_bytes(plan.plan)).hexdigest(),
+            baseline_plan_hash,
+        )
+        self.assertEqual(
+            plan.cache_output_name,
+            build_composite_router_replay_job_plan(
+                mission_id="MIS-0006",
+                study_id="STU-0110",
+                executable_id=executable.identity,
+                historical_context_prior_global_exposure_count=(
+                    HISTORICAL_CONTEXT_COUNT
+                ),
+            ).cache_output_name,
+        )
+
+    def test_router_calculation_drift_reidentifies_job_implementation(self) -> None:
+        target = (
+            Path(__file__).resolve().parents[2]
+            / "src"
+            / "axiom_rift"
+            / "research"
+            / "routed_sleeve_trace_engine.py"
+        ).resolve()
+        self.assertIn(
+            target,
+            fixed_hold_replay_runtime_dependency_paths(
+                ROUTER_RUNTIME_ADAPTER
+            ),
+        )
+        baseline = composite_router_replay_job_implementation_sha256()
+        original_read_bytes = Path.read_bytes
+
+        def perturb(path: Path) -> bytes:
+            content = original_read_bytes(path)
+            if path.resolve() == target:
+                return content + b"\n# routed calculation drift\n"
+            return content
+
+        with patch.object(Path, "read_bytes", perturb):
+            changed = composite_router_replay_job_implementation_sha256()
+        self.assertNotEqual(changed, baseline)
 
     def test_closed_dispatcher_accepts_both_registered_protocols(self) -> None:
         for protocol in (

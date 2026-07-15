@@ -6,10 +6,16 @@ from axiom_rift.research.chassis import ArchitectureChassisSpec
 from axiom_rift.research.forest_replay import build_p0_composite_validation_plan
 from axiom_rift.research.governance import ResearchLayer
 from axiom_rift.research.portfolio import (
+    DecisionBasisRecord,
+    DecisionLens,
+    DecisionLensAssessment,
+    DecisionLensPosition,
     DecisionOption,
     PortfolioAction,
     PortfolioAxis,
     PortfolioDecision,
+    PortfolioDecisionError,
+    QuantTeamDecisionReview,
 )
 from axiom_rift.research.portfolio_projection import (
     PortfolioProjectionError,
@@ -157,6 +163,13 @@ class PortfolioProjectionTests(unittest.TestCase):
         rebuilt = portfolio_decision_from_projection(legacy.to_identity_payload())
         self.assertEqual(rebuilt.identity, legacy.identity)
         self.assertEqual(rebuilt.to_identity_payload(), legacy.to_identity_payload())
+        finite_multi_batch = legacy.to_identity_payload()
+        finite_multi_batch["commitment_batches"] = 2
+        rebuilt_multi_batch = portfolio_decision_from_projection(
+            finite_multi_batch
+        )
+        self.assertEqual(rebuilt_multi_batch.commitment_batches, 2)
+        self.assertNotEqual(rebuilt_multi_batch.identity, legacy.identity)
 
         bound = PortfolioDecision(
             decision_id="DEC-LEGACY-IDENTITY",
@@ -182,6 +195,79 @@ class PortfolioProjectionTests(unittest.TestCase):
             portfolio_decision_from_projection(bound.to_identity_payload()).identity,
             bound.identity,
         )
+
+    def test_plural_quant_team_review_round_trips_without_scalar_scoring(self) -> None:
+        snapshot_basis = DecisionBasisRecord(
+            kind="portfolio-snapshot",
+            record_id="portfolio:" + "a" * 64,
+        )
+        options = (
+            DecisionOption(
+                option_id="deepen-replay",
+                action=PortfolioAction.DEEPEN,
+                target_id=self.axis.axis_id,
+                expected_information_value="resolve one exact causal uncertainty",
+                opportunity_cost="one bounded Batch",
+            ),
+            DecisionOption(
+                option_id="rotate-control",
+                action=PortfolioAction.ROTATE,
+                target_id=self.axis.axis_id,
+                expected_information_value="test an independent architecture",
+                opportunity_cost="leave the replay pending",
+                omission_reason="the exact replay is currently executable",
+            ),
+        )
+        review = QuantTeamDecisionReview(
+            assessments=(
+                DecisionLensAssessment(
+                    lens=DecisionLens.CAUSALITY,
+                    position=DecisionLensPosition.SUPPORT,
+                    option_ids=("deepen-replay", "rotate-control"),
+                    basis_records=(snapshot_basis,),
+                    finding="the replay isolates the currently unresolved cause",
+                ),
+                DecisionLensAssessment(
+                    lens=DecisionLens.RISK,
+                    position=DecisionLensPosition.UNCERTAIN,
+                    option_ids=("deepen-replay",),
+                    basis_records=(snapshot_basis,),
+                    finding="one Batch delays an independent risk architecture",
+                ),
+            ),
+            claim_boundary="allocation only; no scientific or candidate claim",
+            resolution_basis=(
+                "resolve the exact bounded uncertainty before paying rotation cost"
+            ),
+            disagreement_resolution=(
+                "retain the risk rotation as an independently selectable option"
+            ),
+        )
+        decision = PortfolioDecision(
+            decision_id="DEC-QUANT-TEAM-REVIEW",
+            chosen_option_id="deepen-replay",
+            options=options,
+            rationale="make one evidence-bound non-scalar allocation",
+            commitment_batches=1,
+            quant_team_review=review,
+            baseline_executable=self.plan.baseline_executable,
+        )
+        payload = decision.to_identity_payload()
+        self.assertEqual(payload["schema"], "portfolio_decision.v3")
+        self.assertNotIn("score", payload["quant_team_review"])
+        rebuilt = portfolio_decision_from_projection(payload)
+        self.assertEqual(rebuilt.identity, decision.identity)
+        self.assertEqual(rebuilt.to_identity_payload(), payload)
+
+        with self.assertRaisesRegex(
+            PortfolioDecisionError,
+            "at least two material lenses",
+        ):
+            QuantTeamDecisionReview(
+                assessments=(review.assessments[0],),
+                claim_boundary="allocation only",
+                resolution_basis="one opinion is not a team review",
+            )
 
 
 if __name__ == "__main__":

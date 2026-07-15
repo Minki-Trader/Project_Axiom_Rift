@@ -1,6 +1,6 @@
 ---
 name: run-research-portfolio
-description: Direct Axiom quantitative research from Mission intake through history audit, effective-axis and replay-obligation handling, hypothesis-axis Portfolio design, baseline Study execution, atomic evidence diagnosis, constrained follow-up, architecture saturation review, candidate synthesis, and negative memory. Use for record_research_intake, build_portfolio, portfolio_decision, execute_portfolio_decision, diagnose_study, review_architecture, or any data, source, feature, label, model, calibration, selector, trade, lifecycle, risk, execution, Study, Batch, Executable, Lineage, evidence, candidate, synthesis, or next-scientific-direction work.
+description: Direct Axiom quantitative research from Mission intake through history audit, effective-axis and replay-obligation handling, hypothesis-axis Portfolio design, baseline Study execution, evidence-bound Study continuation, atomic evidence diagnosis, constrained follow-up, architecture saturation review, candidate synthesis, and negative memory. Use for record_research_intake, build_portfolio, portfolio_decision, execute_portfolio_decision, review_study_continuation, diagnose_study, review_architecture, or any data, source, feature, label, model, calibration, selector, trade, lifecycle, risk, execution, Study, Batch, Executable, Lineage, evidence, candidate, synthesis, or next-scientific-direction work.
 ---
 
 # Run Research Portfolio
@@ -12,8 +12,9 @@ evidence, and a proposed Decision to `$operate-axiom-mission`. Never edit
 canonical control state directly.
 
 Read `references/research-direction.md` whenever the exact next action is
-`record_research_intake`, `build_portfolio`, `diagnose_study`, or
-`review_architecture`, or when selecting a result-driven follow-up.
+`record_research_intake`, `build_portfolio`, `review_study_continuation`,
+`diagnose_study`, or `review_architecture`, or when selecting a result-driven
+follow-up.
 
 ## Hierarchical Stage Router
 
@@ -26,6 +27,7 @@ cannot skip a stage.
 | `build_portfolio` | hypothesis portfolio lead | intake-bound `PortfolioSnapshot` |
 | `portfolio_decision` | research allocator | `PortfolioDecision` |
 | `execute_portfolio_decision` | Study lead | preregistered Study and Batch proposal |
+| `review_study_continuation` | Study and portfolio leads | `StudyContinuationDecision` |
 | `diagnose_study` | evidence diagnostician | `StudyDiagnosis` |
 | `review_architecture` | system research lead | `ArchitectureReview` |
 | candidate or synthesis action | portfolio and candidate lead | subject-bound candidate proposal |
@@ -68,6 +70,14 @@ boundary and resolve it with evidence and opportunity cost. Do not collapse the
 Decision into one universal scalar score, rigid calendar rotation, or a serial
 single-branch policy. The harness enforces permits, identity, budgets, and claim
 scope; the research director retains bounded autonomous judgment.
+
+For every new material Portfolio Decision, attach one typed
+`QuantTeamDecisionReview`. Use only the lenses that are material, but require at
+least two distinct lenses to assess the chosen allocation and cover every
+compared option. Bind findings to the current Portfolio snapshot and to the
+exact Study diagnosis, replay obligation, or architecture review when one
+constrains the action. A challenge or uncertainty needs an explicit resolution
+and claim boundary. This is a compact decision record, not seven role reports.
 
 Every axis declares one immutable primary `ResearchLayer`, one stable
 `system_architecture_family`, typed changed and controlled domains, `why_now`,
@@ -113,9 +123,67 @@ as implicit zero PnL.
   unresolved, invalid, and diagnostic states. Discovery maps a frontier and
   is always candidate-ineligible; only confirmation may request promotion-grade
   authority after every decisive gate passes.
-- Consume the Decision's finite Batch commitment mechanically.
+- Treat `commitment_batches` as a positive finite upper bound, not blanket
+  approval and not a project-wide tiny cap. The first frozen Batch uses the
+  direct path. After an intermediate Batch, either close the Study early or
+  record one typed `StudyContinuationDecision` before more work.
+- Re-derive the exact registered member, one-Job-per-member completion set,
+  durable output hashes, and stop-rule state from Writer records. Bind the
+  unchanged Study question, chassis, axis, and current Portfolio. Review both
+  close and continue using at least two material lenses, including every live
+  alternative axis opportunity cost. A continue decision pre-binds one exact
+  next Batch identity; a reached stop decision, absent evidence, drifted
+  snapshot, different Batch, or commitment excess cannot continue.
 - Count each unique Executable. Reuse identical success and reject unchanged
   failed retry.
+- Keep Job input hashes sorted and unique. Repeating an existing input is not
+  changed information and cannot create a new Job, retry, or cache identity.
+- Resolve typed research evidence roles through the common verified-input
+  snapshot. Separate those content-addressed evidence identities from other
+  semantic Job hashes, read every declared evidence identity exactly once,
+  require unique identities and exactly one artifact per requested schema, and
+  bind a surface manifest to the exact surface artifact hash and the current
+  Job output's expected implementation digest. This implementation check is
+  not exact prior-Job producer authority. If future research reuses a prior Job
+  output, require a typed exact-producer route then; do not prebuild an unused
+  provenance framework now. Missing or hash-invalid evidence fails closed;
+  only already verified noncanonical or unrelated artifacts may be skipped.
+  Never verify and then reopen bytes through the EvidenceStore private root.
+- Run research engines through the existing-lock, Journal-authenticated,
+  query-only local-index capability. Workflow planning projections also use
+  query-only SQLite and retain their stable-head guard. Missing or legacy
+  projection state is a Writer recovery boundary, never permission for a
+  reader to create or migrate SQLite state.
+- Keep every worker ID, input, resource, and work-shard output claim portable
+  and case-fold unique across the Job. Output claims divide internal work and
+  are not a second spelling of the declared output-file contract.
+- Use normalized relative ASCII POSIX Job output names with case-fold-unique
+  spelling. Durable evidence stays below `evidence/`, `scientific/`, or
+  `source/`; reproducible cache stays below `local/cache/`; transient output
+  and logs stay below `local/jobs/`. Never use a physical or alias path to
+  evade the declared storage class.
+- Give every production Job, regardless of Mission, Initiative, Study,
+  Executable, or Release subject, one exact recursive current source closure.
+  Historical completion evidence is not an execution exemption, and embedded
+  historical control IDs cannot be prospectively registered.
+- When authoring a validator, declare every dependency that can change its
+  scientific meaning or verdict as semantic identity input. Infer the remaining
+  recursive execution closure separately and bind it to registry integrity and
+  production Job implementation identity. Never expand semantic identity with
+  unrelated framework imports or use closure-only classification to hide
+  semantic drift. Genuine closure-only drift blocks or reidentifies future Job
+  execution without renaming completed scientific claims, trials, or history.
+- For an Executable whose implementation closure reaches
+  `axiom_rift/research/external_observed_development.py`, derive the required
+  external material and prefix hashes with
+  `external_observed_development_job_input_hashes`, or use the caller-side
+  `build_external_observed_development_job_spec` merger, before declaration.
+  The Writer validates and never silently adds omitted inputs. The Executable
+  manifest and source closure must agree in both directions on the exact
+  current loader, material, prefix, and source set.
+- At Job declaration, start, and cached-success reuse, verify only the exact
+  materialized external prefix identity. Do not open the quarantined raw parent;
+  do not repeat numeric parsing before the execution loader needs the frame.
 - When one vectorized or cached engine evaluates a concurrent family, register
   every exact family Executable before the first member computation starts.
   A crash prefix must never contain evaluated family members that were absent
@@ -126,10 +194,30 @@ as implicit zero PnL.
   and hash verification. Existing mismatched bytes fail closed; cache absence
   alone never changes a Study or Mission disposition.
 - Query semantic warnings; a caller-created equivalence object is not authority.
+- A production Executable-bound implementation Repair cannot preserve an
+  Executable merely by declaring unchanged semantics. Use the Writer-derived
+  full semantic-equivalence plan and its dedicated registered validator. Only
+  complete passed coverage of callable, protocol, evidence-binding, decision,
+  lifecycle, cost, source, component, and claim surfaces permits in-place
+  closure. The generic route additionally requires one exact source-closure
+  manifest that explains the complete implementation artifact set, identical
+  relative-path roles, exact per-changed-path measurements, and canonical AST
+  equality of the opened `.py` bytes. A caller observation, raw hash-set match,
+  closure JSON comparison, path swap, non-Python change, or changed AST is not
+  generic equivalence. Use a protocol-specific validator for a stronger proven
+  relation; otherwise preserve the failed Repair and register the required new
+  Executable or Study scope through `requires_scientific_change`.
 - Treat comparison state and scientific state separately. A metric comparison
   may pass, fail, or be not_evaluable while its claim contribution is supported,
   contradicted, unresolved, invalid, or diagnostic. Use only scientific state
   for scheduler, negative-memory, exhaustion, or terminal reasoning.
+- Close a Study only with an outcome compatible with the exact
+  disposition-driving scientific completion. A legacy `not_evaluable` verdict
+  cannot become `not_supported`; retain the rich v2 meaning that
+  `partial_positive` is positive evidence even though its projected legacy
+  verdict is `not_evaluable`. A prospective engineering or unavailable basis
+  can close only as `evidence_gap` or `not_evaluable`, never as a scientific
+  prune or falsification.
 - An evidence-mode label, caller declaration, prior verdict, or cache artifact
   is not capability. The registered validator must recompute the exact protocol
   from durable subject-bound inputs and open the validation plan, atomic
@@ -153,6 +241,11 @@ Use completed bars and enforce feature and external availability at decision
 time. Keep fit, calibration, development, restricted confirmation, quarantine,
 and final forward evidence distinct. Require one-time HoldoutPermit for value
 access; sealed ingestion exposes no values.
+
+Derive a scheduled next-entry timestamp from the decision timestamp and frozen
+clock contract, never by reading the next observed row. At execution, require
+that the actual row equals that expected timestamp; a missing row fails closed
+and cannot change the earlier session, selector, or routing decision.
 
 Treat every inference-time external dependency as executable input. Offline
 historical performance requires sealed content, valid semantics, an exact
@@ -208,11 +301,32 @@ Bind the exact original Study, adjudication, Executable, criteria, and evidence
   gets the highest-information-value bounded opportunity without freezing
   unrelated valid forest work.
 
+Project an already canonical satisfied replay from its recorded stream,
+same-event writer operation, immutable lineage, and evidence identities. Routine
+Portfolio and effective-axis reads must not rerun the current scientific or
+multiplicity protocol. Use current rules only through the writer's explicit
+read-only satisfaction-invalidation plan.
+
+If that audit proves an E01 family-size mismatch, cross-member family
+disagreement, or a self-consistent registration whose member set differs from
+its frozen Batch set, route the canonical plan and artifact. Bind the exact
+registered membership and family hash. The same member set in a different
+historical order is a noncredit audit diagnostic and cannot return the
+obligation to pending; new prospective resolution still requires exact
+canonical Batch-family order. Only the typed set, size, or family disagreement
+may revoke satisfaction. Malformed, missing, hash-forged, or unrelated
+registration, caller prose, a generic validator error, and unrelated evidence
+defects fail closed.
+
 An audit-only satisfaction removes scientific, economic, candidate, exhaustion,
 and terminal credit only from its exact completion. It never excludes the whole
 causal axis. Keep open or preserved axes selectable; expose a historical prune
 whose corrected completion may have mattered as `deferred_requires_reopen`, so
 the Portfolio must explicitly preserve, reopen, or re-establish a valid prune.
+When an exact preserve Decision targets that historical pruned state, consume
+`record_axis_reopen_authority` before writing the preserved snapshot. The
+authority must bind the current snapshot, Decision, axis, audit-only replay
+resolutions, and evidence-scope overlays; never use it for an ordinary prune.
 
 The writer derives allowed local actions and research-layer branches from the
 typed evidence state. The next Decision must either follow that branch,
@@ -233,10 +347,29 @@ diagnosis set.
 
 Choose one typed conclusion:
 
+- `bounded_same_architecture`: use only when the quant team identifies a
+  bounded, testable continuation that the two exclusion conclusions would
+  wrongly suppress. Bind the exact reviewed family, trigger, covered
+  diagnoses, and stop/reopen condition. Select exactly one mode:
+  - `existing_axis`: name one exact currently selectable axis ID and immutable
+    axis identity under the reviewed family. Prior inclusion in the covered
+    diagnosis set is not itself a veto.
+  - `new_mechanism`: name one expert-selected typed `ResearchLayer`; the next
+    Decision must be `new_mechanism`, and the added axis must use that layer
+    and the exact reviewed family. Reuse the Portfolio's existing genuinely
+    distinct mechanism-family rule.
 - `change_research_layer`: require the next selected or newly admitted axis to
   leave the reviewed layers.
 - `rotate_architecture`: require the next selected or newly admitted axis to
   leave the reviewed architecture family.
+
+For `bounded_same_architecture`, use `ArchitectureReview` v2 with a typed
+`ArchitectureContinuationDirection`. The Writer recomputes the trigger,
+covered diagnoses, family, current snapshot, axis identity and selectability,
+then projects a closed `required_architecture_family` constraint. The next
+`QuantTeamDecisionReview` must cite the current Portfolio snapshot, the review,
+its trigger, and every covered diagnosis. Free-form exceptions and caller
+overrides are not capabilities.
 
 The review is a scheduler and identifiability decision, not negative evidence.
 It consumes only its exact unreviewed diagnosis set, so later genuinely new

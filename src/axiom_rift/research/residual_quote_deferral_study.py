@@ -12,14 +12,20 @@ import numpy as np
 import pandas as pd
 import scipy
 
-from axiom_rift.core.canonical import canonical_bytes, parse_canonical
-from axiom_rift.operations import writer as writer_module
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.running_job_context import (
+    RunningJobExecutionContext,
+    running_job_execution_context_implementation_sha256,
+)
 from axiom_rift.research.discovery import (
     DATASET_SHA256,
     OBSERVED_MATERIAL_ID,
     ROLLING_SPLIT_SHA256,
     discovery_implementation_sha256,
+)
+from axiom_rift.research.evidence_inputs import (
+    read_surface_manifest_evidence_inputs,
 )
 from axiom_rift.research.high_vol_target_reversal_chassis import (
     loader_implementation_sha256,
@@ -171,9 +177,7 @@ def build_environment_manifest() -> dict[str, object]:
         "runner_implementation_sha256": sha256(
             Path(__file__).resolve().read_bytes()
         ).hexdigest(),
-        "writer_implementation_sha256": sha256(
-            Path(writer_module.__file__).resolve().read_bytes()
-        ).hexdigest(),
+        "running_job_context_implementation_sha256": running_job_execution_context_implementation_sha256(),
         "validator_id": SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
         "python_version": ".".join(str(value) for value in sys.version_info[:3]),
         "numpy_version": np.__version__,
@@ -292,34 +296,23 @@ class ResidualQuoteDeferralJobPacket:
 
 
 def _load_surface(
-    writer: StateWriter,
+    writer: RunningJobExecutionContext,
     input_hashes: tuple[str, ...],
 ) -> tuple[dict[str, Any], str, str]:
-    surface: tuple[dict[str, Any], str] | None = None
-    manifest: tuple[dict[str, Any], str] | None = None
-    for artifact_hash in input_hashes:
-        try:
-            artifact = writer.evidence.verify(artifact_hash)
-            value = parse_canonical(
-                (writer.evidence._root / artifact.relative_path).read_bytes()
-            )
-        except (FileNotFoundError, OSError, RuntimeError, ValueError):
-            continue
-        if isinstance(value, dict) and value.get("schema") == (
-            "residual_quote_deferral_surface.v1"
-        ):
-            surface = (value, artifact_hash)
-        if isinstance(value, dict) and value.get("schema") == (
-            "residual_quote_deferral_surface_manifest.v1"
-        ):
-            manifest = (value, artifact_hash)
-    if (
-        surface is None
-        or manifest is None
-        or manifest[0].get("surface_artifact_hash") != surface[1]
-    ):
-        raise ValueError("residual quote-deferral surface is missing")
-    return surface[0], surface[1], manifest[1]
+    binding = read_surface_manifest_evidence_inputs(
+        writer.evidence,
+        input_hashes,
+        surface_schema="residual_quote_deferral_surface.v1",
+        manifest_schema="residual_quote_deferral_surface_manifest.v1",
+        expected_surface_implementation_sha256=(
+            residual_quote_deferral_discovery_implementation_sha256()
+        ),
+    )
+    return (
+        binding.surface.value,
+        binding.surface.artifact_sha256,
+        binding.manifest.artifact_sha256,
+    )
 
 
 def execute_residual_quote_deferral_job(
@@ -328,7 +321,7 @@ def execute_residual_quote_deferral_job(
     execution: RunningJobExecution,
 ) -> ResidualQuoteDeferralJobPacket:
     root = Path(repository_root).resolve()
-    writer = StateWriter(root)
+    writer = RunningJobExecutionContext(root)
     binding = writer.verify_running_job_execution(
         execution,
         expected_callable_identity=CALLABLE_IDENTITY,
@@ -391,7 +384,11 @@ def execute_residual_quote_deferral_job(
     else:
         surface, surface_hash, surface_manifest_hash = _load_surface(
             writer,
-            tuple(spec["input_hashes"]),
+            tuple(
+                identity
+                for identity in spec["input_hashes"]
+                if identity not in required
+            ),
         )
     evaluation = project_residual_quote_deferral_evaluation(
         surface,

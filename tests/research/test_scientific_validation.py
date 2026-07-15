@@ -14,10 +14,12 @@ from axiom_rift.operations.validation import (
     EvidenceValidatorRegistry,
     ValidationArtifact,
     validator_identity,
+    validator_implementation_sha256,
 )
 from axiom_rift.research.validation import (
     SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
     SCIENTIFIC_MEASUREMENT_SCHEMA,
+    SCIENTIFIC_VALIDATION_DEPENDENCIES,
     SCIENTIFIC_VALIDATION_DOMAINS,
     SCIENTIFIC_VALIDATION_PROTOCOL,
     ScientificDiscoveryValidator,
@@ -309,7 +311,10 @@ class ScientificValidationTests(unittest.TestCase):
 
     def test_identity_binds_protocol_domain_and_implementation_bytes(self) -> None:
         validator = ScientificDiscoveryValidator()
-        implementation_hash = sha256(validator.implementation_path.read_bytes()).hexdigest()
+        implementation_hash = validator_implementation_sha256(
+            implementation_path=validator.implementation_path,
+            dependency_paths=SCIENTIFIC_VALIDATION_DEPENDENCIES,
+        )
         self.assertEqual(
             SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
             validator_identity(

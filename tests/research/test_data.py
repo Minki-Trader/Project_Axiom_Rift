@@ -81,7 +81,7 @@ def _write_fixture(
     *,
     tail_markers: tuple[bytes, ...] = (SENTINEL, b"SEALED_SECOND_ROW"),
     development_mutation: tuple[int, str, str] | None = None,
-    observed_development: bool = False,
+    observed_development: bool = True,
 ) -> None:
     foundation = root / "foundation"
     data_directory = root / "data"
@@ -251,30 +251,6 @@ def _rewrite_split(
     )
 
 
-def _activate_observed_development(root: Path) -> None:
-    prefix = (root / OBSERVED_RELATIVE).read_bytes()
-    data_path = root / "foundation" / "data.yaml"
-    data_manifest = yaml.safe_load(data_path.read_text(encoding="ascii"))
-    exposure = yaml.safe_load(
-        (root / "foundation" / "data_exposure.yaml").read_text(encoding="ascii")
-    )
-    identity_inputs = exposure["observed_development_material"]["identity_inputs"]
-    data_manifest["observed_development"] = {
-        "path": OBSERVED_RELATIVE,
-        "sha256": _sha256(prefix),
-        "byte_count": len(prefix),
-        "row_count": 36,
-        "first_time": data_manifest["processed"]["first_time"],
-        "last_time": identity_inputs["last_observed_development_time"],
-        "parent_dataset_sha256": data_manifest["processed"]["sha256"],
-        "split_artifact_sha256": data_manifest["split_artifact"]["sha256"],
-        "derivation": "exact_prefix_before_quarantined_tail",
-    }
-    data_path.write_text(
-        yaml.safe_dump(data_manifest, sort_keys=False), encoding="ascii"
-    )
-
-
 class ObservedDevelopmentLoaderTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
@@ -311,10 +287,9 @@ class ObservedDevelopmentLoaderTests(unittest.TestCase):
         self.assertNotIn("real_volume", parser_kwargs[0]["usecols"])
         self.assertNotIn("FORBIDDEN", result.frame.to_string())
 
-    def test_v2_prefix_matches_legacy_metadata_without_opening_full_source(self) -> None:
+    def test_registered_prefix_loads_without_opening_full_source(self) -> None:
         _write_fixture(self.root)
-        legacy = ObservedDevelopmentLoader(self.root).load()
-        _activate_observed_development(self.root)
+        expected = ObservedDevelopmentLoader(self.root).load()
         source = (self.root / "data" / "us100_fixture.csv").resolve()
         source.unlink()
         original_open = Path.open
@@ -325,10 +300,67 @@ class ObservedDevelopmentLoaderTests(unittest.TestCase):
             return original_open(path, *args, **kwargs)
 
         with patch.object(Path, "open", new=guarded_open):
-            v2 = ObservedDevelopmentLoader(self.root).load()
+            actual = ObservedDevelopmentLoader(self.root).load()
 
-        assert_frame_equal(legacy.frame, v2.frame)
-        self.assertEqual(legacy.metadata, v2.metadata)
+        assert_frame_equal(expected.frame, actual.frame)
+        self.assertEqual(expected.metadata, actual.metadata)
+
+    def test_split_hash_and_parse_share_one_filesystem_snapshot(self) -> None:
+        _write_fixture(self.root)
+        split_path = (self.root / "data" / "audits" / "rolling.json").resolve()
+        original_bytes = split_path.read_bytes()
+        changed = json.loads(original_bytes.decode("ascii"))
+        changed["folds"][0]["train_is"]["start"] = "2026-01-05 01:05:00"
+        changed["folds"][0]["train_is"]["row_count"] = 7
+        changed_text = json.dumps(changed, sort_keys=True, indent=2)
+        original_open = Path.open
+        split_open_count = 0
+
+        def racing_open(path: Path, *args: object, **kwargs: object) -> object:
+            nonlocal split_open_count
+            if path.resolve() != split_path:
+                return original_open(path, *args, **kwargs)
+            split_open_count += 1
+            if split_open_count == 1:
+                return io.BytesIO(original_bytes)
+            return io.StringIO(changed_text)
+
+        with patch.object(Path, "open", new=racing_open):
+            loaded = ObservedDevelopmentLoader(self.root).load()
+
+        self.assertEqual(split_open_count, 1)
+        self.assertEqual(
+            loaded.fold("rw_001").train_is.start,
+            pd.Timestamp("2026-01-05 01:00:00"),
+        )
+
+    def test_missing_observed_development_fails_before_opening_full_source(self) -> None:
+        _write_fixture(self.root)
+        data_path = self.root / "foundation" / "data.yaml"
+        manifest = yaml.safe_load(data_path.read_text(encoding="ascii"))
+        del manifest["observed_development"]
+        data_path.write_text(
+            yaml.safe_dump(manifest, sort_keys=False), encoding="ascii"
+        )
+        source = (self.root / "data" / "us100_fixture.csv").resolve()
+        original_open = Path.open
+        opened_source = False
+
+        def guarded_open(path: Path, *args: object, **kwargs: object) -> object:
+            nonlocal opened_source
+            if path.resolve() == source:
+                opened_source = True
+                raise AssertionError("routine loader opened the full processed source")
+            return original_open(path, *args, **kwargs)
+
+        with patch.object(Path, "open", new=guarded_open):
+            with self.assertRaisesRegex(
+                DevelopmentDataError,
+                "observed_development is required",
+            ):
+                ObservedDevelopmentLoader(self.root).load()
+
+        self.assertFalse(opened_source)
 
     def test_v2_observed_development_binding_mismatches_fail_before_parser(self) -> None:
         cases: dict[str, tuple[str, object]] = {
@@ -358,8 +390,7 @@ class ObservedDevelopmentLoaderTests(unittest.TestCase):
                     parser.assert_not_called()
 
     def test_materializer_publishes_only_exact_prefix_and_is_idempotent(self) -> None:
-        _write_fixture(self.root)
-        legacy = ObservedDevelopmentLoader(self.root).load()
+        _write_fixture(self.root, observed_development=False)
         command = (
             sys.executable,
             str(MATERIALIZER),
@@ -394,12 +425,13 @@ class ObservedDevelopmentLoaderTests(unittest.TestCase):
         data_path.write_text(
             yaml.safe_dump(manifest, sort_keys=False), encoding="ascii"
         )
-        v2 = ObservedDevelopmentLoader(self.root).load()
-        assert_frame_equal(legacy.frame, v2.frame)
-        self.assertEqual(legacy.metadata, v2.metadata)
+        loaded = ObservedDevelopmentLoader(self.root).load()
+        self.assertEqual(len(loaded.frame), 36)
+        self.assertEqual(loaded.metadata.development_prefix_sha256, observed["sha256"])
+        self.assertEqual(loaded.metadata.prefix_byte_count, observed["byte_count"])
 
     def test_materializer_refuses_to_replace_mismatched_existing_output(self) -> None:
-        _write_fixture(self.root)
+        _write_fixture(self.root, observed_development=False)
         destination = (
             self.root
             / "data"
@@ -530,7 +562,7 @@ class ObservedDevelopmentLoaderTests(unittest.TestCase):
         ):
             ObservedDevelopmentLoader(self.root).load()
 
-    def test_full_source_identity_is_checked_before_parser(self) -> None:
+    def test_parent_manifest_binding_is_checked_before_parser(self) -> None:
         cases = {
             "hash": ("sha256", "0" * 64),
             "row_count": ("row_count", 999),
@@ -554,6 +586,11 @@ class ObservedDevelopmentLoaderTests(unittest.TestCase):
     def test_development_guards_reject_invalid_values(self) -> None:
         cases = {
             "nonfinite": (4, ",104.0,106.0", ",nan,106.0"),
+            "nonpositive": (
+                5,
+                ",105.0,107.0,103.0,106.0",
+                ",-105.0,-103.0,-107.0,-106.0",
+            ),
             "ohlc": (5, ",105.0,107.0,103.0,106.0", ",105.0,104.0,103.0,106.0"),
             "spread": (6, ",16,2,0", ",16,-1,0"),
         }
@@ -566,28 +603,18 @@ class ObservedDevelopmentLoaderTests(unittest.TestCase):
 
     def test_timestamp_guard_rejects_duplicate_development_row(self) -> None:
         _write_fixture(self.root)
-        source = self.root / "data" / "us100_fixture.csv"
-        lines = source.read_bytes().splitlines(keepends=True)
+        prefix = self.root / OBSERVED_RELATIVE
+        lines = prefix.read_bytes().splitlines(keepends=True)
         lines[2] = lines[1].split(b",", 1)[0] + b"," + lines[2].split(b",", 1)[1]
-        source_bytes = b"".join(lines)
-        source.write_bytes(source_bytes)
+        prefix_bytes = b"".join(lines)
+        prefix.write_bytes(prefix_bytes)
 
         data_path = self.root / "foundation" / "data.yaml"
         data_manifest = yaml.safe_load(data_path.read_text(encoding="ascii"))
-        data_manifest["processed"]["sha256"] = _sha256(source_bytes)
+        data_manifest["observed_development"]["sha256"] = _sha256(prefix_bytes)
+        data_manifest["observed_development"]["byte_count"] = len(prefix_bytes)
         data_path.write_text(
             yaml.safe_dump(data_manifest, sort_keys=False), encoding="ascii"
-        )
-
-        exposure_path = self.root / "foundation" / "data_exposure.yaml"
-        exposure = yaml.safe_load(exposure_path.read_text(encoding="ascii"))
-        identity_inputs = exposure["observed_development_material"]["identity_inputs"]
-        identity_inputs["dataset_sha256"] = _sha256(source_bytes)
-        exposure["observed_development_material"]["identity"] = canonical_digest(
-            domain="development-material", payload=identity_inputs
-        )
-        exposure_path.write_text(
-            yaml.safe_dump(exposure, sort_keys=False), encoding="ascii"
         )
 
         with self.assertRaisesRegex(DevelopmentDataError, "strictly increasing"):

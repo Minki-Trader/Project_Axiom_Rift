@@ -27,6 +27,7 @@ from axiom_rift.research.scientific_trace import (
     ANALOG_STATE_TRACE_PROTOCOL_ID,
     ATOMIC_TRACE_PROOF_KIND,
     CALCULATION_PROOF_KIND,
+    SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
     ScientificTraceError,
     trace_proof_kinds,
     validate_trace_calculation_pair,
@@ -44,6 +45,8 @@ TERMINAL_EVIDENCE_MODES = frozenset(
 NON_TERMINAL_EVIDENCE_MODES = frozenset({AUDIT_INTEGRITY_MODE})
 
 SCIENTIFIC_MODE_PROOF_SCHEMA = "scientific_evidence_mode_proof.v1"
+FIXED_HOLD_FAMILY_TRACE_SCHEMA = "fixed_hold_family_trace.v1"
+FIXED_HOLD_FAMILY_TRACE_PROOF_KIND = "atomic_fixed_hold_family_trace.v1"
 PAIRED_CONTROL_PROOF_KIND = "paired_control_contrast.v1"
 COST_EXECUTION_PROOF_KIND = "cost_execution_observation.v1"
 SENSITIVITY_STRESS_PROOF_KIND = "sensitivity_stress_observation.v1"
@@ -85,6 +88,9 @@ _PROOF_KINDS_BY_MODE = {
         TEMPORAL_STABILITY_PROOF_KIND: SCIENTIFIC_MODE_PROOF_SCHEMA,
     },
 }
+_ATOMIC_TRACE_PROOF_KINDS = frozenset(
+    {ATOMIC_TRACE_PROOF_KIND, FIXED_HOLD_FAMILY_TRACE_PROOF_KIND}
+)
 
 
 class ScientificEvidenceProofError(ValueError):
@@ -192,6 +198,22 @@ def _trace_kinds(evidence_mode: str) -> dict[str, str]:
         ) from exc
 
 
+def _trace_kind_alternatives(
+    evidence_mode: str,
+) -> tuple[dict[str, str], ...]:
+    """Return legacy subject-bound and shared fixed-hold proof pairs."""
+
+    return (
+        _trace_kinds(evidence_mode),
+        {
+            FIXED_HOLD_FAMILY_TRACE_PROOF_KIND: (
+                FIXED_HOLD_FAMILY_TRACE_SCHEMA
+            ),
+            CALCULATION_PROOF_KIND: SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
+        },
+    )
+
+
 def proof_requirements_for_modes(
     *,
     evidence_modes: tuple[str, ...],
@@ -256,7 +278,10 @@ def parse_proof_requirements(
         )
         known = dict(_PROOF_KINDS_BY_MODE.get(requirement.evidence_mode, {}))
         if requirement.evidence_mode in TERMINAL_EVIDENCE_MODES:
-            known.update(_trace_kinds(requirement.evidence_mode))
+            for alternative in _trace_kind_alternatives(
+                requirement.evidence_mode
+            ):
+                known.update(alternative)
         if known.get(requirement.proof_kind) != requirement.artifact_schema:
             raise ScientificEvidenceProofError(
                 "proof kind is invalid for its evidence mode"
@@ -287,7 +312,10 @@ def parse_proof_requirements(
     for mode in evidence_modes:
         alternatives = [set(_PROOF_KINDS_BY_MODE.get(mode, {}).items())]
         if mode in TERMINAL_EVIDENCE_MODES:
-            alternatives.append(set(_trace_kinds(mode).items()))
+            alternatives.extend(
+                set(value.items())
+                for value in _trace_kind_alternatives(mode)
+            )
         if grouped[mode] not in alternatives:
             raise ScientificEvidenceProofError(
                 "proof requirements mix incompatible protocols"
@@ -550,7 +578,9 @@ def validate_proof_artifacts(
     trace_requirements = tuple(
         item
         for item in requirements
-        if item.proof_kind in {ATOMIC_TRACE_PROOF_KIND, CALCULATION_PROOF_KIND}
+        if item.proof_kind in (
+            _ATOMIC_TRACE_PROOF_KINDS | {CALCULATION_PROOF_KIND}
+        )
     )
     if trace_requirements:
         modes = tuple(sorted({item.evidence_mode for item in trace_requirements}))
@@ -559,7 +589,7 @@ def validate_proof_artifacts(
         trace_outputs = {
             item.output_name
             for item in trace_requirements
-            if item.proof_kind == ATOMIC_TRACE_PROOF_KIND
+            if item.proof_kind in _ATOMIC_TRACE_PROOF_KINDS
         }
         calculation_outputs = {
             item.output_name
@@ -573,23 +603,43 @@ def validate_proof_artifacts(
         trace_output = next(iter(trace_outputs))
         calculation_output = next(iter(calculation_outputs))
         try:
-            demonstrated.update(
-                validate_trace_calculation_pair(
-                    trace=artifacts[trace_output],
-                    trace_output_name=trace_output,
-                    trace_hash=artifact_hashes[trace_output],
-                    calculation=artifacts[calculation_output],
-                    expected_evidence_modes=modes,
-                    expected_metric_bindings_by_mode={
-                        mode: expected_metric_bindings_by_mode.get(mode, ())
-                        for mode in modes
-                    },
-                    mission_id=mission_id,
-                    executable_id=executable_id,
-                    job_id=job_id,
-                    job_hash=job_hash,
+            trace_kinds = {
+                item.proof_kind
+                for item in trace_requirements
+                if item.proof_kind in _ATOMIC_TRACE_PROOF_KINDS
+            }
+            if len(trace_kinds) != 1:
+                raise ScientificTraceError(
+                    "atomic trace proof kinds are mixed"
                 )
-            )
+            arguments = {
+                "trace": artifacts[trace_output],
+                "trace_output_name": trace_output,
+                "trace_hash": artifact_hashes[trace_output],
+                "calculation": artifacts[calculation_output],
+                "expected_evidence_modes": modes,
+                "expected_metric_bindings_by_mode": {
+                    mode: expected_metric_bindings_by_mode.get(mode, ())
+                    for mode in modes
+                },
+                "mission_id": mission_id,
+                "executable_id": executable_id,
+                "job_id": job_id,
+                "job_hash": job_hash,
+            }
+            if trace_kinds == {FIXED_HOLD_FAMILY_TRACE_PROOF_KIND}:
+                from axiom_rift.research.fixed_hold_shared_trace import (
+                    validate_fixed_hold_shared_trace_pair,
+                )
+
+                validated_modes = validate_fixed_hold_shared_trace_pair(
+                    **arguments
+                )
+            else:
+                validated_modes = validate_trace_calculation_pair(
+                    **arguments
+                )
+            demonstrated.update(validated_modes)
         except ScientificTraceError as exc:
             raise ScientificEvidenceProofError(
                 "atomic scientific trace calculation is invalid"
@@ -627,9 +677,8 @@ def validate_proof_artifacts(
         demonstrated.add(AUDIT_INTEGRITY_MODE)
     for requirement in requirements:
         if requirement.evidence_mode == AUDIT_INTEGRITY_MODE or requirement.proof_kind in {
-            ATOMIC_TRACE_PROOF_KIND,
             CALCULATION_PROOF_KIND,
-        }:
+        } | _ATOMIC_TRACE_PROOF_KINDS:
             continue
         _validate_mode_proof_envelope(
             artifacts[requirement.output_name],
@@ -654,6 +703,8 @@ __all__ = [
     "ATOMIC_TRACE_PROOF_KIND",
     "CALCULATION_PROOF_KIND",
     "COST_EXECUTION_PROOF_KIND",
+    "FIXED_HOLD_FAMILY_TRACE_PROOF_KIND",
+    "FIXED_HOLD_FAMILY_TRACE_SCHEMA",
     "NON_TERMINAL_EVIDENCE_MODES",
     "P0_FOREST_SUPPORT_SCHEMA",
     "PAIRED_CONTROL_PROOF_KIND",

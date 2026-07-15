@@ -21,6 +21,9 @@ ANALOG_STATE_TRACE_PROTOCOL_ID = "analog_state.concurrent_four_config.v1"
 ANALOG_SCOPED_TRACE_PROTOCOL_ID = (
     "analog_state.concurrent_four_config.scoped_query.v2"
 )
+ANALOG_FIXED_HOLD_REPLAY_TRACE_PROTOCOL_ID = (
+    "analog_state.concurrent_four_config.fixed_hold_replay.v3"
+)
 DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID = (
     "drawdown_state.concurrent_four_config.replay.v2"
 )
@@ -45,6 +48,17 @@ SCIENTIFIC_TRACE_PROTOCOL_IDS = frozenset(
     {
         ANALOG_STATE_TRACE_PROTOCOL_ID,
         ANALOG_SCOPED_TRACE_PROTOCOL_ID,
+        ANALOG_FIXED_HOLD_REPLAY_TRACE_PROTOCOL_ID,
+        COMPOSITE_CONSENSUS_REPLAY_TRACE_PROTOCOL_ID,
+        COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID,
+        DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID,
+        DISTRIBUTION_ASYMMETRY_REPLAY_TRACE_PROTOCOL_ID,
+        VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID,
+    }
+)
+FIXED_HOLD_TRACE_PROTOCOL_IDS = frozenset(
+    {
+        ANALOG_FIXED_HOLD_REPLAY_TRACE_PROTOCOL_ID,
         COMPOSITE_CONSENSUS_REPLAY_TRACE_PROTOCOL_ID,
         COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID,
         DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID,
@@ -58,19 +72,8 @@ _SCIENTIFIC_TRACE_VALIDATION_DEPENDENCY_NAMES = (
     "analog_state_replay_v2.py",
     "analog_state_scoped_job.py",
     "analog_state_trace.py",
-    "composite_consensus_replay.py",
-    "composite_router_replay.py",
-    "distribution_asymmetry_replay.py",
-    "drawdown_state_replay.py",
     "fixed_hold_family_trace.py",
-    "historical_family_replay.py",
-    "historical_family_stu0016.py",
-    "historical_family_stu0017.py",
-    "historical_family_stu0032.py",
-    "historical_family_stu0048.py",
-    "historical_family_stu0051.py",
-    "routed_sleeve_replay.py",
-    "volatility_duration_replay.py",
+    "historical_family_binding.py",
 )
 
 
@@ -201,10 +204,15 @@ def validate_trace_calculation_pair(
 ) -> tuple[str, ...]:
     """Dispatch one atomic trace to its fixed pure recalculation protocol."""
 
+    expected_calculation_fields = (
+        _CALCULATION_FIELDS | {"protocol_definition"}
+        if trace.get("protocol_id") in FIXED_HOLD_TRACE_PROTOCOL_IDS
+        else _CALCULATION_FIELDS
+    )
     if (
         set(trace) != _TRACE_FIELDS
         or trace.get("schema") != SCIENTIFIC_EVALUATION_TRACE_SCHEMA
-        or set(calculation) != _CALCULATION_FIELDS
+        or set(calculation) != expected_calculation_fields
         or calculation.get("schema") != SCIENTIFIC_CALCULATION_PROOF_SCHEMA
     ):
         raise ScientificTraceError("scientific trace/calculation schema is invalid")
@@ -263,137 +271,20 @@ def validate_trace_calculation_pair(
             trace=trace,
             calculation=calculation,
         )
-    elif protocol_id == DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID:
-        parameters = calculation.get("parameters")
-        if not isinstance(parameters, Mapping):
-            raise ScientificTraceError(
-                "drawdown replay calculation parameters are invalid"
-            )
-        historical_count = parameters.get(
-            "historical_context_prior_global_exposure_count"
-        )
-        if type(historical_count) is not int:
-            raise ScientificTraceError(
-                "drawdown replay historical context is invalid"
-            )
-        from axiom_rift.research.drawdown_state_replay import (
-            drawdown_replay_protocol_definition,
-        )
+    elif protocol_id in FIXED_HOLD_TRACE_PROTOCOL_IDS:
         from axiom_rift.research.fixed_hold_family_trace import (
             FIXED_HOLD_TRACE_VALIDATOR,
+            fixed_hold_protocol_definition_from_manifest,
             validate_fixed_hold_trace_calculation,
         )
 
-        definition = drawdown_replay_protocol_definition(
-            historical_context_prior_global_exposure_count=historical_count
+        definition = fixed_hold_protocol_definition_from_manifest(
+            calculation.get("protocol_definition")
         )
-        derived_metrics = validate_fixed_hold_trace_calculation(
-            trace=trace,
-            calculation=calculation,
-            definition=definition,
-            validator=FIXED_HOLD_TRACE_VALIDATOR,
-        )
-    elif protocol_id == VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID:
-        parameters = calculation.get("parameters")
-        if not isinstance(parameters, Mapping):
+        if definition.protocol_id != protocol_id:
             raise ScientificTraceError(
-                "volatility-duration replay parameters are invalid"
+                "fixed-hold protocol definition differs from trace"
             )
-        historical_count = parameters.get(
-            "historical_context_prior_global_exposure_count"
-        )
-        if type(historical_count) is not int:
-            raise ScientificTraceError(
-                "volatility-duration historical context is invalid"
-            )
-        from axiom_rift.research.fixed_hold_family_trace import (
-            FIXED_HOLD_TRACE_VALIDATOR,
-            validate_fixed_hold_trace_calculation,
-        )
-        from axiom_rift.research.volatility_duration_replay import (
-            volatility_duration_replay_protocol_definition,
-        )
-
-        definition = volatility_duration_replay_protocol_definition(
-            historical_context_prior_global_exposure_count=historical_count
-        )
-        derived_metrics = validate_fixed_hold_trace_calculation(
-            trace=trace,
-            calculation=calculation,
-            definition=definition,
-            validator=FIXED_HOLD_TRACE_VALIDATOR,
-        )
-    elif protocol_id == DISTRIBUTION_ASYMMETRY_REPLAY_TRACE_PROTOCOL_ID:
-        parameters = calculation.get("parameters")
-        if not isinstance(parameters, Mapping):
-            raise ScientificTraceError(
-                "distribution-asymmetry replay parameters are invalid"
-            )
-        historical_count = parameters.get(
-            "historical_context_prior_global_exposure_count"
-        )
-        if type(historical_count) is not int:
-            raise ScientificTraceError(
-                "distribution-asymmetry historical context is invalid"
-            )
-        from axiom_rift.research.distribution_asymmetry_replay import (
-            distribution_asymmetry_replay_protocol_definition,
-        )
-        from axiom_rift.research.fixed_hold_family_trace import (
-            FIXED_HOLD_TRACE_VALIDATOR,
-            validate_fixed_hold_trace_calculation,
-        )
-
-        definition = distribution_asymmetry_replay_protocol_definition(
-            historical_context_prior_global_exposure_count=historical_count
-        )
-        derived_metrics = validate_fixed_hold_trace_calculation(
-            trace=trace,
-            calculation=calculation,
-            definition=definition,
-            validator=FIXED_HOLD_TRACE_VALIDATOR,
-        )
-    elif protocol_id in {
-        COMPOSITE_CONSENSUS_REPLAY_TRACE_PROTOCOL_ID,
-        COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID,
-    }:
-        parameters = calculation.get("parameters")
-        if not isinstance(parameters, Mapping):
-            raise ScientificTraceError(
-                "composite routed replay parameters are invalid"
-            )
-        historical_count = parameters.get(
-            "historical_context_prior_global_exposure_count"
-        )
-        if type(historical_count) is not int:
-            raise ScientificTraceError(
-                "composite routed historical context is invalid"
-            )
-        if protocol_id == COMPOSITE_ROUTER_REPLAY_TRACE_PROTOCOL_ID:
-            from axiom_rift.research.composite_router_replay import (
-                composite_router_replay_protocol_definition,
-            )
-
-            definition = composite_router_replay_protocol_definition(
-                historical_context_prior_global_exposure_count=(
-                    historical_count
-                )
-            )
-        else:
-            from axiom_rift.research.composite_consensus_replay import (
-                composite_consensus_replay_protocol_definition,
-            )
-
-            definition = composite_consensus_replay_protocol_definition(
-                historical_context_prior_global_exposure_count=(
-                    historical_count
-                )
-            )
-        from axiom_rift.research.fixed_hold_family_trace import (
-            FIXED_HOLD_TRACE_VALIDATOR,
-            validate_fixed_hold_trace_calculation,
-        )
-
         derived_metrics = validate_fixed_hold_trace_calculation(
             trace=trace,
             calculation=calculation,
@@ -421,6 +312,7 @@ def validate_trace_calculation_pair(
 __all__ = [
     "ANALOG_STATE_TRACE_PROTOCOL_ID",
     "ANALOG_SCOPED_TRACE_PROTOCOL_ID",
+    "ANALOG_FIXED_HOLD_REPLAY_TRACE_PROTOCOL_ID",
     "ATOMIC_TRACE_PROOF_KIND",
     "CALCULATION_PROOF_KIND",
     "COMPOSITE_CONSENSUS_REPLAY_TRACE_PROTOCOL_ID",

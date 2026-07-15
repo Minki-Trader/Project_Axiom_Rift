@@ -10,6 +10,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+import numpy as np
+
 from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.operations.validation import (
     EvidenceValidationError,
@@ -17,18 +19,18 @@ from axiom_rift.operations.validation import (
     ValidationArtifact,
 )
 from axiom_rift.operations.replay_projection import payload_contains_exact_value
-from axiom_rift.operations.writer import (
-    RunningJobExecution,
-    _hardcoded_control_ids,
-)
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.writer import _hardcoded_control_ids
 from axiom_rift.research import analog_state_family as analog_family_module
 from axiom_rift.research import analog_state_replay as analog_replay_module
 from axiom_rift.research import analog_state_trace as analog_trace_module
 from axiom_rift.research.analog_state_family import (
     CURRENT_H48_N15_ANALOG_FAMILY,
-    P1_STU0061_ANALOG_FAMILY,
     analog_family_executable_map,
     analog_replay_controlled_chassis,
+)
+from axiom_rift.research.historical_analog_family_stu0061 import (
+    STU0061_ANALOG_FAMILY as P1_STU0061_ANALOG_FAMILY,
 )
 from axiom_rift.research.analog_state_replay import (
     ANALOG_FAMILY_TRACE_CACHE_OUTPUT_NAME,
@@ -315,6 +317,31 @@ def _synthetic_trace(executable_id: str) -> dict[str, object]:
 
 
 class AnalogStateTraceTests(unittest.TestCase):
+    def test_causal_surface_digest_covers_every_simulation_input(self) -> None:
+        names = ("score", "volatility", "run", "effective_spread")
+        baseline = tuple(
+            (name, np.array([1.0, 2.0, np.nan])) for name in names
+        )
+        baseline_digest = analog_replay_module._digest_causal_surfaces(
+            baseline
+        )
+
+        for changed_name in names:
+            changed = tuple(
+                (
+                    name,
+                    np.array([1.0, 9.0, np.nan])
+                    if name == changed_name
+                    else np.array([1.0, 2.0, np.nan]),
+                )
+                for name in names
+            )
+            with self.subTest(changed_name=changed_name):
+                self.assertNotEqual(
+                    analog_replay_module._digest_causal_surfaces(changed),
+                    baseline_digest,
+                )
+
     def setUp(self) -> None:
         self.mapping = analog_family_executable_map(P1_STU0061_ANALOG_FAMILY)
         self.executable_id = next(iter(self.mapping))
@@ -799,7 +826,7 @@ class AnalogStateTraceTests(unittest.TestCase):
             with (
                 patch.object(
                     analog_replay_module,
-                    "StateWriter",
+                    "RunningJobExecutionContext",
                     return_value=writer,
                 ),
                 patch.object(
@@ -1016,7 +1043,10 @@ class AnalogStateTraceTests(unittest.TestCase):
             wrong_family["family_id"] = "family:wrong"
             wrong_bytes = canonical_bytes(wrong_family)
             target.write_bytes(wrong_bytes)
-            with self.assertRaisesRegex(ValueError, "not the P1 replay family"):
+            with self.assertRaisesRegex(
+                ValueError,
+                "does not match its bound family",
+            ):
                 load_or_compute_analog_family_trace(
                     root,
                     produce_family_cache=False,
@@ -1105,6 +1135,100 @@ class AnalogStateTraceTests(unittest.TestCase):
         observed[self.executable_id]["trade_count"] += 1
         with self.assertRaisesRegex(ValueError, "raw metric parity drifted"):
             assert_frozen_stu0061_raw_metric_parity(observed)
+
+    def test_measurement_preserves_exact_raw_and_familywise_multiplicity(
+        self,
+    ) -> None:
+        replay_plan = build_analog_replay_plan(
+            mission_id=MISSION_ID,
+            study_id=STUDY_ID,
+            executable_id=self.executable_id,
+        )
+        trace = _synthetic_trace(self.executable_id)
+        trace_hash = sha256(canonical_bytes(trace)).hexdigest()
+        calculation = build_analog_trace_calculation(
+            trace=trace,
+            trace_output_name=replay_plan.output_names["trace"],
+            trace_hash=trace_hash,
+        )
+        calculation_hash = sha256(canonical_bytes(calculation)).hexdigest()
+        measurement = build_analog_replay_measurement(
+            replay_plan=replay_plan,
+            job_id=JOB_ID,
+            job_hash=JOB_HASH,
+            calculation=calculation,
+            trace_hash=trace_hash,
+            calculation_hash=calculation_hash,
+        )
+        registrations = {
+            item["criterion_id"]: item
+            for item in replay_plan.plan["adjudication_profile"][
+                "multiplicity"
+            ]
+        }
+        results = {
+            item["criterion_id"]: item
+            for item in measurement["multiplicity"]
+        }
+        paired = registrations["D02-opposite-sign-uncertainty"]
+        selection = registrations["E01-familywise-selection"]
+        self.assertEqual(paired["family_size"], 2)
+        self.assertEqual(
+            paired["ordered_member_ids"],
+            ["paired-control:feature", "paired-control:opposite"],
+        )
+        self.assertEqual(selection["family_size"], 4)
+        self.assertEqual(
+            selection["ordered_member_ids"],
+            [
+                str(item["executable_id"])
+                for item in expected_analog_family_inventory()
+            ],
+        )
+        self.assertEqual(selection["member_id"], self.executable_id)
+        self.assertEqual(
+            {item["method"] for item in registrations.values()},
+            {"synchronized_max_moving_block_familywise.v1"},
+        )
+
+        statistical_subjects = {
+            "D02-opposite-sign-uncertainty": (
+                calculation["statistics"]["paired_control_family"],
+                "paired-control:opposite",
+                calculation["metrics"]["registered_control_contrast"][
+                    "opposite_sign_pvalue_upper_ppm"
+                ],
+            ),
+            "E01-familywise-selection": (
+                calculation["statistics"]["selection_family"],
+                self.executable_id,
+                calculation["metrics"]["selection_aware_signal_evidence"][
+                    "selection_aware_pvalue_ppm"
+                ],
+            ),
+        }
+        for criterion_id, (
+            manifest,
+            member_id,
+            adjusted_pvalue,
+        ) in statistical_subjects.items():
+            hypothesis = next(
+                item
+                for item in manifest["hypotheses"]
+                if item["hypothesis_id"] == member_id
+            )
+            result = results[criterion_id]
+            self.assertEqual(
+                result["raw_pvalue_ppm"],
+                hypothesis["raw"]["monte_carlo_upper_pvalue_ppm"],
+            )
+            self.assertEqual(
+                result["adjusted_pvalue_ppm"],
+                hypothesis["familywise"]["synchronized_max"][
+                    "monte_carlo_upper_pvalue_ppm"
+                ],
+            )
+            self.assertEqual(result["adjusted_pvalue_ppm"], adjusted_pvalue)
 
     def _request(
         self,

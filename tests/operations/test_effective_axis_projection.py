@@ -1,13 +1,20 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from collections import Counter
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
+
+from axiom_rift.core.identity import canonical_digest
 
 from axiom_rift.operations.effective_axis_projection import (
     EffectiveAxisProjectionError,
+    audit_effective_axis_projection,
     effective_axis_resolution,
+    effective_axis_resolutions,
     effective_replay_axis_bindings,
     mission_effective_axis_blockers,
     selectable_axis_ids,
@@ -15,6 +22,7 @@ from axiom_rift.operations.effective_axis_projection import (
 from axiom_rift.operations.evidence_scope_projection import (
     evidence_scope_overlay_record,
 )
+from axiom_rift.operations.writer import StateWriter, TransitionError
 from axiom_rift.operations.replay_projection import (
     initial_obligation_record,
     prepare_deferral,
@@ -31,6 +39,14 @@ from axiom_rift.research.effective_evidence_scope import (
     HistoricalEvidenceScopeOverlay,
 )
 from axiom_rift.research.historical_adjudication import ReplayPriority
+from axiom_rift.research.governance import ResearchLayer
+from axiom_rift.research.portfolio import (
+    DecisionOption,
+    PortfolioAction,
+    PortfolioAxis,
+    PortfolioDecision,
+    PortfolioSnapshot,
+)
 from axiom_rift.research.replay_obligation import (
     ReplayDeferral,
     ReplayDeferralBasis,
@@ -56,6 +72,64 @@ from axiom_rift.storage.index import IndexRecord, LocalIndex
 
 
 MISSION_ID = "MIS-EFFECTIVE-REPLAY"
+
+
+def _put_authenticated_satisfaction(
+    index: LocalIndex,
+    transition: IndexRecord,
+    *,
+    token: int,
+    obligation_id: str,
+    event_kind: str,
+) -> None:
+    authority_sequence = 20_000 + token
+    operation_id = f"authenticated-replay-satisfaction-{token}-{event_kind}"
+    event_id = canonical_digest(
+        domain="effective-axis-fixture-journal-event",
+        payload={
+            "authority_sequence": authority_sequence,
+            "operation_id": operation_id,
+            "record_id": transition.record_id,
+        },
+    )
+    offset = authority_sequence * 100
+    authority = {
+        "authority_sequence": authority_sequence,
+        "authority_event_id": event_id,
+        "authority_offset": offset,
+    }
+    result = {"satisfied_replay_obligation_ids": [obligation_id]}
+    index.put_many(
+        (
+            IndexRecord(
+                kind="journal-event",
+                record_id=event_id,
+                subject="Mission:active",
+                status=event_kind,
+                fingerprint=event_id,
+                payload={
+                    "occurred_at_utc": "2026-07-15T00:00:00Z",
+                    "operation_id": operation_id,
+                },
+                event_stream="control",
+                event_sequence=authority_sequence,
+                **authority,
+            ),
+            IndexRecord(
+                kind="operation",
+                record_id=operation_id,
+                subject="Mission:active",
+                status="success",
+                fingerprint=canonical_digest(
+                    domain="effective-axis-fixture-operation",
+                    payload={"event_kind": event_kind, "result": result},
+                ),
+                payload={"event_kind": event_kind, "result": result},
+                **authority,
+            ),
+            replace(transition, **authority),
+        )
+    )
 
 
 def _adjudication_payload(token: int) -> dict[str, object]:
@@ -461,13 +535,17 @@ def _satisfy_replay(
             trial=trial,
         ),
     )
-    index.put(
+    _put_authenticated_satisfaction(
+        index,
         satisfaction_record(
             obligation=obligation,
             satisfaction=satisfaction,
             prior_status=ReplayObligationStatus.IN_PROGRESS,
             sequence=3,
-        )
+        ),
+        token=token,
+        obligation_id=obligation.identity,
+        event_kind="historical_replay_obligations_resolved",
     )
     return satisfaction
 
@@ -619,11 +697,75 @@ def _satisfy_audit_only_replay(
         replay_obligation_ids=(obligation.identity,),
         replay_resolution_ids=(satisfaction.identity,),
     )
-    index.put_many((resolution, evidence_scope_overlay_record(overlay)))
+    _put_authenticated_satisfaction(
+        index,
+        resolution,
+        token=token,
+        obligation_id=obligation.identity,
+        event_kind="historical_replay_correction_recorded",
+    )
+    index.put(evidence_scope_overlay_record(overlay))
     return satisfaction, overlay
 
 
 class EffectiveAxisProjectionTests(unittest.TestCase):
+    def test_read_only_batch_projection_is_pure_equal_and_bounded(self) -> None:
+        class CountingView:
+            def __init__(self, view: object) -> None:
+                self.view = view
+                self.calls: Counter[str] = Counter()
+
+            def __getattr__(self, name: str):
+                value = getattr(self.view, name)
+                if not callable(value):
+                    return value
+
+                def call(*args: object, **kwargs: object):
+                    self.calls[name] += 1
+                    return value(*args, **kwargs)
+
+                return call
+
+        axes = tuple(
+            {
+                "axis_id": f"axis-{ordinal}",
+                "axis_identity": f"axis:{ordinal:064x}",
+                "status": "open",
+            }
+            for ordinal in range(1, 33)
+        )
+        with TemporaryDirectory() as temporary:
+            with LocalIndex(Path(temporary) / "index.sqlite") as index:
+                view = index.read_only()
+                before_count = index.record_count()
+                before_attributes = tuple(dir(view))
+                direct = effective_axis_resolution(view, axes[0])
+                batch = effective_axis_resolutions(view, axes)
+                self.assertEqual(batch[0], direct)
+                self.assertEqual(tuple(item.axis_id for item in batch), tuple(
+                    axis["axis_id"] for axis in axes
+                ))
+                self.assertEqual(index.record_count(), before_count)
+                self.assertEqual(tuple(dir(view)), before_attributes)
+                self.assertFalse(
+                    hasattr(view, "_axiom_axis_source_lineage_cache")
+                )
+                self.assertFalse(
+                    hasattr(view, "_axiom_effective_axis_authority_cache")
+                )
+
+                one = CountingView(view)
+                effective_axis_resolutions(one, axes[:1])
+                many = CountingView(view)
+                effective_axis_resolutions(many, axes)
+                self.assertEqual(one.calls, many.calls)
+                self.assertNotIn("record_count", many.calls)
+                self.assertNotIn("records_by_kind", many.calls)
+                self.assertGreater(
+                    many.calls["records_by_payload_text_values"],
+                    0,
+                )
+
     def test_invalidated_lineage_stays_blocked_until_new_source_and_axis(self) -> None:
         invalid_source = "source:" + "1" * 64
         replacement_source = "source:" + "2" * 64
@@ -818,7 +960,14 @@ class EffectiveAxisProjectionTests(unittest.TestCase):
                     replay_axis=replay_axis,
                     scope=ReplayResolutionScope.SCIENTIFIC,
                 )
-                resolution = effective_axis_resolution(index, original_axis)
+                with patch(
+                    "axiom_rift.operations.replay_projection."
+                    "_require_scientific_satisfaction_evidence",
+                    side_effect=AssertionError(
+                        "stored satisfaction must not run current protocol"
+                    ),
+                ):
+                    resolution = effective_axis_resolution(index, original_axis)
                 self.assertTrue(resolution.selectable)
                 self.assertTrue(resolution.terminal_eligible)
                 self.assertEqual(resolution.blocking_replay_obligation_ids, ())
@@ -977,6 +1126,318 @@ class EffectiveAxisProjectionTests(unittest.TestCase):
                     (pending.identity,),
                 )
 
+    def test_writer_reopens_only_the_exact_audit_deferred_pruned_axis(
+        self,
+    ) -> None:
+        def portfolio_axis(
+            axis_id: str,
+            *,
+            layer: ResearchLayer,
+            controlled: ResearchLayer,
+            mechanism: str,
+            status: str,
+        ) -> PortfolioAxis:
+            return PortfolioAxis(
+                axis_id=axis_id,
+                causal_question=(
+                    f"Does {mechanism} retain information after audit correction?"
+                ),
+                mechanism_family=mechanism,
+                primary_research_layer=layer,
+                system_architecture_family=(
+                    f"architecture-family:{mechanism}"
+                ),
+                changed_domains=(layer,),
+                controlled_domains=(controlled,),
+                why_now="the audit changed the exact historical completion scope",
+                stop_or_reopen_condition=(
+                    "reopen only through the exact audit-deferred authority"
+                ),
+                status=status,
+            )
+
+        target_pruned = portfolio_axis(
+            "axis-audit-pruned",
+            layer=ResearchLayer.FEATURE,
+            controlled=ResearchLayer.MODEL,
+            mechanism="audit-pruned-mechanism",
+            status="pruned",
+        )
+        unrelated_open = portfolio_axis(
+            "axis-unrelated-open",
+            layer=ResearchLayer.MODEL,
+            controlled=ResearchLayer.FEATURE,
+            mechanism="unrelated-open-mechanism",
+            status="open",
+        )
+        initial_snapshot = PortfolioSnapshot(
+            mission_id=MISSION_ID,
+            axes=(target_pruned, unrelated_open),
+            opportunity_cost_basis=(
+                "retain the unrelated branch while correcting exact audit scope"
+            ),
+        )
+
+        def preserve_decision(tag: str) -> PortfolioDecision:
+            return PortfolioDecision(
+                decision_id=f"DEC-{tag}",
+                chosen_option_id="preserve-audit-pruned",
+                options=(
+                    DecisionOption(
+                        option_id="preserve-audit-pruned",
+                        action=PortfolioAction.PRESERVE,
+                        target_id=target_pruned.axis_id,
+                        expected_information_value=(
+                            "restore one branch whose old prune lost its evidence scope"
+                        ),
+                        opportunity_cost="one additive authority transition",
+                    ),
+                    DecisionOption(
+                        option_id="contrast-unrelated",
+                        action=PortfolioAction.CONTRAST,
+                        target_id=unrelated_open.axis_id,
+                        expected_information_value="continue unrelated valid research",
+                        opportunity_cost="leave the audit-deferred branch unresolved",
+                        omission_reason=(
+                            "the exact historical prune must be corrected first"
+                        ),
+                    ),
+                ),
+                rationale=(
+                    "preserve only the branch whose audit-only replay removed prune credit"
+                ),
+                commitment_batches=1,
+            )
+
+        with TemporaryDirectory() as temporary:
+            writer = StateWriter(
+                Path(temporary) / "writer",
+                clock=lambda: "2026-07-15T00:00:00Z",
+                engineering_fixture=True,
+                foundation_root=Path(__file__).resolve().parents[2],
+            )
+            writer.initialize_ready()
+            writer.open_mission(
+                mission_id=MISSION_ID,
+                goal={
+                    "objective": "exercise exact audit-deferred axis reopening",
+                    "scope": ["isolated", "engineering_fixture"],
+                    "terminal_contract": "no_scientific_terminal",
+                },
+                operation_id="axis-reopen-open-mission",
+            )
+            writer.open_initiative(
+                initiative_id="INI-AXIS-REOPEN",
+                objective={
+                    "objective": "prove exact additive axis reopen authority",
+                    "bounds": {"trial_delta": 0, "wall_seconds": 30},
+                    "done_conditions": ["exact transition accepted"],
+                },
+                operation_id="axis-reopen-open-initiative",
+            )
+            writer.record_portfolio_snapshot(
+                snapshot=initial_snapshot,
+                operation_id="axis-reopen-initial-snapshot",
+            )
+
+            with self.assertRaisesRegex(
+                TransitionError,
+                "effectively blocked target axis",
+            ):
+                writer.record_portfolio_decision(
+                    decision=preserve_decision("ARBITRARY-PRUNE"),
+                    operation_id="reject-arbitrary-pruned-axis-reopen",
+                )
+
+            initial_target = next(
+                axis
+                for axis in initial_snapshot.to_identity_payload()["axes"]
+                if axis["axis_id"] == target_pruned.axis_id
+            )
+            initial_unrelated = next(
+                axis
+                for axis in initial_snapshot.to_identity_payload()["axes"]
+                if axis["axis_id"] == unrelated_open.axis_id
+            )
+            seed_kinds = (
+                "historical-evidence-scope-overlay",
+                "historical-replay-obligation",
+                "historical-replay-obligation-resolution",
+                "historical-scientific-adjudication",
+                "job-completed",
+                "job-declared",
+                "portfolio-decision",
+                "study-close",
+                "study-diagnosis",
+                "study-open",
+                "trial",
+            )
+            with TemporaryDirectory() as seed_temporary:
+                with LocalIndex(
+                    Path(seed_temporary) / "seed.sqlite3"
+                ) as seed_index:
+                    obligation = _seed_obligation(
+                        seed_index,
+                        token=90,
+                        axis=initial_target,
+                    )
+                    satisfaction, overlay = _satisfy_audit_only_replay(
+                        seed_index,
+                        obligation=obligation,
+                        token=90,
+                        replay_axis=initial_unrelated,
+                    )
+                    seeded_records = tuple(
+                        record
+                        for kind in seed_kinds
+                        for record in seed_index.records_by_kind(kind)
+                    )
+
+            def seed_audit_authority(current, _index):
+                assert current is not None
+                return writer._body(current), list(seeded_records), {
+                    "satisfied_replay_obligation_ids": [obligation.identity]
+                }
+
+            writer._commit(
+                event_kind="historical_replay_correction_recorded",
+                operation_id="seed-audit-only-replay-authority",
+                subject=f"Mission:{MISSION_ID}",
+                payload={"trial_delta": 0},
+                prepare=seed_audit_authority,
+            )
+            with LocalIndex(writer.index_path) as index:
+                deferred = effective_axis_resolution(index, initial_target)
+            self.assertIs(
+                deferred.effective_status,
+                EffectiveAxisStatus.DEFERRED_REQUIRES_REOPEN,
+            )
+
+            accepted = preserve_decision("EXACT-AUDIT-REOPEN")
+            writer.record_portfolio_decision(
+                decision=accepted,
+                operation_id="accept-exact-audit-reopen-decision",
+            )
+            control = writer.read_control()
+            assert control is not None
+            self.assertEqual(
+                control["next_action"]["kind"],
+                "record_axis_reopen_authority",
+            )
+            self.assertEqual(
+                control["next_action"]["replay_resolution_record_ids"],
+                [satisfaction.identity],
+            )
+            self.assertEqual(
+                control["next_action"]["evidence_scope_overlay_ids"],
+                [overlay.identity],
+            )
+
+            target_preserved = portfolio_axis(
+                "axis-audit-pruned",
+                layer=ResearchLayer.FEATURE,
+                controlled=ResearchLayer.MODEL,
+                mechanism="audit-pruned-mechanism",
+                status="preserved",
+            )
+            preserved_snapshot = PortfolioSnapshot(
+                mission_id=MISSION_ID,
+                axes=(target_preserved, unrelated_open),
+                opportunity_cost_basis=(
+                    "retain the unrelated branch while correcting exact audit scope"
+                ),
+            )
+            with self.assertRaisesRegex(
+                TransitionError,
+                "pending audit-deferred axis reopen authority",
+            ):
+                writer.record_portfolio_snapshot(
+                    snapshot=preserved_snapshot,
+                    operation_id="reject-snapshot-before-reopen-authority",
+                )
+
+            authority_result = writer.record_axis_reopen_authority(
+                operation_id="record-exact-axis-reopen-authority"
+            )
+            authority_id = authority_result.result[
+                "axis_reopen_authority_id"
+            ]
+            unrelated_preserved = portfolio_axis(
+                "axis-unrelated-open",
+                layer=ResearchLayer.MODEL,
+                controlled=ResearchLayer.FEATURE,
+                mechanism="unrelated-open-mechanism",
+                status="preserved",
+            )
+            wrong_snapshot = PortfolioSnapshot(
+                mission_id=MISSION_ID,
+                axes=(target_preserved, unrelated_preserved),
+                opportunity_cost_basis=(
+                    "retain the unrelated branch while correcting exact audit scope"
+                ),
+            )
+            with self.assertRaisesRegex(
+                TransitionError,
+                "differs from its structural Decision",
+            ):
+                writer.record_portfolio_snapshot(
+                    snapshot=wrong_snapshot,
+                    operation_id="reject-cross-axis-reopen-authority",
+                )
+
+            writer.record_portfolio_snapshot(
+                snapshot=preserved_snapshot,
+                operation_id="record-authorized-preserved-snapshot",
+            )
+            with LocalIndex(writer.index_path) as index:
+                authority = index.get("axis-reopen-authority", authority_id)
+                original = index.get(
+                    "portfolio-snapshot", initial_snapshot.identity
+                )
+                current = index.get(
+                    "portfolio-snapshot", preserved_snapshot.identity
+                )
+                current_target = next(
+                    axis
+                    for axis in current.payload["axes"]
+                    if axis["axis_id"] == target_pruned.axis_id
+                )
+                reopened = effective_axis_resolution(index, current_target)
+            assert authority is not None and original is not None
+            self.assertEqual(
+                next(
+                    axis["status"]
+                    for axis in original.payload["axes"]
+                    if axis["axis_id"] == target_pruned.axis_id
+                ),
+                "pruned",
+            )
+            self.assertEqual(current_target["status"], "preserved")
+            self.assertIs(
+                reopened.effective_status,
+                EffectiveAxisStatus.SELECTABLE,
+            )
+            self.assertEqual(
+                authority.payload["authority"][
+                    "replay_resolution_record_ids"
+                ],
+                [satisfaction.identity],
+            )
+            self.assertEqual(
+                authority.payload["authority"][
+                    "evidence_scope_overlay_ids"
+                ],
+                [overlay.identity],
+            )
+            self.assertEqual(authority.payload["scientific_credit"], 0)
+            with self.assertRaisesRegex(
+                TransitionError,
+                "no exact audit-deferred axis reopen is pending",
+            ):
+                writer.record_axis_reopen_authority(
+                    operation_id="reject-reusing-axis-reopen-authority"
+                )
+
     def test_malformed_original_executable_axis_lineage_fails_closed(self) -> None:
         target = _axis("4")
         with TemporaryDirectory() as temporary:
@@ -987,11 +1448,12 @@ class EffectiveAxisProjectionTests(unittest.TestCase):
                     axis=target,
                     study_axis_identity="axis:" + "5" * 64,
                 )
+                self.assertTrue(effective_axis_resolution(index, _axis("6")).selectable)
                 with self.assertRaisesRegex(
                     EffectiveAxisProjectionError,
                     "trial-to-Study-to-axis lineage",
                 ):
-                    effective_axis_resolution(index, _axis("6"))
+                    audit_effective_axis_projection(index)
 
     def test_snapshot_deferred_axis_requires_typed_reopen_but_stays_visible(self) -> None:
         deferred_axis = _axis("9", status="deferred")

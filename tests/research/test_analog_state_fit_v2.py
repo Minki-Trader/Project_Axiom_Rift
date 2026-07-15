@@ -8,9 +8,11 @@ import pandas as pd
 from axiom_rift.research import analog_state_fit_v2 as fit_v2_module
 from axiom_rift.research.analog_state_family import (
     CURRENT_H48_N15_ANALOG_FAMILY,
-    P1_STU0061_ANALOG_FAMILY,
     analog_family_components,
     fit_fold_analog_family,
+)
+from axiom_rift.research.historical_analog_family_stu0061 import (
+    STU0061_ANALOG_FAMILY as P1_STU0061_ANALOG_FAMILY,
 )
 from axiom_rift.research.analog_state_fit_v2 import (
     fit_fold_analog_family_v2,
@@ -230,7 +232,7 @@ def test_scoped_queries_match_v1_only_on_declared_rows() -> None:
     np.testing.assert_array_equal(observed[2], expected[2])
 
 
-def test_time_and_exact_replay_family_bindings_fail_closed() -> None:
+def test_time_validation_and_explicit_family_binding_are_independent() -> None:
     frame = _frame()
     frame.loc[len(frame) - 1, "time"] = pd.NaT
     try:
@@ -240,17 +242,19 @@ def test_time_and_exact_replay_family_bindings_fail_closed() -> None:
     else:
         raise AssertionError("NaT analog time was accepted")
     unrelated = CURRENT_H48_N15_ANALOG_FAMILY.configurations()[0]
-    try:
-        analog_family_executable_v2(unrelated)
-    except ValueError as exc:
-        assert "exact P1 family" in str(exc)
-    else:
-        raise AssertionError("unrelated family entered the P1 replay executable")
+    unrelated_executable = analog_family_executable_v2(unrelated)
+    replay_executable = analog_family_executable_v2(
+        P1_STU0061_ANALOG_FAMILY.configurations()[0]
+    )
+    assert unrelated_executable.identity != replay_executable.identity
+    assert unrelated_executable.parameter_values()["family_id"] == (
+        CURRENT_H48_N15_ANALOG_FAMILY.family_id
+    )
 
 
 def test_v2_components_replace_fit_and_synthesis_implementation_code() -> None:
     old = analog_family_components(P1_STU0061_ANALOG_FAMILY)
-    new = analog_family_components_v2()
+    new = analog_family_components_v2(P1_STU0061_ANALOG_FAMILY)
     assert len(old) == len(new)
     changed_implementations = [
         index
@@ -264,8 +268,10 @@ def test_v2_components_replace_fit_and_synthesis_implementation_code() -> None:
 
 
 def test_scoped_v2_has_a_distinct_protocol_and_executable_identity() -> None:
-    full_components = analog_family_components_v2()
-    scoped_components = analog_family_components_scoped_v2()
+    full_components = analog_family_components_v2(P1_STU0061_ANALOG_FAMILY)
+    scoped_components = analog_family_components_scoped_v2(
+        P1_STU0061_ANALOG_FAMILY
+    )
     assert len(full_components) == len(scoped_components)
     assert scoped_components[2].protocol == (
         "model.fold_train_knn_analog_family_scoped_query.v2"
@@ -286,11 +292,16 @@ def test_scoped_v2_has_a_distinct_protocol_and_executable_identity() -> None:
     assert f"query_scope_{ANALOG_SCOPED_QUERY_SCOPE_ID}" in scoped.engine_contract
 
 
-def test_scoped_v2_rejects_an_unrelated_analog_family() -> None:
+def test_scoped_v2_binds_the_explicit_family_without_cross_family_fallback() -> None:
     unrelated = CURRENT_H48_N15_ANALOG_FAMILY.configurations()[0]
-    try:
-        analog_family_executable_scoped_v2(unrelated)
-    except ValueError as exc:
-        assert "exact P1 family" in str(exc)
-    else:
-        raise AssertionError("unrelated family entered the scoped P1 executable")
+    unrelated_executable = analog_family_executable_scoped_v2(unrelated)
+    replay_executable = analog_family_executable_scoped_v2(
+        P1_STU0061_ANALOG_FAMILY.configurations()[0]
+    )
+    assert unrelated_executable.identity != replay_executable.identity
+    assert unrelated_executable.components == analog_family_components_scoped_v2(
+        CURRENT_H48_N15_ANALOG_FAMILY
+    )
+    assert unrelated_executable.parameter_values()["family_id"] == (
+        CURRENT_H48_N15_ANALOG_FAMILY.family_id
+    )

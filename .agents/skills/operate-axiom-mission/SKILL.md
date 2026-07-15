@@ -89,16 +89,26 @@ Use the repository as authority. Do not depend on chat history.
 6. Let `axiom_rift.operations.writer.StateWriter` alone commit the Decision and next action.
 
 Exact research boundaries are mandatory: Mission intake precedes the first
-Initiative, `diagnose_study` follows every real Study close and Git checkpoint,
-and `review_architecture` precedes another Portfolio Decision when triggered.
-A pending diagnosis or architecture review blocks Initiative close and later
-scientific work.
+Initiative, `review_study_continuation` decides every eligible intermediate
+Batch boundary, `diagnose_study` follows every real Study close and Git
+checkpoint, and `review_architecture` precedes another Portfolio Decision when
+triggered. A pending continuation, diagnosis, or architecture review blocks
+unbound scientific work.
 
 ## State And Capability Rules
 
 - Keep exactly one structured next action at stable boundaries.
 - Permit only one active parent Job; declared workers must have disjoint inputs, outputs, and resource claims.
+- Treat worker IDs, inputs, resources, and work-shard output labels as portable
+  case-fold-unique logical claims. Worker output claims partition internal work;
+  they are not aliases for, and need not be a subset of, declared Job files.
 - Issue typed permits before engines run and revalidate them at engine boundaries.
+- Engine reads open a Journal-authenticated SQLite read-only, query-only
+  snapshot under the existing Writer lock. Workflow projection reads use the
+  same no-mutation SQLite mode and retain their typed stable-head decision
+  guard. Readers never create control, Journal, lock, index, schema, migration,
+  or SQLite sidecar state; a missing or old projection fails closed for Writer
+  recovery.
 - Lazily load the local signing key through `PermitKeyStore(local/permit.key)`
   when the first Mission needs permit authority; never place the key in Git.
 - Do not let callers provide record hashes or unrestricted state patches.
@@ -108,15 +118,59 @@ scientific work.
   reproducible output remains present with its declared hash. Transient output
   success is not reusable. Observe reusable success without changing control,
   next action, Journal, index, or operation records.
+- Give every Job output and log one normalized relative ASCII POSIX logical
+  name. Reject parent, drive, colon, backslash, reserved-device, and case-fold
+  aliases. Keep durable evidence below `evidence/`, `scientific/`, or `source/`,
+  reproducible cache below `local/cache/`, and transient output and logs below
+  `local/jobs/`; completion repeats the exact declared names and classes.
 - Bind every initial and retry Job implementation identity to a canonical
   `job_implementation_evidence.v1` manifest with sorted unique artifact hashes,
   and verify every referenced implementation artifact byte before declaration.
-- After a failed attempt, accept only a canonical changed-cause manifest bound
-  to the prior failure signature, previous and new implementation identities,
-  a canonical implementation manifest, and every referenced implementation
-  artifact byte hash. Budget or timeout edits do not reset failed-attempt
-  equivalence, and an implementation retry must change the actual artifact set.
-  Input or scientific semantic changes use a distinct Job or Executable identity.
+- For every production Job subject kind, require one exact recursive current
+  `job_implementation_source_closure.v1` at declaration and start. Historical
+  completions remain read-only evidence; replay labels, obligations, and
+  fixture-looking protocols never exempt new execution authority.
+- Keep scientific validator identity and operational execution authority
+  separate. Validator identity binds its protocol, domains, implementation
+  bytes, and explicitly authored semantic dependencies. A dependency that can
+  change scientific meaning or verdict cannot be downgraded to closure-only.
+  Registry sealing also infers and rechecks the complete current project import
+  closure, but that operational closure belongs to future Job implementation
+  identity. Genuine closure-only drift blocks or reidentifies future execution;
+  it never retroactively reidentifies a scientific claim, validator verdict,
+  Executable, trial, or historical result.
+- After a failed attempt, use the Writer-derived `job_retry_family.v1`, not the
+  caller's loose `input_hashes`, as the non-bypass retry boundary. An
+  absent family stream triggers exactly one most-specific indexed legacy
+  declaration lookup: the exact Batch slice when Batch-bound, otherwise the
+  current-Mission slice. Rederive each stored family, join only its exact attempt
+  head, and use the latest Journal authority sequence. Never globally scan Job
+  or completion history, and fail closed on malformed or ambiguous history. An
+  implementation retry still requires `job_changed_cause.v1`, the prior
+  failure signature, changed implementation identity, and an actually changed
+  artifact set without changing semantic inputs. It also requires a registered
+  engineering validator to open the plan and every result artifact and
+  independently establish exact `cause_resolved` and `material_change` facts;
+  changed bytes, comments, caller prose, or a caller-written `passed` value are
+  never repair authority. A same-implementation retry
+  requires `job_retry_resume_authority.v1` bound to the exact current family
+  completion, engineering disposition, resume condition, changed cause,
+  information, or compute basis, and the same registered validation boundary.
+  The Writer default registry is intentionally empty in production. When a
+  repair is feasible, author and explicitly register the narrow validator that
+  can recompute the exact resolution instead of abandoning the family or using
+  the fixture validator. Bind its facts and registry trace into one deterministic
+  `job-retry-basis`, consume that basis in the same `job_declared` event, and
+  reject reuse or collision. Validator absence or failure remains engineering
+  Repair evidence, never scientific rejection or axis exhaustion.
+  Operational resolution evidence never enters semantic Job inputs. A compute
+  reestimate changes only compute and wall bounds, preserves trial and stop
+  semantics, receives no refund, and remains inside the cumulative original
+  frozen Batch ceiling. Runtime-source ineligibility may resume without caller
+  proof only when the Writer derives an unchanged Job spec and a fresh exact
+  runtime-eligible source head replacing the failed state. A
+  `requires_scientific_change` disposition leaves the family and creates
+  distinct scientific work.
 - Keep operational Job outcome separate from scientific verdict. A Job that
   produced and validated its declared outputs is operationally `success` even
   when the scientific validator returns `failed` or `not_evaluable`. Reserve
@@ -130,16 +184,46 @@ scientific work.
   binding. Rebind the exact registered protocol to the new authority manifest
   before declaring another scientific Job; same-authority duplicate activation
   is not work.
+- Keep an authority-changing code checkpoint unpublished on local `main` while
+  canonical control still binds its predecessor. Require an empty Git index,
+  no tracked worktree change except the exact resumable correction suffix,
+  `origin/main` as a strict nondivergent ancestor, unchanged baseline control
+  and Journal blobs across `origin/main` and `HEAD`, and the exact reviewed
+  authority replacement bytes at `HEAD`. Apply the typed correction, make its
+  state and Journal suffix a second local commit, then deliver both commits with
+  one non-force fast-forward push. For a segmented Journal, subtract the exact
+  correction suffix already present after local `HEAD`, then prove that every
+  remaining event in the two-event upper bound fits the current active segment
+  even at the Journal event-size limit. Fail before correction mutation if it
+  does not. This one-off delivery does not authorize segment rotation. Never
+  publish the code checkpoint alone.
 - Treat Git as recovery and delivery observation, never as state-transition authority.
 - Route audit-created ReplayObligations through the writer as additive P0 or P1
   records with pending, in_progress, satisfied, or deferred state. Preserve the
   original event and apply the writer-derived effective evidence-scope and axis
   overlays. Match each new Executable to at most one exact original Executable;
   never bind by position, first trial, display order, or Study membership.
+- Project an already canonical satisfied replay from its exact stored stream
+  predecessor, same-event successful writer operation, immutable lineage, and
+  recorded evidence identities. Do not rerun the current scientific validator,
+  multiplicity protocol, or implementation bytes during an ordinary axis read.
+  Current-protocol reinspection is authority only through the writer's explicit
+  read-only satisfaction-invalidation plan.
+- If that explicit audit proves an E01 family-size mismatch, cross-member family
+  disagreement, or a self-consistent registration whose member set differs from
+  the exact Batch set, bind the registration membership and hash and commit only
+  the exact canonical evidence artifact through the writer. Preserve the old
+  satisfaction, append satisfied-to-pending, add no scientific, trial, holdout,
+  candidate, or terminal credit, and restore the replay scheduler constraint.
+  The same member set in another historical order is a noncredit audit
+  diagnostic, not scientific revocation authority. New prospective resolution
+  still requires the exact canonical Batch-family order. A valid satisfaction,
+  caller reason, malformed, missing, hash-forged, unrelated registration, or any
+  other validation failure is not revocation authority.
 - Require Component -> Executable -> Job implementation closure before a real
   Job declaration. Every participating Component binds current bytes and
   semantic dependencies, the Executable contains those identities, and Job
-  artifacts cover their implementations. Reject historical modules with
+  artifacts cover their full recursive implementations. Reject historical modules with
   embedded Mission or Study identities as prospective implementations.
 
 ## Mandatory Study Close Delivery
@@ -219,6 +303,53 @@ failed Repair attempt does not abandon a feasible recovery: preserve it as
 engineering evidence and try another bounded Repair only when cause, input,
 implementation, or information state materially changed. If scientific
 semantics change, stop calling the work Repair and register a new Executable.
+
+Use the typed attempt stream rather than treating an arbitrary artifact as a
+successful Repair. `open_repair` requires an exact engineering failure. Each
+`running_job_repair_attempt.v1` extends the active Repair's prior attempt and
+basis, names one changed dimension, binds the original reproduction, carries
+disjoint changed and verification evidence, and states `failed` or `repaired`
+without changing scientific semantics. Record a failed attempt with
+`record_failed_repair_attempt`; it keeps the Repair active. Close a successful
+attempt with `close_repair`. An implementation attempt also carries the exact
+`running_job_implementation_repair.v1` closure proof. Fixed-hold replay proof
+materializers require the independent verification evidence hashes and return
+the outer attempt proof accepted by `close_repair`.
+
+For a production Executable-bound implementation Repair, a caller-authored
+`scientific_semantics_changed: false` is never closure authority. First use the
+writer's read-only semantic-equivalence plan. Close in place only through
+`running_job_implementation_repair.v2`, whose content-addressed plan, result,
+measurements, old and new implementation manifests, and complete artifact sets
+are opened by the dedicated registered scientific-domain validator. The writer
+derives the exact callable, protocol, active evidence-binding, decision,
+lifecycle, cost, source, component, and claim surface inventory and requires a
+passed verdict with full claims, exact measurements, and an immutable registry
+trace. The generic safe method is narrower than behavioral equivalence: both
+implementations must contain one exact `job_implementation_source_closure.v1`
+that explains the complete outer artifact set, preserves callable and relative
+path inventory, and binds every changed path to its exact old and new hashes.
+The validator compares the opened bytes at each changed `.py` path by canonical
+Python AST; it does not parse the changing closure JSON as source. Thus comments
+or layout may change, while changed syntax, a path swap, a hash-set-only
+manifest, missing or ambiguous path roles, or changed non-Python bytes cannot
+pass this generic route. Behavior-changing code needs a protocol-specific
+validator or a new scientific identity. Missing, failed, not-evaluable,
+partial, unregistered, mutable, or self-authored-only proof remains a failed
+Repair attempt and routes to `requires_scientific_change`; it never closes in
+place. Engineering fixtures and non-implementation Repairs retain their
+bounded existing path.
+
+Do not impose a numeric Repair-attempt cap. End an unrecovered Repair only with
+`conclude_repair_unrecovered` and one evidence-backed
+`engineering_failure_disposition.v1`: `requires_scientific_change`,
+`repair_infeasible`, `repair_nonpositive_expected_value`, or
+`repair_exhausted_changed_causes`. The disposition lists every failed attempt
+for the Job and an exact resume condition; changed-cause exhaustion needs more
+than one attempt. Then complete the Job as `failed` with the same
+`repair_disposition_hash`. In a fixed-hold strict chain, name failed attempt
+operations `<member-stem>-repair-attempt-<ordinal>` and an unrecovered terminal
+`<member-stem>-conclude-repair` so replay closeout preserves every attempt.
 
 ## Terminal
 

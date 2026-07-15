@@ -20,6 +20,7 @@ from axiom_rift.research.us30_source import (
     HISTORICAL_FACT_FIELDS,
     RUNTIME_FACT_FIELDS,
     US30_HISTORICAL_SNAPSHOT_SHA256,
+    US30SourceError,
     audit_us30_historical_bytes,
     derive_runtime_facts,
     source_validation_plan_hash,
@@ -33,7 +34,7 @@ _DEPENDENCY_PATHS = (
     Path(source_module.__file__).resolve(),
 )
 SOURCE_ELIGIBILITY_VALIDATOR_ID = validator_identity(
-    protocol="fpmarkets_us30_source_eligibility.v2",
+    protocol="fpmarkets_us30_source_eligibility.v3",
     domains=frozenset({"source"}),
     implementation_sha256=validator_implementation_sha256(
         implementation_path=_THIS_FILE,
@@ -55,7 +56,7 @@ class SourceEligibilityValidator:
     domains = frozenset({"source"})
     implementation_path = _THIS_FILE
     dependency_paths = _DEPENDENCY_PATHS
-    protocol = "fpmarkets_us30_source_eligibility.v2"
+    protocol = "fpmarkets_us30_source_eligibility.v3"
 
     def validate(self, request: EvidenceValidationRequest) -> ValidatedEvidence:
         if request.domain != "source" or request.validator_id != self.validator_id:
@@ -147,7 +148,12 @@ class SourceEligibilityValidator:
                 or probe.get("observed_at_utc") != observed_at
             ):
                 raise EvidenceValidationError("runtime probe provenance is invalid")
-            facts = derive_runtime_facts(probe)
+            try:
+                facts = derive_runtime_facts(probe)
+            except US30SourceError as exc:
+                raise EvidenceValidationError(
+                    "US30 runtime probe schema is invalid"
+                ) from exc
             if canonical_bytes(probe.get("facts")) != canonical_bytes(facts):
                 raise EvidenceValidationError("runtime facts were not derived from probe")
             required_fields = RUNTIME_FACT_FIELDS

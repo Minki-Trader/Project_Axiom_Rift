@@ -1034,7 +1034,7 @@ def _operation_event(writer: StateWriter, operation: Any) -> Mapping[str, Any]:
 def inspect_correction_prefix(writer: StateWriter) -> int:
     """Require one exact gap-free three-event suffix from revision 4935."""
 
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         operations = tuple(
             index.get("operation", step.operation_id) for step in STEPS
         )
@@ -1123,7 +1123,7 @@ def require_initial_predecessor(writer: StateWriter) -> Mapping[str, Any]:
 def _events_for_prefix(
     writer: StateWriter, prefix: int
 ) -> tuple[Mapping[str, Any], ...]:
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         operations = tuple(
             index.get("operation", step.operation_id) for step in STEPS[:prefix]
         )
@@ -1264,7 +1264,7 @@ def _validate_replay_event(
     )
     if tuple(item.obligation_id for item in satisfactions) != EXPECTED_P0_OBLIGATION_IDS:
         raise RuntimeError("V2 replay correction satisfaction set differs")
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         obligations = {
             derive_obligation_from_record(
                 index,
@@ -1360,18 +1360,11 @@ def validate_completed_correction_ancestor(
     manifest = _validate_authority_event(events[0])
     _validate_protocol_event(events[1], authority_manifest_digest=manifest)
     satisfactions = _validate_replay_event(writer, events[2])
-    for relative, expected in EXPECTED_AUTHORITY_SHA256.items():
-        rows = events[0]["payload"]["replacements"]
-        row = next(item for item in rows if item["path"] == relative)
-        try:
-            content = (root / relative).read_bytes()
-        except OSError as exc:
-            raise RuntimeError("V2 authority replacement is unavailable") from exc
-        if (
-            row["artifact_sha256"] != expected
-            or sha256(content).hexdigest() != expected
-        ):
-            raise RuntimeError("V2 authority replacement evidence differs")
+    # The immutable migration event is the authority for the historical
+    # replacement bytes.  _validate_authority_event already binds every path,
+    # old digest, new digest, and artifact digest to that event.  Comparing the
+    # live files to those historical digests here would incorrectly make every
+    # later prospective authority evolution invalidate its own ancestor.
     current = writer.read_control()
     suffix = validate_completed_correction_suffix_boundary(
         current=current,

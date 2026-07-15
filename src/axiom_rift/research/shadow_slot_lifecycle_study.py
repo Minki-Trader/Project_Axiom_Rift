@@ -12,14 +12,20 @@ import numpy as np
 import pandas as pd
 import scipy
 
-from axiom_rift.core.canonical import canonical_bytes, parse_canonical
-from axiom_rift.operations import writer as writer_module
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.running_job_context import (
+    RunningJobExecutionContext,
+    running_job_execution_context_implementation_sha256,
+)
 from axiom_rift.research.discovery import (
     DATASET_SHA256, OBSERVED_MATERIAL_ID, ROLLING_SPLIT_SHA256,
     discovery_implementation_sha256,
 )
 from axiom_rift.research.event_label_discovery import event_label_implementation_sha256
+from axiom_rift.research.evidence_inputs import (
+    read_surface_manifest_evidence_inputs,
+)
 from axiom_rift.research.scientific_study import (
     EVIDENCE_MODES, PLANNED_CLAIMS, claim_metrics, discovery_criteria,
     planned_verdict,
@@ -109,9 +115,7 @@ def build_environment_manifest() -> dict[str, object]:
         "volatility_clock_label_chassis_implementation_sha256": (
             volatility_clock_label_chassis_implementation_sha256()
         ),
-        "writer_implementation_sha256": sha256(
-            Path(writer_module.__file__).resolve().read_bytes()
-        ).hexdigest(),
+        "running_job_context_implementation_sha256": running_job_execution_context_implementation_sha256(),
     }
     canonical_bytes(value)
     return value
@@ -168,35 +172,29 @@ class ShadowSlotLifecycleJobPacket:
 
 
 def _load_surface(
-    writer: StateWriter, input_hashes: tuple[str, ...],
+    writer: RunningJobExecutionContext, input_hashes: tuple[str, ...],
 ) -> tuple[dict[str, Any], str, str]:
-    surface: tuple[dict[str, Any], str] | None = None
-    manifest: tuple[dict[str, Any], str] | None = None
-    for artifact_hash in input_hashes:
-        try:
-            artifact = writer.evidence.verify(artifact_hash)
-            value = parse_canonical(
-                (writer.evidence._root / artifact.relative_path).read_bytes()
-            )
-        except (FileNotFoundError, OSError, RuntimeError, ValueError):
-            continue
-        if isinstance(value, dict) and value.get("schema") == "shadow_slot_lifecycle_surface.v1":
-            surface = (value, artifact_hash)
-        if isinstance(value, dict) and value.get("schema") == "shadow_slot_lifecycle_surface_manifest.v1":
-            manifest = (value, artifact_hash)
-    if (
-        surface is None or manifest is None
-        or manifest[0].get("surface_artifact_hash") != surface[1]
-    ):
-        raise ValueError("shadow-slot lifecycle surface is missing")
-    return surface[0], surface[1], manifest[1]
+    binding = read_surface_manifest_evidence_inputs(
+        writer.evidence,
+        input_hashes,
+        surface_schema="shadow_slot_lifecycle_surface.v1",
+        manifest_schema="shadow_slot_lifecycle_surface_manifest.v1",
+        expected_surface_implementation_sha256=(
+            shadow_slot_lifecycle_discovery_implementation_sha256()
+        ),
+    )
+    return (
+        binding.surface.value,
+        binding.surface.artifact_sha256,
+        binding.manifest.artifact_sha256,
+    )
 
 
 def execute_shadow_slot_lifecycle_job(
     *, repository_root: str | Path, execution: RunningJobExecution,
 ) -> ShadowSlotLifecycleJobPacket:
     root = Path(repository_root).resolve()
-    writer = StateWriter(root)
+    writer = RunningJobExecutionContext(root)
     binding = writer.verify_running_job_execution(
         execution, expected_callable_identity=CALLABLE_IDENTITY
     )
@@ -242,7 +240,10 @@ def execute_shadow_slot_lifecycle_job(
         }
         manifest_hash = writer.evidence.finalize(canonical_bytes(manifest_value)).sha256
     else:
-        surface, surface_hash, manifest_hash = _load_surface(writer, inputs)
+        surface, surface_hash, manifest_hash = _load_surface(
+            writer,
+            tuple(identity for identity in inputs if identity not in required),
+        )
     evaluation = project_shadow_slot_lifecycle_evaluation(
         surface, job_execution={**execution.payload(), "identity": execution.identity},
         subject_executable_id=executable_id, surface_artifact_hash=surface_hash,

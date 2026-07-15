@@ -19,7 +19,11 @@ from typing import Any
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.core.identity import canonical_digest
-from axiom_rift.research.historical_family_replay import HistoricalFamilySpec
+from axiom_rift.research.historical_family_binding import (
+    HistoricalFamilyBindingError,
+    HistoricalFamilyLike,
+    historical_family_from_manifest,
+)
 from axiom_rift.research.scientific_trace import (
     SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
     SCIENTIFIC_EVALUATION_TRACE_SCHEMA,
@@ -106,10 +110,39 @@ _CALCULATION_FIELDS = {
     "metrics",
     "mission_id",
     "parameters",
+    "protocol_definition",
     "protocol_id",
     "schema",
     "statistics",
     "trace",
+}
+_PROTOCOL_DEFINITION_FIELDS = {
+    "allowed_regimes",
+    "clock_contract",
+    "cost_contract",
+    "dataset_sha256",
+    "family_id",
+    "fold_ids",
+    "historical_context_id",
+    "historical_family",
+    "historical_prior_global_exposure_count",
+    "inference",
+    "inference_family_id",
+    "invariance_keys",
+    "material_identity",
+    "original_family_end_global_exposure_count",
+    "producer_implementation_identities",
+    "prospective_executable_ids",
+    "protocol_id",
+    "schema",
+    "split_artifact_sha256",
+}
+_PROTOCOL_INFERENCE_FIELDS = {
+    "alpha_ppm",
+    "base_seed",
+    "block_lengths",
+    "bootstrap_samples",
+    "monte_carlo_confidence_ppm",
 }
 _FAMILY_MEMBER_FIELDS = {
     "configuration_id",
@@ -364,7 +397,7 @@ def fixed_hold_trace_implementation_sha256() -> str:
 class FixedHoldProtocolDefinition:
     """Code-owned immutable family and inference boundary."""
 
-    family: HistoricalFamilySpec
+    family: HistoricalFamilyLike
     prospective_executable_ids: tuple[str, ...]
     protocol_id: str
     fold_ids: tuple[str, ...]
@@ -389,8 +422,8 @@ class FixedHoldProtocolDefinition:
     identity: str = field(init=False)
 
     def __post_init__(self) -> None:
-        if not isinstance(self.family, HistoricalFamilySpec):
-            raise ScientificTraceError("family must be HistoricalFamilySpec")
+        if not isinstance(self.family, HistoricalFamilyLike):
+            raise ScientificTraceError("family must be a typed historical family")
         if (
             type(self.prospective_executable_ids) is not tuple
             or len(self.prospective_executable_ids) != self.family.family_size
@@ -604,6 +637,147 @@ class FixedHoldProtocolDefinition:
             "schema": FIXED_HOLD_PROTOCOL_DEFINITION_SCHEMA,
             "split_artifact_sha256": self.split_artifact_sha256,
         }
+
+
+def fixed_hold_protocol_definition_from_manifest(
+    value: object,
+) -> FixedHoldProtocolDefinition:
+    """Parse a complete ID-free protocol definition without producer imports."""
+
+    if type(value) is not dict:
+        raise ScientificTraceError(
+            "fixed-hold protocol definition must be an object"
+        )
+    try:
+        normalized = parse_canonical(canonical_bytes(value))
+    except (TypeError, ValueError) as exc:
+        raise ScientificTraceError(
+            "fixed-hold protocol definition is not canonical"
+        ) from exc
+    if (
+        type(normalized) is not dict
+        or set(normalized) != _PROTOCOL_DEFINITION_FIELDS
+        or normalized.get("schema") != FIXED_HOLD_PROTOCOL_DEFINITION_SCHEMA
+    ):
+        raise ScientificTraceError(
+            "fixed-hold protocol definition schema is invalid"
+        )
+    inference = normalized.get("inference")
+    implementations = normalized.get("producer_implementation_identities")
+    if (
+        type(inference) is not dict
+        or set(inference) != _PROTOCOL_INFERENCE_FIELDS
+        or type(implementations) is not dict
+        or not implementations
+    ):
+        raise ScientificTraceError(
+            "fixed-hold protocol definition internals are invalid"
+        )
+    try:
+        family = historical_family_from_manifest(
+            normalized.get("historical_family")
+        )
+        definition = FixedHoldProtocolDefinition(
+            family=family,
+            prospective_executable_ids=tuple(
+                _sequence(
+                    "prospective_executable_ids",
+                    normalized.get("prospective_executable_ids"),
+                )
+            ),
+            protocol_id=_ascii("protocol_id", normalized.get("protocol_id")),
+            fold_ids=tuple(
+                _sequence("fold_ids", normalized.get("fold_ids"))
+            ),
+            invariance_keys=tuple(
+                _sequence(
+                    "invariance_keys",
+                    normalized.get("invariance_keys"),
+                )
+            ),
+            allowed_regimes=tuple(
+                _sequence(
+                    "allowed_regimes",
+                    normalized.get("allowed_regimes"),
+                )
+            ),
+            dataset_sha256=_digest(
+                "dataset_sha256", normalized.get("dataset_sha256")
+            ),
+            material_identity=_ascii(
+                "material_identity", normalized.get("material_identity")
+            ),
+            split_artifact_sha256=_digest(
+                "split_artifact_sha256",
+                normalized.get("split_artifact_sha256"),
+            ),
+            clock_contract=_ascii(
+                "clock_contract", normalized.get("clock_contract")
+            ),
+            cost_contract=_ascii(
+                "cost_contract", normalized.get("cost_contract")
+            ),
+            producer_implementation_identities=tuple(
+                sorted(
+                    (
+                        _ascii("implementation identity key", key),
+                        _digest("implementation identity digest", digest),
+                    )
+                    for key, digest in implementations.items()
+                )
+            ),
+            historical_context_id=_ascii(
+                "historical_context_id",
+                normalized.get("historical_context_id"),
+            ),
+            historical_prior_global_exposure_count=_integer(
+                "historical_prior_global_exposure_count",
+                normalized.get("historical_prior_global_exposure_count"),
+                minimum=0,
+            ),
+            original_family_end_global_exposure_count=_integer(
+                "original_family_end_global_exposure_count",
+                normalized.get(
+                    "original_family_end_global_exposure_count"
+                ),
+                minimum=0,
+            ),
+            alpha_ppm=_integer(
+                "alpha_ppm", inference.get("alpha_ppm"), minimum=1
+            ),
+            bootstrap_samples=_integer(
+                "bootstrap_samples",
+                inference.get("bootstrap_samples"),
+                minimum=1,
+            ),
+            block_lengths=tuple(
+                _sequence(
+                    "block_lengths", inference.get("block_lengths")
+                )
+            ),
+            monte_carlo_confidence_ppm=_integer(
+                "monte_carlo_confidence_ppm",
+                inference.get("monte_carlo_confidence_ppm"),
+                minimum=1,
+            ),
+            base_seed=_integer(
+                "base_seed", inference.get("base_seed"), minimum=0
+            ),
+        )
+    except HistoricalFamilyBindingError as exc:
+        raise ScientificTraceError(
+            "fixed-hold historical family definition is invalid"
+        ) from exc
+    if (
+        normalized.get("family_id") != definition.family_id
+        or normalized.get("inference_family_id")
+        != definition.inference_family_id
+        or normalized != definition.manifest()
+    ):
+        raise ScientificTraceError(
+            "fixed-hold protocol definition identity drifted"
+        )
+    return definition
 
 
 @dataclass(frozen=True, slots=True)
@@ -918,16 +1092,16 @@ def _validate_invariance(
             minimum=1,
         )
         full = _digest(
-            "full feature digest",
+            "full causal surface digest",
             comparison.get("full_feature_values_sha256"),
         )
         prefix = _digest(
-            "prefix feature digest",
+            "prefix causal surface digest",
             comparison.get("prefix_feature_values_sha256"),
         )
         if full != prefix:
             raise ScientificTraceError(
-                "fixed-hold feature prefix invariance failed"
+                "fixed-hold causal surface prefix invariance failed"
             )
         comparisons.append((fold_id, key))
     expected = tuple(
@@ -2212,6 +2386,7 @@ def build_fixed_hold_trace_calculation(
         "metrics": metrics,
         "mission_id": trace["mission_id"],
         "parameters": parameters,
+        "protocol_definition": definition.manifest(),
         "protocol_id": definition.protocol_id,
         "schema": SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
         "statistics": statistics,
@@ -2242,6 +2417,13 @@ def validate_fixed_hold_trace_calculation(
     ):
         raise ScientificTraceError(
             "fixed-hold calculation proof schema is invalid"
+        )
+    parsed_definition = fixed_hold_protocol_definition_from_manifest(
+        calculation.get("protocol_definition")
+    )
+    if parsed_definition.manifest() != definition.manifest():
+        raise ScientificTraceError(
+            "fixed-hold calculation protocol definition drifted"
         )
     parts = _validated_subject_trace_parts(
         trace,
@@ -2329,6 +2511,7 @@ __all__ = [
     "expected_fixed_hold_family_inventory",
     "extract_fixed_hold_family_trace_from_subject",
     "fixed_hold_calculation_parameters",
+    "fixed_hold_protocol_definition_from_manifest",
     "fixed_hold_observation_id",
     "fixed_hold_original_family_provenance",
     "fixed_hold_subject_inference_families",

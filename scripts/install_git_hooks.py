@@ -5,6 +5,7 @@ import subprocess
 
 
 ROOT = Path(__file__).resolve().parents[1]
+LOCAL_GIT_TIMEOUT_SECONDS = 60
 
 
 if __name__ == "__main__":
@@ -12,6 +13,7 @@ if __name__ == "__main__":
         ("git", "config", "core.hooksPath", ".githooks"),
         cwd=ROOT,
         check=True,
+        timeout=LOCAL_GIT_TIMEOUT_SECONDS,
     )
     observed = subprocess.run(
         ("git", "config", "--get", "core.hooksPath"),
@@ -19,6 +21,7 @@ if __name__ == "__main__":
         check=True,
         capture_output=True,
         text=True,
+        timeout=LOCAL_GIT_TIMEOUT_SECONDS,
     ).stdout.strip()
     if observed != ".githooks":
         raise RuntimeError("Git hooks path differs")

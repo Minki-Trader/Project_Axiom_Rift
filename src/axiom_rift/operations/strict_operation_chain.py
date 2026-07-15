@@ -80,9 +80,8 @@ def inspect_operation_prefix(
     expected_ids = {step.operation_id for step in normalized}
     foreign = tuple(
         record.record_id
-        for record in index.records_by_kind("operation")
-        if record.record_id.startswith(operation_prefix)
-        and record.record_id not in expected_ids
+        for record in index.records_by_kind_prefix("operation", operation_prefix)
+        if record.record_id not in expected_ids
     )
     if foreign:
         raise StrictOperationChainError(

@@ -118,6 +118,10 @@ class FakeIndex:
     def __init__(self, _path: object) -> None:
         pass
 
+    @classmethod
+    def open_read_only(cls, path: object):
+        return cls(path)
+
     def __enter__(self):
         return self
 
@@ -157,11 +161,19 @@ class ProjectGoalAuditV2OrchestratorTests(unittest.TestCase):
         cls.module = load_script()
 
     def test_frozen_report_and_pure_authority_transforms_are_exact(self) -> None:
+        writer = self.module.StateWriter(REPO_ROOT)
+        # Audit-v2 transforms its immutable pre-activation authority evidence,
+        # not whatever prospective contract bytes happen to be in the worktree.
         materialized = {
+            relative: writer.evidence.read_verified(expected_hash)
+            for relative, expected_hash in (
+                self.module.EXPECTED_AUTHORITY_SHA256.items()
+            )
+        }
+        current_before = {
             relative: (REPO_ROOT / relative).read_bytes()
             for relative in self.module.EXPECTED_AUTHORITY_SHA256
         }
-        before = dict(materialized)
         report, digest = self.module.read_frozen_audit_report(REPO_ROOT)
         addendum, addendum_digest = (
             self.module.read_frozen_integration_addendum(REPO_ROOT)
@@ -198,7 +210,7 @@ class ProjectGoalAuditV2OrchestratorTests(unittest.TestCase):
             self.module.EXPECTED_AUTHORITY_SHA256,
         )
         self.assertEqual(
-            before,
+            current_before,
             {
                 relative: (REPO_ROOT / relative).read_bytes()
                 for relative in self.module.EXPECTED_AUTHORITY_SHA256
@@ -216,7 +228,6 @@ class ProjectGoalAuditV2OrchestratorTests(unittest.TestCase):
         )
         writer = self.module.StateWriter(REPO_ROOT, validation_registry=registry)
         control_before = (REPO_ROOT / "state/control.json").read_bytes()
-        writer.require_stable_head()
         prefix = self.module.inspect_correction_prefix(writer)
         self.assertEqual(
             self.module.validate_correction_progress(writer, prefix=prefix),
@@ -289,7 +300,6 @@ class ProjectGoalAuditV2OrchestratorTests(unittest.TestCase):
             (self.module.ScientificAdjudicationValidatorV2(),)
         )
         writer = self.module.StateWriter(REPO_ROOT, validation_registry=registry)
-        writer.require_stable_head()
         self.assertEqual(
             self.module.inspect_correction_prefix(writer),
             len(self.module.correction_steps()),

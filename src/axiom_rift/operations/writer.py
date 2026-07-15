@@ -2,25 +2,103 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from functools import lru_cache
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
-import ast
-import os
-import re
-import tempfile
 import yaml
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
+from axiom_rift.core.component_surface import (
+    COMPONENT_SURFACE_PROTOCOL_NEUTRAL,
+    ComponentManifestError,
+    component_manifest_surfaces,
+)
 from axiom_rift.core.identity import canonical_digest
+from axiom_rift.research.historical_family_binding import (
+    HistoricalFamilyAuthority,
+)
 from axiom_rift.operations.batch_budget import (
     FIXED_HOLD_REPLAY_BUDGET_POLICY_ID,
     FIXED_HOLD_REPLAY_BUDGET_REPAIR_REASON,
     batch_budget_reservation_repair_manifest,
     registered_batch_budget_for_output_classes,
+)
+from axiom_rift.operations.foundation_data_authority import (
+    FOUNDATION_DATA_EXPOSURE_PATH,
+    FOUNDATION_DATA_PATH,
+    PROTECTED_FOUNDATION_DATA_PATHS,
+    FoundationDataAuthorityError,
+    FoundationDataDerivationProof,
+    build_foundation_data_derivation_proof,
+    foundation_data_derivation_binding,
+    validate_foundation_data_identity_transition,
+    verify_foundation_data_derivation_proof,
+)
+from axiom_rift.operations.foundation_authority_files import (
+    FoundationAuthorityFileError,
+    hash_foundation_file,
+    replace_foundation_file,
+)
+from axiom_rift.operations.job_contract import (
+    JobContractError,
+    build_job_identity_plan,
+    canonical_job_output_identity,
+    canonical_worker_claim_identity,
+    normalize_job_failure_manifest,
+    normalize_job_spec,
+    require_job_output_namespace,
+    validate_job_spec,
+)
+from axiom_rift.operations.job_cache_authority import (
+    JobCacheAuthorityError,
+    require_cached_success_binding,
+    require_reusable_success_outputs,
+)
+from axiom_rift.operations.job_implementation_authority import (
+    JobImplementationAuthorityError,
+    hardcoded_control_ids,
+    implementation_source_closure_hashes,
+    require_job_implementation_evidence,
+    requires_current_source_authority,
+)
+from axiom_rift.operations.job_retry_admission import (
+    JobRetryAdmissionIntegrityError,
+    JobRetryAdmissionRejected,
+    JobRetryAdmissionSpecificationError,
+    build_retry_family_completion_record,
+    build_retry_family_declaration_record,
+    prepare_job_retry_admission,
+)
+from axiom_rift.operations.job_admission_authority import (
+    JobAdmissionAuthorityError,
+    require_job_admission,
+)
+from axiom_rift.operations.job_completion_entry_authority import (
+    JobCompletionEntryAuthorityError,
+    JobCompletionEntryIntegrityError,
+    require_completion_engine_entry,
+    require_repair_resume_entry,
+)
+from axiom_rift.operations.job_completion_projection import (
+    JobCompletionProjectionError,
+    JobCompletionProjectionIntegrityError,
+    project_job_completion,
+)
+from axiom_rift.operations.observed_development_binding import (
+    ObservedDevelopmentBindingError,
+    scientific_observed_development_job_binding,
+    verify_observed_development_prefix_artifact,
+)
+from axiom_rift.operations.external_observed_development_binding import (
+    ExternalObservedDevelopmentJobBindingError,
+    external_observed_development_job_binding,
+    require_current_external_observed_development_job_binding,
+    verify_external_observed_development_job_prefixes,
 )
 from axiom_rift.operations.permits import (
     Permit,
@@ -30,6 +108,41 @@ from axiom_rift.operations.permits import (
     PermitStatus,
     SubjectKind,
     SubjectRef,
+)
+from axiom_rift.operations.running_job import (
+    RunningJobAuthority,
+    RunningJobAuthorityError,
+    RunningJobAuthorityIntegrityError,
+    RunningJobExecution,
+    effective_running_job_implementation,
+)
+from axiom_rift.operations.repair_protocol import (
+    EngineeringFailureDisposition,
+    RepairAttemptProof,
+    RepairProtocolError,
+    parse_engineering_failure_disposition,
+    parse_repair_attempt_proof,
+)
+from axiom_rift.operations.repair_semantic_equivalence import (
+    IMPLEMENTATION_REPAIR_V2_SCHEMA,
+    RepairSemanticEquivalenceError,
+    SEMANTIC_EQUIVALENCE_VALIDATOR_ID,
+    build_semantic_equivalence_binding,
+    build_semantic_equivalence_plan,
+    require_passed_semantic_equivalence_facts,
+)
+from axiom_rift.operations.runtime_completion import (
+    RuntimeSuccessAuthorityError,
+    candidate_job_execution_context,
+    current_runtime_source_snapshot,
+    require_runtime_success_authority,
+)
+from axiom_rift.operations.scientific_multiplicity_authority import (
+    ScientificMultiplicityAuthorityError,
+    ScientificMultiplicityIntegrityError,
+    concurrent_family_executable_ids,
+    require_concurrent_family_registration,
+    validate_scientific_multiplicity_registrations,
 )
 from axiom_rift.operations.external_dependency import (
     ExternalChangeEvidence,
@@ -41,6 +154,7 @@ from axiom_rift.operations.external_dependency import (
 from axiom_rift.operations.study_close_delivery import StudyCloseGuardCapability
 from axiom_rift.operations.validation import (
     EngineeringFixtureValidator,
+    EngineeringRetryFixtureValidator,
     EvidenceValidationError,
     EvidenceValidationRequest,
     EvidenceValidatorRegistry,
@@ -52,6 +166,8 @@ from axiom_rift.storage.index import (
     IndexIntegrityError,
     IndexRecord,
     LocalIndex,
+    LocalIndexError,
+    LocalIndexView,
     RecordCollisionError,
 )
 from axiom_rift.storage.journal import (
@@ -143,7 +259,78 @@ _BATCH_OUTCOMES = frozenset(
     {"completed", "budget_exhausted", "stopped_early", "not_evaluable", "engineering_failure"}
 )
 _ENGINEERING_FIXTURE_OUTCOME = "engineering_fixture_complete"
-_STUDY_BOUND_IMPLEMENTATION_PATTERN = re.compile(r"\b(?:MIS|STU)-[0-9]{4}\b")
+_AUTHORITATIVE_EVENT_CACHE_SIZE = 64
+_BATCH_EVIDENCE_DECISION_STATUSES = ("continue_batch", "stop_batch")
+_ENGINEERING_FIXTURE_SEED_BOUNDARIES = {
+    "axis_disposition_zero_credit_fixture_seeded": (
+        "Mission:",
+        frozenset({"completion_record_id"}),
+    ),
+    "correction_recovery_fixture_seeded": (
+        "Mission:",
+        frozenset({"obligation_id"}),
+    ),
+    "development_material_fixture_seeded": (
+        "Mission:",
+        frozenset({"material_id"}),
+    ),
+    "historical_adjudication_fixture_seeded": (
+        "Study:",
+        frozenset({"study_id"}),
+    ),
+    "legacy_negative_terminal_fixture_seeded": (
+        "Mission:",
+        frozenset({"basis_record_id", "mission_close_record_id"}),
+    ),
+    "legacy_surface_trial_fixture_seeded": (
+        "=Executable:legacy",
+        frozenset({"trial_delta"}),
+    ),
+    "legacy_trial_fixture_seeded": (
+        "=Executable:legacy",
+        frozenset({"trial_delta"}),
+    ),
+    "negative_terminal_fixture_seeded": (
+        "Mission:",
+        frozenset({"basis_record_id"}),
+    ),
+    "portfolio_scheduler_constraint_fixture_seeded": (
+        "=Portfolio:active",
+        frozenset({"target_id"}),
+    ),
+    "positive_terminal_fixture_seeded": (
+        "Mission:",
+        frozenset({"release_id"}),
+    ),
+    "project_holdout_state_fixture_seeded": (
+        "=ProjectGoal:OPERATING_DIRECTION.md",
+        frozenset({"record_id"}),
+    ),
+    "replay_repair_declaration_fixture_seeded": (
+        "Mission:",
+        frozenset({"job_id"}),
+    ),
+    "replay_repair_progress_fixture_seeded": (
+        "Mission:",
+        frozenset({"replay_executable_id"}),
+    ),
+    "replay_repair_success_fixture_seeded": (
+        "Mission:",
+        frozenset({"completion_record_id"}),
+    ),
+    "replay_resume_fixture_seeded": (
+        "Mission:",
+        frozenset({"obligation_id"}),
+    ),
+    "rich_scientific_completion_fixture_seeded": (
+        "Study:",
+        frozenset({"completion_record_id"}),
+    ),
+    "source_replacement_writer_lineage_fixture_seeded": (
+        "Mission:",
+        frozenset({"scientific_credit", "trial_delta"}),
+    ),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,55 +339,6 @@ class TransitionResult:
     revision: int
     reused: bool
     result: Mapping[str, Any]
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class RunningJobExecution:
-    """Immutable identity of one writer-authorized running Job execution."""
-
-    job_id: str
-    job_hash: str
-    start_record_id: str
-    job_permit_id: str
-
-    def __post_init__(self) -> None:
-        job_id = _require_ascii("running Job id", self.job_id)
-        if not job_id.startswith("job:") or len(job_id) != 68:
-            raise TransitionError("running Job id is invalid")
-        _require_digest("running Job hash", self.job_hash)
-        _require_digest("running Job start record", self.start_record_id)
-        _require_digest("running Job permit", self.job_permit_id)
-
-    def payload(self) -> dict[str, str]:
-        return {
-            "job_hash": self.job_hash,
-            "job_id": self.job_id,
-            "job_permit_id": self.job_permit_id,
-            "start_record_id": self.start_record_id,
-        }
-
-    @property
-    def identity(self) -> str:
-        return canonical_digest(
-            domain="running-job-execution",
-            payload=self.payload(),
-        )
-
-    @classmethod
-    def from_mapping(cls, value: Mapping[str, Any]) -> "RunningJobExecution":
-        if not isinstance(value, Mapping) or set(value) != {
-            "job_hash",
-            "job_id",
-            "job_permit_id",
-            "start_record_id",
-        }:
-            raise TransitionError("running Job execution context is invalid")
-        return cls(
-            job_hash=value["job_hash"],
-            job_id=value["job_id"],
-            job_permit_id=value["job_permit_id"],
-            start_record_id=value["start_record_id"],
-        )
 
 
 Prepare = Callable[
@@ -231,6 +369,52 @@ def _require_ascii(name: str, value: str) -> str:
     return value
 
 
+@dataclass(frozen=True, slots=True)
+class _BatchJobDecisionInventory:
+    """One bounded Batch-local declaration and evidence-decision slice."""
+
+    batch_id: str
+    declarations: tuple[IndexRecord, ...]
+    decisions: tuple[IndexRecord, ...]
+
+
+def _batch_job_decision_inventory(
+    index: LocalIndex | LocalIndexView,
+    *,
+    batch_id: str,
+) -> _BatchJobDecisionInventory:
+    """Resolve one Batch without decoding project-wide Job history."""
+
+    _require_ascii("Batch identity", batch_id)
+    declarations = tuple(
+        sorted(
+            index.records_by_payload_text(
+                "job-declared",
+                "batch_id",
+                batch_id,
+            ),
+            key=lambda record: record.record_id,
+        )
+    )
+    decisions: list[IndexRecord] = []
+    for declaration in declarations:
+        job_decisions = tuple(
+            record
+            for status in _BATCH_EVIDENCE_DECISION_STATUSES
+            for record in index.records_by_subject_status(
+                f"Job:{declaration.record_id}",
+                status,
+            )
+            if record.kind == "job-evidence-decision"
+        )
+        decisions.extend(job_decisions)
+    return _BatchJobDecisionInventory(
+        batch_id=batch_id,
+        declarations=declarations,
+        decisions=tuple(sorted(decisions, key=lambda record: record.record_id)),
+    )
+
+
 def _require_digest(name: str, value: str) -> str:
     _require_ascii(name, value)
     if len(value) != 64 or any(char not in "0123456789abcdef" for char in value):
@@ -238,69 +422,118 @@ def _require_digest(name: str, value: str) -> str:
     return value
 
 
-def _static_string(node: ast.AST) -> str | None:
-    if isinstance(node, ast.Constant):
-        if isinstance(node.value, str):
-            return node.value
-        if isinstance(node.value, bytes):
-            try:
-                return node.value.decode("ascii")
-            except UnicodeDecodeError:
-                return None
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        left = _static_string(node.left)
-        right = _static_string(node.right)
-        return None if left is None or right is None else left + right
-    if isinstance(node, ast.JoinedStr):
-        parts: list[str] = []
-        for value in node.values:
-            if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
-                return None
-            parts.append(value.value)
-        return "".join(parts)
-    return None
+def _engineering_fixture_seed_exemption(
+    *,
+    engineering_fixture: bool,
+    event_kind: str,
+    subject: str,
+    payload: Mapping[str, Any],
+) -> bool:
+    """Recognize only inventoried zero-authority fixture seed boundaries."""
 
-
-def _hardcoded_control_ids(source: bytes) -> tuple[str, ...]:
-    """Find static Mission/Study IDs in Python or conservatively in other code."""
-
-    try:
-        text = source.decode("utf-8")
-    except UnicodeDecodeError:
-        return tuple(
-            sorted(
-                set(
-                    _STUDY_BOUND_IMPLEMENTATION_PATTERN.findall(
-                        source.decode("ascii", errors="ignore")
-                    )
-                )
-            )
+    if not engineering_fixture:
+        return False
+    boundary = _ENGINEERING_FIXTURE_SEED_BOUNDARIES.get(event_kind)
+    if boundary is None:
+        return False
+    subject_boundary, payload_keys = boundary
+    if subject_boundary.startswith("="):
+        subject_valid = subject == subject_boundary.removeprefix("=")
+    else:
+        subject_valid = (
+            type(subject) is str
+            and subject.startswith(subject_boundary)
+            and len(subject) > len(subject_boundary)
+            and subject.isascii()
         )
-    try:
-        tree = ast.parse(text)
-    except SyntaxError:
-        return tuple(
-            sorted(set(_STUDY_BOUND_IMPLEMENTATION_PATTERN.findall(text)))
-        )
-    docstrings: set[int] = set()
-    for owner in ast.walk(tree):
-        body = getattr(owner, "body", None)
-        if (
-            isinstance(body, list)
-            and body
-            and isinstance(body[0], ast.Expr)
-            and isinstance(body[0].value, ast.Constant)
-            and isinstance(body[0].value.value, str)
-        ):
-            docstrings.add(id(body[0].value))
-    found: set[str] = set()
-    for node in ast.walk(tree):
-        if id(node) in docstrings:
+    if (
+        not subject_valid
+        or set(payload) != {*payload_keys, "evidence"}
+        or payload.get("evidence") != []
+    ):
+        return False
+    for name, value in payload.items():
+        if name == "evidence":
             continue
-        value = _static_string(node)
-        if value is not None:
-            found.update(_STUDY_BOUND_IMPLEMENTATION_PATTERN.findall(value))
-    return tuple(sorted(found))
+        if name in {"scientific_credit", "trial_delta"}:
+            if type(value) is not int or value != 0:
+                return False
+        elif type(value) is not str or not value or not value.isascii():
+            return False
+    if event_kind == "historical_adjudication_fixture_seeded" and (
+        subject != f"Study:{payload['study_id']}"
+    ):
+        return False
+    return True
+
+
+_hardcoded_control_ids = hardcoded_control_ids
+
+
+_job_implementation_source_closure_hashes = implementation_source_closure_hashes
+
+
+def _job_requires_current_source_authority(
+    *, engineering_fixture: bool, evidence_subject_kind: object
+) -> bool:
+    """Return the explicit source-authority policy for every Job subject.
+
+    The evidence subject changes the downstream consumer, not whether code
+    bytes need current path-role authority.  Keeping this matrix at one small
+    boundary prevents a new subject branch from silently restoring the old
+    Executable-only rule.
+    """
+
+    try:
+        return requires_current_source_authority(
+            engineering_fixture=engineering_fixture,
+            evidence_subject_kind=evidence_subject_kind,
+        )
+    except JobImplementationAuthorityError as exc:
+        raise TransitionError(str(exc)) from exc
+
+
+def _canonical_job_output_identity(
+    value: object,
+    *,
+    output_class: object | None = None,
+    name: str = "Job output",
+) -> str:
+    try:
+        return canonical_job_output_identity(
+            value,
+            output_class=output_class,
+            name=name,
+        )
+    except JobContractError as exc:
+        raise TransitionError(str(exc)) from exc
+
+
+def _canonical_worker_claim_identity(
+    value: object,
+    *,
+    name: str,
+) -> str:
+    try:
+        return canonical_worker_claim_identity(value, name=name)
+    except JobContractError as exc:
+        raise TransitionError(str(exc)) from exc
+
+
+def _require_job_output_namespace(
+    output_names: Sequence[object],
+    *,
+    output_classes: Mapping[object, object] | None = None,
+    name: str = "Job outputs",
+) -> None:
+    try:
+        require_job_output_namespace(
+            output_names,
+            output_classes=output_classes,
+            name=name,
+        )
+    except JobContractError as exc:
+        raise TransitionError(str(exc)) from exc
 
 
 def _parse_utc(name: str, value: str) -> datetime:
@@ -312,6 +545,20 @@ def _parse_utc(name: str, value: str) -> datetime:
     if parsed.tzinfo is None or parsed.utcoffset() != timezone.utc.utcoffset(parsed):
         raise TransitionError(f"{name} must be UTC")
     return parsed
+
+
+def _require_authority_integer(
+    name: str,
+    value: object,
+    *,
+    minimum: int = 1,
+    error_type: type[Exception] = TransitionError,
+) -> int:
+    """Reject bool and non-integer authority counters before comparison."""
+
+    if type(value) is not int or value < minimum:
+        raise error_type(f"{name} must be an integer >= {minimum}")
+    return value
 
 
 def _require_manifest(
@@ -549,40 +796,10 @@ def _exact_source_replacement_wait_capability(
 def _concurrent_family_executable_ids(
     batch_record: IndexRecord,
 ) -> tuple[str, ...] | None:
-    """Rebuild and verify the exact typed family frozen into one Batch."""
-
-    from axiom_rift.research.portfolio import (
-        BatchSpecError,
-        ConcurrentFamilyEvaluationMode,
-        ConcurrentFamilyManifest,
-    )
-
-    spec = batch_record.payload.get("spec")
-    acceptance = None if not isinstance(spec, dict) else spec.get("acceptance_profile")
-    if not isinstance(acceptance, dict):
-        raise RecoveryRequired("Batch acceptance profile is unavailable")
-    payload = acceptance.get("concurrent_family")
-    if payload is None:
-        return None
-    if not isinstance(payload, dict):
-        raise RecoveryRequired("concurrent family manifest is malformed")
     try:
-        manifest = ConcurrentFamilyManifest(
-            evaluation_mode=ConcurrentFamilyEvaluationMode(
-                payload["evaluation_mode"]
-            ),
-            executable_ids=tuple(payload["executable_ids"]),
-        )
-    except (BatchSpecError, KeyError, TypeError, ValueError) as exc:
-        raise RecoveryRequired("concurrent family manifest is malformed") from exc
-    if (
-        payload != manifest.to_identity_payload()
-        or spec.get("max_trials") != manifest.family_size
-    ):
-        raise RecoveryRequired(
-            "concurrent family manifest differs from the frozen Batch bound"
-        )
-    return manifest.executable_ids
+        return concurrent_family_executable_ids(batch_record)
+    except ScientificMultiplicityIntegrityError as exc:
+        raise RecoveryRequired(str(exc)) from exc
 
 
 def _require_concurrent_family_registration(
@@ -591,35 +808,16 @@ def _require_concurrent_family_registration(
     batch_record: IndexRecord,
     evidence_subject: Mapping[str, Any],
 ) -> None:
-    """Block family engine entry until every exact member is durably counted."""
-
-    executable_ids = _concurrent_family_executable_ids(batch_record)
-    if executable_ids is None:
-        return
-    subject_id = evidence_subject.get("id")
-    if (
-        evidence_subject.get("kind") != "Executable"
-        or subject_id not in executable_ids
-    ):
-        raise TransitionError(
-            "concurrent family Job subject is outside the exact frozen family"
+    try:
+        require_concurrent_family_registration(
+            index,
+            batch_record=batch_record,
+            evidence_subject=evidence_subject,
         )
-    missing: list[str] = []
-    for executable_id in executable_ids:
-        trial = index.get("trial", executable_id)
-        if trial is None:
-            trial = index.get("engineering-evaluation-fixture", executable_id)
-        if (
-            trial is None
-            or trial.fingerprint != executable_id.removeprefix("executable:")
-            or trial.status not in {"evaluated", "engineering_only"}
-        ):
-            missing.append(executable_id)
-    if missing:
-        raise TransitionError(
-            "concurrent family Job cannot start before every exact family trial "
-            f"is registered ({len(missing)} missing)"
-        )
+    except ScientificMultiplicityIntegrityError as exc:
+        raise RecoveryRequired(str(exc)) from exc
+    except ScientificMultiplicityAuthorityError as exc:
+        raise TransitionError(str(exc)) from exc
 
 
 def ready_control_body() -> dict[str, Any]:
@@ -724,7 +922,12 @@ class StateWriter:
             validation_registry
             if validation_registry is not None
             else EvidenceValidatorRegistry(
-                (EngineeringFixtureValidator(),) if engineering_fixture else ()
+                (
+                    EngineeringFixtureValidator(),
+                    EngineeringRetryFixtureValidator(),
+                )
+                if engineering_fixture
+                else ()
             )
         )
 
@@ -738,7 +941,16 @@ class StateWriter:
 
     @staticmethod
     def _assemble(event: Mapping[str, Any]) -> dict[str, Any]:
-        sequence = event["sequence"]
+        sequence = _require_authority_integer(
+            "Journal sequence",
+            event.get("sequence"),
+            error_type=JournalIntegrityError,
+        )
+        record_count = _require_authority_integer(
+            "Journal index record count",
+            event.get("index_record_count"),
+            error_type=JournalIntegrityError,
+        )
         control = _copy(event["control"])
         control["revision"] = sequence
         control["heads"] = {
@@ -748,7 +960,7 @@ class StateWriter:
             },
             "index": {
                 "required_sequence": sequence,
-                "required_record_count": event["index_record_count"],
+                "required_record_count": record_count,
                 "required_projection_digest": event[
                     "index_projection_digest"
                 ],
@@ -758,10 +970,21 @@ class StateWriter:
 
     @staticmethod
     def _event_records(event: Mapping[str, Any]) -> tuple[IndexRecord, ...]:
+        sequence = _require_authority_integer(
+            "Journal sequence",
+            event.get("sequence"),
+            error_type=JournalIntegrityError,
+        )
+        offset = _require_authority_integer(
+            "Journal offset",
+            event.get("journal_offset"),
+            minimum=0,
+            error_type=JournalIntegrityError,
+        )
         authority = {
-            "authority_sequence": event["sequence"],
+            "authority_sequence": sequence,
             "authority_event_id": event["event_id"],
-            "authority_offset": event["journal_offset"],
+            "authority_offset": offset,
         }
         event_record = IndexRecord(
             kind="journal-event",
@@ -774,7 +997,7 @@ class StateWriter:
                 "occurred_at_utc": event["occurred_at_utc"],
             },
             event_stream="control",
-            event_sequence=event["sequence"],
+            event_sequence=sequence,
             **authority,
         )
         return (event_record,) + tuple(
@@ -795,18 +1018,30 @@ class StateWriter:
             "event_sequence": record.event_sequence,
         }
 
-    def _validate_index_record_authority(self, record: IndexRecord) -> None:
+    @staticmethod
+    def _index_record_authority_key(record: IndexRecord) -> tuple[int, int, str]:
         if (
-            record.authority_sequence is None
-            or record.authority_event_id is None
-            or record.authority_offset is None
+            type(record.authority_sequence) is not int
+            or record.authority_sequence < 1
+            or type(record.authority_event_id) is not str
+            or not record.authority_event_id
+            or type(record.authority_offset) is not int
+            or record.authority_offset < 0
         ):
             raise IndexIntegrityError("operating projection record lacks Journal authority")
-        event = self.journal.read_event_at(
-            offset=record.authority_offset,
-            expected_sequence=record.authority_sequence,
-            expected_event_id=record.authority_event_id,
+        return (
+            record.authority_offset,
+            record.authority_sequence,
+            record.authority_event_id,
         )
+
+    def _validate_index_record_projection(
+        self,
+        record: IndexRecord,
+        event: Mapping[str, Any],
+    ) -> None:
+        """Validate one row against its already authenticated Journal event."""
+
         projected = self._index_mapping(record)
         if record.kind == "journal-event":
             expected = self._index_mapping(self._event_records(event)[0])
@@ -817,11 +1052,62 @@ class StateWriter:
         if len(matches) != 1:
             raise IndexIntegrityError("projection record is not a unique Journal member")
 
-    def _open_authoritative_index(self) -> LocalIndex:
+    def _validate_index_record_authority(self, record: IndexRecord) -> None:
+        offset, sequence, event_id = self._index_record_authority_key(record)
+        event = self.journal.read_event_at(
+            offset=offset,
+            expected_sequence=sequence,
+            expected_event_id=event_id,
+        )
+        self._validate_index_record_projection(record, event)
+
+    def _authoritative_index_validator(
+        self,
+    ) -> Callable[[IndexRecord], None]:
+        """Build one session-local Journal authority validator."""
+
+        @lru_cache(maxsize=_AUTHORITATIVE_EVENT_CACHE_SIZE)
+        def read_authoritative_event(
+            offset: int,
+            sequence: int,
+            event_id: str,
+        ) -> Mapping[str, Any]:
+            return self.journal.read_event_at(
+                offset=offset,
+                expected_sequence=sequence,
+                expected_event_id=event_id,
+            )
+
+        def validate(record: IndexRecord) -> None:
+            authority_key = self._index_record_authority_key(record)
+            event = read_authoritative_event(*authority_key)
+            self._validate_index_record_projection(record, event)
+
+        return validate
+
+    def _open_authoritative_index(self) -> LocalIndexView:
+        """Open one authenticated, existing, current-schema read snapshot."""
+
+        try:
+            return LocalIndex.open_read_only(
+                self.index_path,
+                authority_validator=self._authoritative_index_validator(),
+            )
+        except (IndexIntegrityError, LocalIndexError) as exc:
+            raise RecoveryRequired(str(exc)) from exc
+
+    def _open_mutable_authoritative_index(self) -> LocalIndex:
+        """Open the authenticated projection for the atomic commit path only."""
+
         return LocalIndex(
             self.index_path,
-            authority_validator=self._validate_index_record_authority,
+            authority_validator=self._authoritative_index_validator(),
         )
+
+    def _open_mutable_recovery_index(self) -> LocalIndex:
+        """Open a projection that explicit Journal recovery may rebuild."""
+
+        return LocalIndex(self.index_path)
 
     def _require_runtime_source(
         self,
@@ -857,6 +1143,8 @@ class StateWriter:
             state: str,
             evidence: SourceTransitionEvidence | None,
         ) -> SourceEligibilityReceipt | None:
+            if type(sequence) is not int or sequence < 1:
+                raise ValueError("source transition sequence is invalid")
             if (
                 record is None
                 or record.kind != "source-state"
@@ -864,7 +1152,9 @@ class StateWriter:
                 or record.fingerprint != source_id
                 or record.status != state
                 or record.event_stream != stream
+                or type(record.event_sequence) is not int
                 or record.event_sequence != sequence
+                or type(record.payload.get("ordinal")) is not int
                 or record.payload.get("ordinal") != sequence
             ):
                 raise ValueError("source transition edge is structurally invalid")
@@ -920,6 +1210,11 @@ class StateWriter:
             authority_stream = f"source-authority:{source_id}"
             authority_head = index.event_head(authority_stream)
             if authority_head is not None:
+                authority_sequence = _require_authority_integer(
+                    "source authority head sequence",
+                    authority_head.sequence,
+                    error_type=ValueError,
+                )
                 correction = index.get(
                     authority_head.record_kind, authority_head.record_id
                 )
@@ -929,7 +1224,8 @@ class StateWriter:
                     or correction.status != "confirmed_and_suspended"
                     or correction.subject != f"Source:{source_id}"
                     or correction.event_stream != authority_stream
-                    or correction.event_sequence != authority_head.sequence
+                    or type(correction.event_sequence) is not int
+                    or correction.event_sequence != authority_sequence
                     or set(correction.payload)
                     != {
                         "audit_manifest",
@@ -973,6 +1269,23 @@ class StateWriter:
                     if not isinstance(prior_active_id, str)
                     else index.get("source-state", prior_active_id)
                 )
+                if source_head is not None:
+                    _require_authority_integer(
+                        "source head sequence",
+                        source_head.sequence,
+                        error_type=ValueError,
+                    )
+                for sequence_name, source_record in (
+                    ("invalidated source event sequence", invalidated),
+                    ("prior active source event sequence", prior_active),
+                    ("replacement source event sequence", replacement),
+                ):
+                    if source_record is not None:
+                        _require_authority_integer(
+                            sequence_name,
+                            source_record.event_sequence,
+                            error_type=ValueError,
+                        )
                 invalidated_receipt_payload = (
                     None
                     if invalidated is None
@@ -1097,7 +1410,7 @@ class StateWriter:
                             )
                         )
                 if (
-                    authority_head.sequence != 1
+                    authority_sequence != 1
                     or invalidation.identity != correction.record_id
                     or correction.fingerprint
                     != invalidation.identity.removeprefix(
@@ -1191,6 +1504,11 @@ class StateWriter:
             record = None if head is None else index.get(head.record_kind, head.record_id)
             if head is None or record is None or record.status != "runtime_eligible":
                 raise ValueError("current source projection is not runtime eligible")
+            head_sequence = _require_authority_integer(
+                "runtime source head sequence",
+                head.sequence,
+                error_type=ValueError,
+            )
             receipt_payload = record.payload.get("receipt")
             if not isinstance(receipt_payload, dict):
                 raise ValueError("runtime source receipt is absent")
@@ -1202,7 +1520,7 @@ class StateWriter:
                 raise ValueError("current source receipt is not runtime evidence")
             receipt = require_edge(
                 record,
-                sequence=head.sequence,
+                sequence=head_sequence,
                 state="runtime_eligible",
                 evidence=current_evidence,
             )
@@ -1258,11 +1576,11 @@ class StateWriter:
                 raise ValueError("runtime source eligibility receipt is stale")
             if (
                 receipt.evidence is SourceTransitionEvidence.RUNTIME_AVAILABILITY_PROOF
-                and head.sequence != 3
+                and head_sequence != 3
             ) or (
                 receipt.evidence
                 is SourceTransitionEvidence.SAME_SEMANTICS_RECERTIFICATION
-                and (head.sequence < 5 or head.sequence % 2 == 0)
+                and (head_sequence < 5 or head_sequence % 2 == 0)
             ):
                 raise ValueError("runtime source receipt appears at an invalid transition")
             require_edge(
@@ -1287,8 +1605,8 @@ class StateWriter:
                 )
                 assert initial_receipt is not None
                 require_edge(
-                    index.event_record(stream, head.sequence - 1),
-                    sequence=head.sequence - 1,
+                    index.event_record(stream, head_sequence - 1),
+                    sequence=head_sequence - 1,
                     state="suspended",
                     evidence=SourceTransitionEvidence.DRIFT,
                 )
@@ -1326,13 +1644,21 @@ class StateWriter:
         )
 
     def _require_stable_locked(
-        self, index: LocalIndex, *, allow_empty: bool = False
+        self,
+        index: LocalIndex | LocalIndexView,
+        *,
+        allow_empty: bool = False,
     ) -> dict[str, Any] | None:
         control = self.control.read()
         journal_head, journal_event = self.journal.tail()
         index_head = index.event_head("control")
         if control is None:
-            if allow_empty and journal_head.sequence == 0 and index_head is None:
+            if (
+                allow_empty
+                and type(journal_head.sequence) is int
+                and journal_head.sequence == 0
+                and index_head is None
+            ):
                 return None
             raise RecoveryRequired("control is absent or trails durable state")
         if (
@@ -1341,10 +1667,34 @@ class StateWriter:
         ):
             raise RecoveryRequired("authority or Foundation input content drifted")
         state_head = control["heads"]["journal"]
-        if control["revision"] != state_head["sequence"]:
+        index_state_head = control["heads"]["index"]
+        revision = _require_authority_integer(
+            "control revision",
+            control.get("revision"),
+            error_type=ControlStateError,
+        )
+        state_sequence = _require_authority_integer(
+            "control journal sequence",
+            state_head.get("sequence"),
+            error_type=ControlStateError,
+        )
+        required_index_sequence = _require_authority_integer(
+            "control index sequence",
+            index_state_head.get("required_sequence"),
+            error_type=ControlStateError,
+        )
+        required_record_count = _require_authority_integer(
+            "control index record count",
+            index_state_head.get("required_record_count"),
+            error_type=ControlStateError,
+        )
+        if required_index_sequence != state_sequence:
+            raise ControlStateError("control index and journal sequences diverge")
+        if revision != state_sequence:
             raise ControlStateError("control revision and journal head diverge")
         if (
-            journal_head.sequence != state_head["sequence"]
+            type(journal_head.sequence) is not int
+            or journal_head.sequence != state_sequence
             or journal_head.event_id != state_head["event_id"]
         ):
             raise RecoveryRequired("control and journal require recovery")
@@ -1353,11 +1703,12 @@ class StateWriter:
             raise RecoveryRequired("control content differs from journal authority")
         if (
             index_head is None
+            or type(index_head.sequence) is not int
             or index_head.sequence != journal_head.sequence
             or index_head.fingerprint != journal_head.event_id
         ):
             raise RecoveryRequired("local index requires recovery")
-        if index.record_count() != control["heads"]["index"]["required_record_count"]:
+        if index.record_count() != required_record_count:
             raise RecoveryRequired("local index contains an unauthoritative record count")
         projection_digest, projection_valid = index.projection_guard()
         if (
@@ -1370,6 +1721,29 @@ class StateWriter:
 
     def read_control(self) -> dict[str, Any] | None:
         return self.control.read()
+
+    @contextmanager
+    def open_stable_index(
+        self,
+    ) -> Iterator[tuple[dict[str, Any], LocalIndexView]]:
+        """Yield one Journal-authenticated, query-only management snapshot.
+
+        Reusable management workflows must not open the repository projection
+        directly or pair an independently read control file with index rows.
+        The read-only running-Job authority already owns the fail-closed stable
+        boundary, including writer-lock coordination and full control, Journal,
+        authority-manifest, projection-head, record-count, and digest checks.
+        """
+
+        authority = RunningJobAuthority(
+            self.root,
+            foundation_root=self.foundation_root,
+        )
+        try:
+            with authority.open_stable_index() as snapshot:
+                yield snapshot
+        except RunningJobAuthorityError as exc:
+            raise RecoveryRequired(str(exc)) from exc
 
     def require_stable_head(self) -> dict[str, Any]:
         """Return a read-only stable-head report without attempting recovery.
@@ -1403,34 +1777,193 @@ class StateWriter:
         declared_implementation_identity: str,
     ) -> tuple[str, str | None]:
         """Project the latest typed in-place implementation Repair."""
-
-        _require_digest(
-            "declared Job implementation",
-            declared_implementation_identity,
-        )
-        head = index.event_head(f"job-repair:{job_id}")
-        if head is None:
-            return declared_implementation_identity, None
-        record = index.get(head.record_kind, head.record_id)
-        payload = None if record is None else record.payload
-        effective = (
-            None
-            if not isinstance(payload, Mapping)
-            else payload.get("effective_implementation_identity")
-        )
-        if (
-            record is None
-            or record.kind != "repair-close"
-            or record.status != "repaired"
-            or record.subject != f"Job:{job_id}"
-            or payload.get("job_id") != job_id
-            or not isinstance(effective, str)
-        ):
-            raise RecoveryRequired(
-                "running Job implementation Repair projection is invalid"
+        try:
+            return effective_running_job_implementation(
+                index,
+                job_id=job_id,
+                declared_implementation_identity=(
+                    declared_implementation_identity
+                ),
             )
-        _require_digest("effective Job implementation", effective)
-        return effective, record.record_id
+        except RunningJobAuthorityIntegrityError as exc:
+            raise RecoveryRequired(str(exc)) from exc
+
+    def resume_repaired_job_execution(
+        self,
+        execution: RunningJobExecution,
+        *,
+        expected_callable_identity: str,
+        operation_id: str,
+        expected_evidence_subject: Mapping[str, str] | None = None,
+        required_input_hashes: Sequence[str] = (),
+    ) -> TransitionResult:
+        """Durably re-enter the exact Job engine after a successful Repair."""
+
+        if not isinstance(execution, RunningJobExecution):
+            raise PermitError("Repair resume requires a running Job execution context")
+        _require_ascii("expected callable identity", expected_callable_identity)
+        expected_subject: dict[str, str] | None = None
+        if expected_evidence_subject is not None:
+            if (
+                not isinstance(expected_evidence_subject, Mapping)
+                or set(expected_evidence_subject) != {"kind", "id"}
+            ):
+                raise TransitionError("expected evidence subject is invalid")
+            expected_subject = {
+                "kind": _require_ascii(
+                    "expected evidence subject kind",
+                    expected_evidence_subject["kind"],
+                ),
+                "id": _require_ascii(
+                    "expected evidence subject id",
+                    expected_evidence_subject["id"],
+                ),
+            }
+        required = tuple(required_input_hashes)
+        for item in required:
+            _require_digest("required Job input", item)
+        if len(set(required)) != len(required):
+            raise TransitionError("required Job inputs contain duplicates")
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            body = self._body(current)
+            science = body["scientific"]
+            job = science.get("active_job")
+            if (
+                not isinstance(job, dict)
+                or job.get("status") != "running"
+                or science.get("active_repair") is not None
+                or job.get("id") != execution.job_id
+                or job.get("hash") != execution.job_hash
+                or job.get("start_record_id") != execution.start_record_id
+            ):
+                raise PermitError("repaired Job execution context is stale")
+            close_id = job.get("required_repair_resume_record_id")
+            direction = body.get("next_action")
+            if (
+                not isinstance(close_id, str)
+                or not isinstance(direction, Mapping)
+                or direction
+                != {
+                    "job_id": execution.job_id,
+                    "kind": "resume_job",
+                    "repair_close_record_id": close_id,
+                }
+            ):
+                raise TransitionError("no exact repaired Job execution is pending")
+            declaration = index.get("job-declared", execution.job_id)
+            start = index.get("job-started", execution.start_record_id)
+            spec = None if declaration is None else declaration.payload.get("spec")
+            if (
+                declaration is None
+                or declaration.fingerprint != execution.job_hash
+                or start is None
+                or start.status != "running"
+                or start.subject != f"Job:{execution.job_id}"
+                or start.fingerprint != execution.job_hash
+                or start.payload.get("job_permit_id") != execution.job_permit_id
+                or not isinstance(spec, dict)
+                or spec.get("callable_identity") != expected_callable_identity
+                or (
+                    expected_subject is not None
+                    and spec.get("evidence_subject") != expected_subject
+                )
+                or not set(required).issubset(spec.get("input_hashes", []))
+            ):
+                raise PermitError("repaired Job differs from engine re-entry")
+            close = index.get("repair-close", close_id)
+            repair_head = index.event_head(f"job-repair:{execution.job_id}")
+            effective_implementation, effective_close_id = (
+                self._effective_running_job_implementation(
+                    index,
+                    job_id=execution.job_id,
+                    declared_implementation_identity=spec[
+                        "implementation_identity"
+                    ],
+                )
+            )
+            attempt_id = (
+                None if close is None else close.payload.get("attempt_record_id")
+            )
+            attempt = (
+                None
+                if not isinstance(attempt_id, str)
+                else index.get("repair-attempt", attempt_id)
+            )
+            repair_id = None if close is None else close.payload.get("repair_id")
+            if (
+                close is None
+                or close.kind != "repair-close"
+                or close.status != "repaired"
+                or close.subject != f"Job:{execution.job_id}"
+                or close.record_id != close_id
+                or repair_head is None
+                or repair_head.record_id != close_id
+                or effective_close_id != close_id
+                or close.payload.get("job_id") != execution.job_id
+                or close.payload.get("effective_implementation_identity")
+                != effective_implementation
+                or close.payload.get("resume_action") != spec.get("resume_action")
+                or not isinstance(repair_id, str)
+                or attempt is None
+                or attempt.status != "repaired"
+                or attempt.subject != f"Repair:{repair_id}"
+                or attempt.payload.get("repair_id") != repair_id
+                or attempt.payload.get("job_id") != execution.job_id
+            ):
+                raise RecoveryRequired("repaired Job re-entry provenance is invalid")
+            resume_payload = {
+                "callable_identity": expected_callable_identity,
+                "effective_implementation_identity": effective_implementation,
+                "engine_entry_record_id": job.get("engine_entry_record_id"),
+                "execution": execution.payload(),
+                "repair_attempt_record_id": attempt_id,
+                "repair_close_record_id": close_id,
+                "repair_id": repair_id,
+                "runtime_entry_record_id": job.get("runtime_entry_record_id"),
+            }
+            record_id = canonical_digest(
+                domain="job-repaired-execution-resume",
+                payload=resume_payload,
+            )
+            stream = f"job-resume:{execution.job_id}"
+            head = index.event_head(stream)
+            record = _record(
+                kind="job-resumed",
+                record_id=record_id,
+                subject=f"Job:{execution.job_id}",
+                status="validated",
+                fingerprint=execution.job_hash,
+                payload=resume_payload,
+                event_stream=stream,
+                event_sequence=1 if head is None else head.sequence + 1,
+            )
+            job.pop("required_repair_resume_record_id")
+            job["last_repair_resume_record_id"] = record_id
+            body["next_action"] = {
+                "kind": "resume_job",
+                "job_id": execution.job_id,
+            }
+            return body, [record], {
+                "job_id": execution.job_id,
+                "repair_close_record_id": close_id,
+                "resume_record_id": record_id,
+            }
+
+        return self._commit(
+            event_kind="job_repaired_execution_resumed",
+            operation_id=operation_id,
+            subject=f"Job:{execution.job_id}",
+            payload={
+                "execution": execution.payload(),
+                "expected_callable_identity": expected_callable_identity,
+                "expected_evidence_subject": expected_subject,
+                "required_input_hashes": list(required),
+            },
+            prepare=prepare,
+        )
 
     def verify_running_job_execution(
         self,
@@ -1468,114 +2001,40 @@ class StateWriter:
         if len(set(required)) != len(required):
             raise TransitionError("required Job inputs contain duplicates")
 
-        with WriterLock(self.lock_path):
-            with self._open_authoritative_index() as index:
-                current = self._require_stable_locked(index)
-                assert current is not None
-                job = current["scientific"]["active_job"]
-                if (
-                    not isinstance(job, dict)
-                    or job.get("status") != "running"
-                    or job.get("id") != execution.job_id
-                    or job.get("hash") != execution.job_hash
-                    or job.get("start_record_id") != execution.start_record_id
-                ):
-                    raise PermitError("running Job execution context is stale")
-                declaration = index.get("job-declared", execution.job_id)
-                start = index.get("job-started", execution.start_record_id)
-                if (
-                    declaration is None
-                    or declaration.fingerprint != execution.job_hash
-                    or start is None
-                    or start.status != "running"
-                    or start.subject != f"Job:{execution.job_id}"
-                    or start.fingerprint != execution.job_hash
-                    or start.payload.get("job_permit_id")
-                    != execution.job_permit_id
-                ):
-                    raise PermitError("running Job provenance is unavailable")
-                spec = declaration.payload.get("spec")
-                if (
-                    not isinstance(spec, dict)
-                    or spec.get("runtime_binding") is not None
-                    or spec.get("callable_identity") != expected_callable_identity
-                    or (
-                        expected_subject is not None
-                        and spec.get("evidence_subject") != expected_subject
-                    )
-                    or not set(required).issubset(spec.get("input_hashes", []))
-                ):
-                    raise PermitError("running Job capability differs from engine entry")
-                effective_implementation, repair_record_id = (
-                    self._effective_running_job_implementation(
-                        index,
-                        job_id=execution.job_id,
-                        declared_implementation_identity=spec[
-                            "implementation_identity"
-                        ],
-                    )
-                )
-                stream = f"permit:{execution.job_permit_id}"
-                issued = index.event_record(stream, 1)
-                consumed = index.event_record(stream, 2)
-                if issued is None or consumed is None:
-                    raise PermitError("running Job permit provenance is incomplete")
-                engine_entry_id = job.get("engine_entry_record_id")
-                engine_entry = (
-                    None
-                    if not isinstance(engine_entry_id, str)
-                    else index.get("job-engine-entry", engine_entry_id)
-                )
-                try:
-                    issued_permit = Permit.from_mapping(issued.payload)
-                except (KeyError, TypeError, ValueError) as exc:
-                    raise PermitError("running Job issued permit is invalid") from exc
-                if (
-                    issued.kind != "permit-issued"
-                    or issued.status != "issued"
-                    or issued.fingerprint != execution.job_permit_id
-                    or issued_permit.permit_id != execution.job_permit_id
-                    or issued_permit.kind is not PermitKind.JOB
-                    or issued_permit.subject.kind is not SubjectKind.JOB
-                    or issued_permit.subject.subject_id != execution.job_id
-                    or issued_permit.input_hash != execution.job_hash
-                    or issued_permit.actions != ("start_job",)
-                    or not issued_permit.one_shot
-                    or consumed.kind != "permit-consumed"
-                    or consumed.status != "consumed"
-                    or consumed.fingerprint != execution.job_permit_id
-                    or consumed.payload
-                    != {
-                        "one_shot": True,
-                        "permit_id": execution.job_permit_id,
-                    }
-                    or consumed.authority_event_id != start.authority_event_id
-                    or consumed.authority_sequence != start.authority_sequence
-                    or engine_entry is None
-                    or engine_entry.status != "validated"
-                    or engine_entry.subject != f"Job:{execution.job_id}"
-                    or engine_entry.fingerprint != execution.job_hash
-                    or engine_entry.payload
-                    != {
-                        "execution": execution.payload(),
-                        "permit_consumption_record_id": consumed.record_id,
-                    }
-                    or engine_entry.authority_event_id != start.authority_event_id
-                    or engine_entry.authority_sequence != start.authority_sequence
-                ):
-                    raise PermitError("running Job permit and start provenance diverge")
-                return {
-                    "batch_id": declaration.payload.get("batch_id"),
-                    "effective_implementation_identity": (
-                        effective_implementation
-                    ),
-                    "execution": execution.payload(),
-                    "implementation_repair_record_id": repair_record_id,
-                    "initiative_id": declaration.payload.get("initiative_id"),
-                    "mission_id": declaration.payload.get("mission_id"),
-                    "spec": _copy(spec),
-                    "study_id": declaration.payload.get("study_id"),
-                }
+        control = self.read_control()
+        active_job = (
+            None
+            if control is None
+            else control.get("scientific", {}).get("active_job")
+        )
+        pending_repair_close = (
+            None
+            if not isinstance(active_job, dict)
+            else active_job.get("required_repair_resume_record_id")
+        )
+        if isinstance(pending_repair_close, str):
+            self.resume_repaired_job_execution(
+                execution,
+                expected_callable_identity=expected_callable_identity,
+                expected_evidence_subject=expected_subject,
+                required_input_hashes=required,
+                operation_id=(
+                    "resume-repaired-job-execution-" + pending_repair_close
+                ),
+            )
+        authority = RunningJobAuthority(
+            self.root,
+            foundation_root=self.foundation_root,
+        )
+        try:
+            return authority.verify_running_job_execution(
+                execution,
+                expected_callable_identity=expected_callable_identity,
+                expected_evidence_subject=expected_subject,
+                required_input_hashes=required,
+            )
+        except RunningJobAuthorityIntegrityError as exc:
+            raise RecoveryRequired(str(exc)) from exc
 
     def verify_reproducible_cache_producer(
         self,
@@ -1591,232 +2050,26 @@ class StateWriter:
         manifest_hash: str,
     ) -> None:
         """Require cache bytes to come from a completed validated Job."""
-
-        if not isinstance(producer, RunningJobExecution):
-            raise TransitionError("cache producer execution is invalid")
-        for name, value in (
-            ("cache output name", cache_output_name),
-            ("manifest output name", manifest_output_name),
-        ):
-            _require_ascii(name, value)
-        _require_digest("cache hash", cache_hash)
-        _require_digest("cache manifest hash", manifest_hash)
-        _require_ascii("expected cache callable", expected_callable_identity)
-        _require_ascii("expected cache Study", expected_study_id)
-        if (
-            not isinstance(expected_evidence_subject, Mapping)
-            or set(expected_evidence_subject) != {"kind", "id"}
-        ):
-            raise TransitionError("expected cache evidence subject is invalid")
-        expected_subject = dict(expected_evidence_subject)
-        if any(
-            type(value) is not str or not value or not value.isascii()
-            for value in expected_subject.values()
-        ):
-            raise TransitionError("expected cache evidence subject is invalid")
-        expected_classes = dict(expected_output_classes)
-        if not expected_classes or any(
-            type(name) is not str
-            or not name
-            or not name.isascii()
-            or storage_class
-            not in {"durable_evidence", "reproducible_cache", "transient"}
-            for name, storage_class in expected_classes.items()
-        ):
-            raise TransitionError("expected cache output classes are invalid")
-        with WriterLock(self.lock_path):
-            with self._open_authoritative_index() as index:
-                current = self._require_stable_locked(index)
-                assert current is not None
-                declaration = index.get("job-declared", producer.job_id)
-                declared_spec = (
-                    None if declaration is None else declaration.payload.get("spec")
-                )
-                if (
-                    declaration is None
-                    or declaration.kind != "job-declared"
-                    or declaration.record_id != producer.job_id
-                    or declaration.status != "declared"
-                    or declaration.subject != f"Job:{producer.job_id}"
-                    or declaration.fingerprint != producer.job_hash
-                    or producer.job_id != f"job:{producer.job_hash}"
-                    or declaration.payload.get("mission_id")
-                    != current["scientific"]["active_mission"]
-                    or declaration.payload.get("study_id") != expected_study_id
-                    or not isinstance(declared_spec, dict)
-                    or declared_spec.get("runtime_binding") is not None
-                    or declared_spec.get("callable_identity")
-                    != expected_callable_identity
-                    or declared_spec.get("evidence_subject") != expected_subject
-                    or set(declared_spec.get("expected_outputs", []))
-                    != set(expected_classes)
-                    or declared_spec.get("output_classes") != expected_classes
-                ):
-                    raise TransitionError("cache producer declaration is unavailable")
-                start = index.get("job-started", producer.start_record_id)
-                permit_stream = f"permit:{producer.job_permit_id}"
-                issued = index.event_record(permit_stream, 1)
-                consumed = index.event_record(permit_stream, 2)
-                engine_entry_id = canonical_digest(
-                    domain="job-engine-entry",
-                    payload=producer.payload(),
-                )
-                engine_entry = index.get("job-engine-entry", engine_entry_id)
-                try:
-                    issued_permit = (
-                        None if issued is None else Permit.from_mapping(issued.payload)
-                    )
-                except (KeyError, TypeError, ValueError) as exc:
-                    raise TransitionError(
-                        "cache producer start provenance is invalid"
-                    ) from exc
-                expected_start_id = canonical_digest(
-                    domain="job-start",
-                    payload={
-                        "job_id": producer.job_id,
-                        "job_permit": producer.job_permit_id,
-                        "runtime_permit": None,
-                    },
-                )
-                if (
-                    start is None
-                    or start.kind != "job-started"
-                    or start.record_id != producer.start_record_id
-                    or producer.start_record_id != expected_start_id
-                    or start.status != "running"
-                    or start.subject != f"Job:{producer.job_id}"
-                    or start.fingerprint != producer.job_hash
-                    or start.payload
-                    != {
-                        "job_permit_id": producer.job_permit_id,
-                        "runtime": None,
-                    }
-                    or issued is None
-                    or issued.kind != "permit-issued"
-                    or issued.status != "issued"
-                    or issued.fingerprint != producer.job_permit_id
-                    or issued_permit is None
-                    or issued_permit.permit_id != producer.job_permit_id
-                    or issued_permit.kind is not PermitKind.JOB
-                    or issued_permit.subject.kind is not SubjectKind.JOB
-                    or issued_permit.subject.subject_id != producer.job_id
-                    or issued_permit.input_hash != producer.job_hash
-                    or issued_permit.actions != ("start_job",)
-                    or not issued_permit.one_shot
-                    or consumed is None
-                    or consumed.kind != "permit-consumed"
-                    or consumed.status != "consumed"
-                    or consumed.fingerprint != producer.job_permit_id
-                    or consumed.payload
-                    != {
-                        "one_shot": True,
-                        "permit_id": producer.job_permit_id,
-                    }
-                    or consumed.authority_event_id != start.authority_event_id
-                    or consumed.authority_sequence != start.authority_sequence
-                    or engine_entry is None
-                    or engine_entry.kind != "job-engine-entry"
-                    or engine_entry.record_id != engine_entry_id
-                    or engine_entry.status != "validated"
-                    or engine_entry.subject != f"Job:{producer.job_id}"
-                    or engine_entry.fingerprint != producer.job_hash
-                    or engine_entry.payload
-                    != {
-                        "execution": producer.payload(),
-                        "permit_consumption_record_id": consumed.record_id,
-                    }
-                    or engine_entry.authority_event_id != start.authority_event_id
-                    or engine_entry.authority_sequence != start.authority_sequence
-                ):
-                    raise TransitionError(
-                        "cache producer start provenance is unavailable"
-                    )
-                exact_completions = tuple(
-                    record
-                    for record in index.records_by_fingerprint(producer.job_hash)
-                    if record.kind == "job-completed"
-                    and record.subject == f"Job:{producer.job_id}"
-                    and record.payload.get("job_id") == producer.job_id
-                    and record.payload.get("start_record_id")
-                    == producer.start_record_id
-                )
-                completion = (
-                    exact_completions[0] if len(exact_completions) == 1 else None
-                )
-                scientific = (
-                    None if completion is None else completion.payload.get("scientific")
-                )
-                failure = (
-                    None if completion is None else completion.payload.get("failure")
-                )
-                scientific_verdict = (
-                    None
-                    if not isinstance(scientific, dict)
-                    else scientific.get("verdict")
-                )
-                effective_scope = (
-                    None
-                    if completion is None or not isinstance(scientific, dict)
-                    else _effective_completion_scope(index, completion)
-                )
-                if (
-                    completion is None
-                    or completion.kind != "job-completed"
-                    or completion.subject != f"Job:{producer.job_id}"
-                    or completion.fingerprint != producer.job_hash
-                    or completion.payload.get("job_id") != producer.job_id
-                    or completion.payload.get("start_record_id")
-                    != producer.start_record_id
-                    or set(completion.payload.get("outputs", {}))
-                    != set(expected_classes)
-                    or completion.payload.get("output_classes")
-                    != expected_classes
-                    or completion.payload.get("outputs", {}).get(cache_output_name)
-                    != cache_hash
-                    or completion.payload.get("outputs", {}).get(
-                        manifest_output_name
-                    )
-                    != manifest_hash
-                    or completion.payload.get("output_classes", {}).get(
-                        cache_output_name
-                    )
-                    != "reproducible_cache"
-                    or completion.payload.get("output_classes", {}).get(
-                        manifest_output_name
-                    )
-                    != "durable_evidence"
-                    or not isinstance(scientific, dict)
-                    or scientific_verdict not in {"passed", "failed", "not_evaluable"}
-                    or effective_scope is None
-                    or effective_scope.scientific_eligible is not True
-                    or completion.status not in {
-                        "success",
-                        "failed",
-                        "not_evaluable",
-                    }
-                    or (
-                        completion.status == "success"
-                        and failure is not None
-                    )
-                    or (
-                        completion.status == "failed"
-                        and (
-                            not isinstance(failure, dict)
-                            or failure.get("failure_kind")
-                            != "scientific_falsification"
-                        )
-                    )
-                    or (
-                        completion.status == "not_evaluable"
-                        and (
-                            not isinstance(failure, dict)
-                            or failure.get("failure_kind") != "not_evaluable"
-                        )
-                    )
-                ):
-                    raise TransitionError(
-                        "cache producer completion is not validator-derived"
-                    )
+        authority = RunningJobAuthority(
+            self.root,
+            foundation_root=self.foundation_root,
+        )
+        try:
+            authority.verify_reproducible_cache_producer(
+                producer,
+                cache_output_name=cache_output_name,
+                cache_hash=cache_hash,
+                expected_callable_identity=expected_callable_identity,
+                expected_evidence_subject=expected_evidence_subject,
+                expected_output_classes=expected_output_classes,
+                expected_study_id=expected_study_id,
+                manifest_output_name=manifest_output_name,
+                manifest_hash=manifest_hash,
+            )
+        except RunningJobAuthorityIntegrityError as exc:
+            raise RecoveryRequired(str(exc)) from exc
+        except (RunningJobAuthorityError, ValueError) as exc:
+            raise TransitionError(str(exc)) from exc
 
     def _commit(
         self,
@@ -1828,6 +2081,7 @@ class StateWriter:
         prepare: Prepare,
         evidence_blobs: Sequence[bytes] = (),
         authority_replacements: Sequence[Mapping[str, Any]] = (),
+        authority_derivation_check: Callable[[], None] | None = None,
         journal_storage_migration: bool = False,
         crash_after: str | None = None,
         allow_empty: bool = False,
@@ -1839,6 +2093,10 @@ class StateWriter:
         if bool(authority_replacements) != (event_kind == "authority_migrated"):
             raise TransitionError(
                 "authority replacements and the typed migration event are inseparable"
+            )
+        if authority_derivation_check is not None and event_kind != "authority_migrated":
+            raise TransitionError(
+                "authority derivation checks require the typed migration event"
             )
         if journal_storage_migration != (event_kind == "journal_storage_migrated"):
             raise TransitionError(
@@ -1853,7 +2111,7 @@ class StateWriter:
         if crash_after == "after_evidence":
             raise InjectedCrash("after_evidence")
         with WriterLock(self.lock_path):
-            with self._open_authoritative_index() as index:
+            with self._open_mutable_authoritative_index() as index:
                 current = self._require_stable_locked(index, allow_empty=allow_empty)
                 existing = index.get("operation", operation_id)
                 if existing is not None:
@@ -1875,20 +2133,86 @@ class StateWriter:
                 if current is not None:
                     science = current["scientific"]
                     pending_direction = current["next_action"].get("kind")
-                    required_direction_event = {
-                        "record_research_intake": "research_intake_recorded",
-                        "diagnose_study": "study_diagnosis_recorded",
-                        "review_architecture": "architecture_review_recorded",
+                    required_direction_events = {
+                        "complete_engineering_failure": {"job_completed"},
+                        "complete_runtime_source_ineligibility": {
+                            "job_completed"
+                        },
+                        "diagnose_study": {"study_diagnosis_recorded"},
+                        "dispose_revealed_holdout_engineering_gap": {
+                            "holdout_engineering_gap_disposed"
+                        },
+                        "judge_external_dependency_evidence": {
+                            "external_dependency_evidence_judged"
+                        },
+                        "judge_job_evidence": {
+                            "job_evidence_judged",
+                            "negative_memory_recorded",
+                        },
+                        "record_holdout_evaluation": {
+                            "holdout_evaluated",
+                            "negative_memory_recorded",
+                        },
+                        "record_axis_reopen_authority": {
+                            "axis_reopen_authority_recorded"
+                        },
+                        "record_research_intake": {
+                            "research_intake_recorded"
+                        },
+                        "record_source_eligibility": {
+                            "source_eligibility_recorded"
+                        },
+                        "review_architecture": {
+                            "architecture_review_recorded"
+                        },
+                        "resolve_candidate_engineering_gap": {
+                            "candidate_disposed",
+                            "job_declared",
+                        },
                     }.get(pending_direction)
                     if (
-                        required_direction_event is not None
-                        and event_kind != required_direction_event
-                        and not event_kind.endswith("_fixture_seeded")
+                        required_direction_events is not None
+                        and event_kind not in required_direction_events
+                        and not _engineering_fixture_seed_exemption(
+                            engineering_fixture=(
+                                self.engineering_fixture
+                                or self.study_close_guard_capability
+                                is StudyCloseGuardCapability.ISOLATED_ENGINEERING_FIXTURE
+                            ),
+                            event_kind=event_kind,
+                            subject=subject,
+                            payload=committed_payload,
+                        )
                     ):
                         direction_label = {
+                            "complete_engineering_failure": (
+                                "unrecovered engineering Job completion"
+                            ),
+                            "complete_runtime_source_ineligibility": (
+                                "runtime source-ineligibility completion"
+                            ),
                             "record_research_intake": "research intake",
                             "diagnose_study": "Study diagnosis",
+                            "dispose_revealed_holdout_engineering_gap": (
+                                "revealed holdout engineering-gap disposition"
+                            ),
+                            "judge_external_dependency_evidence": (
+                                "external dependency judgement"
+                            ),
+                            "judge_job_evidence": "Job evidence judgement",
+                            "record_holdout_evaluation": (
+                                "revealed holdout disposition"
+                            ),
+                            "record_axis_reopen_authority": (
+                                "audit-deferred axis reopen authority"
+                            ),
+                            "record_source_eligibility": (
+                                "source eligibility transition"
+                            ),
                             "review_architecture": "architecture review",
+                            "resolve_candidate_engineering_gap": (
+                                "candidate engineering-gap resolution"
+                            ),
                         }[pending_direction]
                         raise TransitionError(
                             f"transition cannot bypass pending {direction_label}"
@@ -1903,14 +2227,21 @@ class StateWriter:
                                 "job_started",
                             },
                             "running": {
+                                "engineering_failure_disposition_recorded",
+                                "job_repaired_execution_resumed",
                                 "permit_issued",
                                 "permit_revoked",
                                 "runtime_engine_entered",
+                                "source_eligibility_recorded",
                                 "holdout_revealed",
                                 "job_completed",
                                 "repair_opened",
                             },
-                            "interrupted_repair": {"repair_closed"},
+                            "interrupted_repair": {
+                                "repair_attempt_failed",
+                                "repair_closed",
+                                "repair_concluded_unrecovered",
+                            },
                         }
                         if event_kind not in allowed_by_status.get(
                             active_job.get("status"), set()
@@ -1918,7 +2249,11 @@ class StateWriter:
                             raise TransitionError(
                                 "active Job must resume or complete before another transition"
                             )
-                    if active_repair is not None and event_kind != "repair_closed":
+                    if active_repair is not None and event_kind not in {
+                        "repair_attempt_failed",
+                        "repair_closed",
+                        "repair_concluded_unrecovered",
+                    }:
                         raise TransitionError(
                             "active Repair must close before another transition"
                         )
@@ -1943,13 +2278,18 @@ class StateWriter:
                             "pending Mission terminal must close or be withdrawn exactly"
                         )
                     if science.get("active_holdout_evaluation") is not None and event_kind not in {
+                        "engineering_failure_disposition_recorded",
                         "holdout_evaluated",
+                        "holdout_engineering_gap_disposed",
+                        "job_repaired_execution_resumed",
                         "negative_memory_recorded",
                         "job_completed",
                         "permit_issued",
                         "permit_revoked",
                         "repair_opened",
+                        "repair_attempt_failed",
                         "repair_closed",
+                        "repair_concluded_unrecovered",
                     }:
                         raise TransitionError(
                             "revealed holdout must receive a typed disposition before other work"
@@ -2019,11 +2359,39 @@ class StateWriter:
                     raise TransitionError(
                         "transition produced an invalid control body"
                     ) from exc
+                physical_authority = (
+                    next_body.get("authority")
+                    if current is None
+                    else current.get("authority")
+                )
+                if not isinstance(physical_authority, Mapping):
+                    raise TransitionError(
+                        "transition authority manifest is unavailable"
+                    )
+
+                def require_preappend_authority() -> None:
+                    expected_manifest = physical_authority.get(
+                        "manifest_digest"
+                    )
+                    if (
+                        type(expected_manifest) is not str
+                        or expected_manifest
+                        != self._authority_manifest_digest(
+                            physical_authority
+                        )
+                    ):
+                        raise RecoveryRequired(
+                            "authority or Foundation input changed during transition preparation"
+                        )
+                    if authority_derivation_check is not None:
+                        authority_derivation_check()
+
                 if read_only_when_unchanged and not records:
                     if current is None or next_body != self._body(current):
                         raise TransitionError(
                             "read-only observation attempted to change control state"
                         )
+                    require_preappend_authority()
                     head = self.journal.tail()[0]
                     return TransitionResult(
                         event_id=head.event_id or "",
@@ -2059,6 +2427,7 @@ class StateWriter:
                 projected_digest = index.projected_digest(all_records)
                 event_occurred_at_utc = self.clock()
                 _parse_utc("event occurred_at_utc", event_occurred_at_utc)
+                require_preappend_authority()
                 event = self.journal._append_authorized(
                     capability=self._journal_write_capability,
                     expected_head=current_head,
@@ -2072,6 +2441,8 @@ class StateWriter:
                     index_record_count=index.record_count() + 1 + len(all_records),
                     index_projection_digest=projected_digest,
                 )
+                if authority_derivation_check is not None:
+                    authority_derivation_check()
                 if crash_after == "after_journal":
                     raise InjectedCrash("after_journal")
                 if journal_storage_migration:
@@ -2151,7 +2522,7 @@ class StateWriter:
             applied_sequence = (
                 0 if control is None else control["heads"]["journal"]["sequence"]
             )
-            with LocalIndex(self.index_path) as index:
+            with self._open_mutable_recovery_index() as index:
                 projection_corrupt = False
                 try:
                     head = index.event_head("control")
@@ -2285,14 +2656,13 @@ class StateWriter:
     ) -> dict[str, str]:
         hashes: dict[str, str] = {}
         for relative in self._authority_relative_paths(authority):
-            _require_ascii("authority path", relative)
-            path = (self.foundation_root / relative).resolve()
-            root = self.foundation_root.resolve()
-            if root != path and root not in path.parents:
-                raise RecoveryRequired("authority path escapes Foundation root")
-            if not path.is_file():
-                raise RecoveryRequired(f"authority input is absent: {relative}")
-            hashes[relative] = sha256(path.read_bytes()).hexdigest()
+            try:
+                hashes[relative] = hash_foundation_file(
+                    self.foundation_root,
+                    relative,
+                )
+            except FoundationAuthorityFileError as exc:
+                raise RecoveryRequired(str(exc)) from exc
         return hashes
 
     def _authority_manifest_digest(self, authority: Mapping[str, Any]) -> str:
@@ -2300,24 +2670,22 @@ class StateWriter:
             self._authority_path_hashes(authority)
         )
 
-    def _replace_authority_file(self, relative: str, content: bytes) -> None:
-        target = (self.foundation_root / relative).resolve()
-        root = self.foundation_root.resolve()
-        if root != target and root not in target.parents:
-            raise RecoveryRequired("authority migration target escapes Foundation root")
-        descriptor, temporary_name = tempfile.mkstemp(
-            prefix=f".{target.name}.", suffix=".authority.tmp", dir=target.parent
-        )
-        temporary = Path(temporary_name)
+    def _replace_authority_file(
+        self,
+        relative: str,
+        content: bytes,
+        *,
+        expected_current_sha256: str,
+    ) -> None:
         try:
-            with os.fdopen(descriptor, "wb") as handle:
-                handle.write(content)
-                handle.flush()
-                os.fsync(handle.fileno())
-            os.replace(temporary, target)
-        finally:
-            if temporary.exists():
-                temporary.unlink()
+            replace_foundation_file(
+                self.foundation_root,
+                relative,
+                content,
+                expected_current_sha256=expected_current_sha256,
+            )
+        except FoundationAuthorityFileError as exc:
+            raise RecoveryRequired(str(exc)) from exc
 
     def _apply_authority_replacements(
         self,
@@ -2402,7 +2770,7 @@ class StateWriter:
         expected_manifest_digest: str,
     ) -> None:
         current_hashes = self._authority_path_hashes(authority)
-        to_write: list[tuple[str, bytes, str]] = []
+        to_write: list[tuple[str, bytes, str, str]] = []
         for relative in sorted(targets):
             target = targets[relative]
             if relative not in current_hashes or set(target) != {
@@ -2437,7 +2805,9 @@ class StateWriter:
                         f"authority replacement source drifted: {relative}"
                     )
                 content = self.evidence.read_verified(artifact_hash)
-                to_write.append((relative, content, new_hash))
+                to_write.append(
+                    (relative, content, current_hash, new_hash)
+                )
             current_hashes[relative] = new_hash
         if (
             self._authority_digest_from_hashes(current_hashes)
@@ -2446,15 +2816,120 @@ class StateWriter:
             raise RecoveryRequired(
                 "authority replacement set does not produce the bound manifest"
             )
-        for relative, content, new_hash in to_write:
-            self._replace_authority_file(relative, content)
-            target_path = (self.foundation_root / relative).resolve()
-            if sha256(target_path.read_bytes()).hexdigest() != new_hash:
+        for relative, content, current_hash, new_hash in to_write:
+            self._replace_authority_file(
+                relative,
+                content,
+                expected_current_sha256=current_hash,
+            )
+            try:
+                materialized_hash = hash_foundation_file(
+                    self.foundation_root,
+                    relative,
+                )
+            except FoundationAuthorityFileError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            if materialized_hash != new_hash:
                 raise RecoveryRequired(
                     f"authority replacement verification failed: {relative}"
                 )
         if self._authority_manifest_digest(authority) != expected_manifest_digest:
             raise RecoveryRequired("authority migration manifest does not materialize")
+
+    def _verify_foundation_data_derivation_event(
+        self,
+        *,
+        event: Mapping[str, Any],
+        binding: Mapping[str, Any],
+    ) -> None:
+        if set(binding) != {
+            "data_document_sha256",
+            "data_exposure_document_sha256",
+            "material_identity",
+            "proof_hash",
+            "proof_id",
+            "schema",
+        } or binding.get("schema") != (
+            "foundation_data_authority_derivation_binding.v1"
+        ):
+            raise JournalIntegrityError(
+                "Foundation data derivation binding is malformed"
+            )
+        try:
+            data_hash = _require_digest(
+                "Foundation data document hash",
+                binding.get("data_document_sha256"),
+            )
+            exposure_hash = _require_digest(
+                "Foundation data exposure document hash",
+                binding.get("data_exposure_document_sha256"),
+            )
+            proof_hash = _require_digest(
+                "Foundation data derivation proof hash",
+                binding.get("proof_hash"),
+            )
+            _require_digest(
+                "Foundation material identity",
+                binding.get("material_identity"),
+            )
+        except TransitionError as exc:
+            raise JournalIntegrityError(
+                "Foundation data derivation binding digests are malformed"
+            ) from exc
+        proof_id = binding.get("proof_id")
+        if (
+            type(proof_id) is not str
+            or not proof_id.startswith("foundation-data-derivation:")
+            or len(proof_id) != 91
+        ):
+            raise JournalIntegrityError(
+                "Foundation data derivation proof identity is malformed"
+            )
+        evidence = event.get("payload", {}).get("evidence")
+        if not isinstance(evidence, list):
+            raise JournalIntegrityError(
+                "Foundation data derivation evidence is absent"
+            )
+        evidenced_hashes = {
+            item.get("sha256")
+            for item in evidence
+            if isinstance(item, Mapping)
+        }
+        if not {data_hash, exposure_hash, proof_hash}.issubset(evidenced_hashes):
+            raise JournalIntegrityError(
+                "Foundation data derivation evidence is incomplete"
+            )
+        try:
+            data_document = self.evidence.read_verified(data_hash)
+            data_exposure_document = self.evidence.read_verified(exposure_hash)
+            proof_bytes = self.evidence.read_verified(proof_hash)
+        except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+            raise RecoveryRequired(
+                "Foundation data derivation evidence is unavailable or corrupt"
+            ) from exc
+        try:
+            proof = FoundationDataDerivationProof.from_bytes(proof_bytes)
+        except FoundationDataAuthorityError as exc:
+            raise JournalIntegrityError(
+                "Foundation data derivation proof is malformed"
+            ) from exc
+        if (
+            proof.data_document_sha256 != data_hash
+            or proof.data_exposure_document_sha256 != exposure_hash
+            or foundation_data_derivation_binding(proof) != dict(binding)
+        ):
+            raise JournalIntegrityError(
+                "Foundation data derivation event binding differs"
+            )
+        try:
+            verify_foundation_data_derivation_proof(
+                self.root,
+                proof=proof,
+                data_document=data_document,
+                data_exposure_document=data_exposure_document,
+            )
+        except FoundationDataAuthorityError as exc:
+            raise RecoveryRequired(str(exc)) from exc
 
     def _apply_pending_authority_migrations(
         self,
@@ -2464,6 +2939,55 @@ class StateWriter:
         final_authority: Mapping[str, Any],
     ) -> None:
         targets: dict[str, dict[str, Any]] = {}
+        latest_foundation_derivation: tuple[
+            Mapping[str, Any], Mapping[str, Any]
+        ] | None = None
+        typed_foundation_boundary_seen = False
+        for authoritative_event in events:
+            if authoritative_event.get("event_kind") != "authority_migrated":
+                continue
+            authoritative_payload = authoritative_event.get("payload")
+            if not isinstance(authoritative_payload, Mapping):
+                raise JournalIntegrityError(
+                    "authority migration payload is malformed"
+                )
+            authoritative_rows = authoritative_payload.get("replacements")
+            if not isinstance(authoritative_rows, list) or any(
+                not isinstance(row, Mapping) for row in authoritative_rows
+            ):
+                raise JournalIntegrityError(
+                    "authority migration replacement rows are malformed"
+                )
+            row_paths = [row.get("path") for row in authoritative_rows]
+            protected_paths = set(row_paths).intersection(
+                PROTECTED_FOUNDATION_DATA_PATHS
+            )
+            binding = authoritative_payload.get("foundation_data_derivation")
+            if binding is not None:
+                if (
+                    len(row_paths) != len(PROTECTED_FOUNDATION_DATA_PATHS)
+                    or set(row_paths) != set(PROTECTED_FOUNDATION_DATA_PATHS)
+                    or not isinstance(binding, Mapping)
+                ):
+                    raise JournalIntegrityError(
+                        "typed Foundation data migration path set is invalid"
+                    )
+                latest_foundation_derivation = (
+                    authoritative_event,
+                    binding,
+                )
+                typed_foundation_boundary_seen = True
+            elif "foundation_data_derivation" in authoritative_payload:
+                raise JournalIntegrityError(
+                    "Foundation data derivation binding is null"
+                )
+            elif protected_paths:
+                # Historical migrations predate the prospective typed boundary.
+                if typed_foundation_boundary_seen:
+                    raise JournalIntegrityError(
+                        "untyped Foundation data migration follows typed activation"
+                    )
+                latest_foundation_derivation = None
         for event in events[applied_sequence:]:
             if event.get("event_kind") != "authority_migrated":
                 continue
@@ -2523,6 +3047,12 @@ class StateWriter:
                 existing["allowed_current_hashes"].add(row["new_sha256"])
                 existing["artifact_sha256"] = row["artifact_sha256"]
                 existing["new_sha256"] = row["new_sha256"]
+        if latest_foundation_derivation is not None:
+            event, binding = latest_foundation_derivation
+            self._verify_foundation_data_derivation_event(
+                event=event,
+                binding=binding,
+            )
         if targets:
             self._materialize_authority_targets(
                 authority=final_authority,
@@ -2773,6 +3303,47 @@ class StateWriter:
     ) -> TransitionResult:
         """Activate exact staged authority bytes without rewriting prior state."""
 
+        return self._migrate_authority(
+            replacements=replacements,
+            reason=reason,
+            operation_id=operation_id,
+            allow_active_stable_boundary=allow_active_stable_boundary,
+            foundation_data_boundary=False,
+            crash_after=crash_after,
+        )
+
+    def migrate_foundation_data_authority(
+        self,
+        *,
+        replacements: Mapping[str, bytes],
+        reason: str,
+        operation_id: str,
+        allow_active_stable_boundary: bool = False,
+        crash_after: str | None = None,
+    ) -> TransitionResult:
+        """Migrate both Foundation data documents under an exact derivation proof."""
+
+        return self._migrate_authority(
+            replacements=replacements,
+            reason=reason,
+            operation_id=operation_id,
+            allow_active_stable_boundary=allow_active_stable_boundary,
+            foundation_data_boundary=True,
+            crash_after=crash_after,
+        )
+
+    def _migrate_authority(
+        self,
+        *,
+        replacements: Mapping[str, bytes],
+        reason: str,
+        operation_id: str,
+        allow_active_stable_boundary: bool,
+        foundation_data_boundary: bool,
+        crash_after: str | None,
+    ) -> TransitionResult:
+        """Shared authority migration engine with a protected data capability."""
+
         self.require_study_close_delivery_guard()
         _require_ascii("authority migration reason", reason)
         _require_ascii("operation_id", operation_id)
@@ -2783,9 +3354,75 @@ class StateWriter:
         if any(type(relative) is not str for relative in replacements):
             raise TransitionError("authority replacement paths must be strings")
         requested_paths = tuple(sorted(replacements))
+        protected_paths = set(requested_paths).intersection(
+            PROTECTED_FOUNDATION_DATA_PATHS
+        )
+        if foundation_data_boundary:
+            if set(requested_paths) != set(PROTECTED_FOUNDATION_DATA_PATHS):
+                raise TransitionError(
+                    "typed Foundation data migration requires exactly both data documents"
+                )
+        elif protected_paths:
+            raise TransitionError(
+                "Foundation data documents require the typed derivation boundary"
+            )
         for content in replacements.values():
             if type(content) is not bytes:
                 raise TransitionError("authority replacement content must be bytes")
+        foundation_data_document = (
+            replacements[FOUNDATION_DATA_PATH]
+            if foundation_data_boundary
+            else None
+        )
+        foundation_data_exposure_document = (
+            replacements[FOUNDATION_DATA_EXPOSURE_PATH]
+            if foundation_data_boundary
+            else None
+        )
+        foundation_proof: FoundationDataDerivationProof | None = None
+        foundation_binding: dict[str, str] | None = None
+        if foundation_data_boundary:
+            assert foundation_data_document is not None
+            assert foundation_data_exposure_document is not None
+            try:
+                foundation_proof = build_foundation_data_derivation_proof(
+                    self.root,
+                    data_document=foundation_data_document,
+                    data_exposure_document=foundation_data_exposure_document,
+                )
+            except FoundationDataAuthorityError as exc:
+                raise TransitionError(str(exc)) from exc
+            foundation_binding = foundation_data_derivation_binding(
+                foundation_proof
+            )
+
+        def authority_evidence_blobs() -> tuple[bytes, ...]:
+            values = [replacements[relative] for relative in requested_paths]
+            if foundation_proof is not None:
+                values.append(foundation_proof.to_bytes())
+            unique: list[bytes] = []
+            observed_hashes: set[str] = set()
+            for value in values:
+                digest = sha256(value).hexdigest()
+                if digest not in observed_hashes:
+                    observed_hashes.add(digest)
+                    unique.append(value)
+            return tuple(unique)
+
+        def require_foundation_derivation() -> None:
+            if foundation_proof is None:
+                return
+            assert foundation_data_document is not None
+            assert foundation_data_exposure_document is not None
+            try:
+                verify_foundation_data_derivation_proof(
+                    self.root,
+                    proof=foundation_proof,
+                    data_document=foundation_data_document,
+                    data_exposure_document=foundation_data_exposure_document,
+                )
+            except FoundationDataAuthorityError as exc:
+                raise RecoveryRequired(str(exc)) from exc
         authority: dict[str, Any] | None = None
         old_hashes: dict[str, str] | None = None
         current_contents: dict[str, bytes] | None = None
@@ -2816,6 +3453,19 @@ class StateWriter:
                         relative: (self.foundation_root / relative).read_bytes()
                         for relative in requested_paths
                     }
+                    if foundation_proof is not None:
+                        try:
+                            validate_foundation_data_identity_transition(
+                                predecessor_data_document=current_contents[
+                                    FOUNDATION_DATA_PATH
+                                ],
+                                predecessor_data_exposure_document=current_contents[
+                                    FOUNDATION_DATA_EXPOSURE_PATH
+                                ],
+                                successor_proof=foundation_proof,
+                            )
+                        except FoundationDataAuthorityError as exc:
+                            raise TransitionError(str(exc)) from exc
         if existing is not None:
             if (
                 existing.status != "success"
@@ -2856,6 +3506,8 @@ class StateWriter:
                 event_payload.get("reason") != reason
                 or event_payload.get("boundary") != requested_boundary
                 or observed != requested
+                or event_payload.get("foundation_data_derivation")
+                != foundation_binding
             ):
                 raise TransitionError("idempotency key reused with different input")
             base_payload = {
@@ -2871,10 +3523,13 @@ class StateWriter:
                 subject="Authority:active",
                 payload=base_payload,
                 prepare=unreachable,
-                evidence_blobs=tuple(
-                    replacements[relative] for relative in requested_paths
-                ),
+                evidence_blobs=authority_evidence_blobs(),
                 authority_replacements=tuple(rows),
+                authority_derivation_check=(
+                    require_foundation_derivation
+                    if foundation_proof is not None
+                    else None
+                ),
                 crash_after=crash_after,
             )
         assert authority is not None
@@ -2882,7 +3537,6 @@ class StateWriter:
         assert current_contents is not None
         old_manifest_digest = self._authority_digest_from_hashes(old_hashes)
         replacement_rows: list[dict[str, str]] = []
-        replacement_blobs: list[bytes] = []
         new_hashes = dict(old_hashes)
         for relative in requested_paths:
             content = replacements[relative]
@@ -2894,7 +3548,6 @@ class StateWriter:
             artifact = self.evidence.finalize(content)
             if artifact.sha256 == old_hashes[relative]:
                 raise TransitionError("authority replacement does not change content")
-            replacement_blobs.append(content)
             new_hashes[relative] = artifact.sha256
             replacement_rows.append(
                 {
@@ -2920,6 +3573,8 @@ class StateWriter:
             "scientific_claim": "none",
             "trial_delta": 0,
         }
+        if foundation_binding is not None:
+            migration_payload["foundation_data_derivation"] = foundation_binding
         migration_id = canonical_digest(
             domain="authority-manifest-migration", payload=migration_payload
         )
@@ -2965,8 +3620,13 @@ class StateWriter:
             subject="Authority:active",
             payload=migration_payload,
             prepare=prepare,
-            evidence_blobs=tuple(replacement_blobs),
+            evidence_blobs=authority_evidence_blobs(),
             authority_replacements=tuple(replacement_rows),
+            authority_derivation_check=(
+                require_foundation_derivation
+                if foundation_proof is not None
+                else None
+            ),
             crash_after=crash_after,
         )
 
@@ -3223,7 +3883,7 @@ class StateWriter:
                     raise TransitionError(
                         "the first Mission cannot declare a successor basis"
                     )
-                if index.records_by_kind("mission-close"):
+                if index.count_by_kind("mission-close"):
                     raise TransitionError(
                         "a bare boundary with Mission history requires typed adoption"
                     )
@@ -3340,6 +4000,7 @@ class StateWriter:
     def _derive_research_history_summary(index: LocalIndex) -> dict[str, Any]:
         studies = index.records_by_kind("study-open")
         closes = index.records_by_kind("study-close")
+        trials = index.records_by_kind("trial")
         layer_counts: dict[str, int] = {}
         architecture_counts: dict[str, int] = {}
         component_domain_trial_counts: dict[str, int] = {}
@@ -3353,7 +4014,7 @@ class StateWriter:
                 architecture_counts[architecture] = (
                     architecture_counts.get(architecture, 0) + 1
                 )
-        for trial in index.records_by_kind("trial"):
+        for trial in trials:
             executable = trial.payload.get("executable")
             manifests = (
                 None
@@ -3387,9 +4048,9 @@ class StateWriter:
         for close in index.records_by_kind("mission-close"):
             mission_outcomes[close.status] = mission_outcomes.get(close.status, 0) + 1
         return {
-            "candidate_record_count": len(index.records_by_kind("candidate")),
-            "architecture_review_count": len(
-                index.records_by_kind("architecture-review")
+            "candidate_record_count": index.count_by_kind("candidate"),
+            "architecture_review_count": index.count_by_kind(
+                "architecture-review"
             ),
             "classified_study_count": classified_studies,
             "component_domain_trial_counts": dict(
@@ -3398,15 +4059,15 @@ class StateWriter:
             "legacy_unclassified_study_count": len(studies) - classified_studies,
             "evidence_state_counts": dict(sorted(evidence_state_counts.items())),
             "mission_outcome_counts": dict(sorted(mission_outcomes.items())),
-            "negative_memory_count": len(index.records_by_kind("negative-memory")),
+            "negative_memory_count": index.count_by_kind("negative-memory"),
             "research_layer_study_counts": dict(sorted(layer_counts.items())),
             "study_count": len(studies),
-            "study_kpi_count": len(index.records_by_kind("study-kpi")),
+            "study_kpi_count": index.count_by_kind("study-kpi"),
             "study_outcome_counts": dict(sorted(outcome_counts.items())),
             "system_architecture_study_counts": dict(
                 sorted(architecture_counts.items())
             ),
-            "trial_count": len(index.records_by_kind("trial")),
+            "trial_count": len(trials),
         }
 
     def record_research_intake(
@@ -3619,9 +4280,10 @@ class StateWriter:
                 )
                 and batch_record.status == "open"
                 and batch_record.subject == f"Study:{active_study}"
-                and not any(
-                    record.payload.get("study_id") == active_study
-                    for record in index.records_by_kind("job-declared")
+                and not index.records_by_payload_text(
+                    "job-declared",
+                    "batch_id",
+                    batch_record.record_id,
                 )
             )
             if not (
@@ -4047,6 +4709,91 @@ class StateWriter:
             raise RecoveryRequired(str(exc)) from exc
 
     @staticmethod
+    def _effective_axis_resolutions(
+        index: LocalIndex | LocalIndexView,
+        axes: Sequence[Mapping[str, Any]],
+        *,
+        prospective_source_ids_by_axis: Mapping[
+            str, Sequence[str]
+        ] | None = None,
+    ) -> tuple[Any, ...]:
+        from axiom_rift.operations.effective_axis_projection import (
+            EffectiveAxisProjectionError,
+            effective_axis_resolutions,
+        )
+
+        try:
+            return effective_axis_resolutions(
+                index,
+                axes,
+                prospective_source_ids_by_axis=(
+                    prospective_source_ids_by_axis
+                ),
+            )
+        except EffectiveAxisProjectionError as exc:
+            raise RecoveryRequired(str(exc)) from exc
+
+    @staticmethod
+    def _audit_deferred_axis_reopen_evidence(
+        resolution: Any,
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Return the exact audit-only authority that made a prune reopenable."""
+
+        from axiom_rift.research.effective_axis import EffectiveAxisStatus
+        from axiom_rift.research.replay_obligation import (
+            ReplayObligationStatus,
+            ReplayResolutionScope,
+        )
+
+        if (
+            resolution.effective_status
+            is not EffectiveAxisStatus.DEFERRED_REQUIRES_REOPEN
+            or resolution.snapshot_status != "pruned"
+        ):
+            raise TransitionError(
+                "axis reopen authority requires one audit-deferred historical prune"
+            )
+        audit_bindings = tuple(
+            binding
+            for binding in resolution.replay_bindings
+            if binding.status is ReplayObligationStatus.SATISFIED
+            and binding.resolution_scope is ReplayResolutionScope.AUDIT_ONLY
+        )
+        replay_resolution_ids = tuple(
+            sorted(
+                {
+                    binding.state_record_id for binding in audit_bindings
+                }.union(
+                    resolution_id
+                    for binding in resolution.evidence_scope_bindings
+                    for resolution_id in binding.replay_resolution_ids
+                )
+            )
+        )
+        binding_overlay_ids = {
+            binding.evidence_scope_overlay_id
+            for binding in audit_bindings
+            if binding.evidence_scope_overlay_id is not None
+        }
+        evidence_scope_overlay_ids = tuple(
+            sorted(
+                binding_overlay_ids.union(
+                    binding.overlay_record_id
+                    for binding in resolution.evidence_scope_bindings
+                )
+            )
+        )
+        if (
+            not replay_resolution_ids
+            or len(replay_resolution_ids) != len(set(replay_resolution_ids))
+            or not evidence_scope_overlay_ids
+        ):
+            raise RecoveryRequired(
+                "audit-deferred axis lacks exact replay and scope authority"
+            )
+        return replay_resolution_ids, evidence_scope_overlay_ids
+
+    @staticmethod
     def _mission_effective_axis_blockers(
         index: LocalIndex,
         *,
@@ -4082,8 +4829,14 @@ class StateWriter:
                 "baseline_executable_id": None,
             }
         axis_identity = axis.get("axis_identity")
+        if not isinstance(axis_identity, str):
+            raise RecoveryRequired("legacy Portfolio axis identity is malformed")
         anchors: dict[tuple[str, str], dict[str, Any]] = {}
-        for record in index.records_by_kind("portfolio-decision"):
+        for record in index.records_by_payload_text(
+            "portfolio-decision",
+            "target_axis_identity",
+            axis_identity,
+        ):
             if StateWriter._active_portfolio_decision(index, record.record_id) is None:
                 continue
             payload = record.payload
@@ -4127,14 +4880,14 @@ class StateWriter:
                 "controlled chassis baseline differs from its accepted Decision"
             )
         target_axis_identity = decision.payload.get("target_axis_identity")
+        if not isinstance(target_axis_identity, str):
+            raise TransitionError(
+                "controlled chassis baseline lacks its target axis identity"
+            )
         prior = self._prior_scientific_baseline(
             index,
             baseline,
-            portfolio_axis_identity=(
-                target_axis_identity
-                if isinstance(target_axis_identity, str)
-                else None
-            ),
+            portfolio_axis_identity=target_axis_identity,
         )
         if provenance.get("kind") == "trial":
             if prior is None or provenance.get("record_id") != prior.record_id:
@@ -4164,34 +4917,25 @@ class StateWriter:
                     "controlled chassis bootstrap anchor reuse is invalid"
                 )
         else:
-            relevant_trials = [
-                record
-                for record in index.records_by_kind("trial")
-                if isinstance(record.payload.get("executable"), dict)
-                and record.payload["executable"].get("data_contract")
-                == baseline.data_contract
-            ]
-            controlled_history = [
-                record
-                for record in index.records_by_kind("study-open")
-                if isinstance(record.payload.get("controlled_chassis"), dict)
-                and isinstance(
-                    record.payload["controlled_chassis"].get(
-                        "baseline_executable"
-                    ),
-                    dict,
+            relevant_trials = list(
+                index.records_by_payload_text(
+                    "trial",
+                    "trial_data_contract",
+                    baseline.data_contract,
                 )
-                and record.payload["controlled_chassis"][
-                    "baseline_executable"
-                ].get("data_contract")
-                == baseline.data_contract
-            ]
+            )
             axis_controlled_history = [
                 record
-                for record in controlled_history
-                if record.payload.get("portfolio_axis_identity")
-                == target_axis_identity
+                for record in index.records_by_payload_text(
+                    "study-open",
+                    "portfolio_axis_identity",
+                    target_axis_identity,
+                )
+                if isinstance(record.payload.get("controlled_chassis"), dict)
             ]
+            has_any_controlled_history = (
+                index.has_controlled_chassis_study()
+            )
             expected_bootstrap = (
                 {
                     "data_contract": baseline.data_contract,
@@ -4199,7 +4943,7 @@ class StateWriter:
                     "portfolio_axis_identity": target_axis_identity,
                 }
                 if relevant_trials
-                and controlled_history
+                and has_any_controlled_history
                 and not axis_controlled_history
                 else {
                     "data_contract": baseline.data_contract,
@@ -4243,21 +4987,69 @@ class StateWriter:
         baseline: Any,
         portfolio_axis_identity: str | None = None,
     ) -> IndexRecord | None:
+        if portfolio_axis_identity is not None:
+            _require_ascii("Portfolio axis identity", portfolio_axis_identity)
         baseline_payload = baseline.to_identity_payload()
-        relevant = [
-            record
-            for record in index.records_by_kind("trial")
-            if isinstance(record.payload.get("executable"), dict)
-            and record.payload["executable"].get("data_contract")
-            == baseline.data_contract
-        ]
         exact = index.get("trial", baseline.identity)
-        if not relevant:
-            return None
+        exact_executable = (
+            None if exact is None else exact.payload.get("executable")
+        )
+        if not (
+            isinstance(exact_executable, dict)
+            and exact_executable.get("data_contract") == baseline.data_contract
+        ):
+            relevant = bool(
+                index.records_by_payload_text(
+                    "trial",
+                    "trial_data_contract",
+                    baseline.data_contract,
+                )
+            )
+            if not relevant:
+                return None
         if exact is None:
+            data_contract_history = tuple(
+                index.records_by_payload_text(
+                    "study-open",
+                    "study_open_baseline_data_contract",
+                    baseline.data_contract,
+                )
+            )
+            controlled_history = tuple(
+                record
+                for record in data_contract_history
+                if portfolio_axis_identity is None
+                or record.payload.get("portfolio_axis_identity")
+                == portfolio_axis_identity
+            )
+            candidate_axis_identities = tuple(
+                sorted(
+                    {
+                        value
+                        for value in (
+                            record.payload.get("portfolio_axis_identity")
+                            for record in controlled_history
+                        )
+                        if isinstance(value, str)
+                    }
+                )
+            )
+            decision_candidates = (
+                index.records_by_payload_text(
+                    "portfolio-decision",
+                    "target_axis_identity",
+                    portfolio_axis_identity,
+                )
+                if portfolio_axis_identity is not None
+                else index.records_by_payload_text_values(
+                    "portfolio-decision",
+                    "target_axis_identity",
+                    candidate_axis_identities,
+                )
+            )
             accepted_bootstrap_anchors = [
                 record
-                for record in index.records_by_kind("portfolio-decision")
+                for record in decision_candidates
                 if StateWriter._active_portfolio_decision(index, record.record_id)
                 is not None
                 and record.payload.get("baseline_executable_id") == baseline.identity
@@ -4271,26 +5063,6 @@ class StateWriter:
                 and (
                     portfolio_axis_identity is None
                     or record.payload.get("target_axis_identity")
-                    == portfolio_axis_identity
-                )
-            ]
-            controlled_history = [
-                record
-                for record in index.records_by_kind("study-open")
-                if isinstance(record.payload.get("controlled_chassis"), dict)
-                and isinstance(
-                    record.payload["controlled_chassis"].get(
-                        "baseline_executable"
-                    ),
-                    dict,
-                )
-                and record.payload["controlled_chassis"][
-                    "baseline_executable"
-                ].get("data_contract")
-                == baseline.data_contract
-                and (
-                    portfolio_axis_identity is None
-                    or record.payload.get("portfolio_axis_identity")
                     == portfolio_axis_identity
                 )
             ]
@@ -4509,48 +5281,47 @@ class StateWriter:
     ) -> tuple[dict[str, Any], ...]:
         """Re-verify every durable Writer-accepted parity edge from exact bytes."""
 
+        if not surface_seeds and not component_seeds:
+            return ()
         edges: dict[tuple[str, str], dict[str, Any]] = {}
-        if surface_seeds or component_seeds:
-            members_by_id: dict[str, IndexRecord] = {}
-            pending_surfaces = list(dict.fromkeys(surface_seeds))
-            pending_components = list(dict.fromkeys(component_seeds))
-            seen_surfaces: set[str] = set()
-            seen_components: set[str] = set()
-            while pending_surfaces or pending_components:
-                if pending_surfaces:
-                    surface = pending_surfaces.pop()
-                    if surface in seen_surfaces:
-                        continue
-                    seen_surfaces.add(surface)
-                    candidates = index.records_by_fingerprint(surface)
-                else:
-                    component_id = pending_components.pop()
-                    if component_id in seen_components:
-                        continue
-                    seen_components.add(component_id)
-                    candidates = index.records_by_subject_status(
-                        subject=f"Component:{component_id}",
-                        status="equivalent",
+        members_by_id: dict[str, IndexRecord] = {}
+        pending_surfaces = list(dict.fromkeys(surface_seeds))
+        pending_components = list(dict.fromkeys(component_seeds))
+        seen_surfaces: set[str] = set()
+        seen_components: set[str] = set()
+        while pending_surfaces or pending_components:
+            if pending_surfaces:
+                surface = pending_surfaces.pop()
+                if surface in seen_surfaces:
+                    continue
+                seen_surfaces.add(surface)
+                candidates = index.records_by_fingerprint(surface)
+            else:
+                component_id = pending_components.pop()
+                if component_id in seen_components:
+                    continue
+                seen_components.add(component_id)
+                candidates = index.records_by_subject_status(
+                    subject=f"Component:{component_id}",
+                    status="equivalent",
+                )
+            for candidate in candidates:
+                if candidate.kind != "component-parity-member":
+                    continue
+                members_by_id[candidate.record_id] = candidate
+                equivalence = candidate.payload.get("equivalence")
+                if not isinstance(equivalence, dict):
+                    raise RecoveryRequired(
+                        "accepted component parity member is malformed"
                     )
-                for candidate in candidates:
-                    if candidate.kind != "component-parity-member":
-                        continue
-                    members_by_id[candidate.record_id] = candidate
-                    equivalence = candidate.payload.get("equivalence")
-                    if not isinstance(equivalence, dict):
-                        raise RecoveryRequired(
-                            "accepted component parity member is malformed"
-                        )
-                    for name in (
-                        "canonical_component_id",
-                        "equivalent_component_id",
-                    ):
-                        value = equivalence.get(name)
-                        if isinstance(value, str) and value not in seen_components:
-                            pending_components.append(value)
-            members = tuple(members_by_id.values())
-        else:
-            members = index.records_by_kind("component-parity-member")
+                for name in (
+                    "canonical_component_id",
+                    "equivalent_component_id",
+                ):
+                    value = equivalence.get(name)
+                    if isinstance(value, str) and value not in seen_components:
+                        pending_components.append(value)
+        members = tuple(members_by_id.values())
         for member in members:
             equivalence = member.payload.get("equivalence")
             mission_id = member.payload.get("mission_id")
@@ -4828,6 +5599,39 @@ class StateWriter:
             raise RecoveryRequired("architecture review family is unavailable")
         return stored
 
+    def _axis_resolved_architecture_family(
+        self,
+        *,
+        index: LocalIndex,
+        axis: Mapping[str, Any],
+        extra_equivalences: tuple[Mapping[str, Any], ...] = (),
+    ) -> str:
+        """Resolve one current or newly proposed axis without history-wide lookup."""
+
+        architecture = axis.get("architecture_chassis")
+        if isinstance(architecture, Mapping):
+            return self._resolved_architecture_family(
+                index=index,
+                architecture_payload=architecture,
+                extra_equivalences=extra_equivalences,
+            )
+        anchor = self._axis_architecture_anchor(index, axis)
+        if anchor is not None:
+            anchored_architecture = anchor.get("architecture_chassis")
+            if isinstance(anchored_architecture, Mapping):
+                return self._resolved_architecture_family(
+                    index=index,
+                    architecture_payload=anchored_architecture,
+                    extra_equivalences=extra_equivalences,
+                )
+            anchored_identity = anchor.get("architecture_chassis_identity")
+            if isinstance(anchored_identity, str):
+                return anchored_identity
+        legacy = axis.get("system_architecture_family")
+        if not isinstance(legacy, str):
+            raise TransitionError("Portfolio axis architecture family is unavailable")
+        return legacy
+
     def _pending_architecture_review_trigger(
         self,
         *,
@@ -4848,18 +5652,24 @@ class StateWriter:
         if type(minimum_studies) is not int or type(minimum_axes) is not int:
             raise RecoveryRequired("architecture review threshold is malformed")
         reviewed_ids: set[str] = set()
-        for review in index.records_by_kind("architecture-review"):
-            if review.payload.get("mission_id") == mission_id:
-                reviewed_ids.update(
-                    value
-                    for value in review.payload.get("covered_diagnosis_ids", [])
-                    if isinstance(value, str)
-                )
+        for review in index.records_by_payload_text(
+            "architecture-review",
+            "mission_id",
+            mission_id,
+        ):
+            reviewed_ids.update(
+                value
+                for value in review.payload.get("covered_diagnosis_ids", [])
+                if isinstance(value, str)
+            )
         diagnoses: list[IndexRecord] = []
-        for diagnosis in index.records_by_kind("study-diagnosis"):
+        for diagnosis in index.records_by_payload_text(
+            "study-diagnosis",
+            "mission_id",
+            mission_id,
+        ):
             if (
-                diagnosis.payload.get("mission_id") != mission_id
-                or diagnosis.record_id in reviewed_ids
+                diagnosis.record_id in reviewed_ids
                 or diagnosis.payload.get("evidence_state")
                 in {"engineering_gap", "supported_requires_confirmation"}
             ):
@@ -5012,6 +5822,7 @@ class StateWriter:
         question_hash = _digest(question_manifest, domain="study-question")
         _require_ascii("material_identity", material_identity)
         _require_ascii("material_display_name", material_display_name)
+        semantic_proposal_manifest = _copy(semantic_proposal)
         from axiom_rift.research.trials import (
             MaterialReference,
             StudyTrialContext,
@@ -5036,7 +5847,7 @@ class StateWriter:
         study_hash = self.study_input_hash(
             question=question_manifest,
             material_identity=material_identity,
-            semantic_proposal=semantic_proposal,
+            semantic_proposal=semantic_proposal_manifest,
             controlled_chassis=controlled_chassis,
             portfolio_axis_id=portfolio_axis_id,
             portfolio_axis_identity=portfolio_axis_identity,
@@ -5154,6 +5965,13 @@ class StateWriter:
                 controlled_domains = list(axis["controlled_domains"])
                 portfolio_action = chosen["action"]
                 commitment_batches = decision.payload["commitment_batches"]
+                if (
+                    type(commitment_batches) is not int
+                    or commitment_batches <= 0
+                ):
+                    raise TransitionError(
+                        "Portfolio Decision must commit a positive finite Batch bound"
+                    )
                 assert controlled_chassis is not None
                 if [domain.value for domain in controlled_chassis.changed_domains] != sorted(
                     changed_domains
@@ -5240,7 +6058,7 @@ class StateWriter:
             if material_identity == trial_accountant.observed_material_identity:
                 trial_context = trial_accountant.open_study(
                     material=material_reference,
-                    semantic_proposal=dict(semantic_proposal),
+                    semantic_proposal=semantic_proposal_manifest,
                 )
             else:
                 development_material = _index.get(
@@ -5268,7 +6086,7 @@ class StateWriter:
                     material_identity=material_identity,
                     prior_global_multiplicity=0,
                     semantic_warnings=trial_accountant.lookup_semantic_warnings(
-                        dict(semantic_proposal)
+                        semantic_proposal_manifest
                     ),
                     warning_scheduler_weight="none",
                 )
@@ -5334,6 +6152,7 @@ class StateWriter:
                     "portfolio_decision_id": portfolio_decision_id,
                     "portfolio_snapshot_id": portfolio_snapshot_id,
                     "commitment_batches": commitment_batches,
+                    "semantic_proposal": semantic_proposal_manifest,
                     "prior_global_multiplicity": prior_global_multiplicity,
                     "prior_material_trial_count": prior_material_trial_count,
                     "semantic_warning_ids": [
@@ -5504,9 +6323,12 @@ class StateWriter:
 
         from axiom_rift.research.source_authority import SourceAuthorityLatch
         from axiom_rift.research.sources import (
+            RuntimeSourceDriftObservation,
+            SourceContractError,
             SourceEligibility,
             SourceEligibilityReceipt,
             SourceEligibilityState,
+            SourceTransitionEvidence,
             require_source_state_transition,
         )
 
@@ -5533,9 +6355,197 @@ class StateWriter:
         def prepare(current: dict[str, Any] | None, index: LocalIndex):
             if current is None:
                 raise TransitionError("control is absent")
-            if current["scientific"]["active_mission"] is None:
+            body = self._body(current)
+            if body["scientific"]["active_mission"] is None:
                 raise TransitionError("source eligibility requires an active Mission")
-            if receipt is not None and not self.engineering_fixture:
+            pending = body.get("next_action")
+            routed_source_job = (
+                isinstance(pending, Mapping)
+                and pending.get("kind") == "record_source_eligibility"
+            )
+            active_job = body["scientific"].get("active_job")
+            runtime_drift_context: dict[str, Any] | None = None
+            if (
+                receipt is not None
+                and receipt.evidence is SourceTransitionEvidence.DRIFT
+                and eligibility.state is SourceEligibilityState.SUSPENDED
+                and isinstance(active_job, Mapping)
+                and active_job.get("status") == "running"
+            ):
+                runtime_drift_declaration = index.get(
+                    "job-declared", active_job.get("id", "")
+                )
+                runtime_drift_start = index.get(
+                    "job-started", active_job.get("start_record_id", "")
+                )
+                runtime_spec = (
+                    None
+                    if runtime_drift_declaration is None
+                    else runtime_drift_declaration.payload.get("spec")
+                )
+                runtime_start = (
+                    None
+                    if runtime_drift_start is None
+                    else runtime_drift_start.payload.get("runtime")
+                )
+                candidate_id = (
+                    None
+                    if not isinstance(runtime_start, Mapping)
+                    else runtime_start.get("candidate_id")
+                )
+                executable_id = (
+                    None
+                    if not isinstance(runtime_start, Mapping)
+                    else runtime_start.get("executable_id")
+                )
+                candidate_head = (
+                    None
+                    if not isinstance(executable_id, str)
+                    else index.event_head(f"candidate:{executable_id}")
+                )
+                candidate = (
+                    None
+                    if candidate_head is None
+                    else index.get(candidate_head.record_kind, candidate_head.record_id)
+                )
+                runtime_entry_id = active_job.get("runtime_entry_record_id")
+                runtime_entry = (
+                    None
+                    if not isinstance(runtime_entry_id, str)
+                    else index.get("runtime-engine-entry", runtime_entry_id)
+                )
+                allowed_producers = {
+                    runtime_drift_start.record_id
+                } if runtime_drift_start is not None else set()
+                if runtime_entry is not None:
+                    allowed_producers.add(runtime_entry.record_id)
+                if (
+                    runtime_drift_declaration is None
+                    or runtime_drift_start is None
+                    or not isinstance(runtime_spec, Mapping)
+                    or not isinstance(runtime_spec.get("runtime_binding"), Mapping)
+                    or not isinstance(runtime_start, Mapping)
+                    or runtime_drift_declaration.payload.get("mission_id")
+                    != body["scientific"].get("active_mission")
+                    or runtime_spec.get("evidence_subject")
+                    != {"kind": "Executable", "id": executable_id}
+                    or executable_id != body["scientific"].get("active_executable")
+                    or candidate is None
+                    or candidate.record_id != candidate_id
+                    or candidate_head is None
+                    or candidate_head.record_id != candidate_id
+                    or source_id
+                    not in candidate.payload.get("executable", {}).get(
+                        "source_contracts", []
+                    )
+                    or pending
+                    != {"kind": "resume_job", "job_id": active_job.get("id")}
+                    or receipt.producer_completion_id not in allowed_producers
+                    or (
+                        runtime_entry_id is not None
+                        and (
+                            runtime_entry is None
+                            or runtime_entry.status != "validated"
+                            or runtime_entry.subject
+                            != f"Job:{active_job.get('id')}"
+                            or runtime_entry.fingerprint != active_job.get("hash")
+                            or runtime_entry.payload.get("job_start_record_id")
+                            != runtime_drift_start.record_id
+                            or runtime_entry.payload.get("candidate_id")
+                            != candidate_id
+                        )
+                    )
+                ):
+                    raise TransitionError(
+                        "runtime source drift is not bound to the exact active runtime Job"
+                    )
+                observations: list[tuple[str, RuntimeSourceDriftObservation]] = []
+                for artifact_hash in receipt.artifact_hashes:
+                    content = self.evidence.read_verified(artifact_hash)
+                    try:
+                        value = parse_canonical(content)
+                    except (TypeError, ValueError):
+                        continue
+                    if (
+                        isinstance(value, Mapping)
+                        and value.get("schema")
+                        == "runtime_source_drift_observation.v1"
+                    ):
+                        try:
+                            observation = RuntimeSourceDriftObservation.from_bytes(
+                                content
+                            )
+                        except (SourceContractError, TypeError, ValueError) as exc:
+                            raise TransitionError(
+                                "runtime source drift observation is malformed"
+                            ) from exc
+                        observations.append((artifact_hash, observation))
+                if len(observations) != 1:
+                    raise TransitionError(
+                        "runtime source drift requires one exact typed observation"
+                    )
+                observation_hash, observation = observations[0]
+                if (
+                    observation.candidate_id != candidate_id
+                    or observation.executable_id != executable_id
+                    or observation.job_id != active_job.get("id")
+                    or observation.job_hash != active_job.get("hash")
+                    or observation.job_start_record_id
+                    != runtime_drift_start.record_id
+                    or observation.observed_at_utc != receipt.observed_at_utc
+                    or observation.producer_record_id
+                    != receipt.producer_completion_id
+                    or observation.source_contract_id != source_id
+                    or observation.fact_values() != receipt.fact_values()
+                ):
+                    raise TransitionError(
+                        "runtime source drift observation differs from its active Job"
+                    )
+                runtime_drift_context = {
+                    "artifact_hash": observation_hash,
+                    "candidate_id": candidate_id,
+                    "executable_id": executable_id,
+                    "observation": observation,
+                    "runtime_start": runtime_start,
+                }
+            elif isinstance(active_job, Mapping) and active_job.get("status") == "running":
+                raise TransitionError(
+                    "a running Job source transition must be its exact runtime drift"
+                )
+            if routed_source_job:
+                resume_next_action = pending.get("resume_next_action")
+                if (
+                    receipt is None
+                    or set(pending)
+                    != {
+                        "completion_record_id",
+                        "job_id",
+                        "kind",
+                        "resume_next_action",
+                        "source_contract_id",
+                    }
+                    or pending.get("source_contract_id") != source_id
+                    or pending.get("completion_record_id")
+                    != receipt.producer_completion_id
+                    or not isinstance(resume_next_action, Mapping)
+                    or not isinstance(resume_next_action.get("kind"), str)
+                ):
+                    raise TransitionError(
+                        "source eligibility does not consume its exact routed Job"
+                    )
+            elif (
+                receipt is not None
+                and not self.engineering_fixture
+                and runtime_drift_context is None
+            ):
+                raise TransitionError(
+                    "source Job evidence must consume its exact completion route"
+                )
+            if (
+                receipt is not None
+                and not self.engineering_fixture
+                and runtime_drift_context is None
+            ):
                 producer = index.get(
                     "job-completed", receipt.producer_completion_id
                 )
@@ -5550,9 +6560,14 @@ class StateWriter:
                 if (
                     producer is None
                     or producer.status != "success"
+                    or (
+                        routed_source_job
+                        and producer.payload.get("job_id")
+                        != pending.get("job_id")
+                    )
                     or declaration is None
                     or declaration.payload.get("mission_id")
-                    != current["scientific"]["active_mission"]
+                    != body["scientific"]["active_mission"]
                     or not isinstance(source_evidence, dict)
                     or source_evidence.get("source_contract_id") != source_id
                     or source_evidence.get("transition_evidence")
@@ -5606,6 +6621,22 @@ class StateWriter:
             previous = (
                 None if latest is None else SourceEligibilityState(latest.status)
             )
+            if runtime_drift_context is not None:
+                observation = runtime_drift_context["observation"]
+                runtime_start = runtime_drift_context["runtime_start"]
+                if (
+                    latest is None
+                    or previous is not SourceEligibilityState.RUNTIME_ELIGIBLE
+                    or latest.record_id
+                    != observation.prior_source_state_record_id
+                    or latest.payload.get("evidence_receipt_id")
+                    != observation.prior_source_receipt_id
+                    or observation.prior_source_receipt_id
+                    not in runtime_start.get("source_receipt_ids", [])
+                ):
+                    raise TransitionError(
+                        "runtime source drift does not bind the exact source state used at Job start"
+                    )
             require_source_state_transition(
                 previous=previous,
                 target=eligibility.state,
@@ -5623,34 +6654,68 @@ class StateWriter:
                     "evidence_receipt_id": eligibility.evidence_receipt_id,
                 },
             )
+            source_payload = {
+                "contract_hash": contract_hash,
+                "contract": eligibility.contract.to_identity_payload(),
+                "mapping_identity": eligibility.contract.mapping_identity,
+                "schema_identity": eligibility.contract.schema_identity,
+                "field_identity": eligibility.contract.field_identity,
+                "clock_identity": eligibility.contract.clock_identity,
+                "availability_identity": eligibility.contract.availability_identity,
+                "ordinal": ordinal,
+                "evidence_receipt_id": eligibility.evidence_receipt_id,
+                "suspension_reason": eligibility.suspension_reason,
+                "transition_evidence": (
+                    None if transition_evidence is None else transition_evidence.value
+                ),
+                "receipt": None if receipt is None else receipt.to_identity_payload(),
+                "scientific_trial_delta": 0,
+                "alpha_failure": False,
+            }
+            if runtime_drift_context is not None:
+                source_payload["runtime_source_drift_observation_id"] = (
+                    runtime_drift_context["observation"].identity
+                )
             record = _record(
                 kind="source-state",
                 record_id=state_key,
                 subject=f"Source:{source_id}",
                 status=eligibility.state.value,
                 fingerprint=source_id,
-                payload={
-                    "contract_hash": contract_hash,
-                    "contract": eligibility.contract.to_identity_payload(),
-                    "mapping_identity": eligibility.contract.mapping_identity,
-                    "schema_identity": eligibility.contract.schema_identity,
-                    "field_identity": eligibility.contract.field_identity,
-                    "clock_identity": eligibility.contract.clock_identity,
-                    "availability_identity": eligibility.contract.availability_identity,
-                    "ordinal": ordinal,
-                    "evidence_receipt_id": eligibility.evidence_receipt_id,
-                    "suspension_reason": eligibility.suspension_reason,
-                    "transition_evidence": (
-                        None if transition_evidence is None else transition_evidence.value
-                    ),
-                    "receipt": None if receipt is None else receipt.to_identity_payload(),
-                    "scientific_trial_delta": 0,
-                    "alpha_failure": False,
-                },
+                payload=source_payload,
                 event_stream=f"source:{source_id}",
                 event_sequence=ordinal,
             )
-            return self._body(current), [record], {
+            records = [record]
+            if routed_source_job:
+                body["next_action"] = _copy(pending["resume_next_action"])
+            elif runtime_drift_context is not None:
+                observation = runtime_drift_context["observation"]
+                observation_record = _record(
+                    kind="runtime-source-drift-observation",
+                    record_id=observation.identity,
+                    subject=f"Job:{active_job['id']}",
+                    status="fail_closed",
+                    fingerprint=active_job["hash"],
+                    payload={
+                        **observation.to_identity_payload(),
+                        "artifact_hash": runtime_drift_context["artifact_hash"],
+                    },
+                )
+                records.append(observation_record)
+                body["next_action"] = {
+                    "job_id": active_job["id"],
+                    "kind": "complete_runtime_source_ineligibility",
+                    "observation_id": observation.identity,
+                    "source_contract_id": source_id,
+                    "source_state_record_id": state_key,
+                }
+            return body, records, {
+                "runtime_source_drift_observation_id": (
+                    None
+                    if runtime_drift_context is None
+                    else runtime_drift_context["observation"].identity
+                ),
                 "source_id": source_id,
                 "state": eligibility.state.value,
                 "ordinal": ordinal,
@@ -6205,11 +7270,11 @@ class StateWriter:
                 )
             except EffectiveAxisProjectionError as exc:
                 raise TransitionError(str(exc)) from exc
-            original_resolution = self._effective_axis_resolution(
-                index, original_axis
-            )
-            replacement_resolution = self._effective_axis_resolution(
-                index, replacement_axis
+            original_resolution, replacement_resolution = (
+                self._effective_axis_resolutions(
+                    index,
+                    (original_axis, replacement_axis),
+                )
             )
             exact_invalidation = any(
                 item.source_contract_id
@@ -6313,15 +7378,66 @@ class StateWriter:
             batch_head = index.event_head(f"study-batches:{study_id}")
             prior_batch_count = 0 if batch_head is None else batch_head.sequence
             commitment_batches = study_record.payload.get("commitment_batches")
-            if not self.engineering_fixture and type(commitment_batches) is not int:
-                raise TransitionError("scientific Study lacks its Batch commitment")
-            if (
-                type(commitment_batches) is int
-                and prior_batch_count >= commitment_batches
+            if not self.engineering_fixture and (
+                type(commitment_batches) is not int
+                or commitment_batches <= 0
             ):
                 raise TransitionError(
-                    "Portfolio Decision Batch commitment is exhausted"
+                    "scientific Study requires a positive finite Batch bound"
                 )
+            if not self.engineering_fixture:
+                assert type(commitment_batches) is int
+                if prior_batch_count >= commitment_batches:
+                    raise TransitionError(
+                        "scientific Study Batch commitment is exhausted"
+                    )
+                if prior_batch_count == 0:
+                    if body.get("next_action") != {
+                        "kind": "freeze_batch",
+                        "study_id": study_id,
+                    }:
+                        raise TransitionError(
+                            "first Batch is not the exact frozen Study action"
+                        )
+                else:
+                    continuation_head = index.event_head(
+                        f"study-continuation:{study_id}"
+                    )
+                    continuation = (
+                        None
+                        if continuation_head is None
+                        else index.get(
+                            continuation_head.record_kind,
+                            continuation_head.record_id,
+                        )
+                    )
+                    expected_action = {
+                        "batch_id": batch_id,
+                        "continuation_decision_id": (
+                            None
+                            if continuation is None
+                            else continuation.record_id
+                        ),
+                        "kind": "freeze_batch",
+                        "study_id": study_id,
+                    }
+                    if (
+                        continuation_head is None
+                        or continuation_head.sequence != prior_batch_count
+                        or continuation is None
+                        or continuation.kind
+                        != "study-continuation-decision"
+                        or continuation.status != "continue"
+                        or continuation.payload.get("study_id") != study_id
+                        or continuation.payload.get("prior_batch_id")
+                        != batch_head.record_id
+                        or continuation.payload.get("next_batch_id")
+                        != batch_id
+                        or body.get("next_action") != expected_action
+                    ):
+                        raise TransitionError(
+                            "later Batch lacks its exact continuation decision"
+                        )
             self._validate_permit_locked(
                 control=current,
                 index=index,
@@ -6404,7 +7520,7 @@ class StateWriter:
     def _batch_budget_reservation_repair_plan_locked(
         self,
         current: Mapping[str, Any],
-        index: LocalIndex,
+        index: LocalIndex | LocalIndexView,
         *,
         corrected_job_budgets: Mapping[str, Mapping[str, int]],
         policy_id: str,
@@ -6442,21 +7558,16 @@ class StateWriter:
         )
         if budget_record is None:
             raise TransitionError("Batch budget reservation head is absent")
-        declarations = tuple(
-            sorted(
-                (
-                    record
-                    for record in index.records_by_kind("job-declared")
-                    if record.payload.get("batch_id") == batch_id
-                ),
-                key=lambda record: record.record_id,
-            )
+        job_inventory = _batch_job_decision_inventory(
+            index,
+            batch_id=batch_id,
         )
+        declarations = job_inventory.declarations
         if not declarations:
             raise TransitionError("Batch budget repair has no completed Jobs")
         decisions = {
             record.subject.removeprefix("Job:")
-            for record in index.records_by_kind("job-evidence-decision")
+            for record in job_inventory.decisions
             if record.status in {"continue_batch", "stop_batch"}
         }
         job_ids = {record.record_id for record in declarations}
@@ -6603,18 +7714,18 @@ class StateWriter:
 
         _require_ascii("Batch budget repair policy", policy_id)
         _require_ascii("Batch budget repair reason", reason)
-        report = self.require_stable_head()
-        current = report.get("control")
-        if not isinstance(current, Mapping):
-            raise TransitionError("Batch budget repair requires control")
-        with LocalIndex(self.index_path) as index:
-            return self._batch_budget_reservation_repair_plan_locked(
-                current,
-                index,
-                corrected_job_budgets=corrected_job_budgets,
-                policy_id=policy_id,
-                reason=reason,
-            )
+        with WriterLock(self.lock_path):
+            with self._open_authoritative_index() as index:
+                current = self._require_stable_locked(index)
+                if not isinstance(current, Mapping):
+                    raise TransitionError("Batch budget repair requires control")
+                return self._batch_budget_reservation_repair_plan_locked(
+                    current,
+                    index,
+                    corrected_job_budgets=corrected_job_budgets,
+                    policy_id=policy_id,
+                    reason=reason,
+                )
 
     def repair_batch_budget_reservations(
         self,
@@ -6703,6 +7814,151 @@ class StateWriter:
             prepare=prepare,
         )
 
+    @staticmethod
+    def _batch_continuation_bindings(
+        index: LocalIndex,
+        batch_id: str,
+    ) -> dict[str, Any]:
+        """Re-derive the closed Batch member, completion, and evidence set."""
+
+        batch = index.get("batch-open", batch_id)
+        spec = None if batch is None else batch.payload.get("spec")
+        if batch is None or not isinstance(spec, Mapping):
+            raise TransitionError("Study continuation lost its frozen Batch")
+        trial_head = index.event_head(f"batch-trials:{batch_id}")
+        trial_records: list[IndexRecord] = []
+        if trial_head is not None:
+            for sequence in range(1, trial_head.sequence + 1):
+                trial = index.event_record(
+                    f"batch-trials:{batch_id}", sequence
+                )
+                if (
+                    trial is None
+                    or trial.kind != "trial"
+                    or trial.subject != f"Batch:{batch_id}"
+                    or trial.event_sequence != sequence
+                ):
+                    raise TransitionError(
+                        "Study continuation Batch member projection is invalid"
+                    )
+                trial_records.append(trial)
+        registered_members = tuple(
+            sorted(record.record_id for record in trial_records)
+        )
+        if len(set(registered_members)) != len(registered_members):
+            raise TransitionError(
+                "Study continuation Batch member set is not unique"
+            )
+        acceptance = spec.get("acceptance_profile")
+        concurrent = (
+            None
+            if not isinstance(acceptance, Mapping)
+            else acceptance.get("concurrent_family")
+        )
+        frozen_members = (
+            None
+            if not isinstance(concurrent, Mapping)
+            else concurrent.get("executable_ids")
+        )
+        if frozen_members is not None and (
+            not isinstance(frozen_members, list)
+            or any(type(member) is not str for member in frozen_members)
+            or len(set(frozen_members)) != len(frozen_members)
+            or set(frozen_members) != set(registered_members)
+        ):
+            raise TransitionError(
+                "Study continuation differs from the frozen concurrent family"
+            )
+
+        from axiom_rift.operations.scientific_history import (
+            ScientificHistoryProjectionError,
+            project_batch_job_evidence,
+        )
+
+        try:
+            job_evidence = project_batch_job_evidence(
+                index,
+                batch_id=batch_id,
+            )
+        except ScientificHistoryProjectionError as exc:
+            raise TransitionError(str(exc)) from exc
+        declarations = job_evidence.declarations
+        member_job_ids = tuple(record.record_id for record in declarations)
+        declaration_members: set[str] = set()
+        completion_ids: list[str] = []
+        durable_evidence_hashes: set[str] = set()
+        decision_statuses: list[str] = []
+        for declaration, completion, evidence_decision in zip(
+            declarations,
+            job_evidence.completions,
+            job_evidence.decisions,
+            strict=True,
+        ):
+            declaration_spec = declaration.payload.get("spec")
+            evidence_subject = (
+                None
+                if not isinstance(declaration_spec, Mapping)
+                else declaration_spec.get("evidence_subject")
+            )
+            if (
+                not isinstance(evidence_subject, Mapping)
+                or evidence_subject.get("kind") != "Executable"
+                or type(evidence_subject.get("id")) is not str
+            ):
+                raise TransitionError(
+                    "Study continuation Job is not bound to a Batch member"
+                )
+            declaration_members.add(evidence_subject["id"])
+            decision_statuses.append(evidence_decision.status)
+            completion_id = completion.record_id
+            if (
+                completion.subject != f"Job:{declaration.record_id}"
+                or completion.payload.get("job_id") != declaration.record_id
+                or completion.fingerprint != declaration.fingerprint
+            ):
+                raise TransitionError(
+                    "Study continuation Job completion binding is invalid"
+                )
+            completion_ids.append(completion_id)
+            outputs = completion.payload.get("outputs")
+            output_classes = completion.payload.get("output_classes")
+            if not isinstance(outputs, Mapping) or not isinstance(
+                output_classes, Mapping
+            ):
+                raise TransitionError(
+                    "Study continuation completion outputs are malformed"
+                )
+            for output_name, output_hash in outputs.items():
+                if output_classes.get(output_name) != "durable_evidence":
+                    continue
+                _require_digest(
+                    "Study continuation durable evidence", output_hash
+                )
+                durable_evidence_hashes.add(output_hash)
+        if (
+            len(declarations) != len(registered_members)
+            or len(declaration_members) != len(declarations)
+            or declaration_members != set(registered_members)
+        ):
+            raise TransitionError(
+                "Study continuation requires exactly one completed Job per Batch member"
+            )
+        return {
+            "completion_record_ids": tuple(sorted(completion_ids)),
+            "evidence_hashes": tuple(sorted(durable_evidence_hashes)),
+            "member_executable_ids": registered_members,
+            "member_job_ids": member_job_ids,
+            "stop_rule_state": (
+                "unresolved"
+                if not decision_statuses
+                else (
+                    "reached"
+                    if "stop_batch" in decision_statuses
+                    else "not_reached"
+                )
+            ),
+        }
+
     def dispose_batch(
         self, *, outcome: str, operation_id: str
     ) -> TransitionResult:
@@ -6744,7 +8000,6 @@ class StateWriter:
             if science["active_job"] is not None or science["active_repair"] is not None:
                 raise TransitionError("cannot dispose Batch with active Job or Repair")
             science["active_batch"] = None
-            body["next_action"] = {"kind": "judge_study", "study_id": science["active_study"]}
             fingerprint = _digest(
                 {"batch_id": batch["id"], "outcome": outcome}, domain="batch-close"
             )
@@ -6756,6 +8011,49 @@ class StateWriter:
                 fingerprint=fingerprint,
                 payload={"outcome": outcome},
             )
+            study_id = science["active_study"]
+            study = (
+                None
+                if not isinstance(study_id, str)
+                else _index.get("study-open", study_id)
+            )
+            batch_head = (
+                None
+                if not isinstance(study_id, str)
+                else _index.event_head(f"study-batches:{study_id}")
+            )
+            if not self.engineering_fixture:
+                commitment = (
+                    None
+                    if study is None
+                    else study.payload.get("commitment_batches")
+                )
+                if (
+                    study is None
+                    or batch_head is None
+                    or batch_head.record_id != batch["id"]
+                    or type(commitment) is not int
+                    or commitment <= 0
+                    or batch_head.sequence > commitment
+                ):
+                    raise TransitionError(
+                        "Batch disposition lost its finite Study commitment"
+                    )
+                body["next_action"] = (
+                    {
+                        "batch_close_record_id": fingerprint,
+                        "kind": "review_study_continuation",
+                        "prior_batch_id": batch["id"],
+                        "study_id": study_id,
+                    }
+                    if batch_head.sequence < commitment
+                    else {"kind": "judge_study", "study_id": study_id}
+                )
+            else:
+                body["next_action"] = {
+                    "kind": "judge_study",
+                    "study_id": study_id,
+                }
             return body, [record], {"batch_id": batch["id"], "outcome": outcome}
 
         return self._commit(
@@ -6763,6 +8061,254 @@ class StateWriter:
             operation_id=operation_id,
             subject="Batch:active",
             payload={"outcome": outcome},
+            prepare=prepare,
+        )
+
+    def review_study_continuation(
+        self,
+        *,
+        decision: Any,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Close an intermediate boundary or pre-bind one exact next Batch."""
+
+        from axiom_rift.research.study_continuation import (
+            StudyContinuationDecision,
+            StudyContinuationOutcome,
+        )
+
+        self._require_study_close_delivery_guard()
+        if not isinstance(decision, StudyContinuationDecision):
+            raise TransitionError(
+                "decision must be a StudyContinuationDecision"
+            )
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            body = self._body(current)
+            science = body["scientific"]
+            study_id = science.get("active_study")
+            if (
+                study_id != decision.study_id
+                or science.get("active_batch") is not None
+                or science.get("active_job") is not None
+                or science.get("active_repair") is not None
+            ):
+                raise TransitionError(
+                    "Study continuation requires its stable active Study"
+                )
+            expected_pending = {
+                "batch_close_record_id": decision.prior_batch_close_record_id,
+                "kind": "review_study_continuation",
+                "prior_batch_id": decision.prior_batch_id,
+                "study_id": study_id,
+            }
+            if body.get("next_action") != expected_pending:
+                raise TransitionError(
+                    "Study continuation is not the exact pending review"
+                )
+            study = index.get("study-open", study_id)
+            batch = index.get("batch-open", decision.prior_batch_id)
+            close = index.get(
+                "batch-close", decision.prior_batch_close_record_id
+            )
+            batch_head = index.event_head(f"study-batches:{study_id}")
+            commitment = (
+                None
+                if study is None
+                else study.payload.get("commitment_batches")
+            )
+            if (
+                study is None
+                or study.fingerprint != decision.study_hash
+                or study.payload.get("question_hash") != decision.question_hash
+                or study.payload.get("controlled_chassis_identity")
+                != decision.controlled_chassis_identity
+                or study.payload.get("portfolio_snapshot_id")
+                != decision.portfolio_snapshot_id
+                or study.payload.get("portfolio_axis_id")
+                != decision.portfolio_axis_id
+                or study.payload.get("portfolio_axis_identity")
+                != decision.portfolio_axis_identity
+                or study.payload.get("portfolio_decision_id")
+                != decision.portfolio_decision_id
+                or batch is None
+                or batch.fingerprint
+                != decision.prior_batch_id.removeprefix("batch:")
+                or batch.payload.get("spec", {}).get("study_hash")
+                != decision.study_hash
+                or batch.payload.get("spec", {}).get("stop_rule")
+                != decision.stop_rule
+                or close is None
+                or close.subject != f"Batch:{decision.prior_batch_id}"
+                or batch_head is None
+                or batch_head.record_id != decision.prior_batch_id
+                or type(commitment) is not int
+                or commitment <= 1
+                or batch_head.sequence >= commitment
+            ):
+                raise TransitionError(
+                    "Study continuation lost its immutable Study or Batch binding"
+                )
+            portfolio_head = index.event_head(
+                f"portfolio:{science['active_mission']}"
+            )
+            snapshot = index.get(
+                "portfolio-snapshot", decision.portfolio_snapshot_id
+            )
+            if (
+                portfolio_head is None
+                or portfolio_head.record_id != decision.portfolio_snapshot_id
+                or snapshot is None
+                or snapshot.subject != f"Mission:{science['active_mission']}"
+            ):
+                raise TransitionError(
+                    "Study continuation Portfolio snapshot is stale"
+                )
+            axes = tuple(
+                axis
+                for axis in snapshot.payload.get("axes", ())
+                if isinstance(axis, Mapping)
+            )
+            active_axis = next(
+                (
+                    axis
+                    for axis in axes
+                    if axis.get("axis_id") == decision.portfolio_axis_id
+                ),
+                None,
+            )
+            axis_resolutions = self._effective_axis_resolutions(
+                index,
+                axes,
+            )
+            other_axis_ids = tuple(
+                sorted(
+                    axis["axis_id"]
+                    for axis, resolution in zip(
+                        axes,
+                        axis_resolutions,
+                        strict=True,
+                    )
+                    if axis.get("axis_id") != decision.portfolio_axis_id
+                    and type(axis.get("axis_id")) is str
+                    and resolution.decision_option_eligible
+                )
+            )
+            if (
+                active_axis is None
+                or active_axis.get("axis_identity")
+                != decision.portfolio_axis_identity
+                or other_axis_ids != decision.other_axis_ids
+            ):
+                raise TransitionError(
+                    "Study continuation differs from the current Portfolio forest"
+                )
+            bindings = self._batch_continuation_bindings(
+                index, decision.prior_batch_id
+            )
+            if any(
+                getattr(decision, name) != bindings[name]
+                for name in (
+                    "completion_record_ids",
+                    "evidence_hashes",
+                    "member_executable_ids",
+                    "member_job_ids",
+                )
+            ):
+                raise TransitionError(
+                    "Study continuation differs from exact Batch evidence"
+                )
+            if decision.stop_rule_state.value != bindings["stop_rule_state"]:
+                raise TransitionError(
+                    "Study continuation stop-rule state differs from exact Job judgements"
+                )
+            for evidence_hash in decision.evidence_hashes:
+                try:
+                    self.evidence.verify(evidence_hash)
+                except (FileNotFoundError, RuntimeError, ValueError) as exc:
+                    raise TransitionError(
+                        "Study continuation durable evidence is unavailable"
+                    ) from exc
+            review_basis = {
+                (basis.kind, basis.record_id)
+                for assessment in decision.quant_team_review.assessments
+                for basis in assessment.basis_records
+            }
+            required_basis = {
+                ("portfolio-snapshot", decision.portfolio_snapshot_id),
+                (
+                    "batch-close",
+                    decision.prior_batch_close_record_id,
+                ),
+                *(
+                    ("job-completed", completion_id)
+                    for completion_id in decision.completion_record_ids
+                ),
+            }
+            if (
+                any(
+                    index.get(kind, record_id) is None
+                    for kind, record_id in review_basis
+                )
+                or not required_basis.issubset(review_basis)
+            ):
+                raise TransitionError(
+                    "Study continuation review omits exact durable bases"
+                )
+            continuation_head = index.event_head(
+                f"study-continuation:{study_id}"
+            )
+            if (
+                (continuation_head is None and batch_head.sequence != 1)
+                or (
+                    continuation_head is not None
+                    and continuation_head.sequence != batch_head.sequence - 1
+                )
+            ):
+                raise TransitionError(
+                    "Study continuation decision sequence is invalid"
+                )
+            if decision.outcome is StudyContinuationOutcome.CONTINUE:
+                assert decision.next_batch_id is not None
+                body["next_action"] = {
+                    "batch_id": decision.next_batch_id,
+                    "continuation_decision_id": decision.identity,
+                    "kind": "freeze_batch",
+                    "study_id": study_id,
+                }
+            else:
+                body["next_action"] = {
+                    "kind": "judge_study",
+                    "study_id": study_id,
+                }
+            record = _record(
+                kind="study-continuation-decision",
+                record_id=decision.identity,
+                subject=f"Study:{study_id}",
+                status=decision.outcome.value,
+                fingerprint=decision.identity.removeprefix(
+                    "study-continuation-decision:"
+                ),
+                payload=decision.to_identity_payload(),
+                event_stream=f"study-continuation:{study_id}",
+                event_sequence=batch_head.sequence,
+            )
+            return body, [record], {
+                "continuation_decision_id": decision.identity,
+                "next_batch_id": decision.next_batch_id,
+                "outcome": decision.outcome.value,
+            }
+
+        return self._commit(
+            event_kind="study_continuation_reviewed",
+            operation_id=operation_id,
+            subject=f"Study:{decision.study_id}",
+            payload={
+                "decision_id": decision.identity,
+                "outcome": decision.outcome.value,
+            },
             prepare=prepare,
         )
 
@@ -6859,6 +8405,42 @@ class StateWriter:
             not isinstance(scientific, Mapping)
             or scientific.get("scientific_eligible") is not True
         ):
+            engineering = completion.payload.get("engineering_disposition")
+            failure = completion.payload.get("failure")
+            if isinstance(engineering, Mapping):
+                if (
+                    completion.status != "failed"
+                    or not isinstance(failure, Mapping)
+                    or failure.get("failure_kind") != "engineering"
+                    or engineering.get("schema")
+                    != "engineering_failure_disposition.v1"
+                    or engineering.get("job_id") != job_id
+                ):
+                    raise TransitionError(
+                        "Study KPI engineering completion is malformed"
+                    )
+                spec = declaration.payload.get("spec")
+                subject = (
+                    None
+                    if not isinstance(spec, Mapping)
+                    else spec.get("evidence_subject")
+                )
+                executable_id = (
+                    subject.get("id")
+                    if isinstance(subject, Mapping)
+                    and subject.get("kind") == "Executable"
+                    and type(subject.get("id")) is str
+                    else None
+                )
+                return {
+                    "completion_record_id": completion_record_id,
+                    "executable_id": executable_id,
+                    "metrics": {
+                        name: None for name in _STUDY_KPI_METRICS
+                    },
+                    "source": "typed_engineering_failure_completion",
+                    "unavailable_reason": "engineering_failure",
+                }
             nonperformance = tuple(
                 (domain, evidence)
                 for domain, evidence in (
@@ -6973,64 +8555,113 @@ class StateWriter:
     ) -> str | None:
         if executable_id is None:
             return None
-        used: dict[str, str] = {}
+        _require_ascii("Study KPI Executable identity", executable_id)
+        reserved = dict(reserved_display_owners or {})
+        if any(
+            type(display) is not str
+            or not display
+            or not display.isascii()
+            or type(identity) is not str
+            or not identity
+            or not identity.isascii()
+            for display, identity in reserved.items()
+        ):
+            raise TransitionError("Reserved Study KPI display binding is invalid")
+
+        def stored_display_owners(display_id: str) -> set[str]:
+            owners: set[str] = set()
+            for record in index.records_by_payload_text(
+                "study-kpi",
+                "study_kpi_executable_display_id",
+                display_id,
+            ):
+                prior_identity = record.payload.get("executable_id")
+                prior_display = record.payload.get("executable_display_id")
+                if (
+                    type(prior_identity) is not str
+                    or prior_display != display_id
+                ):
+                    raise TransitionError(
+                        "Existing Study KPI display binding is invalid"
+                    )
+                owners.add(prior_identity)
+            if len(owners) > 1:
+                raise TransitionError(
+                    "Existing Study KPI display id is not unique"
+                )
+            return owners
+
         existing_for_identity: set[str] = set()
-        for record in index.records_by_kind("study-kpi"):
+        for record in index.records_by_payload_text(
+            "study-kpi",
+            "study_kpi_executable_id",
+            executable_id,
+        ):
             prior_identity = record.payload.get("executable_id")
             prior_display = record.payload.get("executable_display_id")
-            if prior_identity is None and prior_display is None:
-                continue
-            if type(prior_identity) is not str or type(prior_display) is not str:
-                raise TransitionError("Existing Study KPI display binding is invalid")
-            owner = used.get(prior_display)
-            if owner is not None and owner != prior_identity:
-                raise TransitionError("Existing Study KPI display id is not unique")
-            used[prior_display] = prior_identity
-            if prior_identity == executable_id:
-                existing_for_identity.add(prior_display)
-        for prior_display, prior_identity in dict(
-            reserved_display_owners or {}
-        ).items():
-            if type(prior_display) is not str or type(prior_identity) is not str:
-                raise TransitionError("Reserved Study KPI display binding is invalid")
-            owner = used.get(prior_display)
-            if owner is not None and owner != prior_identity:
-                raise TransitionError("Reserved Study KPI display id is not unique")
-            used[prior_display] = prior_identity
-            if prior_identity == executable_id:
-                existing_for_identity.add(prior_display)
+            if prior_identity != executable_id or type(prior_display) is not str:
+                raise TransitionError(
+                    "Existing Study KPI display binding is invalid"
+                )
+            existing_for_identity.add(prior_display)
+        existing_for_identity.update(
+            display
+            for display, identity in reserved.items()
+            if identity == executable_id
+        )
         if len(existing_for_identity) > 1:
             raise TransitionError("Executable has inconsistent Study KPI display ids")
         if existing_for_identity:
-            return next(iter(existing_for_identity))
+            display = next(iter(existing_for_identity))
+            stored_owners = stored_display_owners(display)
+            reserved_owner = reserved.get(display)
+            if (
+                (stored_owners and stored_owners != {executable_id})
+                or (
+                    reserved_owner is not None
+                    and reserved_owner != executable_id
+                )
+            ):
+                raise TransitionError(
+                    "Existing Study KPI display id is not unique"
+                )
+            return display
         digest = executable_id.removeprefix("executable:")
         for length in range(12, 65, 4):
             display = f"EXE-{digest[:length]}"
-            if display not in used:
+            owners = stored_display_owners(display)
+            reserved_owner = reserved.get(display)
+            if not owners and reserved_owner is None:
                 return display
+            if len(owners | ({reserved_owner} if reserved_owner else set())) > 1:
+                raise TransitionError(
+                    "Existing Study KPI display id is not unique"
+                )
         raise TransitionError("Executable has no unique Study KPI display id")
 
     @staticmethod
     def _batch_stop_completion_ids(
         index: LocalIndex,
         batch_id: str,
+        inventory: _BatchJobDecisionInventory | None = None,
     ) -> tuple[str, ...]:
+        resolved_inventory = (
+            inventory
+            if inventory is not None
+            else _batch_job_decision_inventory(index, batch_id=batch_id)
+        )
+        if resolved_inventory.batch_id != batch_id:
+            raise TransitionError("Batch evidence inventory belongs to another Batch")
         completion_ids: set[str] = set()
-        for decision in index.records_by_kind("job-evidence-decision"):
+        for decision in resolved_inventory.decisions:
             if decision.status != "stop_batch":
                 continue
-            job_id = decision.subject.removeprefix("Job:")
-            declaration = index.get("job-declared", job_id)
             completion_id = decision.payload.get("completion_record_id")
-            if (
-                declaration is not None
-                and declaration.payload.get("batch_id") == batch_id
-            ):
-                if type(completion_id) is not str:
-                    raise TransitionError(
-                        "Batch stop decision lacks its completion identity"
-                    )
-                completion_ids.add(completion_id)
+            if type(completion_id) is not str:
+                raise TransitionError(
+                    "Batch stop decision lacks its completion identity"
+                )
+            completion_ids.add(completion_id)
         return tuple(sorted(completion_ids))
 
     @staticmethod
@@ -7038,7 +8669,10 @@ class StateWriter:
         index: LocalIndex,
         batch_id: str,
         outcome: str,
+        inventory: _BatchJobDecisionInventory | None = None,
     ) -> str:
+        if inventory is not None and inventory.batch_id != batch_id:
+            raise TransitionError("Batch evidence inventory belongs to another Batch")
         budget_head = index.event_head(f"batch-budget:{batch_id}")
         trial_head = index.event_head(f"batch-trials:{batch_id}")
         started = budget_head is not None or trial_head is not None
@@ -7073,17 +8707,16 @@ class StateWriter:
             ):
                 raise TransitionError("Batch budget is not exhausted")
         elif outcome in {"engineering_failure", "not_evaluable"}:
-            decisions: list[IndexRecord] = []
-            for decision in index.records_by_kind("job-evidence-decision"):
-                if decision.status != "continue_batch":
-                    continue
-                job_id = decision.subject.removeprefix("Job:")
-                declaration = index.get("job-declared", job_id)
-                if (
-                    declaration is not None
-                    and declaration.payload.get("batch_id") == batch_id
-                ):
-                    decisions.append(decision)
+            resolved_inventory = (
+                inventory
+                if inventory is not None
+                else _batch_job_decision_inventory(index, batch_id=batch_id)
+            )
+            decisions = [
+                decision
+                for decision in resolved_inventory.decisions
+                if decision.status == "continue_batch"
+            ]
             latest = (
                 None
                 if not decisions
@@ -7131,6 +8764,67 @@ class StateWriter:
             "without_final_validator_completion"
         )
 
+    @staticmethod
+    def _require_scientific_study_outcome(
+        *,
+        completion: IndexRecord,
+        outcome: str,
+    ) -> None:
+        scientific = completion.payload.get("scientific")
+        if (
+            not isinstance(scientific, Mapping)
+            or scientific.get("scientific_eligible") is not True
+        ):
+            raise TransitionError(
+                "Study outcome basis is not an eligible scientific completion"
+            )
+        verdict = scientific.get("verdict")
+        adjudication = scientific.get("adjudication")
+        if adjudication is None:
+            evidence_class = {
+                "passed": "positive",
+                "failed": "negative",
+                "not_evaluable": "unavailable",
+            }.get(verdict)
+        else:
+            state = (
+                adjudication.get("state")
+                if isinstance(adjudication, Mapping)
+                else None
+            )
+            expected_verdict = {
+                "confirmed": "passed",
+                "contradicted": "failed",
+                "frontier": "passed",
+                "not_evaluable": "not_evaluable",
+                "partial_positive": "not_evaluable",
+                "unresolved": "not_evaluable",
+            }.get(state)
+            evidence_class = {
+                "confirmed": "positive",
+                "frontier": "positive",
+                "partial_positive": "positive",
+                "contradicted": "negative",
+                "not_evaluable": "unavailable",
+                "unresolved": "unavailable",
+            }.get(state)
+            if expected_verdict != verdict:
+                evidence_class = None
+        allowed_outcomes = {
+            "positive": {"preserved", "supported"},
+            "negative": {"not_supported", "pruned"},
+            "unavailable": {"evidence_gap", "not_evaluable"},
+        }
+        if evidence_class is None:
+            raise TransitionError(
+                "Study outcome basis has malformed scientific adjudication"
+            )
+        if outcome not in allowed_outcomes[evidence_class]:
+            raise TransitionError(
+                "Study outcome conflicts with its disposition-driving scientific "
+                "adjudication"
+            )
+
     def _study_kpi_payload(
         self,
         *,
@@ -7149,7 +8843,15 @@ class StateWriter:
                     "Real Study close requires a disposed Batch"
                 )
             batch_id = batch_head.record_id
-            if self._batch_stop_completion_ids(index, batch_id):
+            job_inventory = _batch_job_decision_inventory(
+                index,
+                batch_id=batch_id,
+            )
+            if self._batch_stop_completion_ids(
+                index,
+                batch_id,
+                job_inventory,
+            ):
                 raise TransitionError(
                     "Study with a final stop decision requires its validator completion"
                 )
@@ -7164,7 +8866,7 @@ class StateWriter:
             close_status = None if len(close_records) != 1 else close_records[0].status
             if (
                 close_status is None
-                or outcome not in {"evidence_gap", "not_evaluable", "pruned"}
+                or outcome not in {"evidence_gap", "not_evaluable"}
             ):
                 raise TransitionError(
                     "Study KPI unavailable state is not writer-derived"
@@ -7173,6 +8875,7 @@ class StateWriter:
                 index,
                 batch_id,
                 close_status,
+                job_inventory,
             )
             source = {
                 "completion_record_id": None,
@@ -7188,6 +8891,23 @@ class StateWriter:
                 study_id=study_id,
                 completion_record_id=completion_record_id,
             )
+            if source["source"] == "scientific_job_completion":
+                completion = index.get("job-completed", completion_record_id)
+                if completion is None:
+                    raise TransitionError(
+                        "Study outcome scientific completion is unavailable"
+                    )
+                self._require_scientific_study_outcome(
+                    completion=completion,
+                    outcome=outcome,
+                )
+            elif (
+                source["source"] == "typed_engineering_failure_completion"
+                and outcome not in {"evidence_gap", "not_evaluable"}
+            ):
+                raise TransitionError(
+                    "Engineering Study outcome cannot become a scientific outcome"
+                )
             if (
                 source["source"]
                 in {
@@ -7357,7 +9077,15 @@ class StateWriter:
         ):
             raise TransitionError("Historical Study close provenance is invalid")
         batch_id = batch_head.record_id
-        completion_ids = self._batch_stop_completion_ids(index, batch_id)
+        job_inventory = _batch_job_decision_inventory(
+            index,
+            batch_id=batch_id,
+        )
+        completion_ids = self._batch_stop_completion_ids(
+            index,
+            batch_id,
+            job_inventory,
+        )
         if len(completion_ids) > 1:
             raise TransitionError("Historical Study has multiple final completions")
         if completion_ids:
@@ -7381,6 +9109,7 @@ class StateWriter:
                 index,
                 batch_id,
                 batch_close.status,
+                job_inventory,
             )
             source = {
                 "completion_record_id": None,
@@ -7508,8 +9237,7 @@ class StateWriter:
                 or activation.payload.get("event_kind") != "authority_migrated"
             ):
                 raise TransitionError("Study KPI activation authority is unavailable")
-            existing_kpis = index.records_by_kind("study-kpi")
-            if existing_kpis:
+            if index.count_by_kind("study-kpi"):
                 raise TransitionError("Historical Study KPI backfill is already populated")
             all_closes = tuple(index.records_by_kind("study-close"))
             historical_closes = tuple(
@@ -7632,6 +9360,19 @@ class StateWriter:
         with WriterLock(self.lock_path):
             with self._open_authoritative_index() as index:
                 self._require_stable_locked(index)
+                historical_backfills_by_event: dict[str, list[IndexRecord]] = {}
+                for backfill in index.records_by_subject_status(
+                    "StudyKpi:historical",
+                    "complete",
+                ):
+                    if (
+                        backfill.kind == "study-kpi-backfill"
+                        and isinstance(backfill.authority_event_id, str)
+                    ):
+                        historical_backfills_by_event.setdefault(
+                            backfill.authority_event_id,
+                            [],
+                        ).append(backfill)
                 for record in index.records_by_kind("study-kpi"):
                     payload = record.payload
                     expected_fields = {
@@ -7658,8 +9399,7 @@ class StateWriter:
                         set(payload) != expected_fields
                         or not isinstance(metrics, Mapping)
                         or set(metrics) != set(_STUDY_KPI_METRICS)
-                        or isinstance(sequence, bool)
-                        or not isinstance(sequence, int)
+                        or type(sequence) is not int
                         or record.record_id != study_id
                         or record.subject != f"Study:{study_id}"
                         or record.status != outcome
@@ -7727,6 +9467,14 @@ class StateWriter:
                             f"study-batches:{study_id}"
                         )
                         reason_status = allowed_reasons.get(unavailable_reason)
+                        job_inventory = (
+                            None
+                            if batch_head is None or reason_status is None
+                            else _batch_job_decision_inventory(
+                                index,
+                                batch_id=batch_head.record_id,
+                            )
+                        )
                         close_records = (
                             ()
                             if batch_head is None or reason_status is None
@@ -7746,6 +9494,7 @@ class StateWriter:
                                 index,
                                 batch_head.record_id,
                                 reason_status,
+                                job_inventory,
                             )
                         )
                         if (
@@ -7761,6 +9510,7 @@ class StateWriter:
                             or self._batch_stop_completion_ids(
                                 index,
                                 batch_head.record_id,
+                                job_inventory,
                             )
                             or len(close_records) != 1
                         ):
@@ -7833,18 +9583,15 @@ class StateWriter:
                             )
                         )
                         backfill_records = tuple(
-                            item
-                            for item in index.records_by_kind(
-                                "study-kpi-backfill"
+                            historical_backfills_by_event.get(
+                                record.authority_event_id,
+                                (),
                             )
-                            if item.authority_event_id
-                            == record.authority_event_id
                         )
                         if (
                             authority_event is None
                             or authority_event.status != "study_kpi_backfilled"
-                            or isinstance(historical_close_revision, bool)
-                            or not isinstance(historical_close_revision, int)
+                            or type(historical_close_revision) is not int
                             or event is None
                             or event.status != "study_closed"
                             or event.authority_sequence
@@ -8059,6 +9806,11 @@ class StateWriter:
         study_id: str,
         close_record: IndexRecord,
     ) -> list[dict[str, str]]:
+        from axiom_rift.operations.scientific_history import (
+            ScientificHistoryProjectionError,
+            project_study_job_evidence,
+        )
+
         references: set[tuple[str, str]] = {
             ("study-close", close_record.record_id)
         }
@@ -8090,20 +9842,21 @@ class StateWriter:
         if len(batch_closes) != 1:
             raise TransitionError("Study diagnosis final Batch close is ambiguous")
         references.add(("batch-close", batch_closes[0].record_id))
-        for completion in index.records_by_kind("job-completed"):
-            job_id = completion.payload.get("job_id")
-            declaration = (
-                None
-                if not isinstance(job_id, str)
-                else index.get("job-declared", job_id)
+        try:
+            job_evidence = project_study_job_evidence(
+                index,
+                study_id=study_id,
             )
-            if declaration is not None and declaration.payload.get(
-                "study_id"
-            ) == study_id:
-                references.add(("job-completed", completion.record_id))
-        for memory in index.records_by_kind("negative-memory"):
-            if memory.payload.get("study_id") == study_id:
-                references.add(("negative-memory", memory.record_id))
+        except ScientificHistoryProjectionError as exc:
+            raise TransitionError(str(exc)) from exc
+        references.update(
+            ("job-completed", completion.record_id)
+            for completion in job_evidence.completions
+        )
+        references.update(
+            ("negative-memory", memory.record_id)
+            for memory in job_evidence.negative_memories
+        )
         return [
             {"kind": kind, "record_id": record_id}
             for kind, record_id in sorted(references)
@@ -8242,10 +9995,13 @@ class StateWriter:
                 "system_architecture_family": architecture,
             }
             prior_diagnoses: list[IndexRecord] = []
-            for record in index.records_by_kind("study-diagnosis"):
+            for record in index.records_by_payload_text(
+                "study-diagnosis",
+                "mission_id",
+                science["active_mission"],
+            ):
                 if (
-                    record.payload.get("mission_id") != science["active_mission"]
-                    or record.payload.get("evidence_state")
+                    record.payload.get("evidence_state")
                     in {
                         EvidenceState.ENGINEERING_GAP.value,
                         EvidenceState.SUPPORTED_REQUIRES_CONFIRMATION.value,
@@ -8268,15 +10024,18 @@ class StateWriter:
                 ):
                     prior_diagnoses.append(record)
             reviewed_ids: set[str] = set()
-            for review in index.records_by_kind("architecture-review"):
-                if review.payload.get("mission_id") == science["active_mission"]:
-                    reviewed_ids.update(
-                        value
-                        for value in review.payload.get(
-                            "covered_diagnosis_ids", []
-                        )
-                        if isinstance(value, str)
+            for review in index.records_by_payload_text(
+                "architecture-review",
+                "mission_id",
+                science["active_mission"],
+            ):
+                reviewed_ids.update(
+                    value
+                    for value in review.payload.get(
+                        "covered_diagnosis_ids", []
                     )
+                    if isinstance(value, str)
+                )
             unreviewed = [
                 record for record in prior_diagnoses if record.record_id not in reviewed_ids
             ]
@@ -8427,6 +10186,12 @@ class StateWriter:
             ArchitectureReview,
             ArchitectureReviewConclusion,
         )
+        from axiom_rift.operations.architecture_review_direction import (
+            ArchitectureReviewDirectionError,
+            constraint_from_direction,
+            require_existing_axis_binding,
+            require_review_binding,
+        )
 
         self._require_study_close_delivery_guard()
         if self.engineering_fixture:
@@ -8477,6 +10242,66 @@ class StateWriter:
                     "primary_research_layers"
                 ],
             }
+            continuation = None
+            if (
+                review.conclusion
+                is ArchitectureReviewConclusion.BOUNDED_SAME_ARCHITECTURE
+            ):
+                assert review.continuation_direction is not None
+                continuation = constraint_from_direction(
+                    architecture_review_id=review.identity,
+                    direction=review.continuation_direction,
+                )
+                try:
+                    require_review_binding(
+                        continuation,
+                        review_record_id=review.identity,
+                        review_payload=payload,
+                        trigger_payload=trigger.payload,
+                    )
+                except ArchitectureReviewDirectionError as exc:
+                    raise TransitionError(str(exc)) from exc
+                snapshot = index.get(
+                    "portfolio-snapshot",
+                    trigger.payload["portfolio_snapshot_id"],
+                )
+                if snapshot is None:
+                    raise RecoveryRequired(
+                        "architecture review lost its Portfolio snapshot"
+                    )
+                axis_values = tuple(snapshot.payload.get("axes", []))
+                axes_by_id = {
+                    axis["axis_id"]: axis
+                    for axis in axis_values
+                    if isinstance(axis, Mapping)
+                    and isinstance(axis.get("axis_id"), str)
+                }
+                resolutions = self._effective_axis_resolutions(index, axis_values)
+                selectable_axis_ids = frozenset(
+                    axis["axis_id"]
+                    for axis, resolution in zip(
+                        axis_values,
+                        resolutions,
+                        strict=True,
+                    )
+                    if resolution.decision_option_eligible
+                )
+                resolved_families = {
+                    axis_id: self._axis_resolved_architecture_family(
+                        index=index,
+                        axis=axis,
+                    )
+                    for axis_id, axis in axes_by_id.items()
+                }
+                try:
+                    require_existing_axis_binding(
+                        continuation,
+                        axes_by_id=axes_by_id,
+                        selectable_axis_ids=selectable_axis_ids,
+                        resolved_architecture_families=resolved_families,
+                    )
+                except ArchitectureReviewDirectionError as exc:
+                    raise TransitionError(str(exc)) from exc
             body = self._body(current)
             body["next_action"] = {
                 "kind": "portfolio_decision",
@@ -8484,7 +10309,9 @@ class StateWriter:
                 "constraint_source_id": review.identity,
                 "portfolio_snapshot_id": trigger.payload["portfolio_snapshot_id"],
             }
-            if (
+            if continuation is not None:
+                body["next_action"].update(continuation.to_action_fields())
+            elif (
                 review.conclusion
                 == ArchitectureReviewConclusion.ROTATE_ARCHITECTURE
             ):
@@ -8515,653 +10342,42 @@ class StateWriter:
 
     @staticmethod
     def _normalize_job_spec(spec: Mapping[str, Any]) -> dict[str, Any]:
-        value = _copy(spec)
-        for name in ("input_hashes", "expected_outputs"):
-            if isinstance(value.get(name), list):
-                value[name] = sorted(value[name])
-        claims = value.get("worker_claims")
-        if isinstance(claims, list):
-            for claim in claims:
-                if isinstance(claim, dict):
-                    for name in ("inputs", "outputs", "resources"):
-                        if isinstance(claim.get(name), list):
-                            claim[name] = sorted(claim[name])
-            value["worker_claims"] = sorted(
-                claims,
-                key=lambda claim: (
-                    claim.get("worker_id", "") if isinstance(claim, dict) else ""
-                ),
-            )
-        for binding_name in (
-            "component_parity_binding",
-            "runtime_binding",
-            "scientific_binding",
-        ):
-            binding = value.get(binding_name)
-            if isinstance(binding, dict):
-                for name in (
-                    "evidence_modes",
-                    "planned_claims",
-                    "planned_parity_surfaces",
-                    "planned_materialization_cases",
-                    "dimensions",
-                ):
-                    if isinstance(binding.get(name), list):
-                        binding[name] = sorted(binding[name])
-        return value
+        return normalize_job_spec(spec)
 
     @staticmethod
     def _validate_job_spec(spec: Mapping[str, Any]) -> None:
-        required = {
-            "callable_identity",
-            "implementation_identity",
-            "input_hashes",
-            "budget",
-            "expected_outputs",
-            "output_classes",
-            "log_path",
-            "timeout_or_stop_rule",
-            "resume_action",
-            "worker_claims",
-            "evidence_subject",
-        }
-        missing = required - set(spec)
-        if missing:
-            raise TransitionError(f"Job spec missing fields: {sorted(missing)!r}")
-        unexpected = set(spec) - required - {
-            "changed_cause_proof_hash",
-            "external_dependency_binding",
-            "holdout_binding",
-            "runtime_binding",
-            "scientific_binding",
-            "source_binding",
-            "component_parity_binding",
-        }
-        if unexpected:
-            raise TransitionError(f"Job spec has unknown fields: {sorted(unexpected)!r}")
-        changed_proof = spec.get("changed_cause_proof_hash")
-        if changed_proof is not None:
-            _require_digest("changed_cause_proof_hash", changed_proof)
-        _require_digest("implementation_identity", spec["implementation_identity"])
-        for name in ("callable_identity", "log_path", "timeout_or_stop_rule", "resume_action"):
-            _require_ascii(name, spec[name])
-        input_hashes = spec["input_hashes"]
-        if not isinstance(input_hashes, list) or not input_hashes:
-            raise TransitionError("input_hashes must be a non-empty list")
-        for input_hash in input_hashes:
-            _require_digest("input hash", input_hash)
-        expected_outputs = spec["expected_outputs"]
-        output_classes = spec["output_classes"]
-        if (
-            not isinstance(expected_outputs, list)
-            or not expected_outputs
-            or any(not isinstance(item, str) for item in expected_outputs)
-            or len(set(expected_outputs)) != len(expected_outputs)
-        ):
-            raise TransitionError("expected_outputs must be a unique non-empty string list")
-        if not isinstance(output_classes, dict) or set(output_classes) != set(expected_outputs):
-            raise TransitionError("output_classes must classify every expected output exactly")
-        allowed_classes = {"durable_evidence", "reproducible_cache", "transient"}
-        if any(value not in allowed_classes for value in output_classes.values()):
-            raise TransitionError("Job output has an invalid storage class")
-        for output_name, output_class in output_classes.items():
-            path = Path(output_name)
-            if path.is_absolute() or ".." in path.parts:
-                raise TransitionError("Job output path escapes the repository")
-            if output_class == "transient" and path.parts[:2] != ("local", "jobs"):
-                raise TransitionError("transient outputs must stay under local/jobs")
-            if output_class == "reproducible_cache" and path.parts[:2] != (
-                "local",
-                "cache",
-            ):
-                raise TransitionError("reproducible cache must stay under local/cache")
-        budget = spec["budget"]
-        if (
-            not isinstance(budget, dict)
-            or not budget
-            or any(
-                isinstance(value, bool) or not isinstance(value, int) or value <= 0
-                for value in budget.values()
+        try:
+            validate_job_spec(
+                spec,
+                evidence_modes_validator=_require_study_evidence_modes,
             )
-        ):
-            raise TransitionError("Job budget must contain positive integer bounds")
-        if not {"compute_seconds", "wall_seconds"}.issubset(budget):
-            raise TransitionError("Job budget must bind compute_seconds and wall_seconds")
-        evidence_subject = spec["evidence_subject"]
-        if (
-            not isinstance(evidence_subject, dict)
-            or set(evidence_subject) != {"kind", "id"}
-            or evidence_subject["kind"]
-            not in {"Mission", "Initiative", "Study", "Executable", "Release"}
-        ):
-            raise TransitionError("Job evidence_subject is invalid")
-        _require_ascii("evidence subject id", evidence_subject["id"])
-        claims = spec["worker_claims"]
-        if not isinstance(claims, list):
-            raise TransitionError("worker_claims must be a list")
-        inputs: set[str] = set()
-        outputs: set[str] = set()
-        resources: set[str] = set()
-        worker_ids: set[str] = set()
-        for claim in claims:
-            if not isinstance(claim, dict):
-                raise TransitionError("worker claim must be an object")
-            worker_id = _require_ascii("worker_id", claim.get("worker_id"))
-            if worker_id in worker_ids:
-                raise TransitionError("worker_id values must be unique")
-            worker_ids.add(worker_id)
-            for key, seen in (("inputs", inputs), ("outputs", outputs), ("resources", resources)):
-                values = claim.get(key, [])
-                if not isinstance(values, list) or any(not isinstance(item, str) for item in values):
-                    raise TransitionError(f"worker {key} must be a string list")
-                if len(set(values)) != len(values):
-                    raise TransitionError(f"worker {key} has duplicate claims")
-                overlap = seen.intersection(values)
-                if overlap:
-                    raise TransitionError(f"worker {key} overlap: {sorted(overlap)!r}")
-                seen.update(values)
-        runtime_binding = spec.get("runtime_binding")
-        scientific_binding = spec.get("scientific_binding")
-        source_binding = spec.get("source_binding")
-        component_parity_binding = spec.get("component_parity_binding")
-        external_binding = spec.get("external_dependency_binding")
-        if sum(
-            binding is not None
-            for binding in (
-                component_parity_binding,
-                runtime_binding,
-                scientific_binding,
-                source_binding,
-                external_binding,
-            )
-        ) > 1:
-            raise TransitionError("Job cannot mix evidence-domain bindings")
-        holdout_binding = spec.get("holdout_binding")
-        if holdout_binding is not None:
-            if (
-                not isinstance(holdout_binding, dict)
-                or set(holdout_binding) != {"holdout_id"}
-                or scientific_binding is None
-                or scientific_binding.get("evidence_depth") != "confirmation"
-                or evidence_subject["kind"] != "Executable"
-            ):
-                raise TransitionError(
-                    "holdout Job requires confirmation scientific binding"
-                )
-            holdout_id = holdout_binding["holdout_id"]
-            if (
-                type(holdout_id) is not str
-                or not holdout_id.startswith("holdout:")
-                or len(holdout_id) != 72
-            ):
-                raise TransitionError("holdout_binding identity is invalid")
-            if holdout_id.removeprefix("holdout:") not in input_hashes:
-                raise TransitionError("holdout identity must be a bound Job input")
-        if external_binding is not None:
-            try:
-                external_plan_from_binding(external_binding)
-            except ExternalDependencyContractError as exc:
-                raise TransitionError(str(exc)) from exc
-            if evidence_subject["kind"] != "Mission":
-                raise TransitionError("external dependency Job must bind the Mission")
-
-        def validate_validator_binding(binding: Mapping[str, Any]) -> None:
-            validator_id = binding.get("validator_id")
-            validator_digest = (
-                validator_id.removeprefix("validator:")
-                if isinstance(validator_id, str)
-                else ""
-            )
-            _require_digest("validator identity", validator_digest)
-            plan_hash = binding.get("validation_plan_hash")
-            _require_digest("validation_plan_hash", plan_hash)
-            if plan_hash not in input_hashes:
-                raise TransitionError(
-                    "validation plan must be a content-bound Job input"
-                )
-
-        if external_binding is not None:
-            validate_validator_binding(external_binding)
-            result_output = external_binding["result_manifest_output"]
-            if output_classes.get(result_output) != "durable_evidence":
-                raise TransitionError(
-                    "external dependency result manifest must be durable"
-                )
-            if sum(value == "durable_evidence" for value in output_classes.values()) < 2:
-                raise TransitionError(
-                    "external dependency Job requires result and measurement artifacts"
-                )
-
-        if source_binding is not None:
-            if not isinstance(source_binding, dict) or set(source_binding) != {
-                "result_manifest_output",
-                "source_contract_id",
-                "transition_evidence",
-                "validation_plan_hash",
-                "validator_id",
-            }:
-                raise TransitionError("source_binding has an invalid schema")
-            validate_validator_binding(source_binding)
-            source_id = source_binding["source_contract_id"]
-            if (
-                type(source_id) is not str
-                or not source_id.startswith("source:")
-                or len(source_id) != 71
-            ):
-                raise TransitionError("source Job requires a SourceContract identity")
-            if source_binding["transition_evidence"] not in {
-                "historical_audit",
-                "runtime_availability_proof",
-                "drift",
-                "same_semantics_recertification",
-            }:
-                raise TransitionError("source Job transition evidence is not typed")
-            result_output = source_binding["result_manifest_output"]
-            if output_classes.get(result_output) != "durable_evidence":
-                raise TransitionError("source result manifest must be durable output")
-            if sum(value == "durable_evidence" for value in output_classes.values()) < 2:
-                raise TransitionError("source Job requires result and measurement artifacts")
-        if scientific_binding is not None:
-            required_scientific_fields = {
-                "evidence_depth",
-                "evidence_modes",
-                "planned_claims",
-                "result_manifest_output",
-                "validation_plan_hash",
-                "validator_id",
-            }
-            allowed_scientific_fields = required_scientific_fields | {
-                "evaluation_schema"
-            }
-            if (
-                not isinstance(scientific_binding, dict)
-                or not required_scientific_fields.issubset(scientific_binding)
-                or not set(scientific_binding).issubset(allowed_scientific_fields)
-            ):
-                raise TransitionError("scientific_binding has an invalid schema")
-            validate_validator_binding(scientific_binding)
-            if "evaluation_schema" in scientific_binding:
-                _require_ascii(
-                    "scientific evaluation schema",
-                    scientific_binding["evaluation_schema"],
-                )
-            if scientific_binding["evidence_depth"] not in {
-                "discovery",
-                "confirmation",
-            }:
-                raise TransitionError("scientific Job evidence depth is invalid")
-            executed_modes = _require_study_evidence_modes(scientific_binding)
-            if list(executed_modes) != scientific_binding["evidence_modes"]:
-                raise TransitionError("scientific Job evidence modes are not canonical")
-            planned_claims = scientific_binding["planned_claims"]
-            if (
-                not isinstance(planned_claims, list)
-                or not planned_claims
-                or len(set(planned_claims)) != len(planned_claims)
-            ):
-                raise TransitionError("scientific Job claims must be preregistered")
-            for claim in planned_claims:
-                _require_ascii("scientific claim", claim)
-            result_output = scientific_binding["result_manifest_output"]
-            if output_classes.get(result_output) != "durable_evidence":
-                raise TransitionError("scientific result manifest must be durable")
-            if sum(value == "durable_evidence" for value in output_classes.values()) < 2:
-                raise TransitionError(
-                    "scientific Job requires result and measurement artifacts"
-                )
-            if evidence_subject["kind"] != "Executable":
-                raise TransitionError("scientific Job must bind an Executable")
-        if component_parity_binding is not None:
-            required_parity_fields = {
-                "architecture_chassis_identity",
-                "canonical_component_id",
-                "canonical_component_manifest",
-                "dimensions",
-                "equivalent_component_id",
-                "equivalent_component_manifest",
-                "portfolio_axis_identity",
-                "portfolio_decision_id",
-                "portfolio_snapshot_id",
-                "result_manifest_output",
-                "validation_plan_hash",
-                "validator_id",
-            }
-            if (
-                not isinstance(component_parity_binding, dict)
-                or set(component_parity_binding) != required_parity_fields
-            ):
-                raise TransitionError("component parity binding schema is invalid")
-            validate_validator_binding(component_parity_binding)
-            from axiom_rift.research.chassis import (
-                ComponentParityDimension,
-                component_semantic_surface_identity,
-            )
-
-            expected_dimensions = sorted(
-                value.value for value in ComponentParityDimension
-            )
-            if component_parity_binding["dimensions"] != expected_dimensions:
-                raise TransitionError(
-                    "component parity must preregister every typed dimension"
-                )
-            manifests: list[dict[str, Any]] = []
-            component_ids: list[str] = []
-            for prefix in ("canonical", "equivalent"):
-                component_id = component_parity_binding[f"{prefix}_component_id"]
-                manifest = component_parity_binding[
-                    f"{prefix}_component_manifest"
-                ]
-                if not isinstance(manifest, dict):
-                    raise TransitionError("component parity manifest is malformed")
-                expected_id = "component:" + canonical_digest(
-                    domain="component", payload=manifest
-                )
-                if component_id != expected_id:
-                    raise TransitionError(
-                        "component parity endpoint differs from its exact manifest"
-                    )
-                component_ids.append(component_id)
-                manifests.append(manifest)
-            if component_ids[0] == component_ids[1]:
-                raise TransitionError("component parity endpoints must be distinct")
-            protocols = [manifest.get("protocol") for manifest in manifests]
-            if any(not isinstance(value, str) for value in protocols) or (
-                protocols[0].split(".", 1)[0]
-                != protocols[1].split(".", 1)[0]
-            ):
-                raise TransitionError("component parity cannot cross protocol domains")
-            if (
-                protocols[0] != protocols[1]
-                and component_semantic_surface_identity(manifests[0])
-                == component_semantic_surface_identity(manifests[1])
-            ):
-                raise TransitionError(
-                    "protocol-only component identity bumps cannot receive parity"
-                )
-            for component_id in component_ids:
-                component_digest = component_id.removeprefix("component:")
-                _require_digest("component parity input", component_digest)
-                if component_digest not in input_hashes:
-                    raise TransitionError(
-                        "component parity endpoints must be content-bound Job inputs"
-                    )
-            for name in (
-                "architecture_chassis_identity",
-                "portfolio_axis_identity",
-                "portfolio_decision_id",
-                "portfolio_snapshot_id",
-            ):
-                _require_ascii(name, component_parity_binding[name])
-            result_output = component_parity_binding["result_manifest_output"]
-            if output_classes.get(result_output) != "durable_evidence":
-                raise TransitionError(
-                    "component parity result manifest must be durable"
-                )
-            if sum(
-                value == "durable_evidence" for value in output_classes.values()
-            ) < 2:
-                raise TransitionError(
-                    "component parity requires result and measurement artifacts"
-                )
-            if evidence_subject["kind"] != "Mission":
-                raise TransitionError("component parity Job must bind the Mission")
-        if runtime_binding is not None:
-            from axiom_rift.runtime.guards import (
-                EvidenceDepth,
-                REQUIRED_CASES,
-                REQUIRED_PARITY,
-                REQUIRED_RELEASE_ARTIFACT_ROLES,
-            )
-
-            if not isinstance(runtime_binding, dict) or set(runtime_binding) != {
-                "action",
-                "evidence_depth",
-                "planned_materialization_cases",
-                "planned_parity_surfaces",
-                "result_manifest_output",
-                "artifact_roles",
-                "numeric_tolerances",
-                "validation_plan_hash",
-                "validator_id",
-            }:
-                raise TransitionError("runtime_binding has an invalid schema")
-            validate_validator_binding(runtime_binding)
-            action = runtime_binding["action"]
-            depth = runtime_binding["evidence_depth"]
-            expected_action = {
-                EvidenceDepth.EXECUTION_PROOF.value: "run_execution_proof",
-                EvidenceDepth.MATERIALIZATION.value: "materialize",
-            }.get(depth)
-            if action != expected_action:
-                raise TransitionError("runtime Job action and evidence depth conflict")
-            parity = runtime_binding["planned_parity_surfaces"]
-            cases = runtime_binding["planned_materialization_cases"]
-            if (
-                not isinstance(parity, list)
-                or any(type(item) is not str for item in parity)
-                or len(set(parity)) != len(parity)
-                or not set(parity).issubset(REQUIRED_PARITY)
-                or not isinstance(cases, list)
-                or any(type(item) is not str for item in cases)
-                or len(set(cases)) != len(cases)
-                or not set(cases).issubset(REQUIRED_CASES)
-            ):
-                raise TransitionError("runtime Job planned claims are invalid")
-            if depth == EvidenceDepth.EXECUTION_PROOF.value and (not parity or cases):
-                raise TransitionError("execution proof must preregister parity only")
-            if depth == EvidenceDepth.MATERIALIZATION.value and (not cases or parity):
-                raise TransitionError("materialization must preregister cases only")
-            if evidence_subject["kind"] != "Executable":
-                raise TransitionError("runtime Job must bind an Executable")
-            if not any(value == "durable_evidence" for value in output_classes.values()):
-                raise TransitionError("runtime Job requires durable evidence output")
-            result_output = runtime_binding["result_manifest_output"]
-            if (
-                type(result_output) is not str
-                or output_classes.get(result_output) != "durable_evidence"
-            ):
-                raise TransitionError(
-                    "runtime Job result manifest must be a declared durable output"
-                )
-            if sum(
-                value == "durable_evidence" for value in output_classes.values()
-            ) < 2:
-                raise TransitionError(
-                    "runtime Job requires a result manifest and measurement artifact"
-                )
-            tolerances = runtime_binding["numeric_tolerances"]
-            if not isinstance(tolerances, dict):
-                raise TransitionError("runtime numeric tolerances must be preregistered")
-            canonical_bytes(tolerances)
-            artifact_roles = runtime_binding["artifact_roles"]
-            if (
-                not isinstance(artifact_roles, dict)
-                or not artifact_roles
-                or not set(artifact_roles).issubset(REQUIRED_RELEASE_ARTIFACT_ROLES)
-                or len(set(artifact_roles.values())) != len(artifact_roles)
-            ):
-                raise TransitionError("runtime artifact roles are invalid")
-            for role, output_name in artifact_roles.items():
-                _require_ascii("runtime artifact role", role)
-                _require_ascii("runtime artifact output", output_name)
-                if (
-                    output_name == result_output
-                    or output_classes.get(output_name) != "durable_evidence"
-                ):
-                    raise TransitionError(
-                        "runtime artifact roles require distinct durable outputs"
-                    )
-
-    def _historical_replay_implementation_control_ids(
-        self,
-        index: LocalIndex,
-        *,
-        study_id: object,
-        mission_id: object,
-    ) -> tuple[str, ...]:
-        """Return exact historical Study IDs declared by replay obligations."""
-
-        if not isinstance(study_id, str) or not isinstance(mission_id, str):
-            return ()
-        study = index.get("study-open", study_id)
-        if study is None:
-            raise RecoveryRequired(
-                "active Study declaration is unavailable for Job implementation"
-            )
-        obligation_ids = study.payload.get("replay_obligation_ids", [])
-        if (
-            not isinstance(obligation_ids, list)
-            or any(type(value) is not str for value in obligation_ids)
-            or len(obligation_ids) != len(set(obligation_ids))
-        ):
-            raise RecoveryRequired(
-                "Study replay obligation binding is malformed"
-            )
-        historical_ids: set[str] = set()
-        for obligation_id in obligation_ids:
-            record = index.get(
-                "historical-replay-obligation", obligation_id
-            )
-            obligation = (
-                None
-                if record is None
-                else record.payload.get("obligation")
-            )
-            original_study_id = (
-                None
-                if not isinstance(obligation, Mapping)
-                else obligation.get("original_study_id")
-            )
-            if (
-                record is None
-                or record.subject != f"Mission:{mission_id}"
-                or not isinstance(obligation, Mapping)
-                or obligation.get("schema")
-                != "historical_replay_obligation.v1"
-                or obligation.get("governing_mission_id") != mission_id
-                or type(original_study_id) is not str
-                or _STUDY_BOUND_IMPLEMENTATION_PATTERN.fullmatch(
-                    original_study_id
-                )
-                is None
-                or original_study_id == study_id
-            ):
-                raise RecoveryRequired(
-                    "Study historical replay implementation lineage is invalid"
-                )
-            historical_ids.add(original_study_id)
-        return tuple(sorted(historical_ids))
+        except JobContractError as exc:
+            raise TransitionError(str(exc)) from exc
 
     def _require_job_implementation_evidence(
         self,
         spec: Mapping[str, Any],
-        *,
-        allowed_historical_control_ids: tuple[str, ...] = (),
     ) -> Mapping[str, Any]:
-        """Resolve one Job implementation identity to its exact stored bytes."""
-
-        if (
-            any(
-                type(value) is not str
-                or _STUDY_BOUND_IMPLEMENTATION_PATTERN.fullmatch(value) is None
-                for value in allowed_historical_control_ids
-            )
-            or tuple(sorted(set(allowed_historical_control_ids)))
-            != allowed_historical_control_ids
-        ):
-            raise TransitionError(
-                "historical implementation control-id allowance is invalid"
-            )
-        allowed_historical = set(allowed_historical_control_ids)
-
-        identity = spec["implementation_identity"]
         try:
-            implementation_manifest = parse_canonical(
-                self.evidence.read_verified(identity)
+            return require_job_implementation_evidence(
+                spec,
+                artifact_reader=self.evidence.read_verified,
             )
-        except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
-            raise TransitionError(
-                "Job implementation identity is not available canonical evidence"
-            ) from exc
-        if (
-            not isinstance(implementation_manifest, dict)
-            or set(implementation_manifest)
-            != {"artifact_hashes", "callable_identity", "protocol", "schema"}
-            or implementation_manifest.get("schema")
-            != "job_implementation_evidence.v1"
-            or implementation_manifest.get("callable_identity")
-            != spec["callable_identity"]
-            or type(implementation_manifest.get("protocol")) is not str
-            or not implementation_manifest["protocol"]
-            or not implementation_manifest["protocol"].isascii()
-            or not isinstance(implementation_manifest.get("artifact_hashes"), list)
-            or not implementation_manifest["artifact_hashes"]
-            or any(
-                type(source_hash) is not str
-                for source_hash in implementation_manifest["artifact_hashes"]
-            )
-            or len(set(implementation_manifest["artifact_hashes"]))
-            != len(implementation_manifest["artifact_hashes"])
-            or implementation_manifest["artifact_hashes"]
-            != sorted(implementation_manifest["artifact_hashes"])
-        ):
-            raise TransitionError("Job implementation evidence manifest is invalid")
-        for source_hash in implementation_manifest["artifact_hashes"]:
-            try:
-                _require_digest("implementation artifact", source_hash)
-                source_bytes = self.evidence.read_verified(source_hash)
-                hardcoded = set(_hardcoded_control_ids(source_bytes))
-                if hardcoded.difference(allowed_historical):
-                    raise TransitionError(
-                        "Job implementation hardcodes a Mission or Study identity "
-                        "outside declared historical replay lineage; use a reusable "
-                        "mechanism with declarative runtime binding"
-                    )
-            except TransitionError:
-                raise
-            except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
-                raise TransitionError(
-                    "Job implementation artifact bytes are unavailable"
-                ) from exc
-        return implementation_manifest
+        except JobImplementationAuthorityError as exc:
+            raise TransitionError(str(exc)) from exc
 
     def _require_reusable_success_outputs(
         self, *, completion: IndexRecord, spec: Mapping[str, Any]
     ) -> None:
-        """Fail closed when a cached success no longer has its exact outputs."""
-
-        outputs = completion.payload.get("outputs")
-        output_classes = spec["output_classes"]
-        if not isinstance(outputs, dict):
-            raise RecoveryRequired("successful Job cache has no output manifest")
-        for output_name in spec["expected_outputs"]:
-            output_hash = outputs.get(output_name)
-            try:
-                _require_digest("cached output hash", output_hash)
-                output_class = output_classes[output_name]
-                if output_class == "durable_evidence":
-                    self.evidence.verify(output_hash)
-                    continue
-                if output_class == "transient":
-                    raise RecoveryRequired(
-                        "successful Job cache cannot reuse transient output"
-                    )
-                target = (self.root / output_name).resolve()
-                cache_root = (self.root / "local" / "cache").resolve()
-                if cache_root not in target.parents or not target.is_file():
-                    raise RecoveryRequired(
-                        "successful Job cache output is unavailable"
-                    )
-                if sha256(target.read_bytes()).hexdigest() != output_hash:
-                    raise RecoveryRequired(
-                        "successful Job cache output hash mismatch"
-                    )
-            except RecoveryRequired:
-                raise
-            except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
-                raise RecoveryRequired(
-                    "successful Job cache output is unavailable or corrupt"
-                ) from exc
+        try:
+            require_reusable_success_outputs(
+                completion_payload=completion.payload,
+                spec=spec,
+                repository_root=self.root,
+                durable_verifier=self.evidence.verify,
+            )
+        except JobCacheAuthorityError as exc:
+            raise RecoveryRequired(str(exc)) from exc
 
     def _preflight_scientific_binding(self, spec: Mapping[str, Any]) -> None:
         binding = spec.get("scientific_binding")
@@ -9237,6 +10453,7 @@ class StateWriter:
                 raise TransitionError("control is absent")
             body = self._body(current)
             science = body["scientific"]
+            return_next_action = _copy(body["next_action"])
             if science["active_mission"] is None:
                 raise TransitionError("Job requires an active Mission")
             if science["active_job"] is not None:
@@ -9295,215 +10512,330 @@ class StateWriter:
                     raise TransitionError(
                         "prospective scientific Job must use the active v2 protocol"
                     )
-            if not self.engineering_fixture:
-                next_action = current.get("next_action")
-                active_batch = science.get("active_batch")
-                parity_binding = spec.get("component_parity_binding")
-                parity_at_accepted_decision = (
-                    isinstance(next_action, dict)
-                    and next_action.get("kind") == "execute_portfolio_decision"
-                    and isinstance(parity_binding, dict)
-                    and parity_binding.get("portfolio_decision_id")
-                    == next_action.get("decision_id")
-                    and parity_binding.get("portfolio_snapshot_id")
-                    == next_action.get("portfolio_snapshot_id")
-                    and parity_binding.get("portfolio_axis_identity")
-                    == next_action.get("target_axis_identity")
-                    and parity_binding.get("architecture_chassis_identity")
-                    == next_action.get("architecture_chassis_identity")
-                )
-                if isinstance(parity_binding, dict) and not parity_at_accepted_decision:
-                    raise TransitionError(
-                        "component parity Job must bind the exact accepted Portfolio Decision"
-                    )
-                batch_allowed = isinstance(active_batch, dict) and next_action == {
-                    "kind": "declare_job",
-                    "batch_id": active_batch["id"],
-                }
-                active_executable = science.get("active_executable")
-                candidate_allowed = (
-                    isinstance(active_executable, str)
-                    and isinstance(next_action, dict)
-                    and next_action.get("kind") == "plan_candidate_bound_evidence"
-                    and spec["evidence_subject"]
-                    == {"kind": "Executable", "id": active_executable}
-                    and any(
-                        isinstance(spec.get(name), dict)
-                        for name in ("runtime_binding", "scientific_binding")
+            try:
+                external_plan_records.extend(
+                    require_job_admission(
+                        engineering_fixture=self.engineering_fixture,
+                        current=current,
+                        science=science,
+                        spec=spec,
+                        external_binding=external_binding,
+                        external_plan=external_plan,
+                        index=_index,
+                        record_builder=_record,
+                        active_decision_loader=self._active_portfolio_decision,
                     )
                 )
-                source_allowed = (
-                    isinstance(science.get("active_study"), str)
-                    and isinstance(spec.get("source_binding"), dict)
+            except JobAdmissionAuthorityError as exc:
+                raise TransitionError(str(exc)) from exc
+            mission_id = science["active_mission"]
+            scientific_lineage_material_identity: str | None = None
+            if (
+                isinstance(scientific_binding, dict)
+                and not self.engineering_fixture
+            ):
+                lineage_study_id = science["active_study"]
+                if not isinstance(lineage_study_id, str):
+                    evidence_subject = spec["evidence_subject"]
+                    trial = (
+                        _index.get("trial", evidence_subject["id"])
+                        if evidence_subject["kind"] == "Executable"
+                        else None
+                    )
+                    lineage_study_id = (
+                        None if trial is None else trial.payload.get("study_id")
+                    )
+                lineage_study = (
+                    None
+                    if not isinstance(lineage_study_id, str)
+                    else _index.get("study-open", lineage_study_id)
                 )
-                external_allowed = False
-                if external_plan is not None and isinstance(external_binding, dict):
-                    mission_id = science["active_mission"]
-                    if external_plan.condition.resume_action.mission_id != mission_id:
-                        raise TransitionError(
-                            "external recovery plan is bound to another Mission"
+                declared_modes = set(scientific_binding["evidence_modes"])
+                if (
+                    lineage_study is None
+                    or lineage_study.payload.get("mission_id") != mission_id
+                    or not declared_modes.issubset(
+                        _require_study_evidence_modes(
+                            lineage_study.payload.get("question", {})
                         )
-                    if any(
-                        science.get(name) is not None
-                        for name in (
-                            "active_batch",
-                            "active_executable",
-                            "active_holdout_evaluation",
-                            "active_initiative",
-                            "active_lineage",
-                            "active_release",
-                            "active_repair",
-                            "active_study",
-                        )
-                    ):
-                        raise TransitionError(
-                            "external recovery Job requires disposed subordinate work"
-                        )
-                    plan_record = _index.get(
-                        "external-recovery-plan", external_plan.identity
-                    )
-                    path = external_plan.path(
-                        external_binding["recovery_path_id"]
-                    )
-                    first_path = external_plan.paths[0]
-                    first_boundary = (
-                        plan_record is None
-                        and path == first_path
-                        and external_plan.boundary_event_id
-                        == current.get("heads", {}).get("journal", {}).get(
-                            "event_id"
-                        )
-                        and next_action
-                        == external_plan.condition.resume_action.to_next_action()
-                    )
-                    continuation_boundary = (
-                        plan_record is not None
-                        and plan_record.subject == f"Mission:{mission_id}"
-                        and plan_record.payload == external_plan.to_identity_payload()
-                        and isinstance(next_action, dict)
-                        and next_action.get("kind")
-                        == "declare_external_dependency_job"
-                        and next_action.get("recovery_plan_id")
-                        == external_plan.identity
-                        and next_action.get("recovery_path_id")
-                        == path.recovery_path_id
-                        and isinstance(
-                            next_action.get("prior_completion_record_ids"), list
-                        )
-                    )
-                    external_allowed = first_boundary or continuation_boundary
-                    if first_boundary:
-                        external_plan_records.append(
-                            _record(
-                                kind="external-recovery-plan",
-                                record_id=external_plan.identity,
-                                subject=f"Mission:{mission_id}",
-                                status="active",
-                                fingerprint=external_plan.identity.removeprefix(
-                                    "external-recovery-plan:"
-                                ),
-                                payload=external_plan.to_identity_payload(),
-                            )
-                        )
-                if not any(
-                    (
-                        batch_allowed,
-                        candidate_allowed,
-                        external_allowed,
-                        parity_at_accepted_decision,
-                        source_allowed,
                     )
                 ):
                     raise TransitionError(
-                        "Job declaration cannot preempt research direction and is outside every exact authorized work boundary"
+                        "scientific Job evidence modes exceed its Study preregistration"
                     )
-                if parity_at_accepted_decision:
-                    if active_batch is not None or science.get("active_study") is not None:
-                        raise TransitionError(
-                            "pre-Study component parity requires no active Study or Batch"
-                        )
-                    decision = self._active_portfolio_decision(
-                        _index, parity_binding["portfolio_decision_id"]
-                    )
-                    baseline = None if decision is None else decision.payload.get(
-                        "baseline_executable"
-                    )
-                    canonical_id = parity_binding["canonical_component_id"]
-                    if (
-                        decision is None
-                        or not isinstance(baseline, dict)
-                        or canonical_id
-                        not in baseline.get("component_identities", [])
-                        or spec["evidence_subject"]
-                        != {"kind": "Mission", "id": science["active_mission"]}
-                    ):
-                        raise TransitionError(
-                            "component parity canonical endpoint is outside the accepted baseline"
-                        )
-            mission_id = science["active_mission"]
-            historical_control_ids = (
-                self._historical_replay_implementation_control_ids(
-                    _index,
-                    study_id=science.get("active_study"),
-                    mission_id=mission_id,
+                scientific_lineage_material_identity = _require_digest(
+                    "scientific Job lineage material",
+                    lineage_study.payload.get("material_identity"),
                 )
-            )
-            implementation_manifest = self._require_job_implementation_evidence(
-                spec,
-                allowed_historical_control_ids=historical_control_ids,
-            )
+            implementation_manifest = self._require_job_implementation_evidence(spec)
             component_implementation_hashes: tuple[str, ...] = ()
-            if (
-                not self.engineering_fixture
-                and spec["evidence_subject"]["kind"] == "Executable"
+            source_closure_authority: dict[str, Any] | None = None
+            external_observed_development_binding_payload: (
+                dict[str, Any] | None
+            ) = None
+            if _job_requires_current_source_authority(
+                engineering_fixture=self.engineering_fixture,
+                evidence_subject_kind=spec["evidence_subject"]["kind"],
             ):
                 from axiom_rift.research.implementation_closure import (
                     ImplementationClosureError,
+                    require_current_job_source_closure,
                     require_job_implementation_closure,
                 )
 
-                subject_trial = _index.get(
-                    "trial", spec["evidence_subject"]["id"]
-                )
-                executable_manifest = (
-                    None
-                    if subject_trial is None
-                    else subject_trial.payload.get("executable")
-                )
-                if not isinstance(executable_manifest, dict):
-                    raise TransitionError(
-                        "Executable Job subject lacks its exact trial manifest"
-                    )
+                executable_manifest: dict[str, Any] | None = None
                 try:
-                    component_implementation_hashes = (
-                        require_job_implementation_closure(
-                            executable_manifest=executable_manifest,
-                            job_artifact_hashes=implementation_manifest[
-                                "artifact_hashes"
-                            ],
+                    if spec["evidence_subject"]["kind"] == "Executable":
+                        subject_trial = _index.get(
+                            "trial", spec["evidence_subject"]["id"]
+                        )
+                        executable_manifest = (
+                            None
+                            if subject_trial is None
+                            else subject_trial.payload.get("executable")
+                        )
+                        if not isinstance(executable_manifest, dict):
+                            raise TransitionError(
+                                "Executable Job subject lacks its exact trial manifest"
+                            )
+                        component_implementation_hashes = (
+                            require_job_implementation_closure(
+                                executable_manifest=executable_manifest,
+                                job_artifact_hashes=implementation_manifest[
+                                    "artifact_hashes"
+                                ],
+                                artifact_reader=self.evidence.read_verified,
+                            )
+                        )
+                    source_closure_hashes = (
+                        _job_implementation_source_closure_hashes(
+                            implementation_manifest=implementation_manifest,
                             artifact_reader=self.evidence.read_verified,
                         )
                     )
-                except ImplementationClosureError as exc:
+                    if source_closure_hashes:
+                        source_closure_authority = (
+                            require_current_job_source_closure(
+                                callable_identity=spec["callable_identity"],
+                                job_artifact_hashes=implementation_manifest[
+                                    "artifact_hashes"
+                                ],
+                                artifact_reader=self.evidence.read_verified,
+                                source_root=self.foundation_root / "src",
+                                verified_non_source_artifact_hashes=(
+                                    component_implementation_hashes
+                                ),
+                            )
+                        )
+                        if executable_manifest is not None:
+                            closure_payload = parse_canonical(
+                                self.evidence.read_verified(
+                                    source_closure_hashes[0]
+                                )
+                            )
+                            if not isinstance(closure_payload, Mapping):
+                                raise ImplementationClosureError(
+                                    "Job source closure payload is malformed"
+                                )
+                            external_binding_value = (
+                                external_observed_development_job_binding(
+                                    executable_id=spec["evidence_subject"][
+                                        "id"
+                                    ],
+                                    executable_manifest=executable_manifest,
+                                    job_spec=spec,
+                                    source_closure_dependencies=(
+                                        closure_payload["dependencies"]
+                                    ),
+                                )
+                            )
+                            if external_binding_value is not None:
+                                verify_external_observed_development_job_prefixes(
+                                    repository_root=self.foundation_root,
+                                    binding=external_binding_value,
+                                )
+                                external_observed_development_binding_payload = (
+                                    external_binding_value.to_payload()
+                                )
+                    else:
+                        raise TransitionError(
+                            "prospective production Job requires one exact "
+                            "current source closure; historical implementation "
+                            "exemptions are read-only evidence, not execution authority"
+                        )
+                except (
+                    ExternalObservedDevelopmentJobBindingError,
+                    ImplementationClosureError,
+                ) as exc:
                     raise TransitionError(str(exc)) from exc
-            job_hash = _digest(
-                {"mission_id": mission_id, "spec": dict(spec)}, domain="job"
+            candidate_execution_context: dict[str, Any] | None = None
+            active_executable = science.get("active_executable")
+            if (
+                isinstance(active_executable, str)
+                and spec["evidence_subject"]
+                == {"kind": "Executable", "id": active_executable}
+            ):
+                candidate_head = _index.event_head(
+                    f"candidate:{active_executable}"
+                )
+                candidate = (
+                    None
+                    if candidate_head is None
+                    else _index.get(
+                        candidate_head.record_kind,
+                        candidate_head.record_id,
+                    )
+                )
+                expected_candidate = (
+                    ("engineering-executable-fixture", "bound_fixture")
+                    if self.engineering_fixture
+                    else ("candidate", "frozen")
+                )
+                if candidate is None or (
+                    candidate.kind,
+                    candidate.status,
+                ) != expected_candidate:
+                    raise TransitionError(
+                        "candidate Job lacks its current frozen activation"
+                    )
+                executable_payload = candidate.payload.get("executable")
+                candidate_source_bindings = candidate.payload.get(
+                    "source_bindings"
+                )
+                candidate_source_ids = (
+                    None
+                    if not isinstance(executable_payload, Mapping)
+                    else executable_payload.get("source_contracts")
+                )
+                if (
+                    not isinstance(candidate_source_ids, list)
+                    or any(type(source_id) is not str for source_id in candidate_source_ids)
+                    or candidate_source_ids != sorted(set(candidate_source_ids))
+                    or not isinstance(candidate_source_bindings, list)
+                    or any(
+                        not isinstance(binding, Mapping)
+                        or binding.get("source_contract_id") not in candidate_source_ids
+                        for binding in candidate_source_bindings
+                    )
+                    or sorted(
+                        binding["source_contract_id"]
+                        for binding in candidate_source_bindings
+                    )
+                    != candidate_source_ids
+                ):
+                    raise RecoveryRequired(
+                        "candidate source bindings are malformed"
+                    )
+                candidate_source_job = spec.get("source_binding")
+                if isinstance(candidate_source_job, Mapping):
+                    target_source_id = candidate_source_job.get(
+                        "source_contract_id"
+                    )
+                    if target_source_id not in candidate_source_ids:
+                        raise TransitionError(
+                            "candidate source Job must target one of its frozen SourceContracts"
+                        )
+                    if _index.event_head(
+                        f"source-authority:{target_source_id}"
+                    ) is not None:
+                        raise TransitionError(
+                            "audit-invalidated candidate source requires a new SourceContract identity"
+                        )
+                    source_state_record_ids: list[str] = []
+                    for source_id in candidate_source_ids:
+                        source_head = _index.event_head(f"source:{source_id}")
+                        source_state = (
+                            None
+                            if source_head is None
+                            else _index.get(
+                                source_head.record_kind,
+                                source_head.record_id,
+                            )
+                        )
+                        if (
+                            source_state is None
+                            or source_state.kind != "source-state"
+                            or source_state.subject != f"Source:{source_id}"
+                            or source_state.event_sequence
+                            != source_head.sequence
+                        ):
+                            raise RecoveryRequired(
+                                "candidate source Job lacks its exact current source state"
+                            )
+                        source_state_record_ids.append(
+                            source_state.record_id
+                        )
+                    candidate_execution_context = {
+                        "candidate_activation_id": candidate.record_id,
+                        "executable_id": active_executable,
+                        "schema": "candidate_source_job_execution_context.v1",
+                        "source_state_record_ids": sorted(
+                            source_state_record_ids
+                        ),
+                        "target_source_contract_id": target_source_id,
+                    }
+                else:
+                    try:
+                        source_snapshot = current_runtime_source_snapshot(
+                            index=_index,
+                            source_contract_ids=tuple(candidate_source_ids),
+                            require_runtime_source=self._require_runtime_source,
+                        )
+                        candidate_execution_context = (
+                            candidate_job_execution_context(
+                                index=_index,
+                                candidate=candidate,
+                                current=source_snapshot,
+                                runtime_binding=(
+                                    spec.get("runtime_binding")
+                                    if isinstance(
+                                        spec.get("runtime_binding"), Mapping
+                                    )
+                                    else None
+                                ),
+                            )
+                        )
+                    except RuntimeSuccessAuthorityError as exc:
+                        raise TransitionError(str(exc)) from exc
+            try:
+                observed_binding_value = scientific_observed_development_job_binding(
+                    foundation_root=self.foundation_root,
+                    input_hashes=spec["input_hashes"],
+                    lineage_material_identity=(
+                        scientific_lineage_material_identity
+                    ),
+                )
+            except ObservedDevelopmentBindingError as exc:
+                raise TransitionError(str(exc)) from exc
+            observed_development_binding = (
+                None
+                if observed_binding_value is None
+                else observed_binding_value.to_payload()
             )
-            job_id = f"job:{job_hash}"
-            work_fingerprint = _digest(
-                {"mission_id": mission_id, "work": work_basis},
-                domain="job-work",
+            implementation_source_authority = (
+                None
+                if source_closure_authority is None
+                else {
+                    "authority": source_closure_authority,
+                    "schema": "job_implementation_source_binding.v1",
+                }
             )
-            success_fingerprint = _digest(
-                {
-                    "expected_outputs": spec["expected_outputs"],
-                    "implementation_identity": spec["implementation_identity"],
-                    "mission_id": mission_id,
-                    "output_classes": spec["output_classes"],
-                    "work_fingerprint": work_fingerprint,
-                },
-                domain="job-success-cache",
+            identity_plan = build_job_identity_plan(
+                spec=spec,
+                work_basis=work_basis,
+                mission_id=mission_id,
+                candidate_execution_context=candidate_execution_context,
+                observed_development_binding=observed_development_binding,
+                implementation_source_authority=implementation_source_authority,
+                external_observed_development_binding=(
+                    external_observed_development_binding_payload
+                ),
             )
+            bound_work_basis = dict(identity_plan.bound_work_basis)
+            job_hash = identity_plan.job_hash
+            job_id = identity_plan.job_id
+            work_fingerprint = identity_plan.work_fingerprint
+            success_fingerprint = identity_plan.success_fingerprint
             cached_success = _index.get("job-success-cache", success_fingerprint)
             if cached_success is not None:
                 completion_id = cached_success.payload.get("completion_record_id")
@@ -9512,16 +10844,37 @@ class StateWriter:
                     if not isinstance(completion_id, str)
                     else _index.get("job-completed", completion_id)
                 )
-                if (
-                    completion is None
-                    or completion.status != "success"
-                    or set(completion.payload.get("outputs", {}))
-                    != set(spec["expected_outputs"])
-                    or completion.payload.get("output_classes")
-                    != spec["output_classes"]
-                    or cached_success.payload.get("mission_id") != mission_id
-                ):
+                if completion is None:
                     raise RecoveryRequired("successful Job cache is inconsistent")
+                try:
+                    require_cached_success_binding(
+                        cached_payload=cached_success.payload,
+                        completion_status=completion.status,
+                        completion_payload=completion.payload,
+                        spec=spec,
+                        mission_id=mission_id,
+                        candidate_execution_context=candidate_execution_context,
+                        observed_development_binding=observed_development_binding,
+                        implementation_source_authority=(
+                            implementation_source_authority
+                        ),
+                        external_observed_development_binding=(
+                            external_observed_development_binding_payload
+                        ),
+                    )
+                except JobCacheAuthorityError as exc:
+                    raise RecoveryRequired(str(exc)) from exc
+                if observed_binding_value is not None:
+                    try:
+                        verify_observed_development_prefix_artifact(
+                            foundation_root=self.foundation_root,
+                            binding=observed_binding_value,
+                        )
+                    except ObservedDevelopmentBindingError as exc:
+                        raise RecoveryRequired(
+                            "observed development cache source bytes are unavailable "
+                            "or inconsistent"
+                        ) from exc
                 self._require_reusable_success_outputs(
                     completion=completion, spec=spec
                 )
@@ -9530,142 +10883,40 @@ class StateWriter:
                     "completion_record_id": completion.record_id,
                     "job_id": completion.payload["job_id"],
                 }
-            attempt_head = _index.event_head(f"job-attempt:{work_fingerprint}")
-            previous_attempt = (
-                None
-                if attempt_head is None
-                else _index.get(attempt_head.record_kind, attempt_head.record_id)
-            )
-            if (
-                previous_attempt is not None
-                and previous_attempt.kind == "job-completed"
-                and previous_attempt.status != "success"
-            ):
-                changed_proof = spec.get("changed_cause_proof_hash")
-                if changed_proof is None:
-                    raise IdenticalFailedRetryError(
-                        "failed Job work cannot be retried without changed-cause proof"
-                    )
-                changed_bytes = self.evidence.read_verified(changed_proof)
-                prior_failure = previous_attempt.payload.get("failure")
-                previous_job_id = previous_attempt.payload.get("job_id")
-                previous_declaration = (
-                    None
-                    if not isinstance(previous_job_id, str)
-                    else _index.get("job-declared", previous_job_id)
-                )
-                if (
-                    isinstance(prior_failure, dict)
-                    and changed_proof
-                    in prior_failure.get("minimum_reproduction_evidence", [])
-                ):
-                    raise IdenticalFailedRetryError(
-                        "changed-cause proof reuses failed reproduction evidence"
-                    )
-                if (
-                    previous_declaration is not None
-                    and previous_declaration.payload["spec"].get(
-                        "changed_cause_proof_hash"
-                    )
-                    == changed_proof
-                ):
-                    raise IdenticalFailedRetryError(
-                        "changed-cause proof was already consumed by the prior retry"
-                    )
-                if previous_declaration is None:
-                    raise IdenticalFailedRetryError(
-                        "prior failed Job declaration is unavailable"
-                    )
-                try:
-                    previous_implementation_manifest = (
-                        self._require_job_implementation_evidence(
-                            previous_declaration.payload["spec"],
-                            allowed_historical_control_ids=(
-                                historical_control_ids
-                            ),
-                        )
-                    )
-                except TransitionError as exc:
-                    raise IdenticalFailedRetryError(
-                        "prior implementation evidence is unavailable"
-                    ) from exc
-                if (
-                    previous_implementation_manifest["artifact_hashes"]
-                    == implementation_manifest["artifact_hashes"]
-                ):
-                    raise IdenticalFailedRetryError(
-                        "changed-cause proof does not change implementation artifacts"
-                    )
-                try:
-                    changed_manifest = parse_canonical(changed_bytes)
-                except ValueError as exc:
-                    raise IdenticalFailedRetryError(
-                        "changed-cause proof is not a canonical manifest"
-                    ) from exc
-                if (
-                    not isinstance(changed_manifest, dict)
-                    or set(changed_manifest)
-                    != {
-                        "changed_dimension",
-                        "explanation",
-                        "new_evidence_hashes",
-                        "new_implementation_identity",
-                        "prior_failure_signature",
-                        "previous_implementation_identity",
-                        "schema",
-                    }
-                    or changed_manifest.get("schema") != "job_changed_cause.v1"
-                    or changed_manifest.get("prior_failure_signature")
-                    != (
-                        prior_failure.get("failure_signature")
-                        if isinstance(prior_failure, dict)
+            try:
+                retry_admission = prepare_job_retry_admission(
+                    index=_index,
+                    mission_id=mission_id,
+                    initiative_id=science.get("active_initiative"),
+                    study_id=science.get("active_study"),
+                    batch_id=(
+                        active_batch.get("id")
+                        if isinstance(active_batch, Mapping)
                         else None
-                    )
-                    or changed_manifest.get("changed_dimension") != "implementation"
-                    or previous_declaration is None
-                    or changed_manifest.get("previous_implementation_identity")
-                    != previous_declaration.payload["spec"].get(
-                        "implementation_identity"
-                    )
-                    or changed_manifest.get("new_implementation_identity")
-                    != spec["implementation_identity"]
-                    or changed_manifest.get("new_implementation_identity")
-                    == changed_manifest.get("previous_implementation_identity")
-                    or type(changed_manifest.get("explanation")) is not str
-                    or not changed_manifest["explanation"]
-                    or not changed_manifest["explanation"].isascii()
-                    or not isinstance(changed_manifest.get("new_evidence_hashes"), list)
-                    or not changed_manifest["new_evidence_hashes"]
-                    or len(set(changed_manifest["new_evidence_hashes"]))
-                    != len(changed_manifest["new_evidence_hashes"])
-                ):
-                    raise IdenticalFailedRetryError(
-                        "changed-cause proof does not bind the prior failure and change"
-                    )
-                prior_reproduction = (
-                    set(prior_failure.get("minimum_reproduction_evidence", []))
-                    if isinstance(prior_failure, dict)
-                    else set()
+                    ),
+                    spec=spec,
+                    candidate_execution_context=candidate_execution_context,
+                    implementation_manifest=implementation_manifest,
+                    current_job_id=job_id,
+                    current_job_hash=job_hash,
+                    work_fingerprint=work_fingerprint,
+                    read_evidence=self.evidence.read_verified,
+                    verify_evidence=self.evidence.verify,
+                    evidence_path=self.evidence.verified_path,
+                    validation_registry=self.validation_registry,
+                    engineering_fixture=self.engineering_fixture,
                 )
-                for evidence_hash in changed_manifest["new_evidence_hashes"]:
-                    _require_digest("changed-cause evidence", evidence_hash)
-                    self.evidence.verify(evidence_hash)
-                    if evidence_hash in prior_reproduction:
-                        raise IdenticalFailedRetryError(
-                            "changed-cause evidence reuses prior reproduction"
-                        )
-                if (
-                    changed_manifest["new_implementation_identity"]
-                    not in changed_manifest["new_evidence_hashes"]
-                ):
-                    raise IdenticalFailedRetryError(
-                        "changed-cause proof lacks the new implementation bytes"
-                    )
-                for source_hash in implementation_manifest["artifact_hashes"]:
-                    if source_hash not in changed_manifest["new_evidence_hashes"]:
-                        raise IdenticalFailedRetryError(
-                            "changed-cause proof omits implementation artifact bytes"
-                        )
+            except JobRetryAdmissionSpecificationError as exc:
+                raise TransitionError(str(exc)) from exc
+            except JobRetryAdmissionIntegrityError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except JobRetryAdmissionRejected as exc:
+                raise IdenticalFailedRetryError(str(exc)) from exc
+            retry_family = retry_admission.family
+            retry_basis_records = list(retry_admission.basis_records)
+            attempt_head = _index.event_head(
+                f"job-attempt:{work_fingerprint}"
+            )
             evidence_subject = spec["evidence_subject"]
             active_by_kind = {
                 "Mission": science["active_mission"],
@@ -9688,32 +10939,6 @@ class StateWriter:
                 subject_exists = active_by_kind[evidence_subject["kind"]] == evidence_subject["id"]
             if not subject_exists:
                 raise TransitionError("Job evidence subject is not active or registered")
-            scientific_binding = spec.get("scientific_binding")
-            if isinstance(scientific_binding, dict) and not self.engineering_fixture:
-                lineage_study_id = science["active_study"]
-                if not isinstance(lineage_study_id, str):
-                    trial = _index.get("trial", evidence_subject["id"])
-                    lineage_study_id = (
-                        None if trial is None else trial.payload.get("study_id")
-                    )
-                lineage_study = (
-                    None
-                    if not isinstance(lineage_study_id, str)
-                    else _index.get("study-open", lineage_study_id)
-                )
-                declared_modes = set(scientific_binding["evidence_modes"])
-                if (
-                    lineage_study is None
-                    or lineage_study.payload.get("mission_id") != mission_id
-                    or not declared_modes.issubset(
-                        _require_study_evidence_modes(
-                            lineage_study.payload.get("question", {})
-                        )
-                    )
-                ):
-                    raise TransitionError(
-                        "scientific Job evidence modes exceed its Study preregistration"
-                    )
             reservation_records: list[IndexRecord] = []
             batch = science["active_batch"]
             if isinstance(batch, dict):
@@ -9754,9 +10979,19 @@ class StateWriter:
                         event_sequence=1 if budget_head is None else budget_head.sequence + 1,
                     )
                 )
+            try:
+                retry_family_record = build_retry_family_declaration_record(
+                    admission=retry_admission,
+                    job_id=job_id,
+                    job_hash=job_hash,
+                    work_fingerprint=work_fingerprint,
+                )
+            except JobRetryAdmissionSpecificationError as exc:
+                raise TransitionError(str(exc)) from exc
             science["active_job"] = {
                 "id": job_id,
                 "hash": job_hash,
+                "return_next_action": return_next_action,
                 "status": "declared",
                 "resume_action": spec["resume_action"],
             }
@@ -9777,6 +11012,34 @@ class StateWriter:
                     "initiative_id": science["active_initiative"],
                     "study_id": science["active_study"],
                     "batch_id": None if not isinstance(batch, dict) else batch["id"],
+                    "candidate_execution_context": (
+                        candidate_execution_context
+                    ),
+                    **(
+                        {
+                            "observed_development_binding": (
+                                observed_development_binding
+                            )
+                        }
+                        if observed_development_binding is not None
+                        else {}
+                    ),
+                    **(
+                        {
+                            "external_observed_development_binding": (
+                                external_observed_development_binding_payload
+                            )
+                        }
+                        if external_observed_development_binding_payload
+                        is not None
+                        else {}
+                    ),
+                    "return_next_action": return_next_action,
+                    "retry_family": retry_family.payload(),
+                    "retry_family_fingerprint": retry_family.fingerprint,
+                    "retry_basis_record_ids": sorted(
+                        record.record_id for record in retry_basis_records
+                    ),
                     "success_fingerprint": success_fingerprint,
                     "work_fingerprint": work_fingerprint,
                     **(
@@ -9788,13 +11051,28 @@ class StateWriter:
                         if component_implementation_hashes
                         else {}
                     ),
+                    **(
+                        {
+                            "source_closure_authority": (
+                                source_closure_authority
+                            )
+                        }
+                        if source_closure_authority is not None
+                        else {}
+                    ),
                 },
                 event_stream=f"job-attempt:{work_fingerprint}",
                 event_sequence=(
                     1 if attempt_head is None else attempt_head.sequence + 1
                 ),
             )
-            return body, [*external_plan_records, *reservation_records, record], {
+            return body, [
+                *external_plan_records,
+                *retry_basis_records,
+                *reservation_records,
+                record,
+                retry_family_record,
+            ], {
                 "job_id": job_id,
                 "job_hash": job_hash,
             }
@@ -10195,6 +11473,7 @@ class StateWriter:
                             "evidence_receipt_id"
                         ],
                         "mapping_identity": source_state.payload["mapping_identity"],
+                        "source_state_record_id": source_state.record_id,
                     }
                 )
             if not self.engineering_fixture:
@@ -10357,6 +11636,37 @@ class StateWriter:
                 raise TransitionError("no active candidate Executable")
             if science["active_job"] is not None or science["active_repair"] is not None:
                 raise TransitionError("candidate disposition cannot bypass active work")
+            pending_gap = body.get("next_action")
+            engineering_gap = (
+                pending_gap
+                if isinstance(pending_gap, Mapping)
+                and pending_gap.get("kind")
+                == "resolve_candidate_engineering_gap"
+                else None
+            )
+            if engineering_gap is not None:
+                if (
+                    engineering_gap.get("executable_id") != executable_id
+                    or not isinstance(
+                        engineering_gap.get("completion_record_id"), str
+                    )
+                    or index.get(
+                        "job-completed",
+                        engineering_gap["completion_record_id"],
+                    )
+                    is None
+                ):
+                    raise RecoveryRequired(
+                        "candidate engineering-gap resolution lost its completion"
+                    )
+                if engineering_gap.get("successor_scope") is not None and (
+                    disposition != "invalidated"
+                    or reason
+                    != "engineering_requires_scientific_change"
+                ):
+                    raise TransitionError(
+                        "scientific-change engineering gap must invalidate the frozen candidate"
+                    )
             candidate_head = index.event_head(f"candidate:{executable_id}")
             candidate = (
                 None
@@ -10405,13 +11715,27 @@ class StateWriter:
                     "kind": "portfolio_decision",
                     "portfolio_snapshot_id": snapshot.record_id,
                 }
+            disposition_identity = {
+                "candidate_id": candidate.record_id,
+                "disposition": disposition,
+                "reason": reason,
+            }
+            disposition_payload = {
+                "candidate_id": candidate.record_id,
+                "executable_id": executable_id,
+                "mission_id": science["active_mission"],
+                "reason": reason,
+            }
+            if engineering_gap is not None:
+                disposition_identity[
+                    "engineering_gap_completion_record_id"
+                ] = engineering_gap["completion_record_id"]
+                disposition_payload["engineering_gap"] = dict(
+                    engineering_gap
+                )
             record_id = canonical_digest(
                 domain="candidate-disposition",
-                payload={
-                    "candidate_id": candidate.record_id,
-                    "disposition": disposition,
-                    "reason": reason,
-                },
+                payload=disposition_identity,
             )
             record = _record(
                 kind="candidate-disposition",
@@ -10419,12 +11743,7 @@ class StateWriter:
                 subject=f"Executable:{executable_id}",
                 status=disposition,
                 fingerprint=candidate.fingerprint,
-                payload={
-                    "candidate_id": candidate.record_id,
-                    "executable_id": executable_id,
-                    "mission_id": science["active_mission"],
-                    "reason": reason,
-                },
+                payload=disposition_payload,
                 event_stream=f"candidate:{executable_id}",
                 event_sequence=candidate_head.sequence + 1,
             )
@@ -10456,6 +11775,16 @@ class StateWriter:
             REQUIRED_PARITY,
             REQUIRED_RELEASE_ARTIFACT_ROLES,
         )
+        from axiom_rift.operations.runtime_source_readiness import (
+            RuntimeSourceReadinessError,
+            current_readiness_payload,
+            validate_completion_receipt_reuse,
+        )
+        from axiom_rift.runtime.source_lifecycle_coverage import (
+            SourceLifecycleCoverageError,
+            derive_source_lifecycle_coverage,
+            require_source_lifecycle_coverage_ids,
+        )
 
         science = control["scientific"]
         mission_id = science["active_mission"]
@@ -10480,23 +11809,148 @@ class StateWriter:
             or candidate.record_id != candidate_id
         ):
             raise TransitionError("Release basis lacks the current frozen candidate")
+        executable_manifest = candidate.payload.get("executable")
+        if not isinstance(executable_manifest, Mapping):
+            raise TransitionError(
+                "Release candidate lacks its frozen Executable manifest"
+            )
+        try:
+            required_source_lifecycle_rows = (
+                derive_source_lifecycle_coverage(executable_manifest)
+            )
+        except SourceLifecycleCoverageError as exc:
+            raise TransitionError(str(exc)) from exc
+        required_source_lifecycle_ids = {
+            row["coverage_id"] for row in required_source_lifecycle_rows
+        }
         current_subject = self._current_subject(
             control, SubjectKind.EXECUTABLE, executable_id
         )
-        current_source_receipts = sorted(
-            self._require_runtime_source(
-                index, binding["source_contract_id"]
-            ).payload["evidence_receipt_id"]
-            for binding in candidate.payload["source_bindings"]
+        candidate_source_bindings = candidate.payload.get("source_bindings")
+        if not isinstance(candidate_source_bindings, list):
+            raise TransitionError("Release candidate source bindings are malformed")
+        source_bindings_by_id: dict[str, Mapping[str, Any]] = {}
+        for source_binding in candidate_source_bindings:
+            if (
+                not isinstance(source_binding, Mapping)
+                or set(source_binding)
+                != {
+                    "eligibility_receipt_id",
+                    "mapping_identity",
+                    "source_contract_id",
+                    "source_state_record_id",
+                }
+                or type(source_binding.get("source_contract_id")) is not str
+                or type(source_binding.get("mapping_identity")) is not str
+                or type(source_binding.get("eligibility_receipt_id")) is not str
+                or type(source_binding.get("source_state_record_id")) is not str
+                or source_binding["source_contract_id"] in source_bindings_by_id
+            ):
+                raise TransitionError("Release candidate source bindings are malformed")
+            source_bindings_by_id[source_binding["source_contract_id"]] = source_binding
+        candidate_source_ids = candidate.payload.get("executable", {}).get(
+            "source_contracts"
         )
+        if (
+            not isinstance(candidate_source_ids, list)
+            or candidate_source_ids != sorted(source_bindings_by_id)
+        ):
+            raise TransitionError("Release candidate source inventory is malformed")
+        current_source_states: dict[str, IndexRecord] = {}
+        current_readiness_rows: list[dict[str, Any]] = []
+        for source_id in candidate_source_ids:
+            frozen_binding = source_bindings_by_id[source_id]
+            frozen_state = index.get(
+                "source-state", frozen_binding["source_state_record_id"]
+            )
+            frozen_sequence = (
+                None if frozen_state is None else frozen_state.event_sequence
+            )
+            expected_frozen_state_id = (
+                None
+                if type(frozen_sequence) is not int
+                else canonical_digest(
+                    domain="source-state",
+                    payload={
+                        "source_id": source_id,
+                        "state": "runtime_eligible",
+                        "ordinal": frozen_sequence,
+                        "evidence_receipt_id": frozen_binding[
+                            "eligibility_receipt_id"
+                        ],
+                    },
+                )
+            )
+            if (
+                frozen_state is None
+                or frozen_state.kind != "source-state"
+                or frozen_state.status != "runtime_eligible"
+                or frozen_state.subject != f"Source:{source_id}"
+                or frozen_state.fingerprint != source_id
+                or frozen_state.event_stream != f"source:{source_id}"
+                or frozen_state.record_id != expected_frozen_state_id
+                or frozen_state.payload.get("ordinal") != frozen_sequence
+                or frozen_state.payload.get("evidence_receipt_id")
+                != frozen_binding["eligibility_receipt_id"]
+                or frozen_state.payload.get("mapping_identity")
+                != frozen_binding["mapping_identity"]
+                or type(frozen_state.authority_sequence) is not int
+                or type(candidate.authority_sequence) is not int
+                or frozen_state.authority_sequence
+                >= candidate.authority_sequence
+            ):
+                raise TransitionError(
+                    "Release candidate source binding lacks its exact frozen state"
+                )
+            state = self._require_runtime_source(index, source_id)
+            if (
+                state.payload.get("mapping_identity")
+                != frozen_binding["mapping_identity"]
+            ):
+                raise TransitionError(
+                    "Release current source mapping differs from its frozen candidate"
+                )
+            current_source_states[source_id] = state
+            try:
+                current_readiness_rows.append(
+                    current_readiness_payload(
+                        source_contract_id=source_id,
+                        current_state=state,
+                    )
+                )
+            except RuntimeSourceReadinessError as exc:
+                raise TransitionError(str(exc)) from exc
+        current_readiness_rows.sort(key=lambda item: item["source_contract_id"])
+        current_source_receipts = [
+            item["receipt_id"] for item in current_readiness_rows
+        ]
+
+        def authority_event_time(record: IndexRecord) -> str:
+            offset, sequence, event_id = self._index_record_authority_key(record)
+            event = self.journal.read_event_at(
+                offset=offset,
+                expected_sequence=sequence,
+                expected_event_id=event_id,
+            )
+            occurred_at_utc = event.get("occurred_at_utc")
+            if type(occurred_at_utc) is not str:
+                raise RecoveryRequired(
+                    "Release evidence authority timestamp is unavailable"
+                )
+            return occurred_at_utc
+
         parity: set[str] = set()
         cases: set[str] = set()
         artifact_hashes: set[str] = set()
         artifact_roles: dict[str, str] = {}
+        artifact_role_completion_ids: dict[str, str] = {}
         artifact_role_hashes: set[str] = set()
         job_ids: list[str] = []
         runtime_permit_ids: list[str] = []
         depth_records: list[dict[str, str]] = []
+        completion_readiness_rows: list[dict[str, Any]] = []
+        completion_source_receipts: dict[str, list[str]] = {}
+        source_lifecycle_coverage_ids: set[str] = set()
         for completion_id in completion_record_ids:
             completion = index.get("job-completed", completion_id)
             if completion is None or completion.status != "success":
@@ -10536,6 +11990,8 @@ class StateWriter:
                 "mission_id",
                 "runtime_permit_id",
                 "source_receipt_ids",
+                "source_snapshot_rows",
+                "source_state_record_ids",
             ):
                 if runtime.get(name) != started_runtime.get(name):
                     raise TransitionError(
@@ -10547,23 +12003,127 @@ class StateWriter:
                 if not isinstance(entry_id, str)
                 else index.get("runtime-engine-entry", entry_id)
             )
+            runtime_source_receipts = runtime.get("source_receipt_ids")
+            runtime_source_state_ids = runtime.get("source_state_record_ids")
+            runtime_source_snapshot_rows = runtime.get("source_snapshot_rows")
+            source_snapshot_by_id: dict[str, Mapping[str, Any]] = {}
+            if isinstance(runtime_source_snapshot_rows, list):
+                for source_snapshot in runtime_source_snapshot_rows:
+                    if (
+                        not isinstance(source_snapshot, Mapping)
+                        or set(source_snapshot)
+                        != {
+                            "mapping_identity",
+                            "source_contract_id",
+                            "source_receipt_id",
+                            "source_state_record_id",
+                        }
+                        or type(source_snapshot.get("source_contract_id"))
+                        is not str
+                        or source_snapshot["source_contract_id"]
+                        in source_snapshot_by_id
+                    ):
+                        raise TransitionError(
+                            "Release Job source snapshot rows are malformed"
+                        )
+                    source_snapshot_by_id[
+                        source_snapshot["source_contract_id"]
+                    ] = source_snapshot
             if (
                 engine_entry is None
                 or engine_entry.payload.get("job_id") != job_id
                 or engine_entry.payload.get("candidate_id") != candidate_id
                 or engine_entry.payload.get("runtime_permit_id")
                 != runtime.get("runtime_permit_id")
+                or not isinstance(runtime_source_receipts, list)
+                or any(type(item) is not str for item in runtime_source_receipts)
+                or len(set(runtime_source_receipts)) != len(runtime_source_receipts)
+                or not isinstance(runtime_source_state_ids, list)
+                or any(type(item) is not str for item in runtime_source_state_ids)
+                or runtime_source_state_ids
+                != sorted(set(runtime_source_state_ids))
+                or not isinstance(runtime_source_snapshot_rows, list)
+                or list(source_snapshot_by_id) != candidate_source_ids
+                or sorted(
+                    row["source_receipt_id"]
+                    for row in source_snapshot_by_id.values()
+                )
+                != runtime_source_receipts
+                or sorted(
+                    row["source_state_record_id"]
+                    for row in source_snapshot_by_id.values()
+                )
+                != runtime_source_state_ids
+                or engine_entry.payload.get("source_receipt_ids")
+                != runtime_source_receipts
+                or engine_entry.payload.get("source_state_record_ids")
+                != runtime_source_state_ids
+                or engine_entry.payload.get("source_snapshot_rows")
+                != runtime_source_snapshot_rows
             ):
                 raise TransitionError("Release Job lacks durable engine-entry provenance")
             if (
                 runtime["mission_id"] != mission_id
                 or runtime["candidate_id"] != candidate_id
                 or runtime["executable_id"] != executable_id
-                or sorted(runtime["source_receipt_ids"]) != current_source_receipts
                 or runtime["action"] != binding["action"]
                 or runtime["evidence_depth"] != binding["evidence_depth"]
             ):
                 raise TransitionError("Release Job is stale or bound to another activation")
+            completion_source_rows: list[dict[str, Any]] = []
+            consumed_receipts: set[str] = set()
+            for source_id in candidate_source_ids:
+                source_binding = source_bindings_by_id[source_id]
+                try:
+                    source_row = validate_completion_receipt_reuse(
+                        index=index,
+                        source_contract_id=source_id,
+                        candidate_mapping_identity=source_binding[
+                            "mapping_identity"
+                        ],
+                        completion_receipt_ids=runtime_source_receipts,
+                        completion_source_snapshot=(
+                            source_snapshot_by_id[source_id]
+                        ),
+                        current_state=current_source_states[source_id],
+                        engine_entry_authority_sequence=(
+                            engine_entry.authority_sequence
+                        ),
+                        completion_authority_sequence=(
+                            completion.authority_sequence
+                        ),
+                        engine_entry_occurred_at_utc=authority_event_time(
+                            engine_entry
+                        ),
+                        completion_occurred_at_utc=authority_event_time(
+                            completion
+                        ),
+                        verify_artifact=self.evidence.verify,
+                    )
+                except RuntimeSourceReadinessError as exc:
+                    raise TransitionError(
+                        f"Release invalidates completion {completion_id}: {exc}"
+                    ) from exc
+                receipt_id = source_row["completion_receipt_id"]
+                if receipt_id in consumed_receipts:
+                    raise TransitionError(
+                        "Release completion reuses one receipt for multiple sources"
+                    )
+                consumed_receipts.add(receipt_id)
+                completion_source_rows.append(source_row)
+            if consumed_receipts != set(runtime_source_receipts):
+                raise TransitionError(
+                    "Release completion source receipts do not match its keyed source inventory"
+                )
+            completion_source_receipts[completion_id] = sorted(
+                runtime_source_receipts
+            )
+            completion_readiness_rows.append(
+                {
+                    "completion_record_id": completion_id,
+                    "sources": completion_source_rows,
+                }
+            )
             permit_id = runtime["runtime_permit_id"]
             issued = index.get("permit-issued", permit_id)
             if (
@@ -10601,25 +12161,62 @@ class StateWriter:
             if not isinstance(runtime_roles, dict) or not runtime_roles:
                 raise TransitionError("Release Job lacks validated artifact roles")
             for role, artifact_hash in runtime_roles.items():
-                if role in artifact_roles and artifact_roles[role] != artifact_hash:
-                    raise TransitionError("Release artifact role has conflicting evidence")
+                if role in artifact_roles:
+                    if artifact_roles[role] != artifact_hash:
+                        raise TransitionError(
+                            "Release artifact role has conflicting evidence"
+                        )
+                    raise TransitionError(
+                        "Release artifact role producer is ambiguous"
+                    )
                 if role not in artifact_roles and artifact_hash in artifact_role_hashes:
                     raise TransitionError("one artifact cannot satisfy multiple Release roles")
                 if artifact_hash not in durable:
                     raise TransitionError("Release role is not a durable Job output")
                 artifact_roles[role] = artifact_hash
+                artifact_role_completion_ids[role] = completion_id
                 artifact_role_hashes.add(artifact_hash)
             depth = runtime["evidence_depth"]
             observed_parity = set(runtime.get("parity_surfaces", []))
             observed_cases = set(runtime.get("materialization_cases", []))
+            try:
+                planned_source_lifecycle_ids = (
+                    require_source_lifecycle_coverage_ids(
+                        binding.get(
+                            "planned_source_lifecycle_coverage_ids"
+                        ),
+                        allowed_rows=required_source_lifecycle_rows,
+                        planned_materialization_cases=binding.get(
+                            "planned_materialization_cases", ()
+                        ),
+                    )
+                )
+            except SourceLifecycleCoverageError as exc:
+                raise TransitionError(
+                    f"Release invalidates completion {completion_id}: {exc}"
+                ) from exc
+            if runtime.get("source_lifecycle_coverage_ids") != list(
+                planned_source_lifecycle_ids
+            ):
+                raise TransitionError(
+                    "Release Job source lifecycle coverage differs from its "
+                    "preregistered and validated plan"
+                )
             if depth == EvidenceDepth.EXECUTION_PROOF.value:
-                if observed_cases or not observed_parity:
+                if (
+                    observed_cases
+                    or not observed_parity
+                    or planned_source_lifecycle_ids
+                ):
                     raise TransitionError("execution proof Release evidence is malformed")
                 parity.update(observed_parity)
             elif depth == EvidenceDepth.MATERIALIZATION.value:
                 if observed_parity or not observed_cases:
                     raise TransitionError("materialization Release evidence is malformed")
                 cases.update(observed_cases)
+                source_lifecycle_coverage_ids.update(
+                    planned_source_lifecycle_ids
+                )
             else:
                 raise TransitionError("Release Job has an ineligible evidence depth")
             artifact_hashes.update(durable)
@@ -10629,18 +12226,31 @@ class StateWriter:
         missing_parity = REQUIRED_PARITY - parity
         missing_cases = REQUIRED_CASES - cases
         missing_roles = REQUIRED_RELEASE_ARTIFACT_ROLES - set(artifact_roles)
-        if missing_parity or missing_cases or missing_roles:
+        missing_source_lifecycle = (
+            required_source_lifecycle_ids
+            - source_lifecycle_coverage_ids
+        )
+        if (
+            missing_parity
+            or missing_cases
+            or missing_roles
+            or missing_source_lifecycle
+        ):
             raise TransitionError(
                 f"Release evidence coverage is incomplete: "
                 f"parity={sorted(missing_parity)!r}, cases={sorted(missing_cases)!r}, "
-                f"roles={sorted(missing_roles)!r}"
+                f"roles={sorted(missing_roles)!r}, "
+                f"source_lifecycle={sorted(missing_source_lifecycle)!r}"
             )
         handoff_hash = artifact_roles["local_handoff_manifest"]
-        handoff_artifact = self.evidence.verify(handoff_hash)
+        handoff_completion_id = artifact_role_completion_ids[
+            "local_handoff_manifest"
+        ]
+        handoff_source_receipts = completion_source_receipts[
+            handoff_completion_id
+        ]
         try:
-            handoff = parse_canonical(
-                (self.evidence._root / handoff_artifact.relative_path).read_bytes()
-            )
+            handoff = parse_canonical(self.evidence.read_verified(handoff_hash))
         except ValueError as exc:
             raise TransitionError("local handoff manifest is not canonical") from exc
         expected_handoff = {
@@ -10654,7 +12264,7 @@ class StateWriter:
             "executable_id": executable_id,
             "mission_id": mission_id,
             "schema": "axiom_local_handoff.v1",
-            "source_receipt_ids": current_source_receipts,
+            "source_receipt_ids": handoff_source_receipts,
         }
         if handoff != expected_handoff:
             raise TransitionError("local handoff manifest differs from the Release basis")
@@ -10667,6 +12277,20 @@ class StateWriter:
             "materialization_cases": sorted(cases),
             "parity_surfaces": sorted(parity),
             "runtime_permit_ids": runtime_permit_ids,
+            "source_readiness": {
+                "completion_uses": completion_readiness_rows,
+                "current": current_readiness_rows,
+                "schema": "release_source_readiness.v1",
+            },
+            "source_lifecycle_coverage": {
+                "required_rows": [
+                    dict(row) for row in required_source_lifecycle_rows
+                ],
+                "satisfied_coverage_ids": sorted(
+                    source_lifecycle_coverage_ids
+                ),
+                "schema": "release_source_lifecycle_coverage.v1",
+            },
             "source_receipt_ids": current_source_receipts,
         }
 
@@ -10979,20 +12603,10 @@ class StateWriter:
     def _component_protocol_neutral_surface(
         manifest: Mapping[str, Any],
     ) -> str:
-        if not all(
-            name in manifest
-            for name in ("implementation", "semantic_dependencies", "spec")
-        ):
-            raise TransitionError("component manifest semantic surface is incomplete")
-        return "component-protocol-neutral:" + canonical_digest(
-            domain="component-protocol-neutral-surface",
-            payload={
-                "implementation": manifest["implementation"],
-                "schema": "component_protocol_neutral_surface.v1",
-                "semantic_dependencies": manifest["semantic_dependencies"],
-                "spec": manifest["spec"],
-            },
-        )
+        try:
+            return component_manifest_surfaces(manifest).protocol_neutral
+        except ComponentManifestError as exc:
+            raise TransitionError(str(exc)) from exc
 
     def _project_executable_components(
         self,
@@ -11043,14 +12657,9 @@ class StateWriter:
                 raise TransitionError(
                     "new component protocol/name drift duplicates an existing semantic surface"
                 )
-            cross_domain_variants = tuple(
-                record
-                for record in index.records_by_kind("component-manifest")
-                if isinstance(record.payload.get("manifest"), dict)
-                and self._component_protocol_neutral_surface(
-                    record.payload["manifest"]
-                )
-                == protocol_neutral_surface
+            cross_domain_variants = index.component_manifests_by_surface(
+                COMPONENT_SURFACE_PROTOCOL_NEUTRAL,
+                protocol_neutral_surface,
             )
             if cross_domain_variants:
                 raise TransitionError(
@@ -11594,6 +13203,12 @@ class StateWriter:
         operation_id: str,
     ) -> TransitionResult:
         from axiom_rift.research.portfolio import PortfolioSnapshot
+        from axiom_rift.operations.architecture_review_direction import (
+            ArchitectureReviewDirectionError,
+            constraint_from_action,
+            eligible_new_mechanism_axes,
+            require_review_binding,
+        )
 
         self._require_study_close_delivery_guard()
         if not isinstance(snapshot, PortfolioSnapshot):
@@ -11622,6 +13237,7 @@ class StateWriter:
             sequence = 1 if head is None else head.sequence + 1
             required_target_axis_ids: list[str] = []
             constraint_source_id: str | None = None
+            continuation = None
             replay_scheduler_projection_recovered = False
             replay_constraints = self._replay_scheduler_constraints(
                 index,
@@ -11688,6 +13304,10 @@ class StateWriter:
                 if prior is None or prior.kind != "portfolio-snapshot":
                     raise TransitionError("current Portfolio snapshot is unavailable")
                 next_action = current["next_action"]
+                try:
+                    continuation = constraint_from_action(next_action)
+                except ArchitectureReviewDirectionError as exc:
+                    raise TransitionError(str(exc)) from exc
                 decision_id = next_action.get("decision_id")
                 decision = (
                     None
@@ -11718,6 +13338,35 @@ class StateWriter:
                 except ReplayTransitionError as exc:
                     raise TransitionError(str(exc)) from exc
                 old_axes = {axis["axis_id"]: axis for axis in prior.payload["axes"]}
+                if continuation is not None:
+                    review = index.get(
+                        "architecture-review",
+                        continuation.architecture_review_id,
+                    )
+                    trigger = index.get(
+                        "architecture-review-trigger",
+                        continuation.trigger_record_id,
+                    )
+                    if review is None or trigger is None:
+                        raise RecoveryRequired(
+                            "bounded architecture continuation authority is unavailable"
+                        )
+                    try:
+                        require_review_binding(
+                            continuation,
+                            review_record_id=review.record_id,
+                            review_payload=review.payload,
+                            trigger_payload=trigger.payload,
+                        )
+                        if self._review_resolved_architecture_family(
+                            index=index,
+                            review=review,
+                        ) != continuation.required_architecture_family:
+                            raise ArchitectureReviewDirectionError(
+                                "bounded architecture review family is no longer current"
+                            )
+                    except ArchitectureReviewDirectionError as exc:
+                        raise RecoveryRequired(str(exc)) from exc
                 new_payload = snapshot.to_identity_payload()
                 new_axes = {axis["axis_id"]: axis for axis in new_payload["axes"]}
                 if (
@@ -11744,15 +13393,90 @@ class StateWriter:
                     raise TransitionError(
                         "new scientific Portfolio axes require canonical architecture chassis"
                     )
+                pruned_reopen_axis_ids: list[str] = []
                 for axis_id, old_axis in old_axes.items():
                     if new_axes[axis_id]["axis_identity"] != old_axis["axis_identity"]:
                         raise TransitionError(
                             "Portfolio axis meaning is immutable within a Mission"
                         )
                     if old_axis["status"] == "pruned" and new_axes[axis_id]["status"] != "pruned":
-                        raise TransitionError("a pruned Portfolio axis cannot reopen")
+                        pruned_reopen_axis_ids.append(axis_id)
                 action = next_action.get("action")
                 target_id = next_action.get("target_id")
+                if pruned_reopen_axis_ids:
+                    from axiom_rift.research.effective_axis import (
+                        AxisReopenAuthority,
+                    )
+
+                    if (
+                        pruned_reopen_axis_ids != [target_id]
+                        or action != "preserve"
+                        or new_axes[target_id]["status"] != "preserved"
+                    ):
+                        raise TransitionError(
+                            "a pruned Portfolio axis requires its exact preserve authority"
+                        )
+                    resolution = self._effective_axis_resolution(
+                        index, old_axes[target_id]
+                    )
+                    replay_resolution_ids, scope_overlay_ids = (
+                        self._audit_deferred_axis_reopen_evidence(resolution)
+                    )
+                    expected_authority = AxisReopenAuthority(
+                        mission_id=snapshot.mission_id,
+                        portfolio_snapshot_id=prior.record_id,
+                        portfolio_decision_id=decision.record_id,
+                        axis_id=target_id,
+                        axis_identity=old_axes[target_id]["axis_identity"],
+                        replay_resolution_record_ids=replay_resolution_ids,
+                        evidence_scope_overlay_ids=scope_overlay_ids,
+                    )
+                    authority_id = next_action.get(
+                        "axis_reopen_authority_id"
+                    )
+                    authority = (
+                        None
+                        if not isinstance(authority_id, str)
+                        else index.get("axis-reopen-authority", authority_id)
+                    )
+                    authority_stream = (
+                        f"axis-reopen:{snapshot.mission_id}:"
+                        f"{old_axes[target_id]['axis_identity']}"
+                    )
+                    authority_head = index.event_head(authority_stream)
+                    if (
+                        authority_id != expected_authority.identity
+                        or authority is None
+                        or authority.kind != "axis-reopen-authority"
+                        or authority.status != "authorized"
+                        or authority.subject
+                        != f"Axis:{old_axes[target_id]['axis_identity']}"
+                        or authority.fingerprint
+                        != expected_authority.identity.removeprefix(
+                            "axis-reopen-authority:"
+                        )
+                        or authority.payload.get("authority")
+                        != expected_authority.to_identity_payload()
+                        or authority.payload.get("effective_axis")
+                        != resolution.to_projection_payload()
+                        or authority.event_stream != authority_stream
+                        or authority_head is None
+                        or authority_head.record_id != authority.record_id
+                        or authority.event_sequence != authority_head.sequence
+                        or prior.authority_sequence is None
+                        or decision.authority_sequence is None
+                        or authority.authority_sequence is None
+                        or decision.authority_sequence <= prior.authority_sequence
+                        or authority.authority_sequence
+                        <= decision.authority_sequence
+                    ):
+                        raise TransitionError(
+                            "pruned Portfolio axis lacks its exact one-shot reopen authority"
+                        )
+                elif next_action.get("axis_reopen_authority_id") is not None:
+                    raise TransitionError(
+                        "axis reopen authority cannot authorize an unrelated snapshot"
+                    )
                 if action in {"preserve", "prune"}:
                     if set(new_axes) != set(old_axes) or target_id not in old_axes:
                         raise TransitionError(
@@ -11784,21 +13508,44 @@ class StateWriter:
                         raise TransitionError(
                             "new_mechanism must add a genuinely distinct untouched axis"
                         )
-                    required_layers = set(
-                        next_action.get("required_followup_layers", [])
-                    )
-                    excluded_layers = set(
-                        next_action.get("excluded_research_layers", [])
-                    )
-                    excluded_architecture = next_action.get(
-                        "excluded_architecture_family"
-                    )
-                    constrained = bool(
-                        required_layers
-                        or excluded_layers
-                        or isinstance(excluded_architecture, str)
-                    )
-                    if constrained:
+                    if continuation is not None:
+                        added_axes = {
+                            axis_id: new_axes[axis_id] for axis_id in added
+                        }
+                        resolved_families = {
+                            axis_id: self._axis_resolved_architecture_family(
+                                index=index,
+                                axis=axis,
+                            )
+                            for axis_id, axis in added_axes.items()
+                        }
+                        try:
+                            required_target_axis_ids = list(
+                                eligible_new_mechanism_axes(
+                                    continuation,
+                                    added_axes=added_axes,
+                                    resolved_architecture_families=resolved_families,
+                                )
+                            )
+                        except ArchitectureReviewDirectionError as exc:
+                            raise TransitionError(str(exc)) from exc
+                        constraint_source_id = continuation.architecture_review_id
+                    else:
+                        required_layers = set(
+                            next_action.get("required_followup_layers", [])
+                        )
+                        excluded_layers = set(
+                            next_action.get("excluded_research_layers", [])
+                        )
+                        excluded_architecture = next_action.get(
+                            "excluded_architecture_family"
+                        )
+                        constrained = bool(
+                            required_layers
+                            or excluded_layers
+                            or isinstance(excluded_architecture, str)
+                        )
+                    if continuation is None and constrained:
                         required_target_axis_ids = sorted(
                             axis_id
                             for axis_id in added
@@ -11844,7 +13591,13 @@ class StateWriter:
                 "kind": "portfolio_decision",
                 "portfolio_snapshot_id": snapshot.identity,
             }
-            if required_target_axis_ids:
+            if continuation is not None:
+                body["next_action"].update(
+                    continuation.with_materialized_targets(
+                        tuple(required_target_axis_ids)
+                    ).to_action_fields()
+                )
+            elif required_target_axis_ids:
                 body["next_action"].update(
                     {
                         "constraint_source_id": constraint_source_id,
@@ -11880,6 +13633,193 @@ class StateWriter:
             prepare=prepare,
         )
 
+    def record_axis_reopen_authority(
+        self,
+        *,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Authorize exactly one audit-deferred historical prune to be preserved."""
+
+        from axiom_rift.research.effective_axis import AxisReopenAuthority
+
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("axis reopen authority requires control")
+            science = current["scientific"]
+            mission_id = science.get("active_mission")
+            if (
+                not isinstance(mission_id, str)
+                or science.get("active_initiative") is None
+                or any(
+                    science.get(name) is not None
+                    for name in (
+                        "active_batch",
+                        "active_executable",
+                        "active_holdout_evaluation",
+                        "active_job",
+                        "active_lineage",
+                        "active_release",
+                        "active_repair",
+                        "active_study",
+                    )
+                )
+            ):
+                raise TransitionError(
+                    "axis reopen authority requires a stable Initiative boundary"
+                )
+            next_action = current.get("next_action")
+            if (
+                not isinstance(next_action, Mapping)
+                or next_action.get("kind")
+                != "record_axis_reopen_authority"
+            ):
+                raise TransitionError(
+                    "no exact audit-deferred axis reopen is pending"
+                )
+            snapshot_id = next_action.get("portfolio_snapshot_id")
+            decision_id = next_action.get("decision_id")
+            target_id = next_action.get("target_id")
+            target_identity = next_action.get("target_axis_identity")
+            portfolio_head = index.event_head(f"portfolio:{mission_id}")
+            snapshot = (
+                None
+                if not isinstance(snapshot_id, str)
+                else index.get("portfolio-snapshot", snapshot_id)
+            )
+            decision = (
+                None
+                if not isinstance(decision_id, str)
+                else self._active_portfolio_decision(index, decision_id)
+            )
+            axes = (
+                {}
+                if snapshot is None
+                else {
+                    axis.get("axis_id"): axis
+                    for axis in snapshot.payload.get("axes", ())
+                    if isinstance(axis, Mapping)
+                    and isinstance(axis.get("axis_id"), str)
+                }
+            )
+            axis = axes.get(target_id)
+            if (
+                portfolio_head is None
+                or portfolio_head.record_id != snapshot_id
+                or snapshot is None
+                or snapshot.subject != f"Mission:{mission_id}"
+                or decision is None
+                or decision.subject != f"Mission:{mission_id}"
+                or decision.payload.get("portfolio_snapshot_id") != snapshot_id
+                or decision.payload.get("target_axis_identity")
+                != target_identity
+                or decision.status != "preserve"
+                or next_action.get("action") != "preserve"
+                or axis is None
+                or axis.get("axis_identity") != target_identity
+                or axis.get("status") != "pruned"
+            ):
+                raise TransitionError(
+                    "axis reopen authority lost its exact Decision and snapshot"
+                )
+            resolution = self._effective_axis_resolution(index, axis)
+            replay_resolution_ids, scope_overlay_ids = (
+                self._audit_deferred_axis_reopen_evidence(resolution)
+            )
+            if decision.payload.get("effective_axis") != (
+                resolution.to_projection_payload()
+            ):
+                raise TransitionError(
+                    "axis reopen Decision authority is stale"
+                )
+            expected_action: dict[str, Any] = {
+                "action": "preserve",
+                "decision_id": decision.record_id,
+                "evidence_scope_overlay_ids": list(scope_overlay_ids),
+                "kind": "record_axis_reopen_authority",
+                "portfolio_snapshot_id": snapshot.record_id,
+                "replay_resolution_record_ids": list(
+                    replay_resolution_ids
+                ),
+                "target_axis_identity": target_identity,
+                "target_id": target_id,
+            }
+            decision_obligations = decision.payload.get(
+                "replay_obligation_ids"
+            )
+            if isinstance(decision_obligations, list) and decision_obligations:
+                expected_action["replay_obligation_ids"] = list(
+                    decision_obligations
+                )
+            expected_action = self._with_replay_scheduler_constraints(
+                expected_action,
+                self._replay_scheduler_constraints(
+                    index,
+                    mission_id=mission_id,
+                ),
+            )
+            if dict(next_action) != expected_action:
+                raise TransitionError(
+                    "axis reopen action differs from its exact audit evidence"
+                )
+            authority = AxisReopenAuthority(
+                mission_id=mission_id,
+                portfolio_snapshot_id=snapshot.record_id,
+                portfolio_decision_id=decision.record_id,
+                axis_id=target_id,
+                axis_identity=target_identity,
+                replay_resolution_record_ids=replay_resolution_ids,
+                evidence_scope_overlay_ids=scope_overlay_ids,
+            )
+            stream = f"axis-reopen:{mission_id}:{target_identity}"
+            stream_head = index.event_head(stream)
+            record = _record(
+                kind="axis-reopen-authority",
+                record_id=authority.identity,
+                subject=f"Axis:{target_identity}",
+                status="authorized",
+                fingerprint=authority.identity.removeprefix(
+                    "axis-reopen-authority:"
+                ),
+                payload={
+                    "authority": authority.to_identity_payload(),
+                    "candidate_delta": 0,
+                    "claim_delta": "none",
+                    "effective_axis": resolution.to_projection_payload(),
+                    "holdout_delta": 0,
+                    "scientific_credit": 0,
+                    "trial_delta": 0,
+                },
+                event_stream=stream,
+                event_sequence=(
+                    1 if stream_head is None else stream_head.sequence + 1
+                ),
+            )
+            body = self._body(current)
+            snapshot_action = dict(next_action)
+            snapshot_action["kind"] = "record_portfolio_snapshot"
+            snapshot_action["axis_reopen_authority_id"] = authority.identity
+            snapshot_action.pop("evidence_scope_overlay_ids")
+            snapshot_action.pop("replay_resolution_record_ids")
+            body["next_action"] = snapshot_action
+            return body, [record], {
+                "axis_id": target_id,
+                "axis_reopen_authority_id": authority.identity,
+                "candidate_delta": 0,
+                "claim_delta": "none",
+                "holdout_delta": 0,
+                "trial_delta": 0,
+            }
+
+        return self._commit(
+            event_kind="axis_reopen_authority_recorded",
+            operation_id=operation_id,
+            subject="Portfolio:active",
+            payload={"transition": "audit_deferred_prune_reopen"},
+            prepare=prepare,
+        )
+
     def record_portfolio_decision(
         self,
         *,
@@ -11887,6 +13827,15 @@ class StateWriter:
         operation_id: str,
     ) -> TransitionResult:
         from axiom_rift.research.portfolio import PortfolioAction, PortfolioDecision
+        from axiom_rift.operations.architecture_review_direction import (
+            ARCHITECTURE_CONTINUATION_ACTION_FIELDS,
+            ArchitectureReviewDirectionError,
+            constraint_from_action,
+            require_decision_direction,
+            require_existing_axis_binding,
+            require_review_binding,
+            required_quant_team_basis,
+        )
 
         self._require_study_close_delivery_guard()
 
@@ -11922,7 +13871,36 @@ class StateWriter:
             )
             if snapshot is None or snapshot.kind != "portfolio-snapshot":
                 raise TransitionError("Portfolio Decision requires a current snapshot")
+            review = decision.quant_team_review
+            if (
+                not self.engineering_fixture
+                and review is None
+            ):
+                raise TransitionError(
+                    "real Portfolio Decision requires a plural quant-team review"
+                )
+            if review is not None:
+                review_basis = {
+                    (basis.kind, basis.record_id)
+                    for assessment in review.assessments
+                    for basis in assessment.basis_records
+                }
+                if any(
+                    _index.get(kind, record_id) is None
+                    for kind, record_id in review_basis
+                ):
+                    raise TransitionError(
+                        "quant-team review cites unavailable durable evidence"
+                    )
+                if ("portfolio-snapshot", snapshot.record_id) not in review_basis:
+                    raise TransitionError(
+                        "quant-team review does not bind the current Portfolio"
+                    )
             next_action = current["next_action"]
+            try:
+                continuation = constraint_from_action(next_action)
+            except ArchitectureReviewDirectionError as exc:
+                raise RecoveryRequired(str(exc)) from exc
             if (
                 next_action.get("kind") != "portfolio_decision"
                 or (
@@ -11931,12 +13909,19 @@ class StateWriter:
                 )
             ):
                 raise TransitionError("Portfolio Decision is not the exact next action")
-            axes_by_id = {
-                axis["axis_id"]: axis for axis in snapshot.payload["axes"]
-            }
+            axis_values = tuple(snapshot.payload["axes"])
+            axes_by_id = {axis["axis_id"]: axis for axis in axis_values}
+            axis_resolutions = self._effective_axis_resolutions(
+                _index,
+                axis_values,
+            )
             effective_axes = {
-                axis["axis_id"]: self._effective_axis_resolution(_index, axis)
-                for axis in snapshot.payload["axes"]
+                axis["axis_id"]: resolution
+                for axis, resolution in zip(
+                    axis_values,
+                    axis_resolutions,
+                    strict=True,
+                )
             }
             option_eligible_targets = {
                 axis_id
@@ -11976,7 +13961,14 @@ class StateWriter:
                     item not in option_eligible_targets
                     for item in required_target_axis_ids
                 )
-                or decision.chosen.target_id not in required_target_axis_ids
+            ):
+                raise TransitionError(
+                    "Portfolio Decision bypasses its admitted constrained axis"
+                )
+            if (
+                continuation is None
+                and required_target_axis_ids is not None
+                and decision.chosen.target_id not in required_target_axis_ids
             ):
                 raise TransitionError(
                     "Portfolio Decision bypasses its admitted constrained axis"
@@ -12020,15 +14012,29 @@ class StateWriter:
                 raise RecoveryRequired(str(exc)) from exc
             except ReplayTransitionError as exc:
                 raise TransitionError(str(exc)) from exc
-            scheduler_constraints = (
-                {
+            if review is not None and any(
+                ("historical-replay-obligation", obligation_id)
+                not in review_basis
+                for obligation_id in decision.replay_obligation_ids
+            ):
+                raise TransitionError(
+                    "quant-team review omits its replay-obligation basis"
+                )
+            scheduler_constraints = None
+            if continuation is not None:
+                scheduler_constraints = {
+                    name: next_action[name]
+                    for name in ARCHITECTURE_CONTINUATION_ACTION_FIELDS
+                    if name in next_action
+                }
+            elif (
+                required_target_axis_ids is not None
+                or constraint_source_id is not None
+            ):
+                scheduler_constraints = {
                     "constraint_source_id": constraint_source_id,
                     "required_target_axis_ids": required_target_axis_ids,
                 }
-                if required_target_axis_ids is not None
-                or constraint_source_id is not None
-                else None
-            )
             if replay_constraints is not None:
                 scheduler_constraints = {**(scheduler_constraints or {}), **replay_constraints}
             if (
@@ -12095,7 +14101,11 @@ class StateWriter:
                 )
                 bootstrap_anchors = [
                     record
-                    for record in _index.records_by_kind("portfolio-decision")
+                    for record in _index.records_by_payload_text(
+                        "portfolio-decision",
+                        "target_axis_identity",
+                        target_axis["axis_identity"],
+                    )
                     if self._active_portfolio_decision(_index, record.record_id)
                     is not None
                     and record.payload.get("baseline_executable_id") == baseline.identity
@@ -12118,17 +14128,24 @@ class StateWriter:
                     isinstance(record.payload.get("executable"), dict)
                     and record.payload["executable"].get("data_contract")
                     == baseline.data_contract
-                    for record in _index.records_by_kind("trial")
+                    for record in _index.records_by_payload_text(
+                        "trial",
+                        "trial_data_contract",
+                        baseline.data_contract,
+                    )
                 )
                 axis_has_controlled_history = any(
                     isinstance(record.payload.get("controlled_chassis"), dict)
                     and record.payload.get("portfolio_axis_identity")
                     == target_axis["axis_identity"]
-                    for record in _index.records_by_kind("study-open")
+                    for record in _index.records_by_payload_text(
+                        "study-open",
+                        "portfolio_axis_identity",
+                        target_axis["axis_identity"],
+                    )
                 )
-                has_any_controlled_history = any(
-                    isinstance(record.payload.get("controlled_chassis"), dict)
-                    for record in _index.records_by_kind("study-open")
+                has_any_controlled_history = (
+                    _index.has_controlled_chassis_study()
                 )
                 baseline_provenance = (
                     {
@@ -12185,17 +14202,12 @@ class StateWriter:
                 )
             target_architecture_identity = resolved_architecture_family
             if target_architecture_identity is None:
-                target_anchor = self._axis_architecture_anchor(_index, target_axis)
-                if target_anchor is not None:
-                    target_payload = target_anchor.get("architecture_chassis")
-                    target_architecture_identity = (
-                        self._resolved_architecture_family(
-                            index=_index,
-                            architecture_payload=target_payload,
-                        )
-                        if isinstance(target_payload, dict)
-                        else target_anchor["architecture_chassis_identity"]
+                target_architecture_identity = (
+                    self._axis_resolved_architecture_family(
+                        index=_index,
+                        axis=target_axis,
                     )
+                )
             diagnosis_id = next_action.get("study_diagnosis_id")
             diagnosis = (
                 None
@@ -12258,6 +14270,13 @@ class StateWriter:
                     raise TransitionError(
                         "Portfolio Decision does not follow or structurally exit its diagnosis"
                     )
+                if (
+                    review is not None
+                    and ("study-diagnosis", diagnosis_id) not in review_basis
+                ):
+                    raise TransitionError(
+                        "quant-team review omits its Study-diagnosis basis"
+                    )
             architecture_review_id = next_action.get("architecture_review_id")
             architecture_review = (
                 None
@@ -12272,6 +14291,15 @@ class StateWriter:
                 raise TransitionError(
                     "Portfolio Decision architecture review is absent or stale"
                 )
+            if (
+                review is not None
+                and isinstance(architecture_review_id, str)
+                and ("architecture-review", architecture_review_id)
+                not in review_basis
+            ):
+                raise TransitionError(
+                    "quant-team review omits its architecture-review basis"
+                )
             excluded_architecture = next_action.get(
                 "excluded_architecture_family"
             )
@@ -12280,7 +14308,73 @@ class StateWriter:
             )
             if architecture_review is not None:
                 conclusion = architecture_review.payload.get("conclusion")
-                if conclusion == "rotate_architecture":
+                if conclusion == "bounded_same_architecture":
+                    if continuation is None:
+                        raise TransitionError(
+                            "bounded architecture review lost its continuation"
+                        )
+                    trigger = _index.get(
+                        "architecture-review-trigger",
+                        continuation.trigger_record_id,
+                    )
+                    if trigger is None:
+                        raise RecoveryRequired(
+                            "bounded architecture review trigger is unavailable"
+                        )
+                    try:
+                        require_review_binding(
+                            continuation,
+                            review_record_id=architecture_review.record_id,
+                            review_payload=architecture_review.payload,
+                            trigger_payload=trigger.payload,
+                        )
+                        if self._review_resolved_architecture_family(
+                            index=_index,
+                            review=architecture_review,
+                        ) != continuation.required_architecture_family:
+                            raise ArchitectureReviewDirectionError(
+                                "bounded architecture review family is no longer current"
+                            )
+                        required_axis_ids = set(
+                            continuation.required_target_axis_ids
+                        )
+                        required_axis_ids.add(decision.chosen.target_id)
+                        resolved_families = {
+                            axis_id: self._axis_resolved_architecture_family(
+                                index=_index,
+                                axis=axes_by_id[axis_id],
+                            )
+                            for axis_id in required_axis_ids
+                            if axis_id in axes_by_id
+                        }
+                        require_existing_axis_binding(
+                            continuation,
+                            axes_by_id=axes_by_id,
+                            selectable_axis_ids=frozenset(
+                                option_eligible_targets
+                            ),
+                            resolved_architecture_families=resolved_families,
+                        )
+                        require_decision_direction(
+                            continuation,
+                            action=decision.chosen.action.value,
+                            target_axis_id=decision.chosen.target_id,
+                            target_axis_identity=target_axis["axis_identity"],
+                            target_architecture_family=target_architecture_identity,
+                        )
+                    except ArchitectureReviewDirectionError as exc:
+                        raise TransitionError(str(exc)) from exc
+                    if review is None or not required_quant_team_basis(
+                        continuation
+                    ).issubset(review_basis):
+                        raise TransitionError(
+                            "quant-team review omits bounded architecture bases"
+                        )
+                elif continuation is not None:
+                    raise TransitionError(
+                        "legacy architecture review carries a bounded continuation"
+                    )
+                elif conclusion == "rotate_architecture":
                     reviewed_family = self._review_resolved_architecture_family(
                         index=_index,
                         review=architecture_review,
@@ -12329,15 +14423,24 @@ class StateWriter:
                         "Portfolio Decision did not change the reviewed research layer"
                     )
             body = self._body(current)
+            audit_deferred_prune_reopen = (
+                decision.chosen.action is PortfolioAction.PRESERVE
+                and chosen_effective_axis.requires_reopen
+                and chosen_effective_axis.snapshot_status == "pruned"
+            )
             next_kind = (
-                "record_portfolio_snapshot"
-                if decision.chosen.action
-                in {
-                    PortfolioAction.NEW_MECHANISM,
-                    PortfolioAction.PRESERVE,
-                    PortfolioAction.PRUNE,
-                }
-                else "execute_portfolio_decision"
+                "record_axis_reopen_authority"
+                if audit_deferred_prune_reopen
+                else (
+                    "record_portfolio_snapshot"
+                    if decision.chosen.action
+                    in {
+                        PortfolioAction.NEW_MECHANISM,
+                        PortfolioAction.PRESERVE,
+                        PortfolioAction.PRUNE,
+                    }
+                    else "execute_portfolio_decision"
+                )
             )
             body["next_action"] = {
                 "kind": next_kind,
@@ -12350,6 +14453,22 @@ class StateWriter:
             if decision.replay_obligation_ids:
                 body["next_action"]["replay_obligation_ids"] = list(
                     decision.replay_obligation_ids
+                )
+            if audit_deferred_prune_reopen:
+                replay_resolution_ids, scope_overlay_ids = (
+                    self._audit_deferred_axis_reopen_evidence(
+                        chosen_effective_axis
+                    )
+                )
+                body["next_action"].update(
+                    {
+                        "evidence_scope_overlay_ids": list(
+                            scope_overlay_ids
+                        ),
+                        "replay_resolution_record_ids": list(
+                            replay_resolution_ids
+                        ),
+                    }
                 )
             if next_kind == "execute_portfolio_decision" and not self.engineering_fixture:
                 assert baseline is not None and architecture is not None
@@ -12364,7 +14483,10 @@ class StateWriter:
                 decision.chosen.action == PortfolioAction.NEW_MECHANISM
             ):
                 constraint_source_id = next_action.get("constraint_source_id")
-                if isinstance(diagnosis_id, str):
+                if continuation is not None:
+                    body["next_action"].update(continuation.to_action_fields())
+                    constraint_source_id = continuation.architecture_review_id
+                elif isinstance(diagnosis_id, str):
                     body["next_action"]["required_followup_layers"] = list(
                         diagnosis.payload["allowed_research_layers"]
                     )
@@ -12389,7 +14511,10 @@ class StateWriter:
                     body["next_action"]["constraint_source_id"] = (
                         constraint_source_id
                     )
-            if next_kind == "record_portfolio_snapshot":
+            if next_kind in {
+                "record_axis_reopen_authority",
+                "record_portfolio_snapshot",
+            }:
                 body["next_action"] = self._with_replay_scheduler_constraints(
                     body["next_action"],
                     replay_constraints,
@@ -12437,6 +14562,12 @@ class StateWriter:
         from axiom_rift.research.decision_withdrawal import (
             PortfolioDecisionWithdrawalManifest,
             PortfolioDecisionWithdrawalReason,
+        )
+        from axiom_rift.operations.architecture_review_direction import (
+            ARCHITECTURE_CONTINUATION_ACTION_FIELDS,
+            ArchitectureReviewDirectionError,
+            constraint_from_action,
+            require_review_binding,
         )
 
         _require_digest(
@@ -12523,12 +14654,24 @@ class StateWriter:
                 if isinstance(axis, dict)
                 and axis.get("axis_id") == manifest.target_axis_id
             )
-            eligible_axis_ids = {
-                axis.get("axis_id")
+            resolvable_axes = tuple(
+                axis
                 for axis in axes
                 if isinstance(axis, dict)
                 and isinstance(axis.get("axis_id"), str)
-                and self._effective_axis_resolution(index, axis).selectable
+            )
+            axis_resolutions = self._effective_axis_resolutions(
+                index,
+                resolvable_axes,
+            )
+            eligible_axis_ids = {
+                axis["axis_id"]
+                for axis, resolution in zip(
+                    resolvable_axes,
+                    axis_resolutions,
+                    strict=True,
+                )
+                if resolution.selectable
             }
             chosen_options = tuple(
                 option
@@ -12636,7 +14779,7 @@ class StateWriter:
                     "pending_replay_obligation_ids",
                     "required_replay_priority",
                     "required_target_axis_ids",
-                }
+                } | set(ARCHITECTURE_CONTINUATION_ACTION_FIELDS)
                 if (
                     not isinstance(constraints, dict)
                     or not constraints
@@ -12674,6 +14817,12 @@ class StateWriter:
                     raise RecoveryRequired(
                         "withdrawn Decision constrained axes lack their source"
                     )
+                for name in ARCHITECTURE_CONTINUATION_ACTION_FIELDS:
+                    if name in constraints:
+                        value = constraints[name]
+                        replacement_action[name] = (
+                            list(value) if isinstance(value, list) else value
+                        )
                 replay_constraints = self._replay_scheduler_constraints(
                     index,
                     mission_id=mission_id,
@@ -12703,7 +14852,33 @@ class StateWriter:
                     )
                 replacement_action["architecture_review_id"] = review_id
                 conclusion = review.payload.get("conclusion")
-                if conclusion == "rotate_architecture":
+                if conclusion == "bounded_same_architecture":
+                    try:
+                        continuation = constraint_from_action(replacement_action)
+                    except ArchitectureReviewDirectionError as exc:
+                        raise RecoveryRequired(str(exc)) from exc
+                    trigger = (
+                        None
+                        if continuation is None
+                        else index.get(
+                            "architecture-review-trigger",
+                            continuation.trigger_record_id,
+                        )
+                    )
+                    if continuation is None or trigger is None:
+                        raise RecoveryRequired(
+                            "withdrawn bounded architecture direction is unavailable"
+                        )
+                    try:
+                        require_review_binding(
+                            continuation,
+                            review_record_id=review.record_id,
+                            review_payload=review.payload,
+                            trigger_payload=trigger.payload,
+                        )
+                    except ArchitectureReviewDirectionError as exc:
+                        raise RecoveryRequired(str(exc)) from exc
+                elif conclusion == "rotate_architecture":
                     replacement_action["excluded_architecture_family"] = (
                         self._review_resolved_architecture_family(
                             index=index,
@@ -13102,7 +15277,7 @@ class StateWriter:
         adjudication_record_ids: Sequence[str],
         replay_study_id: str,
     ) -> dict[str, Any]:
-        """Build a read-only, exact correction plan; never mutate canonical state."""
+        """Build a read-only explicit complete-history correction audit plan."""
 
         normalized_ids = tuple(sorted(adjudication_record_ids))
         if (
@@ -13124,11 +15299,11 @@ class StateWriter:
                 from axiom_rift.operations.replay_projection import (
                     ReplayProjectionError,
                     ReplayTransitionError,
-                    build_correction_plan,
+                    build_explicit_historical_replay_correction_audit_plan,
                 )
 
                 try:
-                    return build_correction_plan(
+                    return build_explicit_historical_replay_correction_audit_plan(
                         index,
                         mission_id=mission_id,
                         adjudication_record_ids=normalized_ids,
@@ -13225,6 +15400,401 @@ class StateWriter:
                     for item in normalized_satisfactions
                 ],
             },
+            prepare=prepare,
+        )
+
+    def plan_historical_replay_satisfaction_invalidation(
+        self,
+        *,
+        obligation_id: str,
+    ) -> dict[str, Any]:
+        """Derive a read-only audit artifact for one invalid satisfied head."""
+
+        if (
+            type(obligation_id) is not str
+            or not obligation_id.startswith("historical-replay-obligation:")
+        ):
+            raise TransitionError(
+                "replay satisfaction invalidation obligation is malformed"
+            )
+        from axiom_rift.operations.replay_projection import (
+            ReplayProjectionError,
+            ReplayTransitionError,
+            build_satisfaction_invalidation_plan,
+        )
+
+        with WriterLock(self.lock_path):
+            with self._open_authoritative_index() as index:
+                current = self._require_stable_locked(index)
+                assert current is not None
+                mission_id = current["scientific"].get("active_mission")
+                if not isinstance(mission_id, str):
+                    raise TransitionError(
+                        "replay satisfaction invalidation requires an active Mission"
+                    )
+                try:
+                    return build_satisfaction_invalidation_plan(
+                        index,
+                        mission_id=mission_id,
+                        obligation_id=obligation_id,
+                    )
+                except ReplayProjectionError as exc:
+                    raise RecoveryRequired(str(exc)) from exc
+                except ReplayTransitionError as exc:
+                    raise TransitionError(str(exc)) from exc
+
+    def invalidate_historical_replay_satisfaction(
+        self,
+        *,
+        obligation_id: str,
+        audit_manifest_hash: str,
+        operation_id: str,
+        historical_family_authority: HistoricalFamilyAuthority | None = None,
+    ) -> TransitionResult:
+        """Revoke only a reproducibly invalid E01 satisfaction and requeue it."""
+
+        from axiom_rift.operations.replay_projection import (
+            ReplayProjectionError,
+            ReplayTransitionError,
+            prepare_satisfaction_invalidation,
+            scheduler_constraints,
+        )
+        from axiom_rift.research.replay_satisfaction_invalidation import (
+            ReplaySatisfactionInvalidationAuditManifest,
+        )
+        from axiom_rift.research.historical_study_registry import (
+            HISTORICAL_FAMILY_IDENTITY_BY_MODULE,
+            HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256,
+        )
+        from axiom_rift.research.replay_obligation import (
+            historical_replay_obligation_from_identity_payload,
+        )
+
+        if (
+            type(obligation_id) is not str
+            or not obligation_id.startswith("historical-replay-obligation:")
+        ):
+            raise TransitionError(
+                "replay satisfaction invalidation obligation is malformed"
+            )
+        _require_digest(
+            "replay satisfaction invalidation audit manifest",
+            audit_manifest_hash,
+        )
+        try:
+            manifest_bytes = self.evidence.read_verified(audit_manifest_hash)
+            manifest = ReplaySatisfactionInvalidationAuditManifest.from_bytes(
+                manifest_bytes
+            )
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise TransitionError(
+                "replay satisfaction invalidation lacks its exact canonical manifest"
+            ) from exc
+        if manifest.obligation_id != obligation_id:
+            raise TransitionError(
+                "replay satisfaction invalidation artifact targets another obligation"
+            )
+        family_authority = historical_family_authority
+        if family_authority is not None and not isinstance(
+            family_authority,
+            HistoricalFamilyAuthority,
+        ):
+            raise TransitionError(
+                "historical family correction authority is not typed"
+            )
+
+        def require_family_authority(
+            index: LocalIndex,
+        ) -> IndexRecord | None:
+            if family_authority is None:
+                return None
+            if family_authority.replay_obligation_id != obligation_id:
+                raise TransitionError(
+                    "historical family authority targets another obligation"
+                )
+            relative = family_authority.reconstruction_source_path
+            expected_prefix = "src/axiom_rift/research/"
+            if (
+                not relative.startswith(expected_prefix)
+                or "/" in relative.removeprefix(expected_prefix)
+            ):
+                raise TransitionError(
+                    "historical family authority source is outside the frozen registry"
+                )
+            source = self.root / relative
+            try:
+                resolved_root = self.root.resolve(strict=True)
+                resolved_source = source.resolve(strict=True)
+                resolved_source.relative_to(resolved_root)
+                content = resolved_source.read_bytes()
+            except (OSError, ValueError) as exc:
+                raise TransitionError(
+                    "historical family authority source is unavailable"
+                ) from exc
+            observed_sha256 = sha256(content).hexdigest()
+            registered_sha256 = HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256.get(
+                resolved_source.name
+            )
+            registered_family_identity = (
+                HISTORICAL_FAMILY_IDENTITY_BY_MODULE.get(
+                    resolved_source.name
+                )
+            )
+            if (
+                source.is_symlink()
+                or observed_sha256
+                != family_authority.reconstruction_source_sha256
+                or registered_sha256 != observed_sha256
+                or registered_family_identity
+                != family_authority.family.identity
+            ):
+                raise TransitionError(
+                    "historical family authority source differs from frozen history"
+                )
+            initial = index.get("historical-replay-obligation", obligation_id)
+            raw_obligation = (
+                None if initial is None else initial.payload.get("obligation")
+            )
+            try:
+                obligation = historical_replay_obligation_from_identity_payload(
+                    raw_obligation
+                )
+            except (TypeError, ValueError) as exc:
+                raise RecoveryRequired(
+                    "historical family authority obligation is malformed"
+                ) from exc
+            family = family_authority.family
+            batch = index.get("batch-open", family.original_batch_id)
+            study = index.get("study-open", family.original_study_id)
+            batch_spec = None if batch is None else batch.payload.get("spec")
+            batch_digest = (
+                None
+                if not isinstance(batch_spec, Mapping)
+                else canonical_digest(
+                    domain="batch-spec",
+                    payload=dict(batch_spec),
+                )
+            )
+            stream = f"batch-trials:{family.original_batch_id}"
+            head = index.event_head(stream)
+            if (
+                initial is None
+                or obligation.identity != obligation_id
+                or family.original_study_id != obligation.original_study_id
+                or family.target_historical_executable_id
+                != obligation.original_executable_id
+                or batch is None
+                or batch.kind != "batch-open"
+                or batch.record_id != family.original_batch_id
+                or batch.subject != f"Study:{family.original_study_id}"
+                or batch.status != "open"
+                or batch_digest is None
+                or batch.record_id != f"batch:{batch_digest}"
+                or batch.fingerprint != batch_digest
+                or batch.payload.get("batch_hash") != batch_digest
+                or batch_spec.get("max_trials") != family.family_size
+                or study is None
+                or study.kind != "study-open"
+                or study.record_id != family.original_study_id
+                or study.subject != f"Study:{family.original_study_id}"
+                or batch_spec.get("study_hash") != study.fingerprint
+                or head is None
+                or head.sequence != family.family_size
+            ):
+                raise TransitionError(
+                    "historical family authority differs from obligation history"
+                )
+            for ordinal, member in enumerate(family.members, start=1):
+                trial = index.event_record(stream, ordinal)
+                executable = (
+                    None if trial is None else trial.payload.get("executable")
+                )
+                executable_parameters = (
+                    None
+                    if not isinstance(executable, Mapping)
+                    else executable.get("parameters")
+                )
+                expected_parameters = member.parameter_values()
+                missing_parameters = (
+                    set()
+                    if not isinstance(executable_parameters, Mapping)
+                    else set(expected_parameters).difference(
+                        executable_parameters
+                    )
+                )
+                if (
+                    trial is None
+                    or trial.kind != "trial"
+                    or trial.status != "evaluated"
+                    or trial.record_id
+                    != member.historical_reference_executable_id
+                    or trial.subject != f"Batch:{family.original_batch_id}"
+                    or trial.event_stream != stream
+                    or trial.event_sequence != ordinal
+                    or trial.payload.get("study_id")
+                    != family.original_study_id
+                    or not isinstance(executable, Mapping)
+                    or trial.record_id
+                    != "executable:"
+                    + canonical_digest(
+                        domain="executable",
+                        payload=dict(executable),
+                    )
+                    or trial.fingerprint
+                    != trial.record_id.removeprefix("executable:")
+                    or not isinstance(executable_parameters, Mapping)
+                    or missing_parameters
+                    != set(
+                        family_authority.reconstruction_only_parameter_names
+                    )
+                    or any(
+                        executable_parameters.get(name) != value
+                        for name, value in expected_parameters.items()
+                        if name not in missing_parameters
+                    )
+                ):
+                    raise TransitionError(
+                        "historical family authority member order differs from history"
+                    )
+            final_trial = index.event_record(stream, family.family_size)
+            if (
+                final_trial is None
+                or final_trial.record_id != head.record_id
+                or final_trial.fingerprint != head.fingerprint
+            ):
+                raise TransitionError(
+                    "historical family authority trial head is inconsistent"
+                )
+            if index.get(
+                "historical-family-authority",
+                family_authority.identity,
+            ) is not None:
+                raise RecoveryRequired(
+                    "historical family authority identity already exists"
+                )
+            if index.records_by_subject_status(
+                f"ReplayObligation:{obligation_id}",
+                "accepted",
+            ):
+                raise RecoveryRequired(
+                    "replay obligation already has accepted family authority"
+                )
+            return IndexRecord(
+                kind="historical-family-authority",
+                record_id=family_authority.identity,
+                subject=f"ReplayObligation:{obligation_id}",
+                status="accepted",
+                fingerprint=family_authority.identity.removeprefix(
+                    "historical-family-authority:"
+                ),
+                payload=family_authority.to_identity_payload(),
+            )
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError(
+                    "replay satisfaction invalidation requires control"
+                )
+            science = current["scientific"]
+            mission_id = science.get("active_mission")
+            next_action = current.get("next_action")
+            if (
+                not isinstance(mission_id, str)
+                or not isinstance(next_action, dict)
+                or next_action.get("kind")
+                not in {
+                    "choose_next_initiative_or_terminal",
+                    "portfolio_decision",
+                }
+                or any(
+                    science.get(name) is not None
+                    for name in (
+                        "active_batch",
+                        "active_executable",
+                        "active_holdout_evaluation",
+                        "active_job",
+                        "active_lineage",
+                        "active_release",
+                        "active_repair",
+                        "active_study",
+                    )
+                )
+            ):
+                raise TransitionError(
+                    "replay satisfaction invalidation requires a stable scheduler boundary"
+                )
+            current_constraints = scheduler_constraints(
+                index,
+                mission_id=mission_id,
+            )
+            projected_constraints = {
+                name: next_action.get(name)
+                for name in (
+                    "pending_replay_obligation_ids",
+                    "required_replay_priority",
+                )
+                if next_action.get(name) is not None
+            }
+            if projected_constraints != (current_constraints or {}):
+                raise TransitionError(
+                    "replay satisfaction invalidation scheduler authority is stale"
+                )
+            try:
+                durable_bytes = self.evidence.read_verified(audit_manifest_hash)
+                durable_manifest = (
+                    ReplaySatisfactionInvalidationAuditManifest.from_bytes(
+                        durable_bytes
+                    )
+                )
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                raise RecoveryRequired(
+                    "replay satisfaction invalidation evidence changed before commit"
+                ) from exc
+            if durable_bytes != manifest_bytes or durable_manifest != manifest:
+                raise RecoveryRequired(
+                    "replay satisfaction invalidation manifest changed before commit"
+                )
+            try:
+                records, constraints, result = prepare_satisfaction_invalidation(
+                    index,
+                    mission_id=mission_id,
+                    obligation_id=obligation_id,
+                    manifest=durable_manifest,
+                    audit_manifest_hash=audit_manifest_hash,
+                )
+                family_record = require_family_authority(index)
+            except ReplayProjectionError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except ReplayTransitionError as exc:
+                raise TransitionError(str(exc)) from exc
+            body = self._body(current)
+            body["next_action"] = self._with_replay_scheduler_constraints(
+                next_action,
+                constraints,
+            )
+            if family_record is not None:
+                records.append(family_record)
+                result = {
+                    **result,
+                    "historical_family_authority_id": family_record.record_id,
+                }
+            return body, records, result
+
+        event_payload = {
+            "audit_manifest_hash": audit_manifest_hash,
+            "obligation_id": obligation_id,
+            "satisfaction_record_id": manifest.satisfaction_record_id,
+        }
+        if family_authority is not None:
+            event_payload["historical_family_authority"] = (
+                family_authority.to_identity_payload()
+            )
+        return self._commit(
+            event_kind="historical_replay_satisfaction_invalidated",
+            operation_id=operation_id,
+            subject="Mission:active",
+            payload=event_payload,
             prepare=prepare,
         )
 
@@ -13454,17 +16024,49 @@ class StateWriter:
                     if not isinstance(failure, Mapping)
                     else failure.get("failure_signature")
                 )
+                legacy_changed_cause_fields = {
+                    "changed_dimension",
+                    "explanation",
+                    "new_evidence_hashes",
+                    "new_implementation_identity",
+                    "prior_failure_signature",
+                    "previous_implementation_identity",
+                    "schema",
+                }
+                validated_changed_cause_fields = {
+                    *legacy_changed_cause_fields,
+                    "result_artifact_hashes",
+                    "validation_plan_hash",
+                    "validator_id",
+                }
+                changed_cause_fields = (
+                    frozenset(changed_manifest)
+                    if isinstance(changed_manifest, Mapping)
+                    else frozenset()
+                )
+                production_retry_family = declaration.payload.get(
+                    "retry_family_fingerprint"
+                )
+                retry_basis_record_ids = declaration.payload.get(
+                    "retry_basis_record_ids"
+                )
                 if (
                     common_invalid
-                    or set(changed_manifest) != {
-                        "changed_dimension",
-                        "explanation",
-                        "new_evidence_hashes",
-                        "new_implementation_identity",
-                        "prior_failure_signature",
-                        "previous_implementation_identity",
-                        "schema",
+                    or changed_cause_fields
+                    not in {
+                        frozenset(legacy_changed_cause_fields),
+                        frozenset(validated_changed_cause_fields),
                     }
+                    or (
+                        isinstance(production_retry_family, str)
+                        and (
+                            changed_cause_fields
+                            != validated_changed_cause_fields
+                            or not isinstance(retry_basis_record_ids, list)
+                            or len(retry_basis_record_ids) != 1
+                            or type(retry_basis_record_ids[0]) is not str
+                        )
+                    )
                     or changed_manifest.get("schema") != "job_changed_cause.v1"
                     or not isinstance(failure_signature, str)
                     or changed_manifest.get("prior_failure_signature")
@@ -13476,6 +16078,54 @@ class StateWriter:
                     raise TransitionError(
                         "replay repair changed-cause proof does not bind the exact failure"
                     )
+                if changed_cause_fields == validated_changed_cause_fields:
+                    validation_plan_hash = changed_manifest.get(
+                        "validation_plan_hash"
+                    )
+                    validation_results = changed_manifest.get(
+                        "result_artifact_hashes"
+                    )
+                    validator_id = changed_manifest.get("validator_id")
+                    if (
+                        type(validation_plan_hash) is not str
+                        or not isinstance(validation_results, list)
+                        or not validation_results
+                        or validation_results
+                        != sorted(set(validation_results))
+                        or any(
+                            type(item) is not str
+                            for item in validation_results
+                        )
+                        or validation_plan_hash in validation_results
+                        or type(validator_id) is not str
+                        or not validator_id.startswith("validator:")
+                    ):
+                        raise TransitionError(
+                            "replay repair engineering validation binding is malformed"
+                        )
+                    _require_digest(
+                        "replay repair engineering validation plan",
+                        validation_plan_hash,
+                    )
+                    _require_digest(
+                        "replay repair engineering validator",
+                        validator_id.removeprefix("validator:"),
+                    )
+                    for validation_hash in (
+                        validation_plan_hash,
+                        *validation_results,
+                    ):
+                        try:
+                            self.evidence.verify(validation_hash)
+                        except (
+                            FileNotFoundError,
+                            OSError,
+                            RuntimeError,
+                            ValueError,
+                        ) as exc:
+                            raise TransitionError(
+                                "replay repair engineering validation evidence is unavailable"
+                            ) from exc
                 _require_digest(
                     "replay prior failure signature", failure_signature
                 )
@@ -13570,10 +16220,7 @@ class StateWriter:
                 )
             _require_digest("replay repair validation plan", plan_hash)
             try:
-                plan_artifact = self.evidence.verify(plan_hash)
-                plan = parse_canonical(
-                    (self.evidence._root / plan_artifact.relative_path).read_bytes()
-                )
+                plan = parse_canonical(self.evidence.read_verified(plan_hash))
             except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
                 raise TransitionError(
                     "replay repair validation plan is unavailable"
@@ -14378,6 +17025,42 @@ class StateWriter:
             source_contracts = tuple(
                 candidate_record.payload["executable"].get("source_contracts", [])
             )
+            try:
+                current_source_snapshot = current_runtime_source_snapshot(
+                    index=index,
+                    source_contract_ids=source_contracts,
+                    require_runtime_source=lambda source_index, source_id: (
+                        self._require_runtime_source(
+                            source_index,
+                            source_id,
+                            error_type=PermitError,
+                        )
+                    ),
+                )
+                expected_candidate_context = candidate_job_execution_context(
+                    index=index,
+                    candidate=candidate_record,
+                    current=current_source_snapshot,
+                    runtime_binding=runtime_binding,
+                )
+            except RuntimeSuccessAuthorityError as exc:
+                raise PermitError(str(exc)) from exc
+            if (
+                candidate_record.record_id != started_runtime.get("candidate_id")
+                or candidate_record.subject != f"Executable:{executable_id}"
+                or candidate_record.payload.get("mission_id")
+                != science["active_mission"]
+                or declaration.payload.get("candidate_execution_context")
+                != expected_candidate_context
+                or {
+                    name: started_runtime.get(name)
+                    for name in current_source_snapshot.payload()
+                }
+                != current_source_snapshot.payload()
+            ):
+                raise PermitError(
+                    "runtime entry candidate or source snapshot changed after Job start"
+                )
             required_scope = (
                 f"candidate:{candidate_record.record_id}",
                 f"depth:{depth.value}",
@@ -14395,12 +17078,6 @@ class StateWriter:
                 expected_input_hash=input_hash,
                 required_scope=required_scope,
             )
-            current_source_receipts = [
-                self._require_runtime_source(
-                    index, source_id, error_type=PermitError
-                ).payload["evidence_receipt_id"]
-                for source_id in source_contracts
-            ]
             candidate = CandidateBinding(
                 candidate_id=candidate_record.record_id,
                 executable_id=executable_id,
@@ -14422,7 +17099,7 @@ class StateWriter:
                 "job_start_record_id": job["start_record_id"],
                 "mission_id": science["active_mission"],
                 "runtime_permit_id": permit.permit_id,
-                "source_receipt_ids": sorted(current_source_receipts),
+                **current_source_snapshot.payload(),
             }
             entry_id = canonical_digest(domain="runtime-engine-entry", payload=entry_payload)
             entry = _record(
@@ -14442,7 +17119,12 @@ class StateWriter:
                 "permit_id": permit.permit_id,
                 "executable_id": executable_id,
                 "depth": depth.value,
-                "current_source_receipts": sorted(current_source_receipts),
+                "current_source_receipts": list(
+                    current_source_snapshot.source_receipt_ids
+                ),
+                "current_source_state_records": list(
+                    current_source_snapshot.source_state_record_ids
+                ),
             }
 
         return self._commit(
@@ -14503,6 +17185,138 @@ class StateWriter:
             if declaration is None:
                 raise TransitionError("Job declaration is unavailable at start")
             declared_spec = declaration.payload["spec"]
+            if _job_requires_current_source_authority(
+                engineering_fixture=self.engineering_fixture,
+                evidence_subject_kind=declared_spec["evidence_subject"]["kind"],
+            ):
+                from axiom_rift.research.implementation_closure import (
+                    ImplementationClosureError,
+                    require_current_job_source_closure,
+                    require_job_implementation_closure,
+                )
+
+                implementation_manifest = (
+                    self._require_job_implementation_evidence(
+                        declared_spec
+                    )
+                )
+                executable_manifest: dict[str, Any] | None = None
+                try:
+                    component_implementation_hashes: tuple[str, ...] = ()
+                    if declared_spec["evidence_subject"]["kind"] == "Executable":
+                        subject_trial = index.get(
+                            "trial", declared_spec["evidence_subject"]["id"]
+                        )
+                        executable_manifest = (
+                            None
+                            if subject_trial is None
+                            else subject_trial.payload.get("executable")
+                        )
+                        if not isinstance(executable_manifest, dict):
+                            raise RecoveryRequired(
+                                "Executable Job subject lost its exact trial manifest"
+                            )
+                        component_implementation_hashes = (
+                            require_job_implementation_closure(
+                                executable_manifest=executable_manifest,
+                                job_artifact_hashes=implementation_manifest[
+                                    "artifact_hashes"
+                                ],
+                                artifact_reader=self.evidence.read_verified,
+                            )
+                        )
+                except ImplementationClosureError as exc:
+                    raise TransitionError(str(exc)) from exc
+                declared_component_hashes = declaration.payload.get(
+                    "component_implementation_hashes"
+                )
+                if (
+                    declared_component_hashes
+                    != (
+                        list(component_implementation_hashes)
+                        if component_implementation_hashes
+                        else None
+                    )
+                ):
+                    raise RecoveryRequired(
+                        "Job Component implementation closure drifted before start"
+                    )
+                source_closure_hashes = (
+                    _job_implementation_source_closure_hashes(
+                        implementation_manifest=implementation_manifest,
+                        artifact_reader=self.evidence.read_verified,
+                    )
+                )
+                declared_authority = declaration.payload.get(
+                    "source_closure_authority"
+                )
+                if source_closure_hashes:
+                    if not isinstance(declared_authority, Mapping):
+                        raise RecoveryRequired(
+                            "prospective Job lacks declared source-path authority"
+                        )
+                    try:
+                        current_authority = (
+                            require_current_job_source_closure(
+                                callable_identity=declared_spec[
+                                    "callable_identity"
+                                ],
+                                job_artifact_hashes=(
+                                    implementation_manifest[
+                                        "artifact_hashes"
+                                    ]
+                                ),
+                                artifact_reader=self.evidence.read_verified,
+                                source_root=self.foundation_root / "src",
+                                verified_non_source_artifact_hashes=(
+                                    component_implementation_hashes
+                                ),
+                            )
+                        )
+                    except ImplementationClosureError as exc:
+                        raise TransitionError(str(exc)) from exc
+                    if current_authority != declared_authority:
+                        raise RecoveryRequired(
+                            "Job source-path authority drifted before start"
+                        )
+                    try:
+                        if executable_manifest is not None:
+                            closure_payload = parse_canonical(
+                                self.evidence.read_verified(
+                                    source_closure_hashes[0]
+                                )
+                            )
+                            if not isinstance(closure_payload, Mapping):
+                                raise ExternalObservedDevelopmentJobBindingError(
+                                    "Job source closure payload is malformed"
+                                )
+                            require_current_external_observed_development_job_binding(
+                                executable_id=declared_spec[
+                                    "evidence_subject"
+                                ]["id"],
+                                executable_manifest=executable_manifest,
+                                job_spec=declared_spec,
+                                source_closure_dependencies=closure_payload[
+                                    "dependencies"
+                                ],
+                                durable_payload=declaration.payload.get(
+                                    "external_observed_development_binding"
+                                ),
+                                repository_root=self.foundation_root,
+                            )
+                        elif declaration.payload.get(
+                            "external_observed_development_binding"
+                        ) is not None:
+                            raise ExternalObservedDevelopmentJobBindingError(
+                                "non-Executable Job has an external prefix binding"
+                            )
+                    except ExternalObservedDevelopmentJobBindingError as exc:
+                        raise TransitionError(str(exc)) from exc
+                else:
+                    raise RecoveryRequired(
+                        "production Job without a current recursive source closure "
+                        "cannot start; historical evidence is read-only"
+                    )
             batch_id = declaration.payload.get("batch_id")
             if isinstance(batch_id, str):
                 active_batch = body["scientific"].get("active_batch")
@@ -14574,6 +17388,38 @@ class StateWriter:
                 source_contracts = tuple(
                     candidate.payload["executable"].get("source_contracts", [])
                 )
+                try:
+                    source_snapshot = current_runtime_source_snapshot(
+                        index=index,
+                        source_contract_ids=source_contracts,
+                        require_runtime_source=lambda source_index, source_id: (
+                            self._require_runtime_source(
+                                source_index,
+                                source_id,
+                                error_type=PermitError,
+                            )
+                        ),
+                    )
+                    expected_candidate_context = (
+                        candidate_job_execution_context(
+                            index=index,
+                            candidate=candidate,
+                            current=source_snapshot,
+                            runtime_binding=runtime_binding,
+                        )
+                    )
+                except RuntimeSuccessAuthorityError as exc:
+                    raise PermitError(str(exc)) from exc
+                if (
+                    candidate.subject != f"Executable:{executable_id}"
+                    or candidate.payload.get("mission_id")
+                    != science["active_mission"]
+                    or declaration.payload.get("candidate_execution_context")
+                    != expected_candidate_context
+                ):
+                    raise PermitError(
+                        "runtime Job candidate or source snapshot changed before start"
+                    )
                 required_scope = (
                     f"candidate:{candidate.record_id}",
                     f"depth:{runtime_binding['evidence_depth']}",
@@ -14591,12 +17437,6 @@ class StateWriter:
                     expected_input_hash=job["hash"],
                     required_scope=required_scope,
                 )
-                source_receipts = [
-                    self._require_runtime_source(
-                        index, source_id, error_type=PermitError
-                    ).payload["evidence_receipt_id"]
-                    for source_id in source_contracts
-                ]
                 runtime_provenance = {
                     "action": runtime_binding["action"],
                     "candidate_id": candidate.record_id,
@@ -14604,7 +17444,7 @@ class StateWriter:
                     "executable_id": executable_id,
                     "mission_id": science["active_mission"],
                     "runtime_permit_id": runtime_permit.permit_id,
-                    "source_receipt_ids": source_receipts,
+                    **source_snapshot.payload(),
                 }
             start_id = canonical_digest(
                 domain="job-start",
@@ -14707,12 +17547,11 @@ class StateWriter:
                 and output_name not in artifact_output_names
             ):
                 continue
-            artifact = self.evidence.verify(output_hash)
             artifacts.append(
                 ValidationArtifact(
                     output_name=output_name,
-                    sha256=artifact.sha256,
-                    _source=self.evidence._root / artifact.relative_path,
+                    sha256=output_hash,
+                    _source=self.evidence.verified_path(output_hash),
                 )
             )
         if not any(artifact.output_name == result_name for artifact in artifacts):
@@ -14822,6 +17661,36 @@ class StateWriter:
             )
         return frozenset(routed)
 
+    def _validated_scientific_multiplicity_registrations(
+        self,
+        *,
+        binding: Mapping[str, Any],
+        registrations: object,
+        adjudication: object,
+        batch_record: IndexRecord | None,
+        expected_batch_id: str | None,
+        executable_id: str,
+        mission_id: str,
+    ) -> tuple[
+        list[dict[str, Any]] | None,
+        dict[str, Any] | None,
+    ]:
+        try:
+            return validate_scientific_multiplicity_registrations(
+                binding=binding,
+                registrations=registrations,
+                adjudication=adjudication,
+                batch_record=batch_record,
+                expected_batch_id=expected_batch_id,
+                executable_id=executable_id,
+                mission_id=mission_id,
+                artifact_reader=self.evidence.read_verified,
+            )
+        except ScientificMultiplicityIntegrityError as exc:
+            raise RecoveryRequired(str(exc)) from exc
+        except ScientificMultiplicityAuthorityError as exc:
+            raise TransitionError(str(exc)) from exc
+
     def _derive_runtime_job_evidence(
         self,
         *,
@@ -14829,6 +17698,7 @@ class StateWriter:
         job_hash: str,
         binding: Mapping[str, Any],
         provenance: Mapping[str, Any],
+        source_lifecycle_coverage: object,
         output_manifest: Mapping[str, Any],
         output_classes: Mapping[str, Any],
     ) -> dict[str, Any]:
@@ -14838,11 +17708,8 @@ class StateWriter:
         result_hash = output_manifest.get(result_name)
         if not isinstance(result_hash, str):
             raise TransitionError("runtime result manifest output is absent")
-        artifact = self.evidence.verify(result_hash)
         try:
-            value = parse_canonical(
-                (self.evidence._root / artifact.relative_path).read_bytes()
-            )
+            value = parse_canonical(self.evidence.read_verified(result_hash))
         except ValueError as exc:
             raise TransitionError("runtime result manifest is not canonical") from exc
         required = {
@@ -14883,26 +17750,83 @@ class StateWriter:
         }
         if not durable_hashes:
             raise TransitionError("runtime result has no measurement artifact")
+        from axiom_rift.runtime.source_lifecycle_coverage import (
+            SourceLifecycleCoverageError,
+            require_source_lifecycle_coverage_ids,
+        )
+
+        coverage_rows = source_lifecycle_coverage
+        if not isinstance(coverage_rows, list) or any(
+            not isinstance(row, Mapping) for row in coverage_rows
+        ):
+            raise TransitionError(
+                "runtime Job lacks Writer-derived source lifecycle coverage"
+            )
+        try:
+            planned_coverage_ids = require_source_lifecycle_coverage_ids(
+                binding["planned_source_lifecycle_coverage_ids"],
+                allowed_rows=coverage_rows,
+                planned_materialization_cases=binding[
+                    "planned_materialization_cases"
+                ],
+            )
+        except SourceLifecycleCoverageError as exc:
+            raise TransitionError(str(exc)) from exc
+        coverage_by_id = {
+            row["coverage_id"]: row for row in coverage_rows
+        }
         claims: set[str] = set()
         measurement_hashes: set[str] = set()
+        observation_keys: set[tuple[str, str | None]] = set()
+        observed_coverage_ids: set[str] = set()
         for observation in observations:
-            if not isinstance(observation, dict) or set(observation) != {
+            if not isinstance(observation, dict) or set(observation) not in ({
                 "claim_id",
                 "measurement_artifact_hash",
                 "status",
-            }:
+            }, {
+                "claim_id",
+                "measurement_artifact_hash",
+                "source_lifecycle_coverage_id",
+                "status",
+            }):
                 raise TransitionError("runtime observation schema is invalid")
             claim_id = observation["claim_id"]
             measurement_hash = observation["measurement_artifact_hash"]
+            coverage_id = observation.get("source_lifecycle_coverage_id")
+            observation_key = (claim_id, coverage_id)
             if (
                 type(claim_id) is not str
-                or claim_id in claims
+                or observation_key in observation_keys
                 or measurement_hash not in durable_hashes
             ):
                 raise TransitionError("runtime observation is not artifact-bound")
+            if coverage_id is not None:
+                coverage_row = coverage_by_id.get(coverage_id)
+                if (
+                    coverage_id not in planned_coverage_ids
+                    or coverage_row is None
+                    or coverage_row.get("materialization_case") != claim_id
+                ):
+                    raise TransitionError(
+                        "runtime source lifecycle observation exceeds its exact plan"
+                    )
+                observed_coverage_ids.add(coverage_id)
+            elif coverage_rows and claim_id in {
+                "source_interruption",
+                "stale_or_missing_input",
+            }:
+                raise TransitionError(
+                    "source-dependent lifecycle observation lacks its exact coverage row"
+                )
             self.evidence.verify(measurement_hash)
+            observation_keys.add(observation_key)
             claims.add(claim_id)
             measurement_hashes.add(measurement_hash)
+        if observed_coverage_ids != set(planned_coverage_ids):
+            raise TransitionError(
+                "runtime source lifecycle observations do not cover the exact plan"
+            )
         planned = (
             set(binding["planned_parity_surfaces"])
             if binding["evidence_depth"] == "execution_proof"
@@ -14926,6 +17850,20 @@ class StateWriter:
             raise TransitionError("runtime claims were not derived as passed by the validator")
         if set(validated.measurement_artifact_hashes) != measurement_hashes:
             raise TransitionError("runtime validator measurements differ from the Job packet")
+        validated_coverage = validated.facts.get(
+            "source_lifecycle_coverage_ids"
+        )
+        if planned_coverage_ids and (
+            not isinstance(validated_coverage, (list, tuple))
+            or tuple(validated_coverage) != planned_coverage_ids
+        ):
+            raise TransitionError(
+                "runtime validator did not derive the exact source lifecycle coverage"
+            )
+        if not planned_coverage_ids and validated_coverage not in (None, (), []):
+            raise TransitionError(
+                "runtime validator invented source lifecycle coverage"
+            )
         expected_roles = {
             role: output_manifest[output_name]
             for role, output_name in binding["artifact_roles"].items()
@@ -14952,6 +17890,9 @@ class StateWriter:
                 else []
             ),
             "result_manifest_hash": result_hash,
+            "source_lifecycle_coverage_ids": list(
+                planned_coverage_ids
+            ),
             "scientific_eligible": validated.scientific_eligible,
             "release_eligible": validated.release_eligible,
             "validation_trace": validation_trace,
@@ -14974,11 +17915,8 @@ class StateWriter:
         result_hash = output_manifest.get(result_name)
         if not isinstance(result_hash, str):
             raise TransitionError("source result manifest output is absent")
-        artifact = self.evidence.verify(result_hash)
         try:
-            value = parse_canonical(
-                (self.evidence._root / artifact.relative_path).read_bytes()
-            )
+            value = parse_canonical(self.evidence.read_verified(result_hash))
         except ValueError as exc:
             raise TransitionError("source result manifest is not canonical") from exc
         required = {
@@ -15066,16 +18004,15 @@ class StateWriter:
         binding: Mapping[str, Any],
         output_manifest: Mapping[str, Any],
         output_classes: Mapping[str, Any],
+        batch_record: IndexRecord | None = None,
+        expected_batch_id: str | None = None,
     ) -> dict[str, Any]:
         result_name = binding["result_manifest_output"]
         result_hash = output_manifest.get(result_name)
         if not isinstance(result_hash, str):
             raise TransitionError("scientific result manifest output is absent")
-        artifact = self.evidence.verify(result_hash)
         try:
-            value = parse_canonical(
-                (self.evidence._root / artifact.relative_path).read_bytes()
-            )
+            value = parse_canonical(self.evidence.read_verified(result_hash))
         except ValueError as exc:
             raise TransitionError("scientific result manifest is not canonical") from exc
         required = {
@@ -15152,6 +18089,9 @@ class StateWriter:
         validator_facts = dict(validated.facts)
         executed_modes = validator_facts.pop("executed_evidence_modes", None)
         adjudication = validator_facts.pop("scientific_adjudication", None)
+        multiplicity_registrations = validator_facts.pop(
+            "multiplicity_registrations", None
+        )
         if (
             validated.verdict not in {"passed", "failed", "not_evaluable"}
             or set(validated.claims) != claims
@@ -15204,6 +18144,20 @@ class StateWriter:
                 raise TransitionError(
                     "scientific rich adjudication differs from the validator verdict"
                 )
+        (
+            multiplicity_registrations,
+            multiplicity_batch_binding,
+        ) = (
+            self._validated_scientific_multiplicity_registrations(
+                binding=binding,
+                registrations=multiplicity_registrations,
+                adjudication=adjudication,
+                batch_record=batch_record,
+                expected_batch_id=expected_batch_id,
+                executable_id=executable_id,
+                mission_id=mission_id,
+            )
+        )
         scientific = {
             "candidate_eligible": validated.candidate_eligible,
             "claims": sorted(claims),
@@ -15220,6 +18174,14 @@ class StateWriter:
         }
         if adjudication is not None:
             scientific["adjudication"] = adjudication
+        if multiplicity_registrations is not None:
+            scientific["multiplicity_registrations"] = (
+                multiplicity_registrations
+            )
+        if multiplicity_batch_binding is not None:
+            scientific["multiplicity_batch_binding"] = (
+                multiplicity_batch_binding
+            )
         return scientific
 
     def _derive_external_dependency_evidence(
@@ -15237,11 +18199,8 @@ class StateWriter:
         result_hash = output_manifest.get(result_name)
         if not isinstance(result_hash, str):
             raise TransitionError("external result manifest output is absent")
-        artifact = self.evidence.verify(result_hash)
         try:
-            value = parse_canonical(
-                (self.evidence._root / artifact.relative_path).read_bytes()
-            )
+            value = parse_canonical(self.evidence.read_verified(result_hash))
         except ValueError as exc:
             raise TransitionError("external result manifest is not canonical") from exc
         required = {
@@ -15358,11 +18317,8 @@ class StateWriter:
         result_hash = output_manifest.get(result_name)
         if not isinstance(result_hash, str):
             raise TransitionError("component parity result manifest is absent")
-        artifact = self.evidence.verify(result_hash)
         try:
-            value = parse_canonical(
-                (self.evidence._root / artifact.relative_path).read_bytes()
-            )
+            value = parse_canonical(self.evidence.read_verified(result_hash))
         except ValueError as exc:
             raise TransitionError(
                 "component parity result manifest is not canonical"
@@ -15479,67 +18435,15 @@ class StateWriter:
         evidence_blobs: Sequence[bytes] = (),
         crash_after: str | None = None,
     ) -> TransitionResult:
-        if outcome not in {"success", "failed", "not_evaluable"}:
-            raise TransitionError("invalid Job outcome")
-        failure_manifest: dict[str, Any] | None = None
-        if outcome == "success":
-            if failure is not None:
-                raise TransitionError("a successful Job cannot carry failure evidence")
-        else:
-            if failure is None:
-                raise TransitionError("failed or not-evaluable Job requires failure evidence")
-            failure_manifest = _require_manifest(
-                "failure",
-                failure,
-                required={
-                    "failure_kind",
-                    "minimum_reproduction_evidence",
-                    "root_cause",
-                    "interrupted_action",
-                    "resume_action",
-                },
+        try:
+            failure_manifest = normalize_job_failure_manifest(
+                outcome=outcome,
+                failure=failure,
+                evidence_verifier=self.evidence.verify,
+                engineering_cause_builder=self._engineering_failure_cause,
             )
-            for name in ("root_cause", "interrupted_action", "resume_action"):
-                _require_ascii(name, failure_manifest[name])
-            if failure_manifest["failure_kind"] not in {
-                "engineering",
-                "runtime_source_ineligibility",
-                "scientific_falsification",
-                "not_evaluable",
-                "external_dependency",
-            }:
-                raise TransitionError("Job failure_kind is not typed")
-            if failure_manifest["failure_kind"] == "scientific_falsification":
-                raise TransitionError(
-                    "a validator-derived scientific verdict is not a Job execution failure"
-                )
-            references = failure_manifest["minimum_reproduction_evidence"]
-            if not isinstance(references, list) or not references:
-                raise TransitionError("failure requires minimum reproduction evidence")
-            for reference in references:
-                self.evidence.verify(reference)
-            if failure_manifest["failure_kind"] == "external_dependency":
-                if set(failure_manifest) - {
-                    "failure_kind",
-                    "minimum_reproduction_evidence",
-                    "root_cause",
-                    "interrupted_action",
-                    "resume_action",
-                    "external_dependency_id",
-                    "observed_external_state",
-                }:
-                    raise TransitionError("external dependency failure has unknown fields")
-                for name in ("external_dependency_id", "observed_external_state"):
-                    _require_ascii(name, failure_manifest.get(name))
-            failure_manifest["failure_signature"] = _digest(
-                {
-                    "minimum_reproduction_evidence": references,
-                    "failure_kind": failure_manifest["failure_kind"],
-                    "root_cause": failure_manifest["root_cause"],
-                    "interrupted_action": failure_manifest["interrupted_action"],
-                },
-                domain="job-failure",
-            )
+        except JobContractError as exc:
+            raise TransitionError(str(exc)) from exc
 
         def prepare(current: dict[str, Any] | None, _index: LocalIndex):
             if current is None:
@@ -15556,10 +18460,83 @@ class StateWriter:
             declared_spec = declaration.payload.get("spec")
             if not isinstance(declared_spec, dict):
                 raise TransitionError("current Job spec is unavailable")
+            engineering_disposition: dict[str, Any] | None = None
+            required_engineering_disposition = job.get(
+                "required_engineering_disposition_hash"
+            )
+            required_engineering_cause = job.get(
+                "required_engineering_failure_cause_hash"
+            )
+            required_engineering_repair = job.get(
+                "required_engineering_repair_id"
+            )
+            direction = body.get("next_action")
+            if job.get("required_repair_resume_record_id") is not None:
+                raise TransitionError(
+                    "a repaired Job must re-enter its exact engine before completion"
+                )
+            if (
+                failure_manifest is not None
+                and failure_manifest["failure_kind"] == "engineering"
+            ):
+                disposition_hash = failure_manifest["repair_disposition_hash"]
+                if (
+                    "required_engineering_repair_id" not in job
+                    or not isinstance(required_engineering_disposition, str)
+                    or not isinstance(required_engineering_cause, str)
+                    or failure_manifest["engineering_cause_hash"]
+                    != required_engineering_cause
+                    or not isinstance(direction, Mapping)
+                    or set(direction)
+                    != {"disposition_hash", "job_id", "kind"}
+                    or direction.get("kind")
+                    != "complete_engineering_failure"
+                    or direction.get("job_id") != job_id
+                    or direction.get("disposition_hash")
+                    != disposition_hash
+                    or required_engineering_disposition
+                    != disposition_hash
+                ):
+                    raise TransitionError(
+                        "engineering failure lacks its exact durable disposition"
+                    )
+                disposition = self._engineering_failure_disposition(
+                    _index,
+                    disposition_hash=disposition_hash,
+                    job_id=job_id,
+                    job_hash=job["hash"],
+                    repair_id=required_engineering_repair,
+                    cause_hash=required_engineering_cause,
+                    reproduction_evidence_hashes=failure_manifest[
+                        "minimum_reproduction_evidence"
+                    ],
+                )
+                engineering_disposition = disposition.payload()
+            elif (
+                required_engineering_disposition is not None
+                or required_engineering_cause is not None
+                or "required_engineering_repair_id" in job
+                or (
+                    isinstance(direction, Mapping)
+                    and direction.get("kind") == "complete_engineering_failure"
+                )
+            ):
+                raise TransitionError(
+                    "unrecovered Repair must complete as its typed engineering failure"
+                )
             expected_outputs = declared_spec.get("expected_outputs")
             output_classes = declared_spec.get("output_classes")
             if not isinstance(expected_outputs, list) or not isinstance(output_classes, dict):
                 raise TransitionError("current Job output declaration is invalid")
+            _require_job_output_namespace(
+                expected_outputs,
+                output_classes=output_classes,
+            )
+            _require_job_output_namespace(
+                tuple(output_manifest),
+                output_classes=output_classes,
+                name="Job completion outputs",
+            )
             runtime_binding = declared_spec.get("runtime_binding")
             runtime_manifest: dict[str, Any] | None = None
             scientific_binding = declared_spec.get("scientific_binding")
@@ -15568,10 +18545,68 @@ class StateWriter:
             source_manifest: dict[str, Any] | None = None
             external_binding = declared_spec.get("external_dependency_binding")
             external_manifest: dict[str, Any] | None = None
+            holdout_binding = declared_spec.get("holdout_binding")
             component_parity_binding = declared_spec.get(
                 "component_parity_binding"
             )
             component_parity_manifest: dict[str, Any] | None = None
+            if (
+                failure_manifest is not None
+                and failure_manifest["failure_kind"]
+                == "runtime_source_ineligibility"
+                and runtime_binding is None
+            ):
+                raise TransitionError(
+                    "runtime source ineligibility requires a runtime-bound Job"
+                )
+            active_holdout = science.get("active_holdout_evaluation")
+            pre_reveal_holdout_engineering_gap = False
+            if holdout_binding is not None:
+                holdout_id = (
+                    holdout_binding.get("holdout_id")
+                    if isinstance(holdout_binding, Mapping)
+                    else None
+                )
+                reveal_head = (
+                    None
+                    if not isinstance(holdout_id, str)
+                    else _index.event_head(f"holdout-reveal:{holdout_id}")
+                )
+                reveal = (
+                    None
+                    if reveal_head is None
+                    else _index.get(
+                        reveal_head.record_kind,
+                        reveal_head.record_id,
+                    )
+                )
+                exact_revealed_holdout = (
+                    isinstance(active_holdout, dict)
+                    and active_holdout.get("status")
+                    == "revealed_pending_evaluation"
+                    and active_holdout.get("job_id") == job_id
+                    and active_holdout.get("holdout_id") == holdout_id
+                    and active_holdout.get("executable_id")
+                    == declared_spec.get("evidence_subject", {}).get("id")
+                    and reveal_head is not None
+                    and reveal_head.sequence == 1
+                    and reveal is not None
+                    and reveal.kind == "holdout-reveal"
+                    and reveal.status == "revealed_once"
+                    and reveal.payload.get("job_id") == job_id
+                )
+                pre_reveal_holdout_engineering_gap = (
+                    engineering_disposition is not None
+                    and active_holdout is None
+                    and reveal_head is None
+                )
+                if not (
+                    exact_revealed_holdout
+                    or pre_reveal_holdout_engineering_gap
+                ):
+                    raise TransitionError(
+                        "holdout-bound Job cannot complete before its exact reveal"
+                    )
             start_record_id = job.get("start_record_id")
             start_record = (
                 None
@@ -15580,78 +18615,67 @@ class StateWriter:
             )
             if start_record is None:
                 raise TransitionError("current Job start provenance is unavailable")
-            if runtime_binding is None:
-                if start_record.payload.get("runtime") is not None:
-                    raise TransitionError("generic Job cannot produce runtime evidence")
-                engine_entry_id = job.get("engine_entry_record_id")
-                engine_entry = (
-                    None
-                    if not isinstance(engine_entry_id, str)
-                    else _index.get("job-engine-entry", engine_entry_id)
-                )
-                job_permit_id = start_record.payload.get("job_permit_id")
-                permit_stream = (
-                    ""
-                    if not isinstance(job_permit_id, str)
-                    else f"permit:{job_permit_id}"
-                )
-                consumed = (
-                    None
-                    if not permit_stream
-                    else _index.event_record(permit_stream, 2)
-                )
-                expected_execution = RunningJobExecution(
+            job_permit_id = start_record.payload.get("job_permit_id")
+            if not isinstance(job_permit_id, str):
+                raise TransitionError("current Job start permit is unavailable")
+            current_execution = RunningJobExecution(
+                job_id=job_id,
+                job_hash=job["hash"],
+                start_record_id=start_record_id,
+                job_permit_id=job_permit_id,
+            )
+            repair_resume_record_id = job.get(
+                "last_repair_resume_record_id"
+            )
+
+            def completion_runtime_source(
+                index: LocalIndex,
+                source_id: str,
+                *,
+                freshness_required: bool = True,
+            ) -> IndexRecord:
+                try:
+                    return self._require_runtime_source(
+                        index,
+                        source_id,
+                        freshness_required=freshness_required,
+                    )
+                except TransitionError as exc:
+                    raise JobCompletionEntryAuthorityError(str(exc)) from exc
+
+            try:
+                require_repair_resume_entry(
+                    index=_index,
+                    job=job,
                     job_id=job_id,
-                    job_hash=job["hash"],
+                    declared_spec=declared_spec,
+                    current_execution=current_execution,
+                    effective_implementation_resolver=(
+                        self._effective_running_job_implementation
+                    ),
+                )
+                provenance = require_completion_engine_entry(
+                    control=body,
+                    index=_index,
+                    job=job,
+                    job_id=job_id,
+                    declaration=declaration,
+                    start_record=start_record,
                     start_record_id=start_record_id,
                     job_permit_id=job_permit_id,
+                    current_execution=current_execution,
+                    runtime_binding=runtime_binding,
+                    outcome=outcome,
+                    failure_manifest=failure_manifest,
+                    engineering_disposition=engineering_disposition,
+                    direction=direction,
+                    engineering_fixture=self.engineering_fixture,
+                    runtime_source_resolver=completion_runtime_source,
                 )
-                if (
-                    engine_entry is None
-                    or engine_entry.status != "validated"
-                    or engine_entry.subject != f"Job:{job_id}"
-                    or engine_entry.fingerprint != job["hash"]
-                    or consumed is None
-                    or engine_entry.payload
-                    != {
-                        "execution": expected_execution.payload(),
-                        "permit_consumption_record_id": consumed.record_id,
-                    }
-                    or engine_entry.authority_event_id
-                    != start_record.authority_event_id
-                    or engine_entry.authority_sequence
-                    != start_record.authority_sequence
-                ):
-                    raise TransitionError(
-                        "Job completion lacks its exact engine-entry attestation"
-                    )
-            else:
-                provenance = start_record.payload.get("runtime")
-                if not isinstance(provenance, dict):
-                    raise TransitionError("runtime Job start lacks RuntimePermit provenance")
-                runtime_entry_id = job.get("runtime_entry_record_id")
-                runtime_entry = (
-                    None
-                    if not isinstance(runtime_entry_id, str)
-                    else _index.get("runtime-engine-entry", runtime_entry_id)
-                )
-                if (
-                    runtime_entry is None
-                    or runtime_entry.status != "validated"
-                    or runtime_entry.subject != f"Job:{job_id}"
-                    or runtime_entry.fingerprint != job["hash"]
-                    or runtime_entry.payload.get("job_start_record_id") != start_record_id
-                    or runtime_entry.payload.get("runtime_permit_id")
-                    != provenance.get("runtime_permit_id")
-                    or runtime_entry.payload.get("candidate_id")
-                    != provenance.get("candidate_id")
-                    or runtime_entry.payload.get("source_receipt_ids")
-                    != sorted(provenance.get("source_receipt_ids", []))
-                ):
-                    raise TransitionError(
-                        "runtime Job completion lacks its exact engine-entry attestation"
-                    )
-                provenance = {**provenance, "runtime_entry_record_id": runtime_entry_id}
+            except JobCompletionEntryIntegrityError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except JobCompletionEntryAuthorityError as exc:
+                raise TransitionError(str(exc)) from exc
             if outcome == "success" and set(output_manifest) != set(expected_outputs):
                 raise TransitionError("successful Job output manifest differs from declaration")
             if outcome != "success" and not set(output_manifest).issubset(expected_outputs):
@@ -15678,6 +18702,17 @@ class StateWriter:
                     job_hash=job["hash"],
                     binding=runtime_binding,
                     provenance=provenance,
+                    source_lifecycle_coverage=(
+                        declaration.payload.get(
+                            "candidate_execution_context", {}
+                        ).get("source_lifecycle_coverage")
+                        if isinstance(
+                            declaration.payload.get(
+                                "candidate_execution_context"
+                            ), Mapping
+                        )
+                        else None
+                    ),
                     output_manifest=output_manifest,
                     output_classes=output_classes,
                 )
@@ -15696,6 +18731,24 @@ class StateWriter:
                     raise TransitionError(
                         "scientific evidence disposition requires every declared output"
                     )
+                declared_batch_id = declaration.payload.get("batch_id")
+                active_batch = science.get("active_batch")
+                scientific_batch_record = (
+                    None
+                    if not isinstance(declared_batch_id, str)
+                    else _index.get("batch-open", declared_batch_id)
+                )
+                if (
+                    isinstance(declared_batch_id, str)
+                    and (
+                        not isinstance(active_batch, Mapping)
+                        or active_batch.get("id") != declared_batch_id
+                        or scientific_batch_record is None
+                    )
+                ):
+                    raise TransitionError(
+                        "scientific Job lost its exact active Batch before completion"
+                    )
                 scientific_manifest = self._derive_scientific_job_evidence(
                     job_id=job_id,
                     job_hash=job["hash"],
@@ -15704,6 +18757,12 @@ class StateWriter:
                     binding=scientific_binding,
                     output_manifest=output_manifest,
                     output_classes=output_classes,
+                    batch_record=scientific_batch_record,
+                    expected_batch_id=(
+                        declared_batch_id
+                        if isinstance(declared_batch_id, str)
+                        else None
+                    ),
                 )
             if component_parity_binding is not None and outcome == "success":
                 if set(output_manifest) != set(expected_outputs):
@@ -15757,12 +18816,30 @@ class StateWriter:
                     raise TransitionError(
                         "external failure differs from its preregistered dependency"
                     )
+            if (
+                isinstance(external_binding, Mapping)
+                and isinstance(engineering_disposition, Mapping)
+                and engineering_disposition.get("successor_scope")
+                is not None
+            ):
+                raise TransitionError(
+                    "external engineering failure cannot authorize scientific successor work"
+                )
             completion_identity_payload = {
+                "candidate_execution_context": declaration.payload.get(
+                    "candidate_execution_context"
+                ),
                 "job_id": job_id,
                 "outcome": outcome,
                 "outputs": dict(output_manifest),
+                "failure_signature": (
+                    None
+                    if failure_manifest is None
+                    else failure_manifest["failure_signature"]
+                ),
                 "external": external_manifest,
                 "runtime": runtime_manifest,
+                "repair_resume_record_id": repair_resume_record_id,
                 "scientific": scientific_manifest,
                 "source": source_manifest,
             }
@@ -15775,13 +18852,18 @@ class StateWriter:
                 payload=completion_identity_payload,
             )
             completion_payload = {
+                "candidate_execution_context": declaration.payload.get(
+                    "candidate_execution_context"
+                ),
                 "job_id": job_id,
                 "outputs": dict(output_manifest),
                 "output_classes": dict(output_classes),
                 "failure": failure_manifest,
+                "engineering_disposition": engineering_disposition,
                 "external": external_manifest,
                 "start_record_id": start_record_id,
                 "runtime": runtime_manifest,
+                "repair_resume_record_id": repair_resume_record_id,
                 "scientific": scientific_manifest,
                 "source": source_manifest,
             }
@@ -15802,75 +18884,50 @@ class StateWriter:
                     + 1
                 ),
             )
+            try:
+                retry_family_completion = (
+                    build_retry_family_completion_record(
+                        index=_index,
+                        declaration=declaration,
+                        outcome=outcome,
+                        completion_record_id=record_id,
+                    )
+                )
+            except JobRetryAdmissionIntegrityError as exc:
+                raise RecoveryRequired(str(exc)) from exc
             science["active_job"] = None
             self._drop_authorization(body, SubjectKind.JOB, job_id)
-            body["next_action"] = {"kind": "judge_job_evidence", "job_id": job_id}
-            records = [record]
-            if outcome == "success":
-                success_fingerprint = declaration.payload.get("success_fingerprint")
-                _require_digest("Job success fingerprint", success_fingerprint)
-                records.append(
-                    _record(
-                        kind="job-success-cache",
-                        record_id=success_fingerprint,
-                        subject=f"Mission:{declaration.payload['mission_id']}",
-                        status="reusable",
-                        fingerprint=job["hash"],
-                        payload={
-                            "completion_record_id": record_id,
-                            "expected_outputs": list(expected_outputs),
-                            "job_id": job_id,
-                            "mission_id": declaration.payload["mission_id"],
-                            "output_classes": dict(output_classes),
-                        },
-                    )
+            try:
+                projection = project_job_completion(
+                    index=_index,
+                    declaration=declaration,
+                    completion=record,
+                    active_holdout=active_holdout,
+                    pre_reveal_holdout_engineering_gap=(
+                        pre_reveal_holdout_engineering_gap
+                    ),
+                    engineering_fixture=self.engineering_fixture,
+                    record_builder=_record,
                 )
-            if isinstance(external_binding, dict):
-                dependency_head = _index.event_head(
-                    f"external-dependency:{external_binding['dependency_id']}"
-                )
-                attempt_sequence = (
-                    1 if dependency_head is None else dependency_head.sequence + 1
-                )
-                attempt_id = canonical_digest(
-                    domain="external-dependency-attempt",
-                    payload={
-                        "completion_record_id": record_id,
-                        "dependency_id": external_binding["dependency_id"],
-                        "recovery_path_id": external_binding["recovery_path_id"],
-                    },
-                )
-                records.append(
-                    _record(
-                        kind="external-dependency-attempt",
-                        record_id=attempt_id,
-                        subject=f"Mission:{declaration.payload['mission_id']}",
-                        status=(
-                            "available"
-                            if outcome == "success"
-                            else (
-                                "external_unavailable"
-                                if external_manifest is not None
-                                and external_manifest["verdict"] == "failed"
-                                else (
-                                    "external_unresolved"
-                                    if external_manifest is not None
-                                    and external_manifest["verdict"]
-                                    == "not_evaluable"
-                                    else "local_failure"
-                                )
-                            )
-                        ),
-                        fingerprint=external_binding["dependency_id"],
-                        payload={
-                            "completion_record_id": record_id,
-                            "external": external_manifest,
-                            **external_binding,
-                        },
-                        event_stream=f"external-dependency:{external_binding['dependency_id']}",
-                        event_sequence=attempt_sequence,
-                    )
-                )
+            except JobCompletionProjectionIntegrityError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except JobCompletionProjectionError as exc:
+                raise TransitionError(str(exc)) from exc
+            body["next_action"] = dict(projection.next_action)
+            science["active_holdout_evaluation"] = (
+                None
+                if projection.active_holdout_evaluation is None
+                else dict(projection.active_holdout_evaluation)
+            )
+            records = [
+                record,
+                *(
+                    [retry_family_completion]
+                    if retry_family_completion is not None
+                    else []
+                ),
+                *projection.supplemental_records,
+            ]
             return body, records, {
                 "job_id": job_id,
                 "outcome": outcome,
@@ -15924,6 +18981,13 @@ class StateWriter:
     ) -> TransitionResult:
         """Consume a completed Job judgement before more Batch work."""
 
+        from axiom_rift.operations.architecture_review_direction import (
+            ARCHITECTURE_CONTINUATION_ACTION_FIELDS,
+            ArchitectureReviewDirectionError,
+            constraint_from_action,
+            require_review_binding,
+        )
+
         _require_digest("completion_record_id", completion_record_id)
         if disposition not in {
             "accept_component_parity",
@@ -15951,9 +19015,12 @@ class StateWriter:
             completion = index.get("job-completed", completion_record_id)
             if (
                 completion is None
-                or not isinstance(next_action, dict)
-                or next_action.get("kind") != "judge_job_evidence"
-                or next_action.get("job_id") != completion.payload.get("job_id")
+                or next_action
+                != {
+                    "completion_record_id": completion_record_id,
+                    "job_id": completion.payload.get("job_id"),
+                    "kind": "judge_job_evidence",
+                }
             ):
                 raise TransitionError("Job judgement is not the exact next action")
             job_id = completion.payload["job_id"]
@@ -16099,7 +19166,73 @@ class StateWriter:
                         if not isinstance(review_id, str)
                         else index.get("architecture-review", review_id)
                     )
+                    if isinstance(review_id, str) and review is None:
+                        raise RecoveryRequired(
+                            "component parity lost its architecture review"
+                        )
                     if review is not None and review.payload.get(
+                        "conclusion"
+                    ) == "bounded_same_architecture":
+                        stored_constraints = decision.payload.get(
+                            "scheduler_constraints"
+                        )
+                        if not isinstance(stored_constraints, dict):
+                            raise RecoveryRequired(
+                                "bounded parity Decision lost its scheduler constraints"
+                            )
+                        candidate_action = {
+                            "kind": "portfolio_decision",
+                            "portfolio_snapshot_id": parity_binding[
+                                "portfolio_snapshot_id"
+                            ],
+                            **{
+                                name: stored_constraints[name]
+                                for name in (
+                                    *ARCHITECTURE_CONTINUATION_ACTION_FIELDS,
+                                    "pending_replay_obligation_ids",
+                                    "required_replay_priority",
+                                )
+                                if name in stored_constraints
+                            },
+                        }
+                        try:
+                            continuation = constraint_from_action(candidate_action)
+                        except ArchitectureReviewDirectionError as exc:
+                            raise RecoveryRequired(str(exc)) from exc
+                        trigger = (
+                            None
+                            if continuation is None
+                            else index.get(
+                                "architecture-review-trigger",
+                                continuation.trigger_record_id,
+                            )
+                        )
+                        if continuation is None or trigger is None:
+                            raise RecoveryRequired(
+                                "bounded parity Decision lost its review trigger"
+                            )
+                        try:
+                            require_review_binding(
+                                continuation,
+                                review_record_id=review.record_id,
+                                review_payload=review.payload,
+                                trigger_payload=trigger.payload,
+                            )
+                        except ArchitectureReviewDirectionError as exc:
+                            raise RecoveryRequired(str(exc)) from exc
+                        reviewed_family = self._review_resolved_architecture_family(
+                            index=index,
+                            review=review,
+                            extra_equivalences=extra_equivalences,
+                        )
+                        if (
+                            resolved_family
+                            != continuation.required_architecture_family
+                            or reviewed_family
+                            != continuation.required_architecture_family
+                        ):
+                            reroute_action = candidate_action
+                    elif review is not None and review.payload.get(
                         "conclusion"
                     ) == "rotate_architecture":
                         reviewed_family = self._review_resolved_architecture_family(
@@ -16323,11 +19456,11 @@ class StateWriter:
             next_action = body.get("next_action")
             if (
                 completion is None
-                or not isinstance(next_action, dict)
                 or next_action
                 != {
+                    "completion_record_id": completion_record_id,
                     "job_id": completion.payload.get("job_id"),
-                    "kind": "judge_job_evidence",
+                    "kind": "judge_external_dependency_evidence",
                 }
             ):
                 raise TransitionError(
@@ -16380,6 +19513,57 @@ class StateWriter:
             )
             attempt = index.get("external-dependency-attempt", attempt_id)
             external = completion.payload.get("external")
+            engineering = completion.payload.get("engineering_disposition")
+            failure = completion.payload.get("failure")
+            if (
+                external is None
+                and completion.status == "failed"
+                and attempt is not None
+                and attempt.status == "local_failure"
+                and isinstance(engineering, Mapping)
+                and engineering.get("schema")
+                == "engineering_failure_disposition.v1"
+                and isinstance(failure, Mapping)
+                and failure.get("failure_kind") == "engineering"
+            ):
+                body["next_action"] = (
+                    plan.condition.resume_action.to_next_action()
+                )
+                gap_payload = {
+                    "completion_record_id": completion_record_id,
+                    "disposition": "restore_local_engineering_failure",
+                    "recovery_path_id": path.recovery_path_id,
+                    "recovery_plan_id": plan.identity,
+                    "scientific_failure_delta": 0,
+                    "scientific_trial_delta": 0,
+                }
+                gap_id = canonical_digest(
+                    domain="external-dependency-operational-gap",
+                    payload=gap_payload,
+                )
+                gap_stream = (
+                    f"external-operational-gap:{plan.identity}:"
+                    f"{path.recovery_path_id}"
+                )
+                gap_head = index.event_head(gap_stream)
+                gap = _record(
+                    kind="external-dependency-operational-gap",
+                    record_id=gap_id,
+                    subject=f"Job:{job_id}",
+                    status="engineering_gap",
+                    fingerprint=completion.fingerprint,
+                    payload=gap_payload,
+                    event_stream=gap_stream,
+                    event_sequence=(
+                        1 if gap_head is None else gap_head.sequence + 1
+                    ),
+                )
+                return body, [gap], {
+                    "completion_record_id": completion_record_id,
+                    "disposition": "restore_local_engineering_failure",
+                    "recovery_plan_id": plan.identity,
+                    "verdict": "engineering_gap",
+                }
             if (
                 attempt is None
                 or attempt.payload.get("completion_record_id")
@@ -16496,6 +19680,45 @@ class StateWriter:
             prepare=prepare,
         )
 
+    def _engineering_failure_cause(
+        self,
+        failure: Mapping[str, Any],
+    ) -> tuple[dict[str, Any], str]:
+        failure_manifest = _require_manifest(
+            "repair failure",
+            failure,
+            required={
+                "failure_kind",
+                "minimum_reproduction_evidence",
+                "root_cause",
+                "interrupted_action",
+            },
+        )
+        if set(failure_manifest) != {
+            "failure_kind",
+            "minimum_reproduction_evidence",
+            "root_cause",
+            "interrupted_action",
+        } or failure_manifest.get("failure_kind") != "engineering":
+            raise TransitionError(
+                "Repair requires one exact engineering failure manifest"
+            )
+        for name in ("root_cause", "interrupted_action"):
+            _require_ascii(name, failure_manifest[name])
+        references = failure_manifest["minimum_reproduction_evidence"]
+        if (
+            not isinstance(references, list)
+            or not references
+            or references != sorted(set(references))
+        ):
+            raise TransitionError(
+                "Repair requires sorted unique minimum reproduction evidence"
+            )
+        for reference in references:
+            self.evidence.verify(reference)
+        cause_hash = _digest(failure_manifest, domain="repair-cause")
+        return failure_manifest, cause_hash
+
     def open_repair(
         self,
         *,
@@ -16503,23 +19726,9 @@ class StateWriter:
         failure: Mapping[str, Any],
         operation_id: str,
     ) -> TransitionResult:
-        failure_manifest = _require_manifest(
-            "repair failure",
-            failure,
-            required={
-                "minimum_reproduction_evidence",
-                "root_cause",
-                "interrupted_action",
-            },
+        failure_manifest, cause_hash = self._engineering_failure_cause(
+            failure
         )
-        for name in ("root_cause", "interrupted_action"):
-            _require_ascii(name, failure_manifest[name])
-        references = failure_manifest["minimum_reproduction_evidence"]
-        if not isinstance(references, list) or not references:
-            raise TransitionError("Repair requires minimum reproduction evidence")
-        for reference in references:
-            self.evidence.verify(reference)
-        cause_hash = _digest(failure_manifest, domain="repair-cause")
 
         def prepare(current: dict[str, Any] | None, index: LocalIndex):
             if current is None:
@@ -16531,6 +19740,10 @@ class StateWriter:
                 raise TransitionError("Repair requires a running Job")
             if science["active_repair"] is not None:
                 raise TransitionError("another Repair is active")
+            if job.get("required_repair_resume_record_id") is not None:
+                raise TransitionError(
+                    "a repaired Job must re-enter its engine before another Repair"
+                )
             declaration = index.get("job-declared", job["id"])
             if declaration is None:
                 raise TransitionError("interrupted Job declaration is absent")
@@ -16548,12 +19761,54 @@ class StateWriter:
                 subject_id=job["id"],
                 expected_input_hash=job["hash"],
             )
-            repair_id = f"repair:{canonical_digest(domain='repair', payload={'job_id': job['id'], 'cause_hash': cause_hash})}"
+            repair_stream = f"job-repair:{job['id']}"
+            predecessor_head = index.event_head(repair_stream)
+            predecessor = (
+                None
+                if predecessor_head is None
+                else index.get(
+                    predecessor_head.record_kind,
+                    predecessor_head.record_id,
+                )
+            )
+            if predecessor_head is not None and (
+                predecessor is None
+                or predecessor.kind != "repair-close"
+                or predecessor.status != "repaired"
+                or predecessor.subject != f"Job:{job['id']}"
+            ):
+                raise RecoveryRequired(
+                    "running Job Repair predecessor is invalid"
+                )
+            repair_episode = (
+                1
+                if predecessor_head is None
+                else predecessor_head.sequence + 1
+            )
+            predecessor_id = (
+                None if predecessor is None else predecessor.record_id
+            )
+            repair_id = (
+                "repair:"
+                + canonical_digest(
+                    domain="repair",
+                    payload={
+                        "cause_hash": cause_hash,
+                        "episode": repair_episode,
+                        "job_id": job["id"],
+                        "predecessor_repair_close_record_id": predecessor_id,
+                    },
+                )
+            )
             job["status"] = "interrupted_repair"
             science["active_repair"] = {
                 "id": repair_id,
                 "job_id": job["id"],
                 "cause_hash": cause_hash,
+                "episode": repair_episode,
+                "latest_attempt_record_id": None,
+                "latest_basis_hash": cause_hash,
+                "predecessor_repair_close_record_id": predecessor_id,
                 "resume_action": resume_action,
             }
             body["next_action"] = {"kind": "execute_repair", "repair_id": repair_id}
@@ -16566,6 +19821,8 @@ class StateWriter:
                 fingerprint=cause_hash,
                 payload={
                     **failure_manifest,
+                    "episode": repair_episode,
+                    "predecessor_repair_close_record_id": predecessor_id,
                     "resume_action": resume_action,
                     "scientific_trial_delta": 0,
                 },
@@ -16580,6 +19837,740 @@ class StateWriter:
             prepare=prepare,
         )
 
+    def _repair_attempt_context(
+        self,
+        index: LocalIndex,
+        *,
+        repair: Mapping[str, Any],
+        job: Mapping[str, Any],
+    ) -> tuple[IndexRecord, IndexRecord | None, str | None, str, int]:
+        repair_id = repair.get("id")
+        if not isinstance(repair_id, str):
+            raise TransitionError("active Repair identity is invalid")
+        opened = index.get("repair-open", repair_id)
+        if (
+            opened is None
+            or opened.status != "open"
+            or opened.subject != f"Job:{job.get('id')}"
+            or opened.fingerprint != repair.get("cause_hash")
+            or opened.payload.get("episode") != repair.get("episode")
+            or opened.payload.get("failure_kind") != "engineering"
+            or opened.payload.get(
+                "predecessor_repair_close_record_id"
+            )
+            != repair.get("predecessor_repair_close_record_id")
+            or opened.payload.get("resume_action")
+            != repair.get("resume_action")
+        ):
+            raise TransitionError("Repair cause record is absent")
+        stream = f"repair-attempt:{repair_id}"
+        head = index.event_head(stream)
+        prior = (
+            None
+            if head is None
+            else index.get(head.record_kind, head.record_id)
+        )
+        if prior is None:
+            prior_record_id = None
+            previous_basis = repair.get("cause_hash")
+            sequence = 1
+        else:
+            if (
+                prior.kind != "repair-attempt"
+                or prior.status != "failed"
+                or prior.subject != f"Repair:{repair_id}"
+                or prior.payload.get("job_id") != job.get("id")
+                or prior.payload.get("repair_id") != repair_id
+            ):
+                raise RecoveryRequired("Repair attempt head is invalid")
+            prior_record_id = prior.record_id
+            previous_basis = prior.payload.get("new_basis_hash")
+            sequence = head.sequence + 1
+        if not isinstance(previous_basis, str):
+            raise RecoveryRequired("Repair attempt basis is unavailable")
+        if (
+            repair.get("latest_attempt_record_id") != prior_record_id
+            or repair.get("latest_basis_hash") != previous_basis
+        ):
+            raise RecoveryRequired("active Repair trails its attempt stream")
+        return opened, prior, prior_record_id, previous_basis, sequence
+
+    def _parse_active_repair_attempt(
+        self,
+        *,
+        proof_hash: str,
+        expected_outcome: str,
+        repair: Mapping[str, Any],
+        job: Mapping[str, Any],
+        opened: IndexRecord,
+        prior_record_id: str | None,
+        previous_basis: str,
+    ) -> RepairAttemptProof:
+        try:
+            content = self.evidence.read_verified(proof_hash)
+            return parse_repair_attempt_proof(
+                content,
+                expected_outcome=expected_outcome,
+                repair_id=str(repair["id"]),
+                job_id=str(job["id"]),
+                job_hash=str(job["hash"]),
+                cause_hash=str(repair["cause_hash"]),
+                resume_action=str(repair["resume_action"]),
+                reproduction_evidence_hashes=opened.payload[
+                    "minimum_reproduction_evidence"
+                ],
+                prior_attempt_record_id=prior_record_id,
+                previous_basis_hash=previous_basis,
+                read_evidence=self.evidence.read_verified,
+                verify_evidence=self.evidence.verify,
+            )
+        except (
+            FileNotFoundError,
+            OSError,
+            RepairProtocolError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            raise TransitionError(str(exc)) from exc
+
+    def record_failed_repair_attempt(
+        self,
+        *,
+        attempt_proof_hash: str,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Preserve one failed changed-basis attempt without abandoning Repair."""
+
+        _require_digest("Repair attempt proof", attempt_proof_hash)
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            body = self._body(current)
+            science = body["scientific"]
+            repair = science.get("active_repair")
+            job = science.get("active_job")
+            if not isinstance(repair, dict) or not isinstance(job, dict):
+                raise TransitionError("failed attempt requires an active Repair")
+            if (
+                job.get("status") != "interrupted_repair"
+                or repair.get("job_id") != job.get("id")
+            ):
+                raise TransitionError("Repair and interrupted Job diverge")
+            (
+                opened,
+                _prior,
+                prior_record_id,
+                previous_basis,
+                sequence,
+            ) = self._repair_attempt_context(index, repair=repair, job=job)
+            proof = self._parse_active_repair_attempt(
+                proof_hash=attempt_proof_hash,
+                expected_outcome="failed",
+                repair=repair,
+                job=job,
+                opened=opened,
+                prior_record_id=prior_record_id,
+                previous_basis=previous_basis,
+            )
+            record_id = canonical_digest(
+                domain="repair-attempt",
+                payload={
+                    "attempt_proof_hash": attempt_proof_hash,
+                    **proof.payload(),
+                },
+            )
+            record = _record(
+                kind="repair-attempt",
+                record_id=record_id,
+                subject=f"Repair:{repair['id']}",
+                status="failed",
+                fingerprint=attempt_proof_hash,
+                payload={
+                    "attempt_proof_hash": attempt_proof_hash,
+                    **proof.payload(),
+                    "scientific_failure_delta": 0,
+                    "scientific_trial_delta": 0,
+                },
+                event_stream=f"repair-attempt:{repair['id']}",
+                event_sequence=sequence,
+            )
+            repair["latest_attempt_record_id"] = record_id
+            repair["latest_basis_hash"] = proof.new_basis_hash
+            body["next_action"] = {
+                "kind": "execute_repair",
+                "repair_id": repair["id"],
+                "prior_attempt_record_id": record_id,
+                "required_previous_basis_hash": proof.new_basis_hash,
+            }
+            return body, [record], {
+                "attempt_record_id": record_id,
+                "job_id": job["id"],
+                "repair_id": repair["id"],
+            }
+
+        return self._commit(
+            event_kind="repair_attempt_failed",
+            operation_id=operation_id,
+            subject="Repair:active",
+            payload={"attempt_proof_hash": attempt_proof_hash},
+            prepare=prepare,
+        )
+
+    def _engineering_failure_disposition(
+        self,
+        index: LocalIndex,
+        *,
+        disposition_hash: str,
+        job_id: str,
+        job_hash: str,
+        repair_id: str | None,
+        cause_hash: str,
+        reproduction_evidence_hashes: Sequence[str],
+    ) -> EngineeringFailureDisposition:
+        failed_records = (
+            ()
+            if repair_id is None
+            else tuple(
+                sorted(
+                    (
+                        record
+                        for record in index.records_by_subject_status(
+                            f"Repair:{repair_id}", "failed"
+                        )
+                        if record.kind == "repair-attempt"
+                        and record.payload.get("repair_id") == repair_id
+                    ),
+                    key=lambda record: record.record_id,
+                )
+            )
+        )
+        repair_attempts = tuple(
+            {
+                "attempt_proof_hash": record.payload.get(
+                    "attempt_proof_hash"
+                ),
+                "changed_dimension": record.payload.get(
+                    "changed_dimension"
+                ),
+                "new_basis_hash": record.payload.get("new_basis_hash"),
+                "repair_attempt_record_id": record.record_id,
+                "verification_receipt_hashes": record.payload.get(
+                    "verification_evidence_hashes"
+                ),
+            }
+            for record in failed_records
+        )
+        try:
+            disposition = parse_engineering_failure_disposition(
+                self.evidence.read_verified(disposition_hash),
+                job_id=job_id,
+                job_hash=job_hash,
+                repair_id=repair_id,
+                cause_hash=cause_hash,
+                reproduction_evidence_hashes=reproduction_evidence_hashes,
+                repair_attempts=repair_attempts,
+                read_evidence=self.evidence.read_verified,
+                verify_evidence=self.evidence.verify,
+            )
+        except (
+            FileNotFoundError,
+            OSError,
+            RepairProtocolError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            raise TransitionError(str(exc)) from exc
+        failed_attempts = tuple(record.record_id for record in failed_records)
+        if disposition.repair_attempt_record_ids != failed_attempts:
+            raise TransitionError(
+                "engineering disposition omits or invents failed Repair attempts"
+            )
+        if (
+            disposition.disposition == "repair_exhausted_changed_causes"
+            and (repair_id is None or len(failed_attempts) < 2)
+        ):
+            raise TransitionError(
+                "one failed Repair attempt cannot establish changed-cause exhaustion"
+            )
+        return disposition
+
+    def record_engineering_failure_disposition(
+        self,
+        *,
+        failure: Mapping[str, Any],
+        disposition_hash: str,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Authorize direct Job failure only through a durable typed decision."""
+
+        _require_digest("engineering disposition", disposition_hash)
+        failure_manifest, cause_hash = self._engineering_failure_cause(
+            failure
+        )
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            body = self._body(current)
+            science = body["scientific"]
+            job = science.get("active_job")
+            if (
+                not isinstance(job, dict)
+                or job.get("status") != "running"
+                or science.get("active_repair") is not None
+            ):
+                raise TransitionError(
+                    "engineering disposition requires one running unrepaired Job"
+                )
+            if job.get("required_repair_resume_record_id") is not None:
+                raise TransitionError(
+                    "a repaired Job must re-enter its engine before disposition"
+                )
+            declaration = index.get("job-declared", job["id"])
+            spec = (
+                None
+                if declaration is None
+                else declaration.payload.get("spec")
+            )
+            if (
+                not isinstance(spec, Mapping)
+                or failure_manifest["interrupted_action"]
+                != spec.get("callable_identity")
+            ):
+                raise TransitionError(
+                    "engineering disposition differs from the active Job"
+                )
+            disposition = self._engineering_failure_disposition(
+                index,
+                disposition_hash=disposition_hash,
+                job_id=job["id"],
+                job_hash=job["hash"],
+                repair_id=None,
+                cause_hash=cause_hash,
+                reproduction_evidence_hashes=failure_manifest[
+                    "minimum_reproduction_evidence"
+                ],
+            )
+            record_id = canonical_digest(
+                domain="engineering-failure-disposition",
+                payload={
+                    "cause_hash": cause_hash,
+                    "disposition_hash": disposition_hash,
+                    "job_id": job["id"],
+                    "repair_id": None,
+                },
+            )
+            record = _record(
+                kind="engineering-failure-disposition",
+                record_id=record_id,
+                subject=f"Job:{job['id']}",
+                status=disposition.disposition,
+                fingerprint=disposition_hash,
+                payload={
+                    "cause": failure_manifest,
+                    "cause_hash": cause_hash,
+                    "disposition": disposition.payload(),
+                    "disposition_hash": disposition_hash,
+                    "job_id": job["id"],
+                    "repair_id": None,
+                    "scientific_failure_delta": 0,
+                    "scientific_trial_delta": 0,
+                },
+            )
+            job["required_engineering_disposition_hash"] = disposition_hash
+            job["required_engineering_failure_cause_hash"] = cause_hash
+            job["required_engineering_repair_id"] = None
+            body["next_action"] = {
+                "disposition_hash": disposition_hash,
+                "job_id": job["id"],
+                "kind": "complete_engineering_failure",
+            }
+            return body, [record], {
+                "cause_hash": cause_hash,
+                "disposition_hash": disposition_hash,
+                "disposition_record_id": record_id,
+                "job_id": job["id"],
+                "repair_id": None,
+            }
+
+        return self._commit(
+            event_kind="engineering_failure_disposition_recorded",
+            operation_id=operation_id,
+            subject="Job:active",
+            payload={
+                "cause_hash": cause_hash,
+                "disposition_hash": disposition_hash,
+                "failure": failure_manifest,
+            },
+            prepare=prepare,
+        )
+
+    def conclude_repair_unrecovered(
+        self,
+        *,
+        disposition_hash: str,
+        operation_id: str,
+    ) -> TransitionResult:
+        """End Repair only on a typed infeasibility, value, exhaustion, or scope basis."""
+
+        _require_digest("engineering disposition", disposition_hash)
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            body = self._body(current)
+            science = body["scientific"]
+            repair = science.get("active_repair")
+            job = science.get("active_job")
+            if not isinstance(repair, dict) or not isinstance(job, dict):
+                raise TransitionError("unrecovered conclusion requires active Repair")
+            if (
+                job.get("status") != "interrupted_repair"
+                or repair.get("job_id") != job.get("id")
+            ):
+                raise TransitionError("Repair and interrupted Job diverge")
+            opened, _prior, _prior_id, _basis, _sequence = (
+                self._repair_attempt_context(index, repair=repair, job=job)
+            )
+            disposition = self._engineering_failure_disposition(
+                index,
+                disposition_hash=disposition_hash,
+                job_id=job["id"],
+                job_hash=job["hash"],
+                repair_id=repair["id"],
+                cause_hash=repair["cause_hash"],
+                reproduction_evidence_hashes=opened.payload[
+                    "minimum_reproduction_evidence"
+                ],
+            )
+            stream = f"job-repair:{job['id']}"
+            head = index.event_head(stream)
+            record_id = canonical_digest(
+                domain="repair-unrecovered",
+                payload={
+                    "disposition_hash": disposition_hash,
+                    "repair_id": repair["id"],
+                },
+            )
+            record = _record(
+                kind="repair-close",
+                record_id=record_id,
+                subject=f"Job:{job['id']}",
+                status="unrecovered",
+                fingerprint=disposition_hash,
+                payload={
+                    "disposition": disposition.payload(),
+                    "disposition_hash": disposition_hash,
+                    "job_id": job["id"],
+                    "repair_id": repair["id"],
+                    "resume_action": repair["resume_action"],
+                    "scientific_failure_delta": 0,
+                    "scientific_trial_delta": 0,
+                },
+                event_stream=stream,
+                event_sequence=(1 if head is None else head.sequence + 1),
+            )
+            science["active_repair"] = None
+            job["status"] = "running"
+            job["required_engineering_disposition_hash"] = disposition_hash
+            job["required_engineering_failure_cause_hash"] = repair[
+                "cause_hash"
+            ]
+            job["required_engineering_repair_id"] = repair["id"]
+            body["next_action"] = {
+                "disposition_hash": disposition_hash,
+                "job_id": job["id"],
+                "kind": "complete_engineering_failure",
+            }
+            return body, [record], {
+                "disposition_hash": disposition_hash,
+                "job_id": job["id"],
+                "repair_id": repair["id"],
+                "repair_close_record_id": record_id,
+            }
+
+        return self._commit(
+            event_kind="repair_concluded_unrecovered",
+            operation_id=operation_id,
+            subject="Repair:active",
+            payload={"disposition_hash": disposition_hash},
+            prepare=prepare,
+        )
+
+    @staticmethod
+    def _semantic_equivalence_repair_error(detail: object) -> TransitionError:
+        return TransitionError(
+            "in-place implementation Repair lacks fully passed registered "
+            "semantic-equivalence; record a failed Repair attempt and preserve "
+            "the requires_scientific_change disposition path: "
+            f"{detail}"
+        )
+
+    def _implementation_repair_semantic_plan_locked(
+        self,
+        index: LocalIndex,
+        *,
+        repair: Mapping[str, Any],
+        job: Mapping[str, Any],
+        declaration: IndexRecord,
+        spec: Mapping[str, Any],
+        new_implementation_identity: str,
+        validator_id: str,
+    ) -> tuple[dict[str, Any], str]:
+        """Rebuild the exact production Executable Repair plan from authority."""
+
+        if validator_id != SEMANTIC_EQUIVALENCE_VALIDATOR_ID:
+            raise self._semantic_equivalence_repair_error(
+                "validator does not implement the registered equivalence protocol"
+            )
+        try:
+            self.validation_registry.require_registered(
+                validator_id=validator_id,
+                domain="scientific",
+            )
+        except EvidenceValidationError as exc:
+            raise self._semantic_equivalence_repair_error(exc) from exc
+        subject = spec.get("evidence_subject")
+        if (
+            not isinstance(subject, Mapping)
+            or subject.get("kind") != "Executable"
+            or type(subject.get("id")) is not str
+        ):
+            raise self._semantic_equivalence_repair_error(
+                "Repair is not bound to one exact Executable"
+            )
+        executable_id = str(subject["id"])
+        trial = index.get("trial", executable_id)
+        executable = None if trial is None else trial.payload.get("executable")
+        if not isinstance(executable, Mapping):
+            raise self._semantic_equivalence_repair_error(
+                "Executable trial manifest is unavailable"
+            )
+        old_identity, _repair_record_id = (
+            self._effective_running_job_implementation(
+                index,
+                job_id=str(job["id"]),
+                declared_implementation_identity=str(
+                    spec["implementation_identity"]
+                ),
+            )
+        )
+        old_manifest = self._require_job_implementation_evidence(
+            {**dict(spec), "implementation_identity": old_identity}
+        )
+        new_manifest = self._require_job_implementation_evidence(
+            {
+                **dict(spec),
+                "implementation_identity": new_implementation_identity,
+            }
+        )
+        try:
+            from axiom_rift.research.implementation_closure import (
+                ImplementationClosureError,
+                require_job_implementation_closure,
+            )
+
+            for manifest in (old_manifest, new_manifest):
+                require_job_implementation_closure(
+                    executable_manifest=executable,
+                    job_artifact_hashes=manifest["artifact_hashes"],
+                    artifact_reader=self.evidence.read_verified,
+                )
+            plan = build_semantic_equivalence_plan(
+                validator_id=validator_id,
+                repair_id=str(repair["id"]),
+                job_id=str(job["id"]),
+                job_hash=str(job["hash"]),
+                executable_id=executable_id,
+                job_spec=spec,
+                executable_manifest=executable,
+                old_implementation_identity=old_identity,
+                old_implementation_manifest=old_manifest,
+                new_implementation_identity=new_implementation_identity,
+                new_implementation_manifest=new_manifest,
+                artifact_reader=self.evidence.read_verified,
+            )
+        except (
+            ImplementationClosureError,
+            RepairSemanticEquivalenceError,
+        ) as exc:
+            raise self._semantic_equivalence_repair_error(exc) from exc
+        return plan, old_identity
+
+    def plan_implementation_repair_semantic_equivalence(
+        self,
+        *,
+        new_implementation_identity: str,
+        validator_id: str = SEMANTIC_EQUIVALENCE_VALIDATOR_ID,
+    ) -> dict[str, Any]:
+        """Return the exact read-only plan required for a production close."""
+
+        _require_digest(
+            "new implementation identity", new_implementation_identity
+        )
+        if self.engineering_fixture:
+            raise TransitionError(
+                "engineering fixtures do not acquire production semantic authority"
+            )
+        with WriterLock(self.lock_path):
+            with self._open_authoritative_index() as index:
+                current = self._require_stable_locked(index)
+                assert current is not None
+                science = current["scientific"]
+                repair = science.get("active_repair")
+                job = science.get("active_job")
+                if not isinstance(repair, Mapping) or not isinstance(job, Mapping):
+                    raise TransitionError(
+                        "semantic-equivalence plan requires an active Repair"
+                    )
+                if (
+                    job.get("status") != "interrupted_repair"
+                    or repair.get("job_id") != job.get("id")
+                ):
+                    raise TransitionError("Repair and interrupted Job diverge")
+                declaration = index.get("job-declared", str(job["id"]))
+                spec = (
+                    None
+                    if declaration is None
+                    else declaration.payload.get("spec")
+                )
+                if declaration is None or not isinstance(spec, Mapping):
+                    raise TransitionError("Repair Job declaration is unavailable")
+                plan, _old_identity = (
+                    self._implementation_repair_semantic_plan_locked(
+                        index,
+                        repair=repair,
+                        job=job,
+                        declaration=declaration,
+                        spec=spec,
+                        new_implementation_identity=(
+                            new_implementation_identity
+                        ),
+                        validator_id=validator_id,
+                    )
+                )
+                return plan
+
+    def _run_implementation_repair_semantic_equivalence(
+        self,
+        *,
+        plan: Mapping[str, Any],
+        validation_plan_hash: str,
+        result_manifest_hash: str,
+        measurement_artifact_hashes: Sequence[str],
+        mission_id: str,
+        job_id: str,
+        job_hash: str,
+        executable_id: str,
+    ) -> dict[str, Any]:
+        """Dispatch exact Repair evidence through the immutable registry."""
+
+        try:
+            plan_artifact = parse_canonical(
+                self.evidence.read_verified(validation_plan_hash)
+            )
+            if not isinstance(plan_artifact, Mapping) or dict(plan_artifact) != dict(
+                plan
+            ):
+                raise RepairSemanticEquivalenceError(
+                    "validation plan differs from Writer-derived authority"
+                )
+            result_manifest = parse_canonical(
+                self.evidence.read_verified(result_manifest_hash)
+            )
+            if not isinstance(result_manifest, Mapping):
+                raise RepairSemanticEquivalenceError(
+                    "result manifest is not an object"
+                )
+            binding = build_semantic_equivalence_binding(
+                plan=plan,
+                validation_plan_hash=validation_plan_hash,
+                result_manifest_hash=result_manifest_hash,
+                measurement_artifact_hashes=measurement_artifact_hashes,
+            )
+            artifacts: list[ValidationArtifact] = []
+            for ordinal, identity in enumerate(
+                binding["declared_artifact_hashes"]
+            ):
+                artifacts.append(
+                    ValidationArtifact(
+                        output_name=f"repair-semantic-artifact-{ordinal:04d}",
+                        sha256=identity,
+                        _source=self.evidence.verified_path(identity),
+                    )
+                )
+            request = EvidenceValidationRequest(
+                domain="scientific",
+                validator_id=str(binding["validator_id"]),
+                validation_plan_hash=validation_plan_hash,
+                job_id=job_id,
+                job_hash=job_hash,
+                mission_id=mission_id,
+                evidence_subject={"kind": "Executable", "id": executable_id},
+                binding=binding,
+                result_manifest=result_manifest,
+                artifacts=tuple(artifacts),
+                engineering_fixture=False,
+            )
+            validated, trace = self.validation_registry.validate(request)
+            facts = parse_canonical(canonical_bytes(dict(validated.facts)))
+        except (
+            EvidenceValidationError,
+            FileNotFoundError,
+            OSError,
+            RepairSemanticEquivalenceError,
+            RuntimeError,
+            TypeError,
+            ValueError,
+        ) as exc:
+            raise self._semantic_equivalence_repair_error(exc) from exc
+        expected_claims = tuple(plan["claims"])
+        expected_measurements = tuple(sorted(measurement_artifact_hashes))
+        try:
+            require_passed_semantic_equivalence_facts(
+                binding=binding,
+                facts=facts,
+            )
+        except RepairSemanticEquivalenceError as exc:
+            raise self._semantic_equivalence_repair_error(exc) from exc
+        if (
+            validated.verdict != "passed"
+            or validated.claims != expected_claims
+            or validated.measurement_artifact_hashes
+            != expected_measurements
+            or validated.scientific_eligible
+            or validated.candidate_eligible
+            or validated.release_eligible
+            or trace.validator_id != plan["validator_id"]
+            or trace.declared_artifact_count
+            != len(binding["declared_artifact_hashes"])
+            or trace.opened_artifact_count
+            != trace.declared_artifact_count
+        ):
+            raise self._semantic_equivalence_repair_error(
+                "validator verdict, coverage, claims, facts, or trace is partial"
+            )
+        return {
+            "binding": binding,
+            "claims": list(validated.claims),
+            "facts": facts,
+            "measurement_artifact_hashes": list(
+                validated.measurement_artifact_hashes
+            ),
+            "registry_trace": {
+                "declared_artifact_count": trace.declared_artifact_count,
+                "opened_artifact_count": trace.opened_artifact_count,
+                "validator_id": trace.validator_id,
+            },
+            "schema": (
+                "implementation_repair_semantic_equivalence_validation.v1"
+            ),
+            "verdict": validated.verdict,
+        }
+
     def close_repair(
         self,
         *,
@@ -16587,14 +20578,6 @@ class StateWriter:
         operation_id: str,
     ) -> TransitionResult:
         _require_digest("changed_cause_proof_hash", changed_cause_proof_hash)
-        changed_artifact = self.evidence.verify(changed_cause_proof_hash)
-        changed_bytes = (
-            self.evidence._root / changed_artifact.relative_path
-        ).read_bytes()
-        try:
-            changed_manifest = parse_canonical(changed_bytes)
-        except ValueError:
-            changed_manifest = None
 
         def prepare(current: dict[str, Any] | None, _index: LocalIndex):
             if current is None:
@@ -16607,11 +20590,26 @@ class StateWriter:
                 raise TransitionError("no active Repair")
             if job["id"] != repair["job_id"] or job["status"] != "interrupted_repair":
                 raise TransitionError("Repair and interrupted Job diverge")
-            opened = _index.get("repair-open", repair["id"])
-            if opened is None:
-                raise TransitionError("Repair cause record is absent")
-            if changed_cause_proof_hash in opened.payload["minimum_reproduction_evidence"]:
-                raise TransitionError("changed-cause proof reuses the failure reproduction")
+            (
+                opened,
+                _prior,
+                prior_attempt_record_id,
+                previous_basis,
+                attempt_sequence,
+            ) = self._repair_attempt_context(
+                _index,
+                repair=repair,
+                job=job,
+            )
+            proof = self._parse_active_repair_attempt(
+                proof_hash=changed_cause_proof_hash,
+                expected_outcome="repaired",
+                repair=repair,
+                job=job,
+                opened=opened,
+                prior_record_id=prior_attempt_record_id,
+                previous_basis=previous_basis,
+            )
             declaration = _index.get("job-declared", job["id"])
             spec = None if declaration is None else declaration.payload.get("spec")
             if not isinstance(spec, Mapping):
@@ -16627,12 +20625,27 @@ class StateWriter:
             )
             effective_implementation = prior_effective
             implementation_changed = False
-            if (
-                isinstance(changed_manifest, Mapping)
-                and changed_manifest.get("schema")
-                == "running_job_implementation_repair.v1"
-            ):
-                required = {
+            semantic_equivalence_validation: dict[str, Any] | None = None
+            if proof.changed_dimension == "implementation":
+                if proof.implementation_proof_hash is None:
+                    raise TransitionError(
+                        "implementation Repair omits its typed inner proof"
+                    )
+                try:
+                    changed_manifest = parse_canonical(
+                        self.evidence.read_verified(
+                            proof.implementation_proof_hash
+                        )
+                    )
+                except (OSError, TypeError, ValueError) as exc:
+                    raise TransitionError(
+                        "running Job implementation Repair proof is invalid"
+                    ) from exc
+                if not isinstance(changed_manifest, Mapping):
+                    raise TransitionError(
+                        "running Job implementation Repair proof is invalid"
+                    )
+                legacy_required = {
                     "changed_dimension",
                     "explanation",
                     "job_hash",
@@ -16644,6 +20657,22 @@ class StateWriter:
                     "reproduction_evidence_hashes",
                     "schema",
                 }
+                production_executable_repair = (
+                    not self.engineering_fixture
+                    and spec.get("evidence_subject", {}).get("kind")
+                    == "Executable"
+                )
+                semantic_required = {
+                    "semantic_equivalence_measurement_artifact_hashes",
+                    "semantic_equivalence_result_manifest_hash",
+                    "semantic_equivalence_validation_plan_hash",
+                    "semantic_equivalence_validator_id",
+                }
+                required = (
+                    legacy_required | semantic_required
+                    if production_executable_repair
+                    else legacy_required
+                )
                 new_evidence = changed_manifest.get("new_evidence_hashes")
                 reproduction = changed_manifest.get(
                     "reproduction_evidence_hashes"
@@ -16652,8 +20681,19 @@ class StateWriter:
                     "new_implementation_identity"
                 )
                 explanation = changed_manifest.get("explanation")
+                if production_executable_repair and changed_manifest.get(
+                    "schema"
+                ) != IMPLEMENTATION_REPAIR_V2_SCHEMA:
+                    raise self._semantic_equivalence_repair_error(
+                        "production Executable implementation proof is not v2"
+                    )
                 if (
                     set(changed_manifest) != required
+                    or (
+                        not production_executable_repair
+                        and changed_manifest.get("schema")
+                        != "running_job_implementation_repair.v1"
+                    )
                     or changed_manifest.get("changed_dimension")
                     != "implementation"
                     or changed_manifest.get("job_id") != job["id"]
@@ -16683,32 +20723,34 @@ class StateWriter:
                     raise TransitionError(
                         "running Job Repair omits its implementation manifest"
                     )
+                if (
+                    proof.new_basis_hash != new_identity
+                    or list(proof.new_evidence_hashes)
+                    != sorted(
+                        {
+                            proof.implementation_proof_hash,
+                            *new_evidence,
+                        }
+                    )
+                ):
+                    raise TransitionError(
+                        "implementation Repair attempt differs from its inner proof"
+                    )
                 for evidence_hash in new_evidence:
                     _require_digest("running Job Repair evidence", evidence_hash)
                     self.evidence.verify(evidence_hash)
-                mission_id = declaration.payload.get("mission_id")
-                study_id = declaration.payload.get("study_id")
-                allowed_historical_ids = (
-                    self._historical_replay_implementation_control_ids(
-                        _index,
-                        study_id=study_id,
-                        mission_id=mission_id,
-                    )
-                )
                 previous_manifest = self._require_job_implementation_evidence(
                     {
                         **dict(spec),
                         "implementation_identity": prior_effective,
-                    },
-                    allowed_historical_control_ids=allowed_historical_ids,
+                    }
                 )
                 repaired_spec = {
                     **dict(spec),
                     "implementation_identity": new_identity,
                 }
                 repaired_manifest = self._require_job_implementation_evidence(
-                    repaired_spec,
-                    allowed_historical_control_ids=allowed_historical_ids,
+                    repaired_spec
                 )
                 if (
                     previous_manifest.get("protocol")
@@ -16721,11 +20763,7 @@ class StateWriter:
                     raise TransitionError(
                         "running Job Repair changes protocol or omits source bytes"
                     )
-                if (
-                    not self.engineering_fixture
-                    and spec.get("evidence_subject", {}).get("kind")
-                    == "Executable"
-                ):
+                if production_executable_repair:
                     from axiom_rift.research.implementation_closure import (
                         ImplementationClosureError,
                         require_job_implementation_closure,
@@ -16752,23 +20790,164 @@ class StateWriter:
                         )
                     except ImplementationClosureError as exc:
                         raise TransitionError(str(exc)) from exc
+                    validator_id = changed_manifest.get(
+                        "semantic_equivalence_validator_id"
+                    )
+                    validation_plan_hash = changed_manifest.get(
+                        "semantic_equivalence_validation_plan_hash"
+                    )
+                    result_manifest_hash = changed_manifest.get(
+                        "semantic_equivalence_result_manifest_hash"
+                    )
+                    measurement_hashes = changed_manifest.get(
+                        "semantic_equivalence_measurement_artifact_hashes"
+                    )
+                    try:
+                        if type(validator_id) is not str:
+                            raise RepairSemanticEquivalenceError(
+                                "semantic-equivalence validator id is absent"
+                            )
+                        _require_digest(
+                            "semantic-equivalence validation plan",
+                            validation_plan_hash,
+                        )
+                        _require_digest(
+                            "semantic-equivalence result manifest",
+                            result_manifest_hash,
+                        )
+                        if (
+                            not isinstance(measurement_hashes, list)
+                            or measurement_hashes
+                            != sorted(set(measurement_hashes))
+                        ):
+                            raise RepairSemanticEquivalenceError(
+                                "semantic-equivalence measurement set is invalid"
+                            )
+                        for measurement_hash in measurement_hashes:
+                            _require_digest(
+                                "semantic-equivalence measurement",
+                                measurement_hash,
+                            )
+                    except (
+                        RepairSemanticEquivalenceError,
+                        TransitionError,
+                    ) as exc:
+                        raise self._semantic_equivalence_repair_error(exc) from exc
+                    expected_inner_evidence = sorted(
+                        {
+                            new_identity,
+                            *repaired_manifest["artifact_hashes"],
+                            validation_plan_hash,
+                            result_manifest_hash,
+                            *measurement_hashes,
+                        }
+                    )
+                    if new_evidence != expected_inner_evidence:
+                        raise self._semantic_equivalence_repair_error(
+                            "implementation proof does not bind the exact plan, "
+                            "result, measurement, manifest, and artifact set"
+                        )
+                    plan, planned_old_identity = (
+                        self._implementation_repair_semantic_plan_locked(
+                            _index,
+                            repair=repair,
+                            job=job,
+                            declaration=declaration,
+                            spec=spec,
+                            new_implementation_identity=new_identity,
+                            validator_id=validator_id,
+                        )
+                    )
+                    if planned_old_identity != prior_effective:
+                        raise self._semantic_equivalence_repair_error(
+                            "old implementation identity changed during validation"
+                        )
+                    mission_id = declaration.payload.get("mission_id")
+                    if type(mission_id) is not str:
+                        raise self._semantic_equivalence_repair_error(
+                            "Mission identity is unavailable"
+                        )
+                    semantic_equivalence_validation = (
+                        self._run_implementation_repair_semantic_equivalence(
+                            plan=plan,
+                            validation_plan_hash=validation_plan_hash,
+                            result_manifest_hash=result_manifest_hash,
+                            measurement_artifact_hashes=measurement_hashes,
+                            mission_id=mission_id,
+                            job_id=job["id"],
+                            job_hash=job["hash"],
+                            executable_id=spec["evidence_subject"]["id"],
+                        )
+                    )
                 effective_implementation = new_identity
                 implementation_changed = True
+            attempt_identity_payload = {
+                "attempt_proof_hash": changed_cause_proof_hash,
+                **proof.payload(),
+            }
+            if semantic_equivalence_validation is not None:
+                attempt_identity_payload["semantic_equivalence_validation"] = (
+                    semantic_equivalence_validation
+                )
+            attempt_record_id = canonical_digest(
+                domain="repair-attempt",
+                payload=attempt_identity_payload,
+            )
+            attempt_record = _record(
+                kind="repair-attempt",
+                record_id=attempt_record_id,
+                subject=f"Repair:{repair['id']}",
+                status="repaired",
+                fingerprint=changed_cause_proof_hash,
+                payload={
+                    "attempt_proof_hash": changed_cause_proof_hash,
+                    **proof.payload(),
+                    **(
+                        {
+                            "semantic_equivalence_validation": (
+                                semantic_equivalence_validation
+                            )
+                        }
+                        if semantic_equivalence_validation is not None
+                        else {}
+                    ),
+                    "scientific_failure_delta": 0,
+                    "scientific_trial_delta": 0,
+                },
+                event_stream=f"repair-attempt:{repair['id']}",
+                event_sequence=attempt_sequence,
+            )
             science["active_repair"] = None
             job["status"] = "running"
-            body["next_action"] = {"kind": "resume_job", "job_id": job["id"]}
             repair_stream = f"job-repair:{job['id']}"
             repair_head = _index.event_head(repair_stream)
+            repair_close_identity_payload = {
+                "repair_id": repair["id"],
+                "proof": changed_cause_proof_hash,
+            }
+            if semantic_equivalence_validation is not None:
+                repair_close_identity_payload[
+                    "semantic_equivalence_validation"
+                ] = semantic_equivalence_validation
+            repair_close_id = canonical_digest(
+                domain="repair-close",
+                payload=repair_close_identity_payload,
+            )
+            job["required_repair_resume_record_id"] = repair_close_id
+            body["next_action"] = {
+                "job_id": job["id"],
+                "kind": "resume_job",
+                "repair_close_record_id": repair_close_id,
+            }
             record = _record(
                 kind="repair-close",
-                record_id=canonical_digest(
-                    domain="repair-close",
-                    payload={"repair_id": repair["id"], "proof": changed_cause_proof_hash},
-                ),
+                record_id=repair_close_id,
                 subject=f"Job:{job['id']}",
                 status="repaired",
                 fingerprint=changed_cause_proof_hash,
                 payload={
+                    "attempt_record_id": attempt_record_id,
+                    "changed_dimension": proof.changed_dimension,
                     "resume_action": repair["resume_action"],
                     "changed_cause_proof_hash": changed_cause_proof_hash,
                     "effective_implementation_identity": (
@@ -16779,20 +20958,36 @@ class StateWriter:
                     "previous_effective_implementation_identity": (
                         prior_effective
                     ),
+                    "prior_attempt_record_id": prior_attempt_record_id,
                     "repair_id": repair["id"],
+                    **(
+                        {
+                            "semantic_equivalence_validation": (
+                                semantic_equivalence_validation
+                            )
+                        }
+                        if semantic_equivalence_validation is not None
+                        else {}
+                    ),
                     "scientific_trial_delta": 0,
                     "scientific_failure_delta": 0,
+                    "verification_evidence_hashes": list(
+                        proof.verification_evidence_hashes
+                    ),
                 },
                 event_stream=repair_stream,
                 event_sequence=(
                     1 if repair_head is None else repair_head.sequence + 1
                 ),
             )
-            return body, [record], {
+            return body, [attempt_record, record], {
+                "attempt_record_id": attempt_record_id,
                 "effective_implementation_identity": (
                     effective_implementation
                 ),
                 "job_id": job["id"],
+                "repair_id": repair["id"],
+                "repair_close_record_id": repair_close_id,
                 "resume_action": repair["resume_action"],
             }
 
@@ -17024,10 +21219,9 @@ class StateWriter:
                 "engineering fixtures cannot register scientific development material"
             )
         _require_digest("material_receipt_hash", material_receipt_hash)
-        receipt_artifact = self.evidence.verify(material_receipt_hash)
         try:
             receipt = parse_canonical(
-                (self.evidence._root / receipt_artifact.relative_path).read_bytes()
+                self.evidence.read_verified(material_receipt_hash)
             )
         except ValueError as exc:
             raise TransitionError(
@@ -17407,8 +21601,7 @@ class StateWriter:
         )
         if consumed.reused:
             raise PermitError("holdout reveal operation cannot return values twice")
-        artifact = self.evidence.verify(consumed.result["artifact_sha256"])
-        return (self.evidence._root / artifact.relative_path).read_bytes()
+        return self.evidence.read_verified(consumed.result["artifact_sha256"])
 
     def record_holdout_evaluation(
         self,
@@ -17431,6 +21624,22 @@ class StateWriter:
             active = science.get("active_holdout_evaluation")
             if not isinstance(active, dict):
                 raise TransitionError("no revealed holdout awaits evaluation")
+            if (
+                active.get("status")
+                != "evaluation_completed_pending_disposition"
+                or active.get("completion_record_id")
+                != completion_record_id
+                or body.get("next_action")
+                != {
+                    "completion_record_id": completion_record_id,
+                    "holdout_id": active.get("holdout_id"),
+                    "job_id": active.get("job_id"),
+                    "kind": "record_holdout_evaluation",
+                }
+            ):
+                raise TransitionError(
+                    "holdout evaluation is not its exact pending disposition"
+                )
             completion = index.get("job-completed", completion_record_id)
             scientific = None if completion is None else completion.payload.get("scientific")
             effective_scope = (
@@ -17586,6 +21795,214 @@ class StateWriter:
                 "completion_record_id": completion_record_id,
                 "negative_memory_id": negative_memory_id,
             },
+            prepare=prepare,
+        )
+
+    def dispose_revealed_holdout_engineering_gap(
+        self,
+        *,
+        completion_record_id: str,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Fail closed a revealed holdout after an unrecovered engineering gap."""
+
+        _require_digest("holdout engineering completion", completion_record_id)
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            body = self._body(current)
+            science = body["scientific"]
+            active = science.get("active_holdout_evaluation")
+            if not isinstance(active, dict):
+                raise TransitionError("no revealed holdout engineering gap is active")
+            if (
+                active.get("status")
+                != "engineering_gap_pending_disposition"
+                or active.get("completion_record_id")
+                != completion_record_id
+                or body.get("next_action")
+                != {
+                    "completion_record_id": completion_record_id,
+                    "holdout_id": active.get("holdout_id"),
+                    "job_id": active.get("job_id"),
+                    "kind": "dispose_revealed_holdout_engineering_gap",
+                }
+            ):
+                raise TransitionError(
+                    "holdout engineering gap is not the exact pending disposition"
+                )
+            completion = index.get("job-completed", completion_record_id)
+            failure = (
+                None if completion is None else completion.payload.get("failure")
+            )
+            engineering = (
+                None
+                if completion is None
+                else completion.payload.get("engineering_disposition")
+            )
+            declaration = (
+                None
+                if completion is None
+                else index.get(
+                    "job-declared",
+                    completion.payload.get("job_id", ""),
+                )
+            )
+            holdout_id = active.get("holdout_id")
+            reveal_head = (
+                None
+                if not isinstance(holdout_id, str)
+                else index.event_head(f"holdout-reveal:{holdout_id}")
+            )
+            reveal = (
+                None
+                if reveal_head is None
+                else index.get(reveal_head.record_kind, reveal_head.record_id)
+            )
+            if (
+                completion is None
+                or completion.status != "failed"
+                or completion.payload.get("job_id") != active.get("job_id")
+                or not isinstance(failure, Mapping)
+                or failure.get("failure_kind") != "engineering"
+                or not isinstance(engineering, Mapping)
+                or engineering.get("schema")
+                != "engineering_failure_disposition.v1"
+                or completion.payload.get("scientific") is not None
+                or completion.payload.get("source") is not None
+                or completion.payload.get("external") is not None
+                or declaration is None
+                or declaration.payload.get("spec", {}).get("holdout_binding")
+                != {"holdout_id": holdout_id}
+                or declaration.payload.get("spec", {}).get(
+                    "evidence_subject"
+                )
+                != {
+                    "kind": "Executable",
+                    "id": active.get("executable_id"),
+                }
+                or reveal_head is None
+                or reveal_head.sequence != 1
+                or reveal is None
+                or reveal.kind != "holdout-reveal"
+                or reveal.status != "revealed_once"
+                or reveal.payload.get("job_id") != active.get("job_id")
+            ):
+                raise TransitionError(
+                    "holdout engineering gap lacks exact typed provenance"
+                )
+            executable_id = active["executable_id"]
+            candidate_head = index.event_head(f"candidate:{executable_id}")
+            candidate = (
+                None
+                if candidate_head is None
+                else index.get(
+                    candidate_head.record_kind,
+                    candidate_head.record_id,
+                )
+            )
+            if (
+                candidate is None
+                or candidate.record_id != active.get("candidate_id")
+                or candidate.status not in {"frozen", "bound_fixture"}
+            ):
+                raise TransitionError(
+                    "holdout engineering gap lost its candidate activation"
+                )
+            disposition_payload = {
+                "completion_record_id": completion_record_id,
+                "engineering_disposition_hash": failure.get(
+                    "repair_disposition_hash"
+                ),
+                "negative_memory_id": None,
+                "retuning_allowed": False,
+                "scientific_failure_delta": 0,
+                "scientific_trial_delta": 0,
+            }
+            holdout_disposition_id = canonical_digest(
+                domain="holdout-disposition",
+                payload={
+                    "completion_record_id": completion_record_id,
+                    "holdout_id": holdout_id,
+                    "verdict": "engineering_gap",
+                },
+            )
+            holdout_disposition = _record(
+                kind="holdout-disposition",
+                record_id=holdout_disposition_id,
+                subject=f"Holdout:{holdout_id}",
+                status="engineering_gap",
+                fingerprint=holdout_id.removeprefix("holdout:"),
+                payload=disposition_payload,
+                event_stream=f"holdout-reveal:{holdout_id}",
+                event_sequence=2,
+            )
+            candidate_holdout = _record(
+                kind="candidate-holdout",
+                record_id=active["candidate_id"],
+                subject=f"Candidate:{active['candidate_id']}",
+                status="engineering_gap",
+                fingerprint=holdout_id.removeprefix("holdout:"),
+                payload={
+                    "completion_record_id": completion_record_id,
+                    "executable_id": executable_id,
+                    "holdout_id": holdout_id,
+                    "mission_id": science["active_mission"],
+                    "scientific_failure_delta": 0,
+                },
+            )
+            candidate_disposition_id = canonical_digest(
+                domain="candidate-disposition",
+                payload={
+                    "candidate_id": active["candidate_id"],
+                    "disposition": "invalidated",
+                    "reason": "final_holdout_engineering_gap",
+                },
+            )
+            candidate_disposition = _record(
+                kind="candidate-disposition",
+                record_id=candidate_disposition_id,
+                subject=f"Executable:{executable_id}",
+                status="invalidated",
+                fingerprint=candidate.fingerprint,
+                payload={
+                    "candidate_id": active["candidate_id"],
+                    "executable_id": executable_id,
+                    "mission_id": science["active_mission"],
+                    "reason": "final_holdout_engineering_gap",
+                    "scientific_failure_delta": 0,
+                },
+                event_stream=f"candidate:{executable_id}",
+                event_sequence=candidate_head.sequence + 1,
+            )
+            science["active_holdout_evaluation"] = None
+            science["active_executable"] = None
+            self._drop_authorization(
+                body,
+                SubjectKind.EXECUTABLE,
+                executable_id,
+            )
+            body["next_action"] = {
+                "kind": "await_new_future_holdout_data",
+                "predecessor_holdout_id": holdout_id,
+            }
+            return body, [
+                holdout_disposition,
+                candidate_holdout,
+                candidate_disposition,
+            ], {
+                "candidate_id": active["candidate_id"],
+                "completion_record_id": completion_record_id,
+                "holdout_id": holdout_id,
+                "verdict": "engineering_gap",
+            }
+
+        return self._commit(
+            event_kind="holdout_engineering_gap_disposed",
+            operation_id=operation_id,
+            subject="Holdout:active",
+            payload={"completion_record_id": completion_record_id},
             prepare=prepare,
         )
 
@@ -17775,7 +22192,7 @@ class StateWriter:
             AxisDispositionEvidenceError,
             aggregate_axis_evidence_state,
             derive_axis_evidence_binding,
-            required_axis_scientific_references,
+            required_axes_scientific_references,
         )
         from axiom_rift.research.axis_disposition import (
             AxisDisposition,
@@ -17852,32 +22269,59 @@ class StateWriter:
                     "axis disposition Portfolio boundary is not current"
                 )
             axes = {axis["axis_id"]: axis for axis in snapshot.payload["axes"]}
-            records: list[IndexRecord] = []
-            accepted_ids: list[str] = []
+            axis_values = tuple(axes.values())
+            axis_resolutions = {
+                axis["axis_id"]: resolution
+                for axis, resolution in zip(
+                    axis_values,
+                    self._effective_axis_resolutions(index, axis_values),
+                    strict=True,
+                )
+            }
             for disposition in normalized:
                 axis = axes.get(disposition.axis_id)
+                resolution = axis_resolutions.get(disposition.axis_id)
                 if (
                     disposition.mission_id != mission_id
                     or disposition.portfolio_snapshot_id != snapshot.record_id
                     or axis is None
+                    or resolution is None
                     or axis.get("axis_identity") != disposition.axis_identity
                 ):
                     raise TransitionError(
                         "axis disposition is stale or belongs to another Portfolio"
                     )
-                if not self._effective_axis_resolution(
-                    index, axis
-                ).terminal_eligible:
+                if not resolution.terminal_eligible:
                     raise TransitionError(
                         "axis disposition cannot interpret replay- or scope-blocked authority"
                     )
-                try:
-                    required_references = required_axis_scientific_references(
+            try:
+                required_references_by_target = (
+                    required_axes_scientific_references(
                         index,
-                        mission_id=mission_id,
-                        axis_id=disposition.axis_id,
-                        axis_identity=disposition.axis_identity,
+                        targets=tuple(
+                            (
+                                mission_id,
+                                disposition.axis_id,
+                                disposition.axis_identity,
+                            )
+                            for disposition in normalized
+                        ),
                     )
+                )
+            except AxisDispositionEvidenceError as exc:
+                raise TransitionError(str(exc)) from exc
+            records: list[IndexRecord] = []
+            accepted_ids: list[str] = []
+            for disposition in normalized:
+                try:
+                    required_references = required_references_by_target[
+                        (
+                            mission_id,
+                            disposition.axis_id,
+                            disposition.axis_identity,
+                        )
+                    ]
                     supplied_scientific_references = {
                         (reference.kind, reference.record_id)
                         for reference in disposition.evidence_references
@@ -18014,7 +22458,7 @@ class StateWriter:
             AxisDispositionEvidenceError,
             aggregate_axis_evidence_state,
             derive_axis_evidence_binding,
-            required_axis_scientific_references,
+            required_axes_scientific_references,
         )
         from axiom_rift.research.axis_disposition import (
             AxisDispositionAction,
@@ -18094,9 +22538,14 @@ class StateWriter:
             if snapshot is None or snapshot.subject != f"Mission:{science['active_mission']}":
                 raise TransitionError("exhaustion Portfolio snapshot is unavailable")
             axes = {axis["axis_id"]: axis for axis in snapshot.payload["axes"]}
+            axis_values = tuple(axes.values())
             axis_resolutions = {
-                axis_id: self._effective_axis_resolution(index, axis)
-                for axis_id, axis in axes.items()
+                axis["axis_id"]: resolution
+                for axis, resolution in zip(
+                    axis_values,
+                    self._effective_axis_resolutions(index, axis_values),
+                    strict=True,
+                )
             }
             blocked_axis_ids = sorted(
                 axis_id
@@ -18158,6 +22607,22 @@ class StateWriter:
                 raise TransitionError(
                     "exhaustion does not cover its preregistered axes and families"
                 )
+            try:
+                required_references_by_target = (
+                    required_axes_scientific_references(
+                        index,
+                        targets=tuple(
+                            (
+                                science["active_mission"],
+                                axis_id,
+                                eligible_axes[axis_id]["axis_identity"],
+                            )
+                            for axis_id in sorted(eligible_axes)
+                        ),
+                    )
+                )
+            except AxisDispositionEvidenceError as exc:
+                raise TransitionError(str(exc)) from exc
             family_executables: dict[str, set[str]] = {
                 family: set() for family in families
             }
@@ -18245,12 +22710,13 @@ class StateWriter:
                         "exhaustion frontier differs from its exact axis disposition"
                     )
                 try:
-                    required_references = required_axis_scientific_references(
-                        index,
-                        mission_id=science["active_mission"],
-                        axis_id=axis_id,
-                        axis_identity=axis_identity,
-                    )
+                    required_references = required_references_by_target[
+                        (
+                            science["active_mission"],
+                            axis_id,
+                            axis_identity,
+                        )
+                    ]
                     supplied_scientific_references = {
                         (reference.kind, reference.record_id)
                         for reference in typed_references
@@ -18812,7 +23278,11 @@ class StateWriter:
                 )
             portfolio_snapshots = [
                 record
-                for record in index.records_by_kind("portfolio-snapshot")
+                for record in index.records_by_payload_text(
+                    "portfolio-snapshot",
+                    "mission_id",
+                    mission_id,
+                )
                 if record.subject == f"Mission:{mission_id}"
                 and record.authority_sequence is not None
             ]
@@ -18844,9 +23314,17 @@ class StateWriter:
                 raise RecoveryRequired(
                     "Mission terminal Portfolio axis inventory is malformed"
                 )
+            terminal_axis_values = tuple(terminal_axes.values())
             terminal_resolutions = {
-                axis_id: self._effective_axis_resolution(index, axis)
-                for axis_id, axis in terminal_axes.items()
+                axis["axis_id"]: resolution
+                for axis, resolution in zip(
+                    terminal_axis_values,
+                    self._effective_axis_resolutions(
+                        index,
+                        terminal_axis_values,
+                    ),
+                    strict=True,
+                )
             }
             terminal_hard_blockers = sorted(
                 axis_id
@@ -19202,12 +23680,9 @@ class StateWriter:
                 )
             output_manifest = dict(evidence.output_manifest)
             result_hash = output_manifest[evidence.result_manifest_output]
-            result_artifact = self.evidence.verify(result_hash)
             try:
                 result_manifest = parse_canonical(
-                    (
-                        self.evidence._root / result_artifact.relative_path
-                    ).read_bytes()
+                    self.evidence.read_verified(result_hash)
                 )
             except ValueError as exc:
                 raise TransitionError(
@@ -19245,12 +23720,11 @@ class StateWriter:
                 )
             artifacts: list[ValidationArtifact] = []
             for output_name, artifact_hash in evidence.output_manifest:
-                artifact = self.evidence.verify(artifact_hash)
                 artifacts.append(
                     ValidationArtifact(
                         output_name=output_name,
                         sha256=artifact_hash,
-                        _source=self.evidence._root / artifact.relative_path,
+                        _source=self.evidence.verified_path(artifact_hash),
                     )
                 )
             validation_binding = {

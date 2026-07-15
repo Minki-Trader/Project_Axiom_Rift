@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from axiom_rift.core.identity import canonical_digest
 from axiom_rift.research.replay_obligation import (
     ReplayObligationStatus,
     ReplayResolutionScope,
@@ -31,6 +32,9 @@ class EffectiveAxisStatus(str, Enum):
     BLOCKED_BY_INVALIDATED_SOURCE = "blocked_by_invalidated_source"
 
 
+AXIS_REOPEN_AUTHORITY_SCHEMA = "axis_reopen_authority.v1"
+
+
 def _ascii(name: str, value: object) -> str:
     if type(value) is not str or not value or not value.isascii():
         raise EffectiveAxisError(f"{name} must be non-empty ASCII")
@@ -45,6 +49,112 @@ def _identity(name: str, value: object, prefix: str) -> str:
     ):
         raise EffectiveAxisError(f"{name} must use {prefix}<sha256>")
     return text
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AxisReopenAuthority:
+    """One-shot authority to reverse one audit-invalidated historical prune.
+
+    The original snapshot remains immutable.  This record binds the exact
+    structural Decision, the exact pruned axis, and every audit-only replay
+    resolution and evidence-scope overlay that made the old prune uncertain.
+    Only a later snapshot derived from that Decision may consume it.
+    """
+
+    mission_id: str
+    portfolio_snapshot_id: str
+    portfolio_decision_id: str
+    axis_id: str
+    axis_identity: str
+    replay_resolution_record_ids: tuple[str, ...]
+    evidence_scope_overlay_ids: tuple[str, ...]
+    prior_snapshot_status: str = "pruned"
+    authorized_snapshot_status: str = "preserved"
+
+    def __post_init__(self) -> None:
+        _ascii("axis reopen Mission id", self.mission_id)
+        _identity(
+            "axis reopen Portfolio snapshot",
+            self.portfolio_snapshot_id,
+            "portfolio:",
+        )
+        _identity(
+            "axis reopen Portfolio Decision",
+            self.portfolio_decision_id,
+            "decision:",
+        )
+        _ascii("axis reopen axis id", self.axis_id)
+        _identity("axis reopen axis identity", self.axis_identity, "axis:")
+        if (
+            self.prior_snapshot_status != "pruned"
+            or self.authorized_snapshot_status != "preserved"
+        ):
+            raise EffectiveAxisError(
+                "axis reopen authority may only preserve an audit-deferred prune"
+            )
+        if (
+            type(self.replay_resolution_record_ids) is not tuple
+            or any(
+                type(item) is not str
+                for item in self.replay_resolution_record_ids
+            )
+            or type(self.evidence_scope_overlay_ids) is not tuple
+            or any(
+                type(item) is not str
+                for item in self.evidence_scope_overlay_ids
+            )
+        ):
+            raise EffectiveAxisError(
+                "axis reopen evidence must use frozen identity tuples"
+            )
+        resolutions = tuple(sorted(self.replay_resolution_record_ids))
+        overlays = tuple(sorted(self.evidence_scope_overlay_ids))
+        if (
+            not resolutions
+            or len(resolutions) != len(set(resolutions))
+            or not overlays
+            or len(overlays) != len(set(overlays))
+        ):
+            raise EffectiveAxisError(
+                "axis reopen authority requires unique replay and scope evidence"
+            )
+        for record_id in resolutions:
+            _identity(
+                "axis reopen replay resolution",
+                record_id,
+                "historical-replay-satisfaction:",
+            )
+        for overlay_id in overlays:
+            _identity(
+                "axis reopen evidence-scope overlay",
+                overlay_id,
+                "historical-evidence-scope:",
+            )
+        object.__setattr__(self, "replay_resolution_record_ids", resolutions)
+        object.__setattr__(self, "evidence_scope_overlay_ids", overlays)
+
+    @property
+    def identity(self) -> str:
+        return "axis-reopen-authority:" + canonical_digest(
+            domain="axis-reopen-authority",
+            payload=self.to_identity_payload(),
+        )
+
+    def to_identity_payload(self) -> dict[str, object]:
+        return {
+            "authorized_snapshot_status": self.authorized_snapshot_status,
+            "axis_id": self.axis_id,
+            "axis_identity": self.axis_identity,
+            "evidence_scope_overlay_ids": list(self.evidence_scope_overlay_ids),
+            "mission_id": self.mission_id,
+            "portfolio_decision_id": self.portfolio_decision_id,
+            "portfolio_snapshot_id": self.portfolio_snapshot_id,
+            "prior_snapshot_status": self.prior_snapshot_status,
+            "replay_resolution_record_ids": list(
+                self.replay_resolution_record_ids
+            ),
+            "schema": AXIS_REOPEN_AUTHORITY_SCHEMA,
+        }
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -261,6 +371,7 @@ class EvidenceScopeAxisBinding:
     governing_mission_id: str
     overlay_record_id: str
     replay_obligation_ids: tuple[str, ...]
+    replay_resolution_ids: tuple[str, ...]
 
     def __post_init__(self) -> None:
         _ascii("evidence-scope axis id", self.axis_id)
@@ -292,7 +403,19 @@ class EvidenceScopeAxisBinding:
                 obligation_id,
                 "historical-replay-obligation:",
             )
+        resolutions = tuple(sorted(self.replay_resolution_ids))
+        if not resolutions or len(resolutions) != len(set(resolutions)):
+            raise EffectiveAxisError(
+                "evidence-scope replay resolutions must be unique and non-empty"
+            )
+        for resolution_id in resolutions:
+            _identity(
+                "evidence-scope replay resolution id",
+                resolution_id,
+                "historical-replay-satisfaction:",
+            )
         object.__setattr__(self, "replay_obligation_ids", obligations)
+        object.__setattr__(self, "replay_resolution_ids", resolutions)
 
     def to_projection_payload(self) -> dict[str, object]:
         return {
@@ -303,6 +426,7 @@ class EvidenceScopeAxisBinding:
             "governing_mission_id": self.governing_mission_id,
             "overlay_record_id": self.overlay_record_id,
             "replay_obligation_ids": list(self.replay_obligation_ids),
+            "replay_resolution_ids": list(self.replay_resolution_ids),
         }
 
 
@@ -575,6 +699,8 @@ def resolve_effective_axis(
 
 
 __all__ = [
+    "AXIS_REOPEN_AUTHORITY_SCHEMA",
+    "AxisReopenAuthority",
     "EffectiveAxisError",
     "EffectiveAxisResolution",
     "EffectiveAxisStatus",

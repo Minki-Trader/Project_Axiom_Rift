@@ -447,6 +447,21 @@ class PortfolioBoundaryTests(unittest.TestCase):
             "system_architecture_family_diversity",
             science["research_direction"]["exhaustion_requires"],
         )
+        architecture_review = science["research_direction"]["architecture_review"]
+        self.assertIn(
+            "bounded_same_architecture",
+            architecture_review["conclusions"],
+        )
+        self.assertTrue(
+            architecture_review["bounded_same_architecture"][
+                "required_architecture_family_is_exact_reviewed_family"
+            ]
+        )
+        self.assertFalse(
+            architecture_review["bounded_same_architecture"][
+                "free_form_override_allowed"
+            ]
+        )
         self.assertFalse(
             evidence["research_interpretation"]["architecture_review"][
                 "scientific_evidence"
@@ -570,7 +585,7 @@ class PortfolioBoundaryTests(unittest.TestCase):
             chosen_option_id="deepen-positive",
             options=(deepen, rotate),
             rationale="bounded confirmation while preserving a divergent axis",
-            commitment_batches=3,
+            commitment_batches=1,
             recent_positive_lineage_id="lineage-positive",
         )
         self.assertEqual(decision.chosen, deepen)
@@ -581,7 +596,7 @@ class PortfolioBoundaryTests(unittest.TestCase):
                 chosen_option_id="deepen-positive",
                 options=(deepen,),
                 rationale="recent result alone",
-                commitment_batches=3,
+                commitment_batches=1,
                 recent_positive_lineage_id="lineage-positive",
             )
         adjacent = DecisionOption(
@@ -598,7 +613,7 @@ class PortfolioBoundaryTests(unittest.TestCase):
                 chosen_option_id="deepen-positive",
                 options=(deepen, adjacent),
                 rationale="two adjacent Executables are not structural diversification",
-                commitment_batches=1_000_000,
+                commitment_batches=1,
                 recent_positive_lineage_id="lineage-positive",
             )
         with self.assertRaises(PortfolioDecisionError):
@@ -607,7 +622,7 @@ class PortfolioBoundaryTests(unittest.TestCase):
                 chosen_option_id="deepen-positive",
                 options=(deepen,),
                 rationale="caller omitted the recent-positive flag",
-                commitment_batches=3,
+                commitment_batches=1,
             )
         with self.assertRaises(PortfolioDecisionError):
             PortfolioDecision(
@@ -616,6 +631,27 @@ class PortfolioBoundaryTests(unittest.TestCase):
                 options=(deepen, rotate),
                 rationale="unbounded",
                 commitment_batches=None,
+                recent_positive_lineage_id="lineage-positive",
+            )
+        bounded_multi_batch = PortfolioDecision(
+            decision_id="DEC-multiple-batches",
+            chosen_option_id="deepen-positive",
+            options=(deepen, rotate),
+            rationale="allow only evidence-reviewed continuation below the bound",
+            commitment_batches=3,
+            recent_positive_lineage_id="lineage-positive",
+        )
+        self.assertEqual(bounded_multi_batch.commitment_batches, 3)
+        with self.assertRaisesRegex(
+            PortfolioDecisionError,
+            "positive finite int",
+        ):
+            PortfolioDecision(
+                decision_id="DEC-zero-batches",
+                chosen_option_id="deepen-positive",
+                options=(deepen, rotate),
+                rationale="zero is not a finite work allowance",
+                commitment_batches=0,
                 recent_positive_lineage_id="lineage-positive",
             )
 

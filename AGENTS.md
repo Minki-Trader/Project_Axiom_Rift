@@ -37,13 +37,15 @@ State triggers take precedence over prompt wording:
   Job, Repair, blocker, terminal, and Git delivery actions route through the
   Mission skill.
 - `record_research_intake`, `build_portfolio`, `portfolio_decision`,
-  `execute_portfolio_decision`, `diagnose_study`, and `review_architecture`
+  `record_axis_reopen_authority`, `execute_portfolio_decision`,
+  `review_study_continuation`, `diagnose_study`, and `review_architecture`
   route through the Mission skill, then the research skill, then back to the
   writer.
 - Accepted-decision withdrawal, prospective-protocol activation, historical
-  scientific adjudication, and source-authority invalidation route through the
-  Mission skill, then the affected research or runtime skill, then the single
-  writer. They are additive corrections and never direct state edits.
+  scientific adjudication, replay-satisfaction invalidation, and source-
+  authority invalidation route through the Mission skill, then the affected
+  research or runtime skill, then the single writer. They are additive
+  corrections and never direct state edits.
 - A real `study_closed` event routes first to the Mission skill for its exact
   local-main checkpoint and push attempt. Only then route to the research skill
   for the pending `diagnose_study` action.
@@ -65,6 +67,9 @@ route, bounded evidence or typed proposal, then the single state writer.
 - Keep one exact structured next action at stable boundaries.
 - Use the durable journal as authority and the local SQLite index as a
   reconstructible projection.
+- The repository projection is `local/index.sqlite`. Inspect it only through
+  the authenticated read-only boundary; never instantiate `LocalIndex` on
+  repository data or open `state/index.sqlite*` as a projection.
 - Count trials and claims by immutable Executable identity, never display name.
 - Treat engineering failure as Repair evidence, not scientific evidence. A
   completed and validated Job is operationally successful even when its

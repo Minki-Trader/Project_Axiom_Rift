@@ -23,6 +23,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
 from hashlib import sha256
+from importlib import import_module
 from math import ceil, isfinite, sqrt
 from pathlib import Path
 import re
@@ -40,7 +41,6 @@ from axiom_rift.research.adjudication import (
     MultiplicityAssessment,
     bonferroni_concurrent_family,
 )
-from axiom_rift.research.p0_replay_inventory import load_p0_replay_inventory
 
 
 SELECTION_INFERENCE_PLAN_SCHEMA = "selection_inference_plan.v2"
@@ -1142,46 +1142,29 @@ def infer_concurrent_selection_family(
     )
 
 
-P0_REPLAY_HYPOTHESES = tuple(
-    SelectionHypothesis(
-        hypothesis_id=member["executable_id"],
-        registration_id=f"study:{member['study_id']}",
-    )
-    for member in load_p0_replay_inventory()
+_P0_LAZY_EXPORTS = frozenset(
+    {
+        "P0_REPLAY_EXECUTABLE_IDS",
+        "P0_REPLAY_FAMILY_ID",
+        "P0_REPLAY_HYPOTHESES",
+        "infer_p0_simultaneous_forest",
+    }
 )
-P0_REPLAY_EXECUTABLE_IDS = tuple(
-    hypothesis.hypothesis_id for hypothesis in P0_REPLAY_HYPOTHESES
-)
-P0_REPLAY_FAMILY_ID = "family:p0-audit-replay-v1"
 
 
-def infer_p0_simultaneous_forest(
-    daily_pnl_by_executable: DailyPnlFamily,
-    *,
-    historical_context: HistoricalSearchContext,
-    alpha_ppm: int = DEFAULT_ALPHA_PPM,
-    bootstrap_samples: int = DEFAULT_BOOTSTRAP_SAMPLES,
-    block_lengths: tuple[int, ...] = DEFAULT_BLOCK_LENGTHS,
-    monte_carlo_confidence_ppm: int = DEFAULT_MONTE_CARLO_CONFIDENCE_PPM,
-    base_seed: int = DEFAULT_BASE_SEED,
-) -> SelectionInferenceResult:
-    """Replay the exact six P0 historical axes as one simultaneous forest."""
+def __getattr__(name: str) -> object:
+    """Load historical P0 adapters only when a P0 caller requests them."""
 
-    plan = SelectionFamilyPlan(
-        family_id=P0_REPLAY_FAMILY_ID,
-        stage="discovery",
-        hypotheses=P0_REPLAY_HYPOTHESES,
-        alpha_ppm=alpha_ppm,
-        bootstrap_samples=bootstrap_samples,
-        block_lengths=block_lengths,
-        monte_carlo_confidence_ppm=monte_carlo_confidence_ppm,
-        base_seed=base_seed,
-    )
-    return infer_concurrent_selection_family(
-        plan=plan,
-        daily_pnl_by_hypothesis=daily_pnl_by_executable,
-        historical_context=historical_context,
-    )
+    if name not in _P0_LAZY_EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module = import_module("axiom_rift.research.p0_selection_inference")
+    value = getattr(module, name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *_P0_LAZY_EXPORTS})
 
 
 __all__ = [

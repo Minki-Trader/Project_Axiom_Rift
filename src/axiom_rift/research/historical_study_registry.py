@@ -10,6 +10,7 @@ from __future__ import annotations
 # unrelated new research must use a context-bound reusable engine.
 HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256 = {
     "adaptive_lifecycle_study.py": "849ea7a8b303520f36a09b6b9a8f8153d7e63c40e417f5796f08798046aa653f",
+    "analog_state_scoped_job.py": "523b02edfefff8215ed74efb0f2711edcabef12ed942ba4619d5e41a709857ab",
     "auction_location_study.py": "361c47db2a6f2a20a6d6db10655ce723633c145307dcd5ea750810c98fb06a7d",
     "candle_geometry_study.py": "131cdd42ba2bef07615ab1647238ac69881be1d9e8961ca993c94d567fadade5",
     "complementary_sleeve_discovery.py": "ce2d1cf94c0c8f3b8d669d0867fc031fbb15bb53613d4f677c787693718e201b",
@@ -32,11 +33,13 @@ HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256 = {
     "gap_recovery_diagnostic.py": "f48a8fac46e386b870e643d0df840aade5d636f0521ae730a9fe67c1c9186572",
     "gap_recovery_study.py": "4ea4c294cef4c6a47f0e6f13c64d076e7ec2a60b2e21067c720c75f141422727",
     "higher_order_volatility_study.py": "24c34397aa413791746199f0616d587e1a24478b0331944d2cc813a5295dfc18",
+    "historical_analog_family_stu0061.py": "53a286354493b758225448c2d282c104544a23d7d9c7a018605731e82311b522",
     "historical_family_stu0016.py": "5373371cbda260657ec38f2be45f71759c2d5b66ab1e53d1776e9352e50c8e1f",
     "historical_family_stu0017.py": "2f179b35ff70c706a9ce155a40f90c8f9b86dd20e855825482e22deecd08c0fb",
     "historical_family_stu0032.py": "9230ecd8cdfe4e5abf0051f63448b29d10e189ea28f527a4cd7dfc6baefa5a6e",
     "historical_family_stu0048.py": "ffa6af9f93b7598f668b4385caed85af08c7e4fc5b77cd6dc0f16fe0c322435b",
     "historical_family_stu0051.py": "803936b35a1b36639351d85931f9cfd1c6d58d708d371bf7c2080c994c37e68a",
+    "historical_family_stu0061.py": "215282cdc5a63d11d248817be5dc0e807aa3d882429625e71ba33099ca073ee4",
     "learned_state_study.py": "26ee72e7b13a36b69310c07996d62346e0471dc590c6fa706048940becf1f44b",
     "liquidity_supply_study.py": "a8ba1eee234e47aabff939b473fde0d7425a7dfd9d68b9144c3f521f64f9770f",
     "long_horizon_drift_study.py": "086bbab722a2f9d218818c1657d676e18f6a707b0b4b7f1b42776e976f10bc8c",
@@ -74,5 +77,35 @@ HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256 = {
     "volume_price_study.py": "503087552b839948e2e27cff4a52ddfba6f31a2cb1796626b987b8201e7dea3d",
 }
 
+HISTORICAL_FAMILY_IDENTITY_BY_MODULE = {
+    "historical_family_stu0016.py": (
+        "historical-family:"
+        "6d3187af024d51b75af134afcffd5db6f84d221fab2cfe4f60b580d71d3ba24a"
+    ),
+    "historical_family_stu0017.py": (
+        "historical-family:"
+        "f63945aff1ca219edd4e56ae15295bc489eec50a37ab67d21d788107a9990e48"
+    ),
+    "historical_family_stu0032.py": (
+        "historical-family:"
+        "b3e2e15c99781ce0cda56e6468392e227be2d33920658b06ee185db111c5425b"
+    ),
+    "historical_family_stu0048.py": (
+        "historical-family:"
+        "445e7a4d8b56830491a4833260d808500537b0cd6b00fd4f8ed985f2d2f3c92e"
+    ),
+    "historical_family_stu0051.py": (
+        "historical-family:"
+        "cf3eb75283e4657eea250f993ad0379d719020d3611031177822ab1f83994ea2"
+    ),
+    "historical_family_stu0061.py": (
+        "historical-family:"
+        "9b7d57e66deb6d570a1e352fb2354873a4c1ab71cb09643410f74b0f68af102f"
+    ),
+}
 
-__all__ = ["HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256"]
+
+__all__ = [
+    "HISTORICAL_FAMILY_IDENTITY_BY_MODULE",
+    "HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256",
+]

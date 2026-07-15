@@ -605,7 +605,9 @@ class AuthorityMigrationTests(unittest.TestCase):
         self.assert_authority_files(expected)
         self.assertEqual(self.writer.journal.read_all()[0], initial_event)
 
-    def test_evidence_read_verifies_and_returns_one_read_buffer(self) -> None:
+    def test_evidence_read_returns_verified_descriptor_buffer_without_reread(
+        self,
+    ) -> None:
         content = b"single read authority evidence\n"
         artifact = self.writer.evidence.finalize(content)
         target = (
@@ -620,12 +622,12 @@ class AuthorityMigrationTests(unittest.TestCase):
             type(target),
             "read_bytes",
             autospec=True,
-            side_effect=[content, b"unverified second read\n"],
+            side_effect=AssertionError("verified evidence must not be path-reread"),
         ) as read_bytes:
             observed = self.writer.evidence.read_verified(artifact.sha256)
 
         self.assertEqual(observed, content)
-        self.assertEqual(read_bytes.call_count, 1)
+        self.assertEqual(read_bytes.call_count, 0)
 
     def test_after_cursor_retry_requires_recovery_then_uses_bounded_lookup(self) -> None:
         operation_id = "authority-migration-after-cursor-retry"

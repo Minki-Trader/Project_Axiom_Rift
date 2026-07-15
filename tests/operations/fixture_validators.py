@@ -4,8 +4,10 @@ from collections.abc import Mapping
 from hashlib import sha256
 from pathlib import Path
 
-from axiom_rift.core.canonical import parse_canonical
+from axiom_rift.core.canonical import canonical_bytes, parse_canonical
+from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.validation import (
+    EngineeringEvidenceValidationRequest,
     EvidenceValidationError,
     EvidenceValidationRequest,
     ValidatedEvidence,
@@ -15,6 +17,24 @@ from axiom_rift.operations.validation import (
 
 IMPLEMENTATION_PATH = Path(__file__).resolve()
 IMPLEMENTATION_HASH = sha256(IMPLEMENTATION_PATH.read_bytes()).hexdigest()
+RUNTIME_BOUNDARY_PLAN_HASH = canonical_digest(
+    domain="validation-plan",
+    payload={"schema": "runtime_boundary_fixture.v1"},
+)
+SOURCE_BOUNDARY_PLAN_HASH = canonical_digest(
+    domain="validation-plan",
+    payload={"schema": "source_boundary_fixture.v1"},
+)
+
+
+def _plain_canonical(value: object) -> object:
+    if isinstance(value, Mapping):
+        return {
+            key: _plain_canonical(child) for key, child in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_plain_canonical(child) for child in value]
+    return value
 
 
 class ScientificFixtureValidator:
@@ -185,8 +205,222 @@ class ComponentParityFixtureValidator:
         )
 
 
+class RuntimeBoundaryFixtureValidator:
+    """Test adapter for exercising production-mode runtime state routing."""
+
+    domains = frozenset({"runtime"})
+    implementation_path = IMPLEMENTATION_PATH
+    protocol = "runtime_boundary_fixture.v1"
+    validator_id = validator_identity(
+        protocol=protocol,
+        domains=domains,
+        implementation_sha256=IMPLEMENTATION_HASH,
+    )
+
+    def validate(self, request: EvidenceValidationRequest) -> ValidatedEvidence:
+        if request.validation_plan_hash != RUNTIME_BOUNDARY_PLAN_HASH:
+            raise EvidenceValidationError("runtime fixture plan is not bound")
+        by_output = {}
+        for artifact in request.artifacts:
+            artifact.read_bytes()
+            by_output[artifact.output_name] = artifact.sha256
+        observations = request.result_manifest.get("observations")
+        if not isinstance(observations, tuple) or not observations:
+            raise EvidenceValidationError("runtime fixture observations are absent")
+        claims: set[str] = set()
+        measurements: set[str] = set()
+        source_lifecycle_coverage_ids: set[str] = set()
+        for observation in observations:
+            if not isinstance(observation, Mapping):
+                raise EvidenceValidationError("runtime fixture observation is invalid")
+            claim = observation.get("claim_id")
+            measurement = observation.get("measurement_artifact_hash")
+            if type(claim) is not str or type(measurement) is not str:
+                raise EvidenceValidationError("runtime fixture observation is untyped")
+            claims.add(claim)
+            measurements.add(measurement)
+            coverage_id = observation.get("source_lifecycle_coverage_id")
+            if coverage_id is not None:
+                if type(coverage_id) is not str:
+                    raise EvidenceValidationError(
+                        "runtime fixture lifecycle coverage is untyped"
+                    )
+                source_lifecycle_coverage_ids.add(coverage_id)
+        if not measurements.issubset(set(by_output.values())):
+            raise EvidenceValidationError("runtime fixture measurement is undeclared")
+        role_bindings = request.binding.get("artifact_roles")
+        if not isinstance(role_bindings, Mapping):
+            raise EvidenceValidationError("runtime fixture roles are absent")
+        try:
+            roles = tuple(
+                (role, by_output[output_name])
+                for role, output_name in role_bindings.items()
+            )
+        except KeyError as exc:
+            raise EvidenceValidationError(
+                "runtime fixture role output is undeclared"
+            ) from exc
+        return ValidatedEvidence(
+            verdict="passed",
+            claims=tuple(claims),
+            measurement_artifact_hashes=tuple(measurements),
+            artifact_roles=roles,
+            facts={
+                "source_lifecycle_coverage_ids": sorted(
+                    source_lifecycle_coverage_ids
+                )
+            },
+            scientific_eligible=True,
+            release_eligible=True,
+        )
+
+
+class EngineeringRetryBoundaryFixtureValidator:
+    """Test adapter for production-mode engineering retry validation."""
+
+    domains = frozenset({"engineering"})
+    implementation_path = IMPLEMENTATION_PATH
+    protocol = "engineering_retry_boundary_fixture.v1"
+    validator_id = validator_identity(
+        protocol=protocol,
+        domains=domains,
+        implementation_sha256=IMPLEMENTATION_HASH,
+    )
+
+    def validate(
+        self,
+        request: EngineeringEvidenceValidationRequest,
+    ) -> ValidatedEvidence:
+        if not isinstance(request, EngineeringEvidenceValidationRequest):
+            raise EvidenceValidationError(
+                "engineering retry fixture request is untyped"
+            )
+        plan = tuple(
+            artifact
+            for artifact in request.artifacts
+            if artifact.output_name == "validation_plan"
+        )
+        measurements = tuple(
+            artifact
+            for artifact in request.artifacts
+            if artifact.output_name.startswith("validation_result:")
+        )
+        if (
+            len(plan) != 1
+            or not measurements
+            or len(plan) + len(measurements) != len(request.artifacts)
+        ):
+            raise EvidenceValidationError(
+                "engineering retry fixture artifacts are invalid"
+            )
+        if parse_canonical(plan[0].read_bytes()) != {
+            "operation": "canonical_required_transition",
+            "schema": "engineering_retry_fixture_plan.v1",
+        }:
+            raise EvidenceValidationError(
+                "engineering retry fixture plan is invalid"
+            )
+        binding = _plain_canonical(request.binding)
+        binding_sha256 = sha256(canonical_bytes(binding)).hexdigest()
+        transition_hashes: list[str] = []
+        for artifact in measurements:
+            packet = parse_canonical(artifact.read_bytes())
+            if (
+                not isinstance(packet, dict)
+                or set(packet)
+                != {
+                    "binding_sha256",
+                    "current_measurement",
+                    "prior_measurement",
+                    "required_measurement",
+                    "schema",
+                }
+                or packet["schema"]
+                != "engineering_retry_fixture_measurement.v1"
+                or packet["binding_sha256"] != binding_sha256
+                or canonical_bytes(packet["prior_measurement"])
+                == canonical_bytes(packet["required_measurement"])
+                or canonical_bytes(packet["current_measurement"])
+                != canonical_bytes(packet["required_measurement"])
+            ):
+                raise EvidenceValidationError(
+                    "engineering retry fixture cause remains unresolved"
+                )
+            transition_hashes.append(
+                canonical_digest(
+                    domain="engineering-retry-boundary-fixture-transition",
+                    payload=packet,
+                )
+            )
+        return ValidatedEvidence(
+            verdict="passed",
+            measurement_artifact_hashes=tuple(
+                artifact.sha256 for artifact in measurements
+            ),
+            artifact_roles=(
+                ("validation_plan", plan[0].sha256),
+                *(
+                    (
+                        f"cause_resolution_measurement_{index:04d}",
+                        artifact.sha256,
+                    )
+                    for index, artifact in enumerate(measurements)
+                ),
+            ),
+            facts={
+                "binding": binding,
+                "cause_resolved": True,
+                "material_change": True,
+                "measurement_transition_hashes": sorted(transition_hashes),
+            },
+        )
+
+
+class SourceBoundaryFixtureValidator:
+    """Test adapter for production-mode source-transition routing."""
+
+    domains = frozenset({"source"})
+    implementation_path = IMPLEMENTATION_PATH
+    protocol = "source_boundary_fixture.v1"
+    validator_id = validator_identity(
+        protocol=protocol,
+        domains=domains,
+        implementation_sha256=IMPLEMENTATION_HASH,
+    )
+
+    def validate(self, request: EvidenceValidationRequest) -> ValidatedEvidence:
+        if request.validation_plan_hash != SOURCE_BOUNDARY_PLAN_HASH:
+            raise EvidenceValidationError("source fixture plan is not bound")
+        result_output = request.binding.get("result_manifest_output")
+        measurements = []
+        for artifact in request.artifacts:
+            artifact.read_bytes()
+            if artifact.output_name != result_output:
+                measurements.append(artifact.sha256)
+        declared = request.result_manifest.get("measurement_artifact_hashes")
+        facts = request.result_manifest.get("facts")
+        observed_at = request.result_manifest.get("observed_at_utc")
+        if (
+            not isinstance(declared, tuple)
+            or tuple(sorted(measurements)) != tuple(sorted(declared))
+            or not isinstance(facts, Mapping)
+            or type(observed_at) is not str
+        ):
+            raise EvidenceValidationError("source fixture result is inconsistent")
+        return ValidatedEvidence(
+            verdict="passed",
+            measurement_artifact_hashes=tuple(measurements),
+            facts={**dict(facts), "observed_at_utc": observed_at},
+        )
+
+
 __all__ = [
     "ComponentParityFixtureValidator",
+    "EngineeringRetryBoundaryFixtureValidator",
     "ExternalFixtureValidator",
+    "RUNTIME_BOUNDARY_PLAN_HASH",
+    "RuntimeBoundaryFixtureValidator",
     "ScientificFixtureValidator",
+    "SOURCE_BOUNDARY_PLAN_HASH",
+    "SourceBoundaryFixtureValidator",
 ]

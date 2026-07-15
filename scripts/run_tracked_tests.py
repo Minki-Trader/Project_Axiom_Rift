@@ -15,6 +15,7 @@ import stat
 import subprocess
 import sys
 import sysconfig
+import time
 from tempfile import TemporaryDirectory
 from typing import Mapping, Sequence
 
@@ -22,7 +23,28 @@ from typing import Mapping, Sequence
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from axiom_rift.core.canonical import canonical_bytes  # noqa: E402
+from axiom_rift.core.canonical import (  # noqa: E402
+    CanonicalJSONError,
+    canonical_bytes,
+    parse_canonical,
+)
+from axiom_rift.storage.atomic_file import (  # noqa: E402
+    AtomicFileError,
+    publish_stable_regular_file_if_changed,
+    replace_stable_regular_file,
+)
+from axiom_rift.storage.journal import (  # noqa: E402
+    JournalIntegrityError,
+    read_journal_snapshot,
+)
+from axiom_rift.storage.path_boundary import (  # noqa: E402
+    PathBoundaryError,
+    ensure_link_free_directory_chain,
+    require_link_free_directory_chain,
+)
+
+
+_LOCAL_SUBPROCESS_TIMEOUT_SECONDS = 2 * 60
 
 
 def _git(root: Path, *arguments: str) -> bytes:
@@ -31,6 +53,7 @@ def _git(root: Path, *arguments: str) -> bytes:
         cwd=root,
         check=True,
         capture_output=True,
+        timeout=_LOCAL_SUBPROCESS_TIMEOUT_SECONDS,
     ).stdout
 
 
@@ -89,7 +112,10 @@ _TEST_EVIDENCE_MANIFEST_PATH = "tests/evidence_inputs.txt"
 _TEST_EVIDENCE_ROLE = "test_evidence"
 _TEST_EVIDENCE_PREFIX = PurePosixPath("local/evidence/sha256")
 _MAX_TEST_EVIDENCE_INPUTS = 512
-_MAX_TEST_EVIDENCE_FILE_BYTES = 8 * 1024 * 1024
+# Historical evaluation traces are bounded below the aggregate allowance but
+# can legitimately exceed 8 MiB.  Keep a finite per-object ceiling without
+# excluding the exact 11.8 MiB STU-0106 traces required by reconstruction tests.
+_MAX_TEST_EVIDENCE_FILE_BYTES = 16 * 1024 * 1024
 _MAX_TEST_EVIDENCE_TOTAL_BYTES = 64 * 1024 * 1024
 _PROTECTED_INPUT_RULES = (
     ("observed_development", PurePosixPath("data/processed/datasets")),
@@ -113,6 +139,13 @@ _OBSERVED_DEVELOPMENT_FIELDS = frozenset(
     }
 )
 _OBSERVED_DEVELOPMENT_DERIVATION = "exact_prefix_before_quarantined_tail"
+_DEFAULT_FOCUSED_PYTEST_TIMEOUT_SECONDS = 30 * 60
+_DEFAULT_FULL_PYTEST_TIMEOUT_SECONDS = 2 * 60 * 60
+_MAX_PYTEST_TIMEOUT_SECONDS = 24 * 60 * 60
+_HEAD_AUTHORITY_TRANSITION_MODE = "explicit_head_authority_transition_recovery"
+_HEAD_AUTHORITY_TRANSITION_AUTHORITY = (
+    "git_head_declared_authority_with_identical_index_control_journal"
+)
 
 
 def _paths(content: bytes) -> tuple[str, ...]:
@@ -155,6 +188,61 @@ def _validate_pytest_args(values: Sequence[str]) -> tuple[str, ...]:
     return tuple(result)
 
 
+def _validate_execution_timeout(value: object) -> int:
+    if (
+        isinstance(value, bool)
+        or not isinstance(value, int)
+        or value < 1
+        or value > _MAX_PYTEST_TIMEOUT_SECONDS
+    ):
+        raise RuntimeError(
+            "tracked pytest timeout must be an integer from 1 through "
+            f"{_MAX_PYTEST_TIMEOUT_SECONDS} seconds"
+        )
+    return value
+
+
+def _validate_test_selection(
+    values: Sequence[str],
+    *,
+    tracked: Sequence[str],
+) -> tuple[str, ...]:
+    """Accept only exact frozen test files or identifier-only node prefixes."""
+
+    tracked_set = set(tracked)
+    selected: list[str] = []
+    for value in values:
+        if type(value) is not str or not value or not value.isascii():
+            raise RuntimeError("tracked test selector is invalid")
+        path, *nodes = value.split("::")
+        if path not in tracked_set:
+            raise RuntimeError(
+                "tracked test selector is not an exact frozen test path: "
+                + path
+            )
+        if nodes and (
+            any(not node or not node.isidentifier() for node in nodes)
+            or not (
+                nodes[-1].startswith("test_")
+                or nodes[-1].startswith("Test")
+            )
+        ):
+            raise RuntimeError(
+                "tracked test selector node prefix is not exact: " + value
+            )
+        selected.append(value)
+    ordered = tuple(sorted(selected))
+    if len(ordered) != len(set(ordered)):
+        raise RuntimeError("tracked test selectors are not unique")
+    for index, selector in enumerate(ordered):
+        if any(
+            candidate.startswith(selector + "::")
+            for candidate in ordered[index + 1 :]
+        ):
+            raise RuntimeError("tracked test selectors overlap")
+    return ordered
+
+
 def _tree_blob(root: Path, index_tree: str, path: str) -> bytes:
     try:
         return _git(root, "show", f"{index_tree}:{path}")
@@ -175,6 +263,166 @@ def _tree_blob_id(root: Path, index_tree: str, path: str) -> str:
         raise RuntimeError(
             f"frozen index-tree blob identity is unavailable: {path}"
         ) from exc
+
+
+def _tree_regular_entry(root: Path, tree: str, path: str) -> tuple[str, str]:
+    rows = tuple(
+        row
+        for row in _git(root, "ls-tree", "-z", tree, "--", path).split(b"\0")
+        if row
+    )
+    if len(rows) != 1:
+        raise RuntimeError(f"frozen authority path is unavailable: {path}")
+    header, separator, raw_path = rows[0].partition(b"\t")
+    fields = header.split()
+    decoded = _paths(raw_path + b"\0")
+    if (
+        not separator
+        or len(fields) != 3
+        or fields[0] not in {b"100644", b"100755"}
+        or fields[1] != b"blob"
+        or decoded != (path,)
+    ):
+        raise RuntimeError(f"frozen authority path is not regular: {path}")
+    return fields[0].decode("ascii"), fields[2].decode("ascii")
+
+
+def _control_authority_paths(content: bytes) -> tuple[str, ...]:
+    try:
+        control = parse_canonical(content)
+    except CanonicalJSONError as exc:
+        raise RuntimeError("indexed control authority is not canonical") from exc
+    authority = control.get("authority") if isinstance(control, dict) else None
+    if (
+        not isinstance(authority, dict)
+        or set(authority)
+        != {
+            "contracts",
+            "foundation_inputs",
+            "graph_count",
+            "manifest_digest",
+            "operating_direction",
+        }
+        or authority.get("graph_count") != 1
+        or not isinstance(authority.get("contracts"), list)
+        or not authority["contracts"]
+        or not isinstance(authority.get("foundation_inputs"), list)
+        or not authority["foundation_inputs"]
+    ):
+        raise RuntimeError("indexed control authority surface is invalid")
+    values = (
+        authority.get("operating_direction"),
+        *authority["contracts"],
+        *authority["foundation_inputs"],
+    )
+    paths: list[str] = []
+    for value in values:
+        if type(value) is not str or not value or not value.isascii():
+            raise RuntimeError("indexed control authority path is invalid")
+        relative = PurePosixPath(value)
+        if (
+            relative.is_absolute()
+            or relative.as_posix() != value
+            or any(part in {"", ".", ".."} for part in relative.parts)
+            or "\\" in value
+            or ":" in value
+        ):
+            raise RuntimeError("indexed control authority path escapes its tree")
+        paths.append(value)
+    if len(paths) != len(set(paths)):
+        raise RuntimeError("indexed control authority paths are not unique")
+    return tuple(paths)
+
+
+def _tree_journal_paths(
+    root: Path, *, tree: str, tracked_paths: set[str]
+) -> tuple[str, ...]:
+    def load(path: str) -> bytes | None:
+        return _tree_blob(root, tree, path) if path in tracked_paths else None
+
+    try:
+        snapshot = read_journal_snapshot(
+            load,
+            listed_paths=tracked_paths,
+            validate_events=False,
+        )
+    except JournalIntegrityError as exc:
+        raise RuntimeError("frozen Journal authority is invalid") from exc
+    if snapshot.layout == "empty" or snapshot.active_path is None:
+        raise RuntimeError("frozen Journal authority is unavailable")
+    return tuple(
+        sorted(
+            {
+                *(() if snapshot.manifest_path is None else (snapshot.manifest_path,)),
+                *snapshot.segment_paths,
+                *snapshot.seal_paths,
+                snapshot.active_path,
+            }
+        )
+    )
+
+
+def _head_authority_transition_plan(
+    root: Path,
+    *,
+    head: str,
+    index_tree: str,
+    index_paths: set[str],
+) -> dict[str, object]:
+    head_tree = _git(root, "rev-parse", f"{head}^{{tree}}").decode("ascii").strip()
+    head_paths = set(_tree_paths(root, head_tree))
+    control_path = "state/control.json"
+    head_control = _tree_regular_entry(root, head_tree, control_path)
+    index_control = _tree_regular_entry(root, index_tree, control_path)
+    if head_control != index_control:
+        raise RuntimeError(
+            "HEAD and index control differ at authority transition"
+        )
+    head_journal = _tree_journal_paths(
+        root, tree=head_tree, tracked_paths=head_paths
+    )
+    index_journal = _tree_journal_paths(
+        root, tree=index_tree, tracked_paths=index_paths
+    )
+    if head_journal != index_journal:
+        raise RuntimeError("HEAD and index Journal layouts differ")
+    stable = [{"blob": index_control[1], "path": control_path}]
+    for path in index_journal:
+        head_entry = _tree_regular_entry(root, head_tree, path)
+        index_entry = _tree_regular_entry(root, index_tree, path)
+        if head_entry != index_entry:
+            raise RuntimeError(f"HEAD and index Journal authority differ: {path}")
+        stable.append({"blob": index_entry[1], "path": path})
+    declared = _control_authority_paths(_tree_blob(root, index_tree, control_path))
+    if set(declared).intersection(item["path"] for item in stable):
+        raise RuntimeError("declared authority overlaps control or Journal")
+    changed: list[dict[str, str]] = []
+    for path in declared:
+        head_mode, head_blob = _tree_regular_entry(root, head_tree, path)
+        index_mode, index_blob = _tree_regular_entry(root, index_tree, path)
+        if head_mode != "100644" or index_mode != "100644":
+            raise RuntimeError(f"declared authority is not regular text: {path}")
+        if head_blob != index_blob:
+            changed.append(
+                {
+                    "head_blob": head_blob,
+                    "head_sha256": sha256(_tree_blob(root, head_tree, path)).hexdigest(),
+                    "index_blob": index_blob,
+                    "index_sha256": sha256(_tree_blob(root, index_tree, path)).hexdigest(),
+                    "path": path,
+                }
+            )
+    if not changed:
+        raise RuntimeError("HEAD authority transition has no declared path drift")
+    return {
+        "authority": _HEAD_AUTHORITY_TRANSITION_AUTHORITY,
+        "control_declared_authority_paths": list(declared),
+        "control_journal_authority": sorted(stable, key=lambda item: item["path"]),
+        "historical_git_head_tree": head_tree,
+        "mode": _HEAD_AUTHORITY_TRANSITION_MODE,
+        "prospective_git_index_tree": index_tree,
+        "temporary_authority_paths": sorted(changed, key=lambda item: item["path"]),
+    }
 
 
 def _tree_test_blob_ids(
@@ -238,6 +486,7 @@ def _batch_blob_contents(
         check=True,
         capture_output=True,
         input=b"".join(blob.encode("ascii") + b"\n" for blob in requested),
+        timeout=_LOCAL_SUBPROCESS_TIMEOUT_SECONDS,
     )
     output = completed.stdout
     offset = 0
@@ -404,14 +653,48 @@ def _hash_file(path: Path) -> tuple[str, int]:
     size = 0
     try:
         with path.open("rb") as handle:
+            before = os.fstat(handle.fileno())
+            visible_before = path.lstat()
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or before.st_nlink != 1
+                or (before.st_dev, before.st_ino)
+                != (visible_before.st_dev, visible_before.st_ino)
+            ):
+                raise RuntimeError(
+                    f"protected input is not one exact regular file: {path.name}"
+                )
             while True:
                 chunk = handle.read(1024 * 1024)
                 if not chunk:
                     break
                 digest.update(chunk)
                 size += len(chunk)
+            after = os.fstat(handle.fileno())
+            visible_after = path.lstat()
     except OSError as exc:
         raise RuntimeError(f"cannot hash protected input: {path.name}") from exc
+    identity = (
+        before.st_dev,
+        before.st_ino,
+        before.st_size,
+        before.st_mtime_ns,
+        before.st_nlink,
+    )
+    if identity != (
+        after.st_dev,
+        after.st_ino,
+        after.st_size,
+        after.st_mtime_ns,
+        after.st_nlink,
+    ) or identity != (
+        visible_after.st_dev,
+        visible_after.st_ino,
+        visible_after.st_size,
+        visible_after.st_mtime_ns,
+        visible_after.st_nlink,
+    ):
+        raise RuntimeError(f"protected input changed while hashing: {path.name}")
     return digest.hexdigest(), size
 
 
@@ -789,7 +1072,12 @@ def _inherited_isolated_runtime_paths() -> tuple[str, ...]:
             or (project / ".git" / "objects" / "info" / "alternates").exists()
         ):
             return ()
-    except (OSError, subprocess.CalledProcessError, UnicodeDecodeError):
+    except (
+        OSError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        UnicodeDecodeError,
+    ):
         return ()
     raw_paths = os.environ.get("PYTHONPATH", "").split(os.pathsep)
     if len(raw_paths) < 3:
@@ -823,6 +1111,7 @@ def _distribution_search_paths() -> tuple[str, ...]:
         check=True,
         capture_output=True,
         text=True,
+        timeout=_LOCAL_SUBPROCESS_TIMEOUT_SECONDS,
     )
     ordered = (
         *_inherited_isolated_runtime_paths(),
@@ -895,7 +1184,13 @@ def _python_runtime() -> tuple[dict[str, object], tuple[str, ...]]:
 
 
 def _manifest(
-    root: Path, *, pytest_args: Sequence[str]
+    root: Path,
+    *,
+    pytest_args: Sequence[str],
+    selectors: Sequence[str] = (),
+    execution_timeout_seconds: int | None = None,
+    rebuild_runtime_projection: bool = False,
+    rebuild_runtime_projection_from_head_authority: bool = False,
 ) -> tuple[dict[str, object], tuple[str, ...], tuple[str, ...]]:
     top = Path(
         _git(root, "rev-parse", "--show-toplevel").decode("utf-8").strip()
@@ -928,6 +1223,47 @@ def _manifest(
     )
     if not tracked:
         raise RuntimeError("tracked-test manifest is empty")
+    focused = _validate_test_selection(selectors, tracked=tracked)
+    execution_timeout_seconds = _validate_execution_timeout(
+        (
+            _DEFAULT_FOCUSED_PYTEST_TIMEOUT_SECONDS
+            if focused
+            else _DEFAULT_FULL_PYTEST_TIMEOUT_SECONDS
+        )
+        if execution_timeout_seconds is None
+        else execution_timeout_seconds
+    )
+    selected = focused or tracked
+    available_runtime_projection = _runtime_projection_plan(tracked_paths)
+    if rebuild_runtime_projection and rebuild_runtime_projection_from_head_authority:
+        raise RuntimeError("runtime projection recovery modes are mutually exclusive")
+    if rebuild_runtime_projection_from_head_authority and not focused:
+        raise RuntimeError("HEAD authority transition requires a focused selection")
+    if rebuild_runtime_projection and available_runtime_projection == {
+        "authority": "none",
+        "mode": "none",
+    }:
+        raise RuntimeError(
+            "focused runtime projection rebuild lacks indexed Journal authority"
+        )
+    if rebuild_runtime_projection_from_head_authority:
+        if available_runtime_projection["authority"] == "none":
+            raise RuntimeError("HEAD authority transition lacks indexed Journal")
+        runtime_projection = _head_authority_transition_plan(
+            root,
+            head=head,
+            index_tree=index_tree,
+            index_paths=tracked_paths,
+        )
+    else:
+        runtime_projection = (
+            available_runtime_projection
+            if not focused or rebuild_runtime_projection
+            else {
+                "authority": "none",
+                "mode": "focused_no_recovery",
+            }
+        )
     for path in tracked:
         try:
             (root / Path(path)).read_bytes()
@@ -962,14 +1298,25 @@ def _manifest(
         "execution_mode": "isolated_git_index_tree",
         "excluded_untracked_test_count": len(untracked),
         "excluded_untracked_tests": list(untracked),
+        "execution_timeout_seconds": execution_timeout_seconds,
         "git_head": head,
         "git_index_tree": index_tree,
         "protected_development_inputs": protected_inputs,
         "pytest_args": list(pytest_args),
         "python_runtime": python_runtime,
-        "runtime_projection": _runtime_projection_plan(tracked_paths),
+        "runtime_projection": runtime_projection,
         "sandbox_origin_policy": "detached_no_remote_no_push",
         "schema": "tracked_pytest_manifest.v2",
+        "selection": {
+            "authority": "subset_of_frozen_git_index_test_manifest",
+            "mode": "focused" if focused else "all_tracked",
+            "selected_tracked_file_count": len(
+                {value.split("::", 1)[0] for value in selected}
+            ),
+            "selectors": list(focused),
+            "unselected_tracked_file_count": len(tracked)
+            - len({value.split("::", 1)[0] for value in selected}),
+        },
         "test_evidence_inputs": test_evidence_inputs,
         "tracked_test_count": len(entries),
         "tracked_tests": entries,
@@ -985,7 +1332,7 @@ def _manifest(
             **body,
             "manifest_sha256": sha256(canonical_bytes(body)).hexdigest(),
         },
-        tracked,
+        selected,
         runtime_paths,
     )
 
@@ -1034,35 +1381,79 @@ def _isolated_environment(
     return environment
 
 
+def _transition_entries(plan: Mapping[str, object]) -> tuple[dict[str, str], ...]:
+    declared = plan.get("control_declared_authority_paths")
+    raw_entries = plan.get("temporary_authority_paths")
+    if (
+        plan.get("mode") != _HEAD_AUTHORITY_TRANSITION_MODE
+        or plan.get("authority") != _HEAD_AUTHORITY_TRANSITION_AUTHORITY
+        or not isinstance(declared, list)
+        or not isinstance(raw_entries, list)
+    ):
+        raise RuntimeError("HEAD authority transition plan is invalid")
+    entries: list[dict[str, str]] = []
+    for raw in raw_entries:
+        if (
+            not isinstance(raw, dict)
+            or set(raw)
+            != {"head_blob", "head_sha256", "index_blob", "index_sha256", "path"}
+            or raw.get("path") not in declared
+            or any(type(value) is not str for value in raw.values())
+        ):
+            raise RuntimeError("HEAD transition path is outside control authority")
+        entry = dict(raw)
+        if any(
+            len(entry[key]) != 64
+            or any(character not in "0123456789abcdef" for character in entry[key])
+            for key in ("head_sha256", "index_sha256")
+        ):
+            raise RuntimeError("HEAD authority transition hash is invalid")
+        entries.append(entry)
+    paths = tuple(entry["path"] for entry in entries)
+    if not entries or paths != tuple(sorted(set(paths))):
+        raise RuntimeError("HEAD authority transition paths are not exact")
+    return tuple(entries)
+
+
 def _rebuild_runtime_projection(
     sandbox: Path,
     *,
     runtime_root: Path,
     runtime_paths: Sequence[str],
+    subprocess_timeout_seconds: float,
+    declared_execution_timeout_seconds: int,
+    require_clean_git: bool = True,
 ) -> None:
     """Rebuild disposable SQLite state from the checked-out Journal authority."""
 
-    completed = subprocess.run(
-        (
-            sys.executable,
-            "-S",
-            "-s",
-            "-P",
-            "-m",
-            "axiom_rift.cli",
-            "--root",
-            str(sandbox),
-            "recover",
-        ),
-        cwd=sandbox,
-        env=_isolated_environment(
-            sandbox,
-            runtime_root=runtime_root,
-            runtime_paths=runtime_paths,
-        ),
-        check=False,
-        capture_output=True,
-    )
+    try:
+        completed = subprocess.run(
+            (
+                sys.executable,
+                "-S",
+                "-s",
+                "-P",
+                "-m",
+                "axiom_rift.cli",
+                "--root",
+                str(sandbox),
+                "recover",
+            ),
+            cwd=sandbox,
+            env=_isolated_environment(
+                sandbox,
+                runtime_root=runtime_root,
+                runtime_paths=runtime_paths,
+            ),
+            check=False,
+            capture_output=True,
+            timeout=subprocess_timeout_seconds,
+        )
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            "isolated Journal projection rebuild exceeded its bound of "
+            f"{declared_execution_timeout_seconds} seconds"
+        ) from exc
     if completed.returncode != 0:
         detail = completed.stderr.decode("utf-8", errors="replace").strip()
         raise RuntimeError(
@@ -1079,18 +1470,99 @@ def _rebuild_runtime_projection(
         raise RuntimeError(
             "isolated Journal projection rebuild report schema differs"
         )
-    if (
+    if require_clean_git and (
         subprocess.run(
             ("git", "diff", "--quiet", "--"),
             cwd=sandbox,
             check=False,
             capture_output=True,
+            timeout=_LOCAL_SUBPROCESS_TIMEOUT_SECONDS,
         ).returncode
         != 0
     ):
         raise RuntimeError(
             "isolated Journal projection rebuild changed tracked authority bytes"
         )
+
+
+def _rebuild_runtime_projection_from_head_authority(
+    root: Path,
+    sandbox: Path,
+    *,
+    plan: Mapping[str, object],
+    runtime_root: Path,
+    runtime_paths: Sequence[str],
+    subprocess_timeout_seconds: float,
+    declared_execution_timeout_seconds: int,
+) -> None:
+    entries = _transition_entries(plan)
+    head_contents = _batch_blob_contents(
+        root, tuple(entry["head_blob"] for entry in entries)
+    )
+    index_contents = _batch_blob_contents(
+        root, tuple(entry["index_blob"] for entry in entries)
+    )
+    swapped = 0
+    try:
+        sandbox_tree = _git(sandbox, "rev-parse", "HEAD^{tree}").decode("ascii").strip()
+        if sandbox_tree != plan.get("prospective_git_index_tree") or _worktree_blob_ids(
+            sandbox, tuple(entry["path"] for entry in entries)
+        ) != tuple(entry["index_blob"] for entry in entries):
+            raise RuntimeError("HEAD transition sandbox authority differs")
+        for entry, historical, prospective in zip(
+            entries, head_contents, index_contents, strict=True
+        ):
+            if (
+                sha256(historical).hexdigest() != entry["head_sha256"]
+                or sha256(prospective).hexdigest() != entry["index_sha256"]
+            ):
+                raise RuntimeError("HEAD transition frozen bytes differ")
+            replace_stable_regular_file(
+                sandbox / Path(entry["path"]),
+                historical,
+                require_existing=True,
+                expected_current_sha256=_hash_file(
+                    sandbox / Path(entry["path"])
+                )[0],
+            )
+            swapped += 1
+        dirty = tuple(sorted(_paths(_git(sandbox, "diff", "--name-only", "-z", "--"))))
+        if dirty != tuple(entry["path"] for entry in entries):
+            raise RuntimeError("HEAD transition changed an undeclared path")
+        _rebuild_runtime_projection(
+            sandbox,
+            runtime_root=runtime_root,
+            runtime_paths=runtime_paths,
+            subprocess_timeout_seconds=subprocess_timeout_seconds,
+            declared_execution_timeout_seconds=declared_execution_timeout_seconds,
+            require_clean_git=False,
+        )
+    finally:
+        for ordinal in reversed(range(swapped)):
+            entry = entries[ordinal]
+            replace_stable_regular_file(
+                sandbox / Path(entry["path"]),
+                index_contents[ordinal],
+                require_existing=True,
+                expected_current_sha256=entry["head_sha256"],
+            )
+        if swapped:
+            _git(
+                sandbox,
+                "checkout-index",
+                "--force",
+                "--",
+                *(entry["path"] for entry in entries[:swapped]),
+            )
+    for arguments in (("diff", "--quiet", "--"), ("diff", "--cached", "--quiet", "--")):
+        if subprocess.run(
+            ("git", *arguments),
+            cwd=sandbox,
+            check=False,
+            capture_output=True,
+            timeout=_LOCAL_SUBPROCESS_TIMEOUT_SECONDS,
+        ).returncode:
+            raise RuntimeError("HEAD transition did not restore a clean index tree")
 
 
 def _validated_protected_entry(value: object) -> dict[str, object]:
@@ -1121,20 +1593,117 @@ def _validated_protected_entry(value: object) -> dict[str, object]:
 
 
 def _prepare_destination_file(sandbox: Path, relative: PurePosixPath) -> Path:
-    current = sandbox
-    for part in relative.parent.parts:
-        current = current / part
-        if current.exists():
-            if _is_link_like(current) or not current.is_dir():
-                raise RuntimeError(
-                    "protected input sandbox destination is link-like or non-directory"
-                )
-        else:
-            current.mkdir()
     destination = sandbox.joinpath(*relative.parts)
-    if destination.exists() or _is_link_like(destination):
+    try:
+        ensure_link_free_directory_chain(destination.parent)
+        destination.lstat()
+    except FileNotFoundError:
+        return destination
+    except PathBoundaryError as exc:
+        raise RuntimeError(
+            "protected input sandbox destination crosses a link-like directory"
+        ) from exc
+    except OSError as exc:
+        raise RuntimeError(
+            "protected input sandbox destination is unavailable"
+        ) from exc
+    else:
         raise RuntimeError("protected input sandbox destination already exists")
-    return destination
+
+
+def _exclusive_regular_file(path: Path) -> tuple[int, os.stat_result]:
+    """Create one private regular file without following an existing leaf."""
+
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    flags |= getattr(os, "O_BINARY", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags, stat.S_IRUSR | stat.S_IWUSR)
+    try:
+        metadata = os.fstat(descriptor)
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+            raise RuntimeError(
+                "protected input sandbox destination is not a private regular file"
+            )
+        visible = path.lstat()
+        if (
+            visible.st_dev,
+            visible.st_ino,
+            visible.st_nlink,
+        ) != (
+            metadata.st_dev,
+            metadata.st_ino,
+            metadata.st_nlink,
+        ):
+            raise RuntimeError(
+                "protected input sandbox destination identity changed"
+            )
+        return descriptor, metadata
+    except BaseException:
+        os.close(descriptor)
+        try:
+            visible = path.lstat()
+            if (
+                "metadata" in locals()
+                and (visible.st_dev, visible.st_ino)
+                == (metadata.st_dev, metadata.st_ino)
+            ):
+                path.unlink()
+        except OSError:
+            pass
+        raise
+
+
+def _make_exact_materialized_file_writable(
+    path: Path, identity: tuple[int, int] | None = None
+) -> bool:
+    """Use an opened descriptor so cleanup never chmods a link replacement."""
+
+    try:
+        visible = path.lstat()
+    except FileNotFoundError:
+        return False
+    if identity is not None and (visible.st_dev, visible.st_ino) != identity:
+        return False
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError:
+        return False
+    try:
+        opened = os.fstat(descriptor)
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_nlink != 1
+            or (opened.st_dev, opened.st_ino)
+            != (visible.st_dev, visible.st_ino)
+        ):
+            return False
+        os.fchmod(descriptor, stat.S_IRUSR | stat.S_IWUSR)
+        return True
+    finally:
+        os.close(descriptor)
+
+
+def _remove_exact_materialized_file(
+    path: Path, identity: tuple[int, int]
+) -> None:
+    """Best-effort cleanup without chmod or unlink of a replacement path."""
+
+    try:
+        visible = path.lstat()
+    except FileNotFoundError:
+        return
+    if (visible.st_dev, visible.st_ino) != identity:
+        return
+    if not _make_exact_materialized_file_writable(path, identity):
+        return
+    try:
+        visible = path.lstat()
+        if (visible.st_dev, visible.st_ino) == identity:
+            path.unlink()
+    except OSError:
+        pass
 
 
 def _copy_protected_input(
@@ -1148,45 +1717,91 @@ def _copy_protected_input(
     )
     digest = sha256()
     copied = 0
+    destination_identity: tuple[int, int] | None = None
     try:
-        with source.open("rb") as source_handle, destination.open("xb") as target:
+        require_link_free_directory_chain(destination.parent)
+        descriptor, created = _exclusive_regular_file(destination)
+        destination_identity = (created.st_dev, created.st_ino)
+        with source.open("rb") as source_handle, os.fdopen(
+            descriptor, "wb"
+        ) as target:
             before = os.fstat(source_handle.fileno())
+            source_visible_before = source.lstat()
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or before.st_nlink != 1
+                or (
+                    before.st_dev,
+                    before.st_ino,
+                    before.st_size,
+                    before.st_mtime_ns,
+                    before.st_nlink,
+                )
+                != (
+                    source_visible_before.st_dev,
+                    source_visible_before.st_ino,
+                    source_visible_before.st_size,
+                    source_visible_before.st_mtime_ns,
+                    source_visible_before.st_nlink,
+                )
+            ):
+                raise RuntimeError(
+                    "protected input source is not one exact regular file"
+                )
             while True:
                 chunk = source_handle.read(1024 * 1024)
                 if not chunk:
                     break
                 digest.update(chunk)
                 copied += len(chunk)
-                target.write(chunk)
+                if target.write(chunk) != len(chunk):
+                    raise RuntimeError("protected input materialization was truncated")
             target.flush()
+            os.fsync(target.fileno())
             after = os.fstat(source_handle.fileno())
+            target_after = os.fstat(target.fileno())
+            source_visible_after = source.lstat()
+            destination_visible = destination.lstat()
+            require_link_free_directory_chain(destination.parent)
+            if (
+                not stat.S_ISREG(target_after.st_mode)
+                or target_after.st_nlink != 1
+                or (target_after.st_dev, target_after.st_ino)
+                != (destination_visible.st_dev, destination_visible.st_ino)
+                or target_after.st_size != copied
+            ):
+                raise RuntimeError(
+                    "protected input sandbox destination identity changed"
+                )
+            os.fchmod(
+                target.fileno(), stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH
+            )
         source_identity = (
             before.st_dev,
             before.st_ino,
             before.st_size,
             before.st_mtime_ns,
+            before.st_nlink,
         )
         if source_identity != (
             after.st_dev,
             after.st_ino,
             after.st_size,
             after.st_mtime_ns,
+            after.st_nlink,
+        ) or source_identity != (
+            source_visible_after.st_dev,
+            source_visible_after.st_ino,
+            source_visible_after.st_size,
+            source_visible_after.st_mtime_ns,
+            source_visible_after.st_nlink,
         ):
             raise RuntimeError("protected input changed during materialization")
         if digest.hexdigest() != entry["sha256"] or copied != entry["size"]:
             raise RuntimeError("protected input changed before materialization")
-        destination_digest, destination_size = _hash_file(destination)
-        if (
-            destination_digest != entry["sha256"]
-            or destination_size != entry["size"]
-        ):
-            raise RuntimeError("materialized protected input identity differs")
-        destination.chmod(stat.S_IRUSR | stat.S_IRGRP | stat.S_IROTH)
     except Exception:
-        try:
-            destination.unlink()
-        except FileNotFoundError:
-            pass
+        if destination_identity is not None:
+            _remove_exact_materialized_file(destination, destination_identity)
         raise
     return entry
 
@@ -1256,8 +1871,12 @@ def _verify_materialized_destinations(
         destination = _protected_repository_file(
             sandbox, str(entry["role"]), entry["path"]
         )
-        mode = destination.stat().st_mode
-        if mode & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH):
+        metadata = destination.lstat()
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_nlink != 1
+            or metadata.st_mode & (stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH)
+        ):
             raise RuntimeError("materialized protected input became writable")
         observed, size = _hash_file(destination)
         if observed != entry["sha256"] or size != entry["size"]:
@@ -1273,7 +1892,7 @@ def _restore_materialized_permissions(
             destination = _protected_repository_file(
                 sandbox, str(entry["role"]), entry["path"]
             )
-            destination.chmod(stat.S_IRUSR | stat.S_IWUSR)
+            _make_exact_materialized_file_writable(destination)
         except (OSError, RuntimeError):
             # A missing or replaced path needs no permission repair.  Avoid
             # following an untrusted replacement during best-effort cleanup.
@@ -1329,6 +1948,7 @@ def _checkout_independent_index_tree(
         cwd=root,
         check=True,
         capture_output=True,
+        timeout=_LOCAL_SUBPROCESS_TIMEOUT_SECONDS,
     )
     _git(sandbox, "read-tree", index_tree)
     _git(sandbox, "checkout-index", "--all", "--force")
@@ -1377,10 +1997,23 @@ def _run_isolated_pytest(
     index_tree: str,
     tracked: Sequence[str],
     pytest_args: Sequence[str],
+    execution_timeout_seconds: int,
     rebuild_runtime_projection: bool,
+    transition_plan: Mapping[str, object] | None = None,
     runtime_paths: Sequence[str],
     protected_inputs: Sequence[object] = (),
 ) -> int:
+    execution_deadline = time.monotonic() + execution_timeout_seconds
+
+    def remaining_timeout(stage: str) -> float:
+        remaining = execution_deadline - time.monotonic()
+        if remaining <= 0:
+            raise RuntimeError(
+                f"isolated {stage} exceeded its shared bound of "
+                f"{execution_timeout_seconds} seconds"
+            )
+        return remaining
+
     with TemporaryDirectory(prefix="tracked-pytest-") as temporary:
         isolation_root = Path(temporary).resolve()
         sandbox = isolation_root / "repository"
@@ -1397,11 +2030,29 @@ def _run_isolated_pytest(
         execution_error: BaseException | None = None
         postcondition_errors: list[BaseException] = []
         try:
-            if rebuild_runtime_projection:
+            if transition_plan is not None:
+                _rebuild_runtime_projection_from_head_authority(
+                    root,
+                    sandbox,
+                    plan=transition_plan,
+                    runtime_root=runtime_root,
+                    runtime_paths=runtime_paths,
+                    subprocess_timeout_seconds=remaining_timeout(
+                        "HEAD authority projection transition"
+                    ),
+                    declared_execution_timeout_seconds=execution_timeout_seconds,
+                )
+            elif rebuild_runtime_projection:
                 _rebuild_runtime_projection(
                     sandbox,
                     runtime_root=runtime_root,
                     runtime_paths=runtime_paths,
+                    subprocess_timeout_seconds=remaining_timeout(
+                        "Journal projection rebuild"
+                    ),
+                    declared_execution_timeout_seconds=(
+                        execution_timeout_seconds
+                    ),
                 )
             completed = subprocess.run(
                 (
@@ -1421,6 +2072,7 @@ def _run_isolated_pytest(
                     runtime_paths=runtime_paths,
                 ),
                 check=False,
+                timeout=remaining_timeout("pytest"),
             )
         except BaseException as exc:
             execution_error = exc
@@ -1439,6 +2091,11 @@ def _run_isolated_pytest(
             raise RuntimeError(
                 f"protected input postcondition failed: {detail}"
             ) from (execution_error or postcondition_errors[0])
+        if isinstance(execution_error, subprocess.TimeoutExpired):
+            raise RuntimeError(
+                "isolated pytest exceeded its bound of "
+                f"{execution_timeout_seconds} seconds"
+            ) from execution_error
         if execution_error is not None:
             raise execution_error
         if completed is None:
@@ -1446,22 +2103,18 @@ def _run_isolated_pytest(
         return completed.returncode
 
 
-def _write_manifest(root: Path, output: Path, manifest: dict[str, object]) -> None:
-    local = (root / "local").resolve()
-    destination = output.resolve()
-    if destination != local and local not in destination.parents:
+def _write_manifest(root: Path, output: Path, manifest: dict[str, object]) -> bool:
+    local = Path(os.path.abspath(root / "local"))
+    destination = Path(os.path.abspath(output))
+    if local not in destination.parents:
         raise RuntimeError("manifest output must remain under local/")
     content = canonical_bytes(manifest) + b"\n"
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_name(f".{destination.name}.tmp")
     try:
-        temporary.write_bytes(content)
-        temporary.replace(destination)
-    finally:
-        try:
-            temporary.unlink()
-        except FileNotFoundError:
-            pass
+        return publish_stable_regular_file_if_changed(destination, content)
+    except AtomicFileError as exc:
+        raise RuntimeError(
+            f"tracked-test manifest publication failed: {exc}"
+        ) from exc
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -1493,6 +2146,43 @@ def _parser() -> argparse.ArgumentParser:
         help="do not write the default local/tracked-test-manifest.json",
     )
     parser.add_argument(
+        "--select",
+        action="append",
+        default=[],
+        metavar="TRACKED_TEST[::NODE]",
+        help=(
+            "run an exact Git-index test file or identifier-only test node "
+            "prefix; may be repeated"
+        ),
+    )
+    parser.add_argument(
+        "--execution-timeout-seconds",
+        type=int,
+        default=None,
+        metavar="SECONDS",
+        help=(
+            "kill and fail an isolated pytest process that exceeds this bound; "
+            f"defaults: focused={_DEFAULT_FOCUSED_PYTEST_TIMEOUT_SECONDS}, "
+            f"all-tracked={_DEFAULT_FULL_PYTEST_TIMEOUT_SECONDS}"
+        ),
+    )
+    parser.add_argument(
+        "--rebuild-runtime-projection",
+        action="store_true",
+        help=(
+            "for a focused selection, explicitly rebuild the ignored SQLite "
+            "projection from indexed Journal authority"
+        ),
+    )
+    parser.add_argument(
+        "--rebuild-runtime-projection-from-head-authority",
+        action="store_true",
+        help=(
+            "for a focused authority transition, recover with only the "
+            "control-declared authority files temporarily restored from HEAD"
+        ),
+    )
+    parser.add_argument(
         "pytest_args",
         nargs=argparse.REMAINDER,
         help="arguments after -- are forwarded to pytest",
@@ -1509,7 +2199,14 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         pytest_args = list(_validate_pytest_args(pytest_args))
         manifest, tracked, runtime_paths = _manifest(
-            root, pytest_args=pytest_args
+            root,
+            pytest_args=pytest_args,
+            selectors=arguments.select,
+            execution_timeout_seconds=arguments.execution_timeout_seconds,
+            rebuild_runtime_projection=arguments.rebuild_runtime_projection,
+            rebuild_runtime_projection_from_head_authority=(
+                arguments.rebuild_runtime_projection_from_head_authority
+            ),
         )
         protected_plan = manifest.get("protected_development_inputs")
         if not isinstance(protected_plan, dict) or not isinstance(
@@ -1534,7 +2231,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not output.is_absolute():
                 output = root / output
             _write_manifest(root, output, manifest)
-    except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+    except (
+        OSError,
+        RuntimeError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+    ) as exc:
         print(
             json.dumps(
                 {
@@ -1565,6 +2267,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             index_tree=str(manifest["git_index_tree"]),
             tracked=tracked,
             pytest_args=pytest_args,
+            execution_timeout_seconds=int(
+                manifest["execution_timeout_seconds"]
+            ),
             rebuild_runtime_projection=(
                 manifest["runtime_projection"]
                 == {
@@ -1572,10 +2277,21 @@ def main(argv: Sequence[str] | None = None) -> int:
                     "mode": "explicit_recovery",
                 }
             ),
+            transition_plan=(
+                manifest["runtime_projection"]
+                if manifest["runtime_projection"].get("mode")
+                == _HEAD_AUTHORITY_TRANSITION_MODE
+                else None
+            ),
             runtime_paths=runtime_paths,
             protected_inputs=protected_inputs,
         )
-    except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+    except (
+        OSError,
+        RuntimeError,
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+    ) as exc:
         print(
             json.dumps(
                 {

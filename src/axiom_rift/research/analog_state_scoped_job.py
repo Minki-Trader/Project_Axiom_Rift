@@ -1,4 +1,4 @@
-"""Writer-gated prospective Job for the decision-scoped analog family.
+"""Authority-gated prospective Job for the decision-scoped analog family.
 
 The historical v1 replay remains immutable evidence.  This module computes a
 new scoped-v2 family trace, binds it to scoped-v2 Executable identities, and
@@ -9,33 +9,41 @@ as evidence.
 One first-member Job produces the neutral family cache.  Every later member
 must bind both the cache hash and the durable producer trace hash.  A missing
 local cache can therefore be reconstructed only from the exact completed
-producer trace after ``StateWriter`` verifies its provenance.
+producer trace after read-only running-Job authority verifies its provenance.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
-import os
 from pathlib import Path
-import tempfile
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Protocol, Sequence
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.running_job_context import (
+    RunningJobExecutionContext,
+    running_job_execution_context_dependency_paths,
+)
+from axiom_rift.operations.validation import (
+    validator_execution_dependency_paths,
+)
 from axiom_rift.research import analog_state_replay_v2 as replay_v2
 from axiom_rift.research.adjudication import adjudicate_plan_measurement
 from axiom_rift.research.analog_state_family import (
-    P1_STU0061_ANALOG_FAMILY,
     AnalogFamilyConfiguration,
     analog_family_executable,
     analog_family_implementation_sha256,
+)
+from axiom_rift.research.historical_analog_family_stu0061 import (
+    STU0061_ANALOG_FAMILY as P1_STU0061_ANALOG_FAMILY,
 )
 from axiom_rift.research.analog_state_fit_v2 import (
     analog_fit_v2_implementation_sha256,
 )
 from axiom_rift.research.analog_state_replay import (
     analog_replay_multiplicity_registrations,
+    build_analog_replay_multiplicity_results,
 )
 from axiom_rift.research.analog_state_replay_v2 import (
     ANALOG_SCOPED_QUERY_SCOPE_ID,
@@ -71,6 +79,7 @@ from axiom_rift.research.evidence_proofs import (
     build_proof_references,
     parse_proof_requirements,
 )
+from axiom_rift.research.reproducible_cache import publish_reproducible_cache
 from axiom_rift.research.scientific_trace import (
     ANALOG_SCOPED_TRACE_PROTOCOL_ID,
     ANALOG_STATE_TRACE_PROTOCOL_ID,
@@ -94,11 +103,18 @@ CALLABLE_IDENTITY = (
     "axiom_rift.research.analog_state_scoped_job."
     "execute_analog_state_scoped_job.v1"
 )
+JOB_IMPLEMENTATION_PROTOCOL = "python.source.analog_state_scoped_v2.v1"
 ANALOG_SCOPED_CACHE_MANIFEST_SCHEMA = (
     "analog_family_trace_scoped_v2_cache_manifest.v1"
 )
 EVIDENCE_DEPTH = "discovery"
 _THIS_FILE = Path(__file__).resolve()
+
+
+def _legacy_original_family_provenance() -> dict[str, object]:
+    """Compatibility provenance for the frozen pre-authority scoped adapter."""
+
+    return analog_original_family_provenance(P1_STU0061_ANALOG_FAMILY)
 
 _SUBJECT_TRACE_FIELDS = {
     "adapter_implementation_sha256",
@@ -187,8 +203,124 @@ _PRODUCER_EXECUTION_FIELDS = {
 }
 
 
+class AnalogScopedJobContext(Protocol):
+    """Minimum evidence and read-only Job authority used by scoped-v2."""
+
+    evidence: Any
+
+    def verify_running_job_execution(
+        self,
+        execution: RunningJobExecution,
+        **kwargs: Any,
+    ) -> dict[str, Any]: ...
+
+    def verify_reproducible_cache_producer(
+        self,
+        producer: RunningJobExecution,
+        **kwargs: Any,
+    ) -> None: ...
+
+
+def analog_scoped_job_dependency_paths() -> tuple[Path, ...]:
+    """Bind the centrally inferred execution closure of the scoped-v2 Job."""
+
+    return validator_execution_dependency_paths(
+        _THIS_FILE,
+        (
+            *running_job_execution_context_dependency_paths(),
+        ),
+    )
+
+
+def analog_scoped_job_source_closure_artifact() -> bytes:
+    """Return the portable source closure for the prospective Job adapter."""
+
+    return _analog_scoped_job_source_closure_artifact(
+        analog_scoped_job_dependency_paths()
+    )
+
+
+def _analog_scoped_job_source_closure_artifact(
+    dependency_paths: tuple[Path, ...],
+) -> bytes:
+    source_root = _THIS_FILE.parents[2]
+    dependencies: list[dict[str, str]] = []
+    for path in dependency_paths:
+        try:
+            relative = path.relative_to(source_root).as_posix()
+        except ValueError as exc:
+            raise RuntimeError(
+                "analog scoped Job dependency is outside the source root"
+            ) from exc
+        dependencies.append(
+            {
+                "path": relative,
+                "sha256": sha256(path.read_bytes()).hexdigest(),
+            }
+        )
+    return canonical_bytes(
+        {
+            "callable_identity": CALLABLE_IDENTITY,
+            "dependencies": dependencies,
+            "schema": "job_implementation_source_closure.v1",
+        }
+    )
+
+
+def analog_scoped_job_implementation_artifact() -> bytes:
+    """Return the canonical implementation-evidence manifest."""
+
+    dependencies = analog_scoped_job_dependency_paths()
+    return _analog_scoped_job_implementation_artifact(dependencies)
+
+
+def _analog_scoped_job_implementation_artifact(
+    dependencies: tuple[Path, ...],
+) -> bytes:
+    closure = _analog_scoped_job_source_closure_artifact(dependencies)
+    closure_hash = sha256(closure).hexdigest()
+    return canonical_bytes(
+        {
+            "artifact_hashes": sorted(
+                {
+                    closure_hash,
+                    *(sha256(path.read_bytes()).hexdigest() for path in dependencies),
+                }
+            ),
+            "callable_identity": CALLABLE_IDENTITY,
+            "protocol": JOB_IMPLEMENTATION_PROTOCOL,
+            "schema": "job_implementation_evidence.v1",
+        }
+    )
+
+
 def analog_scoped_job_implementation_sha256() -> str:
-    return sha256(_THIS_FILE.read_bytes()).hexdigest()
+    dependencies = analog_scoped_job_dependency_paths()
+    return sha256(
+        _analog_scoped_job_implementation_artifact(dependencies)
+    ).hexdigest()
+
+
+def materialize_analog_scoped_job_implementation(
+    writer: AnalogScopedJobContext,
+) -> str:
+    """Store every source byte and the exact scoped-v2 implementation."""
+
+    dependency_paths = analog_scoped_job_dependency_paths()
+    for path in dependency_paths:
+        artifact = writer.evidence.finalize(path.read_bytes())
+        if artifact.sha256 != sha256(path.read_bytes()).hexdigest():
+            raise RuntimeError("analog scoped dependency identity drifted")
+    closure = _analog_scoped_job_source_closure_artifact(dependency_paths)
+    closure_artifact = writer.evidence.finalize(closure)
+    if closure_artifact.sha256 != sha256(closure).hexdigest():
+        raise RuntimeError("analog scoped source closure identity drifted")
+    manifest = _analog_scoped_job_implementation_artifact(dependency_paths)
+    implementation = writer.evidence.finalize(manifest)
+    expected = sha256(manifest).hexdigest()
+    if implementation.sha256 != expected:
+        raise RuntimeError("analog scoped implementation identity drifted")
+    return implementation.sha256
 
 
 def _ascii(name: str, value: object) -> str:
@@ -291,7 +423,23 @@ def build_analog_state_scoped_validation_plan(
     executable_id: str,
     output_names: Mapping[str, str],
 ) -> dict[str, object]:
-    registrations = analog_replay_multiplicity_registrations()
+    try:
+        configuration = _scoped_configuration_map()[executable_id]
+    except KeyError as exc:
+        raise ValueError(
+            "analog scoped validation subject is outside the exact family"
+        ) from exc
+    family_ids = tuple(
+        str(item["executable_id"])
+        for item in expected_analog_family_inventory_scoped_v2(
+            P1_STU0061_ANALOG_FAMILY
+        )
+    )
+    registrations = analog_replay_multiplicity_registrations(
+        subject_executable_id=executable_id,
+        subject_configuration_id=configuration.configuration_id,
+        ordered_family_executable_ids=family_ids,
+    )
     profile = {
         "decisive_risk_criterion_ids": [],
         "multiplicity": list(registrations),
@@ -460,7 +608,9 @@ def validate_analog_scoped_cache_manifest(
         }
     )
     first_executable_id = str(
-        expected_analog_family_inventory_scoped_v2()[0]["executable_id"]
+        expected_analog_family_inventory_scoped_v2(
+            P1_STU0061_ANALOG_FAMILY
+        )[0]["executable_id"]
     )
     if (
         producer_value.get("identity") != producer.identity
@@ -509,7 +659,9 @@ def build_analog_scoped_cache_manifest(
     ):
         raise TypeError("analog scoped cache manifest inputs are invalid")
     first_executable_id = str(
-        expected_analog_family_inventory_scoped_v2()[0]["executable_id"]
+        expected_analog_family_inventory_scoped_v2(
+            P1_STU0061_ANALOG_FAMILY
+        )[0]["executable_id"]
     )
     if scoped_plan.executable_id != first_executable_id:
         raise ValueError("analog scoped cache producer is not the first member")
@@ -571,7 +723,11 @@ def _subject_neutral_trace(
         "protocol_id": binding["neutral_protocol_id"],
         "schema": binding["schema"],
     }
-    return validate_analog_family_trace_scoped_v2(neutral)
+    return validate_analog_family_trace_scoped_v2(
+        neutral,
+        family=P1_STU0061_ANALOG_FAMILY,
+        original_family_provenance=_legacy_original_family_provenance(),
+    )
 
 
 def validate_analog_scoped_subject_trace(
@@ -640,7 +796,11 @@ def bind_analog_scoped_family_trace(
     job_hash: str,
     cache_manifest: Mapping[str, Any],
 ) -> dict[str, object]:
-    neutral = validate_analog_family_trace_scoped_v2(family_trace)
+    neutral = validate_analog_family_trace_scoped_v2(
+        family_trace,
+        family=P1_STU0061_ANALOG_FAMILY,
+        original_family_provenance=_legacy_original_family_provenance(),
+    )
     subject_id = _ascii("analog scoped executable", executable_id)
     if subject_id not in {
         str(item["executable_id"])
@@ -897,7 +1057,11 @@ class AnalogScopedFamilyTraceCache:
         value = parse_canonical(self.content)
         if not isinstance(value, dict) or canonical_bytes(value) != self.content:
             raise ValueError("analog scoped cache bytes are not canonical")
-        return validate_analog_family_trace_scoped_v2(value)
+        return validate_analog_family_trace_scoped_v2(
+            value,
+            family=P1_STU0061_ANALOG_FAMILY,
+            original_family_provenance=_legacy_original_family_provenance(),
+        )
 
 
 def _materialize_analog_scoped_cache(
@@ -905,38 +1069,27 @@ def _materialize_analog_scoped_cache(
     *,
     content: bytes,
 ) -> None:
-    target = repository_root / analog_scoped_family_trace_cache_output_name()
-    expected_hash = sha256(content).hexdigest()
-    if target.exists():
-        if not target.is_file() or sha256(target.read_bytes()).hexdigest() != (
-            expected_hash
-        ):
-            raise ValueError("existing analog scoped cache has different bytes")
-        return
-    target.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=".stu0061-analog-scoped-v2-",
-        suffix=".tmp",
-        dir=target.parent,
+    publish_reproducible_cache(
+        repository_root=repository_root,
+        relative_path=analog_scoped_family_trace_cache_output_name(),
+        content=content,
     )
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "wb") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, target)
-    finally:
-        if temporary.exists():
-            temporary.unlink()
 
 
 def compute_analog_scoped_family_cache(
     repository_root: str | Path,
 ) -> AnalogScopedFamilyTraceCache:
     root = Path(repository_root).resolve()
-    family_trace, _ = compute_analog_family_trace_scoped_v2(root)
-    neutral = validate_analog_family_trace_scoped_v2(family_trace)
+    family_trace, _ = compute_analog_family_trace_scoped_v2(
+        root,
+        family=P1_STU0061_ANALOG_FAMILY,
+        original_family_provenance=_legacy_original_family_provenance(),
+    )
+    neutral = validate_analog_family_trace_scoped_v2(
+        family_trace,
+        family=P1_STU0061_ANALOG_FAMILY,
+        original_family_provenance=_legacy_original_family_provenance(),
+    )
     content = canonical_bytes(neutral)
     _materialize_analog_scoped_cache(root, content=content)
     return AnalogScopedFamilyTraceCache(
@@ -969,7 +1122,7 @@ def _advertises_scoped_cache_manifest(value: object) -> bool:
 
 
 def verify_analog_scoped_cache_producer(
-    writer: StateWriter,
+    writer: AnalogScopedJobContext,
     *,
     scoped_plan: AnalogStateScopedJobPlan,
     repository_root: str | Path,
@@ -1028,7 +1181,9 @@ def verify_analog_scoped_cache_producer(
             "analog scoped producer trace must be exactly one Job input"
         )
     producer_executable_id = str(
-        expected_analog_family_inventory_scoped_v2()[0]["executable_id"]
+        expected_analog_family_inventory_scoped_v2(
+            P1_STU0061_ANALOG_FAMILY
+        )[0]["executable_id"]
     )
     producer_plan = build_analog_state_scoped_plan(
         mission_id=scoped_plan.mission_id,
@@ -1097,30 +1252,51 @@ def build_analog_scoped_measurement(
         scoped_plan.plan["proof_requirements"],
         evidence_modes=ANALOG_REPLAY_EVIDENCE_MODES,
     )
-    registrations = analog_replay_multiplicity_registrations()
     metrics = calculation.get("metrics")
     if not isinstance(metrics, Mapping):
         raise ValueError("analog scoped calculation metrics are invalid")
-    metric_by_criterion = {
-        "D02-opposite-sign-uncertainty": metrics[
-            "registered_control_contrast"
-        ]["opposite_sign_pvalue_upper_ppm"],
-        "E01-familywise-selection": metrics[
-            "selection_aware_signal_evidence"
-        ]["selection_aware_pvalue_ppm"],
+    profile = scoped_plan.plan.get("adjudication_profile")
+    registrations = (
+        None if not isinstance(profile, Mapping) else profile.get("multiplicity")
+    )
+    if not isinstance(registrations, list):
+        raise ValueError("analog scoped multiplicity plan is malformed")
+    registration_by_criterion = {
+        str(item["criterion_id"]): item for item in registrations
     }
-    multiplicity = [
-        {
-            **registration,
-            "adjusted_pvalue_ppm": metric_by_criterion[
-                str(registration["criterion_id"])
-            ],
-            "raw_pvalue_ppm": metric_by_criterion[
-                str(registration["criterion_id"])
-            ],
-        }
-        for registration in registrations
-    ]
+    paired = registration_by_criterion.get(
+        "D02-opposite-sign-uncertainty"
+    )
+    if not isinstance(paired, Mapping):
+        raise ValueError("analog scoped paired-control registration is absent")
+    projected_family_ids = tuple(
+        sorted(
+            analog_family_executable(configuration).identity
+            for configuration in P1_STU0061_ANALOG_FAMILY.configurations()
+        )
+    )
+    projected_subject_id = analog_family_executable(
+        scoped_plan.configuration
+    ).identity
+    multiplicity = build_analog_replay_multiplicity_results(
+        calculation=calculation,
+        registrations=registrations,
+        statistical_bindings={
+            "D02-opposite-sign-uncertainty": {
+                "family_id": paired["family_id"],
+                "member_id": paired["member_id"],
+                "ordered_member_ids": sorted(
+                    str(value)
+                    for value in paired["ordered_member_ids"]  # type: ignore[index]
+                ),
+            },
+            "E01-familywise-selection": {
+                "family_id": P1_STU0061_ANALOG_FAMILY.family_id,
+                "member_id": projected_subject_id,
+                "ordered_member_ids": list(projected_family_ids),
+            },
+        },
+    )
     value = {
         "evidence_depth": EVIDENCE_DEPTH,
         "evidence_modes": list(ANALOG_REPLAY_EVIDENCE_MODES),
@@ -1129,7 +1305,7 @@ def build_analog_scoped_measurement(
         "job_id": _ascii("analog scoped measurement Job", job_id),
         "metrics": metrics,
         "mission_id": scoped_plan.mission_id,
-        "multiplicity": multiplicity,
+        "multiplicity": list(multiplicity),
         "proofs": list(
             build_proof_references(
                 requirements=requirements,
@@ -1191,7 +1367,7 @@ def execute_analog_state_scoped_job(
     """Run one scoped-v2 family member from a writer-derived Job permit."""
 
     root = Path(repository_root).resolve()
-    writer = StateWriter(root)
+    writer = RunningJobExecutionContext(root)
     binding = writer.verify_running_job_execution(
         execution,
         expected_callable_identity=CALLABLE_IDENTITY,
@@ -1217,7 +1393,9 @@ def execute_analog_state_scoped_job(
     cache_output_name = analog_scoped_family_trace_cache_output_name()
     produce_family_cache = cache_output_name in expected_outputs
     producer_executable_id = str(
-        expected_analog_family_inventory_scoped_v2()[0]["executable_id"]
+        expected_analog_family_inventory_scoped_v2(
+            P1_STU0061_ANALOG_FAMILY
+        )[0]["executable_id"]
     )
     if produce_family_cache != (
         scoped_plan.executable_id == producer_executable_id
@@ -1318,9 +1496,13 @@ __all__ = [
     "ANALOG_SCOPED_TRACE_PROTOCOL_ID",
     "CALLABLE_IDENTITY",
     "AnalogScopedFamilyTraceCache",
+    "AnalogScopedJobContext",
     "AnalogStateScopedJobPacket",
     "AnalogStateScopedJobPlan",
     "analog_scoped_family_trace_cache_output_name",
+    "analog_scoped_job_dependency_paths",
+    "analog_scoped_job_implementation_artifact",
+    "analog_scoped_job_source_closure_artifact",
     "analog_scoped_job_implementation_sha256",
     "analog_scoped_output_names",
     "bind_analog_scoped_family_trace",
@@ -1332,6 +1514,7 @@ __all__ = [
     "build_analog_state_scoped_validation_plan",
     "compute_analog_scoped_family_cache",
     "execute_analog_state_scoped_job",
+    "materialize_analog_scoped_job_implementation",
     "extract_analog_scoped_cache_material",
     "validate_analog_scoped_cache_manifest",
     "validate_analog_scoped_subject_trace",

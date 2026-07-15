@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from axiom_rift.core.canonical import canonical_bytes
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.running_job_context import RunningJobExecutionContext
 from axiom_rift.research import usdjpy_source as source_module
 from axiom_rift.research import usdjpy_source_eligibility_validation as validator_module
 from axiom_rift.research.usdjpy_source import (
@@ -109,7 +110,7 @@ def _execute(
     callable_identity: str,
 ) -> SourceJobPacket:
     root = Path(repository_root).resolve()
-    writer = StateWriter(root)
+    writer = RunningJobExecutionContext(root)
     binding = writer.verify_running_job_execution(
         execution,
         expected_callable_identity=callable_identity,

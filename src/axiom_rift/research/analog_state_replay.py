@@ -1,28 +1,29 @@
-"""Writer-gated atomic replay adapter for the historical analog family."""
+"""Read-only authority-gated replay adapter for the historical analog family."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
-import os
 from pathlib import Path
-import tempfile
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, Protocol, Sequence
 
 import numpy as np
 import pandas as pd
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.running_job_context import RunningJobExecutionContext
 from axiom_rift.research.adjudication import adjudicate_plan_measurement
 from axiom_rift.research.analog_state_family import (
-    P1_STU0061_ANALOG_FAMILY,
     AnalogFamilyConfiguration,
     analog_family_executable,
     analog_family_executable_map,
     analog_family_implementation_sha256,
     calibrate_analog_selector,
     fit_fold_analog_family,
+)
+from axiom_rift.research.historical_analog_family_stu0061 import (
+    STU0061_ANALOG_FAMILY as P1_STU0061_ANALOG_FAMILY,
 )
 from axiom_rift.research.analog_state_trace import (
     ANALOG_FAMILY_TRACE_CACHE_MANIFEST_SCHEMA,
@@ -43,6 +44,12 @@ from axiom_rift.research.analog_state_trace import (
     extract_analog_family_trace_cache_material,
     validate_analog_family_trace,
     validate_analog_family_trace_cache_manifest,
+)
+from axiom_rift.research.analog_state_trace_rows import (
+    digest_causal_surfaces as _shared_digest_causal_surfaces,
+    intent_rows as _shared_intent_rows,
+    iso_timestamp as _shared_iso_timestamp,
+    trade_rows as _shared_trade_rows,
 )
 from axiom_rift.research.data import load_observed_development
 from axiom_rift.research.discovery import (
@@ -77,20 +84,43 @@ from axiom_rift.research.selection_inference import (
 from axiom_rift.research.replay_coverage import (
     validated_recomputed_criterion_ids,
 )
+from axiom_rift.research.reproducible_cache import (
+    publish_reproducible_cache,
+    reproducible_cache_implementation_sha256,
+)
 from axiom_rift.research.validation_v2 import (
     SCIENTIFIC_ADJUDICATION_PROFILE_SCHEMA,
     SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
     SCIENTIFIC_MEASUREMENT_V2_SCHEMA,
     SCIENTIFIC_RESULT_SCHEMA,
-    SCIENTIFIC_V2_MULTIPLICITY_METHOD,
+    SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD,
     build_validation_plan_v2,
     multiplicity_family_registration_hash,
 )
 
-
 CALLABLE_IDENTITY = (
     "axiom_rift.research.analog_state_replay.execute_analog_replay_job.v1"
 )
+
+
+class AnalogReplayJobContext(Protocol):
+    """Minimum non-mutating authority and evidence surface for replay Jobs."""
+
+    evidence: Any
+
+    def verify_running_job_execution(
+        self,
+        execution: RunningJobExecution,
+        **kwargs: Any,
+    ) -> dict[str, Any]: ...
+
+    def verify_reproducible_cache_producer(
+        self,
+        producer: RunningJobExecution,
+        **kwargs: Any,
+    ) -> None: ...
+
+
 ANALOG_FAMILY_TRACE_CACHE_OUTPUT_NAME = (
     "local/cache/analog-state/stu0061-family-trace-v1.json"
 )
@@ -210,7 +240,10 @@ STU0061_REPLAY_CRITERION_IDS = tuple(
 
 
 def analog_replay_implementation_sha256() -> str:
-    return sha256(_THIS_FILE.read_bytes()).hexdigest()
+    return sha256(
+        _THIS_FILE.read_bytes()
+        + bytes.fromhex(reproducible_cache_implementation_sha256())
+    ).hexdigest()
 
 
 def analog_family_trace_cache_output_name() -> str:
@@ -276,19 +309,14 @@ def _ascii(name: str, value: object) -> str:
     return value
 
 
-def _digest_score(values: np.ndarray) -> str:
-    array = np.asarray(values, dtype="<f8").copy()
-    array[np.isnan(array)] = np.nan
-    material = (
-        b"analog-score-vector.v1\0"
-        + len(array).to_bytes(8, "big")
-        + array.tobytes(order="C")
-    )
-    return sha256(material).hexdigest()
+def _digest_causal_surfaces(
+    surfaces: tuple[tuple[str, np.ndarray], ...],
+) -> str:
+    return _shared_digest_causal_surfaces(surfaces)
 
 
 def _iso(value: object) -> str:
-    return pd.Timestamp(value).isoformat()
+    return _shared_iso_timestamp(value)
 
 
 def _micropoints(value: object) -> int:
@@ -316,38 +344,251 @@ def analog_replay_output_names(
 def _multiplicity_registration(
     *,
     criterion_id: str,
-    endpoint_id: str,
+    family_id: str,
+    member_id: str,
+    ordered_member_ids: Sequence[str],
 ) -> dict[str, object]:
-    family_id = f"family:stu0061-replay:{criterion_id}:pre-adjusted-endpoint"
-    members = (endpoint_id,)
+    family = _ascii("analog multiplicity family_id", family_id)
+    member = _ascii("analog multiplicity member_id", member_id)
+    if isinstance(ordered_member_ids, (str, bytes)):
+        raise ValueError("analog multiplicity family must be an ordered sequence")
+    members = tuple(
+        _ascii("analog multiplicity family member", value)
+        for value in ordered_member_ids
+    )
+    if (
+        not members
+        or len(set(members)) != len(members)
+        or member not in members
+    ):
+        raise ValueError("analog multiplicity family membership is invalid")
     return {
         "alpha_ppm": 100_000,
         "criterion_id": criterion_id,
-        "family_id": family_id,
+        "family_id": family,
         "family_registration_hash": multiplicity_family_registration_hash(
-            family_id=family_id,
+            family_id=family,
             alpha_ppm=100_000,
-            method=SCIENTIFIC_V2_MULTIPLICITY_METHOD,
+            method=SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD,
             ordered_member_ids=members,
         ),
-        "family_size": 1,
-        "member_id": endpoint_id,
-        "method": SCIENTIFIC_V2_MULTIPLICITY_METHOD,
+        "family_size": len(members),
+        "member_id": member,
+        "method": SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD,
         "ordered_member_ids": list(members),
     }
 
 
-def analog_replay_multiplicity_registrations() -> tuple[dict[str, object], ...]:
+def analog_replay_multiplicity_registrations(
+    *,
+    subject_executable_id: str,
+    subject_configuration_id: str,
+    ordered_family_executable_ids: Sequence[str],
+) -> tuple[dict[str, object], ...]:
+    subject = _ascii(
+        "analog multiplicity subject executable",
+        subject_executable_id,
+    )
+    configuration = _ascii(
+        "analog multiplicity subject configuration",
+        subject_configuration_id,
+    )
+    if isinstance(ordered_family_executable_ids, (str, bytes)):
+        raise ValueError("analog concurrent family must be an ordered sequence")
+    family_members = tuple(
+        _ascii("analog concurrent family executable", value)
+        for value in ordered_family_executable_ids
+    )
+    if (
+        len(family_members) != len(P1_STU0061_ANALOG_FAMILY.configurations())
+        or len(set(family_members)) != len(family_members)
+        or subject not in family_members
+    ):
+        raise ValueError("analog concurrent executable family is not exact")
+    paired_members = (
+        "paired-control:feature",
+        "paired-control:opposite",
+    )
     return (
         _multiplicity_registration(
             criterion_id="D02-opposite-sign-uncertainty",
-            endpoint_id="endpoint:paired-opposite-familywise-upper",
+            family_id=f"family:{configuration}:paired-controls-v1",
+            member_id="paired-control:opposite",
+            ordered_member_ids=paired_members,
         ),
         _multiplicity_registration(
             criterion_id="E01-familywise-selection",
-            endpoint_id="endpoint:four-member-selection-familywise-upper",
+            family_id=P1_STU0061_ANALOG_FAMILY.family_id,
+            member_id=subject,
+            ordered_member_ids=family_members,
         ),
     )
+
+
+def build_analog_replay_multiplicity_results(
+    *,
+    calculation: Mapping[str, Any],
+    registrations: Sequence[Mapping[str, object]],
+    statistical_bindings: Mapping[str, Mapping[str, object]] | None = None,
+) -> tuple[dict[str, object], ...]:
+    """Bind validator rows to the raw and synchronized familywise inference."""
+
+    metrics = calculation.get("metrics")
+    statistics = calculation.get("statistics")
+    if not isinstance(metrics, Mapping) or not isinstance(statistics, Mapping):
+        raise ValueError("analog multiplicity calculation is incomplete")
+    normalized_registrations = tuple(registrations)
+    registration_by_criterion: dict[str, Mapping[str, object]] = {}
+    for registration in normalized_registrations:
+        if not isinstance(registration, Mapping):
+            raise ValueError("analog multiplicity registration is malformed")
+        criterion_id = _ascii(
+            "analog multiplicity criterion_id",
+            registration.get("criterion_id"),
+        )
+        if criterion_id in registration_by_criterion:
+            raise ValueError("analog multiplicity criterion is duplicated")
+        registration_by_criterion[criterion_id] = registration
+    expected_criteria = {
+        "D02-opposite-sign-uncertainty",
+        "E01-familywise-selection",
+    }
+    if set(registration_by_criterion) != expected_criteria:
+        raise ValueError("analog multiplicity registration inventory drifted")
+
+    default_bindings = {
+        criterion_id: {
+            "family_id": registration["family_id"],
+            "member_id": registration["member_id"],
+            "ordered_member_ids": sorted(
+                str(value)
+                for value in registration["ordered_member_ids"]  # type: ignore[index]
+            ),
+        }
+        for criterion_id, registration in registration_by_criterion.items()
+    }
+    bindings = default_bindings if statistical_bindings is None else statistical_bindings
+    if set(bindings) != expected_criteria:
+        raise ValueError("analog statistical family binding inventory drifted")
+    specifications = {
+        "D02-opposite-sign-uncertainty": (
+            "paired_control_family",
+            "registered_control_contrast",
+            "opposite_sign_pvalue_upper_ppm",
+        ),
+        "E01-familywise-selection": (
+            "selection_family",
+            "selection_aware_signal_evidence",
+            "selection_aware_pvalue_ppm",
+        ),
+    }
+    results: list[dict[str, object]] = []
+    for criterion_id in sorted(expected_criteria):
+        registration = registration_by_criterion[criterion_id]
+        binding = bindings[criterion_id]
+        if not isinstance(binding, Mapping):
+            raise ValueError("analog statistical family binding is malformed")
+        family_id = _ascii(
+            "analog statistical family_id",
+            binding.get("family_id"),
+        )
+        member_id = _ascii(
+            "analog statistical member_id",
+            binding.get("member_id"),
+        )
+        raw_members = binding.get("ordered_member_ids")
+        if not isinstance(raw_members, (list, tuple)):
+            raise ValueError("analog statistical family members are malformed")
+        members = tuple(
+            _ascii("analog statistical family member", value)
+            for value in raw_members
+        )
+        if (
+            not members
+            or members != tuple(sorted(set(members)))
+            or member_id not in members
+        ):
+            raise ValueError("analog statistical family membership drifted")
+
+        statistic_key, claim_id, metric_id = specifications[criterion_id]
+        manifest = statistics.get(statistic_key)
+        if not isinstance(manifest, Mapping):
+            raise ValueError("analog statistical family manifest is absent")
+        plan = manifest.get("plan")
+        hypotheses = manifest.get("hypotheses")
+        if not isinstance(plan, Mapping) or not isinstance(hypotheses, list):
+            raise ValueError("analog statistical family manifest is malformed")
+        plan_hypotheses = plan.get("hypotheses")
+        if not isinstance(plan_hypotheses, list):
+            raise ValueError("analog statistical family plan is malformed")
+        plan_members = tuple(
+            item.get("hypothesis_id")
+            for item in plan_hypotheses
+            if isinstance(item, Mapping)
+        )
+        result_members = tuple(
+            item.get("hypothesis_id")
+            for item in hypotheses
+            if isinstance(item, Mapping)
+        )
+        if (
+            len(plan_members) != len(plan_hypotheses)
+            or len(result_members) != len(hypotheses)
+            or plan.get("family_id") != family_id
+            or plan.get("family_size") != len(members)
+            or plan_members != members
+            or result_members != members
+        ):
+            raise ValueError("analog statistical family plan binding drifted")
+        matches = [
+            item
+            for item in hypotheses
+            if isinstance(item, Mapping)
+            and item.get("hypothesis_id") == member_id
+            and item.get("family_id") == family_id
+            and item.get("family_size") == len(members)
+        ]
+        if len(matches) != 1:
+            raise ValueError("analog statistical subject hypothesis is absent")
+        hypothesis = matches[0]
+        raw = hypothesis.get("raw")
+        familywise = hypothesis.get("familywise")
+        synchronized = (
+            None
+            if not isinstance(familywise, Mapping)
+            else familywise.get("synchronized_max")
+        )
+        raw_pvalue = (
+            None
+            if not isinstance(raw, Mapping)
+            else raw.get("monte_carlo_upper_pvalue_ppm")
+        )
+        adjusted_pvalue = (
+            None
+            if not isinstance(synchronized, Mapping)
+            else synchronized.get("monte_carlo_upper_pvalue_ppm")
+        )
+        claim_metrics = metrics.get(claim_id)
+        measured = (
+            None
+            if not isinstance(claim_metrics, Mapping)
+            else claim_metrics.get(metric_id)
+        )
+        if (
+            type(raw_pvalue) is not int
+            or type(adjusted_pvalue) is not int
+            or not 0 <= raw_pvalue <= adjusted_pvalue <= 1_000_000
+            or measured != adjusted_pvalue
+        ):
+            raise ValueError("analog synchronized p-value binding drifted")
+        results.append(
+            {
+                **registration,
+                "adjusted_pvalue_ppm": adjusted_pvalue,
+                "raw_pvalue_ppm": raw_pvalue,
+            }
+        )
+    return tuple(results)
 
 
 def build_analog_replay_validation_plan(
@@ -356,7 +597,18 @@ def build_analog_replay_validation_plan(
     executable_id: str,
     output_names: Mapping[str, str],
 ) -> dict[str, object]:
-    registrations = analog_replay_multiplicity_registrations()
+    mapping = analog_family_executable_map(P1_STU0061_ANALOG_FAMILY)
+    try:
+        configuration = mapping[executable_id]
+    except KeyError as exc:
+        raise ValueError(
+            "analog validation subject is outside the exact family"
+        ) from exc
+    registrations = analog_replay_multiplicity_registrations(
+        subject_executable_id=executable_id,
+        subject_configuration_id=configuration.configuration_id,
+        ordered_family_executable_ids=tuple(mapping),
+    )
     profile = {
         "decisive_risk_criterion_ids": [],
         "multiplicity": list(registrations),
@@ -518,38 +770,11 @@ def _trade_rows(
     executable_id: str,
     simulations: Mapping[tuple[str, str], Any],
 ) -> list[dict[str, object]]:
-    rows: list[dict[str, object]] = []
-    for (fold_id, scope), simulation in simulations.items():
-        if scope != "full":
-            continue
-        for raw in simulation.trades.to_dict(orient="records"):
-            gross = _micropoints(raw["gross_pnl"])
-            native_cost = _micropoints(raw["native_cost"])
-            stress_cost = _micropoints(raw["stress_cost"])
-            row: dict[str, object] = {
-                "availability_time": _iso(raw["decision_time"]),
-                "configuration_id": configuration.configuration_id,
-                "decision_bar_open_time": _iso(raw["decision_bar_open_time"]),
-                "decision_time": _iso(raw["decision_time"]),
-                "direction": int(raw["direction"]),
-                "entry_time": _iso(raw["entry_time"]),
-                "executable_id": executable_id,
-                "exit_time": _iso(raw["exit_time"]),
-                "fold_id": fold_id,
-                "gross_pnl_micropoints": gross,
-                "historical_reference_executable_id": (
-                    configuration.historical_reference_executable_id
-                ),
-                "native_cost_micropoints": native_cost,
-                "native_net_pnl_micropoints": gross - native_cost,
-                "observation_id": "pending",
-                "regime": str(raw["regime"]),
-                "stress_cost_micropoints": stress_cost,
-                "stress_net_pnl_micropoints": gross - stress_cost,
-            }
-            row["observation_id"] = analog_observation_id("trade", row)
-            rows.append(row)
-    return rows
+    return _shared_trade_rows(
+        configuration=configuration,
+        executable_id=executable_id,
+        simulations=simulations,
+    )
 
 
 def _intent_rows(
@@ -558,27 +783,11 @@ def _intent_rows(
     executable_id: str,
     simulations: Mapping[tuple[str, str], Any],
 ) -> list[dict[str, object]]:
-    rows: list[dict[str, object]] = []
-    for (fold_id, scope), simulation in simulations.items():
-        for ordinal, raw in enumerate(simulation.intent_rows, start=1):
-            decision, entry, exit_time, direction, status = raw
-            row: dict[str, object] = {
-                "availability_time": _iso(decision),
-                "configuration_id": configuration.configuration_id,
-                "decision_time": _iso(decision),
-                "direction": int(direction),
-                "entry_time": _iso(entry),
-                "executable_id": executable_id,
-                "exit_time": _iso(exit_time),
-                "fold_id": fold_id,
-                "observation_id": "pending",
-                "ordinal": ordinal,
-                "scope": scope,
-                "status": str(status),
-            }
-            row["observation_id"] = analog_observation_id("intent", row)
-            rows.append(row)
-    return rows
+    return _shared_intent_rows(
+        configuration=configuration,
+        executable_id=executable_id,
+        simulations=simulations,
+    )
 
 
 def compute_analog_family_trace(
@@ -694,11 +903,28 @@ def compute_analog_family_trace(
                 ),
             )
             compared = len(prefix[0])
+            full_causal_surfaces = (
+                ("score", full[0][:compared]),
+                ("volatility", full[1][:compared]),
+                ("run", full[2][:compared]),
+                ("effective_spread", spread[:compared]),
+            )
+            prefix_causal_surfaces = (
+                ("score", prefix[0]),
+                ("volatility", prefix[1]),
+                ("run", prefix[2]),
+                ("effective_spread", prefix_spreads[fold_id]),
+            )
             comparisons_by_key[(fold_id, profile_id)] = {
                 "compared_row_count": compared,
                 "fold_id": fold_id,
-                "full_score_values_sha256": _digest_score(full[0][:compared]),
-                "prefix_score_values_sha256": _digest_score(prefix[0]),
+                # Historical field names are retained as an opaque schema.
+                "full_score_values_sha256": _digest_causal_surfaces(
+                    full_causal_surfaces
+                ),
+                "prefix_score_values_sha256": _digest_causal_surfaces(
+                    prefix_causal_surfaces
+                ),
                 "profile_id": profile_id,
             }
     all_trades: list[dict[str, object]] = []
@@ -945,32 +1171,11 @@ def _materialize_analog_family_trace_cache(
     *,
     content: bytes,
 ) -> None:
-    target = analog_family_trace_cache_path(repository_root)
-    expected_hash = sha256(content).hexdigest()
-    if target.exists():
-        if not target.is_file() or sha256(target.read_bytes()).hexdigest() != (
-            expected_hash
-        ):
-            raise ValueError(
-                "existing analog family trace cache has different bytes"
-            )
-        return
-    target.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=".stu0061-analog-family-trace-",
-        suffix=".tmp",
-        dir=target.parent,
+    publish_reproducible_cache(
+        repository_root=repository_root,
+        relative_path=ANALOG_FAMILY_TRACE_CACHE_OUTPUT_NAME,
+        content=content,
     )
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "wb") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, target)
-    finally:
-        if temporary.exists():
-            temporary.unlink()
 
 
 def load_or_compute_analog_family_trace(
@@ -1041,7 +1246,7 @@ def _advertises_analog_family_cache_manifest(value: object) -> bool:
 
 
 def verify_analog_family_trace_cache_producer(
-    writer: StateWriter,
+    context: AnalogReplayJobContext,
     *,
     replay_plan: AnalogReplayPlan,
     repository_root: str | Path,
@@ -1061,7 +1266,7 @@ def verify_analog_family_trace_cache_producer(
     ] = []
     for input_hash in dict.fromkeys(inputs):
         try:
-            content = writer.evidence.read_verified(input_hash)
+            content = context.evidence.read_verified(input_hash)
             value = parse_canonical(content)
         except (FileNotFoundError, OSError, RuntimeError, TypeError, ValueError):
             continue
@@ -1136,7 +1341,7 @@ def verify_analog_family_trace_cache_producer(
     )
     if producer_payload.get("identity") != producer.identity:
         raise ValueError("analog family cache producer identity is invalid")
-    writer.verify_reproducible_cache_producer(
+    context.verify_reproducible_cache_producer(
         producer,
         cache_output_name=ANALOG_FAMILY_TRACE_CACHE_OUTPUT_NAME,
         cache_hash=family_cache.sha256,
@@ -1174,27 +1379,16 @@ def build_analog_replay_measurement(
         replay_plan.plan["proof_requirements"],
         evidence_modes=ANALOG_REPLAY_EVIDENCE_MODES,
     )
-    registrations = analog_replay_multiplicity_registrations()
-    metric_by_criterion = {
-        "D02-opposite-sign-uncertainty": calculation["metrics"][
-            "registered_control_contrast"
-        ]["opposite_sign_pvalue_upper_ppm"],
-        "E01-familywise-selection": calculation["metrics"][
-            "selection_aware_signal_evidence"
-        ]["selection_aware_pvalue_ppm"],
-    }
-    multiplicity = [
-        {
-            **registration,
-            "adjusted_pvalue_ppm": metric_by_criterion[
-                str(registration["criterion_id"])
-            ],
-            "raw_pvalue_ppm": metric_by_criterion[
-                str(registration["criterion_id"])
-            ],
-        }
-        for registration in registrations
-    ]
+    profile = replay_plan.plan.get("adjudication_profile")
+    registrations = (
+        None if not isinstance(profile, Mapping) else profile.get("multiplicity")
+    )
+    if not isinstance(registrations, list):
+        raise ValueError("analog validation multiplicity plan is malformed")
+    multiplicity = build_analog_replay_multiplicity_results(
+        calculation=calculation,
+        registrations=registrations,
+    )
     value = {
         "evidence_depth": EVIDENCE_DEPTH,
         "evidence_modes": list(ANALOG_REPLAY_EVIDENCE_MODES),
@@ -1203,7 +1397,7 @@ def build_analog_replay_measurement(
         "job_id": job_id,
         "metrics": calculation["metrics"],
         "mission_id": replay_plan.mission_id,
-        "multiplicity": multiplicity,
+        "multiplicity": list(multiplicity),
         "proofs": list(
             build_proof_references(
                 requirements=requirements,
@@ -1260,8 +1454,8 @@ def execute_analog_replay_job(
     execution: RunningJobExecution,
 ) -> AnalogReplayJobPacket:
     root = Path(repository_root).resolve()
-    writer = StateWriter(root)
-    binding = writer.verify_running_job_execution(
+    context = RunningJobExecutionContext(root)
+    binding = context.verify_running_job_execution(
         execution,
         expected_callable_identity=CALLABLE_IDENTITY,
     )
@@ -1322,7 +1516,7 @@ def execute_analog_replay_job(
             _,
             cache_manifest,
         ) = verify_analog_family_trace_cache_producer(
-            writer,
+            context,
             replay_plan=replay_plan,
             repository_root=root,
             input_hashes=input_hashes,
@@ -1343,13 +1537,13 @@ def execute_analog_replay_job(
         cache_manifest=cache_manifest,
     )
     names = replay_plan.output_names
-    trace_hash = writer.evidence.finalize(canonical_bytes(trace)).sha256
+    trace_hash = context.evidence.finalize(canonical_bytes(trace)).sha256
     calculation = build_analog_trace_calculation(
         trace=trace,
         trace_output_name=names["trace"],
         trace_hash=trace_hash,
     )
-    calculation_hash = writer.evidence.finalize(
+    calculation_hash = context.evidence.finalize(
         canonical_bytes(calculation)
     ).sha256
     measurement = build_analog_replay_measurement(
@@ -1360,7 +1554,7 @@ def execute_analog_replay_job(
         trace_hash=trace_hash,
         calculation_hash=calculation_hash,
     )
-    measurement_hash = writer.evidence.finalize(
+    measurement_hash = context.evidence.finalize(
         canonical_bytes(measurement)
     ).sha256
     result = build_analog_replay_result(
@@ -1372,10 +1566,12 @@ def execute_analog_replay_job(
     outputs = {
         names["calculation"]: calculation_hash,
         names["measurement"]: measurement_hash,
-        names["plan"]: writer.evidence.finalize(
+        names["plan"]: context.evidence.finalize(
             canonical_bytes(replay_plan.plan)
         ).sha256,
-        names["result"]: writer.evidence.finalize(canonical_bytes(result)).sha256,
+        names["result"]: context.evidence.finalize(
+            canonical_bytes(result)
+        ).sha256,
         names["trace"]: trace_hash,
     }
     if family_cache.produced:
@@ -1405,6 +1601,7 @@ __all__ = [
     "assert_frozen_stu0061_raw_metric_parity",
     "build_analog_family_trace_cache_manifest",
     "build_analog_replay_measurement",
+    "build_analog_replay_multiplicity_results",
     "build_analog_replay_plan",
     "build_analog_replay_result",
     "build_analog_replay_validation_plan",

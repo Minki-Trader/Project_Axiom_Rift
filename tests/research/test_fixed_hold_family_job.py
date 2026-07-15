@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
 
-from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.operations.writer import RunningJobExecution
+from axiom_rift.research.evidence_proofs import (
+    FIXED_HOLD_FAMILY_TRACE_PROOF_KIND,
+    FIXED_HOLD_FAMILY_TRACE_SCHEMA,
+)
 from axiom_rift.research.adjudication import scientific_adjudication_manifest
 from axiom_rift.research.fixed_hold_family_job import (
     FIXED_HOLD_CACHE_PROVENANCE_SCHEMA,
@@ -14,10 +20,13 @@ from axiom_rift.research.fixed_hold_family_job import (
     build_fixed_hold_family_job_plan,
     build_fixed_hold_measurement,
     build_fixed_hold_result,
+    build_fixed_hold_shared_trace_calculation,
     fixed_hold_family_cache,
     fixed_hold_multiplicity_registrations,
     materialize_fixed_hold_cache,
+    materialize_fixed_hold_evidence,
     validate_fixed_hold_cache_provenance,
+    validate_fixed_hold_shared_trace_calculation,
     validated_fixed_hold_recomputed_criterion_ids,
     verify_fixed_hold_cache_producer,
 )
@@ -26,6 +35,11 @@ from axiom_rift.research.fixed_hold_family_trace import (
     FIXED_HOLD_REPLAY_EVIDENCE_MODES,
     FIXED_HOLD_TRACE_VALIDATOR,
     bind_fixed_hold_family_trace,
+    build_fixed_hold_trace_calculation,
+)
+from axiom_rift.research.scientific_trace import (
+    ANALOG_FIXED_HOLD_REPLAY_TRACE_PROTOCOL_ID,
+    ScientificTraceError,
 )
 from axiom_rift.research.validation_v2 import (
     SCIENTIFIC_V2_SYNCHRONIZED_MAX_METHOD,
@@ -84,10 +98,26 @@ def execution() -> RunningJobExecution:
     )
 
 
+def scoped_execution(ordinal: int) -> RunningJobExecution:
+    def digest(label: str) -> str:
+        return sha256(f"{label}-{ordinal}".encode("ascii")).hexdigest()
+
+    job_hash = digest("job")
+    return RunningJobExecution(
+        job_id=f"job:{job_hash}",
+        job_hash=job_hash,
+        start_record_id=digest("start"),
+        job_permit_id=digest("permit"),
+    )
+
+
 class FixedHoldFamilyJobTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.definition = definition()
+        cls.definition = replace(
+            definition(),
+            protocol_id=ANALOG_FIXED_HOLD_REPLAY_TRACE_PROTOCOL_ID,
+        )
 
     def plan(self, executable_id: str):
         return build_fixed_hold_family_job_plan(
@@ -122,6 +152,18 @@ class FixedHoldFamilyJobTests(unittest.TestCase):
         self.assertEqual(
             plan.plan["adjudication_profile"]["multiplicity"],
             list(registrations),
+        )
+        trace_requirements = tuple(
+            item
+            for item in plan.plan["proof_requirements"]
+            if item["proof_kind"] == FIXED_HOLD_FAMILY_TRACE_PROOF_KIND
+        )
+        self.assertEqual(len(trace_requirements), 4)
+        self.assertTrue(
+            all(
+                item["artifact_schema"] == FIXED_HOLD_FAMILY_TRACE_SCHEMA
+                for item in trace_requirements
+            )
         )
         self.assertFalse(plan.produces_family_cache)
         self.assertEqual(len(plan.expected_outputs()), 5)
@@ -329,6 +371,138 @@ class FixedHoldFamilyJobTests(unittest.TestCase):
                 input_hashes=forged_inputs,
                 expected_callable_identity="fixture.fixed_hold.job",
                 materialize_missing=False,
+            )
+
+    def test_consumer_accepts_exact_shared_trace_cache_identity(self) -> None:
+        writer = _Writer()
+        producer = self.plan(self.definition.prospective_executable_ids[0])
+        consumer = self.plan(self.definition.prospective_executable_ids[1])
+        neutral = family_trace(self.definition)
+        trace_hash = writer.evidence.finalize(canonical_bytes(neutral)).sha256
+        cache = fixed_hold_family_cache(
+            scoped_plan=producer,
+            neutral_trace=neutral,
+            produced=True,
+        )
+        self.assertEqual(trace_hash, cache.sha256)
+        provenance = build_fixed_hold_cache_provenance(
+            scoped_plan=producer,
+            execution=execution(),
+            cache_sha256=cache.sha256,
+            producer_trace_sha256=trace_hash,
+        )
+        provenance_hash = writer.evidence.finalize(
+            canonical_bytes(provenance)
+        ).sha256
+        inputs = consumer.job_input_hashes(
+            cache_sha256=cache.sha256,
+            cache_provenance_sha256=provenance_hash,
+            producer_trace_sha256=trace_hash,
+        )
+        self.assertEqual(inputs.count(cache.sha256), 1)
+        verified, _, observed_trace, _ = verify_fixed_hold_cache_producer(
+            writer,  # type: ignore[arg-type]
+            scoped_plan=consumer,
+            repository_root=Path("unused"),
+            input_hashes=inputs,
+            expected_callable_identity="fixture.fixed_hold.job",
+            materialize_missing=False,
+        )
+        self.assertEqual(verified.sha256, cache.sha256)
+        self.assertEqual(observed_trace, cache.sha256)
+
+    def test_family_trace_is_stored_once_without_changing_calculation(self) -> None:
+        writer = _Writer()
+        neutral = family_trace(self.definition)
+        neutral_content = canonical_bytes(neutral)
+        shared_hash = sha256(neutral_content).hexdigest()
+        trace_hashes: set[str] = set()
+        legacy_trace_bytes = 0
+
+        for ordinal, executable_id in enumerate(
+            self.definition.prospective_executable_ids,
+            start=1,
+        ):
+            plan = self.plan(executable_id)
+            job_execution = scoped_execution(ordinal)
+            subject = bind_fixed_hold_family_trace(
+                family_trace=neutral,
+                definition=self.definition,
+                validator=FIXED_HOLD_TRACE_VALIDATOR,
+                mission_id=plan.mission_id,
+                executable_id=executable_id,
+                job_id=job_execution.job_id,
+                job_hash=job_execution.job_hash,
+            )
+            legacy_trace_bytes += len(canonical_bytes(subject))
+            outputs, _ = materialize_fixed_hold_evidence(
+                writer=writer,  # type: ignore[arg-type]
+                scoped_plan=plan,
+                execution=job_execution,
+                neutral_trace=neutral,
+                shared_trace_sha256=shared_hash,
+            )
+            trace_hash = outputs[plan.output_names["trace"]]
+            trace_hashes.add(trace_hash)
+            calculation_value = parse_canonical(
+                writer.evidence.read_verified(
+                    outputs[plan.output_names["calculation"]]
+                )
+            )
+            self.assertIsInstance(calculation_value, dict)
+            calculation_proof = dict(calculation_value)
+            legacy = build_fixed_hold_trace_calculation(
+                trace=subject,
+                definition=self.definition,
+                validator=FIXED_HOLD_TRACE_VALIDATOR,
+                trace_output_name=plan.output_names["trace"],
+                trace_hash=sha256(canonical_bytes(subject)).hexdigest(),
+            )
+            self.assertEqual(calculation_proof["metrics"], legacy["metrics"])
+            self.assertEqual(
+                calculation_proof["statistics"],
+                legacy["statistics"],
+            )
+            self.assertEqual(
+                validate_fixed_hold_shared_trace_calculation(
+                    trace=neutral,
+                    calculation=calculation_proof,
+                    definition=self.definition,
+                ),
+                legacy["metrics"],
+            )
+
+        self.assertEqual(trace_hashes, {shared_hash})
+        self.assertEqual(writer.evidence.artifacts[shared_hash], neutral_content)
+        self.assertGreater(legacy_trace_bytes, len(neutral_content) * 3)
+        self.assertLess(
+            len(writer.evidence.artifacts[shared_hash]),
+            legacy_trace_bytes // 3,
+        )
+
+        plan = self.plan(self.definition.prospective_executable_ids[-1])
+        proof = build_fixed_hold_shared_trace_calculation(
+            trace=neutral,
+            definition=self.definition,
+            mission_id=plan.mission_id,
+            executable_id=plan.executable_id,
+            job_id=execution().job_id,
+            job_hash=execution().job_hash,
+            trace_output_name=plan.output_names["trace"],
+            trace_hash=shared_hash,
+        )
+        forged = {
+            **proof,
+            "trace": {
+                **proof["trace"],
+                "sha256": "0" * 64,
+            },
+        }
+        with self.assertRaisesRegex(ScientificTraceError, "shared family trace"):
+            validate_fixed_hold_shared_trace_calculation(
+                trace=neutral,
+                calculation=forged,
+                definition=self.definition,
             )
 
 

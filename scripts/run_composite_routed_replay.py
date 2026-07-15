@@ -22,6 +22,9 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (  # noqa: E402
     ReplayAuthorityBoundary,
     build_fixed_hold_replay_design,
 )
+from axiom_rift.operations.scientific_history import (  # noqa: E402
+    project_frozen_family_exposure_context,
+)
 from axiom_rift.operations.writer import StateWriter  # noqa: E402
 from axiom_rift.research.composite_consensus_replay import (  # noqa: E402
     COMPOSITE_CONSENSUS_REPLAY_HISTORICAL_CONTEXT_ID,
@@ -59,11 +62,7 @@ from axiom_rift.research.historical_family_replay import (  # noqa: E402
     STU0017_HISTORICAL_FAMILY,
     HistoricalFamilySpec,
 )
-from axiom_rift.research.replay_exposure import (  # noqa: E402
-    derive_frozen_family_exposure_context,
-)
 from axiom_rift.research.trials import TrialAccountant  # noqa: E402
-from axiom_rift.storage.index import LocalIndex  # noqa: E402
 
 
 MISSION_ID = "MIS-0006"
@@ -207,19 +206,19 @@ def historical_context_count(
     writer: StateWriter,
     authority: RunAuthority,
 ) -> int:
-    with LocalIndex(writer.index_path) as index:
-        trials = tuple(index.records_by_kind("trial"))
     floor = TrialAccountant.from_foundation(
         writer.foundation_root
     ).prior_global_multiplicity_floor
-    context = derive_frozen_family_exposure_context(
-        trials=trials,
-        prior_global_exposure_floor=floor,
-        study_id=authority.study_id,
-        expected_family_size=12,
-        parameter_name="historical_context_prior_global_exposure_count",
-        allow_unregistered=True,
-    )
+    with writer.open_stable_index() as (_control, index):
+        context = project_frozen_family_exposure_context(
+            index,
+            prior_global_exposure_floor=floor,
+            study_id=authority.study_id,
+            batch_id=None,
+            expected_family_size=12,
+            parameter_name="historical_context_prior_global_exposure_count",
+            allow_unregistered=True,
+        )
     return context.prior_global_exposure_count
 
 

@@ -5,10 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-import os
 from pathlib import Path
-import tempfile
 from typing import Iterable
+
+from axiom_rift.storage.atomic_file import (
+    AtomicFileError,
+    publish_stable_regular_file_if_changed,
+)
 
 
 LEDGER_RELATIVE_PATH = "records/STUDY_KPI.md"
@@ -198,27 +201,11 @@ def materialize_study_kpi(
     path: str | Path,
     rows: Iterable[StudyKpiProjectionRow],
 ) -> bool:
-    target = Path(path)
     content = render_study_kpi(rows)
-    if target.is_file() and target.read_bytes() == content:
-        return False
-    target.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{target.name}.", suffix=".tmp", dir=target.parent
-    )
-    temporary = Path(temporary_name)
     try:
-        with os.fdopen(descriptor, "wb") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, target)
-    finally:
-        if temporary.exists():
-            temporary.unlink()
-    if target.read_bytes() != content:
-        raise OSError("Study KPI projection did not materialize exact bytes")
-    return True
+        return publish_stable_regular_file_if_changed(path, content)
+    except AtomicFileError as exc:
+        raise OSError(f"Study KPI projection publication failed: {exc}") from exc
 
 
 __all__ = [

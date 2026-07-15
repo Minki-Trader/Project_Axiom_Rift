@@ -833,6 +833,65 @@ class _ConfigurationResult:
     daily_pnl: pd.Series
 
 
+def _causal_prefix_mismatch_count(
+    *,
+    full_surfaces: tuple[tuple[str, np.ndarray], ...],
+    prefix_surfaces: tuple[tuple[str, np.ndarray], ...],
+    compared_row_count: int,
+) -> int:
+    """Count exact prefix drift across every named causal input surface."""
+
+    if (
+        type(compared_row_count) is not int
+        or compared_row_count < 1
+        or type(full_surfaces) is not tuple
+        or type(prefix_surfaces) is not tuple
+        or not full_surfaces
+        or len(full_surfaces) != len(prefix_surfaces)
+    ):
+        raise DiscoveryBoundaryError("causal prefix surface inventory is invalid")
+    full_names = tuple(name for name, _ in full_surfaces)
+    prefix_names = tuple(name for name, _ in prefix_surfaces)
+    if (
+        full_names != prefix_names
+        or len(set(full_names)) != len(full_names)
+        or any(
+            type(name) is not str or not name or not name.isascii()
+            for name in full_names
+        )
+    ):
+        raise DiscoveryBoundaryError("causal prefix surface names are invalid")
+
+    mismatches = 0
+    for (_, full_values), (_, prefix_values) in zip(
+        full_surfaces,
+        prefix_surfaces,
+        strict=True,
+    ):
+        full_array = np.asarray(full_values)
+        prefix_array = np.asarray(prefix_values)
+        if (
+            full_array.ndim != 1
+            or prefix_array.ndim != 1
+            or len(full_array) < compared_row_count
+            or len(prefix_array) != compared_row_count
+        ):
+            raise DiscoveryBoundaryError("causal prefix surface shape is invalid")
+        full_prefix = full_array[:compared_row_count]
+        if np.array_equal(prefix_array, full_prefix, equal_nan=True):
+            continue
+        mismatches += int(
+            (~np.isclose(
+                prefix_array,
+                full_prefix,
+                rtol=0.0,
+                atol=0.0,
+                equal_nan=True,
+            )).sum()
+        )
+    return mismatches
+
+
 def _evaluate_configuration(
     *,
     frame: pd.DataFrame,
@@ -909,14 +968,20 @@ def _evaluate_configuration(
         prefix_end = int(time.searchsorted(pd.Timestamp(test["end"]), side="right"))
         prefix_frame = frame.iloc[:prefix_end]
         prefix_score, prefix_volatility, prefix_run = prefix_features[fold_id]
-        prefix_mismatches += int(
-            (~np.isclose(
-                prefix_score,
-                fold_score[:prefix_end],
-                rtol=0.0,
-                atol=0.0,
-                equal_nan=True,
-            )).sum()
+        prefix_mismatches += _causal_prefix_mismatch_count(
+            full_surfaces=(
+                ("score", fold_score),
+                ("volatility", fold_volatility),
+                ("run", fold_run),
+                ("effective_spread", effective_spread),
+            ),
+            prefix_surfaces=(
+                ("score", prefix_score),
+                ("volatility", prefix_volatility),
+                ("run", prefix_run),
+                ("effective_spread", prefix_spreads[fold_id]),
+            ),
+            compared_row_count=prefix_end,
         )
         prefix_simulation = simulation_fn(
             frame=prefix_frame,

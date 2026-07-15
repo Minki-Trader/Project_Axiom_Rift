@@ -22,10 +22,9 @@ import scipy
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.core.identity import ComponentSpec, ExecutableSpec, canonical_digest
-from axiom_rift.research import analog_state_replay as replay_v1
 from axiom_rift.research.analog_state_family import (
-    P1_STU0061_ANALOG_FAMILY,
     AnalogFamilyConfiguration,
+    AnalogFamilySpec,
     analog_family_components,
     analog_family_executable,
     analog_family_implementation_sha256,
@@ -46,8 +45,14 @@ from axiom_rift.research.analog_state_trace import (
     analog_observation_id,
     analog_original_family_provenance,
     analog_trace_implementation_sha256,
-    expected_analog_family_inventory,
-    validate_analog_family_trace,
+    validate_bound_analog_family_trace,
+)
+from axiom_rift.research.analog_state_trace_rows import (
+    analog_trace_rows_implementation_sha256,
+    digest_causal_surfaces,
+    intent_rows,
+    iso_timestamp,
+    trade_rows,
 )
 from axiom_rift.research.data import load_observed_development
 from axiom_rift.research.discovery import (
@@ -75,6 +80,28 @@ _THIS_FILE = Path(__file__).resolve()
 ANALOG_SCOPED_QUERY_SCOPE_ID = (
     "train_calibration_union_test_decision_rows_v1"
 )
+ANALOG_REPLAY_NUMERICAL_ENVIRONMENT_SCHEMA = (
+    "analog_replay_numerical_environment.v1"
+)
+
+
+def analog_replay_numerical_environment_manifest() -> dict[str, str]:
+    """Return the typed numerical runtime bound into Executable identity."""
+
+    return {
+        "numpy": np.__version__,
+        "pandas": pd.__version__,
+        "python": ".".join(str(value) for value in sys.version_info[:3]),
+        "schema": ANALOG_REPLAY_NUMERICAL_ENVIRONMENT_SCHEMA,
+        "scipy": scipy.__version__,
+    }
+
+
+def analog_replay_numerical_environment_identity() -> str:
+    return canonical_digest(
+        domain="analog-replay-numerical-environment",
+        payload=analog_replay_numerical_environment_manifest(),
+    )
 
 
 def analog_replay_v2_implementation_sha256() -> str:
@@ -89,10 +116,10 @@ def analog_replay_v2_bundle_sha256() -> str:
         payload={
             "analog_family_sha256": analog_family_implementation_sha256(),
             "analog_fit_v2_sha256": analog_fit_v2_implementation_sha256(),
-            "analog_replay_v1_helpers_sha256": (
-                replay_v1.analog_replay_implementation_sha256()
-            ),
             "analog_replay_v2_sha256": analog_replay_v2_implementation_sha256(),
+            "analog_trace_rows_sha256": (
+                analog_trace_rows_implementation_sha256()
+            ),
             "analog_trace_sha256": analog_trace_implementation_sha256(),
             "discovery_sha256": discovery_implementation_sha256(),
             "loader_sha256": loader_implementation_sha256(),
@@ -104,17 +131,19 @@ def analog_replay_v2_bundle_sha256() -> str:
 
 
 def analog_family_trace_v2_implementation_identities() -> dict[str, str]:
-    identities = analog_family_trace_implementation_identities()
-    return {
-        **identities,
-        "analog_replay_sha256": analog_replay_v2_bundle_sha256(),
-    }
+    return analog_family_trace_implementation_identities(
+        replay_implementation_sha256=analog_replay_v2_bundle_sha256(),
+    )
 
 
-def _analog_family_components_v2(*, scoped: bool) -> tuple[ComponentSpec, ...]:
+def _analog_family_components_v2(
+    family: AnalogFamilySpec,
+    *,
+    scoped: bool,
+) -> tuple[ComponentSpec, ...]:
     """Build one exact-parity or scope-bound prospective component chain."""
 
-    old_components = analog_family_components(P1_STU0061_ANALOG_FAMILY)
+    old_components = analog_family_components(family)
     identity_map: dict[str, str] = {}
     components: list[ComponentSpec] = []
     replacement_count = 0
@@ -177,16 +206,20 @@ def _analog_family_components_v2(*, scoped: bool) -> tuple[ComponentSpec, ...]:
     return tuple(components)
 
 
-def analog_family_components_v2() -> tuple[ComponentSpec, ...]:
+def analog_family_components_v2(
+    family: AnalogFamilySpec,
+) -> tuple[ComponentSpec, ...]:
     """Rebind the memory-bounded exact-v1-parity implementation chain."""
 
-    return _analog_family_components_v2(scoped=False)
+    return _analog_family_components_v2(family, scoped=False)
 
 
-def analog_family_components_scoped_v2() -> tuple[ComponentSpec, ...]:
+def analog_family_components_scoped_v2(
+    family: AnalogFamilySpec,
+) -> tuple[ComponentSpec, ...]:
     """Bind the prospective train-calibration/test-decision query scope."""
 
-    return _analog_family_components_v2(scoped=True)
+    return _analog_family_components_v2(family, scoped=True)
 
 
 def _analog_family_executable_v2(
@@ -194,8 +227,6 @@ def _analog_family_executable_v2(
     *,
     scoped: bool,
 ) -> ExecutableSpec:
-    if configuration.family != P1_STU0061_ANALOG_FAMILY:
-        raise ValueError("analog replay v2 accepts only the exact P1 family")
     old = analog_family_executable(configuration)
     parameters = old.parameter_values()
     if scoped:
@@ -207,6 +238,7 @@ def _analog_family_executable_v2(
     scope_contract = (
         f":query_scope_{ANALOG_SCOPED_QUERY_SCOPE_ID}" if scoped else ""
     )
+    environment = analog_replay_numerical_environment_manifest()
     return ExecutableSpec(
         display_name=(
             f"{old.display_name} decision scoped v2"
@@ -214,9 +246,9 @@ def _analog_family_executable_v2(
             else f"{old.display_name} memory bounded v2"
         ),
         components=(
-            analog_family_components_scoped_v2()
+            analog_family_components_scoped_v2(configuration.family)
             if scoped
-            else analog_family_components_v2()
+            else analog_family_components_v2(configuration.family)
         ),
         parameters=parameters,
         data_contract=old.data_contract,
@@ -225,8 +257,9 @@ def _analog_family_executable_v2(
         cost_contract=old.cost_contract,
         engine_contract=(
             f"engine:{engine_name}:"
-            f"python{'.'.join(str(value) for value in sys.version_info[:3])}:"
-            f"numpy{np.__version__}:pandas{pd.__version__}:scipy{scipy.__version__}:"
+            f"environment_{analog_replay_numerical_environment_identity()}:"
+            f"python{environment['python']}:numpy{environment['numpy']}:"
+            f"pandas{environment['pandas']}:scipy{environment['scipy']}:"
             f"fit_{analog_fit_v2_implementation_sha256()}:"
             f"family_{analog_family_implementation_sha256()}:"
             f"loader_{loader_implementation_sha256()}:"
@@ -254,7 +287,9 @@ def analog_family_executable_scoped_v2(
     return _analog_family_executable_v2(configuration, scoped=True)
 
 
-def expected_analog_family_inventory_v2() -> tuple[dict[str, object], ...]:
+def expected_analog_family_inventory_v2(
+    family: AnalogFamilySpec,
+) -> tuple[dict[str, object], ...]:
     return tuple(
         {
             "configuration_id": configuration.configuration_id,
@@ -267,13 +302,15 @@ def expected_analog_family_inventory_v2() -> tuple[dict[str, object], ...]:
             "signal_sign": configuration.signal_sign,
         }
         for ordinal, configuration in enumerate(
-            P1_STU0061_ANALOG_FAMILY.configurations(),
+            family.configurations(),
             start=1,
         )
     )
 
 
-def expected_analog_family_inventory_scoped_v2() -> tuple[dict[str, object], ...]:
+def expected_analog_family_inventory_scoped_v2(
+    family: AnalogFamilySpec,
+) -> tuple[dict[str, object], ...]:
     return tuple(
         {
             "configuration_id": configuration.configuration_id,
@@ -288,13 +325,17 @@ def expected_analog_family_inventory_scoped_v2() -> tuple[dict[str, object], ...
             "signal_sign": configuration.signal_sign,
         }
         for ordinal, configuration in enumerate(
-            P1_STU0061_ANALOG_FAMILY.configurations(),
+            family.configurations(),
             start=1,
         )
     )
 
 
-def _v2_to_v1_executable_ids(*, scoped: bool = False) -> dict[str, str]:
+def _v2_to_v1_executable_ids(
+    family: AnalogFamilySpec,
+    *,
+    scoped: bool = False,
+) -> dict[str, str]:
     executable_builder = (
         analog_family_executable_scoped_v2
         if scoped
@@ -304,19 +345,22 @@ def _v2_to_v1_executable_ids(*, scoped: bool = False) -> dict[str, str]:
         executable_builder(configuration).identity: (
             analog_family_executable(configuration).identity
         )
-        for configuration in P1_STU0061_ANALOG_FAMILY.configurations()
+        for configuration in family.configurations()
     }
 
 
 def _project_analog_v2_trace_to_v1(
     trace: Mapping[str, object],
     *,
+    family: AnalogFamilySpec,
     scoped: bool = False,
 ) -> dict[str, object]:
     """Create a non-authoritative exact parity projection to frozen v1 IDs."""
 
+    from axiom_rift.research.analog_state_trace import validate_analog_family_trace
+
     projected = deepcopy(dict(trace))
-    mapping = _v2_to_v1_executable_ids(scoped=scoped)
+    mapping = _v2_to_v1_executable_ids(family, scoped=scoped)
     projected["implementation_identities"] = (
         analog_family_trace_implementation_identities()
     )
@@ -356,41 +400,58 @@ def _project_analog_v2_trace_to_v1(
 
 def validate_analog_family_trace_v2(
     trace: Mapping[str, object],
+    *,
+    family: AnalogFamilySpec,
+    original_family_provenance: Mapping[str, object],
 ) -> dict[str, object]:
     if trace.get("implementation_identities") != (
         analog_family_trace_v2_implementation_identities()
     ):
         raise ValueError("analog v2 implementation identities drifted")
-    if tuple(trace.get("ordered_family", ())) != expected_analog_family_inventory_v2():
+    if tuple(trace.get("ordered_family", ())) != expected_analog_family_inventory_v2(
+        family
+    ):
         raise ValueError("analog v2 family inventory drifted")
-    _project_analog_v2_trace_to_v1(trace)
-    normalized = parse_canonical(canonical_bytes(trace))
-    if not isinstance(normalized, dict):
-        raise RuntimeError("analog v2 trace normalization failed")
-    return normalized
+    return validate_bound_analog_family_trace(
+        trace,
+        family_spec=family,
+        expected_inventory=expected_analog_family_inventory_v2(family),
+        expected_implementation_identities=(
+            analog_family_trace_v2_implementation_identities()
+        ),
+        expected_provenance=original_family_provenance,
+    )
 
 
 def validate_analog_family_trace_scoped_v2(
     trace: Mapping[str, object],
+    *,
+    family: AnalogFamilySpec,
+    original_family_provenance: Mapping[str, object],
 ) -> dict[str, object]:
     if trace.get("implementation_identities") != (
         analog_family_trace_v2_implementation_identities()
     ):
         raise ValueError("analog scoped v2 implementation identities drifted")
     if tuple(trace.get("ordered_family", ())) != (
-        expected_analog_family_inventory_scoped_v2()
+        expected_analog_family_inventory_scoped_v2(family)
     ):
         raise ValueError("analog scoped v2 family inventory drifted")
-    _project_analog_v2_trace_to_v1(trace, scoped=True)
-    normalized = parse_canonical(canonical_bytes(trace))
-    if not isinstance(normalized, dict):
-        raise RuntimeError("analog scoped v2 trace normalization failed")
-    return normalized
+    return validate_bound_analog_family_trace(
+        trace,
+        family_spec=family,
+        expected_inventory=expected_analog_family_inventory_scoped_v2(family),
+        expected_implementation_identities=(
+            analog_family_trace_v2_implementation_identities()
+        ),
+        expected_provenance=original_family_provenance,
+    )
 
 
 def _fit_prepared_for_scope(
     prepared: Any,
     *,
+    family: AnalogFamilySpec,
     profile_id: str,
     train_start: pd.Timestamp,
     train_end: pd.Timestamp,
@@ -401,7 +462,7 @@ def _fit_prepared_for_scope(
     if scoped:
         return fit_prepared_analog_fold_scoped(
             prepared,
-            family=P1_STU0061_ANALOG_FAMILY,
+            family=family,
             profile_id=profile_id,
             train_start=train_start,
             train_end=train_end,
@@ -410,7 +471,7 @@ def _fit_prepared_for_scope(
         )
     return fit_prepared_analog_fold(
         prepared,
-        family=P1_STU0061_ANALOG_FAMILY,
+        family=family,
         profile_id=profile_id,
         train_start=train_start,
         train_end=train_end,
@@ -420,6 +481,8 @@ def _fit_prepared_for_scope(
 def _compute_analog_family_trace_v2(
     repository_root: str | Path,
     *,
+    family: AnalogFamilySpec,
+    original_family_provenance: Mapping[str, object],
     scoped: bool,
 ) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
     """Compute the exact family with one profile and one query protocol at a time."""
@@ -461,21 +524,21 @@ def _compute_analog_family_trace_v2(
             {
                 "eligible_dates": list(eligible_dates),
                 "fold_id": fold_id,
-                "test_end": replay_v1._iso(test["end"]),
-                "test_start": replay_v1._iso(test["start"]),
-                "train_end": replay_v1._iso(fold["train_is"]["end"]),
-                "train_start": replay_v1._iso(fold["train_is"]["start"]),
+                "test_end": iso_timestamp(test["end"]),
+                "test_start": iso_timestamp(test["start"]),
+                "train_end": iso_timestamp(fold["train_is"]["end"]),
+                "train_start": iso_timestamp(fold["train_is"]["start"]),
             }
         )
     comparisons_by_key: dict[tuple[str, str], dict[str, object]] = {}
     all_trades: list[dict[str, object]] = []
     all_intents: list[dict[str, object]] = []
     raw_metrics: dict[str, dict[str, int]] = {}
-    for profile in P1_STU0061_ANALOG_FAMILY.profiles:
+    for profile in family.profiles:
         profile_id = profile.profile_id
         full_prepared = prepare_analog_frame(
             frame,
-            family=P1_STU0061_ANALOG_FAMILY,
+            family=family,
             profile_ids=(profile_id,),
         )
         feature_sets: dict[str, tuple[np.ndarray, np.ndarray, np.ndarray]] = {}
@@ -491,6 +554,7 @@ def _compute_analog_family_trace_v2(
             test_end = pd.Timestamp(test["end"])
             full = _fit_prepared_for_scope(
                 full_prepared,
+                family=family,
                 profile_id=profile_id,
                 train_start=start,
                 train_end=end,
@@ -501,11 +565,12 @@ def _compute_analog_family_trace_v2(
             prefix_frame = prefix_frames[fold_id]
             prefix_prepared = prepare_analog_frame(
                 prefix_frame,
-                family=P1_STU0061_ANALOG_FAMILY,
+                family=family,
                 profile_ids=(profile_id,),
             )
             prefix = _fit_prepared_for_scope(
                 prefix_prepared,
+                family=family,
                 profile_id=profile_id,
                 train_start=start,
                 train_end=end,
@@ -525,7 +590,7 @@ def _compute_analog_family_trace_v2(
                 calibrate_analog_selector(
                     full[0],
                     train_mask,
-                    selector_quantile_bp=P1_STU0061_ANALOG_FAMILY.selector_quantile_bp,
+                    selector_quantile_bp=family.selector_quantile_bp,
                 ),
                 (
                     float(np.quantile(volatility, 1 / 3, method="higher")),
@@ -534,21 +599,36 @@ def _compute_analog_family_trace_v2(
                 calibrate_analog_selector(
                     prefix[0],
                     prefix_train_mask,
-                    selector_quantile_bp=P1_STU0061_ANALOG_FAMILY.selector_quantile_bp,
+                    selector_quantile_bp=family.selector_quantile_bp,
                 ),
             )
             compared = len(prefix[0])
+            full_causal_surfaces = (
+                ("score", full[0][:compared]),
+                ("volatility", full[1][:compared]),
+                ("run", full[2][:compared]),
+                ("effective_spread", spread[:compared]),
+            )
+            prefix_causal_surfaces = (
+                ("score", prefix[0]),
+                ("volatility", prefix[1]),
+                ("run", prefix[2]),
+                ("effective_spread", prefix_spreads[fold_id]),
+            )
             comparisons_by_key[(fold_id, profile_id)] = {
                 "compared_row_count": compared,
                 "fold_id": fold_id,
-                "full_score_values_sha256": replay_v1._digest_score(
-                    full[0][:compared]
+                # Historical field names are retained as an opaque schema.
+                "full_score_values_sha256": digest_causal_surfaces(
+                    full_causal_surfaces
                 ),
-                "prefix_score_values_sha256": replay_v1._digest_score(prefix[0]),
+                "prefix_score_values_sha256": digest_causal_surfaces(
+                    prefix_causal_surfaces
+                ),
                 "profile_id": profile_id,
             }
             del prefix_prepared
-        for configuration in P1_STU0061_ANALOG_FAMILY.configurations():
+        for configuration in family.configurations():
             if configuration.profile_id != profile_id:
                 continue
             subject = (
@@ -591,14 +671,14 @@ def _compute_analog_family_trace_v2(
                 raise RuntimeError("analog v2 simulation trace capture is incomplete")
             raw_metrics[subject] = dict(result.metrics)
             all_trades.extend(
-                replay_v1._trade_rows(
+                trade_rows(
                     configuration=configuration,
                     executable_id=subject,
                     simulations=captures,
                 )
             )
             all_intents.extend(
-                replay_v1._intent_rows(
+                intent_rows(
                     configuration=configuration,
                     executable_id=subject,
                     simulations=captures,
@@ -649,9 +729,9 @@ def _compute_analog_family_trace_v2(
         values[1] += int(trade["native_net_pnl_micropoints"])
         values[2] += int(trade["stress_net_pnl_micropoints"])
     inventory = (
-        expected_analog_family_inventory_scoped_v2()
+        expected_analog_family_inventory_scoped_v2(family)
         if scoped
-        else expected_analog_family_inventory_v2()
+        else expected_analog_family_inventory_v2(family)
     )
     members = {str(item["configuration_id"]): item for item in inventory}
     eligible_rows: list[dict[str, object]] = []
@@ -677,9 +757,9 @@ def _compute_analog_family_trace_v2(
     comparisons = [
         comparisons_by_key[(str(window["fold_id"]), profile.profile_id)]
         for window in windows
-        for profile in P1_STU0061_ANALOG_FAMILY.profiles
+        for profile in family.profiles
     ]
-    contracts = analog_family_execution_contracts()
+    contracts = analog_family_execution_contracts(family)
     trace: dict[str, object] = {
         "attribution": ANALOG_REPLAY_TRACE_ATTRIBUTION,
         "clock_contract": contracts["clock_contract"],
@@ -687,7 +767,7 @@ def _compute_analog_family_trace_v2(
         "cost_contract": contracts["cost_contract"],
         "dataset_sha256": DATASET_SHA256,
         "eligible_day_observations": eligible_rows,
-        "family_id": P1_STU0061_ANALOG_FAMILY.family_id,
+        "family_id": family.family_id,
         "implementation_identities": (
             analog_family_trace_v2_implementation_identities()
         ),
@@ -695,7 +775,7 @@ def _compute_analog_family_trace_v2(
         "invariance_comparisons": comparisons,
         "material_identity": OBSERVED_MATERIAL_ID,
         "ordered_family": list(inventory),
-        "original_family_provenance": analog_original_family_provenance(),
+        "original_family_provenance": dict(original_family_provenance),
         "protocol_id": ANALOG_STATE_TRACE_PROTOCOL_ID,
         "schema": ANALOG_FAMILY_TRACE_SCHEMA,
         "split_artifact_sha256": ROLLING_SPLIT_SHA256,
@@ -703,45 +783,60 @@ def _compute_analog_family_trace_v2(
         "windows": windows,
     }
     normalized = (
-        validate_analog_family_trace_scoped_v2(trace)
+        validate_analog_family_trace_scoped_v2(
+            trace,
+            family=family,
+            original_family_provenance=original_family_provenance,
+        )
         if scoped
-        else validate_analog_family_trace_v2(trace)
+        else validate_analog_family_trace_v2(
+            trace,
+            family=family,
+            original_family_provenance=original_family_provenance,
+        )
     )
-    parity_metrics = {
-        analog_family_executable(configuration).identity: raw_metrics[
-            (
-                analog_family_executable_scoped_v2(configuration).identity
-                if scoped
-                else analog_family_executable_v2(configuration).identity
-            )
-        ]
-        for configuration in P1_STU0061_ANALOG_FAMILY.configurations()
-    }
-    replay_v1.assert_frozen_stu0061_raw_metric_parity(parity_metrics)
     return normalized, raw_metrics
 
 
 def compute_analog_family_trace_v2(
     repository_root: str | Path,
+    *,
+    family: AnalogFamilySpec,
+    original_family_provenance: Mapping[str, object],
 ) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
     """Compute the full-vector v1 parity trace with bounded allocations."""
 
-    return _compute_analog_family_trace_v2(repository_root, scoped=False)
+    return _compute_analog_family_trace_v2(
+        repository_root,
+        family=family,
+        original_family_provenance=original_family_provenance,
+        scoped=False,
+    )
 
 
 def compute_analog_family_trace_scoped_v2(
     repository_root: str | Path,
+    *,
+    family: AnalogFamilySpec,
+    original_family_provenance: Mapping[str, object],
 ) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
     """Compute the prospective decision-scoped family trace."""
 
-    return _compute_analog_family_trace_v2(repository_root, scoped=True)
+    return _compute_analog_family_trace_v2(
+        repository_root,
+        family=family,
+        original_family_provenance=original_family_provenance,
+        scoped=True,
+    )
 
 
 def trace_v2_is_exact_v1_semantic_parity(
     trace: Mapping[str, object],
     frozen_v1_trace: Mapping[str, object],
+    *,
+    family: AnalogFamilySpec,
 ) -> bool:
-    projected = _project_analog_v2_trace_to_v1(trace)
+    projected = _project_analog_v2_trace_to_v1(trace, family=family)
     validated_frozen = validate_analog_family_trace(frozen_v1_trace)
     return canonical_bytes(projected) == canonical_bytes(validated_frozen)
 
@@ -749,10 +844,16 @@ def trace_v2_is_exact_v1_semantic_parity(
 def trace_scoped_v2_is_exact_v1_decision_parity(
     trace: Mapping[str, object],
     frozen_v1_trace: Mapping[str, object],
+    *,
+    family: AnalogFamilySpec,
 ) -> bool:
     """Compare all reachable decisions while allowing scope-specific score hashes."""
 
-    projected = _project_analog_v2_trace_to_v1(trace, scoped=True)
+    projected = _project_analog_v2_trace_to_v1(
+        trace,
+        family=family,
+        scoped=True,
+    )
     validated_frozen = validate_analog_family_trace(frozen_v1_trace)
     scoped_comparisons = projected.pop("invariance_comparisons")
     frozen_comparisons = validated_frozen.pop("invariance_comparisons")
@@ -781,6 +882,7 @@ def trace_scoped_v2_is_exact_v1_decision_parity(
 
 
 __all__ = [
+    "ANALOG_REPLAY_NUMERICAL_ENVIRONMENT_SCHEMA",
     "ANALOG_SCOPED_QUERY_SCOPE_ID",
     "analog_family_components_scoped_v2",
     "analog_family_components_v2",
@@ -789,6 +891,8 @@ __all__ = [
     "analog_family_trace_v2_implementation_identities",
     "analog_replay_v2_bundle_sha256",
     "analog_replay_v2_implementation_sha256",
+    "analog_replay_numerical_environment_identity",
+    "analog_replay_numerical_environment_manifest",
     "compute_analog_family_trace_scoped_v2",
     "compute_analog_family_trace_v2",
     "expected_analog_family_inventory_scoped_v2",

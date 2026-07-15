@@ -13,8 +13,11 @@ import pandas as pd
 import scipy
 
 from axiom_rift.core.canonical import canonical_bytes
-from axiom_rift.operations import writer as writer_module
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.running_job_context import (
+    RunningJobExecutionContext,
+    running_job_execution_context_implementation_sha256,
+)
 from axiom_rift.research.discovery import (
     DATASET_SHA256,
     OBSERVED_MATERIAL_ID,
@@ -124,9 +127,7 @@ def build_environment_manifest() -> dict[str, object]:
         "runner_implementation_sha256": sha256(
             Path(__file__).resolve().read_bytes()
         ).hexdigest(),
-        "writer_implementation_sha256": sha256(
-            Path(writer_module.__file__).resolve().read_bytes()
-        ).hexdigest(),
+        "running_job_context_implementation_sha256": running_job_execution_context_implementation_sha256(),
         "validator_id": SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
         "python_version": ".".join(str(value) for value in sys.version_info[:3]),
         "numpy_version": np.__version__,
@@ -213,7 +214,7 @@ def execute_usdjpy_carry_exit_job(
     execution: RunningJobExecution,
 ) -> USDJPYCarryExitJobPacket:
     root = Path(repository_root).resolve()
-    writer = StateWriter(root)
+    writer = RunningJobExecutionContext(root)
     binding = writer.verify_running_job_execution(
         execution,
         expected_callable_identity=CALLABLE_IDENTITY,

@@ -14,6 +14,10 @@ import pandas as pd
 import yaml
 
 from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.research.external_observed_development import (
+    ExternalObservedDevelopmentError,
+    publish_immutable_raw_snapshot,
+)
 from axiom_rift.research.sources import (
     INDEPENDENT_POINT_IN_TIME_FACT_FIELDS,
     MT5_ABSOLUTE_TIME_AUTHORITY,
@@ -190,11 +194,10 @@ def acquire_us30_historical_snapshot(repository_root: str | Path) -> bytes:
         content = _render_rates_csv(rates)
     finally:
         mt5.shutdown()
-    target = (root / US30_RAW_RELATIVE_PATH).resolve()
-    if root not in target.parents:
-        raise US30SourceError("US30 raw path escapes repository")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(content)
+    try:
+        publish_immutable_raw_snapshot(root, "US30", content)
+    except ExternalObservedDevelopmentError as exc:
+        raise US30SourceError("US30 immutable raw publication failed") from exc
     return content
 
 
@@ -249,6 +252,12 @@ def audit_us30_historical_bytes(
     off_grid_rows = int(len(valid_timestamps) - int(on_grid.sum()))
     nonfinite_rows = int((~finite_rows).sum())
     negative_spread_rows = int((numeric["spread"].to_numpy(dtype=float) < 0).sum())
+    negative_tick_volume_rows = int(
+        (numeric["tick_volume"].to_numpy(dtype=float) < 0).sum()
+    )
+    negative_real_volume_rows = int(
+        (numeric["real_volume"].to_numpy(dtype=float) < 0).sum()
+    )
     invalid_ohlc_rows = int(invalid_ohlc.sum())
     timestamp_gaps = int((differences != five_minutes_ns).sum())
     acquisition_ok = len(content) > 0 and len(frame) > 100_000
@@ -259,6 +268,8 @@ def audit_us30_historical_bytes(
         and off_grid_rows == 0
         and nonfinite_rows == 0
         and negative_spread_rows == 0
+        and negative_tick_volume_rows == 0
+        and negative_real_volume_rows == 0
         and invalid_ohlc_rows == 0
     )
     coverage_ok = first == expected_first and last == expected_last
@@ -274,7 +285,7 @@ def audit_us30_historical_bytes(
         "revision_or_vintage_audited": False,
     }
     return {
-        "schema": "us30_historical_audit_measurement.v2",
+        "schema": "us30_historical_audit_measurement.v3",
         "source_contract_id": us30_source_contract().source_contract_id,
         "observed_at_utc": observed_at_utc,
         "evidence_scope": "current_mt5_epoch_coordinate_history_reconstruction",
@@ -298,6 +309,8 @@ def audit_us30_historical_bytes(
         "off_grid_rows": off_grid_rows,
         "nonfinite_rows": nonfinite_rows,
         "negative_spread_rows": negative_spread_rows,
+        "negative_tick_volume_rows": negative_tick_volume_rows,
+        "negative_real_volume_rows": negative_real_volume_rows,
         "invalid_ohlc_rows": invalid_ohlc_rows,
         "timestamp_gap_count": timestamp_gaps,
         "facts": facts,
@@ -346,6 +359,18 @@ def derive_runtime_facts(probe: Mapping[str, Any]) -> dict[str, Any]:
     }
     if not required.issubset(probe):
         raise US30SourceError("US30 runtime probe schema is incomplete")
+    integer_fields = (
+        "digits",
+        "latest_rate_mt5_epoch_seconds",
+        "mt5_epoch_minus_observed_utc_seconds",
+        "observed_utc_epoch_seconds",
+        "rates_count",
+        "retrieval_latency_ms",
+        "terminal_build",
+        "tick_mt5_epoch_seconds",
+    )
+    if any(type(probe[name]) is not int for name in integer_fields):
+        raise US30SourceError("US30 runtime probe integer fields are invalid")
     exact_spec = (
         probe["server"] == US30_SERVER
         and probe["symbol"] == US30_SYMBOL
@@ -361,7 +386,6 @@ def derive_runtime_facts(probe: Mapping[str, Any]) -> dict[str, Any]:
     retrieval = (
         probe["connected"] is True
         and exact_spec
-        and isinstance(probe["rates_count"], int)
         and probe["rates_count"] >= 3
         and probe["finite_tick"] is True
         and mt5_epoch_coordinate_observation_is_valid(probe)
@@ -371,13 +395,13 @@ def derive_runtime_facts(probe: Mapping[str, Any]) -> dict[str, Any]:
     )
     return {
         "local_realtime_retrieval": bool(retrieval),
-        "fresh": bool(retrieval and isinstance(latency, int) and 0 <= latency <= 30_000),
+        "fresh": bool(retrieval and 0 <= latency <= 30_000),
         "synchronized": bool(retrieval and probe["consecutive_closed_bars"] is True),
         "complete_or_closed": bool(
             retrieval
             and (probe["closed_bar_available"] is True or probe["market_closed"] is True)
         ),
-        "latency_ms": int(latency),
+        "latency_ms": latency,
         "historical_runtime_field_parity": bool(exact_spec),
     }
 
@@ -499,7 +523,7 @@ def source_validation_plan(transition_evidence: str) -> dict[str, Any]:
     if fields is None:
         raise ValueError("source validation transition is not registered")
     return {
-        "schema": "us30_source_validation_plan.v2",
+        "schema": "us30_source_validation_plan.v3",
         "source_contract_id": us30_source_contract().source_contract_id,
         "transition_evidence": transition_evidence,
         "required_fact_fields": list(fields),

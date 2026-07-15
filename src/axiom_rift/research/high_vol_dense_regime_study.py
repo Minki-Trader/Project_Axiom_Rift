@@ -8,10 +8,14 @@ from typing import Any,Mapping
 import numpy as np
 import pandas as pd
 import scipy
-from axiom_rift.core.canonical import canonical_bytes,parse_canonical
-from axiom_rift.operations import writer as writer_module
-from axiom_rift.operations.writer import RunningJobExecution,StateWriter
+from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.running_job_context import (
+    RunningJobExecutionContext,
+    running_job_execution_context_implementation_sha256,
+)
 from axiom_rift.research.discovery import DATASET_SHA256,OBSERVED_MATERIAL_ID,ROLLING_SPLIT_SHA256,discovery_implementation_sha256
+from axiom_rift.research.evidence_inputs import read_surface_manifest_evidence_inputs
 from axiom_rift.research.event_label_discovery import event_label_implementation_sha256
 from axiom_rift.research.scientific_study import EVIDENCE_MODES,PLANNED_CLAIMS,claim_metrics,discovery_criteria,planned_verdict
 from axiom_rift.research.high_vol_dense_regime_chassis import executable_configuration_map,loader_implementation_sha256,high_vol_dense_regime_chassis_implementation_sha256
@@ -32,7 +36,7 @@ def output_names(executable_id:str,*,study_id:str)->dict[str,str]:
 def surface_output_name(*,study_id:str)->str:return f"scientific/{study_id}/high-vol-dense-regime-surface.json"
 def surface_manifest_output_name(*,study_id:str)->str:return f"scientific/{study_id}/high-vol-dense-regime-surface-manifest.json"
 def build_environment_manifest()->dict[str,object]:
-    value={"dataset_sha256":DATASET_SHA256,"event_label_implementation_sha256":event_label_implementation_sha256(),"loader_implementation_sha256":loader_implementation_sha256(),"material_identity":OBSERVED_MATERIAL_ID,"numpy_version":np.__version__,"pandas_version":pd.__version__,"python_version":".".join(str(v) for v in sys.version_info[:3]),"runner_implementation_sha256":sha256(Path(__file__).resolve().read_bytes()).hexdigest(),"schema":"scientific_engine_environment.v1","scipy_version":scipy.__version__,"shared_discovery_implementation_sha256":discovery_implementation_sha256(),"split_artifact_sha256":ROLLING_SPLIT_SHA256,"high_vol_dense_regime_chassis_implementation_sha256":high_vol_dense_regime_chassis_implementation_sha256(),"high_vol_dense_regime_discovery_implementation_sha256":high_vol_dense_regime_discovery_implementation_sha256(),"validator_id":SCIENTIFIC_DISCOVERY_VALIDATOR_ID,"volatility_clock_label_chassis_implementation_sha256":volatility_clock_label_chassis_implementation_sha256(),"writer_implementation_sha256":sha256(Path(writer_module.__file__).resolve().read_bytes()).hexdigest()}
+    value={"dataset_sha256":DATASET_SHA256,"event_label_implementation_sha256":event_label_implementation_sha256(),"loader_implementation_sha256":loader_implementation_sha256(),"material_identity":OBSERVED_MATERIAL_ID,"numpy_version":np.__version__,"pandas_version":pd.__version__,"python_version":".".join(str(v) for v in sys.version_info[:3]),"runner_implementation_sha256":sha256(Path(__file__).resolve().read_bytes()).hexdigest(),"schema":"scientific_engine_environment.v1","scipy_version":scipy.__version__,"shared_discovery_implementation_sha256":discovery_implementation_sha256(),"split_artifact_sha256":ROLLING_SPLIT_SHA256,"high_vol_dense_regime_chassis_implementation_sha256":high_vol_dense_regime_chassis_implementation_sha256(),"high_vol_dense_regime_discovery_implementation_sha256":high_vol_dense_regime_discovery_implementation_sha256(),"validator_id":SCIENTIFIC_DISCOVERY_VALIDATOR_ID,"volatility_clock_label_chassis_implementation_sha256":volatility_clock_label_chassis_implementation_sha256(),"running_job_context_implementation_sha256": running_job_execution_context_implementation_sha256()}
     canonical_bytes(value);return value
 def _claim_metrics(evaluation:Mapping[str,Any])->dict[str,dict[str,int|None]]:
     return claim_metrics(evaluation,control_delta_metric=_CONTROL_DELTA_METRIC,control_pvalue_metric=_CONTROL_PVALUE_METRIC,include_opposite_sign=False)
@@ -44,18 +48,11 @@ def build_result_manifest(*,executable_id:str,job_id:str,job_hash:str,measuremen
 class HighVolDenseRegimeJobPacket:
     output_manifest:tuple[tuple[str,str],...];verdict:str
     def outputs(self)->dict[str,str]:return dict(self.output_manifest)
-def _load_surface(writer:StateWriter,input_hashes:tuple[str,...])->tuple[dict[str,Any],str,str]:
-    surface=None;manifest=None
-    for artifact_hash in input_hashes:
-        try:
-            artifact=writer.evidence.verify(artifact_hash);value=parse_canonical((writer.evidence._root/artifact.relative_path).read_bytes())
-        except (FileNotFoundError,OSError,RuntimeError,ValueError):continue
-        if isinstance(value,dict) and value.get("schema")=="high_vol_dense_regime_surface.v1":surface=(value,artifact_hash)
-        if isinstance(value,dict) and value.get("schema")=="high_vol_dense_regime_surface_manifest.v1":manifest=(value,artifact_hash)
-    if surface is None or manifest is None or manifest[0].get("surface_artifact_hash")!=surface[1]:raise ValueError("high vol dense regime surface is missing")
-    return surface[0],surface[1],manifest[1]
+def _load_surface(writer:RunningJobExecutionContext,input_hashes:tuple[str,...])->tuple[dict[str,Any],str,str]:
+    binding=read_surface_manifest_evidence_inputs(writer.evidence,input_hashes,surface_schema="high_vol_dense_regime_surface.v1",manifest_schema="high_vol_dense_regime_surface_manifest.v1",expected_surface_implementation_sha256=high_vol_dense_regime_discovery_implementation_sha256())
+    return binding.surface.value,binding.surface.artifact_sha256,binding.manifest.artifact_sha256
 def execute_high_vol_dense_regime_job(*,repository_root:str|Path,execution:RunningJobExecution)->HighVolDenseRegimeJobPacket:
-    root=Path(repository_root).resolve();writer=StateWriter(root);binding=writer.verify_running_job_execution(execution,expected_callable_identity=CALLABLE_IDENTITY);spec=binding["spec"];subject=spec.get("evidence_subject");mission_id=binding.get("mission_id");study_id=binding.get("study_id")
+    root=Path(repository_root).resolve();writer=RunningJobExecutionContext(root);binding=writer.verify_running_job_execution(execution,expected_callable_identity=CALLABLE_IDENTITY);spec=binding["spec"];subject=spec.get("evidence_subject");mission_id=binding.get("mission_id");study_id=binding.get("study_id")
     if not isinstance(mission_id,str) or not isinstance(study_id,str) or not isinstance(subject,dict) or subject.get("id") not in executable_configuration_map():raise ValueError("high vol dense regime binding is invalid")
     executable_id=subject["id"];plan=build_high_vol_dense_regime_validation_plan(executable_id,mission_id=mission_id);environment=build_environment_manifest();plan_hash=sha256(canonical_bytes(plan)).hexdigest();names=output_names(executable_id,study_id=study_id);inputs=tuple(spec["input_hashes"])
     required={DATASET_SHA256,OBSERVED_MATERIAL_ID,ROLLING_SPLIT_SHA256,plan_hash,high_vol_dense_regime_chassis_implementation_sha256(),high_vol_dense_regime_discovery_implementation_sha256(),volatility_clock_label_chassis_implementation_sha256(),event_label_implementation_sha256(),loader_implementation_sha256(),discovery_implementation_sha256()}
@@ -63,7 +60,7 @@ def execute_high_vol_dense_regime_job(*,repository_root:str|Path,execution:Runni
     expected=set(spec["expected_outputs"]);produces_surface=surface_output_name(study_id=study_id) in expected
     if produces_surface:
         surface=compute_registered_high_vol_dense_regime_surface(root);surface_hash=writer.evidence.finalize(canonical_bytes(surface)).sha256;manifest_value={"schema":"high_vol_dense_regime_surface_manifest.v1","surface_artifact_hash":surface_hash,"surface_implementation_sha256":high_vol_dense_regime_discovery_implementation_sha256()};manifest_hash=writer.evidence.finalize(canonical_bytes(manifest_value)).sha256
-    else:surface,surface_hash,manifest_hash=_load_surface(writer,inputs)
+    else:surface,surface_hash,manifest_hash=_load_surface(writer,tuple(identity for identity in inputs if identity not in required))
     evaluation=project_high_vol_dense_regime_evaluation(surface,job_execution={**execution.payload(),"identity":execution.identity},subject_executable_id=executable_id,surface_artifact_hash=surface_hash,surface_manifest_hash=manifest_hash);evaluation_hash=writer.evidence.finalize(canonical_bytes(evaluation)).sha256
     measurement=build_measurement(executable_id=executable_id,job_id=execution.job_id,job_hash=execution.job_hash,evaluation_artifact_hash=evaluation_hash,evaluation=evaluation,mission_id=mission_id);measurement_hash=writer.evidence.finalize(canonical_bytes(measurement)).sha256
     result=build_result_manifest(executable_id=executable_id,job_id=execution.job_id,job_hash=execution.job_hash,measurement_artifact_hash=measurement_hash,mission_id=mission_id)
@@ -71,4 +68,3 @@ def execute_high_vol_dense_regime_job(*,repository_root:str|Path,execution:Runni
     if produces_surface:outputs[surface_output_name(study_id=study_id)]=surface_hash;outputs[surface_manifest_output_name(study_id=study_id)]=manifest_hash
     return HighVolDenseRegimeJobPacket(output_manifest=tuple(sorted(outputs.items())),verdict=planned_verdict(plan,measurement))
 __all__=["CALLABLE_IDENTITY","CRITERIA","EVIDENCE_DEPTH","EVIDENCE_MODES","PLANNED_CLAIMS","build_environment_manifest","build_high_vol_dense_regime_validation_plan","execute_high_vol_dense_regime_job","output_names","surface_manifest_output_name","surface_output_name"]
-

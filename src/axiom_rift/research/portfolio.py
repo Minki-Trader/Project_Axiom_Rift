@@ -83,6 +83,188 @@ class PortfolioDecisionError(ValueError):
     """Raised when a Portfolio decision violates allocation boundaries."""
 
 
+class DecisionLens(str, Enum):
+    """Professional lenses that can be material to one allocation decision."""
+
+    CAUSALITY = "causality"
+    STATISTICS = "statistics"
+    DATA = "data"
+    EXECUTION = "execution"
+    ECONOMICS = "economics"
+    RISK = "risk"
+    ARCHITECTURE = "architecture"
+
+
+class DecisionLensPosition(str, Enum):
+    """A non-numeric lens position on the chosen allocation."""
+
+    SUPPORT = "support"
+    CHALLENGE = "challenge"
+    UNCERTAIN = "uncertain"
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class DecisionBasisRecord:
+    """One exact durable record used by a material judgment lens."""
+
+    kind: str
+    record_id: str
+
+    def __post_init__(self) -> None:
+        _ascii("decision basis kind", self.kind)
+        _ascii("decision basis record_id", self.record_id)
+
+    @property
+    def sort_key(self) -> tuple[str, str]:
+        return self.kind, self.record_id
+
+    def to_identity_payload(self) -> dict[str, CanonicalValue]:
+        return {"kind": self.kind, "record_id": self.record_id}
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class DecisionLensAssessment:
+    """Compact evidence-bound finding, not a role-specific report."""
+
+    lens: DecisionLens
+    position: DecisionLensPosition
+    option_ids: tuple[str, ...]
+    basis_records: tuple[DecisionBasisRecord, ...]
+    finding: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.lens, DecisionLens):
+            raise PortfolioDecisionError("decision lens must be typed")
+        if not isinstance(self.position, DecisionLensPosition):
+            raise PortfolioDecisionError("decision lens position must be typed")
+        if type(self.option_ids) is not tuple or not self.option_ids:
+            raise PortfolioDecisionError("decision lens must cover an option")
+        for option_id in self.option_ids:
+            _ascii("decision lens option_id", option_id)
+        normalized_options = tuple(sorted(set(self.option_ids)))
+        if self.option_ids != normalized_options:
+            raise PortfolioDecisionError(
+                "decision lens option_ids must be sorted and unique"
+            )
+        if type(self.basis_records) is not tuple or not self.basis_records:
+            raise PortfolioDecisionError(
+                "decision lens must cite durable evidence"
+            )
+        if any(
+            not isinstance(record, DecisionBasisRecord)
+            for record in self.basis_records
+        ):
+            raise PortfolioDecisionError("decision lens basis is not typed")
+        normalized_basis = tuple(
+            sorted(self.basis_records, key=lambda record: record.sort_key)
+        )
+        if self.basis_records != normalized_basis or len(
+            {record.sort_key for record in self.basis_records}
+        ) != len(self.basis_records):
+            raise PortfolioDecisionError(
+                "decision lens basis records must be sorted and unique"
+            )
+        _ascii("decision lens finding", self.finding)
+
+    def to_identity_payload(self) -> dict[str, CanonicalValue]:
+        return {
+            "basis_records": [
+                record.to_identity_payload() for record in self.basis_records
+            ],
+            "finding": self.finding,
+            "lens": self.lens.value,
+            "option_ids": list(self.option_ids),
+            "position": self.position.value,
+        }
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class QuantTeamDecisionReview:
+    """Plural material judgment without seven-role ceremony or scalar scoring."""
+
+    assessments: tuple[DecisionLensAssessment, ...]
+    claim_boundary: str
+    resolution_basis: str
+    disagreement_resolution: str | None = None
+
+    def __post_init__(self) -> None:
+        if type(self.assessments) is not tuple or len(self.assessments) < 2:
+            raise PortfolioDecisionError(
+                "quant-team review requires at least two material lenses"
+            )
+        if any(
+            not isinstance(assessment, DecisionLensAssessment)
+            for assessment in self.assessments
+        ):
+            raise PortfolioDecisionError("quant-team assessment is not typed")
+        lens_values = tuple(assessment.lens.value for assessment in self.assessments)
+        if lens_values != tuple(sorted(lens_values)) or len(set(lens_values)) != len(
+            lens_values
+        ):
+            raise PortfolioDecisionError(
+                "quant-team material lenses must be sorted and unique"
+            )
+        _ascii("quant-team claim boundary", self.claim_boundary)
+        _ascii("quant-team resolution basis", self.resolution_basis)
+        has_reservation = any(
+            assessment.position
+            in {DecisionLensPosition.CHALLENGE, DecisionLensPosition.UNCERTAIN}
+            for assessment in self.assessments
+        )
+        if has_reservation:
+            if self.disagreement_resolution is None:
+                raise PortfolioDecisionError(
+                    "quant-team reservation requires an explicit resolution"
+                )
+            _ascii(
+                "quant-team disagreement resolution",
+                self.disagreement_resolution,
+            )
+        elif self.disagreement_resolution is not None:
+            _ascii(
+                "quant-team disagreement resolution",
+                self.disagreement_resolution,
+            )
+
+    def require_options(
+        self,
+        option_ids: tuple[str, ...],
+        *,
+        chosen_option_id: str,
+    ) -> None:
+        known = set(option_ids)
+        covered: set[str] = set()
+        for assessment in self.assessments:
+            if not set(assessment.option_ids).issubset(known):
+                raise PortfolioDecisionError(
+                    "quant-team review names an unknown Decision option"
+                )
+            covered.update(assessment.option_ids)
+        if covered != known:
+            raise PortfolioDecisionError(
+                "quant-team review must consider every Decision option"
+            )
+        if sum(
+            chosen_option_id in assessment.option_ids
+            for assessment in self.assessments
+        ) < 2:
+            raise PortfolioDecisionError(
+                "chosen allocation requires at least two material lenses"
+            )
+
+    def to_identity_payload(self) -> dict[str, CanonicalValue]:
+        return {
+            "assessments": [
+                assessment.to_identity_payload()
+                for assessment in self.assessments
+            ],
+            "claim_boundary": self.claim_boundary,
+            "disagreement_resolution": self.disagreement_resolution,
+            "resolution_basis": self.resolution_basis,
+            "schema": "quant_team_decision_review.v1",
+        }
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PortfolioAxis:
     axis_id: str
@@ -583,7 +765,8 @@ class PortfolioDecision:
     chosen_option_id: str
     options: tuple[DecisionOption, ...]
     rationale: str
-    commitment_batches: int | None
+    commitment_batches: int
+    quant_team_review: QuantTeamDecisionReview | None = None
     baseline_executable: ExecutableSpec | None = field(default=None, repr=False)
     replay_obligation_ids: tuple[str, ...] = ()
     recent_positive_lineage_id: str | None = None
@@ -606,6 +789,13 @@ class PortfolioDecision:
             raise PortfolioDecisionError("option_id values must be unique")
         if self.chosen_option_id not in option_ids:
             raise PortfolioDecisionError("chosen_option_id is not present")
+        if self.quant_team_review is not None:
+            if not isinstance(self.quant_team_review, QuantTeamDecisionReview):
+                raise PortfolioDecisionError("quant_team_review is not typed")
+            self.quant_team_review.require_options(
+                option_ids,
+                chosen_option_id=self.chosen_option_id,
+            )
         if type(self.commitment_batches) is not int or self.commitment_batches <= 0:
             raise PortfolioDecisionError(
                 "commitment_batches must be a positive finite int"
@@ -730,11 +920,19 @@ class PortfolioDecision:
             "rationale": self.rationale,
             "recent_positive_lineage_id": self.recent_positive_lineage_id,
             "schema": (
-                "portfolio_decision.v1"
-                if self.baseline_executable is None
-                else "portfolio_decision.v2"
+                "portfolio_decision.v3"
+                if self.quant_team_review is not None
+                else (
+                    "portfolio_decision.v1"
+                    if self.baseline_executable is None
+                    else "portfolio_decision.v2"
+                )
             ),
         }
+        if self.quant_team_review is not None:
+            payload["quant_team_review"] = (
+                self.quant_team_review.to_identity_payload()
+            )
         # Preserve byte-for-byte legacy identities unless a Decision actually
         # binds typed historical replay work.
         if self.replay_obligation_ids:
@@ -751,10 +949,15 @@ __all__ = [
     "ConcurrentFamilyEvaluationMode",
     "ConcurrentFamilyManifest",
     "DecisionKind",
+    "DecisionBasisRecord",
+    "DecisionLens",
+    "DecisionLensAssessment",
+    "DecisionLensPosition",
     "DecisionOption",
     "PortfolioAction",
     "PortfolioAxis",
     "PortfolioDecision",
     "PortfolioDecisionError",
+    "QuantTeamDecisionReview",
     "PortfolioSnapshot",
 ]

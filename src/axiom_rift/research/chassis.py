@@ -12,6 +12,14 @@ from axiom_rift.core.canonical import (
     canonical_bytes,
     parse_canonical,
 )
+from axiom_rift.core.component_surface import (
+    ARCHITECTURE_ROLE_DOMAINS,
+    ComponentManifestError,
+    architecture_component_surface_identity as _core_architecture_surface,
+    component_manifest_domain as _core_component_domain,
+    component_manifest_identity as _core_component_identity,
+    component_manifest_surfaces,
+)
 from axiom_rift.core.identity import ComponentSpec, ExecutableSpec, canonical_digest
 from axiom_rift.research.governance import ResearchLayer
 
@@ -38,27 +46,8 @@ class ComponentParityDimension(str, Enum):
 _REQUIRED_PARITY_DIMENSIONS = frozenset(ComponentParityDimension)
 _ARCHITECTURE_ROLES = tuple(ArchitectureRole)
 _ROLE_DOMAINS: dict[ArchitectureRole, frozenset[ResearchLayer]] = {
-    ArchitectureRole.LABEL: frozenset({ResearchLayer.LABEL}),
-    ArchitectureRole.DECISION: frozenset(
-        {
-            ResearchLayer.MODEL,
-            ResearchLayer.CALIBRATION,
-            ResearchLayer.SELECTOR,
-        }
-    ),
-    ArchitectureRole.ENTRY: frozenset({ResearchLayer.TRADE}),
-    ArchitectureRole.LIFECYCLE: frozenset({ResearchLayer.LIFECYCLE}),
-    ArchitectureRole.EXECUTION: frozenset({ResearchLayer.EXECUTION}),
-    ArchitectureRole.PORTFOLIO: frozenset(
-        {
-            ResearchLayer.PORTFOLIO,
-            ResearchLayer.RISK,
-            ResearchLayer.SYNTHESIS,
-        }
-    ),
-}
-_DOMAIN_ALIASES = {
-    "external_source": ResearchLayer.DATA_SOURCE,
+    ArchitectureRole(role): frozenset(ResearchLayer(domain) for domain in domains)
+    for role, domains in ARCHITECTURE_ROLE_DOMAINS.items()
 }
 
 
@@ -85,31 +74,19 @@ def _component_identity(value: object) -> str:
 
 
 def _component_manifest_identity(manifest: Mapping[str, object]) -> str:
-    required = {
-        "implementation",
-        "protocol",
-        "schema",
-        "semantic_dependencies",
-        "spec",
-    }
-    if set(manifest) != required or manifest.get("schema") != "component_spec.v1":
-        raise ChassisIdentityError("component manifest schema is invalid")
-    return "component:" + canonical_digest(domain="component", payload=dict(manifest))
+    try:
+        return _core_component_identity(manifest)
+    except ComponentManifestError as exc:
+        raise ChassisIdentityError(str(exc)) from exc
 
 
 def _component_domain_from_manifest(
     manifest: Mapping[str, object],
 ) -> ResearchLayer:
-    protocol = _ascii("component protocol", manifest.get("protocol"))
-    prefix = protocol.split(".", 1)[0]
-    if prefix in _DOMAIN_ALIASES:
-        return _DOMAIN_ALIASES[prefix]
     try:
-        return ResearchLayer(prefix)
-    except ValueError as exc:
-        raise ChassisIdentityError(
-            f"component protocol domain {prefix!r} is not a ResearchLayer"
-        ) from exc
+        return ResearchLayer(_core_component_domain(manifest))
+    except (ComponentManifestError, ValueError) as exc:
+        raise ChassisIdentityError(str(exc)) from exc
 
 
 def component_domain(component: ComponentSpec) -> ResearchLayer:
@@ -130,18 +107,10 @@ def component_semantic_surface_identity(
     )
     if not isinstance(manifest, Mapping):
         raise ChassisIdentityError("component semantic surface requires a manifest")
-    _component_manifest_identity(manifest)
-    domain = _component_domain_from_manifest(manifest)
-    return "component-surface:" + canonical_digest(
-        domain="component-semantic-surface",
-        payload={
-            "domain": domain.value,
-            "implementation": manifest["implementation"],
-            "schema": "component_semantic_surface.v1",
-            "semantic_dependencies": manifest["semantic_dependencies"],
-            "spec": manifest["spec"],
-        },
-    )
+    try:
+        return component_manifest_surfaces(manifest).domain_aware
+    except ComponentManifestError as exc:
+        raise ChassisIdentityError(str(exc)) from exc
 
 
 def _architecture_role_for_domain(domain: ResearchLayer) -> ArchitectureRole | None:
@@ -171,22 +140,10 @@ def _architecture_component_surface_identity(
     )
     if not isinstance(manifest, Mapping):
         raise ChassisIdentityError("architecture surface requires a component manifest")
-    _component_manifest_identity(manifest)
-    domain = _component_domain_from_manifest(manifest)
-    if domain not in _ROLE_DOMAINS[role]:
-        raise ChassisIdentityError(
-            "architecture component is assigned to the wrong semantic role"
-        )
-    return "architecture-component-surface:" + canonical_digest(
-        domain="architecture-component-semantic-surface",
-        payload={
-            "implementation": manifest["implementation"],
-            "role": role.value,
-            "schema": "architecture_component_semantic_surface.v1",
-            "semantic_dependencies": manifest["semantic_dependencies"],
-            "spec": manifest["spec"],
-        },
-    )
+    try:
+        return _core_architecture_surface(manifest, role=role.value)
+    except ComponentManifestError as exc:
+        raise ChassisIdentityError(str(exc)) from exc
 
 
 def architecture_component_semantic_surface_identity(
@@ -201,12 +158,10 @@ def architecture_component_semantic_surface_identity(
     )
     if not isinstance(manifest, Mapping):
         raise ChassisIdentityError("architecture surface requires a component manifest")
-    role = _architecture_role_for_domain(_component_domain_from_manifest(manifest))
-    if role is None:
-        raise ChassisIdentityError(
-            "component domain is outside the prediction-to-position architecture"
-        )
-    return _architecture_component_surface_identity(manifest, role=role)
+    try:
+        return _core_architecture_surface(manifest)
+    except ComponentManifestError as exc:
+        raise ChassisIdentityError(str(exc)) from exc
 
 
 def _semantic_surface(manifest: Mapping[str, object]) -> bytes:

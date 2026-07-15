@@ -8,10 +8,11 @@ requires one support artifact and one statistical artifact.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from functools import lru_cache
+from importlib import import_module
 from typing import Any
 
 from axiom_rift.core.identity import canonical_digest
-from axiom_rift.research import selection_inference as selection_module
 
 
 AUDIT_INTEGRITY_MODE = "audit_integrity"
@@ -81,6 +82,13 @@ class AuditIntegrityProofError(ValueError):
     """The P0 audit proof pair is absent, forged, or inconsistent."""
 
 
+@lru_cache(maxsize=1)
+def _selection_inference_module() -> Any:
+    """Load the numerical audit engine only when an audit proof is opened."""
+
+    return import_module("axiom_rift.research.selection_inference")
+
+
 def _ascii(name: str, value: object) -> str:
     if type(value) is not str or not value or not value.isascii():
         raise AuditIntegrityProofError(f"{name} must be non-empty ASCII")
@@ -128,6 +136,7 @@ def _ppm(name: str, value: object) -> int:
 
 
 def _typed_plan(raw_plan: Mapping[str, Any]) -> Any:
+    selection_module = _selection_inference_module()
     expected = {
         "alpha_ppm",
         "base_seed",
@@ -179,6 +188,7 @@ def _typed_plan(raw_plan: Mapping[str, Any]) -> Any:
 
 
 def _tail(raw: Mapping[str, Any], *, plan: Any, label: str) -> tuple[int, int]:
+    selection_module = _selection_inference_module()
     if set(raw) != {
         "exceedance_count",
         "monte_carlo_upper_pvalue_ppm",
@@ -201,6 +211,8 @@ def _tail(raw: Mapping[str, Any], *, plan: Any, label: str) -> tuple[int, int]:
 
 def validate_statistical_manifest(statistical: Mapping[str, Any]) -> dict[str, Any]:
     """Recalculate the compact statistical manifest from durable counts."""
+
+    selection_module = _selection_inference_module()
 
     if (
         set(statistical) != _STATISTICAL_FIELDS

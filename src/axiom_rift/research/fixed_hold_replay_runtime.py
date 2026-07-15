@@ -10,18 +10,26 @@ repository code and is selected by the callable entry point.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
-import axiom_rift.operations.writer as writer_module
-import axiom_rift.research.fixed_hold_family_job as fixed_hold_job_module
-import axiom_rift.research.replay_exposure as replay_exposure_module
-import axiom_rift.research.trials as trials_module
-import axiom_rift.storage.index as index_module
+import axiom_rift.research.validation_v2 as validation_v2_module
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.operations.validation import (
+    validator_execution_dependency_paths,
+)
+from axiom_rift.operations.running_job import (
+    RunningJobExecution,
+)
+from axiom_rift.operations.running_job_context import (
+    RunningJobEvidence,
+    RunningJobExecutionContext,
+    RunningJobFixedHoldReplayContext,
+    running_job_execution_context_dependency_paths,
+)
 from axiom_rift.research.fixed_hold_family_job import (
     FixedHoldFamilyJobPacket,
     FixedHoldFamilyJobPlan,
@@ -35,11 +43,12 @@ from axiom_rift.research.fixed_hold_family_job import (
 from axiom_rift.research.fixed_hold_family_trace import (
     FixedHoldProtocolDefinition,
 )
-from axiom_rift.research.replay_exposure import (
-    derive_frozen_family_exposure_context,
+from axiom_rift.research.historical_family_binding import (
+    HistoricalFamilyReplayContext,
+    HistoricalFamilySpec,
 )
-from axiom_rift.research.trials import TrialAccountant
-from axiom_rift.storage.index import LocalIndex
+from axiom_rift.research.replay_exposure import FrozenFamilyExposureContext
+from axiom_rift.storage.index import LocalIndexView
 
 
 DefinitionBuilder = Callable[[int], FixedHoldProtocolDefinition]
@@ -47,7 +56,60 @@ TraceBuilder = Callable[
     [Path, int],
     tuple[dict[str, object], dict[str, dict[str, int]]],
 ]
+BoundDefinitionBuilder = Callable[
+    [HistoricalFamilyReplayContext],
+    FixedHoldProtocolDefinition,
+]
+BoundTraceBuilder = Callable[
+    [Path, FixedHoldProtocolDefinition],
+    tuple[dict[str, object], dict[str, dict[str, int]]],
+]
 _THIS_FILE = Path(__file__).resolve()
+
+
+class FixedHoldRuntimeContext(Protocol):
+    """Exact capabilities available to a fixed-hold running Job."""
+
+    evidence: RunningJobEvidence
+    prior_global_multiplicity_floor: int
+
+    def project_bound_fixed_hold_family_exposure(
+        self,
+        *,
+        study_id: str,
+        batch_id: str,
+        subject_executable_id: str,
+        expected_family_size: int,
+        parameter_name: str | None,
+    ) -> FrozenFamilyExposureContext: ...
+
+    def project_bound_fixed_hold_replay_context(
+        self,
+        *,
+        study_id: str,
+        batch_id: str,
+        subject_executable_id: str,
+        expected_family_size: int,
+        parameter_name: str | None,
+    ) -> RunningJobFixedHoldReplayContext: ...
+
+    def verify_reproducible_cache_producer(
+        self,
+        producer: RunningJobExecution,
+        **kwargs: Any,
+    ) -> None: ...
+
+
+class FixedHoldRepairContext(Protocol):
+    """Management-only context for an interrupted implementation Repair."""
+
+    evidence: RunningJobEvidence
+
+    def open_stable_index(
+        self,
+    ) -> AbstractContextManager[
+        tuple[dict[str, Any], LocalIndexView]
+    ]: ...
 
 
 def _ascii(name: str, value: object) -> str:
@@ -77,8 +139,10 @@ class FixedHoldReplayRuntimeAdapter:
     component_source_paths: tuple[Path, ...]
     expected_family_size: int
     context_parameter_name: str
-    definition_builder: DefinitionBuilder
-    trace_builder: TraceBuilder
+    definition_builder: DefinitionBuilder | None = None
+    trace_builder: TraceBuilder | None = None
+    bound_definition_builder: BoundDefinitionBuilder | None = None
+    bound_trace_builder: BoundTraceBuilder | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -111,8 +175,16 @@ class FixedHoldReplayRuntimeAdapter:
             raise ValueError(
                 "Component sources must be contained in the runtime closure"
             )
-        if not callable(self.definition_builder) or not callable(self.trace_builder):
-            raise TypeError("fixed-hold runtime builders must be callable")
+        legacy_builders = callable(self.definition_builder) and callable(
+            self.trace_builder
+        )
+        bound_builders = callable(self.bound_definition_builder) and callable(
+            self.bound_trace_builder
+        )
+        if legacy_builders == bound_builders:
+            raise TypeError(
+                "fixed-hold adapter requires exactly one complete builder pair"
+            )
         object.__setattr__(self, "adapter_source_path", source)
         object.__setattr__(self, "dependency_paths", dependencies)
         object.__setattr__(self, "component_source_paths", components)
@@ -121,6 +193,10 @@ class FixedHoldReplayRuntimeAdapter:
         self,
         prior_global_exposure_count: int,
     ) -> FixedHoldProtocolDefinition:
+        if self.definition_builder is None:
+            raise RuntimeError(
+                "prospective replay definition requires Writer-bound family data"
+            )
         value = self.definition_builder(prior_global_exposure_count)
         if not isinstance(value, FixedHoldProtocolDefinition):
             raise TypeError("runtime adapter returned an untyped definition")
@@ -133,27 +209,64 @@ class FixedHoldReplayRuntimeAdapter:
         repository_root: Path,
         prior_global_exposure_count: int,
     ) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
+        if self.trace_builder is None:
+            raise RuntimeError(
+                "prospective replay trace requires Writer-bound family data"
+            )
         return self.trace_builder(repository_root, prior_global_exposure_count)
+
+    def definition_from_context(
+        self,
+        context: HistoricalFamilyReplayContext,
+    ) -> FixedHoldProtocolDefinition:
+        """Build a prospective definition from authenticated data only."""
+
+        if not isinstance(context, HistoricalFamilyReplayContext):
+            raise TypeError("Writer-bound replay context is not typed")
+        if self.bound_definition_builder is None:
+            raise RuntimeError(
+                "historical compatibility adapter is not prospectively executable"
+            )
+        value = self.bound_definition_builder(context)
+        if not isinstance(value, FixedHoldProtocolDefinition):
+            raise TypeError("runtime adapter returned an untyped definition")
+        if value.family != context.family:
+            raise ValueError("runtime definition replaced its Writer-bound family")
+        if value.family.family_size != self.expected_family_size:
+            raise ValueError("runtime definition family size drifted")
+        return value
+
+    def compute_trace_from_definition(
+        self,
+        repository_root: Path,
+        definition: FixedHoldProtocolDefinition,
+    ) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
+        """Compute one trace from the exact already-checked definition."""
+
+        if self.bound_trace_builder is None:
+            raise RuntimeError(
+                "historical compatibility adapter is not prospectively executable"
+            )
+        if (
+            not isinstance(definition, FixedHoldProtocolDefinition)
+            or not isinstance(definition.family, HistoricalFamilySpec)
+            or definition.family.family_size != self.expected_family_size
+        ):
+            raise TypeError("Writer-bound fixed-hold definition is invalid")
+        return self.bound_trace_builder(repository_root, definition)
 
 
 def fixed_hold_replay_runtime_dependency_paths(
     adapter: FixedHoldReplayRuntimeAdapter,
 ) -> tuple[Path, ...]:
-    """Return the exact source closure opened by this runtime."""
+    """Return the centrally inferred exact source closure for this runtime."""
 
-    return tuple(
-        sorted(
-            {
-                _THIS_FILE,
-                Path(writer_module.__file__).resolve(),
-                Path(fixed_hold_job_module.__file__).resolve(),
-                Path(replay_exposure_module.__file__).resolve(),
-                Path(trials_module.__file__).resolve(),
-                Path(index_module.__file__).resolve(),
-                *adapter.dependency_paths,
-            },
-            key=lambda value: value.as_posix(),
-        )
+    return validator_execution_dependency_paths(
+        _THIS_FILE,
+        (
+            *running_job_execution_context_dependency_paths(),
+            *adapter.dependency_paths,
+        ),
     )
 
 
@@ -162,9 +275,19 @@ def fixed_hold_replay_job_implementation_artifact(
 ) -> bytes:
     """Return a portable source closure for one code-selected adapter."""
 
+    return _fixed_hold_replay_job_implementation_artifact(
+        adapter,
+        fixed_hold_replay_runtime_dependency_paths(adapter),
+    )
+
+
+def _fixed_hold_replay_job_implementation_artifact(
+    adapter: FixedHoldReplayRuntimeAdapter,
+    dependency_paths: tuple[Path, ...],
+) -> bytes:
     source_root = _THIS_FILE.parents[2]
     dependencies: list[dict[str, str]] = []
-    for path in fixed_hold_replay_runtime_dependency_paths(adapter):
+    for path in dependency_paths:
         if not path.is_file():
             raise RuntimeError("fixed-hold runtime dependency is unavailable")
         try:
@@ -185,13 +308,21 @@ def fixed_hold_replay_job_implementation_artifact(
     )
 
 
-def _implementation_manifest(adapter: FixedHoldReplayRuntimeAdapter) -> bytes:
+def _implementation_manifest(
+    adapter: FixedHoldReplayRuntimeAdapter,
+    dependency_paths: tuple[Path, ...] | None = None,
+) -> bytes:
+    dependencies = (
+        fixed_hold_replay_runtime_dependency_paths(adapter)
+        if dependency_paths is None
+        else dependency_paths
+    )
     closure_hash = sha256(
-        fixed_hold_replay_job_implementation_artifact(adapter)
+        _fixed_hold_replay_job_implementation_artifact(adapter, dependencies)
     ).hexdigest()
     dependency_hashes = {
         sha256(path.read_bytes()).hexdigest()
-        for path in fixed_hold_replay_runtime_dependency_paths(adapter)
+        for path in dependencies
     }
     return canonical_bytes(
         {
@@ -210,17 +341,20 @@ def fixed_hold_replay_job_implementation_sha256(
 
 
 def materialize_fixed_hold_replay_job_implementation(
-    writer: StateWriter,
+    writer: FixedHoldRuntimeContext,
     *,
     adapter: FixedHoldReplayRuntimeAdapter,
 ) -> str:
     """Store every source byte in the exact runtime closure."""
 
-    closure = fixed_hold_replay_job_implementation_artifact(adapter)
+    dependency_paths = fixed_hold_replay_runtime_dependency_paths(adapter)
+    closure = _fixed_hold_replay_job_implementation_artifact(
+        adapter,
+        dependency_paths,
+    )
     closure_artifact = writer.evidence.finalize(closure)
     if closure_artifact.sha256 != sha256(closure).hexdigest():
         raise RuntimeError("fixed-hold runtime closure identity drifted")
-    dependency_paths = fixed_hold_replay_runtime_dependency_paths(adapter)
     dependency_hashes = tuple(
         sorted(
             writer.evidence.finalize(path.read_bytes()).sha256
@@ -235,37 +369,42 @@ def materialize_fixed_hold_replay_job_implementation(
     )
     if dependency_hashes != expected_dependency_hashes:
         raise RuntimeError("fixed-hold runtime dependency identity drifted")
-    manifest = _implementation_manifest(adapter)
+    manifest = _implementation_manifest(
+        adapter,
+        dependency_paths=dependency_paths,
+    )
     implementation = writer.evidence.finalize(manifest)
-    expected = fixed_hold_replay_job_implementation_sha256(adapter)
+    expected = sha256(manifest).hexdigest()
     if implementation.sha256 != expected:
         raise RuntimeError("fixed-hold runtime implementation identity drifted")
     return implementation.sha256
 
 
 def materialize_running_job_implementation_repair_proof(
-    writer: StateWriter,
+    writer: FixedHoldRepairContext,
     *,
     adapter: FixedHoldReplayRuntimeAdapter,
     explanation: str,
+    verification_evidence_hashes: tuple[str, ...],
 ) -> str:
-    """Bind a repaired source closure to one interrupted running Job."""
+    """Bind a repaired closure and independent verification to one Job."""
 
     reason = _ascii("running Job Repair explanation", explanation)
-    control = writer.read_control()
-    science = None if control is None else control.get("scientific")
-    repair = None if not isinstance(science, Mapping) else science.get(
-        "active_repair"
-    )
-    job = None if not isinstance(science, Mapping) else science.get("active_job")
-    if (
-        not isinstance(repair, Mapping)
-        or not isinstance(job, Mapping)
-        or job.get("status") != "interrupted_repair"
-        or repair.get("job_id") != job.get("id")
-    ):
-        raise ValueError("implementation Repair requires one interrupted Job")
-    with LocalIndex(writer.index_path) as index:
+    with writer.open_stable_index() as (control, index):
+        science = control.get("scientific")
+        repair = None if not isinstance(science, Mapping) else science.get(
+            "active_repair"
+        )
+        job = (
+            None if not isinstance(science, Mapping) else science.get("active_job")
+        )
+        if (
+            not isinstance(repair, Mapping)
+            or not isinstance(job, Mapping)
+            or job.get("status") != "interrupted_repair"
+            or repair.get("job_id") != job.get("id")
+        ):
+            raise ValueError("implementation Repair requires one interrupted Job")
         declaration = index.get("job-declared", str(job["id"]))
         opened = index.get("repair-open", str(repair["id"]))
         prior_head = index.event_head(f"job-repair:{job['id']}")
@@ -282,6 +421,17 @@ def materialize_running_job_implementation_repair_proof(
     )
     if not isinstance(spec, Mapping) or not isinstance(reproduction, list):
         raise ValueError("implementation Repair provenance is unavailable")
+    verification_results = tuple(
+        sorted(set(verification_evidence_hashes))
+    )
+    if not verification_results or len(verification_results) != len(
+        verification_evidence_hashes
+    ):
+        raise ValueError(
+            "implementation Repair requires unique verification evidence"
+        )
+    for evidence_hash in verification_results:
+        writer.evidence.read_verified(evidence_hash)
     previous_identity = spec.get("implementation_identity")
     if prior_close is not None:
         previous_identity = prior_close.payload.get(
@@ -303,7 +453,7 @@ def materialize_running_job_implementation_repair_proof(
     ):
         raise ValueError("repaired implementation manifest is invalid")
     new_evidence = sorted({new_identity, *manifest["artifact_hashes"]})
-    proof = writer.evidence.finalize(
+    inner_proof = writer.evidence.finalize(
         canonical_bytes(
             {
                 "changed_dimension": "implementation",
@@ -319,7 +469,80 @@ def materialize_running_job_implementation_repair_proof(
             }
         )
     )
-    return proof.sha256
+    attempt_new_evidence = tuple(
+        sorted({inner_proof.sha256, *new_evidence})
+    )
+    check_plan = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "callable_identity": adapter.callable_identity,
+                "changed_dimension": "implementation",
+                "job_id": job["id"],
+                "new_basis_hash": new_identity,
+                "schema": "fixed_hold_repair_check_plan.v1",
+            }
+        )
+    )
+    verification_receipt = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "cause_hash": repair["cause_hash"],
+                "changed_dimension": "implementation",
+                "check_plan_hash": check_plan.sha256,
+                "job_hash": job["hash"],
+                "job_id": job["id"],
+                "new_basis_hash": new_identity,
+                "outcome": "repaired",
+                "repair_id": repair["id"],
+                "result_artifact_hashes": list(verification_results),
+                "resume_action": repair["resume_action"],
+                "schema": "repair_verification_receipt.v1",
+                "scientific_semantics_changed": False,
+                "verdict": "passed",
+                "verification_method": (
+                    "fixed-hold affected-surface verification"
+                ),
+            }
+        )
+    )
+    verification = (verification_receipt.sha256,)
+    if set(reproduction).intersection(attempt_new_evidence) or set(
+        reproduction
+    ).intersection(
+        {check_plan.sha256, *verification_results, *verification}
+    ) or set(attempt_new_evidence).intersection(
+        {check_plan.sha256, *verification_results, *verification}
+    ):
+        raise ValueError(
+            "implementation Repair evidence surfaces must be distinct"
+        )
+    attempt = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "cause_hash": repair["cause_hash"],
+                "changed_dimension": "implementation",
+                "explanation": reason,
+                "failure_observation": None,
+                "implementation_proof_hash": inner_proof.sha256,
+                "job_hash": job["hash"],
+                "job_id": job["id"],
+                "new_basis_hash": new_identity,
+                "new_evidence_hashes": list(attempt_new_evidence),
+                "outcome": "repaired",
+                "previous_basis_hash": repair["latest_basis_hash"],
+                "prior_attempt_record_id": repair[
+                    "latest_attempt_record_id"
+                ],
+                "repair_id": repair["id"],
+                "reproduction_evidence_hashes": sorted(reproduction),
+                "resume_action": repair["resume_action"],
+                "schema": "running_job_repair_attempt.v1",
+                "scientific_semantics_changed": False,
+                "verification_evidence_hashes": list(verification),
+            }
+        )
+    )
+    return attempt.sha256
 
 
 def build_fixed_hold_replay_job_plan(
@@ -329,11 +552,34 @@ def build_fixed_hold_replay_job_plan(
     study_id: str,
     executable_id: str,
     historical_context_prior_global_exposure_count: int,
+    historical_family: HistoricalFamilySpec | None = None,
+    historical_family_authority_id: str | None = None,
+    replay_obligation_id: str | None = None,
 ) -> FixedHoldFamilyJobPlan:
-    return build_fixed_hold_family_job_plan(
-        definition=adapter.definition(
+    if historical_family is None:
+        definition = adapter.definition(
             historical_context_prior_global_exposure_count
-        ),
+        )
+    else:
+        if (
+            historical_family_authority_id is None
+            or replay_obligation_id is None
+        ):
+            raise ValueError(
+                "prospective plan requires exact historical family authority"
+            )
+        definition = adapter.definition_from_context(
+            HistoricalFamilyReplayContext(
+                family_authority_id=historical_family_authority_id,
+                replay_obligation_id=replay_obligation_id,
+                family=historical_family,
+                prior_global_exposure_count=(
+                    historical_context_prior_global_exposure_count
+                ),
+            )
+        )
+    return build_fixed_hold_family_job_plan(
+        definition=definition,
         artifact_namespace=adapter.artifact_namespace,
         mission_id=mission_id,
         study_id=study_id,
@@ -342,39 +588,79 @@ def build_fixed_hold_replay_job_plan(
 
 
 def registered_fixed_hold_replay_context(
-    writer: StateWriter,
+    writer: FixedHoldRuntimeContext,
     *,
     adapter: FixedHoldReplayRuntimeAdapter,
     binding: Mapping[str, object],
     subject_executable_id: str,
-) -> int:
-    """Recover the immutable context at the family's first trial sequence."""
+) -> RunningJobFixedHoldReplayContext:
+    """Recover typed family authority at the first trial sequence."""
 
     study_id = binding.get("study_id")
-    if type(study_id) is not str:
-        raise ValueError("fixed-hold replay Study binding is invalid")
-    with LocalIndex(writer.index_path) as index:
-        all_trials = tuple(index.records_by_kind("trial"))
-    prior_floor = TrialAccountant.from_foundation(
-        writer.foundation_root
-    ).prior_global_multiplicity_floor
-    context = derive_frozen_family_exposure_context(
-        trials=all_trials,
-        prior_global_exposure_floor=prior_floor,
+    batch_id = binding.get("batch_id")
+    if type(study_id) is not str or type(batch_id) is not str:
+        raise ValueError("fixed-hold replay Study or Batch binding is invalid")
+    prior_floor = writer.prior_global_multiplicity_floor
+    if type(prior_floor) is not int or prior_floor < 0:
+        raise ValueError("fixed-hold prior multiplicity floor is invalid")
+    context = writer.project_bound_fixed_hold_replay_context(
         study_id=study_id,
+        batch_id=batch_id,
+        subject_executable_id=subject_executable_id,
         expected_family_size=adapter.expected_family_size,
         parameter_name=adapter.context_parameter_name,
-        allow_unregistered=False,
     )
-    family_ids = set(context.family_executable_ids)
-    if subject_executable_id not in family_ids:
+    exposure = context.exposure
+    if exposure.prior_global_exposure_count < prior_floor:
+        raise ValueError("fixed-hold family predates its Foundation floor")
+    registered_ids = exposure.family_executable_ids
+    if subject_executable_id not in context.batch_family_executable_ids:
         raise ValueError("fixed-hold replay subject is outside its family")
-    definition = adapter.definition(context.prior_global_exposure_count)
-    if family_ids != set(definition.prospective_executable_ids):
+    definition = adapter.definition_from_context(
+        HistoricalFamilyReplayContext(
+            family_authority_id=context.family_authority_id,
+            replay_obligation_id=context.replay_obligation_id,
+            family=context.family,
+            prior_global_exposure_count=(
+                exposure.prior_global_exposure_count
+            ),
+        )
+    )
+    expected_bindings = tuple(
+        (
+            prospective_id,
+            member.historical_reference_executable_id,
+        )
+        for prospective_id, member in zip(
+            definition.prospective_executable_ids,
+            definition.family.members,
+            strict=True,
+        )
+    )
+    target_ordinal = next(
+        member.ordinal
+        for member in definition.family.members
+        if member.historical_reference_executable_id
+        == definition.family.target_historical_executable_id
+    )
+    expected_target = (
+        None
+        if len(registered_ids) < target_ordinal
+        else definition.prospective_executable_ids[target_ordinal - 1]
+    )
+    if (
+        registered_ids
+        != definition.prospective_executable_ids[: len(registered_ids)]
+        or context.registered_member_bindings
+        != expected_bindings[: len(registered_ids)]
+        or context.target_prospective_executable_id != expected_target
+        or context.batch_family_executable_ids
+        != tuple(sorted(definition.prospective_executable_ids))
+    ):
         raise ValueError(
             "fixed-hold replay family differs from its frozen context"
         )
-    return context.prior_global_exposure_count
+    return context
 
 
 def execute_fixed_hold_replay_job(
@@ -386,8 +672,8 @@ def execute_fixed_hold_replay_job(
     """Execute one exact family member under a Writer-issued capability."""
 
     root = Path(repository_root).resolve()
-    writer = StateWriter(root)
-    binding = writer.verify_running_job_execution(
+    running_job_context = RunningJobExecutionContext(root)
+    binding = running_job_context.verify_running_job_execution(
         execution,
         expected_callable_identity=adapter.callable_identity,
     )
@@ -398,18 +684,24 @@ def execute_fixed_hold_replay_job(
     if not isinstance(subject, Mapping) or subject.get("kind") != "Executable":
         raise ValueError("fixed-hold Job subject is invalid")
     subject_id = str(subject.get("id"))
-    historical_count = registered_fixed_hold_replay_context(
-        writer,
+    replay_context = registered_fixed_hold_replay_context(
+        running_job_context,
         adapter=adapter,
         binding=binding,
         subject_executable_id=subject_id,
     )
+    historical_count = replay_context.exposure.prior_global_exposure_count
     scoped_plan = build_fixed_hold_replay_job_plan(
         adapter=adapter,
         mission_id=str(binding["mission_id"]),
         study_id=str(binding["study_id"]),
         executable_id=subject_id,
         historical_context_prior_global_exposure_count=historical_count,
+        historical_family=replay_context.family,
+        historical_family_authority_id=(
+            replay_context.family_authority_id
+        ),
+        replay_obligation_id=replay_context.replay_obligation_id,
     )
     if (
         binding.get("effective_implementation_identity")
@@ -430,7 +722,10 @@ def execute_fixed_hold_replay_job(
     if scoped_plan.produces_family_cache:
         if tuple(sorted(input_hashes)) != scoped_plan.job_input_hashes():
             raise ValueError("fixed-hold producer inputs drifted")
-        neutral, _ = adapter.compute_trace(root, historical_count)
+        neutral, _ = adapter.compute_trace_from_definition(
+            root,
+            scoped_plan.definition,
+        )
         family_cache = fixed_hold_family_cache(
             scoped_plan=scoped_plan,
             neutral_trace=neutral,
@@ -448,7 +743,7 @@ def execute_fixed_hold_replay_job(
             producer_trace_hash,
             provenance,
         ) = verify_fixed_hold_cache_producer(
-            writer,
+            running_job_context,
             scoped_plan=scoped_plan,
             repository_root=root,
             input_hashes=input_hashes,
@@ -466,12 +761,17 @@ def execute_fixed_hold_replay_job(
 
     neutral = family_cache.trace(scoped_plan.definition)
     outputs, adjudication_state = materialize_fixed_hold_evidence(
-        writer=writer,
+        writer=running_job_context,
         scoped_plan=scoped_plan,
         execution=execution,
         neutral_trace=neutral,
+        shared_trace_sha256=family_cache.sha256,
     )
     if scoped_plan.produces_family_cache:
+        if outputs[scoped_plan.output_names["trace"]] != family_cache.sha256:
+            raise ValueError(
+                "fixed-hold producer trace must share the exact cache identity"
+            )
         provenance = build_fixed_hold_cache_provenance(
             scoped_plan=scoped_plan,
             execution=execution,
@@ -480,7 +780,9 @@ def execute_fixed_hold_replay_job(
         )
         outputs[scoped_plan.cache_output_name] = family_cache.sha256
         outputs[scoped_plan.cache_provenance_output_name] = (
-            writer.evidence.finalize(canonical_bytes(provenance)).sha256
+            running_job_context.evidence.finalize(
+                canonical_bytes(provenance)
+            ).sha256
         )
     if set(outputs) != set(scoped_plan.expected_outputs()):
         raise ValueError("fixed-hold Job materialized undeclared outputs")
@@ -492,7 +794,9 @@ def execute_fixed_hold_replay_job(
 
 __all__ = [
     "DefinitionBuilder",
+    "FixedHoldRepairContext",
     "FixedHoldReplayRuntimeAdapter",
+    "FixedHoldRuntimeContext",
     "TraceBuilder",
     "build_fixed_hold_replay_job_plan",
     "execute_fixed_hold_replay_job",

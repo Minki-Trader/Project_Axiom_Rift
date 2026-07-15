@@ -10,6 +10,11 @@ from unittest.mock import patch
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.core.identity import ComponentSpec, ExecutableSpec, canonical_digest
 from axiom_rift.operations.permits import PermitAuthority, PermitError, PermitKind, SubjectKind
+from axiom_rift.operations.running_job import RunningJobAuthority
+from axiom_rift.operations.external_observed_development_binding import (
+    external_observed_development_job_binding,
+    require_current_external_observed_development_job_binding,
+)
 from axiom_rift.operations.study_close_delivery import StudyCloseGuardCapability
 from axiom_rift.operations.external_dependency import (
     ExternalChangeEvidence,
@@ -25,21 +30,30 @@ from axiom_rift.operations.writer import (
     RunningJobExecution,
     StateWriter,
     TransitionError,
+    _job_requires_current_source_authority,
     _require_study_evidence_modes,
     _terminal_scientific_evidence_modes,
 )
 from axiom_rift.operations.validation import (
+    ENGINEERING_RETRY_VALIDATOR_ID,
     ENGINEERING_RUNTIME_PLAN_HASH,
     ENGINEERING_VALIDATOR_ID,
+    EngineeringFixtureValidator,
     EvidenceValidationError,
     EvidenceValidatorRegistry,
 )
 from tests.operations.fixture_validators import (
     ComponentParityFixtureValidator,
+    EngineeringRetryBoundaryFixtureValidator,
     ExternalFixtureValidator,
+    RUNTIME_BOUNDARY_PLAN_HASH,
+    RuntimeBoundaryFixtureValidator,
     ScientificFixtureValidator,
+    SOURCE_BOUNDARY_PLAN_HASH,
+    SourceBoundaryFixtureValidator,
 )
 from axiom_rift.research.sources import (
+    RuntimeSourceDriftObservation,
     SourceContract,
     SourceContractError,
     SourceEligibility,
@@ -50,13 +64,28 @@ from axiom_rift.research.sources import (
 )
 from axiom_rift.research.portfolio import (
     BatchSpec,
+    ConcurrentFamilyEvaluationMode,
+    ConcurrentFamilyManifest,
+    DecisionBasisRecord,
+    DecisionLens,
+    DecisionLensAssessment,
+    DecisionLensPosition,
     DecisionOption,
     PortfolioAction,
     PortfolioAxis as _PortfolioAxis,
     PortfolioDecision,
     PortfolioSnapshot,
+    QuantTeamDecisionReview,
+)
+from axiom_rift.research.study_continuation import (
+    StopRuleState,
+    StudyContinuationDecision,
+    StudyContinuationError,
+    StudyContinuationOutcome,
 )
 from axiom_rift.research.governance import (
+    ArchitectureContinuationDirection,
+    ArchitectureContinuationMode,
     ArchitectureReview,
     ArchitectureReviewConclusion,
     DiagnosisConfidence,
@@ -108,6 +137,10 @@ from axiom_rift.research.scientific_study import (
 )
 from axiom_rift.storage.journal import JournalIntegrityError, TornJournalError
 from axiom_rift.storage.index import IndexRecord, LocalIndex
+from axiom_rift.storage.state import control_hash
+from axiom_rift.runtime.source_lifecycle_coverage import (
+    derive_source_lifecycle_coverage,
+)
 from axiom_rift.runtime.guards import (
     EvidenceDepth,
     REQUIRED_CASES,
@@ -158,6 +191,12 @@ def legacy_scientific_fixture_foundation(root: Path) -> Path:
         destination.write_bytes(content)
     if replacements != 2:
         raise AssertionError("legacy scientific fixture authority marker count drifted")
+    source_relative = Path(
+        "src/axiom_rift/research/implementation_closure.py"
+    )
+    source_destination = target / source_relative
+    source_destination.parent.mkdir(parents=True, exist_ok=True)
+    source_destination.write_bytes((REPO_ROOT / source_relative).read_bytes())
     return target
 
 
@@ -309,6 +348,136 @@ def record_fixture_study_diagnosis(
     return diagnosis
 
 
+def quant_team_review_for_current_action(
+    writer: StateWriter,
+    *,
+    options: tuple[DecisionOption, ...],
+    chosen_option_id: str,
+) -> QuantTeamDecisionReview:
+    """Build a compact real-work review from the Writer's durable action bases."""
+
+    control = writer.read_control()
+    assert control is not None
+    next_action = control["next_action"]
+    snapshot_id = next_action.get("portfolio_snapshot_id")
+    assert isinstance(snapshot_id, str)
+    bases = [
+        DecisionBasisRecord(
+            kind="portfolio-snapshot",
+            record_id=snapshot_id,
+        )
+    ]
+    diagnosis_id = next_action.get("study_diagnosis_id")
+    if isinstance(diagnosis_id, str):
+        bases.append(
+            DecisionBasisRecord(
+                kind="study-diagnosis",
+                record_id=diagnosis_id,
+            )
+        )
+    architecture_review_id = next_action.get("architecture_review_id")
+    if isinstance(architecture_review_id, str):
+        bases.append(
+            DecisionBasisRecord(
+                kind="architecture-review",
+                record_id=architecture_review_id,
+            )
+        )
+    architecture_trigger_id = next_action.get("architecture_review_trigger_id")
+    if isinstance(architecture_trigger_id, str):
+        bases.append(
+            DecisionBasisRecord(
+                kind="architecture-review-trigger",
+                record_id=architecture_trigger_id,
+            )
+        )
+    for covered_diagnosis_id in next_action.get("covered_diagnosis_ids", []):
+        bases.append(
+            DecisionBasisRecord(
+                kind="study-diagnosis",
+                record_id=covered_diagnosis_id,
+            )
+        )
+    for obligation_id in next_action.get("replay_obligation_ids", []):
+        bases.append(
+            DecisionBasisRecord(
+                kind="historical-replay-obligation",
+                record_id=obligation_id,
+            )
+        )
+    basis_records = tuple(sorted(bases, key=lambda item: item.sort_key))
+    option_ids = tuple(sorted(option.option_id for option in options))
+    return QuantTeamDecisionReview(
+        assessments=(
+            DecisionLensAssessment(
+                lens=DecisionLens.CAUSALITY,
+                position=DecisionLensPosition.SUPPORT,
+                option_ids=option_ids,
+                basis_records=basis_records,
+                finding="the chosen branch isolates its registered causal question",
+            ),
+            DecisionLensAssessment(
+                lens=DecisionLens.RISK,
+                position=DecisionLensPosition.UNCERTAIN,
+                option_ids=(chosen_option_id,),
+                basis_records=basis_records,
+                finding="one Batch delays but does not retire the risk alternative",
+            ),
+        ),
+        claim_boundary="allocation only; no scientific or candidate authority",
+        resolution_basis="bounded information gain exceeds one Batch opportunity cost",
+        disagreement_resolution="retain the risk alternative in the live forest",
+    )
+
+
+def study_continuation_review(
+    *,
+    snapshot_id: str,
+    batch_close_record_id: str,
+    completion_record_ids: tuple[str, ...],
+) -> QuantTeamDecisionReview:
+    bases = [
+        DecisionBasisRecord(
+            kind="batch-close",
+            record_id=batch_close_record_id,
+        ),
+        DecisionBasisRecord(
+            kind="portfolio-snapshot",
+            record_id=snapshot_id,
+        ),
+        *(
+            DecisionBasisRecord(
+                kind="job-completed",
+                record_id=completion_id,
+            )
+            for completion_id in completion_record_ids
+        ),
+    ]
+    basis_records = tuple(sorted(bases, key=lambda item: item.sort_key))
+    option_ids = ("close-study", "continue-study")
+    return QuantTeamDecisionReview(
+        assessments=(
+            DecisionLensAssessment(
+                lens=DecisionLens.CAUSALITY,
+                position=DecisionLensPosition.SUPPORT,
+                option_ids=option_ids,
+                basis_records=basis_records,
+                finding="the unchanged Study question can isolate one more Batch",
+            ),
+            DecisionLensAssessment(
+                lens=DecisionLens.ECONOMICS,
+                position=DecisionLensPosition.UNCERTAIN,
+                option_ids=option_ids,
+                basis_records=basis_records,
+                finding="one more Batch has bounded forest opportunity cost",
+            ),
+        ),
+        claim_boundary="continuation allocation only; no scientific promotion",
+        resolution_basis="durable Batch evidence retains bounded information value",
+        disagreement_resolution="pre-bind one Batch and preserve every other axis",
+    )
+
+
 def digest(domain: str, value: object) -> str:
     return canonical_digest(domain=domain, payload=value)
 
@@ -320,24 +489,84 @@ def job_implementation_identity(
     revision: int = 1,
     component_hashes: tuple[str, ...] = (),
 ) -> str:
-    source = writer.evidence.finalize(
-        canonical_bytes(
-            {
-                "callable_identity": callable_identity,
-                "fixture_revision": revision,
-                "schema": "fixture_job_source.v1",
-            }
+    if writer.engineering_fixture:
+        source_bytes = (
+            f"# fixture revision {revision}\n"
+            "def fixture_job_entry(*args, **kwargs):\n"
+            f"    return {callable_identity!r}\n"
+        ).encode("ascii")
+        source_path = "tests/fixtures/job_entry.py"
+        shared_helper = writer.evidence.finalize(
+            b"def fixture_helper():\n    return 'helper'\n"
         )
-    )
+    else:
+        current_path = (
+            REPO_ROOT
+            / "src"
+            / "axiom_rift"
+            / "research"
+            / "implementation_closure.py"
+        )
+        source_bytes = current_path.read_bytes()
+        source_path = "axiom_rift/research/implementation_closure.py"
+        shared_helper = None
+    source = writer.evidence.finalize(source_bytes)
     for component_hash in component_hashes:
         artifact = writer.evidence.finalize(
             _FIXTURE_IMPLEMENTATION_BYTES[component_hash]
         )
         assert artifact.sha256 == component_hash
+    dependencies = [
+        {"path": source_path, "sha256": source.sha256},
+        *(
+            (
+                {
+                    "path": "tests/fixtures/shared_helper.py",
+                    "sha256": shared_helper.sha256,
+                },
+                {
+                    "path": "tests/fixtures/shared_helper_alias.py",
+                    "sha256": shared_helper.sha256,
+                },
+            )
+            if shared_helper is not None
+            else ()
+        ),
+        *(
+            {
+                "path": f"tests/fixtures/components/{ordinal:04d}.artifact",
+                "sha256": component_hash,
+            }
+            for ordinal, component_hash in enumerate(component_hashes)
+            if writer.engineering_fixture
+        ),
+    ]
+    closure = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "callable_identity": callable_identity,
+                "dependencies": sorted(
+                    dependencies, key=lambda item: item["path"]
+                ),
+                "schema": "job_implementation_source_closure.v1",
+            }
+        )
+    )
     manifest = writer.evidence.finalize(
         canonical_bytes(
             {
-                "artifact_hashes": sorted({source.sha256, *component_hashes}),
+                "artifact_hashes": sorted(
+                    {
+                        closure.sha256,
+                        source.sha256,
+                        *(
+                            (shared_helper.sha256,)
+                            if shared_helper is not None
+                            else ()
+                        ),
+                        *component_hashes,
+                    }
+                ),
                 "callable_identity": callable_identity,
                 "protocol": "python.source.fixture.v1",
                 "schema": "job_implementation_evidence.v1",
@@ -351,7 +580,14 @@ def job_spec(
     writer: StateWriter,
     evidence_subject: dict[str, str] | None = None,
 ) -> dict[str, object]:
-    callable_identity = "fixture.callable"
+    callable_identity = (
+        "fixture.callable"
+        if writer.engineering_fixture
+        else (
+            "axiom_rift.research.implementation_closure."
+            "require_current_job_source_closure.v1"
+        )
+    )
     subject = evidence_subject or {"kind": "Study", "id": "STU-FIXTURE"}
     component_hashes: tuple[str, ...] = ()
     if subject["kind"] == "Executable":
@@ -398,6 +634,303 @@ def job_spec(
     }
 
 
+def repair_attempt_proof(
+    writer: StateWriter,
+    *,
+    outcome: str,
+    changed_dimension: str,
+    new_basis_hash: str,
+    new_evidence_hashes: tuple[str, ...],
+    verification_evidence_hashes: tuple[str, ...],
+    implementation_proof_hash: str | None = None,
+) -> str:
+    control = writer.read_control()
+    assert control is not None
+    repair = control["scientific"]["active_repair"]
+    job = control["scientific"]["active_job"]
+    assert isinstance(repair, dict) and isinstance(job, dict)
+    with LocalIndex(writer.index_path) as index:
+        opened = index.get("repair-open", repair["id"])
+    assert opened is not None
+    check_plan = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "changed_dimension": changed_dimension,
+                "job_id": job["id"],
+                "new_basis_hash": new_basis_hash,
+                "schema": "fixture_repair_check_plan.v1",
+            }
+        )
+    )
+    verification_receipt = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "cause_hash": repair["cause_hash"],
+                "changed_dimension": changed_dimension,
+                "check_plan_hash": check_plan.sha256,
+                "job_hash": job["hash"],
+                "job_id": job["id"],
+                "new_basis_hash": new_basis_hash,
+                "outcome": outcome,
+                "repair_id": repair["id"],
+                "result_artifact_hashes": sorted(
+                    verification_evidence_hashes
+                ),
+                "resume_action": repair["resume_action"],
+                "schema": "repair_verification_receipt.v1",
+                "scientific_semantics_changed": False,
+                "verdict": (
+                    "passed"
+                    if outcome == "repaired"
+                    else "failure_reproduced"
+                ),
+                "verification_method": "fixture affected-surface check",
+            }
+        )
+    )
+    proof = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "cause_hash": repair["cause_hash"],
+                "changed_dimension": changed_dimension,
+                "explanation": "exercise exact changed-basis Repair evidence",
+                "failure_observation": (
+                    "changed basis still reproduces the engineering failure"
+                    if outcome == "failed"
+                    else None
+                ),
+                "implementation_proof_hash": implementation_proof_hash,
+                "job_hash": job["hash"],
+                "job_id": job["id"],
+                "new_basis_hash": new_basis_hash,
+                "new_evidence_hashes": sorted(new_evidence_hashes),
+                "outcome": outcome,
+                "previous_basis_hash": repair["latest_basis_hash"],
+                "prior_attempt_record_id": repair[
+                    "latest_attempt_record_id"
+                ],
+                "repair_id": repair["id"],
+                "reproduction_evidence_hashes": sorted(
+                    opened.payload["minimum_reproduction_evidence"]
+                ),
+                "resume_action": repair["resume_action"],
+                "schema": "running_job_repair_attempt.v1",
+                "scientific_semantics_changed": False,
+                "verification_evidence_hashes": sorted(
+                    [verification_receipt.sha256]
+                ),
+            }
+        )
+    )
+    return proof.sha256
+
+
+def engineering_failure_disposition(
+    writer: StateWriter,
+    *,
+    job_id: str,
+    evidence_hashes: tuple[str, ...],
+    repair_attempt_record_ids: tuple[str, ...] = (),
+    disposition: str = "requires_scientific_change",
+    cause_hash: str | None = None,
+) -> str:
+    control = writer.read_control()
+    assert control is not None
+    active_repair = control["scientific"]["active_repair"]
+    repair_id = (
+        active_repair["id"]
+        if isinstance(active_repair, dict)
+        else None
+    )
+    if cause_hash is None and isinstance(active_repair, dict):
+        cause_hash = active_repair["cause_hash"]
+    assert isinstance(cause_hash, str)
+    active_job = control["scientific"]["active_job"]
+    assert isinstance(active_job, dict) and active_job["id"] == job_id
+    attempt_entries: list[dict[str, object]] = []
+    reproduction_evidence_hashes = sorted(evidence_hashes)
+    with LocalIndex(writer.index_path) as index:
+        if isinstance(active_repair, dict):
+            opened = index.get("repair-open", active_repair["id"])
+            assert opened is not None
+            reproduction_evidence_hashes = sorted(
+                opened.payload["minimum_reproduction_evidence"]
+            )
+        for attempt_record_id in sorted(repair_attempt_record_ids):
+            attempt = index.get("repair-attempt", attempt_record_id)
+            assert attempt is not None
+            attempt_entries.append(
+                {
+                    "attempt_proof_hash": attempt.payload[
+                        "attempt_proof_hash"
+                    ],
+                    "changed_dimension": attempt.payload[
+                        "changed_dimension"
+                    ],
+                    "new_basis_hash": attempt.payload["new_basis_hash"],
+                    "repair_attempt_record_id": attempt.record_id,
+                    "verification_receipt_hashes": sorted(
+                        attempt.payload["verification_evidence_hashes"]
+                    ),
+                }
+            )
+    basis_by_disposition = {
+        "repair_exhausted_changed_causes": (
+            False,
+            False,
+            "not_applicable",
+            [],
+        ),
+        "repair_infeasible": (False, False, "not_applicable", []),
+        "repair_nonpositive_expected_value": (
+            True,
+            False,
+            "nonpositive",
+            ["remaining bounded repair cause"],
+        ),
+        "requires_scientific_change": (
+            False,
+            True,
+            "not_applicable",
+            [],
+        ),
+    }
+    repairable, semantic_change, expected_value, remaining = (
+        basis_by_disposition[disposition]
+    )
+    verification_results = {
+        "repair_exhausted_changed_causes": "changed_causes_exhausted",
+        "repair_infeasible": "repair_infeasible",
+        "repair_nonpositive_expected_value": "nonpositive_expected_value",
+        "requires_scientific_change": "scientific_change_required",
+    }
+    assessment_plan = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "cause_hash": cause_hash,
+                "disposition": disposition,
+                "job_hash": active_job["hash"],
+                "job_id": job_id,
+                "repair_attempt_record_ids": sorted(
+                    repair_attempt_record_ids
+                ),
+                "repair_id": repair_id,
+                "schema": "fixture_engineering_disposition_check.v1",
+            }
+        )
+    )
+    assessment_result = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "evidence_hashes": sorted(evidence_hashes),
+                "schema": "fixture_engineering_disposition_result.v1",
+                "verification_result": verification_results[disposition],
+            }
+        )
+    )
+    observation = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "cause_hash": cause_hash,
+                "check_plan_hash": assessment_plan.sha256,
+                "disposition": disposition,
+                "job_hash": active_job["hash"],
+                "job_id": job_id,
+                "minimum_reproduction_evidence_hashes": (
+                    reproduction_evidence_hashes
+                ),
+                "repair_attempts": sorted(
+                    attempt_entries,
+                    key=lambda item: item["repair_attempt_record_id"],
+                ),
+                "repair_id": repair_id,
+                "result_artifact_hashes": [assessment_result.sha256],
+                "schema": "engineering_failure_disposition_observation.v1",
+                "scientific_semantics_changed": False,
+                "verification_method": "fixture bounded recovery assessment",
+                "verification_result": verification_results[disposition],
+            }
+        )
+    )
+    basis = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "cause_hash": cause_hash,
+                "disposition": disposition,
+                "expected_value": expected_value,
+                "job_id": job_id,
+                "observation_manifest_hash": observation.sha256,
+                "remaining_changed_causes": remaining,
+                "repair_id": repair_id,
+                "repairable_without_scientific_change": repairable,
+                "schema": "engineering_failure_disposition_basis.v1",
+                "scientific_semantics_change_required": semantic_change,
+            }
+        )
+    )
+    artifact = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "basis_manifest_hash": basis.sha256,
+                "cause_hash": cause_hash,
+                "disposition": disposition,
+                "job_id": job_id,
+                "rationale": "repair would alter registered scientific semantics",
+                "repair_id": repair_id,
+                "repair_attempt_record_ids": sorted(
+                    repair_attempt_record_ids
+                ),
+                "resume_condition": "admit a new exact scientific work identity",
+                "schema": "engineering_failure_disposition.v1",
+                "successor_scope": (
+                    "study"
+                    if disposition == "requires_scientific_change"
+                    else None
+                ),
+            }
+        )
+    )
+    return artifact.sha256
+
+
+def engineering_retry_validation_artifacts(
+    writer: StateWriter,
+    *,
+    binding: dict[str, object],
+    validator_id: str,
+    resolved: bool = True,
+) -> tuple[str, list[str]]:
+    plan = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "operation": "canonical_required_transition",
+                "schema": "engineering_retry_fixture_plan.v1",
+            }
+        )
+    )
+    prior = {"binding": sha256(canonical_bytes(binding)).hexdigest(), "status": "failed"}
+    required = {
+        "binding": sha256(canonical_bytes(binding)).hexdigest(),
+        "status": "passed",
+    }
+    measurement = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "binding_sha256": sha256(
+                    canonical_bytes(binding)
+                ).hexdigest(),
+                "current_measurement": required if resolved else prior,
+                "prior_measurement": prior,
+                "required_measurement": required,
+                "schema": "engineering_retry_fixture_measurement.v1",
+            }
+        )
+    )
+    if not validator_id:
+        raise AssertionError("engineering retry fixture validator is absent")
+    return plan.sha256, [measurement.sha256]
+
+
 def runtime_job_spec(
     *,
     writer: StateWriter,
@@ -405,6 +938,8 @@ def runtime_job_spec(
     depth: EvidenceDepth,
     output_name: str,
     artifact_roles: tuple[str, ...],
+    validation_plan_hash: str = ENGINEERING_RUNTIME_PLAN_HASH,
+    validator_id: str = ENGINEERING_VALIDATOR_ID,
 ) -> dict[str, object]:
     spec = job_spec(writer, {"kind": "Executable", "id": executable_id})
     result_name = f"{output_name}-result"
@@ -424,7 +959,7 @@ def runtime_job_spec(
     }
     spec["input_hashes"] = [
         *spec["input_hashes"],  # type: ignore[list-item]
-        ENGINEERING_RUNTIME_PLAN_HASH,
+        validation_plan_hash,
     ]
     if depth is EvidenceDepth.EXECUTION_PROOF:
         action = "run_execution_proof"
@@ -436,16 +971,35 @@ def runtime_job_spec(
         cases = sorted(REQUIRED_CASES)
     else:
         raise AssertionError("fixture runtime depth is invalid")
+    lifecycle_coverage_ids: list[str] = []
+    if depth is EvidenceDepth.MATERIALIZATION:
+        with LocalIndex(writer.index_path) as index:
+            candidate_head = index.event_head(f"candidate:{executable_id}")
+            candidate = (
+                None
+                if candidate_head is None
+                else index.get(
+                    candidate_head.record_kind, candidate_head.record_id
+                )
+            )
+        if candidate is not None:
+            lifecycle_coverage_ids = [
+                row["coverage_id"]
+                for row in derive_source_lifecycle_coverage(
+                    candidate.payload["executable"]
+                )
+            ]
     spec["runtime_binding"] = {
         "action": action,
         "evidence_depth": depth.value,
         "planned_materialization_cases": cases,
         "planned_parity_surfaces": parity,
+        "planned_source_lifecycle_coverage_ids": lifecycle_coverage_ids,
         "result_manifest_output": result_name,
         "artifact_roles": role_outputs,
         "numeric_tolerances": {"default": "fixture_exact"},
-        "validation_plan_hash": ENGINEERING_RUNTIME_PLAN_HASH,
-        "validator_id": ENGINEERING_VALIDATOR_ID,
+        "validation_plan_hash": validation_plan_hash,
+        "validator_id": validator_id,
     }
     return spec
 
@@ -729,6 +1283,173 @@ class WriterTests(unittest.TestCase):
     def test_engineering_fixture_cannot_target_the_real_worktree(self) -> None:
         with self.assertRaises(TransitionError):
             StateWriter(REPO_ROOT, engineering_fixture=True)
+
+    def test_current_source_authority_policy_covers_every_job_subject(self) -> None:
+        for subject_kind in (
+            "Mission",
+            "Initiative",
+            "Study",
+            "Executable",
+            "Release",
+        ):
+            with self.subTest(subject_kind=subject_kind):
+                self.assertTrue(
+                    _job_requires_current_source_authority(
+                        engineering_fixture=False,
+                        evidence_subject_kind=subject_kind,
+                    )
+                )
+                self.assertFalse(
+                    _job_requires_current_source_authority(
+                        engineering_fixture=True,
+                        evidence_subject_kind=subject_kind,
+                    )
+                )
+        with self.assertRaisesRegex(TransitionError, "unsupported"):
+            _job_requires_current_source_authority(
+                engineering_fixture=False,
+                evidence_subject_kind="Unknown",
+            )
+        with self.assertRaisesRegex(TransitionError, "must be boolean"):
+            _job_requires_current_source_authority(
+                engineering_fixture=1,  # type: ignore[arg-type]
+                evidence_subject_kind="Study",
+            )
+
+    def test_writer_authority_and_budget_counters_reject_bool(self) -> None:
+        for event in (
+            {"sequence": True, "index_record_count": 1},
+            {"sequence": 1, "index_record_count": True},
+        ):
+            with self.assertRaises(JournalIntegrityError):
+                self.writer._assemble(event)
+        spec = job_spec(self.writer)
+        spec["budget"]["compute_seconds"] = True
+        with self.assertRaisesRegex(TransitionError, "positive integer"):
+            self.writer._validate_job_spec(spec)
+
+    def test_fixture_seed_direction_exemption_is_capability_and_shape_bound(
+        self,
+    ) -> None:
+        def seed_pending_diagnosis(writer: StateWriter, operation_id: str) -> None:
+            def prepare(current, _index):
+                assert current is not None
+                body = writer._body(current)
+                body["next_action"] = {
+                    "kind": "diagnose_study",
+                    "study_close_event_id": "d" * 64,
+                    "study_close_revision": 1,
+                    "study_id": "STU-0001",
+                }
+                return body, [], {"seeded": True}
+
+            writer._commit(
+                event_kind="direction_gate_test_seeded",
+                operation_id=operation_id,
+                subject="Test:direction-gate",
+                payload={"seeded": True},
+                prepare=prepare,
+            )
+
+        seed_pending_diagnosis(self.writer, "fixture-pending-diagnosis")
+
+        def unchanged(current, _index):
+            assert current is not None
+            return self.writer._body(current), [], {"seeded": True}
+
+        accepted = self.writer._commit(
+            event_kind="legacy_trial_fixture_seeded",
+            operation_id="accept-inventoried-fixture-seed",
+            subject="Executable:legacy",
+            payload={"trial_delta": 0},
+            prepare=unchanged,
+        )
+        self.assertFalse(accepted.reused)
+        for event_kind, subject, payload in (
+            ("arbitrary_fixture_seeded", "Executable:legacy", {"trial_delta": 0}),
+            ("legacy_trial_fixture_seeded", "Executable:forged", {"trial_delta": 0}),
+            ("legacy_trial_fixture_seeded", "Executable:legacy", {"trial_delta": True}),
+        ):
+            with self.subTest(
+                event_kind=event_kind,
+                subject=subject,
+                payload=payload,
+            ), self.assertRaisesRegex(TransitionError, "cannot bypass"):
+                self.writer._commit(
+                    event_kind=event_kind,
+                    operation_id=(
+                        "reject-fixture-seed-"
+                        + canonical_digest(
+                            domain="fixture-seed-rejection",
+                            payload={
+                                "event_kind": event_kind,
+                                "payload": payload,
+                                "subject": subject,
+                            },
+                        )
+                    ),
+                    subject=subject,
+                    payload=payload,
+                    prepare=unchanged,
+                )
+
+        with TemporaryDirectory() as root:
+            production = StateWriter(
+                root,
+                clock=lambda: FIXED_NOW,
+                engineering_fixture=False,
+                foundation_root=REPO_ROOT,
+            )
+            production.initialize_ready()
+            seed_pending_diagnosis(production, "production-pending-diagnosis")
+
+            def production_unchanged(current, _index):
+                assert current is not None
+                return production._body(current), [], {"bypassed": True}
+
+            with self.assertRaisesRegex(TransitionError, "cannot bypass"):
+                production._commit(
+                    event_kind="legacy_trial_fixture_seeded",
+                    operation_id="production-reject-inventoried-fixture-seed",
+                    subject="Executable:legacy",
+                    payload={"trial_delta": 0},
+                    prepare=production_unchanged,
+                )
+
+        source_id = "source:" + "a" * 64
+
+        class BoolSourceHeadIndex:
+            def __init__(self, *, authority: bool) -> None:
+                self.authority = authority
+
+            def event_head(self, stream: str) -> SimpleNamespace | None:
+                if stream.startswith("source-authority:"):
+                    if not self.authority:
+                        return None
+                    return SimpleNamespace(
+                        sequence=True,
+                        record_kind="source-authority-invalidation",
+                        record_id="invalid",
+                    )
+                return SimpleNamespace(
+                    sequence=True,
+                    record_kind="source-state",
+                    record_id="runtime",
+                )
+
+            @staticmethod
+            def get(_kind: str, _record_id: str) -> SimpleNamespace:
+                return SimpleNamespace(status="runtime_eligible")
+
+        for authority in (False, True):
+            with self.subTest(bool_source_head_authority=authority):
+                with self.assertRaisesRegex(
+                    TransitionError, "lacks current runtime provenance"
+                ):
+                    self.writer._require_runtime_source(
+                        BoolSourceHeadIndex(authority=authority),  # type: ignore[arg-type]
+                        source_id,
+                    )
 
     def test_stable_head_read_is_bounded_and_does_not_mutate_authority(self) -> None:
         control_before = self.writer.read_control()
@@ -1104,6 +1825,112 @@ class WriterTests(unittest.TestCase):
         with self.assertRaisesRegex(TransitionError, "cannot mix"):
             self.writer._validate_job_spec(spec)
 
+    def test_job_output_names_are_canonical_portable_and_lane_bound(self) -> None:
+        for output_name, output_class in (
+            ("./evidence/result.json", "durable_evidence"),
+            ("src/axiom_rift/result.json", "durable_evidence"),
+            ("evidence\\result.json", "durable_evidence"),
+            ("C:/evidence/result.json", "durable_evidence"),
+            ("evidence/CON.json", "durable_evidence"),
+            ("evidence/result./value.json", "durable_evidence"),
+            ("local/cache-only.json", "reproducible_cache"),
+            ("local/cache/value.json", "transient"),
+        ):
+            with self.subTest(output_name=output_name):
+                spec = job_spec(self.writer)
+                spec["expected_outputs"] = [output_name]
+                spec["output_classes"] = {output_name: output_class}
+                with self.assertRaises(TransitionError):
+                    self.writer._validate_job_spec(spec)
+
+        for output_name, output_class in (
+            ("evidence/result.json", "durable_evidence"),
+            ("scientific/STU-0001/result.json", "durable_evidence"),
+            ("source/us500/result.json", "durable_evidence"),
+            ("local/cache/value.json", "reproducible_cache"),
+            ("local/jobs/value.json", "transient"),
+        ):
+            with self.subTest(valid_output_name=output_name):
+                spec = job_spec(self.writer)
+                spec["expected_outputs"] = [output_name]
+                spec["output_classes"] = {output_name: output_class}
+                self.writer._validate_job_spec(spec)
+
+        for log_path in (
+            "../escape.log",
+            "local\\jobs\\alias.log",
+            "C:/local/jobs/drive.log",
+            "local/jobs/CON.log",
+            "local/cache/not-a-job.log",
+        ):
+            with self.subTest(log_path=log_path):
+                spec = job_spec(self.writer)
+                spec["log_path"] = log_path
+                with self.assertRaises(TransitionError):
+                    self.writer._validate_job_spec(spec)
+
+        valid_log = job_spec(self.writer)
+        valid_log["log_path"] = "local/jobs/research/member-01.log"
+        self.writer._validate_job_spec(valid_log)
+
+    def test_job_outputs_and_worker_claims_reject_casefold_aliases(self) -> None:
+        spec = job_spec(self.writer)
+        spec["expected_outputs"] = [
+            "evidence/Result.json",
+            "evidence/result.json",
+        ]
+        spec["output_classes"] = {
+            output_name: "durable_evidence"
+            for output_name in spec["expected_outputs"]
+        }
+        with self.assertRaisesRegex(TransitionError, "case-insensitive"):
+            self.writer._validate_job_spec(spec)
+
+        claim_alias = job_spec(self.writer)
+        claim_alias["worker_claims"][0]["outputs"] = ["Build/Result.json"]
+        claim_alias["worker_claims"][1]["outputs"] = ["build/result.json"]
+        with self.assertRaisesRegex(TransitionError, "worker outputs overlap"):
+            self.writer._validate_job_spec(claim_alias)
+
+        for claim_key, left, right in (
+            ("inputs", "Input-A", "input-a"),
+            ("resources", "CPU-A", "cpu-a"),
+        ):
+            with self.subTest(claim_key=claim_key):
+                logical_alias = job_spec(self.writer)
+                logical_alias["worker_claims"][0][claim_key] = [left]
+                logical_alias["worker_claims"][1][claim_key] = [right]
+                with self.assertRaisesRegex(
+                    TransitionError, f"worker {claim_key} overlap"
+                ):
+                    self.writer._validate_job_spec(logical_alias)
+
+        worker_alias = job_spec(self.writer)
+        worker_alias["worker_claims"][0]["worker_id"] = "Worker-A"
+        worker_alias["worker_claims"][1]["worker_id"] = "worker-a"
+        with self.assertRaisesRegex(TransitionError, "worker_id values"):
+            self.writer._validate_job_spec(worker_alias)
+
+        for claim_key, invalid in (
+            ("inputs", ""),
+            ("inputs", "input/path"),
+            ("resources", "cpu:0"),
+            ("resources", "cpu space"),
+        ):
+            with self.subTest(claim_key=claim_key, invalid=invalid):
+                invalid_claim = job_spec(self.writer)
+                invalid_claim["worker_claims"][0][claim_key] = [invalid]
+                with self.assertRaisesRegex(TransitionError, "logical identifier"):
+                    self.writer._validate_job_spec(invalid_claim)
+
+        work_shard_labels = job_spec(self.writer)
+        self.assertFalse(
+            set(work_shard_labels["worker_claims"][0]["outputs"]).issubset(
+                work_shard_labels["expected_outputs"]
+            )
+        )
+        self.writer._validate_job_spec(work_shard_labels)
+
     def test_scientific_validator_excludes_auxiliary_durable_outputs(self) -> None:
         plan = self.writer.evidence.finalize(
             canonical_bytes(
@@ -1148,6 +1975,418 @@ class WriterTests(unittest.TestCase):
             ),
         )
         self.assertNotIn("evidence/cache-provenance.json", routed)
+
+    def test_scientific_completion_preserves_exact_multiplicity_registration(
+        self,
+    ) -> None:
+        job_id = "job:" + "1" * 64
+        job_hash = "2" * 64
+        executable_id = "executable:" + "3" * 64
+        claim_id = "selection-control"
+        members = (
+            executable_id,
+            "executable:" + "4" * 64,
+            "executable:" + "5" * 64,
+        )
+        family_id = "selection-family"
+        family_hash = canonical_digest(
+            domain="scientific-v2-multiplicity-family",
+            payload={
+                "alpha_ppm": 100_000,
+                "family_id": family_id,
+                "family_size": len(members),
+                "method": "bonferroni_concurrent_family.v1",
+                "ordered_member_ids": list(members),
+                "schema": "scientific_multiplicity_family_registration.v1",
+            },
+        )
+        registration = {
+            "alpha_ppm": 100_000,
+            "criterion_id": "E01-familywise-selection",
+            "family_id": family_id,
+            "family_registration_hash": family_hash,
+            "family_size": len(members),
+            "member_id": executable_id,
+            "method": "bonferroni_concurrent_family.v1",
+            "ordered_member_ids": list(members),
+        }
+        plan = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "adjudication_profile": {
+                        "multiplicity": [registration]
+                    },
+                    "executable_id": executable_id,
+                    "mission_id": "MIS-FIXTURE",
+                    "schema": "scientific_validation_plan.v2",
+                }
+            )
+        )
+        concurrent_family = ConcurrentFamilyManifest(
+            evaluation_mode=ConcurrentFamilyEvaluationMode.CONCURRENT,
+            executable_ids=members,
+        )
+        batch_record = IndexRecord(
+            kind="batch-open",
+            record_id="batch:" + "7" * 64,
+            subject="Study:STU-FIXTURE",
+            status="open",
+            fingerprint="7" * 64,
+            payload={
+                "spec": {
+                    "acceptance_profile": {
+                        "concurrent_family": (
+                            concurrent_family.to_identity_payload()
+                        )
+                    },
+                    "max_trials": len(members),
+                }
+            },
+        )
+        measurement = self.writer.evidence.finalize(b"v2 measurement")
+        result = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "evidence_depth": "discovery",
+                    "executable_id": executable_id,
+                    "job_hash": job_hash,
+                    "job_id": job_id,
+                    "mission_id": "MIS-FIXTURE",
+                    "observations": [
+                        {
+                            "claim_id": claim_id,
+                            "measurement_artifact_hash": measurement.sha256,
+                        }
+                    ],
+                    "schema": "scientific_job_evidence.v1",
+                }
+            )
+        )
+        adjudication = {
+            "candidate_eligible": False,
+            "claims": [{"claim_id": claim_id}],
+            "criteria": [],
+            "evaluable": True,
+            "evidence_depth": "discovery",
+            "invalid_metrics": [],
+            "legacy_verdict": "passed",
+            "multiplicity": [
+                {
+                    "adjusted_pvalue_ppm": 20_000,
+                    "alpha_ppm": registration["alpha_ppm"],
+                    "criterion_id": registration["criterion_id"],
+                    "family_id": registration["family_id"],
+                    "family_size": registration["family_size"],
+                    "method": registration["method"],
+                    "raw_pvalue_ppm": 10_000,
+                }
+            ],
+            "schema": "scientific_adjudication.v1",
+            "state": "frontier",
+        }
+        validated = SimpleNamespace(
+            candidate_eligible=False,
+            claims=(claim_id,),
+            facts={
+                "executed_evidence_modes": ["temporal_stability"],
+                "multiplicity_registrations": [registration],
+                "scientific_adjudication": adjudication,
+            },
+            measurement_artifact_hashes=(measurement.sha256,),
+            scientific_eligible=True,
+            verdict="passed",
+        )
+        binding = {
+            "evidence_depth": "discovery",
+            "evidence_modes": ["temporal_stability"],
+            "planned_claims": [claim_id],
+            "result_manifest_output": "evidence/result.json",
+            "validation_plan_hash": plan.sha256,
+            "validator_id": ScientificAdjudicationValidatorV2.validator_id,
+        }
+        outputs = {
+            "evidence/measurement.json": measurement.sha256,
+            "evidence/result.json": result.sha256,
+        }
+        output_classes = {
+            name: "durable_evidence" for name in outputs
+        }
+        with patch.object(
+            self.writer,
+            "_scientific_validator_artifact_output_names",
+            return_value=frozenset(outputs),
+        ), patch.object(
+            self.writer,
+            "_run_registered_validator",
+            return_value=(validated, {"validator_id": binding["validator_id"]}),
+        ):
+            scientific = self.writer._derive_scientific_job_evidence(
+                job_id=job_id,
+                job_hash=job_hash,
+                mission_id="MIS-FIXTURE",
+                executable_id=executable_id,
+                binding=binding,
+                output_manifest=outputs,
+                output_classes=output_classes,
+                batch_record=batch_record,
+                expected_batch_id=batch_record.record_id,
+            )
+        self.assertEqual(
+            scientific["multiplicity_registrations"], [registration]
+        )
+        self.assertEqual(
+            scientific["multiplicity_batch_binding"]["batch_id"],
+            batch_record.record_id,
+        )
+        self.assertEqual(
+            scientific["multiplicity_batch_binding"][
+                "concurrent_family_identity"
+            ],
+            concurrent_family.identity,
+        )
+        self.assertEqual(
+            scientific["multiplicity_batch_binding"][
+                "ordered_member_ids"
+            ],
+            list(members),
+        )
+
+        reversed_family = ConcurrentFamilyManifest(
+            evaluation_mode=ConcurrentFamilyEvaluationMode.CONCURRENT,
+            executable_ids=tuple(reversed(members)),
+        )
+        reversed_batch = IndexRecord(
+            kind="batch-open",
+            record_id="batch:" + "6" * 64,
+            subject="Study:STU-FIXTURE",
+            status="open",
+            fingerprint="6" * 64,
+            payload={
+                "spec": {
+                    "acceptance_profile": {
+                        "concurrent_family": (
+                            reversed_family.to_identity_payload()
+                        )
+                    },
+                    "max_trials": len(members),
+                }
+            },
+        )
+        with patch.object(
+            self.writer,
+            "_scientific_validator_artifact_output_names",
+            return_value=frozenset(outputs),
+        ), patch.object(
+            self.writer,
+            "_run_registered_validator",
+            return_value=(validated, {"validator_id": binding["validator_id"]}),
+        ), self.assertRaisesRegex(
+            TransitionError, "differs from its exact Batch family"
+        ):
+            self.writer._derive_scientific_job_evidence(
+                job_id=job_id,
+                job_hash=job_hash,
+                mission_id="MIS-FIXTURE",
+                executable_id=executable_id,
+                binding=binding,
+                output_manifest=outputs,
+                output_classes=output_classes,
+                batch_record=reversed_batch,
+                expected_batch_id=reversed_batch.record_id,
+            )
+
+        family_variants = (
+            (
+                "extra",
+                (*members, "executable:" + "8" * 64),
+                "8",
+            ),
+            ("missing", members[:-1], "9"),
+        )
+        for label, variant_members, marker in family_variants:
+            with self.subTest(batch_family=label):
+                variant_family = ConcurrentFamilyManifest(
+                    evaluation_mode=(
+                        ConcurrentFamilyEvaluationMode.CONCURRENT
+                    ),
+                    executable_ids=variant_members,
+                )
+                variant_batch = IndexRecord(
+                    kind="batch-open",
+                    record_id="batch:" + marker * 64,
+                    subject="Study:STU-FIXTURE",
+                    status="open",
+                    fingerprint=marker * 64,
+                    payload={
+                        "spec": {
+                            "acceptance_profile": {
+                                "concurrent_family": (
+                                    variant_family.to_identity_payload()
+                                )
+                            },
+                            "max_trials": len(variant_members),
+                        }
+                    },
+                )
+                with patch.object(
+                    self.writer,
+                    "_scientific_validator_artifact_output_names",
+                    return_value=frozenset(outputs),
+                ), patch.object(
+                    self.writer,
+                    "_run_registered_validator",
+                    return_value=(
+                        validated,
+                        {"validator_id": binding["validator_id"]},
+                    ),
+                ), self.assertRaisesRegex(
+                    TransitionError,
+                    "differs from its exact Batch family",
+                ):
+                    self.writer._derive_scientific_job_evidence(
+                        job_id=job_id,
+                        job_hash=job_hash,
+                        mission_id="MIS-FIXTURE",
+                        executable_id=executable_id,
+                        binding=binding,
+                        output_manifest=outputs,
+                        output_classes=output_classes,
+                        batch_record=variant_batch,
+                        expected_batch_id=variant_batch.record_id,
+                    )
+
+        with patch.object(
+            self.writer,
+            "_scientific_validator_artifact_output_names",
+            return_value=frozenset(outputs),
+        ), patch.object(
+            self.writer,
+            "_run_registered_validator",
+            return_value=(validated, {"validator_id": binding["validator_id"]}),
+        ), self.assertRaisesRegex(
+            TransitionError, "belongs to another Batch"
+        ):
+            self.writer._derive_scientific_job_evidence(
+                job_id=job_id,
+                job_hash=job_hash,
+                mission_id="MIS-FIXTURE",
+                executable_id=executable_id,
+                binding=binding,
+                output_manifest=outputs,
+                output_classes=output_classes,
+                batch_record=batch_record,
+                expected_batch_id="batch:" + "0" * 64,
+            )
+
+        wrong_member_registration = {
+            **registration,
+            "member_id": members[1],
+        }
+        wrong_member_plan = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "adjudication_profile": {
+                        "multiplicity": [wrong_member_registration]
+                    },
+                    "executable_id": executable_id,
+                    "mission_id": "MIS-FIXTURE",
+                    "schema": "scientific_validation_plan.v2",
+                }
+            )
+        )
+        wrong_member_binding = {
+            **binding,
+            "validation_plan_hash": wrong_member_plan.sha256,
+        }
+        wrong_member_validated = SimpleNamespace(
+            candidate_eligible=False,
+            claims=(claim_id,),
+            facts={
+                "executed_evidence_modes": ["temporal_stability"],
+                "multiplicity_registrations": [
+                    wrong_member_registration
+                ],
+                "scientific_adjudication": adjudication,
+            },
+            measurement_artifact_hashes=(measurement.sha256,),
+            scientific_eligible=True,
+            verdict="passed",
+        )
+        with patch.object(
+            self.writer,
+            "_scientific_validator_artifact_output_names",
+            return_value=frozenset(outputs),
+        ), patch.object(
+            self.writer,
+            "_run_registered_validator",
+            return_value=(
+                wrong_member_validated,
+                {"validator_id": binding["validator_id"]},
+            ),
+        ), self.assertRaisesRegex(
+            TransitionError, "differs from its exact Batch family"
+        ):
+            self.writer._derive_scientific_job_evidence(
+                job_id=job_id,
+                job_hash=job_hash,
+                mission_id="MIS-FIXTURE",
+                executable_id=executable_id,
+                binding=wrong_member_binding,
+                output_manifest=outputs,
+                output_classes=output_classes,
+                batch_record=batch_record,
+                expected_batch_id=batch_record.record_id,
+            )
+
+        with patch.object(
+            self.writer,
+            "_scientific_validator_artifact_output_names",
+            return_value=frozenset(outputs),
+        ), patch.object(
+            self.writer,
+            "_run_registered_validator",
+            return_value=(validated, {"validator_id": binding["validator_id"]}),
+        ), self.assertRaisesRegex(
+            TransitionError, "lacks an exact concurrent Batch"
+        ):
+            self.writer._derive_scientific_job_evidence(
+                job_id=job_id,
+                job_hash=job_hash,
+                mission_id="MIS-FIXTURE",
+                executable_id=executable_id,
+                binding=binding,
+                output_manifest=outputs,
+                output_classes=output_classes,
+                expected_batch_id=batch_record.record_id,
+            )
+
+        arbitrary = parse_canonical(canonical_bytes(validated.facts))
+        arbitrary["multiplicity_registrations"][0][
+            "ordered_member_ids"
+        ].reverse()
+        validated.facts = arbitrary
+        with patch.object(
+            self.writer,
+            "_scientific_validator_artifact_output_names",
+            return_value=frozenset(outputs),
+        ), patch.object(
+            self.writer,
+            "_run_registered_validator",
+            return_value=(validated, {"validator_id": binding["validator_id"]}),
+        ), self.assertRaisesRegex(
+            TransitionError, "differ from the durable plan"
+        ):
+            self.writer._derive_scientific_job_evidence(
+                job_id=job_id,
+                job_hash=job_hash,
+                mission_id="MIS-FIXTURE",
+                executable_id=executable_id,
+                binding=binding,
+                output_manifest=outputs,
+                output_classes=output_classes,
+                batch_record=batch_record,
+                expected_batch_id=batch_record.record_id,
+            )
 
     def test_scientific_schema_preflight_runs_before_job_declaration(self) -> None:
         validator_id = "validator:" + "a" * 64
@@ -1510,7 +2749,14 @@ class WriterTests(unittest.TestCase):
                     payload=first_payload,
                 )
             )
-            anchor = self.writer._axis_architecture_anchor(index, legacy_axis)
+            with patch.object(
+                index,
+                "records_by_kind",
+                side_effect=AssertionError(
+                    "legacy axis anchor decoded unrelated Decision history"
+                ),
+            ):
+                anchor = self.writer._axis_architecture_anchor(index, legacy_axis)
             assert anchor is not None
             self.assertEqual(
                 anchor["architecture_chassis_identity"],
@@ -1526,7 +2772,13 @@ class WriterTests(unittest.TestCase):
                     payload=second_payload,
                 )
             )
-            with self.assertRaisesRegex(RecoveryRequired, "conflicting"):
+            with patch.object(
+                index,
+                "records_by_kind",
+                side_effect=AssertionError(
+                    "legacy axis anchor decoded unrelated Decision history"
+                ),
+            ), self.assertRaisesRegex(RecoveryRequired, "conflicting"):
                 self.writer._axis_architecture_anchor(index, legacy_axis)
 
     def test_existing_axis_chassis_requires_prior_trial_baseline(self) -> None:
@@ -1567,9 +2819,21 @@ class WriterTests(unittest.TestCase):
                     },
                 )
             )
+
+            class ExactBaselineIndex:
+                def get(self, kind: str, record_id: str):
+                    return index.get(kind, record_id)
+
+                def records_by_kind(self, kind: str):
+                    if kind == "trial":
+                        raise AssertionError(
+                            "exact scientific baseline performed a global trial scan"
+                        )
+                    return index.records_by_kind(kind)
+
             self.assertEqual(
                 self.writer._prior_scientific_baseline(
-                    index, baseline, axis_identity
+                    ExactBaselineIndex(), baseline, axis_identity
                 ).record_id,
                 baseline.identity,
             )
@@ -1577,6 +2841,127 @@ class WriterTests(unittest.TestCase):
                 self.writer._prior_scientific_baseline(
                     index, invented, axis_identity
                 )
+
+    def test_architecture_review_inventory_is_mission_keyed_and_parity_aware(
+        self,
+    ) -> None:
+        mission_id = "MIS-ARCHITECTURE-LOOKUP"
+        snapshot_id = "portfolio:" + "6" * 64
+        reviewed_id = "diagnosis:" + "1" * 64
+        pending_id = "diagnosis:" + "2" * 64
+        study_id = "STU-ARCHITECTURE-LOOKUP"
+        family = "architecture-family:" + "3" * 64
+        parity = ({"equivalence": "bounded-fixture"},)
+        with LocalIndex(self.writer.index_path) as index:
+            index.put_many(
+                (
+                    IndexRecord(
+                        kind="portfolio-snapshot",
+                        record_id=snapshot_id,
+                        subject=f"Mission:{mission_id}",
+                        status="active",
+                        fingerprint="6" * 64,
+                        payload={
+                            "exhaustion_standard": {
+                                "architecture_review_minimum_axes": 1,
+                                "architecture_review_minimum_studies": 1,
+                            },
+                            "mission_id": mission_id,
+                        },
+                    ),
+                    IndexRecord(
+                        kind="study-open",
+                        record_id=study_id,
+                        subject=f"Study:{study_id}",
+                        status="open",
+                        fingerprint="7" * 64,
+                        payload={"mission_id": mission_id},
+                    ),
+                    *(
+                        IndexRecord(
+                            kind="study-diagnosis",
+                            record_id=record_id,
+                            subject=f"Study:{study_id}",
+                            status="contradicted",
+                            fingerprint=str(ordinal) * 64,
+                            payload={
+                                "evidence_state": "contradicted",
+                                "mission_id": mission_id,
+                                "portfolio_axis_id": f"axis-{ordinal}",
+                                "primary_research_layer": "system_architecture",
+                                "study_id": study_id,
+                            },
+                        )
+                        for ordinal, record_id in enumerate(
+                            (reviewed_id, pending_id),
+                            start=1,
+                        )
+                    ),
+                    IndexRecord(
+                        kind="architecture-review",
+                        record_id="architecture-review:" + "8" * 64,
+                        subject=f"Mission:{mission_id}",
+                        status="rotate",
+                        fingerprint="8" * 64,
+                        payload={
+                            "covered_diagnosis_ids": [reviewed_id],
+                            "mission_id": mission_id,
+                        },
+                    ),
+                    IndexRecord(
+                        kind="study-diagnosis",
+                        record_id="diagnosis:" + "9" * 64,
+                        subject="Study:STU-UNRELATED",
+                        status="contradicted",
+                        fingerprint="9" * 64,
+                        payload={"mission_id": "MIS-UNRELATED"},
+                    ),
+                )
+            )
+            payload_calls: list[tuple[str, str, str]] = []
+            payload_lookup = index.records_by_payload_text
+
+            def counted_payload(kind: str, lookup_name: str, value: str):
+                payload_calls.append((kind, lookup_name, value))
+                return payload_lookup(kind, lookup_name, value)
+
+            with patch.object(
+                index,
+                "records_by_payload_text",
+                side_effect=counted_payload,
+            ), patch.object(
+                index,
+                "records_by_kind",
+                side_effect=AssertionError(
+                    "architecture review decoded project-wide history"
+                ),
+            ), patch.object(
+                self.writer,
+                "_study_resolved_architecture_family",
+                return_value=family,
+            ) as resolve_family:
+                trigger = self.writer._pending_architecture_review_trigger(
+                    index=index,
+                    mission_id=mission_id,
+                    portfolio_snapshot_id=snapshot_id,
+                    architecture_family=family,
+                    extra_equivalences=parity,
+                )
+            expected_study = index.get("study-open", study_id)
+        assert trigger is not None
+        self.assertEqual(trigger.payload["diagnosis_ids"], [pending_id])
+        self.assertEqual(
+            payload_calls,
+            [
+                ("architecture-review", "mission_id", mission_id),
+                ("study-diagnosis", "mission_id", mission_id),
+            ],
+        )
+        resolve_family.assert_called_once_with(
+            index=index,
+            study=expected_study,
+            extra_equivalences=parity,
+        )
 
     def open_fixture_study(
         self,
@@ -1775,7 +3160,8 @@ class WriterTests(unittest.TestCase):
             permit=permit, operation_id="active-job-start"
         )
         execution = RunningJobExecution.from_mapping(started.result["execution"])
-        self.writer.verify_running_job_execution(
+        stable_before_verification = self.writer.read_control()
+        writer_binding = self.writer.verify_running_job_execution(
             execution,
             expected_callable_identity="fixture.callable",
             expected_evidence_subject={
@@ -1783,6 +3169,25 @@ class WriterTests(unittest.TestCase):
                 "id": "MIS-ACTIVE-JOB",
             },
             required_input_hashes=(digest("input", {"fixture": 1}),),
+        )
+        authority = RunningJobAuthority(
+            self.writer.root,
+            foundation_root=self.writer.foundation_root,
+        )
+        self.assertFalse(hasattr(authority, "evidence"))
+        authority_binding = authority.verify_running_job_execution(
+            execution,
+            expected_callable_identity="fixture.callable",
+            expected_evidence_subject={
+                "kind": "Mission",
+                "id": "MIS-ACTIVE-JOB",
+            },
+            required_input_hashes=(digest("input", {"fixture": 1}),),
+        )
+        self.assertEqual(authority_binding, writer_binding)
+        self.assertEqual(
+            self.writer.read_control(),
+            stable_before_verification,
         )
         forged = RunningJobExecution(
             job_id=execution.job_id,
@@ -3782,29 +5187,35 @@ class WriterTests(unittest.TestCase):
             writer.record_portfolio_snapshot(
                 snapshot=snapshot, operation_id="commitment-snapshot"
             )
+            options = (
+                DecisionOption(
+                    option_id="choose-a",
+                    action=PortfolioAction.DEEPEN,
+                    target_id=axis_a.axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="one Batch",
+                ),
+                DecisionOption(
+                    option_id="retain-b",
+                    action=PortfolioAction.CONTRAST,
+                    target_id=axis_b.axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="deferred",
+                    omission_reason="axis A receives the single commitment",
+                ),
+            )
             decision = PortfolioDecision(
                 decision_id="DEC-COMMITMENT",
                 chosen_option_id="choose-a",
-                options=(
-                    DecisionOption(
-                        option_id="choose-a",
-                        action=PortfolioAction.DEEPEN,
-                        target_id=axis_a.axis_id,
-                        expected_information_value="positive",
-                        opportunity_cost="one Batch",
-                    ),
-                    DecisionOption(
-                        option_id="retain-b",
-                        action=PortfolioAction.CONTRAST,
-                        target_id=axis_b.axis_id,
-                        expected_information_value="positive",
-                        opportunity_cost="deferred",
-                        omission_reason="axis A receives the single commitment",
-                    ),
-                ),
+                options=options,
                 rationale="bind exactly one Batch",
                 commitment_batches=1,
                 baseline_executable=portfolio_axis_baseline(axis_a),
+                quant_team_review=quant_team_review_for_current_action(
+                    writer,
+                    options=options,
+                    chosen_option_id="choose-a",
+                ),
             )
             writer.record_portfolio_decision(
                 decision=decision, operation_id="commitment-decision"
@@ -3981,6 +5392,17 @@ class WriterTests(unittest.TestCase):
             permit=batch_permit,
             operation_id="open-batch",
         )
+        executable = executable_spec("trial")
+        first = self.writer.register_trial(
+            executable=executable,
+            operation_id="trial-one",
+        )
+        cached = self.writer.register_trial(
+            executable=executable.renamed("renamed trial fixture"),
+            operation_id="trial-cache",
+        )
+        self.assertEqual(first.result["trial_delta"], 0)
+        self.assertEqual(cached.result["trial_delta"], 0)
         with self.assertRaises(TransitionError):
             self.writer.close_initiative(outcome="invalid", operation_id="close-too-early")
 
@@ -4037,7 +5459,7 @@ class WriterTests(unittest.TestCase):
 
         before = self.writer.read_control()
         reproduction = self.writer.evidence.finalize(b"fixture parser failure reproduction")
-        self.writer.open_repair(
+        first_repair_open = self.writer.open_repair(
             permit=repair_permit,
             failure={
                 "failure_kind": "engineering",
@@ -4048,15 +5470,203 @@ class WriterTests(unittest.TestCase):
             operation_id="open-repair",
         )
         changed_cause = self.writer.evidence.finalize(b"fixture parser repaired proof")
-        self.writer.close_repair(
-            changed_cause_proof_hash=changed_cause.sha256,
+        with self.assertRaisesRegex(TransitionError, "canonical evidence"):
+            self.writer.close_repair(
+                changed_cause_proof_hash=changed_cause.sha256,
+                operation_id="reject-untyped-close-repair",
+            )
+        failed_basis_one = self.writer.evidence.finalize(
+            b"first failed basis in first Repair episode"
+        )
+        failed_verification_one = self.writer.evidence.finalize(
+            b"first failed verification in first Repair episode"
+        )
+        failed_attempt_one = self.writer.record_failed_repair_attempt(
+            attempt_proof_hash=repair_attempt_proof(
+                self.writer,
+                outcome="failed",
+                changed_dimension="cause",
+                new_basis_hash=failed_basis_one.sha256,
+                new_evidence_hashes=(failed_basis_one.sha256,),
+                verification_evidence_hashes=(
+                    failed_verification_one.sha256,
+                ),
+            ),
+            operation_id="record-first-episode-failed-attempt-one",
+        )
+        failed_basis_two = self.writer.evidence.finalize(
+            b"second failed basis in first Repair episode"
+        )
+        failed_verification_two = self.writer.evidence.finalize(
+            b"second failed verification in first Repair episode"
+        )
+        failed_attempt_two = self.writer.record_failed_repair_attempt(
+            attempt_proof_hash=repair_attempt_proof(
+                self.writer,
+                outcome="failed",
+                changed_dimension="information",
+                new_basis_hash=failed_basis_two.sha256,
+                new_evidence_hashes=(failed_basis_two.sha256,),
+                verification_evidence_hashes=(
+                    failed_verification_two.sha256,
+                ),
+            ),
+            operation_id="record-first-episode-failed-attempt-two",
+        )
+        repair_verification = self.writer.evidence.finalize(
+            b"independent fixture parser Repair verification"
+        )
+        changed_cause_proof_hash = repair_attempt_proof(
+            self.writer,
+            outcome="repaired",
+            changed_dimension="cause",
+            new_basis_hash=changed_cause.sha256,
+            new_evidence_hashes=(changed_cause.sha256,),
+            verification_evidence_hashes=(repair_verification.sha256,),
+        )
+        first_repair_close = self.writer.close_repair(
+            changed_cause_proof_hash=changed_cause_proof_hash,
             operation_id="close-repair",
+        )
+        retried_repair_close = self.writer.close_repair(
+            changed_cause_proof_hash=changed_cause_proof_hash,
+            operation_id="close-repair",
+        )
+        self.assertTrue(retried_repair_close.reused)
+        self.assertEqual(
+            first_repair_close.result,
+            retried_repair_close.result,
         )
         after = self.writer.read_control()
         assert before is not None and after is not None
         for key in ("holdout_reveals", "active_executable", "required_future_holdout_id"):
             self.assertEqual(before["scientific"][key], after["scientific"][key])
         self.assertEqual(after["scientific"]["active_job"]["status"], "running")
+        execution = RunningJobExecution.from_mapping(
+            started.result["execution"]
+        )
+        with self.assertRaisesRegex(
+            TransitionError,
+            "re-enter its exact engine before completion",
+        ):
+            self.writer.complete_job(
+                outcome="success",
+                output_manifest={
+                    "local/jobs/fixture/fixture.json": sha256(
+                        b"not executed after Repair"
+                    ).hexdigest()
+                },
+                operation_id="reject-completion-before-repaired-resume",
+            )
+
+        repeated_cause_permit = self.writer.issue_permit(
+            kind=PermitKind.REPAIR,
+            subject_kind=SubjectKind.JOB,
+            subject_id=job_id,
+            input_hash=job_hash,
+            actions=("open_repair",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="issue-repeated-cause-repair-permit",
+        )
+        with self.assertRaisesRegex(
+            TransitionError,
+            "re-enter its engine before another Repair",
+        ):
+            self.writer.open_repair(
+                permit=repeated_cause_permit,
+                failure={
+                    "failure_kind": "engineering",
+                    "minimum_reproduction_evidence": [reproduction.sha256],
+                    "root_cause": "fixture parser rejected declared input",
+                    "interrupted_action": "fixture.callable",
+                },
+                operation_id="reject-repair-before-engine-reentry",
+            )
+        resumed_first = self.writer.verify_running_job_execution(
+            execution,
+            expected_callable_identity="fixture.callable",
+        )
+        self.assertIsNotNone(resumed_first["repair_resume_record_id"])
+        repeated_cause_open = self.writer.open_repair(
+            permit=repeated_cause_permit,
+            failure={
+                "failure_kind": "engineering",
+                "minimum_reproduction_evidence": [reproduction.sha256],
+                "root_cause": "fixture parser rejected declared input",
+                "interrupted_action": "fixture.callable",
+            },
+            operation_id="open-repeated-cause-repair",
+        )
+        self.assertNotEqual(
+            first_repair_open.result["repair_id"],
+            repeated_cause_open.result["repair_id"],
+        )
+        stale_exhaustion = engineering_failure_disposition(
+            self.writer,
+            job_id=job_id,
+            evidence_hashes=(reproduction.sha256,),
+            repair_attempt_record_ids=(
+                failed_attempt_one.result["attempt_record_id"],
+                failed_attempt_two.result["attempt_record_id"],
+            ),
+            disposition="repair_exhausted_changed_causes",
+        )
+        with self.assertRaisesRegex(
+            TransitionError,
+            "differs from exact failed Repair attempts",
+        ):
+            self.writer.conclude_repair_unrecovered(
+                disposition_hash=stale_exhaustion,
+                operation_id="reject-prior-episode-exhaustion",
+            )
+        repeated_change = self.writer.evidence.finalize(
+            b"second changed basis for repeated parser cause"
+        )
+        repeated_verification = self.writer.evidence.finalize(
+            b"second independent verification for repeated parser cause"
+        )
+        repeated_attempt = repair_attempt_proof(
+            self.writer,
+            outcome="repaired",
+            changed_dimension="input",
+            new_basis_hash=repeated_change.sha256,
+            new_evidence_hashes=(repeated_change.sha256,),
+            verification_evidence_hashes=(
+                repeated_verification.sha256,
+            ),
+        )
+        with self.assertRaisesRegex(
+            TransitionError,
+            "changed Job input requires a new Job identity",
+        ):
+            self.writer.close_repair(
+                changed_cause_proof_hash=repeated_attempt,
+                operation_id="reject-in-place-input-repair",
+            )
+        repeated_attempt = repair_attempt_proof(
+            self.writer,
+            outcome="repaired",
+            changed_dimension="cause",
+            new_basis_hash=repeated_change.sha256,
+            new_evidence_hashes=(repeated_change.sha256,),
+            verification_evidence_hashes=(
+                repeated_verification.sha256,
+            ),
+        )
+        self.writer.close_repair(
+            changed_cause_proof_hash=repeated_attempt,
+            operation_id="close-repeated-cause-repair",
+        )
+        resumed_second = self.writer.verify_running_job_execution(
+            execution,
+            expected_callable_identity="fixture.callable",
+        )
+        self.assertNotEqual(
+            resumed_first["repair_resume_record_id"],
+            resumed_second["repair_resume_record_id"],
+        )
 
         implementation_reproduction = self.writer.evidence.finalize(
             b"fixture running Job implementation defect"
@@ -4075,6 +5685,7 @@ class WriterTests(unittest.TestCase):
         implementation_open = self.writer.open_repair(
             permit=implementation_permit,
             failure={
+                "failure_kind": "engineering",
                 "minimum_reproduction_evidence": [
                     implementation_reproduction.sha256
                 ],
@@ -4127,24 +5738,53 @@ class WriterTests(unittest.TestCase):
                 }
             )
         )
+        implementation_verification = self.writer.evidence.finalize(
+            b"independent running Job implementation Repair verification"
+        )
+        incomplete_attempt = repair_attempt_proof(
+            self.writer,
+            outcome="repaired",
+            changed_dimension="implementation",
+            new_basis_hash=changed_implementation.sha256,
+            new_evidence_hashes=(
+                changed_implementation.sha256,
+                incomplete_proof.sha256,
+            ),
+            verification_evidence_hashes=(
+                implementation_verification.sha256,
+            ),
+            implementation_proof_hash=incomplete_proof.sha256,
+        )
         with self.assertRaisesRegex(TransitionError, "omits source bytes"):
             self.writer.close_repair(
-                changed_cause_proof_hash=incomplete_proof.sha256,
+                changed_cause_proof_hash=incomplete_attempt,
                 operation_id="reject-incomplete-implementation-repair",
             )
         changed_proof = self.writer.evidence.finalize(
             canonical_bytes(proof_manifest)
         )
+        changed_attempt = repair_attempt_proof(
+            self.writer,
+            outcome="repaired",
+            changed_dimension="implementation",
+            new_basis_hash=changed_implementation.sha256,
+            new_evidence_hashes=(
+                changed_implementation.sha256,
+                changed_proof.sha256,
+                changed_source.sha256,
+            ),
+            verification_evidence_hashes=(
+                implementation_verification.sha256,
+            ),
+            implementation_proof_hash=changed_proof.sha256,
+        )
         repaired = self.writer.close_repair(
-            changed_cause_proof_hash=changed_proof.sha256,
+            changed_cause_proof_hash=changed_attempt,
             operation_id="close-implementation-repair",
         )
         self.assertEqual(
             repaired.result["effective_implementation_identity"],
             changed_implementation.sha256,
-        )
-        execution = RunningJobExecution.from_mapping(
-            started.result["execution"]
         )
         binding = self.writer.verify_running_job_execution(
             execution,
@@ -4167,17 +5807,6 @@ class WriterTests(unittest.TestCase):
             operation_id="complete-job",
         )
         self.assertFalse(transient.exists())
-        executable = executable_spec("trial")
-        first = self.writer.register_trial(
-            executable=executable,
-            operation_id="trial-one",
-        )
-        cached = self.writer.register_trial(
-            executable=executable.renamed("renamed trial fixture"),
-            operation_id="trial-cache",
-        )
-        self.assertEqual(first.result["trial_delta"], 0)
-        self.assertEqual(cached.result["trial_delta"], 0)
 
         self.writer.judge_job_evidence(
             completion_record_id=completion.result["completion_record_id"],
@@ -4200,6 +5829,244 @@ class WriterTests(unittest.TestCase):
                 basis_record_id="fixture-evidence",
                 operation_id="false-terminal",
             )
+
+    def test_failed_repair_attempts_require_changed_basis_and_typed_exit(self) -> None:
+        self.open_mission_and_initiative()
+        opened_study = self.open_fixture_study(
+            study_id="STU-REPAIR-EXIT",
+            question=study_question("typed unrecovered Repair exit"),
+            semantic_proposal={"mechanism": "repair exit fixture"},
+            operation_prefix="repair-exit-study",
+        )
+        repair_batch = batch_spec(
+            batch_id="BAT-REPAIR-EXIT",
+            study_id="STU-REPAIR-EXIT",
+            study_hash=opened_study.result["study_hash"],
+        )
+        batch_permit = self.writer.issue_permit(
+            kind=PermitKind.BATCH,
+            subject_kind=SubjectKind.STUDY,
+            subject_id="STU-REPAIR-EXIT",
+            input_hash=repair_batch.identity.removeprefix("batch:"),
+            actions=("open_batch",),
+            scope=("batch",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="permit-repair-exit-batch",
+        )
+        self.writer.open_batch(
+            batch_spec=repair_batch,
+            permit=batch_permit,
+            operation_id="open-repair-exit-batch",
+        )
+        spec = job_spec(
+            self.writer,
+            {"kind": "Study", "id": "STU-REPAIR-EXIT"},
+        )
+        declared = self.writer.declare_job(
+            spec=spec,
+            operation_id="declare-failed-repair-attempt-job",
+        )
+        job_id = declared.result["job_id"]
+        job_hash = declared.result["job_hash"]
+        start_permit = self.writer.issue_permit(
+            kind=PermitKind.JOB,
+            subject_kind=SubjectKind.JOB,
+            subject_id=job_id,
+            input_hash=job_hash,
+            actions=("start_job",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="permit-failed-repair-attempt-job",
+        )
+        self.writer.start_job(
+            permit=start_permit,
+            operation_id="start-failed-repair-attempt-job",
+        )
+        repair_permit = self.writer.issue_permit(
+            kind=PermitKind.REPAIR,
+            subject_kind=SubjectKind.JOB,
+            subject_id=job_id,
+            input_hash=job_hash,
+            actions=("open_repair",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="permit-failed-repair-attempt",
+        )
+        reproduction = self.writer.evidence.finalize(
+            b"persistent engineering failure reproduction"
+        )
+        self.writer.open_repair(
+            permit=repair_permit,
+            failure={
+                "failure_kind": "engineering",
+                "minimum_reproduction_evidence": [reproduction.sha256],
+                "root_cause": "first suspected parser cause",
+                "interrupted_action": spec["callable_identity"],
+            },
+            operation_id="open-failed-repair-attempt",
+        )
+
+        first_basis = self.writer.evidence.finalize(
+            b"first changed Repair basis"
+        )
+        first_verification = self.writer.evidence.finalize(
+            b"first independent Repair verification"
+        )
+        first_proof = repair_attempt_proof(
+            self.writer,
+            outcome="failed",
+            changed_dimension="cause",
+            new_basis_hash=first_basis.sha256,
+            new_evidence_hashes=(first_basis.sha256,),
+            verification_evidence_hashes=(first_verification.sha256,),
+        )
+        first = self.writer.record_failed_repair_attempt(
+            attempt_proof_hash=first_proof,
+            operation_id="record-first-failed-repair-attempt",
+        )
+        retried_first = self.writer.record_failed_repair_attempt(
+            attempt_proof_hash=first_proof,
+            operation_id="record-first-failed-repair-attempt",
+        )
+        self.assertTrue(retried_first.reused)
+        self.assertEqual(first.result, retried_first.result)
+        with self.assertRaises(TransitionError):
+            self.writer.record_failed_repair_attempt(
+                attempt_proof_hash=first_proof,
+                operation_id="reject-identical-failed-repair-attempt",
+            )
+        one_attempt_disposition = engineering_failure_disposition(
+            self.writer,
+            job_id=job_id,
+            evidence_hashes=(first_verification.sha256,),
+            repair_attempt_record_ids=(first.result["attempt_record_id"],),
+            disposition="repair_exhausted_changed_causes",
+        )
+        with self.assertRaisesRegex(TransitionError, "one failed Repair attempt"):
+            self.writer.conclude_repair_unrecovered(
+                disposition_hash=one_attempt_disposition,
+                operation_id="reject-single-attempt-exhaustion",
+            )
+
+        second_basis = self.writer.evidence.finalize(
+            b"second changed Repair basis"
+        )
+        second_verification = self.writer.evidence.finalize(
+            b"second independent Repair verification"
+        )
+        second_proof = repair_attempt_proof(
+            self.writer,
+            outcome="failed",
+            changed_dimension="information",
+            new_basis_hash=second_basis.sha256,
+            new_evidence_hashes=(second_basis.sha256,),
+            verification_evidence_hashes=(second_verification.sha256,),
+        )
+        second = self.writer.record_failed_repair_attempt(
+            attempt_proof_hash=second_proof,
+            operation_id="record-second-failed-repair-attempt",
+        )
+        disposition_hash = engineering_failure_disposition(
+            self.writer,
+            job_id=job_id,
+            evidence_hashes=(
+                first_verification.sha256,
+                second_verification.sha256,
+            ),
+            repair_attempt_record_ids=(
+                first.result["attempt_record_id"],
+                second.result["attempt_record_id"],
+            ),
+            disposition="repair_exhausted_changed_causes",
+        )
+        with patch.object(
+            LocalIndex,
+            "records_by_kind",
+            side_effect=AssertionError(
+                "Repair disposition must use the indexed subject/status query"
+            ),
+        ):
+            concluded = self.writer.conclude_repair_unrecovered(
+                disposition_hash=disposition_hash,
+                operation_id="conclude-changed-cause-exhaustion",
+            )
+        retried_conclusion = self.writer.conclude_repair_unrecovered(
+            disposition_hash=disposition_hash,
+            operation_id="conclude-changed-cause-exhaustion",
+        )
+        self.assertTrue(retried_conclusion.reused)
+        self.assertEqual(concluded.result, retried_conclusion.result)
+        self.assertEqual(
+            concluded.result["disposition_hash"], disposition_hash
+        )
+        control = self.writer.read_control()
+        assert control is not None
+        self.assertEqual(
+            control["next_action"],
+            {
+                "disposition_hash": disposition_hash,
+                "job_id": job_id,
+                "kind": "complete_engineering_failure",
+            },
+        )
+        completed = self.writer.complete_job(
+            outcome="failed",
+            output_manifest={},
+            failure={
+                "failure_kind": "engineering",
+                "minimum_reproduction_evidence": [reproduction.sha256],
+                "root_cause": "first suspected parser cause",
+                "interrupted_action": spec["callable_identity"],
+                "repair_disposition_hash": disposition_hash,
+                "resume_action": spec["resume_action"],
+            },
+            operation_id="complete-typed-unrecovered-engineering-failure",
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            record = index.get(
+                "job-completed", completed.result["completion_record_id"]
+            )
+        assert record is not None
+        self.assertEqual(
+            record.payload["engineering_disposition"]["disposition"],
+            "repair_exhausted_changed_causes",
+        )
+        self.writer.judge_job_evidence(
+            completion_record_id=completed.result["completion_record_id"],
+            disposition="stop_batch",
+            operation_id="judge-unrecovered-engineering-failure",
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            kpi_source = self.writer._study_kpi_from_completion(
+                index=index,
+                study_id="STU-REPAIR-EXIT",
+                completion_record_id=completed.result[
+                    "completion_record_id"
+                ],
+            )
+        self.assertEqual(
+            kpi_source["source"],
+            "typed_engineering_failure_completion",
+        )
+        self.assertEqual(
+            kpi_source["unavailable_reason"],
+            "engineering_failure",
+        )
+        self.writer.dispose_batch(
+            outcome="engineering_failure",
+            operation_id="dispose-unrecovered-engineering-batch",
+        )
+        closed = self.writer.close_study(
+            outcome="not_evaluable",
+            kpi_completion_record_id=completed.result[
+                "completion_record_id"
+            ],
+            operation_id="close-unrecovered-engineering-study",
+        )
+        self.assertEqual(closed.result["outcome"], "not_evaluable")
 
     def test_durable_source_gate_requires_exact_transition_before_permit(self) -> None:
         self.open_mission_and_initiative()
@@ -4848,6 +6715,466 @@ class WriterTests(unittest.TestCase):
                 operation_id="reject-candidate-route-without-initiative",
             )
 
+    def test_stale_candidate_runtime_can_report_and_recertify_its_source(
+        self,
+    ) -> None:
+        self.writer.open_mission(
+            mission_id="MIS-CANDIDATE-SOURCE-RECOVERY",
+            goal=mission_goal("candidate source recovery"),
+            operation_id="candidate-source-recovery-mission",
+        )
+        self.writer.validation_registry = EvidenceValidatorRegistry(
+            (
+                EngineeringFixtureValidator(),
+                SourceBoundaryFixtureValidator(),
+            )
+        )
+        contract = source_contract()
+        context = SourceEligibility.register(contract)
+        self.writer.record_source_eligibility(
+            eligibility=context,
+            receipt=None,
+            operation_id="candidate-source-recovery-context",
+        )
+        historical_artifact = self.writer.evidence.finalize(
+            b"candidate source historical audit"
+        )
+        historical_receipt = SourceEligibilityReceipt(
+            source_contract_id=contract.source_contract_id,
+            evidence=SourceTransitionEvidence.HISTORICAL_AUDIT,
+            producer_completion_id="engineering-fixture",
+            observed_at_utc=FIXED_NOW,
+            artifact_hashes=(historical_artifact.sha256,),
+            facts={
+                "acquisition_observed": True,
+                "content_hash_verified": True,
+                "coverage_audited": True,
+                "event_time_audited": True,
+                "first_availability_audited": True,
+                "gaps_audited": True,
+                "information_complete_at_audited": True,
+                "revision_or_vintage_audited": True,
+            },
+        )
+        audited = context.complete_historical_audit(
+            historical_receipt.identity
+        )
+        self.writer.record_source_eligibility(
+            eligibility=audited,
+            receipt=historical_receipt,
+            operation_id="candidate-source-recovery-audit",
+        )
+        runtime_artifact = self.writer.evidence.finalize(
+            b"candidate source initial runtime proof"
+        )
+        runtime_receipt = SourceEligibilityReceipt(
+            source_contract_id=contract.source_contract_id,
+            evidence=SourceTransitionEvidence.RUNTIME_AVAILABILITY_PROOF,
+            producer_completion_id="engineering-fixture",
+            observed_at_utc=FIXED_NOW,
+            artifact_hashes=(runtime_artifact.sha256,),
+            facts={
+                "complete_or_closed": True,
+                "fresh": True,
+                "historical_runtime_field_parity": True,
+                "latency_ms": 5,
+                "local_realtime_retrieval": True,
+                "synchronized": True,
+            },
+        )
+        eligible = audited.prove_runtime_availability(
+            runtime_receipt.identity
+        )
+        self.writer.record_source_eligibility(
+            eligibility=eligible,
+            receipt=runtime_receipt,
+            operation_id="candidate-source-recovery-runtime",
+        )
+        component = ComponentSpec(
+            display_name="candidate source recovery component",
+            protocol="feature.engineering_fixture.v1",
+            implementation="fixture.component.candidate_source_recovery",
+            spec={"tag": "candidate-source-recovery"},
+            semantic_dependencies=(contract.source_contract_id,),
+        )
+        executable = ExecutableSpec(
+            display_name="candidate source recovery executable",
+            components=(component,),
+            parameters={"tag": "candidate-source-recovery"},
+            data_contract="data:engineering_fixture",
+            split_contract="split:engineering_fixture",
+            clock_contract="clock:completed_bar_fixture",
+            cost_contract="cost:engineering_fixture",
+            engine_contract="engine:engineering_fixture",
+            source_contracts=(contract.source_contract_id,),
+        )
+        frozen = self.writer.freeze_candidate(
+            executable=executable,
+            evidence_refs=("engineering-source-candidate-evidence",),
+            operation_id="candidate-source-recovery-freeze",
+        )
+        runtime_spec = runtime_job_spec(
+            writer=self.writer,
+            executable_id=executable.identity,
+            depth=EvidenceDepth.EXECUTION_PROOF,
+            output_name="evidence/stale-candidate-runtime",
+            artifact_roles=("native_execution_report", "parity_report"),
+        )
+        declared = self.writer.declare_job(
+            spec=runtime_spec,
+            operation_id="stale-candidate-runtime-declare",
+        )
+        job_permit = self.writer.issue_permit(
+            kind=PermitKind.JOB,
+            subject_kind=SubjectKind.JOB,
+            subject_id=declared.result["job_id"],
+            input_hash=declared.result["job_hash"],
+            actions=("start_job",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="stale-candidate-runtime-job-permit",
+        )
+        runtime_permit = self.writer.issue_permit(
+            kind=PermitKind.RUNTIME,
+            subject_kind=SubjectKind.EXECUTABLE,
+            subject_id=executable.identity,
+            input_hash=declared.result["job_hash"],
+            actions=("run_execution_proof",),
+            scope=(
+                f"candidate:{frozen.result['candidate_id']}",
+                "depth:execution_proof",
+                f"executable:{executable.identity}",
+                f"job:{declared.result['job_id']}",
+                f"source:{contract.source_contract_id}",
+            ),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=False,
+            operation_id="stale-candidate-runtime-permit",
+        )
+        self.writer.start_job(
+            permit=job_permit,
+            runtime_permit=runtime_permit,
+            operation_id="stale-candidate-runtime-start",
+        )
+        self.writer.clock = lambda: "2026-07-11T01:00:00Z"
+        with self.assertRaisesRegex(PermitError, "runtime provenance"):
+            self.writer.validate_runtime_entry(
+                permit=runtime_permit,
+                executable_id=executable.identity,
+                input_hash=declared.result["job_hash"],
+                action="run_execution_proof",
+                depth=EvidenceDepth.EXECUTION_PROOF,
+                operation_id="stale-candidate-runtime-entry",
+            )
+        with LocalIndex(self.writer.index_path) as index:
+            source_head = index.event_head(
+                f"source:{contract.source_contract_id}"
+            )
+        assert source_head is not None
+        stale_observation = self.writer.evidence.finalize(
+            b"candidate runtime source TTL expired before engine entry"
+        )
+        completed = self.writer.complete_job(
+            outcome="not_evaluable",
+            output_manifest={},
+            failure={
+                "failure_kind": "runtime_source_ineligibility",
+                "interrupted_action": runtime_spec["callable_identity"],
+                "minimum_reproduction_evidence": [stale_observation.sha256],
+                "resume_action": runtime_spec["resume_action"],
+                "root_cause": "runtime source eligibility TTL expired",
+                "source_contract_id": contract.source_contract_id,
+                "source_state_record_id": source_head.record_id,
+            },
+            operation_id="stale-candidate-runtime-complete",
+        )
+        self.assertEqual(completed.result["outcome"], "not_evaluable")
+        self.assertEqual(
+            self.writer.read_control()["next_action"],  # type: ignore[index]
+            {
+                "executable_id": executable.identity,
+                "kind": "plan_candidate_bound_evidence",
+            },
+        )
+        drift_artifact = self.writer.evidence.finalize(
+            b"candidate source stale drift receipt"
+        )
+        drift_receipt = SourceEligibilityReceipt(
+            source_contract_id=contract.source_contract_id,
+            evidence=SourceTransitionEvidence.DRIFT,
+            producer_completion_id="engineering-fixture",
+            observed_at_utc="2026-07-11T01:00:00Z",
+            artifact_hashes=(drift_artifact.sha256,),
+            facts={
+                "changed_surface": "availability",
+                "dependent_action": "fail_closed",
+                "observed_change": "runtime eligibility TTL expired",
+            },
+        )
+        suspended = eligible.suspend(
+            receipt_id=drift_receipt.identity,
+            reason="runtime eligibility TTL expired",
+        )
+        self.writer.record_source_eligibility(
+            eligibility=suspended,
+            receipt=drift_receipt,
+            operation_id="candidate-source-recovery-suspend",
+        )
+        result_name = "evidence/candidate-source-recert-result"
+        measurement_name = "evidence/candidate-source-recert-measurement"
+        source_spec = job_spec(
+            self.writer,
+            {"kind": "Executable", "id": executable.identity},
+        )
+        source_spec["input_hashes"] = [
+            *source_spec["input_hashes"],  # type: ignore[list-item]
+            SOURCE_BOUNDARY_PLAN_HASH,
+        ]
+        source_spec["expected_outputs"] = [result_name, measurement_name]
+        source_spec["output_classes"] = {
+            result_name: "durable_evidence",
+            measurement_name: "durable_evidence",
+        }
+        source_spec["source_binding"] = {
+            "result_manifest_output": result_name,
+            "source_contract_id": contract.source_contract_id,
+            "transition_evidence": "same_semantics_recertification",
+            "validation_plan_hash": SOURCE_BOUNDARY_PLAN_HASH,
+            "validator_id": SourceBoundaryFixtureValidator.validator_id,
+        }
+        source_declared = self.writer.declare_job(
+            spec=source_spec,
+            operation_id="candidate-source-recert-declare",
+        )
+        source_permit = self.writer.issue_permit(
+            kind=PermitKind.JOB,
+            subject_kind=SubjectKind.JOB,
+            subject_id=source_declared.result["job_id"],
+            input_hash=source_declared.result["job_hash"],
+            actions=("start_job",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="candidate-source-recert-permit",
+        )
+        self.writer.start_job(
+            permit=source_permit,
+            operation_id="candidate-source-recert-start",
+        )
+        recert_facts = {
+            "mapping_parity": True,
+            "schema_field_clock_parity": True,
+            "semantic_equivalence": True,
+        }
+        measurement = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "facts": recert_facts,
+                    "schema": "source_boundary_measurement.v1",
+                }
+            )
+        )
+        result = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "facts": recert_facts,
+                    "job_hash": source_declared.result["job_hash"],
+                    "job_id": source_declared.result["job_id"],
+                    "measurement_artifact_hashes": [measurement.sha256],
+                    "mission_id": "MIS-CANDIDATE-SOURCE-RECOVERY",
+                    "observed_at_utc": "2026-07-11T01:00:00Z",
+                    "schema": "source_eligibility_evidence.v1",
+                    "source_contract_id": contract.source_contract_id,
+                    "transition_evidence": "same_semantics_recertification",
+                }
+            )
+        )
+        source_completed = self.writer.complete_job(
+            outcome="success",
+            output_manifest={
+                result_name: result.sha256,
+                measurement_name: measurement.sha256,
+            },
+            operation_id="candidate-source-recert-complete",
+        )
+        recert_receipt = SourceEligibilityReceipt(
+            source_contract_id=contract.source_contract_id,
+            evidence=SourceTransitionEvidence.SAME_SEMANTICS_RECERTIFICATION,
+            producer_completion_id=source_completed.result[
+                "completion_record_id"
+            ],
+            observed_at_utc="2026-07-11T01:00:00Z",
+            artifact_hashes=(measurement.sha256,),
+            facts=recert_facts,
+        )
+        restored = SourceEligibility(
+            contract=contract,
+            state=SourceEligibilityState.RUNTIME_ELIGIBLE,
+            evidence_receipt_id=recert_receipt.identity,
+        )
+        self.writer.record_source_eligibility(
+            eligibility=restored,
+            receipt=recert_receipt,
+            operation_id="candidate-source-recert-record",
+        )
+        self.assertEqual(
+            self.writer.read_control()["next_action"],  # type: ignore[index]
+            {
+                "executable_id": executable.identity,
+                "kind": "plan_candidate_bound_evidence",
+            },
+        )
+        drift_runtime_declared = self.writer.declare_job(
+            spec=runtime_spec,
+            operation_id="active-drift-runtime-declare",
+        )
+        drift_job_permit = self.writer.issue_permit(
+            kind=PermitKind.JOB,
+            subject_kind=SubjectKind.JOB,
+            subject_id=drift_runtime_declared.result["job_id"],
+            input_hash=drift_runtime_declared.result["job_hash"],
+            actions=("start_job",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="active-drift-runtime-job-permit",
+        )
+        drift_runtime_permit = self.writer.issue_permit(
+            kind=PermitKind.RUNTIME,
+            subject_kind=SubjectKind.EXECUTABLE,
+            subject_id=executable.identity,
+            input_hash=drift_runtime_declared.result["job_hash"],
+            actions=("run_execution_proof",),
+            scope=(
+                f"candidate:{frozen.result['candidate_id']}",
+                "depth:execution_proof",
+                f"executable:{executable.identity}",
+                f"job:{drift_runtime_declared.result['job_id']}",
+                f"source:{contract.source_contract_id}",
+            ),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=False,
+            operation_id="active-drift-runtime-permit",
+        )
+        self.writer.start_job(
+            permit=drift_job_permit,
+            runtime_permit=drift_runtime_permit,
+            operation_id="active-drift-runtime-start",
+        )
+        entered = self.writer.validate_runtime_entry(
+            permit=drift_runtime_permit,
+            executable_id=executable.identity,
+            input_hash=drift_runtime_declared.result["job_hash"],
+            action="run_execution_proof",
+            depth=EvidenceDepth.EXECUTION_PROOF,
+            operation_id="active-drift-runtime-entry",
+        )
+        control = self.writer.read_control()
+        assert control is not None
+        active_job = control["scientific"]["active_job"]
+        assert isinstance(active_job, dict)
+        with LocalIndex(self.writer.index_path) as index:
+            source_head = index.event_head(f"source:{contract.source_contract_id}")
+        assert source_head is not None
+        drift_facts = {
+            "changed_surface": "runtime_availability",
+            "dependent_action": "fail_closed",
+            "observed_change": "source became unavailable during runtime execution",
+        }
+        observation = RuntimeSourceDriftObservation(
+            candidate_id=frozen.result["candidate_id"],
+            executable_id=executable.identity,
+            facts=drift_facts,
+            job_hash=drift_runtime_declared.result["job_hash"],
+            job_id=drift_runtime_declared.result["job_id"],
+            job_start_record_id=active_job["start_record_id"],
+            observed_at_utc="2026-07-11T01:00:00Z",
+            prior_source_receipt_id=recert_receipt.identity,
+            prior_source_state_record_id=source_head.record_id,
+            producer_record_id=entered.result["runtime_entry_record_id"],
+            source_contract_id=contract.source_contract_id,
+        )
+        raw_drift = self.writer.evidence.finalize(
+            b"untyped active runtime source drift"
+        )
+        untyped_receipt = SourceEligibilityReceipt(
+            source_contract_id=contract.source_contract_id,
+            evidence=SourceTransitionEvidence.DRIFT,
+            producer_completion_id=entered.result["runtime_entry_record_id"],
+            observed_at_utc="2026-07-11T01:00:00Z",
+            artifact_hashes=(raw_drift.sha256,),
+            facts=drift_facts,
+        )
+        with self.assertRaisesRegex(TransitionError, "typed observation"):
+            self.writer.record_source_eligibility(
+                eligibility=restored.suspend(
+                    receipt_id=untyped_receipt.identity,
+                    reason="active runtime source drift",
+                ),
+                receipt=untyped_receipt,
+                operation_id="reject-untyped-active-runtime-drift",
+            )
+        observation_artifact = self.writer.evidence.finalize(observation.to_bytes())
+        active_drift_receipt = SourceEligibilityReceipt(
+            source_contract_id=contract.source_contract_id,
+            evidence=SourceTransitionEvidence.DRIFT,
+            producer_completion_id=entered.result["runtime_entry_record_id"],
+            observed_at_utc="2026-07-11T01:00:00Z",
+            artifact_hashes=(observation_artifact.sha256,),
+            facts=drift_facts,
+        )
+        active_suspended = restored.suspend(
+            receipt_id=active_drift_receipt.identity,
+            reason="active runtime source drift",
+        )
+        drift_recorded = self.writer.record_source_eligibility(
+            eligibility=active_suspended,
+            receipt=active_drift_receipt,
+            operation_id="record-active-runtime-drift",
+        )
+        self.assertEqual(
+            drift_recorded.result["runtime_source_drift_observation_id"],
+            observation.identity,
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            suspended_head = index.event_head(
+                f"source:{contract.source_contract_id}"
+            )
+        assert suspended_head is not None
+        self.assertEqual(
+            self.writer.read_control()["next_action"],  # type: ignore[index]
+            {
+                "job_id": drift_runtime_declared.result["job_id"],
+                "kind": "complete_runtime_source_ineligibility",
+                "observation_id": observation.identity,
+                "source_contract_id": contract.source_contract_id,
+                "source_state_record_id": suspended_head.record_id,
+            },
+        )
+        completed_drift = self.writer.complete_job(
+            outcome="not_evaluable",
+            output_manifest={},
+            failure={
+                "failure_kind": "runtime_source_ineligibility",
+                "interrupted_action": runtime_spec["callable_identity"],
+                "minimum_reproduction_evidence": [observation_artifact.sha256],
+                "resume_action": runtime_spec["resume_action"],
+                "root_cause": "source drifted during runtime execution",
+                "source_contract_id": contract.source_contract_id,
+                "source_state_record_id": suspended_head.record_id,
+            },
+            operation_id="complete-active-runtime-drift",
+        )
+        self.assertEqual(completed_drift.result["outcome"], "not_evaluable")
+        self.assertEqual(
+            self.writer.read_control()["next_action"],  # type: ignore[index]
+            {
+                "executable_id": executable.identity,
+                "kind": "plan_candidate_bound_evidence",
+            },
+        )
+
     def test_generic_job_cannot_report_scientific_falsification(self) -> None:
         self.open_mission_and_initiative()
         spec = job_spec(
@@ -4895,10 +7222,64 @@ class WriterTests(unittest.TestCase):
                 },
                 operation_id="reject-generic-scientific-falsification",
             )
+        with self.assertRaisesRegex(
+            TransitionError,
+            "engineering failure disposition",
+        ):
+            self.writer.complete_job(
+                outcome="failed",
+                output_manifest={},
+                failure={**common, "failure_kind": "engineering"},
+                operation_id="reject-unexplained-engineering-abandonment",
+            )
+        disposition_hash = engineering_failure_disposition(
+            self.writer,
+            job_id=declared.result["job_id"],
+            evidence_hashes=(reproduction.sha256,),
+            cause_hash=canonical_digest(
+                domain="repair-cause",
+                payload={
+                    "failure_kind": "engineering",
+                    "interrupted_action": spec["callable_identity"],
+                    "minimum_reproduction_evidence": [
+                        reproduction.sha256
+                    ],
+                    "root_cause": "fixture failure",
+                },
+            ),
+        )
+        with self.assertRaisesRegex(
+            TransitionError,
+            "exact durable disposition",
+        ):
+            self.writer.complete_job(
+                outcome="failed",
+                output_manifest={},
+                failure={
+                    **common,
+                    "failure_kind": "engineering",
+                    "repair_disposition_hash": disposition_hash,
+                },
+                operation_id="reject-unrecorded-engineering-disposition",
+            )
+        self.writer.record_engineering_failure_disposition(
+            failure={
+                "failure_kind": "engineering",
+                "interrupted_action": spec["callable_identity"],
+                "minimum_reproduction_evidence": [reproduction.sha256],
+                "root_cause": "fixture failure",
+            },
+            disposition_hash=disposition_hash,
+            operation_id="record-generic-engineering-disposition",
+        )
         completed = self.writer.complete_job(
             outcome="failed",
             output_manifest={},
-            failure={**common, "failure_kind": "engineering"},
+            failure={
+                **common,
+                "failure_kind": "engineering",
+                "repair_disposition_hash": disposition_hash,
+            },
             operation_id="complete-generic-engineering-failure",
         )
         self.assertEqual(completed.result["outcome"], "failed")
@@ -5365,6 +7746,75 @@ class WriterTests(unittest.TestCase):
                 operation_id="reject-unexplained-failure",
             )
         reproduction = self.writer.evidence.finalize(b"minimum failure reproduction")
+        common_failure = {
+            "minimum_reproduction_evidence": [reproduction.sha256],
+            "root_cause": "fixture callable rejected its input",
+            "interrupted_action": "fixture.callable",
+            "resume_action": "resume_fixture_job",
+        }
+        with self.assertRaisesRegex(
+            TransitionError,
+            "validator verdict",
+        ):
+            self.writer.complete_job(
+                outcome="not_evaluable",
+                output_manifest={},
+                failure={
+                    **common_failure,
+                    "failure_kind": "not_evaluable",
+                },
+                operation_id="reject-untyped-not-evaluable-label",
+            )
+        with self.assertRaisesRegex(
+            TransitionError,
+            "exact failure-kind semantics",
+        ):
+            self.writer.complete_job(
+                outcome="failed",
+                output_manifest={},
+                failure={
+                    **common_failure,
+                    "failure_kind": "runtime_source_ineligibility",
+                },
+                operation_id="reject-failed-runtime-source-label",
+            )
+        with self.assertRaisesRegex(
+            TransitionError,
+            "requires a runtime-bound Job",
+        ):
+            self.writer.complete_job(
+                outcome="not_evaluable",
+                output_manifest={},
+                failure={
+                    **common_failure,
+                    "failure_kind": "runtime_source_ineligibility",
+                    "source_contract_id": "source:non-runtime-fixture",
+                    "source_state_record_id": "a" * 64,
+                },
+                operation_id="reject-non-runtime-source-ineligibility",
+            )
+        cause_failure = {
+            "failure_kind": "engineering",
+            "minimum_reproduction_evidence": [reproduction.sha256],
+            "root_cause": "fixture callable rejected its input",
+            "interrupted_action": "fixture.callable",
+        }
+        cause_hash = canonical_digest(
+            domain="repair-cause",
+            payload=cause_failure,
+        )
+        disposition_hash = engineering_failure_disposition(
+            self.writer,
+            job_id=declared.result["job_id"],
+            evidence_hashes=(reproduction.sha256,),
+            disposition="repair_infeasible",
+            cause_hash=cause_hash,
+        )
+        self.writer.record_engineering_failure_disposition(
+            failure=cause_failure,
+            disposition_hash=disposition_hash,
+            operation_id="record-structured-engineering-disposition",
+        )
         completed = self.writer.complete_job(
             outcome="failed",
             output_manifest={},
@@ -5374,11 +7824,24 @@ class WriterTests(unittest.TestCase):
                 "root_cause": "fixture callable rejected its input",
                 "interrupted_action": "fixture.callable",
                 "resume_action": "resume_fixture_job",
+                "repair_disposition_hash": disposition_hash,
             },
             operation_id="record-structured-failure",
         )
         self.assertEqual(completed.result["outcome"], "failed")
         self.assertIsNone(self.writer.read_control()["scientific"]["active_job"])  # type: ignore[index]
+        duplicate_input_retry = job_spec(
+            self.writer, {"kind": "Mission", "id": "MIS-FAILURE"}
+        )
+        duplicate_input_retry["input_hashes"] = [
+            *duplicate_input_retry["input_hashes"],
+            duplicate_input_retry["input_hashes"][0],
+        ]
+        with self.assertRaisesRegex(TransitionError, "sorted unique"):
+            self.writer.declare_job(
+                spec=duplicate_input_retry,
+                operation_id="reject-duplicate-input-failed-retry",
+            )
         changed_budget = job_spec(
             self.writer, {"kind": "Mission", "id": "MIS-FAILURE"}
         )
@@ -5416,7 +7879,12 @@ class WriterTests(unittest.TestCase):
                 spec=cosmetic_retry,
                 operation_id="reject-cosmetic-failed-retry",
             )
-        previous_implementation = cosmetic_retry["implementation_identity"]
+        implementation_retry = job_spec(
+            self.writer, {"kind": "Mission", "id": "MIS-FAILURE"}
+        )
+        previous_implementation = implementation_retry[
+            "implementation_identity"
+        ]
         previous_artifact = self.writer.evidence.verify(previous_implementation)
         previous_manifest = parse_canonical(
             (
@@ -5450,7 +7918,7 @@ class WriterTests(unittest.TestCase):
                 }
             )
         )
-        protocol_only_retry = dict(cosmetic_retry)
+        protocol_only_retry = dict(implementation_retry)
         protocol_only_retry["implementation_identity"] = protocol_only_manifest.sha256
         protocol_only_retry["changed_cause_proof_hash"] = protocol_only_proof.sha256
         with self.assertRaises(IdenticalFailedRetryError):
@@ -5473,7 +7941,7 @@ class WriterTests(unittest.TestCase):
                 }
             )
         )
-        unordered_retry = dict(cosmetic_retry)
+        unordered_retry = dict(implementation_retry)
         unordered_retry["implementation_identity"] = unordered_manifest.sha256
         with self.assertRaises(TransitionError):
             self.writer.declare_job(
@@ -5487,34 +7955,80 @@ class WriterTests(unittest.TestCase):
             canonical_bytes(
                 {
                     "artifact_hashes": [changed_source.sha256],
-                    "callable_identity": cosmetic_retry["callable_identity"],
+                    "callable_identity": implementation_retry[
+                        "callable_identity"
+                    ],
                     "protocol": "python.source.fixture.v1",
                     "schema": "job_implementation_evidence.v1",
                 }
             )
         )
-        cosmetic_retry["implementation_identity"] = changed_evidence.sha256
+        implementation_retry["implementation_identity"] = (
+            changed_evidence.sha256
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            prior_declaration = index.get(
+                "job-declared",
+                declared.result["job_id"],
+            )
+        assert prior_declaration is not None
+        implementation_binding = {
+            "authority_kind": "implementation_cause_resolution",
+            "changed_dimension": "implementation",
+            "failure_signature": completed.result["failure_signature"],
+            "new_artifact_hashes": [changed_source.sha256],
+            "new_implementation_identity": changed_evidence.sha256,
+            "new_work_fingerprint": prior_declaration.payload[
+                "work_fingerprint"
+            ],
+            "previous_artifact_hashes": list(
+                previous_manifest["artifact_hashes"]
+            ),
+            "previous_implementation_identity": previous_implementation,
+            "prior_completion_record_id": completed.result[
+                "completion_record_id"
+            ],
+            "prior_job_hash": prior_declaration.fingerprint,
+            "prior_job_id": prior_declaration.record_id,
+            "prior_work_fingerprint": prior_declaration.payload[
+                "work_fingerprint"
+            ],
+            "retry_family_fingerprint": prior_declaration.payload[
+                "retry_family_fingerprint"
+            ],
+            "schema": "engineering_retry_validation_binding.v1",
+            "scientific_semantics_changed": False,
+        }
+        validation_plan_hash, validation_results = (
+            engineering_retry_validation_artifacts(
+                self.writer,
+                binding=implementation_binding,
+                validator_id=ENGINEERING_RETRY_VALIDATOR_ID,
+            )
+        )
         changed = self.writer.evidence.finalize(
             canonical_bytes(
                 {
                     "changed_dimension": "implementation",
                     "explanation": "fixture callable implementation was repaired",
-                    "new_evidence_hashes": [
-                        changed_evidence.sha256,
-                        changed_source.sha256,
-                    ],
+                    "new_evidence_hashes": sorted(
+                        [changed_evidence.sha256, changed_source.sha256]
+                    ),
                     "new_implementation_identity": changed_evidence.sha256,
                     "prior_failure_signature": completed.result[
                         "failure_signature"
                     ],
                     "previous_implementation_identity": previous_implementation,
+                    "result_artifact_hashes": validation_results,
                     "schema": "job_changed_cause.v1",
+                    "validation_plan_hash": validation_plan_hash,
+                    "validator_id": ENGINEERING_RETRY_VALIDATOR_ID,
                 }
             )
         )
-        cosmetic_retry["changed_cause_proof_hash"] = changed.sha256
+        implementation_retry["changed_cause_proof_hash"] = changed.sha256
         retried = self.writer.declare_job(
-            spec=cosmetic_retry,
+            spec=implementation_retry,
             operation_id="allow-changed-cause-retry",
         )
         self.assertNotEqual(retried.result["job_id"], declared.result["job_id"])
@@ -5594,6 +8108,18 @@ class WriterTests(unittest.TestCase):
         )
         control_before_reuse = self.writer.read_control()
         journal_before_reuse = self.writer.journal.tail()[0]
+        duplicate_cache_input = dict(cache_spec)
+        duplicate_cache_input["input_hashes"] = [
+            *cache_spec["input_hashes"],
+            cache_spec["input_hashes"][0],
+        ]
+        with self.assertRaisesRegex(TransitionError, "sorted unique"):
+            self.writer.declare_job(
+                spec=duplicate_cache_input,
+                operation_id="reject-duplicate-input-cache-bypass",
+            )
+        self.assertEqual(self.writer.read_control(), control_before_reuse)
+        self.assertEqual(self.writer.journal.tail()[0], journal_before_reuse)
         with LocalIndex(self.writer.index_path) as index:
             count_before_reuse = index.record_count()
             operations_before_reuse = len(index.records_by_kind("operation"))
@@ -5675,6 +8201,43 @@ class WriterTests(unittest.TestCase):
 
 
 class ScientificLifecycleTests(unittest.TestCase):
+    @staticmethod
+    def _seal_candidate_holdout(
+        writer: StateWriter,
+        *,
+        tag: str,
+    ) -> SealedHoldoutManifest:
+        artifact = writer.evidence.finalize(
+            f"sealed holdout values for {tag}".encode("ascii")
+        )
+        starts_at = "2026-07-01T00:00:00Z"
+        ends_at = "2026-07-10T00:00:00Z"
+        rows = SealedHoldoutManifest.rows_identity(
+            artifact_sha256=artifact.sha256,
+            size_bytes=artifact.size_bytes,
+        )
+        manifest = SealedHoldoutManifest(
+            artifact_sha256=artifact.sha256,
+            size_bytes=artifact.size_bytes,
+            data_receipt_id=SealedHoldoutManifest.dataset_identity(
+                artifact.sha256
+            ),
+            split_identity=SealedHoldoutManifest.split_identity_for(
+                row_identity=rows,
+                starts_at_utc=starts_at,
+                ends_at_utc=ends_at,
+                predecessor_holdout_id=None,
+            ),
+            row_identity=rows,
+            starts_at_utc=starts_at,
+            ends_at_utc=ends_at,
+        )
+        writer.record_holdout_seal(
+            manifest=manifest,
+            operation_id=f"{tag}-holdout-seal",
+        )
+        return manifest
+
     def _declare_and_start_scientific_job(
         self,
         *,
@@ -5690,11 +8253,17 @@ class ScientificLifecycleTests(unittest.TestCase):
             "cost_and_execution",
             "sensitivity_or_stress",
         ),
+        material_identity: str = OBSERVED_MATERIAL_ID,
+        verify_material_guard: bool = False,
     ):
         spec = job_spec(writer, {"kind": "Executable", "id": executable_id})
         result_name = f"evidence/{tag}-result"
         measurement_name = f"evidence/{tag}-measurement"
-        spec["input_hashes"] = [*spec["input_hashes"], plan_hash]
+        spec["input_hashes"] = [
+            *spec["input_hashes"],
+            material_identity,
+            plan_hash,
+        ]
         if holdout_id is not None:
             spec["input_hashes"] = [
                 *spec["input_hashes"],
@@ -5714,6 +8283,24 @@ class ScientificLifecycleTests(unittest.TestCase):
             "validation_plan_hash": plan_hash,
             "validator_id": ScientificFixtureValidator.validator_id,
         }
+        if verify_material_guard:
+            missing_material = dict(spec)
+            missing_material["input_hashes"] = [
+                value
+                for value in spec["input_hashes"]
+                if value != material_identity
+            ]
+            control_before = writer.read_control()
+            journal_before = writer.journal.tail()[0]
+            with self.assertRaisesRegex(
+                TransitionError, "omits its lineage material input"
+            ):
+                writer.declare_job(
+                    spec=missing_material,
+                    operation_id=f"{tag}-reject-missing-material",
+                )
+            self.assertEqual(writer.read_control(), control_before)
+            self.assertEqual(writer.journal.tail()[0], journal_before)
         declared = writer.declare_job(
             spec=spec, operation_id=f"{tag}-declare"
         )
@@ -5820,7 +8407,9 @@ class ScientificLifecycleTests(unittest.TestCase):
         self.assertEqual(trace["opened_artifact_count"], 2)
         return completed
 
-    def _build_frozen_candidate(self, root: str):
+    def _build_frozen_candidate(
+        self, root: str, *, verify_material_guard: bool = False
+    ):
         validator = ScientificFixtureValidator()
         foundation_root = legacy_scientific_fixture_foundation(Path(root))
         writer = StateWriter(
@@ -5865,29 +8454,35 @@ class ScientificLifecycleTests(unittest.TestCase):
         writer.record_portfolio_snapshot(
             snapshot=snapshot, operation_id="holdout-life-snapshot"
         )
+        options = (
+            DecisionOption(
+                option_id="choose-a",
+                action=PortfolioAction.DEEPEN,
+                target_id=axes[0].axis_id,
+                expected_information_value="positive",
+                opportunity_cost="bounded",
+            ),
+            DecisionOption(
+                option_id="retain-b",
+                action=PortfolioAction.CONTRAST,
+                target_id=axes[1].axis_id,
+                expected_information_value="positive",
+                opportunity_cost="one Batch",
+                omission_reason="axis A is selected for confirmation",
+            ),
+        )
         decision = PortfolioDecision(
             decision_id="DEC-HOLDOUT-LIFECYCLE",
             chosen_option_id="choose-a",
-            options=(
-                DecisionOption(
-                    option_id="choose-a",
-                    action=PortfolioAction.DEEPEN,
-                    target_id=axes[0].axis_id,
-                    expected_information_value="positive",
-                    opportunity_cost="bounded",
-                ),
-                DecisionOption(
-                    option_id="retain-b",
-                    action=PortfolioAction.CONTRAST,
-                    target_id=axes[1].axis_id,
-                    expected_information_value="positive",
-                    opportunity_cost="one Batch",
-                    omission_reason="axis A is selected for confirmation",
-                ),
-            ),
+            options=options,
             rationale="build one frozen candidate while retaining alternatives",
             commitment_batches=1,
             baseline_executable=portfolio_axis_baseline(axes[0]),
+            quant_team_review=quant_team_review_for_current_action(
+                writer,
+                options=options,
+                chosen_option_id="choose-a",
+            ),
         )
         writer.record_portfolio_decision(
             decision=decision, operation_id="holdout-life-decision"
@@ -6044,6 +8639,9 @@ class ScientificLifecycleTests(unittest.TestCase):
                 depth=depth,
                 claim_id=claim,
                 tag=tag,
+                verify_material_guard=(
+                    verify_material_guard and ordinal == 1
+                ),
             )
             completion = self._complete_scientific_job(
                 writer=writer,
@@ -6170,29 +8768,35 @@ class ScientificLifecycleTests(unittest.TestCase):
                 snapshot=snapshot,
                 operation_id="unstarted-snapshot",
             )
+            options = (
+                DecisionOption(
+                    option_id="choose-a",
+                    action=PortfolioAction.DEEPEN,
+                    target_id=axes[0].axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="bounded",
+                ),
+                DecisionOption(
+                    option_id="retain-b",
+                    action=PortfolioAction.CONTRAST,
+                    target_id=axes[1].axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="one Batch",
+                    omission_reason="axis A receives the bounded commitment",
+                ),
+            )
             decision = PortfolioDecision(
                 decision_id="DEC-UNSTARTED",
                 chosen_option_id="choose-a",
-                options=(
-                    DecisionOption(
-                        option_id="choose-a",
-                        action=PortfolioAction.DEEPEN,
-                        target_id=axes[0].axis_id,
-                        expected_information_value="positive",
-                        opportunity_cost="bounded",
-                    ),
-                    DecisionOption(
-                        option_id="retain-b",
-                        action=PortfolioAction.CONTRAST,
-                        target_id=axes[1].axis_id,
-                        expected_information_value="positive",
-                        opportunity_cost="one Batch",
-                        omission_reason="axis A receives the bounded commitment",
-                    ),
-                ),
+                options=options,
                 rationale="exercise a Writer-derived unavailable closeout",
-                commitment_batches=1,
+                commitment_batches=2,
                 baseline_executable=portfolio_axis_baseline(axes[0]),
+                quant_team_review=quant_team_review_for_current_action(
+                    writer,
+                    options=options,
+                    chosen_option_id="choose-a",
+                ),
             )
             writer.record_portfolio_decision(
                 decision=decision,
@@ -6282,6 +8886,51 @@ class ScientificLifecycleTests(unittest.TestCase):
                 outcome="not_evaluable",
                 operation_id="unstarted-batch-close",
             )
+            control = writer.read_control()
+            assert control is not None
+            close_record_id = control["next_action"][
+                "batch_close_record_id"
+            ]
+            continuation = StudyContinuationDecision(
+                study_id="STU-UNSTARTED",
+                study_hash=opened.result["study_hash"],
+                question_hash=canonical_digest(
+                    domain="study-question",
+                    payload=question,
+                ),
+                controlled_chassis_identity=(
+                    controlled_chassis.controlled_chassis_identity
+                ),
+                portfolio_snapshot_id=snapshot.identity,
+                portfolio_axis_id=axes[0].axis_id,
+                portfolio_axis_identity=axes[0].identity,
+                portfolio_decision_id=decision.identity,
+                prior_batch_id=batch.identity,
+                prior_batch_close_record_id=close_record_id,
+                member_executable_ids=(),
+                member_job_ids=(),
+                completion_record_ids=(),
+                evidence_hashes=(),
+                stop_rule=batch.stop_rule,
+                stop_rule_state=StopRuleState.UNRESOLVED,
+                remaining_uncertainty="no evidence was produced",
+                expected_information_value="no justified continuation value",
+                other_axis_ids=tuple(
+                    sorted(axis.axis_id for axis in axes[1:])
+                ),
+                other_axis_opportunity_cost="preserve both untested axes",
+                outcome=StudyContinuationOutcome.CLOSE,
+                next_batch_id=None,
+                quant_team_review=study_continuation_review(
+                    snapshot_id=snapshot.identity,
+                    batch_close_record_id=close_record_id,
+                    completion_record_ids=(),
+                ),
+            )
+            writer.review_study_continuation(
+                decision=continuation,
+                operation_id="unstarted-study-continuation-close",
+            )
             closed = writer.close_study(
                 outcome="not_evaluable",
                 operation_id="unstarted-study-close",
@@ -6314,29 +8963,35 @@ class ScientificLifecycleTests(unittest.TestCase):
                 operation_id="unstarted-study-diagnosis",
             )
 
+            budget_options = (
+                DecisionOption(
+                    option_id="choose-c",
+                    action=PortfolioAction.ROTATE,
+                    target_id=axes[2].axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="bounded",
+                ),
+                DecisionOption(
+                    option_id="retain-b",
+                    action=PortfolioAction.CONTRAST,
+                    target_id=axes[1].axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="one Batch",
+                    omission_reason="axis C receives the bounded commitment",
+                ),
+            )
             budget_decision = PortfolioDecision(
                 decision_id="DEC-BUDGET-END",
                 chosen_option_id="choose-c",
-                options=(
-                    DecisionOption(
-                        option_id="choose-c",
-                        action=PortfolioAction.ROTATE,
-                        target_id=axes[2].axis_id,
-                        expected_information_value="positive",
-                        opportunity_cost="bounded",
-                    ),
-                    DecisionOption(
-                        option_id="retain-b",
-                        action=PortfolioAction.CONTRAST,
-                        target_id=axes[1].axis_id,
-                        expected_information_value="positive",
-                        opportunity_cost="one Batch",
-                        omission_reason="axis C receives the bounded commitment",
-                    ),
-                ),
+                options=budget_options,
                 rationale="exercise an exhausted non-validator Job budget",
                 commitment_batches=1,
                 baseline_executable=portfolio_axis_baseline(axes[2]),
+                quant_team_review=quant_team_review_for_current_action(
+                    writer,
+                    options=budget_options,
+                    chosen_option_id="choose-c",
+                ),
             )
             writer.record_portfolio_decision(
                 decision=budget_decision,
@@ -6610,29 +9265,35 @@ class ScientificLifecycleTests(unittest.TestCase):
             data_identity=material_identity,
             split_contract=f"split:{split_identity}",
         )
+        options = (
+            DecisionOption(
+                option_id="develop-a",
+                action=PortfolioAction.DEEPEN,
+                target_id=axes[0]["axis_id"],
+                expected_information_value="positive",
+                opportunity_cost="one bounded Batch",
+            ),
+            DecisionOption(
+                option_id="retain-b",
+                action=PortfolioAction.CONTRAST,
+                target_id=axes[1]["axis_id"],
+                expected_information_value="positive",
+                opportunity_cost="deferred",
+                omission_reason="new material first tests the selected causal axis",
+            ),
+        )
         decision = PortfolioDecision(
             decision_id="DEC-POST-HOLDOUT-DEVELOPMENT",
             chosen_option_id="develop-a",
-            options=(
-                DecisionOption(
-                    option_id="develop-a",
-                    action=PortfolioAction.DEEPEN,
-                    target_id=axes[0]["axis_id"],
-                    expected_information_value="positive",
-                    opportunity_cost="one bounded Batch",
-                ),
-                DecisionOption(
-                    option_id="retain-b",
-                    action=PortfolioAction.CONTRAST,
-                    target_id=axes[1]["axis_id"],
-                    expected_information_value="positive",
-                    opportunity_cost="deferred",
-                    omission_reason="new material first tests the selected causal axis",
-                ),
-            ),
+            options=options,
             rationale="reenter the existing broad Portfolio on genuinely later material",
             commitment_batches=1,
             baseline_executable=new_executable,
+            quant_team_review=quant_team_review_for_current_action(
+                writer,
+                options=options,
+                chosen_option_id="develop-a",
+            ),
         )
         writer.record_portfolio_decision(
             decision=decision,
@@ -6737,6 +9398,7 @@ class ScientificLifecycleTests(unittest.TestCase):
                 depth=depth,
                 claim_id=claim,
                 tag=tag,
+                material_identity=material_identity,
             )
             completion = self._complete_scientific_job(
                 writer=writer,
@@ -6795,6 +9457,399 @@ class ScientificLifecycleTests(unittest.TestCase):
         )
         self.assertEqual(frozen.result["executable_id"], new_executable.identity)
 
+    def test_typed_study_continuation_prebinds_exact_next_batch(self) -> None:
+        with TemporaryDirectory() as root:
+            validator = ScientificFixtureValidator()
+            foundation_root = legacy_scientific_fixture_foundation(Path(root))
+            writer = StateWriter(
+                root,
+                permit_authority=PermitAuthority(b"n" * 32),
+                clock=lambda: FIXED_NOW,
+                study_close_guard_capability=FIXTURE_DELIVERY_CAPABILITY,
+                foundation_root=foundation_root,
+                validation_registry=EvidenceValidatorRegistry((validator,)),
+            )
+            writer.initialize_ready()
+            writer.open_mission(
+                mission_id="MIS-HOLDOUT-LIFECYCLE",
+                goal=mission_goal("typed Study continuation"),
+                operation_id="continuation-mission",
+            )
+            intake = record_fixture_research_intake(
+                writer,
+                mission_id="MIS-HOLDOUT-LIFECYCLE",
+                operation_id="continuation-intake",
+            )
+            writer.open_initiative(
+                initiative_id="INI-CONTINUATION",
+                objective=initiative_objective("typed Study continuation"),
+                operation_id="continuation-initiative",
+            )
+            axes = tuple(
+                PortfolioAxis(
+                    axis_id=f"continuation-axis-{letter}",
+                    causal_question=(
+                        f"Does continuation axis {letter} carry information?"
+                    ),
+                    mechanism_family=f"continuation-family-{letter}",
+                )
+                for letter in ("a", "b", "c")
+            )
+            snapshot = PortfolioSnapshot(
+                mission_id="MIS-HOLDOUT-LIFECYCLE",
+                axes=axes,
+                opportunity_cost_basis="retain two alternative continuation axes",
+                research_intake_id=intake.identity,
+                exhaustion_standard=exhaustion_standard(),
+            )
+            writer.record_portfolio_snapshot(
+                snapshot=snapshot,
+                operation_id="continuation-snapshot",
+            )
+            options = (
+                DecisionOption(
+                    option_id="choose-a",
+                    action=PortfolioAction.DEEPEN,
+                    target_id=axes[0].axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="three bounded Batches",
+                ),
+                DecisionOption(
+                    option_id="retain-b",
+                    action=PortfolioAction.CONTRAST,
+                    target_id=axes[1].axis_id,
+                    expected_information_value="positive",
+                    opportunity_cost="deferred",
+                    omission_reason="axis A has the current bounded priority",
+                ),
+            )
+            portfolio_decision = PortfolioDecision(
+                decision_id="DEC-CONTINUATION",
+                chosen_option_id="choose-a",
+                options=options,
+                rationale="permit evidence-bound continuation without causal drift",
+                commitment_batches=3,
+                baseline_executable=portfolio_axis_baseline(axes[0]),
+                quant_team_review=quant_team_review_for_current_action(
+                    writer,
+                    options=options,
+                    chosen_option_id="choose-a",
+                ),
+            )
+            writer.record_portfolio_decision(
+                decision=portfolio_decision,
+                operation_id="continuation-portfolio-decision",
+            )
+            question = study_question("typed Study continuation")
+            proposal = {"mechanism": "evidence-bound continuation"}
+            assert axes[0].architecture_chassis is not None
+            controlled_chassis = ControlledStudyChassis(
+                baseline_executable=portfolio_decision.baseline_executable,
+                changed_domains=axes[0].changed_domains,
+                controlled_domains=axes[0].controlled_domains,
+                architecture=axes[0].architecture_chassis,
+            )
+            study_hash = writer.study_input_hash(
+                question=question,
+                material_identity=OBSERVED_MATERIAL_ID,
+                semantic_proposal=proposal,
+                controlled_chassis=controlled_chassis,
+                portfolio_axis_id=axes[0].axis_id,
+                portfolio_axis_identity=axes[0].identity,
+                portfolio_decision_id=portfolio_decision.identity,
+            )
+            study_permit = writer.issue_permit(
+                kind=PermitKind.STUDY,
+                subject_kind=SubjectKind.INITIATIVE,
+                subject_id="INI-CONTINUATION",
+                input_hash=study_hash,
+                actions=("open_study",),
+                scope=(
+                    "study",
+                    f"decision:{portfolio_decision.identity}",
+                    f"axis:{axes[0].identity}",
+                    f"baseline:{portfolio_decision.baseline_executable.identity}",
+                    f"chassis:{portfolio_decision.architecture_chassis.identity}",
+                    f"snapshot:{snapshot.identity}",
+                ),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="continuation-study-permit",
+            )
+            opened = writer.open_study(
+                study_id="STU-CONTINUATION",
+                question=question,
+                material_identity=OBSERVED_MATERIAL_ID,
+                material_display_name="foundation observed material",
+                semantic_proposal=proposal,
+                controlled_chassis=controlled_chassis,
+                portfolio_axis_id=axes[0].axis_id,
+                portfolio_axis_identity=axes[0].identity,
+                portfolio_decision_id=portfolio_decision.identity,
+                permit=study_permit,
+                operation_id="continuation-study-open",
+            )
+            first_batch = batch_spec(
+                batch_id="BAT-CONTINUATION-1",
+                study_id="STU-CONTINUATION",
+                study_hash=opened.result["study_hash"],
+                max_compute_seconds=90,
+            )
+            first_permit = writer.issue_permit(
+                kind=PermitKind.BATCH,
+                subject_kind=SubjectKind.STUDY,
+                subject_id="STU-CONTINUATION",
+                input_hash=first_batch.identity.removeprefix("batch:"),
+                actions=("open_batch",),
+                scope=("batch",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="continuation-first-batch-permit",
+            )
+            writer.open_batch(
+                batch_spec=first_batch,
+                permit=first_permit,
+                operation_id="continuation-first-batch-open",
+            )
+            plan = writer.evidence.finalize(
+                canonical_bytes({"schema": "scientific_boundary_plan.v1"})
+            )
+
+            def execute_member(
+                *, tag: str, change_tag: str, disposition: str
+            ) -> object:
+                assert portfolio_decision.baseline_executable is not None
+                executable = changed_domain_executable(
+                    portfolio_decision.baseline_executable,
+                    domain="calibration",
+                    change_tag=change_tag,
+                )
+                writer.register_trial(
+                    executable=executable,
+                    operation_id=f"{tag}-trial",
+                )
+                spec, declared = self._declare_and_start_scientific_job(
+                    writer=writer,
+                    executable_id=executable.identity,
+                    plan_hash=plan.sha256,
+                    depth="discovery",
+                    claim_id=f"{tag}-claim",
+                    tag=tag,
+                )
+                completion = self._complete_scientific_job(
+                    writer=writer,
+                    spec=spec,
+                    declared=declared,
+                    executable_id=executable.identity,
+                    depth="discovery",
+                    claim_id=f"{tag}-claim",
+                    verdict="passed",
+                    tag=tag,
+                )
+                writer.judge_job_evidence(
+                    completion_record_id=completion.result[
+                        "completion_record_id"
+                    ],
+                    disposition=disposition,
+                    operation_id=f"{tag}-judge",
+                )
+                return completion
+
+            execute_member(
+                tag="continuation-first",
+                change_tag="continuation-first",
+                disposition="continue_batch",
+            )
+            writer.dispose_batch(
+                outcome="stopped_early",
+                operation_id="continuation-first-close",
+            )
+            second_batch = batch_spec(
+                batch_id="BAT-CONTINUATION-2",
+                study_id="STU-CONTINUATION",
+                study_hash=opened.result["study_hash"],
+                max_compute_seconds=90,
+                max_trials=19,
+            )
+
+            def continuation_for(
+                *,
+                batch: BatchSpec,
+                next_batch: BatchSpec | None,
+                stop_rule_state: StopRuleState,
+                outcome: StudyContinuationOutcome,
+                other_axis_ids: tuple[str, ...] | None = None,
+                evidence_hashes: tuple[str, ...] | None = None,
+            ) -> StudyContinuationDecision:
+                control = writer.read_control()
+                assert control is not None
+                close_id = control["next_action"]["batch_close_record_id"]
+                with LocalIndex(writer.index_path) as index:
+                    bindings = writer._batch_continuation_bindings(
+                        index, batch.identity
+                    )
+                    study_record = index.get(
+                        "study-open", "STU-CONTINUATION"
+                    )
+                assert study_record is not None
+                completions = bindings["completion_record_ids"]
+                return StudyContinuationDecision(
+                    study_id="STU-CONTINUATION",
+                    study_hash=opened.result["study_hash"],
+                    question_hash=study_record.payload["question_hash"],
+                    controlled_chassis_identity=(
+                        controlled_chassis.controlled_chassis_identity
+                    ),
+                    portfolio_snapshot_id=snapshot.identity,
+                    portfolio_axis_id=axes[0].axis_id,
+                    portfolio_axis_identity=axes[0].identity,
+                    portfolio_decision_id=portfolio_decision.identity,
+                    prior_batch_id=batch.identity,
+                    prior_batch_close_record_id=close_id,
+                    member_executable_ids=bindings[
+                        "member_executable_ids"
+                    ],
+                    member_job_ids=bindings["member_job_ids"],
+                    completion_record_ids=completions,
+                    evidence_hashes=(
+                        bindings["evidence_hashes"]
+                        if evidence_hashes is None
+                        else evidence_hashes
+                    ),
+                    stop_rule=batch.stop_rule,
+                    stop_rule_state=stop_rule_state,
+                    remaining_uncertainty="the unchanged question remains unresolved",
+                    expected_information_value="one bounded Batch can resolve it",
+                    other_axis_ids=(
+                        tuple(sorted(axis.axis_id for axis in axes[1:]))
+                        if other_axis_ids is None
+                        else other_axis_ids
+                    ),
+                    other_axis_opportunity_cost="defer but preserve both alternatives",
+                    outcome=outcome,
+                    next_batch_id=(
+                        None if next_batch is None else next_batch.identity
+                    ),
+                    quant_team_review=study_continuation_review(
+                        snapshot_id=snapshot.identity,
+                        batch_close_record_id=close_id,
+                        completion_record_ids=completions,
+                    ),
+                )
+
+            with self.assertRaisesRegex(
+                StudyContinuationError, "evidence-bearing"
+            ):
+                continuation_for(
+                    batch=first_batch,
+                    next_batch=second_batch,
+                    stop_rule_state=StopRuleState.NOT_REACHED,
+                    outcome=StudyContinuationOutcome.CONTINUE,
+                    evidence_hashes=(),
+                )
+            drifted_forest = continuation_for(
+                batch=first_batch,
+                next_batch=second_batch,
+                stop_rule_state=StopRuleState.NOT_REACHED,
+                outcome=StudyContinuationOutcome.CONTINUE,
+                other_axis_ids=(axes[1].axis_id,),
+            )
+            with self.assertRaisesRegex(TransitionError, "Portfolio forest"):
+                writer.review_study_continuation(
+                    decision=drifted_forest,
+                    operation_id="reject-drifted-continuation-forest",
+                )
+            continuation = continuation_for(
+                batch=first_batch,
+                next_batch=second_batch,
+                stop_rule_state=StopRuleState.NOT_REACHED,
+                outcome=StudyContinuationOutcome.CONTINUE,
+            )
+            writer.review_study_continuation(
+                decision=continuation,
+                operation_id="continuation-first-review",
+            )
+            wrong_batch = batch_spec(
+                batch_id="BAT-CONTINUATION-WRONG",
+                study_id="STU-CONTINUATION",
+                study_hash=opened.result["study_hash"],
+                max_trials=18,
+            )
+            wrong_permit = writer.issue_permit(
+                kind=PermitKind.BATCH,
+                subject_kind=SubjectKind.STUDY,
+                subject_id="STU-CONTINUATION",
+                input_hash=wrong_batch.identity.removeprefix("batch:"),
+                actions=("open_batch",),
+                scope=("batch",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="continuation-wrong-batch-permit",
+            )
+            with self.assertRaisesRegex(TransitionError, "exact continuation"):
+                writer.open_batch(
+                    batch_spec=wrong_batch,
+                    permit=wrong_permit,
+                    operation_id="reject-unbound-continuation-batch",
+                )
+            second_permit = writer.issue_permit(
+                kind=PermitKind.BATCH,
+                subject_kind=SubjectKind.STUDY,
+                subject_id="STU-CONTINUATION",
+                input_hash=second_batch.identity.removeprefix("batch:"),
+                actions=("open_batch",),
+                scope=("batch",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="continuation-second-batch-permit",
+            )
+            writer.open_batch(
+                batch_spec=second_batch,
+                permit=second_permit,
+                operation_id="continuation-second-batch-open",
+            )
+            execute_member(
+                tag="continuation-second",
+                change_tag="continuation-second",
+                disposition="stop_batch",
+            )
+            writer.dispose_batch(
+                outcome="completed",
+                operation_id="continuation-second-close",
+            )
+            forged_not_reached = continuation_for(
+                batch=second_batch,
+                next_batch=batch_spec(
+                    batch_id="BAT-CONTINUATION-3",
+                    study_id="STU-CONTINUATION",
+                    study_hash=opened.result["study_hash"],
+                    max_trials=17,
+                ),
+                stop_rule_state=StopRuleState.NOT_REACHED,
+                outcome=StudyContinuationOutcome.CONTINUE,
+            )
+            with self.assertRaisesRegex(
+                TransitionError, "stop-rule state differs"
+            ):
+                writer.review_study_continuation(
+                    decision=forged_not_reached,
+                    operation_id="reject-forged-not-reached",
+                )
+            close_decision = continuation_for(
+                batch=second_batch,
+                next_batch=None,
+                stop_rule_state=StopRuleState.REACHED,
+                outcome=StudyContinuationOutcome.CLOSE,
+            )
+            writer.review_study_continuation(
+                decision=close_decision,
+                operation_id="continuation-second-review-close",
+            )
+            self.assertEqual(
+                writer.read_control()["next_action"],
+                {"kind": "judge_study", "study_id": "STU-CONTINUATION"},
+            )
+
     def test_holdout_pass_fail_and_not_evaluable_dispositions(self) -> None:
         for verdict in ("passed", "failed", "not_evaluable"):
             with self.subTest(verdict=verdict), TemporaryDirectory() as root:
@@ -6846,6 +9901,21 @@ class ScientificLifecycleTests(unittest.TestCase):
                         )
                     ),
                 )
+                if verdict == "passed":
+                    with self.assertRaisesRegex(
+                        TransitionError,
+                        "before its exact reveal",
+                    ):
+                        self._complete_scientific_job(
+                            writer=writer,
+                            spec=spec,
+                            declared=declared,
+                            executable_id=executable.identity,
+                            depth="confirmation",
+                            claim_id=claim,
+                            verdict=verdict,
+                            tag=tag,
+                        )
                 holdout_permit = writer.issue_permit(
                     kind=PermitKind.HOLDOUT,
                     subject_kind=SubjectKind.EXECUTABLE,
@@ -7007,6 +10077,13 @@ class ScientificLifecycleTests(unittest.TestCase):
                             plan_hash=plan.sha256,
                         )
 
+    def test_scientific_job_requires_its_observed_lineage_material_input(self) -> None:
+        with TemporaryDirectory() as root:
+            self._build_frozen_candidate(
+                root,
+                verify_material_guard=True,
+            )
+
     def test_scientific_job_cannot_execute_an_unregistered_study_mode(self) -> None:
         with TemporaryDirectory() as root:
             writer, executable, _candidate, plan = self._build_frozen_candidate(root)
@@ -7019,6 +10096,920 @@ class ScientificLifecycleTests(unittest.TestCase):
                     claim_id="unregistered-mode-claim",
                     tag="unregistered-mode",
                     evidence_modes=("ablation",),
+                )
+
+    def test_revealed_holdout_engineering_gap_disposes_without_scientific_loss(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as root:
+            writer, executable, candidate, plan = self._build_frozen_candidate(root)
+            content = b"sealed holdout values for engineering gap"
+            artifact = writer.evidence.finalize(content)
+            starts_at = "2026-07-01T00:00:00Z"
+            ends_at = "2026-07-10T00:00:00Z"
+            rows = SealedHoldoutManifest.rows_identity(
+                artifact_sha256=artifact.sha256,
+                size_bytes=artifact.size_bytes,
+            )
+            sealed = SealedHoldoutManifest(
+                artifact_sha256=artifact.sha256,
+                size_bytes=artifact.size_bytes,
+                data_receipt_id=SealedHoldoutManifest.dataset_identity(
+                    artifact.sha256
+                ),
+                split_identity=SealedHoldoutManifest.split_identity_for(
+                    row_identity=rows,
+                    starts_at_utc=starts_at,
+                    ends_at_utc=ends_at,
+                    predecessor_holdout_id=None,
+                ),
+                row_identity=rows,
+                starts_at_utc=starts_at,
+                ends_at_utc=ends_at,
+            )
+            writer.record_holdout_seal(
+                manifest=sealed,
+                operation_id="engineering-gap-holdout-seal",
+            )
+            spec, declared = self._declare_and_start_scientific_job(
+                writer=writer,
+                executable_id=executable.identity,
+                plan_hash=plan.sha256,
+                depth="confirmation",
+                claim_id="engineering-gap-holdout-claim",
+                tag="engineering-gap-holdout",
+                holdout_id=sealed.identity,
+                evidence_modes=(
+                    "causal_contrast",
+                    "cost_and_execution",
+                    "sensitivity_or_stress",
+                ),
+            )
+            holdout_permit = writer.issue_permit(
+                kind=PermitKind.HOLDOUT,
+                subject_kind=SubjectKind.EXECUTABLE,
+                subject_id=executable.identity,
+                input_hash=sealed.identity.removeprefix("holdout:"),
+                actions=("reveal_holdout",),
+                scope=(
+                    sealed.identity,
+                    f"candidate:{candidate.result['candidate_id']}",
+                    f"executable:{executable.identity}",
+                ),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="engineering-gap-holdout-reveal-permit",
+            )
+            self.assertEqual(
+                writer.reveal_holdout_values(
+                    permit=holdout_permit,
+                    executable_id=executable.identity,
+                    operation_id="engineering-gap-holdout-values-reveal",
+                ),
+                content,
+            )
+            reproduction = writer.evidence.finalize(
+                b"holdout evaluator engineering failure reproduction"
+            )
+            cause = {
+                "failure_kind": "engineering",
+                "minimum_reproduction_evidence": [reproduction.sha256],
+                "root_cause": "holdout evaluator could not parse its sealed input",
+                "interrupted_action": spec["callable_identity"],
+            }
+            cause_hash = canonical_digest(domain="repair-cause", payload=cause)
+            disposition_hash = engineering_failure_disposition(
+                writer,
+                job_id=declared.result["job_id"],
+                evidence_hashes=(reproduction.sha256,),
+                cause_hash=cause_hash,
+            )
+            writer.record_engineering_failure_disposition(
+                failure=cause,
+                disposition_hash=disposition_hash,
+                operation_id="engineering-gap-holdout-disposition",
+            )
+            completed = writer.complete_job(
+                outcome="failed",
+                output_manifest={},
+                failure={
+                    **cause,
+                    "repair_disposition_hash": disposition_hash,
+                    "resume_action": spec["resume_action"],
+                },
+                operation_id="engineering-gap-holdout-complete",
+            )
+            completion_id = completed.result["completion_record_id"]
+            self.assertEqual(
+                writer.read_control()["next_action"],  # type: ignore[index]
+                {
+                    "completion_record_id": completion_id,
+                    "holdout_id": sealed.identity,
+                    "job_id": declared.result["job_id"],
+                    "kind": "dispose_revealed_holdout_engineering_gap",
+                },
+            )
+            disposed = writer.dispose_revealed_holdout_engineering_gap(
+                completion_record_id=completion_id,
+                operation_id="engineering-gap-holdout-terminal",
+            )
+            self.assertEqual(disposed.result["verdict"], "engineering_gap")
+            control = writer.read_control()
+            assert control is not None
+            self.assertIsNone(
+                control["scientific"]["active_holdout_evaluation"]
+            )
+            self.assertIsNone(control["scientific"]["active_executable"])
+            self.assertEqual(
+                control["next_action"],
+                {
+                    "kind": "await_new_future_holdout_data",
+                    "predecessor_holdout_id": sealed.identity,
+                },
+            )
+            with LocalIndex(writer.index_path) as index:
+                holdout_disposition = index.event_record(
+                    f"holdout-reveal:{sealed.identity}", 2
+                )
+                candidate_holdout = index.get(
+                    "candidate-holdout", candidate.result["candidate_id"]
+                )
+                candidate_head = index.event_head(
+                    f"candidate:{executable.identity}"
+                )
+                candidate_disposition = (
+                    None
+                    if candidate_head is None
+                    else index.get(
+                        candidate_head.record_kind,
+                        candidate_head.record_id,
+                    )
+                )
+                negative_memories = index.records_by_kind("negative-memory")
+            assert holdout_disposition is not None
+            assert candidate_holdout is not None
+            assert candidate_disposition is not None
+            self.assertEqual(holdout_disposition.status, "engineering_gap")
+            self.assertEqual(candidate_holdout.status, "engineering_gap")
+            self.assertEqual(candidate_disposition.status, "invalidated")
+            self.assertEqual(
+                candidate_disposition.payload["reason"],
+                "final_holdout_engineering_gap",
+            )
+            self.assertFalse(negative_memories)
+
+    def test_pre_reveal_holdout_scientific_change_invalidates_only_the_candidate(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as root:
+            writer, executable, candidate, plan = self._build_frozen_candidate(
+                root
+            )
+            sealed = self._seal_candidate_holdout(
+                writer,
+                tag="pre-reveal-scientific-change",
+            )
+            spec, declared = self._declare_and_start_scientific_job(
+                writer=writer,
+                executable_id=executable.identity,
+                plan_hash=plan.sha256,
+                depth="confirmation",
+                claim_id="pre-reveal-scientific-change-claim",
+                tag="pre-reveal-scientific-change",
+                holdout_id=sealed.identity,
+            )
+            reproduction = writer.evidence.finalize(
+                b"pre-reveal evaluator requires a scientific change"
+            )
+            cause = {
+                "failure_kind": "engineering",
+                "minimum_reproduction_evidence": [reproduction.sha256],
+                "root_cause": "evaluator repair would change registered semantics",
+                "interrupted_action": spec["callable_identity"],
+            }
+            cause_hash = canonical_digest(domain="repair-cause", payload=cause)
+            disposition_hash = engineering_failure_disposition(
+                writer,
+                job_id=declared.result["job_id"],
+                evidence_hashes=(reproduction.sha256,),
+                cause_hash=cause_hash,
+            )
+            writer.record_engineering_failure_disposition(
+                failure=cause,
+                disposition_hash=disposition_hash,
+                operation_id="pre-reveal-scientific-change-disposition",
+            )
+            completed = writer.complete_job(
+                outcome="failed",
+                output_manifest={},
+                failure={
+                    **cause,
+                    "repair_disposition_hash": disposition_hash,
+                    "resume_action": spec["resume_action"],
+                },
+                operation_id="pre-reveal-scientific-change-complete",
+            )
+            action = writer.read_control()["next_action"]  # type: ignore[index]
+            self.assertEqual(action["kind"], "resolve_candidate_engineering_gap")
+            self.assertEqual(action["work_context"], "pre_reveal_holdout")
+            self.assertEqual(action["target_id"], sealed.identity)
+            self.assertEqual(action["successor_scope"], "study")
+            self.assertEqual(
+                action["completion_record_id"],
+                completed.result["completion_record_id"],
+            )
+            control = writer.read_control()
+            assert control is not None
+            self.assertEqual(control["scientific"]["holdout_reveals"], 0)
+            self.assertIsNone(
+                control["scientific"]["active_holdout_evaluation"]
+            )
+            with self.assertRaises(TransitionError):
+                writer.declare_job(
+                    spec=spec,
+                    operation_id="reject-old-pre-reveal-retry-after-scientific-change",
+                )
+            with self.assertRaisesRegex(TransitionError, "must invalidate"):
+                writer.dispose_candidate(
+                    disposition="returned_to_library",
+                    reason="keep an invalid frozen identity",
+                    operation_id="reject-pre-reveal-noninvalidation",
+                )
+            disposed = writer.dispose_candidate(
+                disposition="invalidated",
+                reason="engineering_requires_scientific_change",
+                operation_id="invalidate-pre-reveal-candidate",
+            )
+            self.assertEqual(
+                disposed.result["executable_id"], executable.identity
+            )
+            with LocalIndex(writer.index_path) as index:
+                gap = index.records_by_kind(
+                    "holdout-evaluation-operational-gap"
+                )
+                candidate_head = index.event_head(
+                    f"candidate:{executable.identity}"
+                )
+                negative_memories = index.records_by_kind("negative-memory")
+            self.assertEqual(len(gap), 1)
+            self.assertTrue(gap[0].payload["sealed_holdout_preserved"])
+            self.assertEqual(gap[0].payload["scientific_trial_delta"], 0)
+            self.assertIsNotNone(candidate_head)
+            assert candidate_head is not None
+            self.assertNotEqual(candidate_head.record_id, candidate.result["candidate_id"])
+            self.assertFalse(negative_memories)
+
+    def test_pre_entry_runtime_engineering_gap_allows_only_same_depth_repair(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as root:
+            writer, executable, candidate, _plan = self._build_frozen_candidate(
+                root
+            )
+            writer.validation_registry = EvidenceValidatorRegistry(
+                (
+                    EngineeringRetryBoundaryFixtureValidator(),
+                    ScientificFixtureValidator(),
+                    RuntimeBoundaryFixtureValidator(),
+                )
+            )
+            spec = runtime_job_spec(
+                writer=writer,
+                executable_id=executable.identity,
+                depth=EvidenceDepth.EXECUTION_PROOF,
+                output_name="evidence/pre-entry-runtime-gap",
+                artifact_roles=("native_execution_report", "parity_report"),
+                validation_plan_hash=RUNTIME_BOUNDARY_PLAN_HASH,
+                validator_id=RuntimeBoundaryFixtureValidator.validator_id,
+            )
+            declared = writer.declare_job(
+                spec=spec,
+                operation_id="pre-entry-runtime-gap-declare",
+            )
+            job_permit = writer.issue_permit(
+                kind=PermitKind.JOB,
+                subject_kind=SubjectKind.JOB,
+                subject_id=declared.result["job_id"],
+                input_hash=declared.result["job_hash"],
+                actions=("start_job",),
+                scope=("job",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="pre-entry-runtime-gap-job-permit",
+            )
+            runtime_permit = writer.issue_permit(
+                kind=PermitKind.RUNTIME,
+                subject_kind=SubjectKind.EXECUTABLE,
+                subject_id=executable.identity,
+                input_hash=declared.result["job_hash"],
+                actions=("run_execution_proof",),
+                scope=(
+                    f"candidate:{candidate.result['candidate_id']}",
+                    "depth:execution_proof",
+                    f"executable:{executable.identity}",
+                    f"job:{declared.result['job_id']}",
+                ),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=False,
+                operation_id="pre-entry-runtime-gap-runtime-permit",
+            )
+            writer.start_job(
+                permit=job_permit,
+                runtime_permit=runtime_permit,
+                operation_id="pre-entry-runtime-gap-start",
+            )
+            reproduction = writer.evidence.finalize(
+                b"runtime adapter failed before engine entry"
+            )
+            cause = {
+                "failure_kind": "engineering",
+                "minimum_reproduction_evidence": [reproduction.sha256],
+                "root_cause": "runtime adapter initialization failed",
+                "interrupted_action": spec["callable_identity"],
+            }
+            cause_hash = canonical_digest(domain="repair-cause", payload=cause)
+            disposition_hash = engineering_failure_disposition(
+                writer,
+                job_id=declared.result["job_id"],
+                evidence_hashes=(reproduction.sha256,),
+                disposition="repair_infeasible",
+                cause_hash=cause_hash,
+            )
+            writer.record_engineering_failure_disposition(
+                failure=cause,
+                disposition_hash=disposition_hash,
+                operation_id="pre-entry-runtime-gap-disposition",
+            )
+            completed = writer.complete_job(
+                outcome="failed",
+                output_manifest={},
+                failure={
+                    **cause,
+                    "repair_disposition_hash": disposition_hash,
+                    "resume_action": spec["resume_action"],
+                },
+                operation_id="pre-entry-runtime-gap-complete",
+            )
+            action = writer.read_control()["next_action"]  # type: ignore[index]
+            self.assertEqual(
+                action,
+                {
+                    "completion_record_id": completed.result[
+                        "completion_record_id"
+                    ],
+                    "disposition": "repair_infeasible",
+                    "executable_id": executable.identity,
+                    "job_id": declared.result["job_id"],
+                    "kind": "resolve_candidate_engineering_gap",
+                    "resume_condition": "admit a new exact scientific work identity",
+                    "successor_scope": None,
+                    "target_id": "execution_proof",
+                    "work_context": "runtime",
+                },
+            )
+            materialization_spec = runtime_job_spec(
+                writer=writer,
+                executable_id=executable.identity,
+                depth=EvidenceDepth.MATERIALIZATION,
+                output_name="evidence/reject-pre-entry-depth-skip",
+                artifact_roles=("materialization_report",),
+                validation_plan_hash=RUNTIME_BOUNDARY_PLAN_HASH,
+                validator_id=RuntimeBoundaryFixtureValidator.validator_id,
+            )
+            with self.assertRaises(TransitionError):
+                writer.declare_job(
+                    spec=materialization_spec,
+                    operation_id="reject-pre-entry-depth-skip",
+                )
+            repair_basis = writer.evidence.finalize(
+                b"bounded runtime adapter repair basis"
+            )
+            input_bypass_spec = dict(spec)
+            input_bypass_spec["input_hashes"] = [
+                *spec["input_hashes"],
+                repair_basis.sha256,
+            ]
+            with self.assertRaises(IdenticalFailedRetryError):
+                writer.declare_job(
+                    spec=input_bypass_spec,
+                    operation_id="reject-pre-entry-input-bypass",
+                )
+            completion_record_id = completed.result["completion_record_id"]
+            with LocalIndex(writer.index_path) as index:
+                completion = index.get(
+                    "job-completed",
+                    completion_record_id,
+                )
+                declaration = index.get(
+                    "job-declared",
+                    declared.result["job_id"],
+                )
+                assert completion is not None and declaration is not None
+            failure = completion.payload["failure"]
+            disposition = completion.payload["engineering_disposition"]
+            retry_validation_binding = {
+                "authority_kind": "same_implementation_retry",
+                "changed_dimension": "cause",
+                "engineering_disposition_hash": failure[
+                    "repair_disposition_hash"
+                ],
+                "failure_signature": failure["failure_signature"],
+                "new_basis_hash": repair_basis.sha256,
+                "new_work_fingerprint": declaration.payload[
+                    "work_fingerprint"
+                ],
+                "previous_basis_hash": disposition["basis_manifest_hash"],
+                "prior_completion_record_id": completion.record_id,
+                "prior_job_hash": declaration.fingerprint,
+                "prior_job_id": declaration.record_id,
+                "prior_work_fingerprint": declaration.payload[
+                    "work_fingerprint"
+                ],
+                "resume_condition": disposition["resume_condition"],
+                "retry_family_fingerprint": declaration.payload[
+                    "retry_family_fingerprint"
+                ],
+                "schema": "engineering_retry_validation_binding.v1",
+                "scientific_semantics_changed": False,
+            }
+            check_plan_hash, check_result_hashes = (
+                engineering_retry_validation_artifacts(
+                    writer,
+                    binding=retry_validation_binding,
+                    validator_id=(
+                        EngineeringRetryBoundaryFixtureValidator.validator_id
+                    ),
+                )
+            )
+            verification = writer.evidence.finalize(
+                canonical_bytes(
+                    {
+                        "changed_dimension": "cause",
+                        "check_plan_hash": check_plan_hash,
+                        "engineering_disposition_hash": failure[
+                            "repair_disposition_hash"
+                        ],
+                        "failure_signature": failure["failure_signature"],
+                        "new_basis_hash": repair_basis.sha256,
+                        "new_work_fingerprint": declaration.payload[
+                            "work_fingerprint"
+                        ],
+                        "prior_completion_record_id": completion.record_id,
+                        "prior_job_hash": declaration.fingerprint,
+                        "prior_job_id": declaration.record_id,
+                        "result_artifact_hashes": check_result_hashes,
+                        "resume_condition": disposition["resume_condition"],
+                        "retry_family_fingerprint": declaration.payload[
+                            "retry_family_fingerprint"
+                        ],
+                        "schema": "job_retry_resume_verification.v1",
+                        "scientific_semantics_changed": False,
+                        "validator_id": (
+                            EngineeringRetryBoundaryFixtureValidator.validator_id
+                        ),
+                        "verdict": "passed",
+                        "verification_method": "independent fixture rerun",
+                    }
+                )
+            )
+            authority = writer.evidence.finalize(
+                canonical_bytes(
+                    {
+                        "changed_dimension": "cause",
+                        "engineering_disposition_hash": failure[
+                            "repair_disposition_hash"
+                        ],
+                        "failure_signature": failure["failure_signature"],
+                        "new_basis_hash": repair_basis.sha256,
+                        "new_evidence_hashes": [repair_basis.sha256],
+                        "new_work_fingerprint": declaration.payload[
+                            "work_fingerprint"
+                        ],
+                        "previous_basis_hash": disposition[
+                            "basis_manifest_hash"
+                        ],
+                        "prior_completion_record_id": completion.record_id,
+                        "prior_job_hash": declaration.fingerprint,
+                        "prior_job_id": declaration.record_id,
+                        "prior_work_fingerprint": declaration.payload[
+                            "work_fingerprint"
+                        ],
+                        "resume_condition": disposition["resume_condition"],
+                        "retry_family_fingerprint": declaration.payload[
+                            "retry_family_fingerprint"
+                        ],
+                        "schema": "job_retry_resume_authority.v1",
+                        "scientific_semantics_changed": False,
+                        "verification_receipt_hashes": [verification.sha256],
+                    }
+                )
+            )
+            retry_spec = dict(spec)
+            retry_spec["changed_cause_proof_hash"] = authority.sha256
+            retry = writer.declare_job(
+                spec=retry_spec,
+                operation_id="pre-entry-same-depth-retry",
+            )
+            self.assertNotEqual(retry.result["job_id"], declared.result["job_id"])
+            self.assertEqual(
+                writer.read_control()["next_action"],  # type: ignore[index]
+                {
+                    "job_id": retry.result["job_id"],
+                    "kind": "issue_job_permit",
+                },
+            )
+
+    def test_real_runtime_completion_reopens_the_second_release_depth(self) -> None:
+        with TemporaryDirectory() as root:
+            writer, executable, candidate, _plan = self._build_frozen_candidate(
+                root
+            )
+            writer.validation_registry = EvidenceValidatorRegistry(
+                (
+                    ScientificFixtureValidator(),
+                    RuntimeBoundaryFixtureValidator(),
+                )
+            )
+            executable_id = executable.identity
+            candidate_id = candidate.result["candidate_id"]
+            output_name = "evidence/real-execution-proof"
+            spec = runtime_job_spec(
+                writer=writer,
+                executable_id=executable_id,
+                depth=EvidenceDepth.EXECUTION_PROOF,
+                output_name=output_name,
+                artifact_roles=(
+                    "native_execution_report",
+                    "parity_report",
+                ),
+                validation_plan_hash=RUNTIME_BOUNDARY_PLAN_HASH,
+                validator_id=RuntimeBoundaryFixtureValidator.validator_id,
+            )
+            declared = writer.declare_job(
+                spec=spec,
+                operation_id="real-runtime-execution-declare",
+            )
+            job_permit = writer.issue_permit(
+                kind=PermitKind.JOB,
+                subject_kind=SubjectKind.JOB,
+                subject_id=declared.result["job_id"],
+                input_hash=declared.result["job_hash"],
+                actions=("start_job",),
+                scope=("job",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="real-runtime-execution-job-permit",
+            )
+            runtime_permit = writer.issue_permit(
+                kind=PermitKind.RUNTIME,
+                subject_kind=SubjectKind.EXECUTABLE,
+                subject_id=executable_id,
+                input_hash=declared.result["job_hash"],
+                actions=("run_execution_proof",),
+                scope=(
+                    f"candidate:{candidate_id}",
+                    "depth:execution_proof",
+                    f"executable:{executable_id}",
+                    f"job:{declared.result['job_id']}",
+                ),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=False,
+                operation_id="real-runtime-execution-runtime-permit",
+            )
+            writer.start_job(
+                permit=job_permit,
+                runtime_permit=runtime_permit,
+                operation_id="real-runtime-execution-start",
+            )
+            writer.validate_runtime_entry(
+                permit=runtime_permit,
+                executable_id=executable_id,
+                input_hash=declared.result["job_hash"],
+                action="run_execution_proof",
+                depth=EvidenceDepth.EXECUTION_PROOF,
+                operation_id="real-runtime-execution-entry",
+            )
+            binding = spec["runtime_binding"]
+            assert isinstance(binding, dict)
+            measurement = writer.evidence.finalize(
+                canonical_bytes(
+                    {
+                        "claims": sorted(REQUIRED_PARITY),
+                        "schema": "engineering_runtime_measurement.v1",
+                    }
+                )
+            )
+            outputs = {
+                f"{output_name}-measurement": measurement.sha256,
+            }
+            execution_role_hashes: dict[str, str] = {}
+            for role, output in binding["artifact_roles"].items():
+                artifact = writer.evidence.finalize(
+                    canonical_bytes(
+                        {
+                            "role": role,
+                            "schema": "engineering_runtime_role.v1",
+                        }
+                    )
+                )
+                outputs[output] = artifact.sha256
+                execution_role_hashes[role] = artifact.sha256
+            result = writer.evidence.finalize(
+                canonical_bytes(
+                    {
+                        "action": "run_execution_proof",
+                        "candidate_id": candidate_id,
+                        "evidence_depth": "execution_proof",
+                        "executable_id": executable_id,
+                        "job_hash": declared.result["job_hash"],
+                        "job_id": declared.result["job_id"],
+                        "mission_id": "MIS-HOLDOUT-LIFECYCLE",
+                        "observations": [
+                            {
+                                "claim_id": claim,
+                                "measurement_artifact_hash": measurement.sha256,
+                                "status": "caller_reported",
+                            }
+                            for claim in sorted(REQUIRED_PARITY)
+                        ],
+                        "runtime_permit_id": runtime_permit.permit_id,
+                        "schema": "runtime_job_evidence.v1",
+                    }
+                )
+            )
+            outputs[binding["result_manifest_output"]] = result.sha256
+            completed = writer.complete_job(
+                outcome="success",
+                output_manifest=outputs,
+                operation_id="real-runtime-execution-complete",
+            )
+            self.assertEqual(
+                writer.read_control()["next_action"],  # type: ignore[index]
+                {
+                    "executable_id": executable_id,
+                    "kind": "plan_candidate_bound_evidence",
+                },
+            )
+            materialization = runtime_job_spec(
+                writer=writer,
+                executable_id=executable_id,
+                depth=EvidenceDepth.MATERIALIZATION,
+                output_name="evidence/real-materialization",
+                artifact_roles=tuple(
+                    sorted(
+                        REQUIRED_RELEASE_ARTIFACT_ROLES
+                        - set(execution_role_hashes)
+                    )
+                ),
+                validation_plan_hash=RUNTIME_BOUNDARY_PLAN_HASH,
+                validator_id=RuntimeBoundaryFixtureValidator.validator_id,
+            )
+            second = writer.declare_job(
+                spec=materialization,
+                operation_id="real-runtime-materialization-declare",
+            )
+            self.assertNotEqual(
+                second.result["job_id"],
+                declared.result["job_id"],
+            )
+            with LocalIndex(writer.index_path) as index:
+                first_completion = index.get(
+                    "job-completed",
+                    completed.result["completion_record_id"],
+                )
+                second_declaration = index.get(
+                    "job-declared",
+                    second.result["job_id"],
+                )
+            assert first_completion is not None
+            assert second_declaration is not None
+            self.assertEqual(
+                first_completion.payload["candidate_execution_context"],
+                second_declaration.payload["candidate_execution_context"],
+            )
+            materialization_job_permit = writer.issue_permit(
+                kind=PermitKind.JOB,
+                subject_kind=SubjectKind.JOB,
+                subject_id=second.result["job_id"],
+                input_hash=second.result["job_hash"],
+                actions=("start_job",),
+                scope=("job",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="real-runtime-materialization-job-permit",
+            )
+            materialization_runtime_permit = writer.issue_permit(
+                kind=PermitKind.RUNTIME,
+                subject_kind=SubjectKind.EXECUTABLE,
+                subject_id=executable_id,
+                input_hash=second.result["job_hash"],
+                actions=("materialize",),
+                scope=(
+                    f"candidate:{candidate_id}",
+                    "depth:materialization",
+                    f"executable:{executable_id}",
+                    f"job:{second.result['job_id']}",
+                ),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=False,
+                operation_id="real-runtime-materialization-runtime-permit",
+            )
+            writer.start_job(
+                permit=materialization_job_permit,
+                runtime_permit=materialization_runtime_permit,
+                operation_id="real-runtime-materialization-start",
+            )
+            writer.validate_runtime_entry(
+                permit=materialization_runtime_permit,
+                executable_id=executable_id,
+                input_hash=second.result["job_hash"],
+                action="materialize",
+                depth=EvidenceDepth.MATERIALIZATION,
+                operation_id="real-runtime-materialization-entry",
+            )
+            materialization_binding = materialization["runtime_binding"]
+            assert isinstance(materialization_binding, dict)
+            materialization_measurement = writer.evidence.finalize(
+                canonical_bytes(
+                    {
+                        "claims": sorted(REQUIRED_CASES),
+                        "schema": "engineering_runtime_measurement.v1",
+                    }
+                )
+            )
+            materialization_outputs = {
+                "evidence/real-materialization-measurement": (
+                    materialization_measurement.sha256
+                )
+            }
+            all_role_hashes = dict(execution_role_hashes)
+            local_handoff_output = None
+            for role, output in materialization_binding["artifact_roles"].items():
+                if role == "local_handoff_manifest":
+                    local_handoff_output = output
+                    continue
+                artifact = writer.evidence.finalize(
+                    canonical_bytes(
+                        {
+                            "role": role,
+                            "schema": "engineering_runtime_role.v1",
+                        }
+                    )
+                )
+                materialization_outputs[output] = artifact.sha256
+                all_role_hashes[role] = artifact.sha256
+            assert isinstance(local_handoff_output, str)
+            control = writer.read_control()
+            assert control is not None
+            local_handoff = writer.evidence.finalize(
+                canonical_bytes(
+                    {
+                        "artifact_roles": dict(sorted(all_role_hashes.items())),
+                        "authority_manifest_digest": control["authority"][
+                            "manifest_digest"
+                        ],
+                        "candidate_id": candidate_id,
+                        "executable_id": executable_id,
+                        "mission_id": "MIS-HOLDOUT-LIFECYCLE",
+                        "schema": "axiom_local_handoff.v1",
+                        "source_receipt_ids": [],
+                    }
+                )
+            )
+            materialization_outputs[local_handoff_output] = local_handoff.sha256
+            all_role_hashes["local_handoff_manifest"] = local_handoff.sha256
+            materialization_result = writer.evidence.finalize(
+                canonical_bytes(
+                    {
+                        "action": "materialize",
+                        "candidate_id": candidate_id,
+                        "evidence_depth": "materialization",
+                        "executable_id": executable_id,
+                        "job_hash": second.result["job_hash"],
+                        "job_id": second.result["job_id"],
+                        "mission_id": "MIS-HOLDOUT-LIFECYCLE",
+                        "observations": [
+                            {
+                                "claim_id": claim,
+                                "measurement_artifact_hash": (
+                                    materialization_measurement.sha256
+                                ),
+                                "status": "caller_reported",
+                            }
+                            for claim in sorted(REQUIRED_CASES)
+                        ],
+                        "runtime_permit_id": (
+                            materialization_runtime_permit.permit_id
+                        ),
+                        "schema": "runtime_job_evidence.v1",
+                    }
+                )
+            )
+            materialization_outputs[
+                materialization_binding["result_manifest_output"]
+            ] = materialization_result.sha256
+            second_completed = writer.complete_job(
+                outcome="success",
+                output_manifest=materialization_outputs,
+                operation_id="real-runtime-materialization-complete",
+            )
+            release_id = "REL-REAL-PRE-LIVE-HANDOFF"
+            declared_release = writer.declare_release(
+                release_id=release_id,
+                executable_id=executable_id,
+                candidate_id=candidate_id,
+                evidence=ReleaseEvidence(
+                    completion_record_ids=(
+                        completed.result["completion_record_id"],
+                        second_completed.result["completion_record_id"],
+                    )
+                ),
+                operation_id="real-release-declare",
+            )
+            release_permit = writer.issue_permit(
+                kind=PermitKind.RELEASE,
+                subject_kind=SubjectKind.RELEASE,
+                subject_id=release_id,
+                input_hash=declared_release.result["release_hash"],
+                actions=("freeze_release",),
+                scope=(f"release:{release_id}",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="real-release-permit",
+            )
+            writer.freeze_release(
+                release_id=release_id,
+                permit=release_permit,
+                operation_id="real-release-freeze",
+            )
+            terminal = writer.close_mission(
+                outcome="completed_pre_live_handoff",
+                basis_record_id=release_id,
+                operation_id="real-release-mission-terminal",
+            )
+            self.assertTrue(terminal.result["project_goal_complete"])
+            terminal_control = writer.read_control()
+            assert terminal_control is not None
+            self.assertEqual(
+                terminal_control["next_action"]["kind"],
+                "project_goal_complete",
+            )
+
+    def test_candidate_rejects_an_unrelated_source_job(self) -> None:
+        with TemporaryDirectory() as root:
+            writer, executable, _candidate, _plan = self._build_frozen_candidate(
+                root
+            )
+            writer.validation_registry = EvidenceValidatorRegistry(
+                (
+                    ScientificFixtureValidator(),
+                    SourceBoundaryFixtureValidator(),
+                )
+            )
+            contract = source_contract()
+            context = SourceEligibility.register(contract)
+            writer.record_source_eligibility(
+                eligibility=context,
+                receipt=None,
+                operation_id="candidate-source-register-context",
+            )
+            expected_return = {
+                "executable_id": executable.identity,
+                "kind": "plan_candidate_bound_evidence",
+            }
+            self.assertEqual(
+                writer.read_control()["next_action"],  # type: ignore[index]
+                expected_return,
+            )
+            result_name = "evidence/candidate-source-result"
+            measurement_name = "evidence/candidate-source-measurement"
+            spec = job_spec(
+                writer,
+                {"kind": "Executable", "id": executable.identity},
+            )
+            spec["input_hashes"] = [
+                *spec["input_hashes"],  # type: ignore[list-item]
+                SOURCE_BOUNDARY_PLAN_HASH,
+            ]
+            spec["expected_outputs"] = [result_name, measurement_name]
+            spec["output_classes"] = {
+                result_name: "durable_evidence",
+                measurement_name: "durable_evidence",
+            }
+            spec["source_binding"] = {
+                "result_manifest_output": result_name,
+                "source_contract_id": contract.source_contract_id,
+                "transition_evidence": "historical_audit",
+                "validation_plan_hash": SOURCE_BOUNDARY_PLAN_HASH,
+                "validator_id": SourceBoundaryFixtureValidator.validator_id,
+            }
+            with self.assertRaisesRegex(
+                TransitionError,
+                "one of its frozen SourceContracts",
+            ):
+                writer.declare_job(
+                    spec=spec,
+                    operation_id="candidate-source-declare",
                 )
 
 
@@ -7288,7 +11279,10 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
                 contract_valid_next_action_found=False,
                 judge=False,
             )
-            with self.assertRaisesRegex(TransitionError, "cannot preempt"):
+            with self.assertRaisesRegex(
+                TransitionError,
+                "pending external dependency judgement",
+            ):
                 self._run_attempt(
                     writer=writer,
                     plan_hash=plan_hash,
@@ -7312,6 +11306,131 @@ class ExternalBlockerLifecycleTests(unittest.TestCase):
                     "recovery_plan_id": recovery_plan.identity,
                 },
             )
+
+    def test_external_local_engineering_gap_restores_without_blocker_credit(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as root:
+            writer, plan_hash, recovery_plan = self._writer(root)
+            path = recovery_plan.paths[0]
+            result_name = "evidence/external-engineering-result"
+            measurement_name = "evidence/external-engineering-measurement"
+            spec = job_spec(
+                writer,
+                {"kind": "Mission", "id": "MIS-EXTERNAL-BLOCKER"},
+            )
+            spec["input_hashes"] = [
+                *spec["input_hashes"],  # type: ignore[list-item]
+                plan_hash,
+            ]
+            spec["expected_outputs"] = [result_name, measurement_name]
+            spec["output_classes"] = {
+                result_name: "durable_evidence",
+                measurement_name: "durable_evidence",
+            }
+            spec["external_dependency_binding"] = {
+                "blocked_mission_capability": (
+                    "indispensable FPMarkets US100 history acquisition"
+                ),
+                "dependency_id": "required-broker-history-service",
+                "dependency_kind": "market_data_service",
+                "exact_resume_action": "resume_fixture_job",
+                "recovery_kind": path.recovery_kind,
+                "recovery_path_id": path.recovery_path_id,
+                "recovery_plan": recovery_plan.to_identity_payload(),
+                "result_manifest_output": result_name,
+                "required_external_change": (
+                    "broker history service becomes available"
+                ),
+                "validation_plan_hash": plan_hash,
+                "validator_id": ExternalFixtureValidator.validator_id,
+            }
+            declared = writer.declare_job(
+                spec=spec,
+                operation_id="external-engineering-declare",
+            )
+            permit = writer.issue_permit(
+                kind=PermitKind.JOB,
+                subject_kind=SubjectKind.JOB,
+                subject_id=declared.result["job_id"],
+                input_hash=declared.result["job_hash"],
+                actions=("start_job",),
+                scope=("job",),
+                expires_at_utc=FIXED_EXPIRY,
+                one_shot=True,
+                operation_id="external-engineering-permit",
+            )
+            writer.start_job(
+                permit=permit,
+                operation_id="external-engineering-start",
+            )
+            reproduction = writer.evidence.finalize(
+                b"external probe local parser failure"
+            )
+            cause = {
+                "failure_kind": "engineering",
+                "minimum_reproduction_evidence": [reproduction.sha256],
+                "root_cause": "local external probe parser failed",
+                "interrupted_action": spec["callable_identity"],
+            }
+            disposition_hash = engineering_failure_disposition(
+                writer,
+                job_id=declared.result["job_id"],
+                evidence_hashes=(reproduction.sha256,),
+                disposition="repair_infeasible",
+                cause_hash=canonical_digest(
+                    domain="repair-cause",
+                    payload=cause,
+                ),
+            )
+            writer.record_engineering_failure_disposition(
+                failure=cause,
+                disposition_hash=disposition_hash,
+                operation_id="external-engineering-disposition",
+            )
+            completed = writer.complete_job(
+                outcome="failed",
+                output_manifest={},
+                failure={
+                    **cause,
+                    "repair_disposition_hash": disposition_hash,
+                    "resume_action": spec["resume_action"],
+                },
+                operation_id="external-engineering-complete",
+            )
+            completion_id = completed.result["completion_record_id"]
+            self.assertEqual(
+                writer.read_control()["next_action"],  # type: ignore[index]
+                {
+                    "completion_record_id": completion_id,
+                    "job_id": declared.result["job_id"],
+                    "kind": "judge_external_dependency_evidence",
+                },
+            )
+            judged = writer.judge_external_dependency_evidence(
+                completion_record_id=completion_id,
+                operation_id="external-engineering-judge",
+            )
+            self.assertEqual(judged.result["verdict"], "engineering_gap")
+            self.assertEqual(
+                writer.read_control()["next_action"],  # type: ignore[index]
+                recovery_plan.condition.resume_action.to_next_action(),
+            )
+            with LocalIndex(writer.index_path) as index:
+                attempts = index.records_by_kind(
+                    "external-dependency-attempt"
+                )
+                decisions = index.records_by_kind(
+                    "external-dependency-judgement"
+                )
+                gaps = index.records_by_kind(
+                    "external-dependency-operational-gap"
+                )
+            self.assertEqual(attempts[-1].status, "local_failure")
+            self.assertFalse(decisions)
+            self.assertEqual(len(gaps), 1)
+            self.assertEqual(gaps[0].payload["scientific_trial_delta"], 0)
+            self.assertEqual(gaps[0].payload["scientific_failure_delta"], 0)
 
     def test_passed_and_not_evaluable_restore_the_exact_mission_action(self) -> None:
         for verdict in ("passed", "not_evaluable"):
@@ -7620,8 +11739,9 @@ class CrashRecoveryTests(unittest.TestCase):
             writer.initialize_ready()
             altered = writer.read_control()
             assert altered is not None
-            altered["next_action"] = {"kind": "forged_same_head_action"}
-            writer.control.replace(altered)
+            altered["engineering"]["commissioning_fixture"] = True
+            altered["control_hash"] = control_hash(altered)
+            writer.control.path.write_bytes(canonical_bytes(altered))
             with self.assertRaises(RecoveryRequired):
                 writer.record_work_result(
                     work={
@@ -7767,6 +11887,7 @@ class ResearchDirectionFlowTests(unittest.TestCase):
 
     def test_legacy_trials_allow_one_controlled_chassis_bootstrap(self) -> None:
         baseline = portfolio_axis_baseline(self.axes[0])
+        axis_identity = self.axes[0].identity
         legacy_trial = SimpleNamespace(
             payload={"executable": {"data_contract": baseline.data_contract}}
         )
@@ -7780,6 +11901,7 @@ class ResearchDirectionFlowTests(unittest.TestCase):
                     "data_contract": baseline.data_contract,
                     "kind": "first_controlled_chassis_bootstrap",
                 },
+                "target_axis_identity": axis_identity,
             }
         )
 
@@ -7800,12 +11922,31 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             def event_head(self, stream: str):
                 return None
 
-            def records_by_kind(self, kind: str):
-                if kind == "trial":
+            def records_by_payload_text(
+                self,
+                kind: str,
+                lookup_name: str,
+                value: str,
+            ):
+                if (
+                    kind == "trial"
+                    and lookup_name == "trial_data_contract"
+                    and value == baseline.data_contract
+                ):
                     return [legacy_trial]
-                if kind == "portfolio-decision" and self.anchored:
+                if (
+                    kind == "portfolio-decision"
+                    and lookup_name == "target_axis_identity"
+                    and value == axis_identity
+                    and self.anchored
+                ):
                     return [bootstrap_decision]
-                if kind == "study-open" and self.controlled:
+                if (
+                    kind == "study-open"
+                    and lookup_name == "study_open_baseline_data_contract"
+                    and value == baseline.data_contract
+                    and self.controlled
+                ):
                     return [
                         SimpleNamespace(
                             payload={
@@ -7813,10 +11954,31 @@ class ResearchDirectionFlowTests(unittest.TestCase):
                                     "baseline_executable": {
                                         "data_contract": baseline.data_contract
                                     }
-                                }
+                                },
+                                "portfolio_axis_identity": axis_identity,
                             }
                         )
                     ]
+                return []
+
+            def records_by_kind(self, kind: str):
+                raise AssertionError(
+                    f"bounded legacy baseline lookup scanned {kind} history"
+                )
+
+            def records_by_payload_text_values(
+                self,
+                kind: str,
+                lookup_name: str,
+                values,
+            ):
+                if (
+                    kind == "portfolio-decision"
+                    and lookup_name == "target_axis_identity"
+                    and axis_identity in values
+                    and self.anchored
+                ):
+                    return [bootstrap_decision]
                 return []
 
         self.assertIsNone(
@@ -7832,7 +11994,8 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             )
         self.assertIsNone(
             StateWriter._prior_scientific_baseline(
-                LegacyIndex(controlled=True, anchored=True), baseline
+                LegacyIndex(controlled=True, anchored=True),
+                baseline,
             )
         )
         self.assertIsNone(
@@ -7843,6 +12006,18 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             )
         )
 
+    def _quant_team_review(
+        self,
+        *,
+        options: tuple[DecisionOption, ...],
+        chosen_option_id: str,
+    ) -> QuantTeamDecisionReview:
+        return quant_team_review_for_current_action(
+            self.writer,
+            options=options,
+            chosen_option_id=chosen_option_id,
+        )
+
     def _decision(
         self,
         *,
@@ -7851,31 +12026,103 @@ class ResearchDirectionFlowTests(unittest.TestCase):
         action: PortfolioAction,
     ) -> PortfolioDecision:
         alternative_index = (target_index + 1) % len(self.axes)
+        chosen_id = f"choose-{tag}"
+        alternative_id = f"alternative-{tag}"
+        options = (
+            DecisionOption(
+                option_id=chosen_id,
+                action=action,
+                target_id=self.axes[target_index].axis_id,
+                expected_information_value="positive",
+                opportunity_cost="one bounded Batch",
+            ),
+            DecisionOption(
+                option_id=alternative_id,
+                action=PortfolioAction.ROTATE,
+                target_id=self.axes[alternative_index].axis_id,
+                expected_information_value="positive",
+                opportunity_cost="deferred",
+                omission_reason="the chosen branch is tested first",
+            ),
+        )
+        review = self._quant_team_review(
+            options=options,
+            chosen_option_id=chosen_id,
+        )
         decision = PortfolioDecision(
             decision_id=f"DEC-DIRECTION-{tag}",
-            chosen_option_id=f"choose-{tag}",
-            options=(
-                DecisionOption(
-                    option_id=f"choose-{tag}",
-                    action=action,
-                    target_id=self.axes[target_index].axis_id,
-                    expected_information_value="positive",
-                    opportunity_cost="one bounded Batch",
-                ),
-                DecisionOption(
-                    option_id=f"alternative-{tag}",
-                    action=PortfolioAction.ROTATE,
-                    target_id=self.axes[alternative_index].axis_id,
-                    expected_information_value="positive",
-                    opportunity_cost="deferred",
-                    omission_reason="the chosen branch is tested first",
-                ),
-            ),
+            chosen_option_id=chosen_id,
+            options=options,
             rationale="follow the typed diagnosis while preserving the forest",
             commitment_batches=1,
+            quant_team_review=review,
             baseline_executable=portfolio_axis_baseline(self.axes[target_index]),
         )
         return decision
+
+    def test_real_portfolio_decision_requires_evidence_bound_plural_judgment(
+        self,
+    ) -> None:
+        reviewed = self._decision(
+            tag="REQUIRE-QUANT-TEAM",
+            target_index=0,
+            action=PortfolioAction.DEEPEN,
+        )
+        legacy = PortfolioDecision(
+            decision_id="DEC-DIRECTION-UNREVIEWED",
+            chosen_option_id=reviewed.chosen_option_id,
+            options=reviewed.options,
+            rationale=reviewed.rationale,
+            commitment_batches=reviewed.commitment_batches,
+            baseline_executable=reviewed.baseline_executable,
+        )
+        with self.assertRaisesRegex(TransitionError, "plural quant-team"):
+            self.writer.record_portfolio_decision(
+                decision=legacy,
+                operation_id="reject-one-dimensional-real-decision",
+            )
+
+        assert reviewed.quant_team_review is not None
+        review = reviewed.quant_team_review
+        missing = DecisionBasisRecord(
+            kind="portfolio-snapshot",
+            record_id="portfolio:" + "f" * 64,
+        )
+        forged_review = QuantTeamDecisionReview(
+            assessments=tuple(
+                DecisionLensAssessment(
+                    lens=assessment.lens,
+                    position=assessment.position,
+                    option_ids=assessment.option_ids,
+                    basis_records=(missing,),
+                    finding=assessment.finding,
+                )
+                for assessment in review.assessments
+            ),
+            claim_boundary=review.claim_boundary,
+            resolution_basis=review.resolution_basis,
+            disagreement_resolution=review.disagreement_resolution,
+        )
+        forged = PortfolioDecision(
+            decision_id="DEC-DIRECTION-FORGED-QUANT-TEAM",
+            chosen_option_id=reviewed.chosen_option_id,
+            options=reviewed.options,
+            rationale=reviewed.rationale,
+            commitment_batches=reviewed.commitment_batches,
+            quant_team_review=forged_review,
+            baseline_executable=reviewed.baseline_executable,
+        )
+        with self.assertRaisesRegex(TransitionError, "unavailable durable evidence"):
+            self.writer.record_portfolio_decision(
+                decision=forged,
+                operation_id="reject-forged-quant-team-basis",
+            )
+
+        result = self.writer.record_portfolio_decision(
+            decision=reviewed,
+            operation_id="accept-evidence-bound-quant-team-decision",
+        )
+        self.assertEqual(result.result["decision_id"], reviewed.identity)
 
     def test_executable_job_requires_component_source_closure(self) -> None:
         decision = self._decision(
@@ -8001,16 +12248,102 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             self.writer,
             {"kind": "Executable", "id": executable.identity},
         )
-        declared = self.writer.declare_job(
-            spec=complete,
-            operation_id="accept-complete-component-closure",
-        )
         expected_hashes = sorted(
             {
                 component.implementation.rsplit("@sha256:", 1)[1]
                 for component in executable.components
             }
         )
+        current_source_path = (
+            REPO_ROOT
+            / "src"
+            / "axiom_rift"
+            / "research"
+            / "implementation_closure.py"
+        )
+        current_source = self.writer.evidence.finalize(
+            current_source_path.read_bytes()
+        )
+        callable_identity = (
+            "axiom_rift.research.implementation_closure."
+            "require_current_job_source_closure.v1"
+        )
+        legacy_callable_only = job_spec(
+            self.writer,
+            {"kind": "Executable", "id": executable.identity},
+        )
+        legacy_manifest = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "artifact_hashes": sorted(
+                        {
+                            current_source.sha256,
+                            *expected_hashes,
+                        }
+                    ),
+                    "callable_identity": callable_identity,
+                    "protocol": "python.source.fixture.v1",
+                    "schema": "job_implementation_evidence.v1",
+                }
+            )
+        )
+        legacy_callable_only["callable_identity"] = callable_identity
+        legacy_callable_only["implementation_identity"] = (
+            legacy_manifest.sha256
+        )
+        with self.assertRaisesRegex(
+            TransitionError,
+            "requires one exact current source closure",
+        ):
+            self.writer.declare_job(
+                spec=legacy_callable_only,
+                operation_id="reject-callable-only-legacy-job",
+            )
+        source_closure = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "callable_identity": callable_identity,
+                    "dependencies": [
+                        {
+                            "path": (
+                                "axiom_rift/research/"
+                                "implementation_closure.py"
+                            ),
+                            "sha256": current_source.sha256,
+                        }
+                    ],
+                    "schema": "job_implementation_source_closure.v1",
+                }
+            )
+        )
+        implementation = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "artifact_hashes": sorted(
+                        {
+                            current_source.sha256,
+                            source_closure.sha256,
+                            *expected_hashes,
+                        }
+                    ),
+                    "callable_identity": callable_identity,
+                    "protocol": "python.source.current_project.v1",
+                    "schema": "job_implementation_evidence.v1",
+                }
+            )
+        )
+        complete["callable_identity"] = callable_identity
+        complete["implementation_identity"] = implementation.sha256
+        with patch(
+            "axiom_rift.operations.writer."
+            "external_observed_development_job_binding",
+            wraps=external_observed_development_job_binding,
+        ) as declaration_external_binding:
+            declared = self.writer.declare_job(
+                spec=complete,
+                operation_id="accept-complete-component-closure",
+            )
+        declaration_external_binding.assert_called_once()
         with LocalIndex(self.writer.index_path) as index:
             record = index.get("job-declared", declared.result["job_id"])
         assert record is not None
@@ -8018,6 +12351,52 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             record.payload["component_implementation_hashes"],
             expected_hashes,
         )
+        self.assertNotIn("source_closure_exemption", record.payload)
+        self.assertEqual(
+            record.payload["source_closure_authority"][
+                "callable_module_path"
+            ],
+            "axiom_rift/research/implementation_closure.py",
+        )
+        permit = self.writer.issue_permit(
+            kind=PermitKind.JOB,
+            subject_kind=SubjectKind.JOB,
+            subject_id=declared.result["job_id"],
+            input_hash=declared.result["job_hash"],
+            actions=("start_job",),
+            scope=("job",),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="implementation-closure-job-permit",
+        )
+        original_read_bytes = Path.read_bytes
+
+        def drift_current_source(path: Path) -> bytes:
+            content = original_read_bytes(path)
+            if path.resolve() == current_source_path.resolve():
+                return content + b"\n# post-declaration drift\n"
+            return content
+
+        with patch.object(Path, "read_bytes", drift_current_source):
+            with self.assertRaisesRegex(
+                TransitionError,
+                "current project source bytes",
+            ):
+                self.writer.start_job(
+                    permit=permit,
+                    operation_id="reject-source-drift-before-job-start",
+                )
+        with patch(
+            "axiom_rift.operations.writer."
+            "require_current_external_observed_development_job_binding",
+            wraps=require_current_external_observed_development_job_binding,
+        ) as start_external_binding:
+            started = self.writer.start_job(
+                permit=permit,
+                operation_id="implementation-closure-job-start",
+            )
+        start_external_binding.assert_called_once()
+        self.assertEqual(started.result["job_id"], declared.result["job_id"])
 
     def _accept_component_parity_for_decision(
         self,
@@ -8762,6 +13141,375 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             operation_id=f"{tag}-diagnosis",
         )
 
+    def _reach_architecture_review(
+        self,
+        *,
+        tag: str,
+    ) -> tuple[dict[str, object], object]:
+        for ordinal, target_index, action in (
+            (1, 0, PortfolioAction.DEEPEN),
+            (2, 1, PortfolioAction.CONTRAST),
+            (3, 0, PortfolioAction.ROTATE),
+        ):
+            study_tag = f"{tag}-{ordinal}"
+            self._run_unavailable_study(
+                tag=study_tag,
+                study_id=f"STU-{tag.upper()}-{ordinal}",
+                target_index=target_index,
+                decision=self._decision(
+                    tag=f"{tag.upper()}-{ordinal}",
+                    target_index=target_index,
+                    action=action,
+                ),
+            )
+        control = self.writer.read_control()
+        assert control is not None
+        self.assertEqual(control["next_action"]["kind"], "review_architecture")
+        with LocalIndex(self.writer.index_path) as index:
+            trigger = index.get(
+                "architecture-review-trigger",
+                control["next_action"]["trigger_record_id"],
+            )
+        self.assertIsNotNone(trigger)
+        assert trigger is not None
+        return control, trigger
+
+    def test_bounded_review_can_continue_an_exact_covered_existing_axis(self) -> None:
+        control, trigger = self._reach_architecture_review(tag="bounded-existing")
+        direction = ArchitectureContinuationDirection(
+            mode=ArchitectureContinuationMode.EXISTING_AXIS,
+            reviewed_architecture_family=self.axes[0].system_architecture_family,
+            trigger_record_id=control["next_action"]["trigger_record_id"],
+            covered_diagnosis_ids=tuple(trigger.payload["diagnosis_ids"]),
+            target_axis_id=self.axes[0].axis_id,
+            target_axis_identity=self.axes[0].identity,
+        )
+        review = ArchitectureReview(
+            mission_id="MIS-DIRECTION",
+            trigger_record_id=direction.trigger_record_id,
+            system_architecture_family=direction.reviewed_architecture_family,
+            conclusion=ArchitectureReviewConclusion.BOUNDED_SAME_ARCHITECTURE,
+            rationale="the covered axis still has one causal bounded contrast",
+            stop_or_reopen_condition="stop if the exact contrast remains unidentified",
+            continuation_direction=direction,
+        )
+        self.writer.record_architecture_review(
+            review=review,
+            operation_id="bounded-existing-review",
+        )
+        action = self.writer.read_control()["next_action"]
+        self.assertEqual(action["architecture_continuation_mode"], "existing_axis")
+        self.assertEqual(
+            action["required_architecture_family"],
+            self.axes[0].system_architecture_family,
+        )
+        self.assertEqual(action["required_target_axis_ids"], [self.axes[0].axis_id])
+        self.assertEqual(
+            action["required_target_axis_identity"], self.axes[0].identity
+        )
+        recovered = self.writer.recover()
+        self.assertFalse(recovered["control_repaired"])
+        self.assertFalse(recovered["index_rebuilt"])
+        self.assertEqual(self.writer.read_control()["next_action"], action)
+
+        missing_basis = self._decision(
+            tag="BOUNDED-EXISTING-MISSING-BASIS",
+            target_index=0,
+            action=PortfolioAction.DEEPEN,
+        )
+        assert missing_basis.quant_team_review is not None
+        incomplete_review = QuantTeamDecisionReview(
+            assessments=tuple(
+                DecisionLensAssessment(
+                    lens=assessment.lens,
+                    position=assessment.position,
+                    option_ids=assessment.option_ids,
+                    basis_records=tuple(
+                        basis
+                        for basis in assessment.basis_records
+                        if basis.kind
+                        not in {
+                            "architecture-review-trigger",
+                            "study-diagnosis",
+                        }
+                    ),
+                    finding=assessment.finding,
+                )
+                for assessment in missing_basis.quant_team_review.assessments
+            ),
+            claim_boundary=missing_basis.quant_team_review.claim_boundary,
+            resolution_basis=missing_basis.quant_team_review.resolution_basis,
+            disagreement_resolution=(
+                missing_basis.quant_team_review.disagreement_resolution
+            ),
+        )
+        incomplete = PortfolioDecision(
+            decision_id="DEC-BOUNDED-EXISTING-INCOMPLETE-BASIS",
+            chosen_option_id=missing_basis.chosen_option_id,
+            options=missing_basis.options,
+            rationale=missing_basis.rationale,
+            commitment_batches=missing_basis.commitment_batches,
+            quant_team_review=incomplete_review,
+            baseline_executable=missing_basis.baseline_executable,
+        )
+        with self.assertRaisesRegex(TransitionError, "bounded architecture bases"):
+            self.writer.record_portfolio_decision(
+                decision=incomplete,
+                operation_id="reject-bounded-incomplete-basis",
+            )
+
+        bypass = self._decision(
+            tag="BOUNDED-EXISTING-BYPASS",
+            target_index=1,
+            action=PortfolioAction.CONTRAST,
+        )
+        with self.assertRaisesRegex(TransitionError, "exact bounded existing axis"):
+            self.writer.record_portfolio_decision(
+                decision=bypass,
+                operation_id="reject-bounded-existing-bypass",
+            )
+        accepted = self._decision(
+            tag="BOUNDED-EXISTING-ACCEPT",
+            target_index=0,
+            action=PortfolioAction.DEEPEN,
+        )
+        self.writer.record_portfolio_decision(
+            decision=accepted,
+            operation_id="accept-bounded-covered-axis",
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            accepted_record = index.get("portfolio-decision", accepted.identity)
+        assert accepted_record is not None
+        self.assertEqual(
+            accepted_record.payload["scheduler_constraints"],
+            {
+                key: action[key]
+                for key in (
+                    "architecture_continuation_mode",
+                    "architecture_review_id",
+                    "architecture_review_trigger_id",
+                    "constraint_source_id",
+                    "covered_diagnosis_ids",
+                    "required_architecture_family",
+                    "required_target_axis_identity",
+                    "required_target_axis_ids",
+                )
+            },
+        )
+        self.assertEqual(
+            self.writer.read_control()["next_action"]["kind"],
+            "execute_portfolio_decision",
+        )
+        assert accepted.baseline_executable is not None
+        canonical_execution = next(
+            component
+            for component in accepted.baseline_executable.components
+            if component.protocol.startswith("execution.")
+        )
+        alternate_baseline = portfolio_axis_baseline(self.axes[2])
+        alternate_execution = next(
+            component
+            for component in alternate_baseline.components
+            if component.protocol.startswith("execution.")
+        )
+        self._accept_component_parity_for_decision(
+            decision=accepted,
+            canonical_component=canonical_execution,
+            equivalent_component=alternate_execution,
+            tag="bounded-existing-parity",
+        )
+        rerouted = self.writer.read_control()["next_action"]
+        self.assertEqual(rerouted["kind"], "portfolio_decision")
+        self.assertEqual(
+            rerouted["architecture_continuation_mode"], "existing_axis"
+        )
+        self.assertEqual(
+            rerouted["covered_diagnosis_ids"], list(direction.covered_diagnosis_ids)
+        )
+        self.assertEqual(
+            rerouted["required_architecture_family"],
+            direction.reviewed_architecture_family,
+        )
+
+    def test_bounded_review_admits_new_mechanism_in_exact_layer_and_family(
+        self,
+    ) -> None:
+        control, trigger = self._reach_architecture_review(tag="bounded-new")
+        direction = ArchitectureContinuationDirection(
+            mode=ArchitectureContinuationMode.NEW_MECHANISM,
+            reviewed_architecture_family=self.axes[0].system_architecture_family,
+            trigger_record_id=control["next_action"]["trigger_record_id"],
+            covered_diagnosis_ids=tuple(trigger.payload["diagnosis_ids"]),
+            required_research_layer=ResearchLayer.MODEL,
+        )
+        review = ArchitectureReview(
+            mission_id="MIS-DIRECTION",
+            trigger_record_id=direction.trigger_record_id,
+            system_architecture_family=direction.reviewed_architecture_family,
+            conclusion=ArchitectureReviewConclusion.BOUNDED_SAME_ARCHITECTURE,
+            rationale="the architecture remains useful for one distinct model mechanism",
+            stop_or_reopen_condition="stop if the model mechanism adds no information",
+            continuation_direction=direction,
+        )
+        self.writer.record_architecture_review(
+            review=review,
+            operation_id="bounded-new-review",
+        )
+        admit_options = (
+            DecisionOption(
+                option_id="admit-bounded-model",
+                action=PortfolioAction.NEW_MECHANISM,
+                target_id=self.axes[0].axis_id,
+                expected_information_value="positive",
+                opportunity_cost="one bounded model contrast",
+            ),
+            DecisionOption(
+                option_id="defer-alternate-family",
+                action=PortfolioAction.ROTATE,
+                target_id=self.axes[2].axis_id,
+                expected_information_value="positive",
+                opportunity_cost="deferred",
+                omission_reason="the expert-bound same-family mechanism is tested first",
+            ),
+        )
+        admit = PortfolioDecision(
+            decision_id="DEC-BOUNDED-NEW-MECHANISM",
+            chosen_option_id="admit-bounded-model",
+            options=admit_options,
+            rationale="admit one distinct model mechanism under the reviewed family",
+            commitment_batches=1,
+            quant_team_review=self._quant_team_review(
+                options=admit_options,
+                chosen_option_id="admit-bounded-model",
+            ),
+        )
+        self.writer.record_portfolio_decision(
+            decision=admit,
+            operation_id="bounded-new-decision",
+        )
+        snapshot_action = self.writer.read_control()["next_action"]
+        self.assertEqual(snapshot_action["kind"], "record_portfolio_snapshot")
+        self.assertEqual(snapshot_action["required_followup_layers"], ["model"])
+        self.assertEqual(
+            snapshot_action["required_architecture_family"],
+            self.axes[0].system_architecture_family,
+        )
+
+        common_chassis = self.axes[0].architecture_chassis
+        assert common_chassis is not None
+        controlled = tuple(
+            layer
+            for layer in (
+                ResearchLayer.FEATURE,
+                ResearchLayer.LABEL,
+                ResearchLayer.CALIBRATION,
+                ResearchLayer.SELECTOR,
+                ResearchLayer.TRADE,
+                ResearchLayer.LIFECYCLE,
+                ResearchLayer.RISK,
+                ResearchLayer.EXECUTION,
+            )
+            if layer is not ResearchLayer.MODEL
+        )
+        alternate_chassis = self.axes[2].architecture_chassis
+        assert alternate_chassis is not None
+        wrong_family_axis = _PortfolioAxis(
+            axis_id="direction-axis-bounded-wrong-family",
+            causal_question="Does an out-of-family model mechanism bypass the review?",
+            mechanism_family="direction-family-bounded-wrong-family",
+            primary_research_layer=ResearchLayer.MODEL,
+            system_architecture_family=alternate_chassis.identity,
+            changed_domains=(ResearchLayer.MODEL,),
+            controlled_domains=controlled,
+            why_now="this fixture must be rejected by the exact family constraint",
+            stop_or_reopen_condition="stop immediately at the family boundary",
+            architecture_chassis=alternate_chassis,
+        )
+        wrong_family_snapshot = PortfolioSnapshot(
+            mission_id="MIS-DIRECTION",
+            axes=(*self.axes, wrong_family_axis),
+            opportunity_cost_basis="reject an architecture-review bypass",
+            research_intake_id=self.intake.identity,
+            exhaustion_standard=self.snapshot.exhaustion_standard_value(),
+        )
+        with self.assertRaisesRegex(
+            TransitionError,
+            "bounded architecture direction",
+        ):
+            self.writer.record_portfolio_snapshot(
+                snapshot=wrong_family_snapshot,
+                operation_id="reject-bounded-wrong-family",
+            )
+        model_axis = _PortfolioAxis(
+            axis_id="direction-axis-bounded-model",
+            causal_question="Does a distinct model mechanism resolve the reviewed gaps?",
+            mechanism_family="direction-family-bounded-model",
+            primary_research_layer=ResearchLayer.MODEL,
+            system_architecture_family=common_chassis.identity,
+            changed_domains=(ResearchLayer.MODEL,),
+            controlled_domains=controlled,
+            why_now="the typed architecture review selected this bounded mechanism",
+            stop_or_reopen_condition="stop if the exact mechanism remains unidentified",
+            architecture_chassis=common_chassis,
+        )
+        bounded_snapshot = PortfolioSnapshot(
+            mission_id="MIS-DIRECTION",
+            axes=(*self.axes, model_axis),
+            opportunity_cost_basis="one same-family model mechanism before rotation",
+            research_intake_id=self.intake.identity,
+            exhaustion_standard=self.snapshot.exhaustion_standard_value(),
+        )
+        self.writer.record_portfolio_snapshot(
+            snapshot=bounded_snapshot,
+            operation_id="bounded-new-snapshot",
+        )
+        decision_action = self.writer.read_control()["next_action"]
+        self.assertEqual(
+            decision_action["required_target_axis_ids"],
+            [model_axis.axis_id],
+        )
+        self.assertEqual(
+            decision_action["architecture_continuation_mode"],
+            "new_mechanism",
+        )
+        execute_options = (
+            DecisionOption(
+                option_id="execute-bounded-model",
+                action=PortfolioAction.CONTRAST,
+                target_id=model_axis.axis_id,
+                expected_information_value="positive",
+                opportunity_cost="one bounded Batch",
+            ),
+            DecisionOption(
+                option_id="retain-alternate-family",
+                action=PortfolioAction.ROTATE,
+                target_id=self.axes[2].axis_id,
+                expected_information_value="positive",
+                opportunity_cost="deferred",
+                omission_reason="the newly admitted mechanism receives its first test",
+            ),
+        )
+        execute = PortfolioDecision(
+            decision_id="DEC-BOUNDED-EXECUTE-MODEL",
+            chosen_option_id="execute-bounded-model",
+            options=execute_options,
+            rationale="execute the exact materialized architecture continuation",
+            commitment_batches=1,
+            quant_team_review=self._quant_team_review(
+                options=execute_options,
+                chosen_option_id="execute-bounded-model",
+            ),
+            baseline_executable=portfolio_axis_baseline(model_axis),
+        )
+        self.writer.record_portfolio_decision(
+            decision=execute,
+            operation_id="bounded-execute-model",
+        )
+        self.assertEqual(
+            self.writer.read_control()["next_action"]["target_id"],
+            model_axis.axis_id,
+        )
+
     def test_repeated_architecture_gap_forces_review_and_rotation(self) -> None:
         self.assertNotEqual(self.axes[0].axis_id, self.axes[1].axis_id)
         self.assertNotEqual(
@@ -8961,10 +13709,7 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             target_index=0,
             decision=first,
         )
-        admit = PortfolioDecision(
-            decision_id="DEC-DIRECTION-ADMIT-LABEL",
-            chosen_option_id="admit-label",
-            options=(
+        admit_options = (
                 DecisionOption(
                     option_id="admit-label",
                     action=PortfolioAction.NEW_MECHANISM,
@@ -8980,9 +13725,17 @@ class ResearchDirectionFlowTests(unittest.TestCase):
                     opportunity_cost="deferred",
                     omission_reason="the diagnosis-authorized label contrast comes first",
                 ),
-            ),
+            )
+        admit = PortfolioDecision(
+            decision_id="DEC-DIRECTION-ADMIT-LABEL",
+            chosen_option_id="admit-label",
+            options=admit_options,
             rationale="admit the layer identified by the not-identifiable diagnosis",
             commitment_batches=1,
+            quant_team_review=self._quant_team_review(
+                options=admit_options,
+                chosen_option_id="admit-label",
+            ),
         )
         self.writer.record_portfolio_decision(
             decision=admit,
@@ -9051,10 +13804,7 @@ class ResearchDirectionFlowTests(unittest.TestCase):
                 decision=bypass,
                 operation_id="reject-bypass-admitted-label",
             )
-        execute_label = PortfolioDecision(
-            decision_id="DEC-DIRECTION-EXECUTE-LABEL",
-            chosen_option_id="execute-label",
-            options=(
+        execute_label_options = (
                 DecisionOption(
                     option_id="execute-label",
                     action=PortfolioAction.CONTRAST,
@@ -9070,9 +13820,17 @@ class ResearchDirectionFlowTests(unittest.TestCase):
                     opportunity_cost="deferred",
                     omission_reason="the newly admitted axis must receive its first test",
                 ),
-            ),
+            )
+        execute_label = PortfolioDecision(
+            decision_id="DEC-DIRECTION-EXECUTE-LABEL",
+            chosen_option_id="execute-label",
+            options=execute_label_options,
             rationale="execute the exact newly admitted diagnosis branch",
             commitment_batches=1,
+            quant_team_review=self._quant_team_review(
+                options=execute_label_options,
+                chosen_option_id="execute-label",
+            ),
             baseline_executable=portfolio_axis_baseline(label_axis),
         )
         self.writer.record_portfolio_decision(

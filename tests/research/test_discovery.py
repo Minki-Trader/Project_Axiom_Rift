@@ -17,6 +17,7 @@ from axiom_rift.research.discovery import (
     DiscoveryBoundaryError,
     TrendConfiguration,
     _adjusted_bootstrap_upper_pvalue,
+    _causal_prefix_mismatch_count,
     _compute_registered_trend_surface,
     _monthly_realized_exit_drawdown,
     _validate_fold_payloads,
@@ -52,6 +53,43 @@ def synthetic_frame(rows: int = 5_000) -> pd.DataFrame:
 
 
 class TrendDiscoveryTests(unittest.TestCase):
+    def test_causal_prefix_check_covers_every_simulation_array(self) -> None:
+        names = ("score", "volatility", "run", "effective_spread")
+        full = tuple(
+            (name, np.array([1.0, 2.0, np.nan, 4.0])) for name in names
+        )
+        prefix = tuple(
+            (name, np.array([1.0, 2.0, np.nan])) for name in names
+        )
+        self.assertEqual(
+            _causal_prefix_mismatch_count(
+                full_surfaces=full,
+                prefix_surfaces=prefix,
+                compared_row_count=3,
+            ),
+            0,
+        )
+
+        for changed_name in names:
+            changed = tuple(
+                (
+                    name,
+                    np.array([1.0, 9.0, np.nan])
+                    if name == changed_name
+                    else np.array([1.0, 2.0, np.nan]),
+                )
+                for name in names
+            )
+            with self.subTest(changed_name=changed_name):
+                self.assertEqual(
+                    _causal_prefix_mismatch_count(
+                        full_surfaces=full,
+                        prefix_surfaces=changed,
+                        compared_row_count=3,
+                    ),
+                    1,
+                )
+
     def test_surface_has_twelve_unique_registered_semantics(self) -> None:
         configurations = trend_configurations()
         identities = [trend_executable(value).identity for value in configurations]

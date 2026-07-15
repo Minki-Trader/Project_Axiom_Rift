@@ -11,6 +11,9 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+import axiom_rift.storage.atomic_file as atomic_file_module
+import axiom_rift.storage.journal as journal_module
+
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RUNNER = REPOSITORY_ROOT / "scripts" / "run_tracked_tests.py"
@@ -68,6 +71,241 @@ class TrackedTestRunnerTests(unittest.TestCase):
             text=True,
             env=env,
         )
+
+    def test_manifest_publish_uses_an_invocation_unique_temporary(self) -> None:
+        runner = load_runner_module()
+        output = self.root / "local" / "tracked-tests.json"
+        legacy_temporary = output.with_name(f".{output.name}.tmp")
+        legacy_temporary.parent.mkdir(parents=True, exist_ok=True)
+        legacy_temporary.write_bytes(b"concurrent-writer-sentinel")
+
+        getattr(runner, "_write_manifest")(
+            self.root,
+            output,
+            {"schema": "tracked-test-manifest-fixture.v1"},
+        )
+
+        self.assertEqual(
+            json.loads(output.read_text("ascii")),
+            {"schema": "tracked-test-manifest-fixture.v1"},
+        )
+        self.assertEqual(
+            legacy_temporary.read_bytes(),
+            b"concurrent-writer-sentinel",
+        )
+        self.assertEqual(
+            tuple(output.parent.glob(f".{output.name}.*.tmp")),
+            (),
+        )
+
+    def test_identical_manifest_is_a_write_free_no_op(self) -> None:
+        runner = load_runner_module()
+        output = self.root / "local" / "tracked-tests.json"
+        manifest = {"schema": "tracked-test-manifest-fixture.v1"}
+        self.assertTrue(
+            getattr(runner, "_write_manifest")(self.root, output, manifest)
+        )
+        identity = (output.stat().st_dev, output.stat().st_ino)
+
+        with patch.object(
+            atomic_file_module.tempfile,
+            "mkstemp",
+            side_effect=AssertionError("manifest no-op created a temporary"),
+        ):
+            self.assertFalse(
+                getattr(runner, "_write_manifest")(self.root, output, manifest)
+            )
+
+        self.assertEqual(
+            (output.stat().st_dev, output.stat().st_ino),
+            identity,
+        )
+
+    def test_existing_manifest_change_before_publication_is_preserved(self) -> None:
+        runner = load_runner_module()
+        output = self.root / "local" / "tracked-tests.json"
+        output.parent.mkdir()
+        output.write_bytes(b"initial manifest\n")
+        manual = b"manual concurrent manifest\n"
+        original_snapshot = atomic_file_module._stable_snapshot
+        target_snapshots = 0
+
+        def snapshot_with_change(
+            path: Path,
+            *,
+            max_bytes: int,
+            missing_ok: bool,
+        ) -> tuple[bytes, tuple[int, int, int, int, int, int]] | None:
+            nonlocal target_snapshots
+            if Path(path) == output:
+                target_snapshots += 1
+                if target_snapshots == 2:
+                    output.write_bytes(manual)
+            return original_snapshot(
+                path,
+                max_bytes=max_bytes,
+                missing_ok=missing_ok,
+            )
+
+        with (
+            patch.object(
+                atomic_file_module,
+                "_stable_snapshot",
+                side_effect=snapshot_with_change,
+            ),
+            self.assertRaisesRegex(
+                RuntimeError,
+                "manifest publication failed:.*target changed",
+            ),
+        ):
+            getattr(runner, "_write_manifest")(
+                self.root,
+                output,
+                {"schema": "tracked-test-manifest-fixture.v2"},
+            )
+
+        self.assertEqual(output.read_bytes(), manual)
+
+    def test_missing_manifest_creation_race_is_preserved(self) -> None:
+        runner = load_runner_module()
+        output = self.root / "local" / "tracked-tests.json"
+        manual = b"concurrent manifest creator\n"
+        original_publish = atomic_file_module._publish_missing_target
+
+        def publish_after_concurrent_create(
+            temporary_path: Path,
+            target_path: Path,
+            *,
+            temporary_identity: tuple[int, int],
+            parent_identity: tuple[int, int],
+        ) -> None:
+            target_path.write_bytes(manual)
+            original_publish(
+                temporary_path,
+                target_path,
+                temporary_identity=temporary_identity,
+                parent_identity=parent_identity,
+            )
+
+        with (
+            patch.object(
+                atomic_file_module,
+                "_publish_missing_target",
+                side_effect=publish_after_concurrent_create,
+            ),
+            self.assertRaisesRegex(
+                RuntimeError,
+                "manifest publication failed:.*was created",
+            ),
+        ):
+            getattr(runner, "_write_manifest")(
+                self.root,
+                output,
+                {"schema": "tracked-test-manifest-fixture.v1"},
+            )
+
+        self.assertEqual(output.read_bytes(), manual)
+
+    def test_manifest_publish_rejects_linked_parent_without_outside_write(self) -> None:
+        runner = load_runner_module()
+        local = self.root / "local"
+        local.mkdir()
+        outside = self.root / "outside-manifest"
+        outside.mkdir()
+        linked = local / "linked"
+        try:
+            linked.symlink_to(outside, target_is_directory=True)
+        except OSError as exc:
+            self.skipTest(f"directory symlinks unavailable: {exc}")
+
+        with self.assertRaisesRegex(RuntimeError, "directory is unsafe"):
+            getattr(runner, "_write_manifest")(
+                self.root,
+                linked / "tracked-tests.json",
+                {"schema": "tracked-test-manifest-fixture.v1"},
+            )
+
+        self.assertFalse((outside / "tracked-tests.json").exists())
+
+    def test_standalone_runner_resolves_common_helper_from_sibling_src(
+        self,
+    ) -> None:
+        environment = os.environ.copy()
+        environment.pop("PYTHONPATH", None)
+        completed = subprocess.run(
+            (
+                sys.executable,
+                "-S",
+                "-s",
+                "-P",
+                str(RUNNER),
+                "--help",
+            ),
+            cwd=self.root,
+            check=False,
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
+
+        self.assertEqual(
+            completed.returncode,
+            0,
+            completed.stderr or completed.stdout,
+        )
+        self.assertIn("Hash and run only Git-tracked tests", completed.stdout)
+
+    def test_materialization_never_chmods_a_public_path(self) -> None:
+        runner = load_runner_module()
+        content = b"descriptor-mode-materialization\n"
+        source = self.root / "data" / "processed" / "datasets" / "observed.csv"
+        source.parent.mkdir(parents=True)
+        source.write_bytes(content)
+        sandbox = self.root / "sandbox"
+        sandbox.mkdir()
+        entry = {
+            "path": "data/processed/datasets/observed.csv",
+            "role": "observed_development",
+            "sha256": sha256(content).hexdigest(),
+            "size": len(content),
+        }
+
+        with patch.object(
+            Path,
+            "chmod",
+            side_effect=AssertionError("public-path chmod is forbidden"),
+        ):
+            observed = getattr(runner, "_copy_protected_input")(
+                self.root,
+                sandbox,
+                entry,
+            )
+
+        destination = sandbox / Path(entry["path"])
+        self.assertEqual(observed, entry)
+        self.assertEqual(destination.read_bytes(), content)
+        self.assertFalse(destination.stat().st_mode & 0o222)
+        getattr(runner, "_restore_materialized_permissions")(sandbox, (entry,))
+
+    def test_materialization_rejects_linked_missing_parent_before_creation(self) -> None:
+        runner = load_runner_module()
+        sandbox = self.root / "sandbox"
+        sandbox.mkdir()
+        outside = self.root / "outside"
+        outside.mkdir()
+        linked = sandbox / "data"
+        try:
+            linked.symlink_to(outside, target_is_directory=True)
+        except OSError as exc:
+            self.skipTest(f"directory symlinks unavailable: {exc}")
+
+        with self.assertRaisesRegex(RuntimeError, "link-like"):
+            getattr(runner, "_prepare_destination_file")(
+                sandbox,
+                Path("data/missing/observed.csv"),
+            )
+
+        self.assertFalse((outside / "missing").exists())
 
     def configure_protected_development_inputs(
         self,
@@ -166,6 +404,130 @@ class TrackedTestRunnerTests(unittest.TestCase):
         run(self.root, "git", "add", "tests/evidence_inputs.txt")
         return identity, evidence
 
+    def configure_head_authority_transition(
+        self,
+        *,
+        segmented_journal: bool = False,
+        recovery_succeeds: bool = True,
+    ) -> dict[str, Path]:
+        (self.root / ".gitignore").write_text("local/\n", encoding="ascii")
+        (self.root / "OPERATING_DIRECTION.md").write_text(
+            "historical-direction\n", encoding="ascii"
+        )
+        contract = self.root / "contracts" / "operations.yaml"
+        foundation = self.root / "foundation" / "fixture.yaml"
+        contract.parent.mkdir()
+        foundation.parent.mkdir()
+        contract.write_text("historical-authority\n", encoding="ascii")
+        foundation.write_text("historical-foundation\n", encoding="ascii")
+        control = {
+            "authority": {
+                "contracts": ["contracts/operations.yaml"],
+                "foundation_inputs": ["foundation/fixture.yaml"],
+                "graph_count": 1,
+                "manifest_digest": "0" * 64,
+                "operating_direction": "OPERATING_DIRECTION.md",
+            },
+            "schema": "axiom_control",
+        }
+        control_path = self.root / "state" / "control.json"
+        control_path.parent.mkdir()
+        control_path.write_text(
+            json.dumps(control, sort_keys=True, separators=(",", ":")),
+            encoding="ascii",
+        )
+        records = self.root / "records"
+        records.mkdir()
+        active_segment = records / "journal.jsonl"
+        if segmented_journal:
+            journal = records / "journal"
+            journal.mkdir()
+            active_segment = journal / "journal-000001.jsonl"
+            active_segment.write_bytes(b"")
+            (journal / "manifest.json").write_bytes(
+                journal_module._render_manifest(
+                    sealed_segments=(),
+                    active_segment={
+                        "id": "000001",
+                        "path": "records/journal/journal-000001.jsonl",
+                        "start_offset": 0,
+                        "first_sequence": 1,
+                        "previous_event_id": None,
+                    },
+                )
+            )
+        else:
+            active_segment.write_bytes(b"")
+        run(
+            self.root,
+            "git",
+            "add",
+            ".gitignore",
+            "OPERATING_DIRECTION.md",
+            "contracts/operations.yaml",
+            "foundation/fixture.yaml",
+            "state/control.json",
+            "records",
+        )
+        run(self.root, "git", "commit", "-m", "Historical authority fixture")
+
+        contract.write_text("prospective-authority\n", encoding="ascii")
+        package = self.root / "src" / "axiom_rift"
+        operations = package / "operations"
+        operations.mkdir(parents=True)
+        (package / "__init__.py").write_text("", encoding="ascii")
+        (operations / "__init__.py").write_text("", encoding="ascii")
+        (operations / "writer.py").write_text(
+            "# prospective recovery implementation\n", encoding="ascii"
+        )
+        failure = (
+            "raise SystemExit('forced recovery failure')\n"
+            if not recovery_succeeds
+            else (
+                "(root / 'local').mkdir(exist_ok=True)\n"
+                "(root / 'local' / 'index.sqlite').write_bytes("
+                "b'rebuilt-by-prospective-code')\n"
+                "print(json.dumps({'schema': 'axiom_recovery'}, sort_keys=True))\n"
+            )
+        )
+        (package / "cli.py").write_text(
+            "from pathlib import Path\n"
+            "import json, sys\n"
+            "root = Path(sys.argv[sys.argv.index('--root') + 1])\n"
+            "if (root / 'contracts/operations.yaml').read_bytes() != "
+            "b'historical-authority\\n':\n"
+            "    raise SystemExit('journal authority manifest is not materialized')\n"
+            + failure,
+            encoding="ascii",
+        )
+        (self.root / "tests" / "test_tracked.py").write_text(
+            "from pathlib import Path\n"
+            "import subprocess\n\n"
+            "def test_tracked():\n"
+            "    assert Path('local/index.sqlite').read_bytes() == "
+            "b'rebuilt-by-prospective-code'\n"
+            "    assert Path('contracts/operations.yaml').read_text(encoding='ascii') == "
+            "'prospective-authority\\n'\n"
+            "    assert subprocess.run(('git', 'diff', '--quiet', '--')).returncode == 0\n",
+            encoding="ascii",
+        )
+        run(
+            self.root,
+            "git",
+            "add",
+            "contracts/operations.yaml",
+            "src",
+            "tests/test_tracked.py",
+        )
+        local = self.root / "local"
+        local.mkdir()
+        (local / "index.sqlite").write_bytes(b"poison-source-projection")
+        return {
+            "active_segment": active_segment,
+            "contract": contract,
+            "control": control_path,
+        }
+
     def test_manifest_excludes_and_reports_untracked_tests(self) -> None:
         result = self.invoke("--manifest-only", "--no-manifest-file")
         self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
@@ -191,6 +553,123 @@ class TrackedTestRunnerTests(unittest.TestCase):
         self.assertEqual(
             manifest["excluded_untracked_tests"], ["tests/test_untracked.py"]
         )
+        self.assertEqual(manifest["execution_timeout_seconds"], 7200)
+
+    def test_runner_fails_closed_when_isolated_pytest_exceeds_timeout(self) -> None:
+        (self.root / "tests" / "test_tracked.py").write_text(
+            "import time\n\n"
+            "def test_tracked():\n"
+            "    time.sleep(5)\n",
+            encoding="ascii",
+        )
+        run(self.root, "git", "add", "tests/test_tracked.py")
+
+        result = self.invoke(
+            "--execution-timeout-seconds",
+            "1",
+            "--no-manifest-file",
+            "--",
+            "-q",
+        )
+
+        self.assertEqual(result.returncode, 1)
+        error = json.loads(result.stderr.splitlines()[-1])
+        self.assertEqual(error["schema"], "tracked_pytest_execution_error.v1")
+        self.assertIn("bound of 1 seconds", error["error"])
+        manifest = json.loads(result.stdout.splitlines()[0])
+        self.assertEqual(manifest["execution_timeout_seconds"], 1)
+
+    def test_runner_rejects_unbounded_or_nonpositive_timeout(self) -> None:
+        for value in ("0", "86401"):
+            with self.subTest(value=value):
+                result = self.invoke(
+                    "--execution-timeout-seconds",
+                    value,
+                    "--manifest-only",
+                    "--no-manifest-file",
+                )
+                self.assertEqual(result.returncode, 1)
+                error = json.loads(result.stderr)
+                self.assertEqual(
+                    error["schema"], "tracked_pytest_manifest_error.v1"
+                )
+                self.assertIn("timeout must be", error["error"])
+
+    def test_focused_selection_keeps_full_frozen_manifest(self) -> None:
+        (self.root / "tests" / "test_other.py").write_text(
+            "def test_other():\n    assert False\n",
+            encoding="ascii",
+        )
+        run(self.root, "git", "add", "tests/test_other.py")
+
+        result = self.invoke(
+            "--select",
+            "tests/test_tracked.py",
+            "--no-manifest-file",
+            "--",
+            "-q",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertIn("1 passed", result.stdout)
+        manifest = json.loads(result.stdout.splitlines()[0])
+        self.assertEqual(manifest["tracked_test_count"], 2)
+        self.assertEqual(
+            [item["path"] for item in manifest["tracked_tests"]],
+            ["tests/test_other.py", "tests/test_tracked.py"],
+        )
+        self.assertEqual(
+            manifest["selection"],
+            {
+                "authority": "subset_of_frozen_git_index_test_manifest",
+                "mode": "focused",
+                "selected_tracked_file_count": 1,
+                "selectors": ["tests/test_tracked.py"],
+                "unselected_tracked_file_count": 1,
+            },
+        )
+        self.assertEqual(
+            manifest["runtime_projection"],
+            {"authority": "none", "mode": "focused_no_recovery"},
+        )
+        self.assertEqual(manifest["execution_timeout_seconds"], 1800)
+
+    def test_focused_exact_node_prefix_is_allowed(self) -> None:
+        tracked = self.root / "tests" / "test_tracked.py"
+        tracked.write_text(
+            "def test_tracked():\n    assert True\n\n"
+            "def test_not_selected():\n    assert False\n",
+            encoding="ascii",
+        )
+        run(self.root, "git", "add", "tests/test_tracked.py")
+
+        result = self.invoke(
+            "--select",
+            "tests/test_tracked.py::test_tracked",
+            "--no-manifest-file",
+            "--",
+            "-q",
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
+        self.assertIn("1 passed", result.stdout)
+
+    def test_focused_selection_rejects_untracked_or_ambiguous_input(self) -> None:
+        cases = (
+            "tests/test_untracked.py",
+            "tests/test_tracked.py::test_*",
+            "tests/../tests/test_tracked.py",
+        )
+        for selector in cases:
+            with self.subTest(selector=selector):
+                result = self.invoke(
+                    "--select",
+                    selector,
+                    "--manifest-only",
+                    "--no-manifest-file",
+                )
+                self.assertEqual(result.returncode, 1)
+                self.assertIn("selector", json.loads(result.stderr)["error"])
 
     def test_runner_materializes_only_exact_foundation_development_inputs(self) -> None:
         observed = b"approved-development-prefix-fixture\n"
@@ -721,6 +1200,162 @@ class TrackedTestRunnerTests(unittest.TestCase):
                 error = json.loads(result.stderr)
                 self.assertIn("collection or plugin", error["error"])
 
+    def test_head_authority_transition_is_explicit_bound_and_copy_free(self) -> None:
+        paths = self.configure_head_authority_transition()
+
+        normal = self.invoke(
+            "--select",
+            "tests/test_tracked.py",
+            "--rebuild-runtime-projection",
+            "--no-manifest-file",
+            "--",
+            "-q",
+        )
+        self.assertEqual(normal.returncode, 1)
+        self.assertIn("journal authority manifest is not materialized", normal.stderr)
+
+        transitioned = self.invoke(
+            "--select",
+            "tests/test_tracked.py",
+            "--rebuild-runtime-projection-from-head-authority",
+            "--no-manifest-file",
+            "--",
+            "-q",
+        )
+        self.assertEqual(
+            transitioned.returncode,
+            0,
+            transitioned.stderr or transitioned.stdout,
+        )
+        manifest = json.loads(transitioned.stdout.splitlines()[0])
+        projection = manifest["runtime_projection"]
+        self.assertEqual(
+            projection["mode"], "explicit_head_authority_transition_recovery"
+        )
+        self.assertEqual(
+            projection["authority"],
+            "git_head_declared_authority_with_identical_index_control_journal",
+        )
+        self.assertEqual(
+            [item["path"] for item in projection["temporary_authority_paths"]],
+            ["contracts/operations.yaml"],
+        )
+        self.assertEqual(
+            paths["contract"].read_text(encoding="ascii"),
+            "prospective-authority\n",
+        )
+        self.assertEqual(
+            (self.root / "local" / "index.sqlite").read_bytes(),
+            b"poison-source-projection",
+        )
+
+    def test_head_authority_transition_rejects_control_drift(self) -> None:
+        paths = self.configure_head_authority_transition()
+        paths["control"].write_bytes(paths["control"].read_bytes() + b" ")
+        run(self.root, "git", "add", "state/control.json")
+
+        result = self.invoke(
+            "--select",
+            "tests/test_tracked.py",
+            "--rebuild-runtime-projection-from-head-authority",
+            "--manifest-only",
+            "--no-manifest-file",
+        )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("HEAD and index control differ", result.stderr)
+
+    def test_head_authority_transition_rejects_segment_drift(self) -> None:
+        paths = self.configure_head_authority_transition(segmented_journal=True)
+        paths["active_segment"].write_bytes(
+            json.dumps(
+                {
+                    "event_id": "1" * 64,
+                    "journal_offset": 0,
+                    "previous_event_id": None,
+                    "sequence": 1,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            ).encode("ascii")
+            + b"\n"
+        )
+        run(
+            self.root,
+            "git",
+            "add",
+            "records/journal/journal-000001.jsonl",
+        )
+
+        result = self.invoke(
+            "--select",
+            "tests/test_tracked.py",
+            "--rebuild-runtime-projection-from-head-authority",
+            "--manifest-only",
+            "--no-manifest-file",
+        )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("HEAD and index Journal authority differ", result.stderr)
+
+    def test_head_authority_transition_rejects_undeclared_path(self) -> None:
+        self.configure_head_authority_transition()
+        subject = load_runner_module()
+        manifest, _tracked, _runtime = subject._manifest(
+            self.root.resolve(),
+            pytest_args=(),
+            selectors=("tests/test_tracked.py",),
+            rebuild_runtime_projection_from_head_authority=True,
+        )
+        plan = json.loads(json.dumps(manifest["runtime_projection"]))
+        plan["temporary_authority_paths"][0]["path"] = (
+            "src/axiom_rift/operations/writer.py"
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "outside control authority"):
+            subject._transition_entries(plan)
+
+    def test_head_authority_transition_restores_after_recovery_failure(self) -> None:
+        paths = self.configure_head_authority_transition(recovery_succeeds=False)
+        subject = load_runner_module()
+        manifest, _tracked, runtime_paths = subject._manifest(
+            self.root.resolve(),
+            pytest_args=(),
+            selectors=("tests/test_tracked.py",),
+            rebuild_runtime_projection_from_head_authority=True,
+        )
+        with TemporaryDirectory(prefix="transition-restore-test-") as temporary:
+            isolation = Path(temporary).resolve()
+            sandbox = isolation / "repository"
+            runtime_root = isolation / "runtime"
+            subject._checkout_independent_index_tree(
+                self.root.resolve(),
+                sandbox,
+                index_tree=manifest["git_index_tree"],
+            )
+            with self.assertRaisesRegex(RuntimeError, "forced recovery failure"):
+                subject._rebuild_runtime_projection_from_head_authority(
+                    self.root.resolve(),
+                    sandbox,
+                    plan=manifest["runtime_projection"],
+                    runtime_root=runtime_root,
+                    runtime_paths=runtime_paths,
+                    subprocess_timeout_seconds=30,
+                    declared_execution_timeout_seconds=30,
+                )
+            self.assertEqual(
+                (sandbox / "contracts" / "operations.yaml").read_text(
+                    encoding="ascii"
+                ),
+                "prospective-authority\n",
+            )
+            run(sandbox, "git", "diff", "--quiet", "--")
+            run(sandbox, "git", "diff", "--cached", "--quiet", "--")
+        self.assertEqual(
+            paths["contract"].read_text(encoding="ascii"),
+            "prospective-authority\n",
+        )
+
     def test_runtime_projection_is_rebuilt_and_clone_origin_is_detached(self) -> None:
         (self.root / "OPERATING_DIRECTION.md").write_text(
             "fixture\n", encoding="ascii"
@@ -769,6 +1404,22 @@ class TrackedTestRunnerTests(unittest.TestCase):
         (self.root / "local").mkdir()
         (self.root / "local" / "index.sqlite").write_bytes(b"poison")
 
+        focused_without_recovery = self.invoke(
+            "--select",
+            "tests/test_tracked.py",
+            "--no-manifest-file",
+            "--",
+            "-q",
+        )
+        self.assertEqual(focused_without_recovery.returncode, 1)
+        focused_without_recovery_manifest = json.loads(
+            focused_without_recovery.stdout.splitlines()[0]
+        )
+        self.assertEqual(
+            focused_without_recovery_manifest["runtime_projection"],
+            {"authority": "none", "mode": "focused_no_recovery"},
+        )
+
         result = self.invoke(
             "--no-manifest-file",
             "--",
@@ -790,6 +1441,24 @@ class TrackedTestRunnerTests(unittest.TestCase):
             },
         )
         self.assertNotIn("runtime_inputs", manifest)
+
+        focused = self.invoke(
+            "--select",
+            "tests/test_tracked.py",
+            "--rebuild-runtime-projection",
+            "--no-manifest-file",
+            "--",
+            "-q",
+        )
+        self.assertEqual(focused.returncode, 0, focused.stderr or focused.stdout)
+        focused_manifest = json.loads(focused.stdout.splitlines()[0])
+        self.assertEqual(
+            focused_manifest["runtime_projection"],
+            {
+                "authority": "git_index_tree_journal",
+                "mode": "explicit_recovery",
+            },
+        )
 
 
 if __name__ == "__main__":

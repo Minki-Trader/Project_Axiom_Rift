@@ -367,6 +367,102 @@ class HistoricalFamilySpec:
         }
 
 
+def historical_family_from_manifest(value: object) -> HistoricalFamilySpec:
+    """Reconstruct one family from exact Writer-bound canonical data.
+
+    Historical family modules are reconstruction surfaces, not prospective
+    implementation dependencies.  A running replay receives the same manifest
+    through its immutable Study record and uses this parser to recover only the
+    typed data needed by the generic engine.
+    """
+
+    if type(value) is not dict:
+        raise HistoricalFamilyReplayError(
+            "historical family manifest must be an object"
+        )
+    expected_keys = {
+        "controls",
+        "members",
+        "original_batch_id",
+        "original_study_id",
+        "schema",
+        "target_historical_executable_id",
+    }
+    if set(value) != expected_keys or value.get("schema") != HISTORICAL_FAMILY_SCHEMA:
+        raise HistoricalFamilyReplayError(
+            "historical family manifest schema or fields are invalid"
+        )
+    raw_members = value.get("members")
+    raw_controls = value.get("controls")
+    if type(raw_members) is not list or type(raw_controls) is not list:
+        raise HistoricalFamilyReplayError(
+            "historical family manifest members or controls are invalid"
+        )
+    members: list[HistoricalMemberSpec] = []
+    for raw_member in raw_members:
+        if type(raw_member) is not dict or set(raw_member) != {
+            "configuration_id",
+            "historical_reference_executable_id",
+            "ordinal",
+            "parameters",
+            "schema",
+        } or raw_member.get("schema") != HISTORICAL_MEMBER_SCHEMA:
+            raise HistoricalFamilyReplayError(
+                "historical family member manifest is invalid"
+            )
+        members.append(
+            HistoricalMemberSpec(
+                ordinal=raw_member["ordinal"],
+                configuration_id=raw_member["configuration_id"],
+                historical_reference_executable_id=(
+                    raw_member["historical_reference_executable_id"]
+                ),
+                parameters=raw_member["parameters"],
+            )
+        )
+    controls: list[ControlBinding] = []
+    for raw_control in raw_controls:
+        if type(raw_control) is not dict or set(raw_control) != {
+            "feature_historical_executable_ids",
+            "opposite_historical_executable_id",
+            "schema",
+            "subject_historical_executable_id",
+        } or raw_control.get("schema") != CONTROL_BINDING_SCHEMA:
+            raise HistoricalFamilyReplayError(
+                "historical family control manifest is invalid"
+            )
+        features = raw_control["feature_historical_executable_ids"]
+        if type(features) is not list:
+            raise HistoricalFamilyReplayError(
+                "historical family control features are invalid"
+            )
+        controls.append(
+            ControlBinding(
+                subject_historical_executable_id=(
+                    raw_control["subject_historical_executable_id"]
+                ),
+                opposite_historical_executable_id=(
+                    raw_control["opposite_historical_executable_id"]
+                ),
+                feature_historical_executable_ids=tuple(features),
+            )
+        )
+    family = HistoricalFamilySpec(
+        original_study_id=value["original_study_id"],
+        original_batch_id=value["original_batch_id"],
+        target_historical_executable_id=(
+            value["target_historical_executable_id"]
+        ),
+        members=tuple(members),
+        controls=tuple(controls),
+    )
+    if canonical_bytes(family.manifest()) != canonical_bytes(value):
+        raise HistoricalFamilyReplayError(
+            "historical family manifest is not canonical"
+        )
+    return family
+
+
 def historical_family_catalog(
     families: tuple[HistoricalFamilySpec, ...],
 ) -> tuple[HistoricalFamilySpec, ...]:
@@ -1071,6 +1167,10 @@ _LAZY_EXPORTS = {
         "axiom_rift.research.historical_family_stu0051",
         "STU0051_HISTORICAL_FAMILY",
     ),
+    "STU0061_HISTORICAL_FAMILY": (
+        "axiom_rift.research.historical_family_stu0061",
+        "STU0061_HISTORICAL_FAMILY",
+    ),
 }
 
 
@@ -1110,7 +1210,9 @@ __all__ = [
     "STU0032_HISTORICAL_FAMILY",
     "STU0048_HISTORICAL_FAMILY",
     "STU0051_HISTORICAL_FAMILY",
+    "STU0061_HISTORICAL_FAMILY",
     "historical_family_catalog",
     "historical_family_catalog_digest",
     "historical_family_catalog_manifest",
+    "historical_family_from_manifest",
 ]

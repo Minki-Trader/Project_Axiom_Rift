@@ -39,6 +39,8 @@ from axiom_rift.research import (
     implementation_closure as implementation_closure_module,
     p0_replay_adapters as adapter_module,
     p0_replay_inventory as replay_inventory_module,
+    p0_selection_inference as p0_selection_module,
+    reproducible_cache as reproducible_cache_module,
     scientific_trace as scientific_trace_module,
     selection_inference as selection_module,
     validation_v2 as validation_v2_module,
@@ -77,13 +79,20 @@ from axiom_rift.research.p0_replay_adapters import (
     replay_p0_axes,
 )
 from axiom_rift.research.p0_replay_inventory import p0_replay_inventory_sha256
-from axiom_rift.research.selection_inference import (
-    HistoricalSearchContext,
+from axiom_rift.research.p0_selection_inference import (
     P0_REPLAY_EXECUTABLE_IDS,
     P0_REPLAY_FAMILY_ID,
+    infer_p0_simultaneous_forest,
+)
+from axiom_rift.research.reproducible_cache import (
+    ReproducibleCacheError,
+    publish_reproducible_artifact,
+    publish_reproducible_cache,
+)
+from axiom_rift.research.selection_inference import (
+    HistoricalSearchContext,
     SELECTION_DAILY_PNL_SCHEMA,
     SelectionInferenceResult,
-    infer_p0_simultaneous_forest,
 )
 from axiom_rift.research.validation_v2 import (
     SCIENTIFIC_ADJUDICATION_PROFILE_SCHEMA,
@@ -104,6 +113,9 @@ P0_REPLAY_CLAIMS = (
 P0_REPLAY_EVIDENCE_MODES = (
     AUDIT_INTEGRITY_MODE,
 )
+FOREST_REPLAY_CALLABLE_IDENTITY = (
+    "axiom_rift.research.forest_replay.compute_p0_forest_replay.v1"
+)
 P0_PNL_ATTRIBUTION = {
     "daily_pnl": "decision_day",
     "monthly_drawdown": "exit_day",
@@ -113,10 +125,10 @@ P0_PNL_ATTRIBUTION = {
 P0_DAILY_PNL_OUTPUT = "local/cache/p0-forest/support/daily-pnl.json"
 P0_INFERENCE_OUTPUT = "local/cache/p0-forest/support/inference.json"
 P0_STATISTICAL_OUTPUT = (
-    "local/cache/p0-forest/support/statistical-inference.json"
+    "evidence/p0-forest/composite/statistical-inference.json"
 )
 P0_COMPOSITE_SUPPORT_OUTPUT = (
-    "local/cache/p0-forest/support/composite-support.json"
+    "evidence/p0-forest/composite/composite-support.json"
 )
 P0_COMPOSITE_PLAN_OUTPUT = "evidence/p0-forest/composite/validation-plan.json"
 P0_COMPOSITE_MEASUREMENT_OUTPUT = "evidence/p0-forest/composite/measurement.json"
@@ -204,6 +216,8 @@ def forest_replay_dependency_graph() -> dict[Path, tuple[Path, ...]]:
     implementation_closure = _module_source(implementation_closure_module)
     adapter = _module_source(adapter_module)
     inventory = _module_source(replay_inventory_module)
+    p0_selection = _module_source(p0_selection_module)
+    reproducible_cache = _module_source(reproducible_cache_module)
     scientific_trace = _module_source(scientific_trace_module)
     selection = _module_source(selection_module)
     validation_v2 = _module_source(validation_v2_module)
@@ -219,6 +233,8 @@ def forest_replay_dependency_graph() -> dict[Path, tuple[Path, ...]]:
             identity,
             implementation_closure,
             inventory,
+            p0_selection,
+            reproducible_cache,
             selection,
             validation_v2,
         ),
@@ -242,9 +258,11 @@ def forest_replay_dependency_graph() -> dict[Path, tuple[Path, ...]]:
         identity: (canonical,),
         implementation_closure: (),
         inventory: (canonical,),
+        p0_selection: (inventory, selection),
         operations_validation: (canonical, identity),
+        reproducible_cache: (),
         scientific_trace: (),
-        selection: (adjudication, canonical, identity, inventory),
+        selection: (adjudication, canonical, identity),
         validation_v2: (
             adjudication,
             analog_family,
@@ -271,6 +289,41 @@ def forest_replay_dependency_paths() -> tuple[Path, ...]:
         roots=(Path(__file__),),
         dependency_graph=forest_replay_dependency_graph(),
         source_root=Path(__file__).resolve().parents[2],
+    )
+
+
+def forest_replay_source_dependency_paths() -> tuple[Path, ...]:
+    """Return executable source paths including imported package initializers."""
+
+    source_root = Path(__file__).resolve().parents[2]
+    paths = set(forest_replay_dependency_paths())
+    for path in tuple(paths):
+        parent = path.parent
+        while parent != source_root and source_root in parent.parents:
+            initializer = parent / "__init__.py"
+            if initializer.is_file():
+                paths.add(initializer.resolve())
+            parent = parent.parent
+    return tuple(sorted(paths, key=lambda value: value.as_posix()))
+
+
+def forest_replay_source_closure_artifact() -> bytes:
+    """Bind the prospective callable to exact current source paths and bytes."""
+
+    source_root = Path(__file__).resolve().parents[2]
+    dependencies = [
+        {
+            "path": path.relative_to(source_root).as_posix(),
+            "sha256": sha256(path.read_bytes()).hexdigest(),
+        }
+        for path in forest_replay_source_dependency_paths()
+    ]
+    return canonical_bytes(
+        {
+            "callable_identity": FOREST_REPLAY_CALLABLE_IDENTITY,
+            "dependencies": dependencies,
+            "schema": "job_implementation_source_closure.v1",
+        }
     )
 
 
@@ -780,6 +833,7 @@ class CompositeValidationPlan:
     def job_input_hashes(self) -> tuple[str, ...]:
         values = (
             self.plan_hash,
+            OBSERVED_MATERIAL_ID,
             DATASET_SHA256,
             ROLLING_SPLIT_SHA256,
             p0_replay_inventory_sha256(),
@@ -1354,23 +1408,28 @@ class ForestReplayBundle:
     def write_artifacts(self, output_root: str | Path) -> dict[str, str]:
         """Idempotently materialize the exact one-Job output surface."""
 
-        root = Path(output_root).resolve()
+        root = Path(output_root).absolute()
         hashes: dict[str, str] = {}
+        classes = self.output_classes()
         for relative_path, content in self.artifact_bytes().items():
-            path = (root / relative_path).resolve()
             try:
-                path.relative_to(root)
-            except ValueError as exc:
-                raise ForestReplayError("artifact path escapes output root") from exc
-            if path.exists():
-                if path.read_bytes() != content:
-                    raise ForestReplayError(
-                        "existing forest replay artifact has different bytes"
+                if classes[relative_path] == "reproducible_cache":
+                    digest = publish_reproducible_cache(
+                        repository_root=root,
+                        relative_path=relative_path,
+                        content=content,
                     )
-            else:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes(content)
-            hashes[relative_path] = sha256(content).hexdigest()
+                else:
+                    digest = publish_reproducible_artifact(
+                        output_root=root,
+                        relative_path=relative_path,
+                        content=content,
+                    )
+            except ReproducibleCacheError as exc:
+                raise ForestReplayError(
+                    f"forest replay artifact publication failed: {exc}"
+                ) from exc
+            hashes[relative_path] = digest
         return hashes
 
 
@@ -1455,12 +1514,15 @@ __all__ = [
     "P0_REPLAY_CLAIMS",
     "P0_REPLAY_EVIDENCE_MODES",
     "P0_STATISTICAL_OUTPUT",
+    "FOREST_REPLAY_CALLABLE_IDENTITY",
     "P0AxisSpec",
     "build_p0_composite_validation_plan",
     "build_p0_forest_bundle",
     "compute_p0_forest_replay",
     "forest_replay_dependency_graph",
     "forest_replay_dependency_paths",
+    "forest_replay_source_closure_artifact",
+    "forest_replay_source_dependency_paths",
     "forest_replay_implementation_artifact",
     "forest_replay_implementation_identity",
     "forest_replay_implementation_manifest",

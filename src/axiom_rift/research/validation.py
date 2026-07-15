@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +18,7 @@ from axiom_rift.operations.validation import (
     EvidenceValidationRequest,
     ValidatedEvidence,
     validator_identity,
+    validator_implementation_sha256,
 )
 
 
@@ -610,10 +610,23 @@ def _verdict(
 
 
 _THIS_IMPLEMENTATION = Path(__file__).resolve()
+_AXIOM_PACKAGE_ROOT = _THIS_IMPLEMENTATION.parents[1]
+SCIENTIFIC_VALIDATION_DEPENDENCIES = tuple(
+    sorted(
+        {
+            _AXIOM_PACKAGE_ROOT / "core" / "canonical.py",
+            _AXIOM_PACKAGE_ROOT / "core" / "identity.py",
+        },
+        key=lambda path: path.as_posix(),
+    )
+)
 SCIENTIFIC_DISCOVERY_VALIDATOR_ID = validator_identity(
     protocol=SCIENTIFIC_VALIDATION_PROTOCOL,
     domains=SCIENTIFIC_VALIDATION_DOMAINS,
-    implementation_sha256=sha256(_THIS_IMPLEMENTATION.read_bytes()).hexdigest(),
+    implementation_sha256=validator_implementation_sha256(
+        implementation_path=_THIS_IMPLEMENTATION,
+        dependency_paths=SCIENTIFIC_VALIDATION_DEPENDENCIES,
+    ),
 )
 
 
@@ -623,6 +636,7 @@ class ScientificDiscoveryValidator:
     validator_id = SCIENTIFIC_DISCOVERY_VALIDATOR_ID
     domains = SCIENTIFIC_VALIDATION_DOMAINS
     implementation_path = _THIS_IMPLEMENTATION
+    dependency_paths = SCIENTIFIC_VALIDATION_DEPENDENCIES
     protocol = SCIENTIFIC_VALIDATION_PROTOCOL
 
     def preflight_binding(
@@ -847,6 +861,7 @@ __all__ = [
     "SCIENTIFIC_MEASUREMENT_SCHEMA",
     "SCIENTIFIC_RESULT_SCHEMA",
     "SCIENTIFIC_VALIDATION_DOMAINS",
+    "SCIENTIFIC_VALIDATION_DEPENDENCIES",
     "SCIENTIFIC_VALIDATION_PLAN_SCHEMA",
     "SCIENTIFIC_VALIDATION_PROTOCOL",
     "ScientificDiscoveryValidator",

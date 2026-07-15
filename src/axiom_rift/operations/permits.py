@@ -11,10 +11,17 @@ from pathlib import Path
 from secrets import token_bytes
 from typing import Any, Mapping
 import os
+import stat
 import tempfile
+from time import sleep
 
 from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.core.identity import canonical_digest
+from axiom_rift.storage.path_boundary import (
+    PathBoundaryError,
+    ensure_link_free_directory_chain,
+    require_link_free_directory_chain,
+)
 
 
 class PermitError(RuntimeError):
@@ -284,19 +291,107 @@ class PermitAuthority:
             raise PermitError("expired permit")
 
 
+def _key_link_like(metadata: os.stat_result) -> bool:
+    if stat.S_ISLNK(metadata.st_mode):
+        return True
+    reparse_flag = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0)
+    return bool(getattr(metadata, "st_file_attributes", 0) & reparse_flag)
+
+
+def _key_file_identity(
+    metadata: os.stat_result,
+) -> tuple[int, int, int, int, int, int]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_nlink,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+    )
+
+
+def _require_key_directory_chain(path: Path) -> None:
+    try:
+        require_link_free_directory_chain(path)
+    except PathBoundaryError as exc:
+        raise PermitError(
+            "local permit key directory chain is unavailable or link-like"
+        ) from exc
+
+
+def _ensure_key_directory_chain(path: Path) -> None:
+    try:
+        ensure_link_free_directory_chain(path)
+    except PathBoundaryError as exc:
+        raise PermitError(
+            "local permit key directory chain is unavailable or link-like"
+        ) from exc
+
+
+def _key_lstat(path: Path) -> os.stat_result:
+    for attempt in range(5):
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            raise
+        except OSError as exc:
+            raise PermitError("local permit key path is unavailable") from exc
+        if _key_link_like(metadata) or not stat.S_ISREG(metadata.st_mode):
+            raise PermitError("local permit key is link-like or non-regular")
+        if metadata.st_nlink == 1:
+            return metadata
+        if attempt < 4:
+            sleep(0.002)
+    raise PermitError("local permit key has a mutable hard-link alias")
+
+
+def _read_key_snapshot(path: Path) -> bytes:
+    _require_key_directory_chain(path.parent)
+    before = _key_lstat(path)
+    flags = os.O_RDONLY | getattr(os, "O_BINARY", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as exc:
+        raise PermitError("local permit key cannot be opened safely") from exc
+    try:
+        opened_before = os.fstat(descriptor)
+        with os.fdopen(descriptor, "rb", closefd=False) as handle:
+            secret = handle.read(33)
+        opened_after = os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+    try:
+        after = path.lstat()
+    except OSError as exc:
+        raise PermitError("local permit key changed during read") from exc
+    if (
+        _key_link_like(after)
+        or not stat.S_ISREG(after.st_mode)
+        or after.st_nlink != 1
+        or _key_file_identity(before) != _key_file_identity(opened_before)
+        or _key_file_identity(opened_before) != _key_file_identity(opened_after)
+        or _key_file_identity(opened_after) != _key_file_identity(after)
+    ):
+        raise PermitError("local permit key identity changed during read")
+    if len(secret) != 32:
+        raise PermitError("local permit key is invalid")
+    return secret
+
+
 class PermitKeyStore:
     """Create the local permit key only when a future Mission needs it."""
 
     def __init__(self, path: str | Path) -> None:
-        self.path = Path(path)
+        self.path = Path(os.path.abspath(path))
 
     def load_or_create(self) -> bytes:
-        if self.path.exists():
-            secret = self.path.read_bytes()
-            if len(secret) < 32:
-                raise PermitError("local permit key is invalid")
-            return secret
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        _ensure_key_directory_chain(self.path.parent)
+        try:
+            return _read_key_snapshot(self.path)
+        except FileNotFoundError:
+            pass
         secret = token_bytes(32)
         descriptor, temporary_name = tempfile.mkstemp(
             prefix=".permit-key.", suffix=".tmp", dir=self.path.parent
@@ -307,12 +402,22 @@ class PermitKeyStore:
                 handle.write(secret)
                 handle.flush()
                 os.fsync(handle.fileno())
-            os.replace(temporary, self.path)
             try:
-                self.path.chmod(0o600)
-            except OSError:
+                os.link(temporary, self.path)
+            except FileExistsError:
                 pass
         finally:
-            if temporary.exists():
+            try:
                 temporary.unlink()
+            except FileNotFoundError:
+                pass
+        # mkstemp creates the private file with owner-only permissions before
+        # publication.  Never chmod the public path: a concurrent path swap
+        # could otherwise redirect that metadata operation through a link.
+        observed = _read_key_snapshot(self.path)
+        if observed != secret:
+            # Another concurrent creator won.  Returning its durable key is the
+            # only valid result; returning this process's discarded random key
+            # would create immediately unverifiable permits.
+            return observed
         return secret

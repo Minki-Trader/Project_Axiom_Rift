@@ -8,11 +8,15 @@ runner.  Durable operations contain no callback or import-path authority.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
+from contextlib import nullcontext
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
 from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.core.component_surface import (
+    COMPONENT_SURFACE_ARCHITECTURE_ROLE,
+)
 from axiom_rift.core.identity import ExecutableSpec
 from axiom_rift.operations.batch_budget import (
     FIXED_HOLD_REPLAY_BUDGET_POLICY_ID,
@@ -22,7 +26,7 @@ from axiom_rift.operations.batch_budget import (
     registered_batch_budget_for_output_classes,
 )
 from axiom_rift.operations.effective_axis_projection import (
-    effective_axis_resolution,
+    effective_axis_resolutions,
 )
 from axiom_rift.operations.replay_projection import (
     obligation_heads,
@@ -57,17 +61,29 @@ from axiom_rift.research.governance import (
     ResearchLayer,
     StudyDiagnosis,
 )
+from axiom_rift.research.historical_family_binding import (
+    HistoricalFamilyBindingError,
+    HistoricalFamilySpec,
+    historical_family_authority_from_payload,
+    historical_family_from_manifest,
+)
 from axiom_rift.research.portfolio import (
     BatchSpec,
     ConcurrentFamilyEvaluationMode,
     ConcurrentFamilyManifest,
+    DecisionBasisRecord,
+    DecisionLens,
+    DecisionLensAssessment,
+    DecisionLensPosition,
     DecisionOption,
     PortfolioAction,
     PortfolioAxis,
     PortfolioDecision,
     PortfolioSnapshot,
+    QuantTeamDecisionReview,
 )
 from axiom_rift.research.portfolio_projection import (
+    architecture_surfaces_from_axis_projection,
     component_surface_registry,
     portfolio_axes_from_projection,
 )
@@ -90,7 +106,7 @@ from axiom_rift.research.validation_v2 import (
     SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
 )
 from axiom_rift.operations.permits import Permit, PermitKind, SubjectKind
-from axiom_rift.storage.index import IndexRecord, LocalIndex
+from axiom_rift.storage.index import IndexRecord, LocalIndexView
 
 
 STUDY_CLOSE_STAGE = "study-close"
@@ -110,6 +126,60 @@ def _digest(name: str, value: object) -> str:
     ):
         raise ValueError(f"{name} must be a lowercase SHA-256 digest")
     return text
+
+
+def _quant_team_review(
+    *,
+    option_ids: Sequence[str],
+    chosen_option_id: str,
+    basis_records: Sequence[DecisionBasisRecord],
+    primary_lens: DecisionLens,
+    primary_finding: str,
+    reservation_lens: DecisionLens,
+    reservation_finding: str,
+    claim_boundary: str,
+    resolution_basis: str,
+    disagreement_resolution: str,
+) -> QuantTeamDecisionReview:
+    """Build one compact evidence-bound allocation review."""
+
+    normalized_options = tuple(sorted(option_ids))
+    normalized_basis = tuple(
+        sorted(basis_records, key=lambda record: record.sort_key)
+    )
+    assessments = tuple(
+        sorted(
+            (
+                DecisionLensAssessment(
+                    lens=primary_lens,
+                    position=DecisionLensPosition.SUPPORT,
+                    option_ids=normalized_options,
+                    basis_records=normalized_basis,
+                    finding=_ascii("primary quant-team finding", primary_finding),
+                ),
+                DecisionLensAssessment(
+                    lens=reservation_lens,
+                    position=DecisionLensPosition.UNCERTAIN,
+                    option_ids=(chosen_option_id,),
+                    basis_records=normalized_basis,
+                    finding=_ascii(
+                        "reservation quant-team finding",
+                        reservation_finding,
+                    ),
+                ),
+            ),
+            key=lambda assessment: assessment.lens.value,
+        )
+    )
+    return QuantTeamDecisionReview(
+        assessments=assessments,
+        claim_boundary=_ascii("quant-team claim boundary", claim_boundary),
+        resolution_basis=_ascii("quant-team resolution basis", resolution_basis),
+        disagreement_resolution=_ascii(
+            "quant-team disagreement resolution",
+            disagreement_resolution,
+        ),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -195,6 +265,21 @@ class FixedHoldReplayMember:
         return f"member-{self.ordinal:02d}"
 
 
+def _canonical_statistical_family_ids(
+    members: Sequence[FixedHoldReplayMember],
+) -> tuple[str, ...]:
+    """Return set-like family membership without changing execution order."""
+
+    executable_ids = tuple(
+        member.executable.identity for member in members
+    )
+    if not executable_ids or len(set(executable_ids)) != len(executable_ids):
+        raise ValueError(
+            "replay statistical family requires unique Executables"
+        )
+    return tuple(sorted(executable_ids))
+
+
 def fixed_hold_replay_job_budget(
     member: FixedHoldReplayMember,
 ) -> dict[str, int]:
@@ -251,7 +336,11 @@ class FixedHoldReplayDesign:
         executable_ids = tuple(
             member.executable.identity for member in self.members
         )
+        statistical_family_ids = _canonical_statistical_family_ids(
+            self.members
+        )
         definition_ids = self.members[0].job_plan.definition.prospective_executable_ids
+        concurrent_family = self.batch_spec.concurrent_family
         if (
             len(set(executable_ids)) != len(executable_ids)
             or executable_ids != definition_ids
@@ -263,6 +352,13 @@ class FixedHoldReplayDesign:
             )
         ):
             raise ValueError("replay family identity or target drifted")
+        if (
+            concurrent_family is None
+            or concurrent_family.executable_ids != statistical_family_ids
+        ):
+            raise ValueError(
+                "replay Batch statistical family is not canonical"
+            )
 
     @property
     def target_member(self) -> FixedHoldReplayMember:
@@ -289,7 +385,7 @@ def _operation_record(
     writer: StateWriter,
     operation_id: str,
 ) -> IndexRecord:
-    with LocalIndex(writer.index_path) as index:
+    with writer.open_stable_index() as (_control, index):
         record = index.get("operation", operation_id)
     if record is None or record.status != "success":
         raise RuntimeError(f"operation is absent or unsuccessful: {operation_id}")
@@ -317,54 +413,87 @@ def _permit_from_operation(
 
 
 def _base_snapshot_id(
-    writer: StateWriter,
+    index: LocalIndexView,
     spec: FixedHoldReplayMissionSpec,
 ) -> str:
-    with LocalIndex(writer.index_path) as index:
-        bridge = index.get(
-            "operation",
-            spec.operation_prefix + "bridge-decision",
+    bridge = index.get(
+        "operation",
+        spec.operation_prefix + "bridge-decision",
+    )
+    if bridge is None:
+        head = index.event_head(f"portfolio:{spec.mission_id}")
+        snapshot_id = None if head is None else head.record_id
+    else:
+        result = bridge.payload.get("result")
+        decision_id = (
+            None if not isinstance(result, Mapping) else result.get("decision_id")
         )
-        if bridge is None:
-            head = index.event_head(f"portfolio:{spec.mission_id}")
-            snapshot_id = None if head is None else head.record_id
-        else:
-            result = bridge.payload.get("result")
-            decision_id = (
-                None if not isinstance(result, Mapping) else result.get("decision_id")
-            )
-            decision = (
-                None
-                if not isinstance(decision_id, str)
-                else index.get("portfolio-decision", decision_id)
-            )
-            snapshot_id = (
-                None
-                if decision is None
-                else decision.payload.get("portfolio_snapshot_id")
-            )
+        decision = (
+            None
+            if not isinstance(decision_id, str)
+            else index.get("portfolio-decision", decision_id)
+        )
+        snapshot_id = (
+            None
+            if decision is None
+            else decision.payload.get("portfolio_snapshot_id")
+        )
     if not isinstance(snapshot_id, str):
         raise RuntimeError("replay base Portfolio snapshot is unavailable")
     return snapshot_id
 
 
+def _accepted_decision_review_mode(
+    index: LocalIndexView,
+    operation_id: str,
+) -> bool | None:
+    """Preserve an accepted legacy identity; require review for new work."""
+
+    operation = index.get("operation", operation_id)
+    if operation is None:
+        return None
+    result = operation.payload.get("result")
+    decision_id = (
+        None if not isinstance(result, Mapping) else result.get("decision_id")
+    )
+    decision = (
+        None
+        if not isinstance(decision_id, str)
+        else index.get("portfolio-decision", decision_id)
+    )
+    if (
+        operation.status != "success"
+        or operation.payload.get("event_kind")
+        != "portfolio_decision_recorded"
+        or decision is None
+    ):
+        raise RuntimeError("accepted replay Decision projection is invalid")
+    return isinstance(decision.payload.get("quant_team_review"), Mapping)
+
+
 def _projection_payloads(
-    index: LocalIndex,
+    index: LocalIndexView,
     members: Sequence[FixedHoldReplayMember],
+    axes: Sequence[Mapping[str, Any]],
 ) -> tuple[Mapping[str, Any], ...]:
-    """Read the compact Component projection, not growing work history."""
+    """Read only Component manifests named by the base Portfolio snapshot."""
 
     values: list[Mapping[str, Any]] = [
         member.executable.to_identity_payload() for member in members
     ]
+    required_surfaces = architecture_surfaces_from_axis_projection(axes)
     values.extend(
-        record.payload for record in index.records_by_kind("component-manifest")
+        record.payload
+        for record in index.component_manifests_by_surfaces(
+            COMPONENT_SURFACE_ARCHITECTURE_ROLE,
+            required_surfaces,
+        )
     )
     return tuple(values)
 
 
 def _terminal_replay_reconstruction_allowed(
-    index: LocalIndex,
+    index: LocalIndexView,
     spec: FixedHoldReplayMissionSpec,
     target_head: IndexRecord,
 ) -> bool:
@@ -417,6 +546,7 @@ def build_fixed_hold_replay_design(
     target_executable_id: str,
     controlled_chassis: ControlledStudyChassis,
     historical_family_manifest: Mapping[str, Any],
+    historical_family_authority_id: str,
     criterion_ids: tuple[str, ...],
     causal_question: str,
     mechanism_family: str,
@@ -425,29 +555,38 @@ def build_fixed_hold_replay_design(
 ) -> FixedHoldReplayDesign:
     """Build one exact forest-preserving replay design from durable state."""
 
-    base_snapshot_id = _base_snapshot_id(writer, spec)
-    with LocalIndex(writer.index_path) as index:
+    with writer.open_stable_index() as (_control, index):
+        base_snapshot_id = _base_snapshot_id(index, spec)
         snapshot_record = index.get("portfolio-snapshot", base_snapshot_id)
         if snapshot_record is None:
             raise RuntimeError("replay base Portfolio snapshot is absent")
+        raw_axes = snapshot_record.payload.get("axes")
+        if not isinstance(raw_axes, list) or any(
+            not isinstance(axis, Mapping) for axis in raw_axes
+        ):
+            raise RuntimeError("replay base Portfolio axes are malformed")
         components = component_surface_registry(
-            _projection_payloads(index, members)
+            _projection_payloads(index, members, raw_axes)
         )
         prior_axes = portfolio_axes_from_projection(
-            snapshot_record.payload["axes"],
+            raw_axes,
             components,
         )
         projected_axes = {
-            item["axis_id"]: item for item in snapshot_record.payload["axes"]
+            item["axis_id"]: item for item in raw_axes
         }
+        axis_resolutions = effective_axis_resolutions(
+            index,
+            tuple(projected_axes[axis.axis_id] for axis in prior_axes),
+        )
         selectable = tuple(
             axis
-            for axis in prior_axes
-            if effective_axis_resolution(
-                index,
-                projected_axes[axis.axis_id],
-            ).status
-            is EffectiveAxisStatus.SELECTABLE
+            for axis, resolution in zip(
+                prior_axes,
+                axis_resolutions,
+                strict=True,
+            )
+            if resolution.status is EffectiveAxisStatus.SELECTABLE
         )
         obligations = {
             obligation.identity: (obligation, head)
@@ -457,6 +596,10 @@ def build_fixed_hold_replay_design(
             )
         }
         target = obligations.get(spec.target_obligation_id)
+        family_authority_record = index.get(
+            "historical-family-authority",
+            historical_family_authority_id,
+        )
         terminal_reconstruction = (
             target is not None
             and _terminal_replay_reconstruction_allowed(
@@ -464,6 +607,14 @@ def build_fixed_hold_replay_design(
                 spec,
                 target[1],
             )
+        )
+        bridge_review_mode = _accepted_decision_review_mode(
+            index,
+            spec.operation_prefix + "bridge-decision",
+        )
+        replay_review_mode = _accepted_decision_review_mode(
+            index,
+            spec.operation_prefix + "replay-decision",
         )
     if (
         any(axis.axis_id == spec.axis_id for axis in prior_axes)
@@ -476,20 +627,53 @@ def build_fixed_hold_replay_design(
     ):
         raise RuntimeError("replay axis, bridge, or obligation boundary is invalid")
     obligation, _target_head = target
+    definition_family = members[0].job_plan.definition.family
+    if not isinstance(definition_family, HistoricalFamilySpec):
+        raise RuntimeError(
+            "prospective replay definition must use Writer-bound family data"
+        )
+    try:
+        if family_authority_record is None:
+            raise HistoricalFamilyBindingError(
+                "historical family authority is absent"
+            )
+        family_authority = historical_family_authority_from_payload(
+            family_authority_record.payload
+        )
+        caller_family = historical_family_from_manifest(
+            dict(historical_family_manifest)
+        )
+    except HistoricalFamilyBindingError as exc:
+        raise RuntimeError(
+            "prospective replay historical family authority is malformed"
+        ) from exc
+    manifest_family = family_authority.family
+    if (
+        historical_family_authority_id != family_authority.identity
+        or family_authority_record.record_id != family_authority.identity
+        or family_authority_record.subject
+        != f"ReplayObligation:{spec.target_obligation_id}"
+        or family_authority_record.status != "accepted"
+        or family_authority_record.fingerprint
+        != family_authority.identity.removeprefix(
+            "historical-family-authority:"
+        )
+        or family_authority.replay_obligation_id
+        != spec.target_obligation_id
+        or family_authority.family != definition_family
+        or caller_family != manifest_family
+    ):
+        raise RuntimeError(
+            "prospective replay family differs from durable authority"
+        )
     target_members = tuple(
         member
         for member in members
         if member.executable.identity == target_executable_id
     )
-    family_members = historical_family_manifest.get("members")
-    manifest_references = (
-        ()
-        if not isinstance(family_members, list)
-        else tuple(
-            item.get("historical_reference_executable_id")
-            for item in family_members
-            if isinstance(item, Mapping)
-        )
+    manifest_references = tuple(
+        item.historical_reference_executable_id
+        for item in manifest_family.members
     )
     if (
         len(target_members) != 1
@@ -497,9 +681,8 @@ def build_fixed_hold_replay_design(
         or obligation.original_executable_id
         != target_members[0].historical_reference_executable_id
         or obligation.criterion_ids != criterion_ids
-        or historical_family_manifest.get("original_study_id")
-        != spec.original_study_id
-        or historical_family_manifest.get("target_historical_executable_id")
+        or manifest_family.original_study_id != spec.original_study_id
+        or manifest_family.target_historical_executable_id
         != obligation.original_executable_id
         or manifest_references
         != tuple(
@@ -528,10 +711,7 @@ def build_fixed_hold_replay_design(
         ),
         architecture_chassis=controlled_chassis.architecture,
     )
-    bridge_decision = PortfolioDecision(
-        decision_id=spec.decision_prefix + "-BRIDGE",
-        chosen_option_id="add-bounded-replay-bridge",
-        options=(
+    bridge_options = (
             DecisionOption(
                 option_id="add-bounded-replay-bridge",
                 action=PortfolioAction.NEW_MECHANISM,
@@ -555,11 +735,46 @@ def build_fixed_hold_replay_design(
                     "the typed P1 queue grants this replay its current opportunity"
                 ),
             ),
-        ),
+        )
+    bridge_decision = PortfolioDecision(
+        decision_id=spec.decision_prefix + "-BRIDGE",
+        chosen_option_id="add-bounded-replay-bridge",
+        options=bridge_options,
         rationale=(
             "add one replay bridge without mutating or reinterpreting prior axes"
         ),
         commitment_batches=1,
+        quant_team_review=None if bridge_review_mode is False else _quant_team_review(
+            option_ids=tuple(option.option_id for option in bridge_options),
+            chosen_option_id="add-bounded-replay-bridge",
+            basis_records=(
+                DecisionBasisRecord(
+                    kind="historical-replay-obligation",
+                    record_id=spec.target_obligation_id,
+                ),
+                DecisionBasisRecord(
+                    kind="portfolio-snapshot",
+                    record_id=snapshot_record.record_id,
+                ),
+            ),
+            primary_lens=DecisionLens.CAUSALITY,
+            primary_finding=(
+                "the exact obligation isolates one historical criterion defect"
+            ),
+            reservation_lens=DecisionLens.RISK,
+            reservation_finding=(
+                "one bounded replay Batch delays unrelated forest allocation"
+            ),
+            claim_boundary=(
+                "bridge admission only; no scientific or candidate authority"
+            ),
+            resolution_basis=(
+                "the exact locally executable obligation has bounded high information"
+            ),
+            disagreement_resolution=(
+                "retain every unrelated eligible axis independently selectable"
+            ),
+        ),
     )
     expanded_snapshot = PortfolioSnapshot(
         mission_id=spec.mission_id,
@@ -570,10 +785,7 @@ def build_fixed_hold_replay_design(
         research_intake_id=snapshot_record.payload.get("research_intake_id"),
         exhaustion_standard=snapshot_record.payload.get("exhaustion_standard"),
     )
-    work_decision = PortfolioDecision(
-        decision_id=spec.decision_prefix + "-REPLAY",
-        chosen_option_id="run-exact-concurrent-family",
-        options=(
+    work_options = (
             DecisionOption(
                 option_id="run-exact-concurrent-family",
                 action=PortfolioAction.SYNTHESIZE,
@@ -593,11 +805,46 @@ def build_fixed_hold_replay_design(
                 opportunity_cost="retain unresolved historical uncertainty",
                 omission_reason="the required family is locally executable now",
             ),
-        ),
+        )
+    work_decision = PortfolioDecision(
+        decision_id=spec.decision_prefix + "-REPLAY",
+        chosen_option_id="run-exact-concurrent-family",
+        options=work_options,
         rationale=(
             "select only the exact typed P1 obligation while peers remain schedulable"
         ),
         commitment_batches=1,
+        quant_team_review=None if replay_review_mode is False else _quant_team_review(
+            option_ids=tuple(option.option_id for option in work_options),
+            chosen_option_id="run-exact-concurrent-family",
+            basis_records=(
+                DecisionBasisRecord(
+                    kind="historical-replay-obligation",
+                    record_id=spec.target_obligation_id,
+                ),
+                DecisionBasisRecord(
+                    kind="portfolio-snapshot",
+                    record_id=expanded_snapshot.identity,
+                ),
+            ),
+            primary_lens=DecisionLens.STATISTICS,
+            primary_finding=(
+                "the synchronized family recomputes the exact selection inference"
+            ),
+            reservation_lens=DecisionLens.EXECUTION,
+            reservation_finding=(
+                "the full family consumes bounded local compute before other work"
+            ),
+            claim_boundary=(
+                "one replay obligation only; no unrelated claim or candidate authority"
+            ),
+            resolution_basis=(
+                "exact family recomputation dominates deferral while inputs are available"
+            ),
+            disagreement_resolution=(
+                "cap work at one Batch and leave peer obligations schedulable"
+            ),
+        ),
         baseline_executable=controlled_chassis.baseline_executable,
         replay_obligation_ids=(spec.target_obligation_id,),
     )
@@ -618,11 +865,17 @@ def build_fixed_hold_replay_design(
     }
     proposal = {
         "candidate_eligible": False,
-        "concurrent_family": dict(historical_family_manifest),
         "historical_obligation_id": spec.target_obligation_id,
         "mechanism": mechanism_family,
         "original_study_id": spec.original_study_id,
     }
+    proposal.update(
+        {
+            "concurrent_family": manifest_family.manifest(),
+            "historical_family_authority_id": family_authority.identity,
+            "historical_family_identity": manifest_family.identity,
+        }
+    )
     study_hash = writer.study_input_hash(
         question=question,
         material_identity=OBSERVED_MATERIAL_ID,
@@ -645,13 +898,13 @@ def build_fixed_hold_replay_design(
         source_contract_ids=(),
         concurrent_family=ConcurrentFamilyManifest(
             evaluation_mode=ConcurrentFamilyEvaluationMode.VECTORIZED,
-            executable_ids=tuple(
-                member.executable.identity for member in members
-            ),
+            executable_ids=_canonical_statistical_family_ids(members),
         ),
         acceptance_profile={
             "candidate_authority": "none",
             "exact_original_criteria": list(criterion_ids),
+            "historical_family_authority_id": family_authority.identity,
+            "historical_family_identity": manifest_family.identity,
             "replay_obligation_id": spec.target_obligation_id,
         },
         adaptive_basis={
@@ -691,11 +944,18 @@ def _member_completion(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
     member: FixedHoldReplayMember,
+    *,
+    _index: LocalIndexView | None = None,
 ) -> IndexRecord | None:
     operation_id = (
         design.spec.operation_prefix + member.label + "-complete-job"
     )
-    with LocalIndex(writer.index_path) as index:
+    index_context = (
+        writer.open_stable_index()
+        if _index is None
+        else nullcontext((None, _index))
+    )
+    with index_context as (_control, index):
         operation = index.get("operation", operation_id)
         result = None if operation is None else operation.payload.get("result")
         completion_id = (
@@ -708,6 +968,108 @@ def _member_completion(
             if not isinstance(completion_id, str)
             else index.get("job-completed", completion_id)
         )
+
+
+def _workflow_job_declarations(
+    index: LocalIndexView,
+    design: FixedHoldReplayDesign,
+    *,
+    batch_id: str,
+) -> tuple[IndexRecord, ...]:
+    """Resolve this exact family's Job declarations through immutable keys."""
+
+    declarations: list[IndexRecord] = []
+    for member in design.members:
+        operation_id = (
+            design.spec.operation_prefix + member.label + "-declare-job"
+        )
+        operation = index.get("operation", operation_id)
+        if operation is None:
+            continue
+        result = operation.payload.get("result")
+        job_id = result.get("job_id") if isinstance(result, Mapping) else None
+        job_hash = (
+            result.get("job_hash") if isinstance(result, Mapping) else None
+        )
+        declaration = (
+            index.get("job-declared", job_id)
+            if isinstance(job_id, str)
+            else None
+        )
+        evidence_subject = (
+            None
+            if declaration is None
+            else declaration.payload.get("spec", {}).get("evidence_subject")
+        )
+        if (
+            operation.status != "success"
+            or operation.payload.get("event_kind") != "job_declared"
+            or declaration is None
+            or declaration.record_id != job_id
+            or declaration.status != "declared"
+            or declaration.payload.get("batch_id") != batch_id
+            or declaration.payload.get("study_id") != design.spec.study_id
+            or declaration.payload.get("mission_id") != design.spec.mission_id
+            or not isinstance(evidence_subject, Mapping)
+            or evidence_subject.get("kind") != "Executable"
+            or evidence_subject.get("id") != member.executable.identity
+            or job_id != "job:" + str(job_hash)
+        ):
+            raise RuntimeError(
+                "replay Job declaration projection is malformed"
+            )
+        declarations.append(declaration)
+    return tuple(declarations)
+
+
+def _engineering_failure_member(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+    *,
+    _index: LocalIndexView | None = None,
+) -> tuple[FixedHoldReplayMember, IndexRecord] | None:
+    failures: list[tuple[FixedHoldReplayMember, IndexRecord]] = []
+    for member in design.members:
+        completion = _member_completion(
+            writer,
+            design,
+            member,
+            _index=_index,
+        )
+        failure = None if completion is None else completion.payload.get("failure")
+        disposition = (
+            None
+            if completion is None
+            else completion.payload.get("engineering_disposition")
+        )
+        if (
+            completion is not None
+            and getattr(completion, "status", None) == "failed"
+            and isinstance(failure, Mapping)
+            and failure.get("failure_kind") == "engineering"
+            and isinstance(disposition, Mapping)
+            and disposition.get("schema")
+            == "engineering_failure_disposition.v1"
+        ):
+            failures.append((member, completion))
+    if len(failures) > 1:
+        raise RuntimeError("replay family has multiple terminal engineering failures")
+    return None if not failures else failures[0]
+
+
+def _member_unrecovered_repair_operation_id(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+    member: FixedHoldReplayMember,
+) -> str | None:
+    matches = tuple(
+        step.operation_id
+        for step in _member_repair_chain_complete(writer, design, member)
+        if step.event_kind == "repair_concluded_unrecovered"
+    )
+    if len(matches) > 1:
+        raise RuntimeError("replay member has multiple unrecovered Repairs")
+    return None if not matches else matches[0]
 
 
 def _scientific_facts(
@@ -776,6 +1138,27 @@ def interpret_fixed_hold_completion(
     )
 
 
+def _workflow_interpretation(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+) -> ReplayInterpretation:
+    if _engineering_failure_member(writer, design) is not None:
+        return ReplayInterpretation(
+            all_criteria_recomputed=False,
+            close_outcome="not_evaluable",
+            diagnosis_state=EvidenceState.ENGINEERING_GAP,
+            disposition=PortfolioAction.PRESERVE,
+            reason_code="unrecovered_same_protocol_engineering_gap",
+        )
+    completion = _member_completion(writer, design, design.target_member)
+    if completion is None:
+        raise RuntimeError("replay target completion is unavailable")
+    return interpret_fixed_hold_completion(
+        completion,
+        criterion_ids=design.criterion_ids,
+    )
+
+
 def _protocol_activation_operation_id(
     design: FixedHoldReplayDesign,
 ) -> str:
@@ -792,18 +1175,22 @@ def _protocol_activation_operation_id(
 def _recorded_protocol_activation_operation_ids(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
+    *,
+    _index: LocalIndexView | None = None,
 ) -> tuple[str, ...]:
     """Preserve every prior validator activation in strict replay order."""
 
-    index_path = getattr(writer, "index_path", None)
-    if index_path is None:
-        return ()
     prefix = design.spec.operation_prefix
     legacy_id = prefix + "activate-current-v2-protocol"
     versioned_prefix = prefix + "activate-v2-protocol-"
     ordered: list[tuple[int, str]] = []
-    with LocalIndex(index_path) as index:
-        for operation in index.records_by_kind("operation"):
+    index_context = (
+        writer.open_stable_index()
+        if _index is None
+        else nullcontext((None, _index))
+    )
+    with index_context as (_control, index):
+        for operation in index.records_by_kind_prefix("operation", prefix):
             if not (
                 operation.record_id == legacy_id
                 or operation.record_id.startswith(versioned_prefix)
@@ -842,18 +1229,23 @@ def _recorded_protocol_activation_operation_ids(
 def _protocol_activation_step_needed(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
+    *,
+    _control: Mapping[str, Any] | None = None,
+    _index: LocalIndexView | None = None,
 ) -> bool:
     """Keep a required activation in the strict chain after it is recorded."""
 
-    index_path = getattr(writer, "index_path", None)
-    if index_path is None:
-        return False
-    control = writer.read_control()
-    if not isinstance(control, Mapping):
-        raise RuntimeError("replay protocol preflight lacks control")
+    if (_control is None) != (_index is None):
+        raise RuntimeError("replay protocol snapshot is incomplete")
     operation_id = _protocol_activation_operation_id(design)
-    authority_digest = control.get("authority", {}).get("manifest_digest")
-    with LocalIndex(index_path) as index:
+    index_context = (
+        writer.open_stable_index()
+        if _index is None
+        else nullcontext((_control, _index))
+    )
+    with index_context as (control, index):
+        assert control is not None
+        authority_digest = control.get("authority", {}).get("manifest_digest")
         if index.get("operation", operation_id) is not None:
             return True
         head = index.event_head("research-protocol:scientific")
@@ -878,48 +1270,378 @@ def _member_repair_chain_complete(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
     member: FixedHoldReplayMember,
-) -> bool:
-    """Preserve only a complete typed Repair inside the strict chain.
+    *,
+    _index: LocalIndexView | None = None,
+    _operations: tuple[IndexRecord, ...] | None = None,
+) -> tuple[OperationStep, ...]:
+    """Preserve every complete Repair episode inside the strict chain.
 
-    A partial chain is an exact resume boundary.  The workflow cannot invent a
-    failure cause or changed-cause proof, so it fails before treating that
-    partial Repair as ordinary Study execution.
+    Episode one keeps the historical operation names.  Later episodes use an
+    explicit three-digit episode namespace.  A partial episode is an exact
+    resume boundary; a skipped episode, missing engine re-entry, or Repair
+    after an unrecovered terminal is rejected rather than silently omitted.
     """
 
-    index_path = getattr(writer, "index_path", None)
-    if index_path is None:
-        return False
+    if (_index is None) != (_operations is None):
+        raise RuntimeError("replay Repair operation snapshot is incomplete")
     stem = design.spec.operation_prefix + member.label
-    expected = (
-        ("-repair-permit", "permit_issued"),
-        ("-open-repair", "repair_opened"),
-        ("-close-repair", "repair_closed"),
+
+    def names(episode: int) -> dict[str, str]:
+        if episode == 1:
+            return {
+                "permit": stem + "-repair-permit",
+                "open": stem + "-open-repair",
+                "attempt_prefix": stem + "-repair-attempt-",
+                "close": stem + "-close-repair",
+                "conclude": stem + "-conclude-repair",
+                "resume": stem + "-resume-repaired-job",
+            }
+        base = f"{stem}-repair-episode-{episode:03d}"
+        return {
+            "permit": base + "-permit",
+            "open": base + "-open",
+            "attempt_prefix": base + "-attempt-",
+            "close": base + "-close",
+            "conclude": base + "-conclude",
+            "resume": base + "-resume",
+        }
+
+    legacy_names = set(names(1).values())
+    numbered_prefix = stem + "-repair-episode-"
+    index_context = (
+        writer.open_stable_index()
+        if _index is None
+        else nullcontext((None, _index))
     )
-    with LocalIndex(index_path) as index:
-        records = tuple(
-            index.get("operation", stem + suffix)
-            for suffix, _event_kind in expected
+    with index_context as (_control, index):
+        operations = (
+            tuple(
+                index.records_by_kind_prefix(
+                    "operation",
+                    design.spec.operation_prefix,
+                )
+            )
+            if _operations is None
+            else _operations
         )
-    present = tuple(record is not None for record in records)
-    if not any(present):
-        return False
-    if not all(present):
-        missing = ",".join(
-            stem + expected[index][0]
-            for index, is_present in enumerate(present)
-            if not is_present
+        relevant_by_id = {
+            record.record_id: record
+            for record in operations
+            if record.record_id in legacy_names
+            or record.record_id.startswith(numbered_prefix)
+        }
+        for operation_id in legacy_names:
+            legacy = index.get("operation", operation_id)
+            if legacy is not None:
+                relevant_by_id[legacy.record_id] = legacy
+        relevant = tuple(relevant_by_id.values())
+        if not relevant:
+            return ()
+        episodes: set[int] = set()
+        for operation in relevant:
+            if operation.record_id in legacy_names:
+                episodes.add(1)
+                continue
+            suffix = operation.record_id[len(numbered_prefix) :]
+            ordinal_text, separator, _tail = suffix.partition("-")
+            if (
+                separator != "-"
+                or len(ordinal_text) != 3
+                or not ordinal_text.isdigit()
+                or int(ordinal_text) < 2
+            ):
+                raise RuntimeError(
+                    "replay Repair episode operation identity is malformed"
+                )
+            episodes.add(int(ordinal_text))
+        ordered_episodes = tuple(sorted(episodes))
+        if ordered_episodes != tuple(range(1, ordered_episodes[-1] + 1)):
+            raise RuntimeError("replay Repair episodes are not contiguous")
+
+        steps: list[OperationStep] = []
+        prior_close_id: str | None = None
+        prior_resume_sequence: int | None = None
+        prior_unrecovered = False
+        for episode in ordered_episodes:
+            if prior_unrecovered:
+                raise RuntimeError(
+                    "replay Repair continues after an unrecovered terminal"
+                )
+            expected = names(episode)
+            permit = index.get("operation", expected["permit"])
+            opened_operation = index.get("operation", expected["open"])
+            close_operation = index.get("operation", expected["close"])
+            conclude_operation = index.get(
+                "operation", expected["conclude"]
+            )
+            terminals = tuple(
+                record
+                for record in (close_operation, conclude_operation)
+                if record is not None
+            )
+            missing = tuple(
+                operation_id
+                for operation_id, record in (
+                    (expected["permit"], permit),
+                    (expected["open"], opened_operation),
+                )
+                if record is None
+            )
+            if missing or len(terminals) != 1:
+                terminal_missing = (
+                    ()
+                    if terminals
+                    else (expected["close"] + "|" + expected["conclude"],)
+                )
+                raise RuntimeError(
+                    "replay Repair is incomplete; resume exact operations: "
+                    + ",".join((*missing, *terminal_missing))
+                )
+            terminal = terminals[0]
+            terminal_event = (
+                "repair_closed"
+                if terminal.record_id == expected["close"]
+                else "repair_concluded_unrecovered"
+            )
+            for record, event_kind in (
+                (permit, "permit_issued"),
+                (opened_operation, "repair_opened"),
+                (terminal, terminal_event),
+            ):
+                assert record is not None
+                if (
+                    record.status != "success"
+                    or record.payload.get("event_kind") != event_kind
+                    or type(record.authority_sequence) is not int
+                ):
+                    raise RuntimeError(
+                        "replay Repair operation chain is malformed"
+                    )
+            assert permit is not None and opened_operation is not None
+            if not (
+                permit.authority_sequence
+                < opened_operation.authority_sequence
+                < terminal.authority_sequence
+            ):
+                raise RuntimeError("replay Repair operation order drifted")
+            if (
+                prior_resume_sequence is not None
+                and prior_resume_sequence >= permit.authority_sequence
+            ):
+                raise RuntimeError(
+                    "replay Repair episode precedes prior engine re-entry"
+                )
+            repair_id = opened_operation.payload.get("result", {}).get(
+                "repair_id"
+            )
+            opened = (
+                None
+                if not isinstance(repair_id, str)
+                else index.get("repair-open", repair_id)
+            )
+            if (
+                opened is None
+                or opened.payload.get("episode") != episode
+                or opened.payload.get("predecessor_repair_close_record_id")
+                != prior_close_id
+            ):
+                raise RuntimeError(
+                    "replay Repair episode provenance is unavailable"
+                )
+            terminal_result = terminal.payload.get("result", {})
+            terminal_repair_id = terminal_result.get("repair_id")
+            if (
+                terminal_repair_id is not None
+                and terminal_repair_id != repair_id
+            ):
+                raise RuntimeError(
+                    "replay Repair terminal names another Repair"
+                )
+            repair_close_id = terminal_result.get("repair_close_record_id")
+            repair_close = (
+                None
+                if not isinstance(repair_close_id, str)
+                else index.get("repair-close", repair_close_id)
+            )
+            expected_close_status = (
+                "repaired"
+                if terminal_event == "repair_closed"
+                else "unrecovered"
+            )
+            if (
+                repair_close is None
+                or repair_close.status != expected_close_status
+                or repair_close.payload.get("repair_id") != repair_id
+            ):
+                raise RuntimeError(
+                    "replay Repair terminal projection is unavailable"
+                )
+            failed = tuple(
+                sorted(
+                    (
+                        record
+                        for record in operations
+                        if record.payload.get("event_kind")
+                        == "repair_attempt_failed"
+                        and record.payload.get("result", {}).get("repair_id")
+                        == repair_id
+                    ),
+                    key=lambda record: (
+                        record.authority_sequence,
+                        record.record_id,
+                    ),
+                )
+            )
+            projected_for_subject = tuple(
+                record
+                for record in index.records_by_subject_status(
+                    f"Repair:{repair_id}",
+                    "failed",
+                )
+                if record.kind == "repair-attempt"
+            )
+            if any(
+                record.payload.get("repair_id") != repair_id
+                for record in projected_for_subject
+            ):
+                raise RuntimeError(
+                    "replay Repair attempt projection names another Repair"
+                )
+            projected_failed = tuple(
+                sorted(
+                    projected_for_subject,
+                    key=lambda record: (
+                        record.event_sequence,
+                        record.record_id,
+                    ),
+                )
+            )
+            if len(failed) != len(projected_failed):
+                raise RuntimeError(
+                    "replay Repair attempt operation/projection count drifted"
+                )
+            if any(
+                record.record_id
+                != expected["attempt_prefix"] + f"{ordinal:03d}"
+                or record.status != "success"
+                or type(record.authority_sequence) is not int
+                or record.payload.get("result", {}).get(
+                    "attempt_record_id"
+                )
+                != projected_failed[ordinal - 1].record_id
+                or projected_failed[ordinal - 1].status != "failed"
+                or projected_failed[ordinal - 1].event_stream
+                != f"repair-attempt:{repair_id}"
+                or projected_failed[ordinal - 1].event_sequence != ordinal
+                or not (
+                    opened_operation.authority_sequence
+                    < record.authority_sequence
+                    < terminal.authority_sequence
+                )
+                for ordinal, record in enumerate(failed, start=1)
+            ):
+                raise RuntimeError(
+                    "replay Repair attempt is outside its exact operation chain"
+                )
+            steps.extend(
+                (
+                    OperationStep(
+                        expected["permit"],
+                        "permit_issued",
+                        STUDY_CLOSE_STAGE,
+                    ),
+                    OperationStep(
+                        expected["open"],
+                        "repair_opened",
+                        STUDY_CLOSE_STAGE,
+                    ),
+                    *(
+                        OperationStep(
+                            record.record_id,
+                            "repair_attempt_failed",
+                            STUDY_CLOSE_STAGE,
+                        )
+                        for record in failed
+                    ),
+                    OperationStep(
+                        terminal.record_id,
+                        terminal_event,
+                        STUDY_CLOSE_STAGE,
+                    ),
+                )
+            )
+            if terminal_event == "repair_closed":
+                resume = index.get("operation", expected["resume"])
+                if resume is not None and (
+                    resume.status != "success"
+                    or resume.payload.get("event_kind")
+                    != "job_repaired_execution_resumed"
+                    or resume.payload.get("result", {}).get(
+                        "repair_close_record_id"
+                    )
+                    != repair_close_id
+                    or type(resume.authority_sequence) is not int
+                    or resume.authority_sequence
+                    <= terminal.authority_sequence
+                ):
+                    raise RuntimeError(
+                        "replay Repair engine re-entry is malformed"
+                    )
+                if episode < ordered_episodes[-1] and resume is None:
+                    raise RuntimeError(
+                        "replay Repair episode omits engine re-entry"
+                    )
+                steps.append(
+                    OperationStep(
+                        expected["resume"],
+                        "job_repaired_execution_resumed",
+                        STUDY_CLOSE_STAGE,
+                    )
+                )
+                prior_resume_sequence = (
+                    None if resume is None else resume.authority_sequence
+                )
+            else:
+                if index.get("operation", expected["resume"]) is not None:
+                    raise RuntimeError(
+                        "unrecovered replay Repair cannot resume execution"
+                    )
+                prior_unrecovered = True
+                prior_resume_sequence = None
+            prior_close_id = repair_close_id
+    return tuple(steps)
+
+
+def _all_member_repair_chains(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+    *,
+    _index: LocalIndexView | None = None,
+) -> dict[int, tuple[OperationStep, ...]]:
+    """Read one authoritative workflow slice and share it across the family."""
+
+    index_context = (
+        writer.open_stable_index()
+        if _index is None
+        else nullcontext((None, _index))
+    )
+    with index_context as (_control, index):
+        operations = tuple(
+            index.records_by_kind_prefix(
+                "operation",
+                design.spec.operation_prefix,
+            )
         )
-        raise RuntimeError(
-            "replay Repair is incomplete; resume exact operations: " + missing
-        )
-    if any(
-        record.status != "success"
-        or record.payload.get("event_kind") != event_kind
-        for record, (_suffix, event_kind) in zip(records, expected, strict=True)
-        if record is not None
-    ):
-        raise RuntimeError("replay Repair operation chain is malformed")
-    return True
+        return {
+            member.ordinal: _member_repair_chain_complete(
+                writer,
+                design,
+                member,
+                _index=index,
+                _operations=operations,
+            )
+            for member in design.members
+        }
 
 
 def activate_current_scientific_protocol(
@@ -928,26 +1650,39 @@ def activate_current_scientific_protocol(
 ) -> Any:
     """Audit and bind the current validator before this Study's first Job."""
 
-    control = writer.read_control()
-    if not isinstance(control, Mapping):
-        raise RuntimeError("replay protocol activation lacks control")
-    authority_digest = control.get("authority", {}).get("manifest_digest")
-    if type(authority_digest) is not str:
-        raise RuntimeError("replay protocol activation lacks authority")
-    science = control.get("scientific", {})
-    study_id = science.get("active_study") if isinstance(science, Mapping) else None
-    batch = science.get("active_batch") if isinstance(science, Mapping) else None
-    with LocalIndex(writer.index_path) as index:
+    with writer.open_stable_index() as (control, index):
+        authority_digest = control.get("authority", {}).get("manifest_digest")
+        if type(authority_digest) is not str:
+            raise RuntimeError("replay protocol activation lacks authority")
+        science = control.get("scientific", {})
+        study_id = (
+            science.get("active_study")
+            if isinstance(science, Mapping)
+            else None
+        )
+        batch = (
+            science.get("active_batch")
+            if isinstance(science, Mapping)
+            else None
+        )
         head = index.event_head("research-protocol:scientific")
         prior = (
             None
             if head is None
             else index.get(head.record_kind, head.record_id)
         )
-        current_study_job_count = sum(
-            record.payload.get("study_id") == study_id
-            for record in index.records_by_kind("job-declared")
-        ) if isinstance(study_id, str) else 0
+        batch_id = batch.get("id") if isinstance(batch, Mapping) else None
+        current_study_job_count = (
+            len(
+                _workflow_job_declarations(
+                    index,
+                    design,
+                    batch_id=batch_id,
+                )
+            )
+            if isinstance(study_id, str) and isinstance(batch_id, str)
+            else 0
+        )
     audit = writer.evidence.finalize(
         canonical_bytes(
             {
@@ -1026,12 +1761,20 @@ def _corrected_declared_job_budget(
 def _batch_budget_repair_boundary(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
+    *,
+    _control: Mapping[str, Any] | None = None,
+    _index: LocalIndexView | None = None,
 ) -> int | None:
-    index_path = getattr(writer, "index_path", None)
-    if index_path is None:
-        return None
+    if (_control is None) != (_index is None):
+        raise RuntimeError("replay Batch budget snapshot is incomplete")
     operation_id = _batch_budget_repair_operation_id(design)
-    with LocalIndex(index_path) as index:
+    index_context = (
+        writer.open_stable_index()
+        if _index is None
+        else nullcontext((_control, _index))
+    )
+    with index_context as (control, index):
+        assert control is not None
         operation = index.get("operation", operation_id)
         if operation is not None:
             result = operation.payload.get("result")
@@ -1050,20 +1793,18 @@ def _batch_budget_repair_boundary(
             ):
                 raise RuntimeError("replay Batch budget Repair is malformed")
             return count
-    control = writer.read_control()
-    science = (
-        None if not isinstance(control, Mapping) else control.get("scientific")
-    )
-    batch = (
-        None if not isinstance(science, Mapping) else science.get("active_batch")
-    )
-    if not isinstance(batch, Mapping) or type(batch.get("id")) is not str:
-        return None
-    with LocalIndex(index_path) as index:
-        declarations = tuple(
-            record
-            for record in index.records_by_kind("job-declared")
-            if record.payload.get("batch_id") == batch["id"]
+        science = control.get("scientific")
+        batch = (
+            None
+            if not isinstance(science, Mapping)
+            else science.get("active_batch")
+        )
+        if not isinstance(batch, Mapping) or type(batch.get("id")) is not str:
+            return None
+        declarations = _workflow_job_declarations(
+            index,
+            design,
+            batch_id=batch["id"],
         )
     if not declarations:
         return None
@@ -1097,20 +1838,19 @@ def repair_fixed_hold_replay_batch_budget(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
 ) -> Any:
-    control = writer.read_control()
-    science = (
-        None if not isinstance(control, Mapping) else control.get("scientific")
-    )
-    batch = (
-        None if not isinstance(science, Mapping) else science.get("active_batch")
-    )
-    if not isinstance(batch, Mapping) or type(batch.get("id")) is not str:
-        raise RuntimeError("replay Batch budget Repair lacks an active Batch")
-    with LocalIndex(writer.index_path) as index:
-        declarations = tuple(
-            record
-            for record in index.records_by_kind("job-declared")
-            if record.payload.get("batch_id") == batch["id"]
+    with writer.open_stable_index() as (control, index):
+        science = control.get("scientific")
+        batch = (
+            None
+            if not isinstance(science, Mapping)
+            else science.get("active_batch")
+        )
+        if not isinstance(batch, Mapping) or type(batch.get("id")) is not str:
+            raise RuntimeError("replay Batch budget Repair lacks an active Batch")
+        declarations = _workflow_job_declarations(
+            index,
+            design,
+            batch_id=batch["id"],
         )
     corrected = {
         declaration.record_id: _corrected_declared_job_budget(declaration)
@@ -1134,22 +1874,70 @@ def repair_fixed_hold_replay_batch_budget(
 def operation_steps(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
+    *,
+    _control: Mapping[str, Any] | None = None,
+    _index: LocalIndexView | None = None,
 ) -> tuple[OperationStep, ...]:
+    if (_control is None) != (_index is None):
+        raise RuntimeError("replay operation-plan snapshot is incomplete")
+    if _index is None:
+        with writer.open_stable_index() as (control, index):
+            return operation_steps(
+                writer,
+                design,
+                _control=control,
+                _index=index,
+            )
+    assert _control is not None
     prefix = design.spec.operation_prefix
-    budget_repair_boundary = _batch_budget_repair_boundary(writer, design)
+    budget_repair_boundary = _batch_budget_repair_boundary(
+        writer,
+        design,
+        _control=_control,
+        _index=_index,
+    )
     failed = {
         member.ordinal
         for member in design.members
         if (
-            (completion := _member_completion(writer, design, member))
+            (
+                completion := _member_completion(
+                    writer,
+                    design,
+                    member,
+                    _index=_index,
+                )
+            )
             is not None
             and isinstance(completion.payload.get("scientific"), Mapping)
             and completion.payload["scientific"].get("verdict") == "failed"
         )
     }
-    target = _member_completion(writer, design, design.target_member)
+    target = _member_completion(
+        writer,
+        design,
+        design.target_member,
+        _index=_index,
+    )
+    engineering_failure = _engineering_failure_member(
+        writer,
+        design,
+        _index=_index,
+    )
+    repair_chains = _all_member_repair_chains(
+        writer,
+        design,
+        _index=_index,
+    )
+    unrecovered_present = any(
+        step.event_kind == "repair_concluded_unrecovered"
+        for chain in repair_chains.values()
+        for step in chain
+    )
     recomputed = (
-        target is not None
+        engineering_failure is None
+        and not unrecovered_present
+        and target is not None
         and interpret_fixed_hold_completion(
             target,
             criterion_ids=design.criterion_ids,
@@ -1165,20 +1953,21 @@ def operation_steps(
         OperationStep(prefix + "batch-permit", "permit_issued", STUDY_CLOSE_STAGE),
         OperationStep(prefix + "open-batch", "batch_opened", STUDY_CLOSE_STAGE),
     ]
-    steps.extend(
-        OperationStep(
-            prefix + member.label + "-register-trial",
-            "trial_registered",
-            STUDY_CLOSE_STAGE,
-        )
-        for member in design.members
-    )
     activation_operation_ids = list(
-        _recorded_protocol_activation_operation_ids(writer, design)
+        _recorded_protocol_activation_operation_ids(
+            writer,
+            design,
+            _index=_index,
+        )
     )
     current_activation_operation_id = _protocol_activation_operation_id(design)
     if (
-        _protocol_activation_step_needed(writer, design)
+        _protocol_activation_step_needed(
+            writer,
+            design,
+            _control=_control,
+            _index=_index,
+        )
         and current_activation_operation_id not in activation_operation_ids
     ):
         activation_operation_ids.append(current_activation_operation_id)
@@ -1192,6 +1981,13 @@ def operation_steps(
         )
     for member in design.members:
         stem = prefix + member.label
+        steps.append(
+            OperationStep(
+                stem + "-register-trial",
+                "trial_registered",
+                STUDY_CLOSE_STAGE,
+            )
+        )
         steps.extend(
             (
                 OperationStep(stem + "-declare-job", "job_declared", STUDY_CLOSE_STAGE),
@@ -1199,26 +1995,12 @@ def operation_steps(
                 OperationStep(stem + "-start-job", "job_started", STUDY_CLOSE_STAGE),
             )
         )
-        if _member_repair_chain_complete(writer, design, member):
-            steps.extend(
-                (
-                    OperationStep(
-                        stem + "-repair-permit",
-                        "permit_issued",
-                        STUDY_CLOSE_STAGE,
-                    ),
-                    OperationStep(
-                        stem + "-open-repair",
-                        "repair_opened",
-                        STUDY_CLOSE_STAGE,
-                    ),
-                    OperationStep(
-                        stem + "-close-repair",
-                        "repair_closed",
-                        STUDY_CLOSE_STAGE,
-                    ),
-                )
-            )
+        repair_steps = repair_chains[member.ordinal]
+        steps.extend(repair_steps)
+        unrecovered_repair = any(
+            item.event_kind == "repair_concluded_unrecovered"
+            for item in repair_steps
+        )
         steps.append(
             OperationStep(
                 stem + "-complete-job",
@@ -1241,6 +2023,8 @@ def operation_steps(
                 STUDY_CLOSE_STAGE,
             )
         )
+        if unrecovered_repair:
+            break
         if budget_repair_boundary == member.ordinal:
             steps.append(
                 OperationStep(
@@ -1275,11 +2059,13 @@ def inspect_replay_prefix(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
 ) -> tuple[int, tuple[OperationStep, ...]]:
-    steps = operation_steps(writer, design)
-    control = writer.read_control()
-    if control is None:
-        raise RuntimeError("replay control is absent")
-    with LocalIndex(writer.index_path) as index:
+    with writer.open_stable_index() as (control, index):
+        steps = operation_steps(
+            writer,
+            design,
+            _control=control,
+            _index=index,
+        )
         completed = inspect_operation_prefix(
             index=index,
             journal=writer.journal,
@@ -1584,7 +2370,101 @@ def _apply_study_close_step(
                 permit=_permit_from_operation(writer, stem + "-job-permit"),
                 operation_id=operation_id,
             )
+        repair_resume_operation_ids = (
+            {
+                repair_step.operation_id
+                for repair_step in _member_repair_chain_complete(
+                    writer,
+                    design,
+                    member,
+                )
+                if repair_step.event_kind
+                == "job_repaired_execution_resumed"
+            }
+            if operation_id == stem + "-resume-repaired-job"
+            or operation_id.startswith(stem + "-repair-episode-")
+            else set()
+        )
+        if operation_id in repair_resume_operation_ids:
+            execution_payload = _operation_result(
+                writer,
+                stem + "-start-job",
+            ).get("execution")
+            declaration_result = _operation_result(
+                writer,
+                stem + "-declare-job",
+            )
+            job_id = declaration_result.get("job_id")
+            with writer.open_stable_index() as (_control, index):
+                declaration = (
+                    None
+                    if not isinstance(job_id, str)
+                    else index.get("job-declared", job_id)
+                )
+            job_spec = (
+                None
+                if declaration is None
+                else declaration.payload.get("spec")
+            )
+            if (
+                not isinstance(execution_payload, Mapping)
+                or not isinstance(job_spec, Mapping)
+            ):
+                raise RuntimeError("replay Repair resume binding is absent")
+            return writer.resume_repaired_job_execution(
+                RunningJobExecution.from_mapping(execution_payload),
+                expected_callable_identity=spec.callable_identity,
+                expected_evidence_subject=job_spec["evidence_subject"],
+                required_input_hashes=tuple(job_spec["input_hashes"]),
+                operation_id=operation_id,
+            )
         if operation_id == stem + "-complete-job":
+            unrecovered_operation_id = (
+                _member_unrecovered_repair_operation_id(
+                    writer,
+                    design,
+                    member,
+                )
+            )
+            if unrecovered_operation_id is not None:
+                conclusion = _operation_result(
+                    writer,
+                    unrecovered_operation_id,
+                )
+                repair_id = conclusion.get("repair_id")
+                disposition_hash = conclusion.get("disposition_hash")
+                with writer.open_stable_index() as (_control, index):
+                    opened = (
+                        None
+                        if not isinstance(repair_id, str)
+                        else index.get("repair-open", repair_id)
+                    )
+                if (
+                    opened is None
+                    or not isinstance(disposition_hash, str)
+                ):
+                    raise RuntimeError(
+                        "unrecovered replay Repair provenance is absent"
+                    )
+                return writer.complete_job(
+                    outcome="failed",
+                    output_manifest={},
+                    failure={
+                        "failure_kind": "engineering",
+                        "interrupted_action": opened.payload[
+                            "interrupted_action"
+                        ],
+                        "minimum_reproduction_evidence": list(
+                            opened.payload[
+                                "minimum_reproduction_evidence"
+                            ]
+                        ),
+                        "repair_disposition_hash": disposition_hash,
+                        "resume_action": opened.payload["resume_action"],
+                        "root_cause": opened.payload["root_cause"],
+                    },
+                    operation_id=operation_id,
+                )
             execution_payload = _operation_result(
                 writer,
                 stem + "-start-job",
@@ -1614,6 +2494,13 @@ def _apply_study_close_step(
                 isinstance(scientific, Mapping)
                 and scientific.get("verdict") == "failed"
             )
+            engineering_failed = (
+                completion.status == "failed"
+                and isinstance(
+                    completion.payload.get("engineering_disposition"),
+                    Mapping,
+                )
+            )
             memory_id = None
             if failed:
                 memory_id = _operation_result(
@@ -1625,19 +2512,32 @@ def _apply_study_close_step(
             return writer.judge_job_evidence(
                 completion_record_id=completion.record_id,
                 disposition=(
-                    "continue_batch"
-                    if member.ordinal < len(design.members)
-                    else "stop_batch"
+                    "stop_batch"
+                    if engineering_failed
+                    or member.ordinal == len(design.members)
+                    else "continue_batch"
                 ),
                 negative_memory_id=memory_id,
                 operation_id=operation_id,
             )
     if operation_id == prefix + "dispose-batch":
         return writer.dispose_batch(
-            outcome="completed",
+            outcome=(
+                "engineering_failure"
+                if _engineering_failure_member(writer, design) is not None
+                else "completed"
+            ),
             operation_id=operation_id,
         )
     if operation_id == prefix + "close-study":
+        engineering_failure = _engineering_failure_member(writer, design)
+        if engineering_failure is not None:
+            _failed_member, failed_completion = engineering_failure
+            return writer.close_study(
+                outcome="not_evaluable",
+                kpi_completion_record_id=failed_completion.record_id,
+                operation_id=operation_id,
+            )
         completion = _member_completion(writer, design, design.target_member)
         if completion is None:
             raise RuntimeError("replay close lacks target completion")
@@ -1656,16 +2556,32 @@ def _apply_study_close_step(
 def _study_close_record(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
+    *,
+    _index: LocalIndexView | None = None,
 ) -> IndexRecord:
-    operation = _operation_record(
-        writer,
-        design.spec.operation_prefix + "close-study",
+    operation_id = design.spec.operation_prefix + "close-study"
+    index_context = (
+        writer.open_stable_index()
+        if _index is None
+        else nullcontext((None, _index))
     )
-    with LocalIndex(writer.index_path) as index:
+    with index_context as (_control, index):
+        operation = index.get("operation", operation_id)
+        if operation is None or operation.status != "success":
+            raise RuntimeError(
+                f"operation is absent or unsuccessful: {operation_id}"
+            )
+        result = operation.payload.get("result")
+        outcome = result.get("outcome") if isinstance(result, Mapping) else None
+        if not isinstance(outcome, str):
+            raise RuntimeError("replay Study-close operation outcome is absent")
         matches = tuple(
             record
-            for record in index.records_by_kind("study-close")
-            if record.subject == f"Study:{design.spec.study_id}"
+            for record in index.records_by_subject_status(
+                f"Study:{design.spec.study_id}",
+                outcome,
+            )
+            if record.kind == "study-close"
             and record.authority_sequence == operation.authority_sequence
             and record.authority_event_id == operation.authority_event_id
         )
@@ -1678,17 +2594,17 @@ def _diagnosis(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
 ) -> StudyDiagnosis:
+    engineering_failure = _engineering_failure_member(writer, design)
     completion = _member_completion(writer, design, design.target_member)
-    if completion is None:
-        raise RuntimeError("replay diagnosis lacks target completion")
-    interpretation = interpret_fixed_hold_completion(
-        completion,
-        criterion_ids=design.criterion_ids,
+    interpretation = _workflow_interpretation(writer, design)
+    state = (
+        None
+        if completion is None
+        else completion.payload.get("scientific", {}).get(
+            "adjudication",
+            {},
+        ).get("state")
     )
-    state = completion.payload.get("scientific", {}).get(
-        "adjudication",
-        {},
-    ).get("state")
     return StudyDiagnosis(
         study_id=design.spec.study_id,
         study_close_record_id=_study_close_record(writer, design).record_id,
@@ -1699,16 +2615,27 @@ def _diagnosis(
             else DiagnosisConfidence.LOW
         ),
         rationale=(
+            "A typed unrecovered Repair ended execution without creating "
+            "scientific evidence; this is an engineering gap."
+            if engineering_failure is not None
+            else
             "The exact concurrent family recomputed every original criterion; "
             f"the target scientific state is {state}."
             if interpretation.all_criteria_recomputed
             else "The exact original criterion inventory was unavailable or invalid."
         ),
         counterfactual=(
+            "A same-protocol engineering Repair could make the exact family "
+            "evaluable without changing its scientific semantics."
+            if engineering_failure is not None
+            else
             "New registered development material could change the family state "
             "without changing this historical replay result."
         ),
         reopen_condition=(
+            "Reopen through the exact same-protocol Repair lineage."
+            if engineering_failure is not None
+            else
             "Reopen only when repaired implementation or registered data permits "
             "the same exact family and criterion inventory."
         ),
@@ -1724,7 +2651,7 @@ def _diagnosis_record(
         design.spec.operation_prefix + "diagnose-study",
     )
     diagnosis_id = result.get("study_diagnosis_id")
-    with LocalIndex(writer.index_path) as index:
+    with writer.open_stable_index() as (_control, index):
         record = (
             None
             if not isinstance(diagnosis_id, str)
@@ -1739,16 +2666,12 @@ def _replay_resolution(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
 ) -> ReplaySatisfaction | ReplayDeferral:
+    engineering_failure = _engineering_failure_member(writer, design)
     completion = _member_completion(writer, design, design.target_member)
-    if completion is None:
-        raise RuntimeError("replay resolution lacks target completion")
-    interpretation = interpret_fixed_hold_completion(
-        completion,
-        criterion_ids=design.criterion_ids,
-    )
+    interpretation = _workflow_interpretation(writer, design)
     diagnosis = _diagnosis_record(writer, design)
     close_record = _study_close_record(writer, design)
-    with LocalIndex(writer.index_path) as index:
+    with writer.open_stable_index() as (_control, index):
         pairs = {
             obligation.identity: (obligation, head)
             for obligation, head in obligation_heads(
@@ -1767,6 +2690,7 @@ def _replay_resolution(
             trial=trial,
         )
     if interpretation.all_criteria_recomputed:
+        assert completion is not None
         facts = _scientific_facts(completion)
         assert facts is not None
         criterion_ids = validated_fixed_hold_recomputed_criterion_ids(facts)
@@ -1802,8 +2726,12 @@ def _replay_resolution(
                 criterion_ids=obligation.criterion_ids,
             )
             for kind in (
-                ReplayResumeConditionKind.REGISTERED_DEVELOPMENT_MATERIAL,
-                ReplayResumeConditionKind.SAME_PROTOCOL_REPAIR,
+                (ReplayResumeConditionKind.SAME_PROTOCOL_REPAIR,)
+                if engineering_failure is not None
+                else (
+                    ReplayResumeConditionKind.REGISTERED_DEVELOPMENT_MATERIAL,
+                    ReplayResumeConditionKind.SAME_PROTOCOL_REPAIR,
+                )
             )
         ),
         execution_binding=ReplayDeferralExecutionBinding(
@@ -1820,22 +2748,13 @@ def _disposition_decision(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
 ) -> PortfolioDecision:
-    completion = _member_completion(writer, design, design.target_member)
-    if completion is None:
-        raise RuntimeError("replay disposition lacks target completion")
-    interpretation = interpret_fixed_hold_completion(
-        completion,
-        criterion_ids=design.criterion_ids,
-    )
+    interpretation = _workflow_interpretation(writer, design)
     chosen_id = (
         "preserve-recomputed-replay"
         if interpretation.disposition is PortfolioAction.PRESERVE
         else "prune-recomputed-replay"
     )
-    return PortfolioDecision(
-        decision_id=design.spec.decision_prefix + "-DISPOSITION",
-        chosen_option_id=chosen_id,
-        options=(
+    options = (
             DecisionOption(
                 option_id=chosen_id,
                 action=interpretation.disposition,
@@ -1857,11 +2776,56 @@ def _disposition_decision(
                     "the Initiative must not turn bounded replay into tuning"
                 ),
             ),
-        ),
+        )
+    diagnosis = _diagnosis_record(writer, design)
+    with writer.open_stable_index() as (_control, index):
+        review_mode = _accepted_decision_review_mode(
+            index,
+            design.spec.operation_prefix + "disposition-decision",
+        )
+    return PortfolioDecision(
+        decision_id=design.spec.decision_prefix + "-DISPOSITION",
+        chosen_option_id=chosen_id,
+        options=options,
         rationale=(
             "separate replay completion from scientific state and dispose honestly"
         ),
         commitment_batches=1,
+        quant_team_review=None if review_mode is False else _quant_team_review(
+            option_ids=tuple(option.option_id for option in options),
+            chosen_option_id=chosen_id,
+            basis_records=(
+                DecisionBasisRecord(
+                    kind="historical-replay-obligation",
+                    record_id=design.spec.target_obligation_id,
+                ),
+                DecisionBasisRecord(
+                    kind="portfolio-snapshot",
+                    record_id=design.expanded_snapshot.identity,
+                ),
+                DecisionBasisRecord(
+                    kind="study-diagnosis",
+                    record_id=diagnosis.record_id,
+                ),
+            ),
+            primary_lens=DecisionLens.CAUSALITY,
+            primary_finding=(
+                "the exact diagnosis separates scientific state from execution status"
+            ),
+            reservation_lens=DecisionLens.RISK,
+            reservation_finding=(
+                "disposing the bounded replay can leave adjacent uncertainty unresolved"
+            ),
+            claim_boundary=(
+                "exact replay-axis disposition only; unrelated axes remain unchanged"
+            ),
+            resolution_basis=(
+                "the completed diagnosis supports the exact preserve or prune boundary"
+            ),
+            disagreement_resolution=(
+                "retain the typed reopen condition and independent forest branches"
+            ),
+        ),
     )
 
 
@@ -1941,9 +2905,32 @@ def _verify_no_candidate_or_holdout(
     executable_ids = {
         member.executable.identity for member in design.members
     }
-    control = writer.read_control()
-    with LocalIndex(writer.index_path) as index:
-        candidate_records = tuple(index.records_by_kind("candidate"))
+    with writer.open_stable_index() as (control, index):
+        candidate_records: list[IndexRecord] = []
+        for executable_id in sorted(executable_ids):
+            stream = f"candidate:{executable_id}"
+            head = index.event_head(stream)
+            if head is not None:
+                head_record = index.get(head.record_kind, head.record_id)
+                if head_record is None or head_record.event_stream != stream:
+                    raise RuntimeError("replay candidate history projection drifted")
+            executable_hash = executable_id.removeprefix("executable:")
+            exact_candidates = tuple(
+                record
+                for record in index.records_by_fingerprint(executable_hash)
+                if record.kind == "candidate"
+                and (
+                    record.record_id == executable_id
+                    or record.subject == f"Executable:{executable_id}"
+                )
+            )
+            if (
+                head is not None
+                and head.record_kind in {"candidate", "candidate-disposition"}
+                and not exact_candidates
+            ):
+                raise RuntimeError("replay candidate history projection drifted")
+            candidate_records.extend(exact_candidates)
     if (
         control is None
         or control.get("scientific", {}).get("holdout_reveals") != 0
@@ -1956,6 +2943,39 @@ def _verify_no_candidate_or_holdout(
         )
     ):
         raise RuntimeError("replay created candidate or holdout authority")
+
+
+def _require_scientific_study_close_projection(
+    *,
+    close_record: IndexRecord,
+    completion: IndexRecord,
+    study_kpi: IndexRecord | None,
+    interpretation: ReplayInterpretation,
+) -> None:
+    """Verify a scientific close without converting deferral into failure."""
+
+    if (
+        close_record.status != interpretation.close_outcome
+        or study_kpi is None
+        or study_kpi.status != interpretation.close_outcome
+        or study_kpi.payload.get("completion_record_id") != completion.record_id
+    ):
+        raise RuntimeError("replay scientific Study-close projection drifted")
+    if interpretation.all_criteria_recomputed:
+        return
+    if (
+        interpretation.close_outcome != "not_evaluable"
+        or interpretation.diagnosis_state != EvidenceState.NOT_IDENTIFIABLE
+        or interpretation.disposition != PortfolioAction.PRESERVE
+        or interpretation.reason_code
+        not in {
+            "original_criterion_recomputation_incomplete",
+            "original_criterion_recomputation_unavailable",
+        }
+    ):
+        raise RuntimeError(
+            "replay incomplete criteria lack the exact deferral boundary"
+        )
 
 
 def verify_study_close_postconditions(
@@ -1971,13 +2991,21 @@ def verify_study_close_postconditions(
         design.spec.operation_prefix + "close-study",
     )
     close_record = _study_close_record(writer, design)
-    control = writer.read_control()
     completions = tuple(
         _member_completion(writer, design, member) for member in design.members
     )
+    engineering_failure = _engineering_failure_member(writer, design)
+    with writer.open_stable_index() as (control, index):
+        study_kpi = index.get("study-kpi", design.spec.study_id)
+        heads = {
+            obligation.identity: head
+            for obligation, head in obligation_heads(
+                index,
+                mission_id=design.spec.mission_id,
+            )
+        }
     if (
         control is None
-        or any(value is None for value in completions)
         or control.get("next_action", {}).get("kind") != "diagnose_study"
         or control.get("next_action", {}).get("study_close_record_id")
         != close_record.record_id
@@ -1986,31 +3014,76 @@ def verify_study_close_postconditions(
         or control.get("scientific", {}).get("active_job") is not None
     ):
         raise RuntimeError("replay Study-close state drifted")
-    for member, completion in zip(design.members, completions, strict=True):
-        assert completion is not None
-        outputs = completion.payload.get("outputs")
-        if (
-            completion.status != "success"
-            or not isinstance(outputs, Mapping)
-            or set(outputs) != set(member.job_plan.expected_outputs())
+    if engineering_failure is None:
+        if any(value is None for value in completions):
+            raise RuntimeError("replay member completion is absent")
+        for member, completion in zip(
+            design.members,
+            completions,
+            strict=True,
         ):
-            raise RuntimeError("replay member completion output drifted")
-    target = completions[design.target_member.ordinal - 1]
-    assert target is not None
-    interpretation = interpret_fixed_hold_completion(
-        target,
-        criterion_ids=design.criterion_ids,
-    )
-    if not interpretation.all_criteria_recomputed:
-        raise RuntimeError("replay target did not recompute exact criteria")
-    with LocalIndex(writer.index_path) as index:
-        heads = {
-            obligation.identity: head
-            for obligation, head in obligation_heads(
-                index,
-                mission_id=design.spec.mission_id,
+            assert completion is not None
+            outputs = completion.payload.get("outputs")
+            if (
+                completion.status != "success"
+                or not isinstance(outputs, Mapping)
+                or set(outputs) != set(member.job_plan.expected_outputs())
+            ):
+                raise RuntimeError("replay member completion output drifted")
+        target = completions[design.target_member.ordinal - 1]
+        assert target is not None
+        interpretation = interpret_fixed_hold_completion(
+            target,
+            criterion_ids=design.criterion_ids,
+        )
+        _require_scientific_study_close_projection(
+            close_record=close_record,
+            completion=target,
+            study_kpi=study_kpi,
+            interpretation=interpretation,
+        )
+    else:
+        failed_member, failed_completion = engineering_failure
+        for member, completion in zip(
+            design.members,
+            completions,
+            strict=True,
+        ):
+            if member.ordinal < failed_member.ordinal:
+                if completion is None or completion.status != "success":
+                    raise RuntimeError(
+                        "replay pre-gap member completion drifted"
+                    )
+            elif member.ordinal == failed_member.ordinal:
+                if (
+                    completion is None
+                    or completion.record_id != failed_completion.record_id
+                ):
+                    raise RuntimeError(
+                        "replay engineering-gap completion drifted"
+                    )
+            elif completion is not None:
+                raise RuntimeError(
+                    "replay executed work after terminal engineering gap"
+                )
+        disposed = _operation_result(
+            writer,
+            design.spec.operation_prefix + "dispose-batch",
+        )
+        if (
+            disposed.get("outcome") != "engineering_failure"
+            or close_record.status != "not_evaluable"
+            or study_kpi is None
+            or study_kpi.payload.get("completion_record_id")
+            != failed_completion.record_id
+            or study_kpi.payload.get("source")
+            != "typed_engineering_failure_completion"
+            or study_kpi.payload.get("unavailable_reason")
+            != "engineering_failure"
+        ):
+            raise RuntimeError(
+                "replay engineering gap lacks typed Batch, Study, or KPI terminal"
             )
-        }
     target_head = heads.get(design.spec.target_obligation_id)
     if target_head is None or target_head.status != "in_progress":
         raise RuntimeError("replay obligation is not exactly in progress")
@@ -2092,9 +3165,8 @@ def verify_diagnose_postconditions(
     completed, steps = inspect_replay_prefix(writer, design)
     if completed != len(steps):
         raise RuntimeError("replay diagnosis chain is incomplete")
-    control = writer.read_control()
     expected_snapshot = _disposition_snapshot(writer, design)
-    with LocalIndex(writer.index_path) as index:
+    with writer.open_stable_index() as (control, index):
         p1 = {
             obligation.identity: head
             for obligation, head in obligation_heads(
@@ -2178,16 +3250,15 @@ def run_diagnose_stage(
     ):
         raise RuntimeError("diagnosis does not bind exact Study-close authority")
     if initial == start:
-        control = writer.read_control()
-        if (
-            control is None
-            or control.get("revision") != study_close_revision
-            or control.get("heads", {}).get("journal", {}).get("event_id")
-            != study_close_event_id
-            or control.get("next_action", {}).get("study_close_record_id")
-            != _study_close_record(writer, design).record_id
-        ):
-            raise RuntimeError("Study-close checkpoint control head is not exact")
+        with writer.open_stable_index() as (control, _index):
+            if (
+                control.get("revision") != study_close_revision
+                or control.get("heads", {}).get("journal", {}).get("event_id")
+                != study_close_event_id
+                or control.get("next_action", {}).get("study_close_record_id")
+                != _study_close_record(writer, design, _index=_index).record_id
+            ):
+                raise RuntimeError("Study-close checkpoint control head is not exact")
     writer._require_study_close_delivery_guard()
     while True:
         completed, steps = inspect_replay_prefix(writer, design)
@@ -2205,13 +3276,15 @@ def run_diagnose_stage(
         if advanced != completed + 1:
             raise RuntimeError("replay diagnosis step did not advance once")
     verified = verify_diagnose_postconditions(writer, design)
+    with writer.open_stable_index() as (final_control, _index):
+        next_action = final_control["next_action"]
     return {
         "applied_step_count": end - initial,
         "candidate_created": False,
         "holdout_reveal_delta": 0,
         "initiative_id": design.spec.initiative_id,
         "mode": "diagnosed_replay_and_initiative_closed",
-        "next_action": writer.read_control()["next_action"],
+        "next_action": next_action,
         "replay_obligation_id": design.spec.target_obligation_id,
         "schema": "fixed_hold_replay_diagnosis.v1",
         "study_close_event_id": study_close_event_id,

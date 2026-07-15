@@ -10,6 +10,7 @@ from axiom_rift.operations.axis_disposition import (
     AxisDispositionEvidenceError,
     derive_axis_evidence_binding,
     required_axis_scientific_references,
+    required_axes_scientific_references,
 )
 from axiom_rift.operations.evidence_scope_projection import (
     evidence_scope_overlay_record,
@@ -735,6 +736,122 @@ class AxisDispositionWriterTests(unittest.TestCase):
             *(reference.manifest() for reference in disposition.evidence_references),
         )
 
+    def test_batched_scientific_reference_audit_matches_single_axis_projection(
+        self,
+    ) -> None:
+        self._seed_forest_evidence()
+        targets = tuple(
+            (self.mission_id, axis.axis_id, axis.identity)
+            for axis in self.axes
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            scanned_kinds: list[str] = []
+            original_records_by_kind = index.records_by_kind
+
+            def counted_records_by_kind(kind: str):
+                scanned_kinds.append(kind)
+                return original_records_by_kind(kind)
+
+            with patch.object(
+                index,
+                "records_by_kind",
+                side_effect=counted_records_by_kind,
+            ):
+                batched = required_axes_scientific_references(
+                    index,
+                    targets=targets,
+                )
+            self.assertEqual(scanned_kinds, ["job-completed"])
+            self.assertEqual(
+                batched,
+                {
+                    target: required_axis_scientific_references(
+                        index,
+                        mission_id=target[0],
+                        axis_id=target[1],
+                        axis_identity=target[2],
+                    )
+                    for target in targets
+                },
+            )
+
+    def test_batched_scientific_reference_audit_remains_globally_fail_closed(
+        self,
+    ) -> None:
+        malformed, _completion_id, _executable_id, _study_id = self._job_records(
+            axis_index=2,
+            tag="malformed-global-completion",
+            state="contradicted",
+        )
+        malformed = [
+            record for record in malformed if record.kind != "job-declared"
+        ]
+
+        def seed(current, _index):
+            assert current is not None
+            return self.writer._body(current), malformed, {"seeded": True}
+
+        self.writer._commit(
+            event_kind="axis_disposition_malformed_completion_seeded",
+            operation_id="axis-disposition-malformed-completion-seed",
+            subject=f"Mission:{self.mission_id}",
+            payload={"axis_id": self.axes[2].axis_id},
+            prepare=seed,
+        )
+        target = (
+            self.mission_id,
+            self.axes[0].axis_id,
+            self.axes[0].identity,
+        )
+        with LocalIndex(self.writer.index_path) as index, self.assertRaisesRegex(
+            AxisDispositionEvidenceError,
+            "lacks its Job declaration",
+        ):
+            required_axes_scientific_references(index, targets=(target,))
+
+    def test_multi_axis_writer_boundaries_call_one_batched_reference_audit(
+        self,
+    ) -> None:
+        evidence = self._seed_forest_evidence()
+        dispositions = self._dispositions(evidence)
+        batch_calls: list[tuple[tuple[str, str, str], ...]] = []
+
+        def counted_batch(index: LocalIndex, *, targets):
+            batch_calls.append(targets)
+            return required_axes_scientific_references(
+                index,
+                targets=targets,
+            )
+
+        with patch(
+            "axiom_rift.operations.axis_disposition."
+            "required_axes_scientific_references",
+            side_effect=counted_batch,
+        ):
+            self.writer.record_axis_dispositions(
+                dispositions=dispositions,
+                operation_id="record-batched-axis-dispositions",
+            )
+        self.assertEqual(len(batch_calls), 1)
+        self.assertEqual(len(batch_calls[0]), len(self.axes))
+
+        batch_calls.clear()
+        with patch(
+            "axiom_rift.operations.axis_disposition."
+            "required_axes_scientific_references",
+            side_effect=counted_batch,
+        ):
+            self.writer.accept_exhaustion_audit(
+                frontiers={
+                    item.axis_id: self._frontier(item) for item in dispositions
+                },
+                diversity_basis="three exact axes remain explicit",
+                opportunity_cost_audit="retire only the exact negative frontier",
+                operation_id="accept-batched-axis-exhaustion",
+            )
+        self.assertEqual(len(batch_calls), 1)
+        self.assertEqual(len(batch_calls[0]), len(self.axes))
+
     def test_mixed_forest_dispositions_support_honest_mission_terminal(self) -> None:
         evidence = self._seed_forest_evidence()
         dispositions = self._dispositions(evidence)
@@ -783,8 +900,10 @@ class AxisDispositionWriterTests(unittest.TestCase):
             )
         with patch.object(
             self.writer,
-            "_effective_axis_resolution",
-            return_value=SimpleNamespace(terminal_eligible=False),
+            "_effective_axis_resolutions",
+            side_effect=lambda _index, axes: tuple(
+                SimpleNamespace(terminal_eligible=False) for _axis in axes
+            ),
         ), self.assertRaisesRegex(TransitionError, "scope-blocked"):
             self.writer.record_axis_dispositions(
                 dispositions=dispositions,

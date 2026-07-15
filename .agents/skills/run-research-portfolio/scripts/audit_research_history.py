@@ -7,75 +7,61 @@ import argparse
 from collections import Counter, defaultdict
 import json
 from pathlib import Path
-import sqlite3
+import sys
 from typing import Any
 
 
-def _records(connection: sqlite3.Connection, kind: str) -> list[dict[str, Any]]:
-    rows = connection.execute(
-        """
-        SELECT record_id, subject, status, payload_json, authority_sequence
-        FROM records
-        WHERE kind = ?
-        ORDER BY authority_sequence, record_id
-        """,
-        (kind,),
-    ).fetchall()
-    return [
-        {
-            "authority_sequence": row["authority_sequence"],
-            "payload": json.loads(row["payload_json"]),
-            "record_id": row["record_id"],
-            "status": row["status"],
-            "subject": row["subject"],
-        }
-        for row in rows
-    ]
+ROOT = Path(__file__).resolve().parents[4]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
+
+from axiom_rift.operations.running_job import RunningJobAuthority
 
 
-def _assert_projection_head(
-    connection: sqlite3.Connection,
-    control: dict[str, Any],
-) -> None:
-    row = connection.execute(
-        """
-        SELECT record_count, projection_digest, projection_valid
-        FROM projection_stats
-        WHERE singleton = 1
-        """
-    ).fetchone()
-    expected = control["heads"]["index"]
-    if (
-        row is None
-        or row["projection_valid"] != 1
-        or row["record_count"] != expected["required_record_count"]
-        or row["projection_digest"] != expected["required_projection_digest"]
-    ):
-        raise RuntimeError("local index does not match the authoritative control head")
-
-
-def build_audit(root: Path) -> dict[str, Any]:
-    root = root.resolve()
-    control = json.loads(
-        (root / "state" / "control.json").read_text(encoding="ascii")
+def _records(index: Any, kind: str) -> list[dict[str, Any]]:
+    records = index.records_by_kind(kind)
+    return sorted(
+        [
+            {
+                "authority_sequence": record.authority_sequence,
+                "payload": dict(record.payload),
+                "record_id": record.record_id,
+                "status": record.status,
+                "subject": record.subject,
+            }
+            for record in records
+        ],
+        key=lambda row: (
+            -1
+            if row["authority_sequence"] is None
+            else row["authority_sequence"],
+            row["record_id"],
+        ),
     )
-    index_path = (root / "local" / "index.sqlite").resolve()
-    if not index_path.is_file():
-        raise FileNotFoundError("local/index.sqlite is absent; recover the projection first")
-    connection = sqlite3.connect(index_path.as_uri() + "?mode=ro", uri=True)
-    connection.row_factory = sqlite3.Row
-    try:
-        _assert_projection_head(connection, control)
-        studies = _records(connection, "study-open")
-        closes = _records(connection, "study-close")
-        kpis = _records(connection, "study-kpi")
-        diagnoses = _records(connection, "study-diagnosis")
-        decisions = _records(connection, "portfolio-decision")
-        trials = _records(connection, "trial")
-        memories = _records(connection, "negative-memory")
-        mission_closes = _records(connection, "mission-close")
-    finally:
-        connection.close()
+
+
+def build_audit(
+    root: Path,
+    *,
+    foundation_root: Path | None = None,
+) -> dict[str, Any]:
+    root = root.resolve()
+    authority = RunningJobAuthority(
+        root,
+        foundation_root=(
+            root if foundation_root is None else foundation_root.resolve()
+        ),
+    )
+    with authority.open_stable_index() as (control, index):
+        studies = _records(index, "study-open")
+        closes = _records(index, "study-close")
+        kpis = _records(index, "study-kpi")
+        diagnoses = _records(index, "study-diagnosis")
+        decisions = _records(index, "portfolio-decision")
+        trials = _records(index, "trial")
+        memories = _records(index, "negative-memory")
+        mission_closes = _records(index, "mission-close")
 
     close_by_study = {
         record["subject"].removeprefix("Study:"): record for record in closes

@@ -31,6 +31,7 @@ from axiom_rift.research.discovery import (
     DATASET_SHA256,
     OBSERVED_MATERIAL_ID,
     ROLLING_SPLIT_SHA256,
+    _causal_prefix_mismatch_count,
     DiscoveryBoundaryError,
     _consecutive_run,
     _daily_series,
@@ -561,39 +562,39 @@ def _evaluate_configuration(
             and prefix_end in prefix_features_by_end
             else compute_composite_sleeve_scores(prefix_frame)
         )
-        for prefix_values, full_values in (
-            (prefix_features.volume, features.volume),
-            (prefix_features.reversion, features.reversion),
-            (prefix_features.volatility_sleeve, features.volatility_sleeve),
-            (prefix_features.realized_volatility, features.realized_volatility),
-        ):
-            prefix_mismatches += int(
-                (~np.isclose(
-                    prefix_values,
-                    full_values[:prefix_end],
-                    rtol=0.0,
-                    atol=0.0,
-                    equal_nan=True,
-                )).sum()
-            )
         prefix_routed_score = route_composite_score(
             prefix_features,
             profile=configuration.profile,
             volatility_cutoffs=cutoffs,
             sleeve_thresholds=sleeve_thresholds,
         )
-        prefix_mismatches += int(
-            (~np.isclose(
-                prefix_routed_score,
-                routed_score[:prefix_end],
-                rtol=0.0,
-                atol=0.0,
-                equal_nan=True,
-            )).sum()
-        )
         prefix_spread = causal_effective_spread(
             pd.to_numeric(prefix_frame["spread"], errors="raise").to_numpy(dtype=float),
             _time_ns(prefix_frame),
+        )
+        prefix_mismatches += _causal_prefix_mismatch_count(
+            full_surfaces=(
+                ("volume", features.volume),
+                ("reversion", features.reversion),
+                ("volatility_sleeve", features.volatility_sleeve),
+                ("realized_volatility", features.realized_volatility),
+                ("run", features.run),
+                ("routed_score", routed_score),
+                ("effective_spread", effective_spread),
+            ),
+            prefix_surfaces=(
+                ("volume", prefix_features.volume),
+                ("reversion", prefix_features.reversion),
+                ("volatility_sleeve", prefix_features.volatility_sleeve),
+                (
+                    "realized_volatility",
+                    prefix_features.realized_volatility,
+                ),
+                ("run", prefix_features.run),
+                ("routed_score", prefix_routed_score),
+                ("effective_spread", prefix_spread),
+            ),
+            compared_row_count=prefix_end,
         )
         prefix_simulation = simulate_fixed_hold(
             frame=prefix_frame,

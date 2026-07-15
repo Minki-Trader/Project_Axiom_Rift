@@ -11,38 +11,44 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from hashlib import sha256
-import os
 from pathlib import Path
-import tempfile
-from typing import Any
+from typing import Any, Protocol
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.operations.running_job import RunningJobExecution
 from axiom_rift.research.evidence_proofs import (
-    ATOMIC_TRACE_PROOF_KIND,
     CALCULATION_PROOF_KIND,
+    FIXED_HOLD_FAMILY_TRACE_PROOF_KIND,
     build_proof_references,
     parse_proof_requirements,
 )
 from axiom_rift.research.fixed_hold_family_trace import (
+    FIXED_HOLD_FAMILY_TRACE_SCHEMA,
     FIXED_HOLD_REPLAY_CLAIMS,
     FIXED_HOLD_REPLAY_CRITERIA,
     FIXED_HOLD_REPLAY_EVIDENCE_MODES,
     FIXED_HOLD_TRACE_VALIDATOR,
     FixedHoldProtocolDefinition,
     bind_fixed_hold_family_trace,
-    build_fixed_hold_trace_calculation,
     extract_fixed_hold_family_trace_from_subject,
     fixed_hold_subject_inference_families,
     fixed_hold_trace_implementation_sha256,
     validate_fixed_hold_family_trace,
 )
+from axiom_rift.research.fixed_hold_shared_trace import (
+    build_fixed_hold_shared_trace_calculation,
+    fixed_hold_shared_trace_implementation_sha256,
+    validate_fixed_hold_shared_trace_calculation,
+)
 from axiom_rift.research.scientific_trace import (
     SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
-    SCIENTIFIC_EVALUATION_TRACE_SCHEMA,
 )
 from axiom_rift.research.replay_coverage import (
     validated_recomputed_criterion_ids,
+)
+from axiom_rift.research.reproducible_cache import (
+    publish_reproducible_cache,
+    reproducible_cache_implementation_sha256,
 )
 from axiom_rift.research.selection_inference import (
     selection_inference_implementation_sha256,
@@ -57,6 +63,18 @@ from axiom_rift.research.validation_v2 import (
     build_validation_plan_v2,
     multiplicity_family_registration_hash,
 )
+
+
+class FixedHoldJobAuthority(Protocol):
+    """Minimum evidence and producer-verification surface used by the engine."""
+
+    evidence: Any
+
+    def verify_reproducible_cache_producer(
+        self,
+        producer: RunningJobExecution,
+        **kwargs: Any,
+    ) -> None: ...
 
 
 FIXED_HOLD_CACHE_PROVENANCE_SCHEMA = (
@@ -89,7 +107,10 @@ _PRODUCER_EXECUTION_FIELDS = {
 
 
 def fixed_hold_family_job_implementation_sha256() -> str:
-    return sha256(_THIS_FILE.read_bytes()).hexdigest()
+    return sha256(
+        _THIS_FILE.read_bytes()
+        + bytes.fromhex(reproducible_cache_implementation_sha256())
+    ).hexdigest()
 
 
 def _ascii(name: str, value: object) -> str:
@@ -184,8 +205,8 @@ def _proof_requirements(
                 for mode in FIXED_HOLD_REPLAY_EVIDENCE_MODES
                 for proof_kind, artifact_schema, output_key in (
                     (
-                        ATOMIC_TRACE_PROOF_KIND,
-                        SCIENTIFIC_EVALUATION_TRACE_SCHEMA,
+                        FIXED_HOLD_FAMILY_TRACE_PROOF_KIND,
+                        FIXED_HOLD_FAMILY_TRACE_SCHEMA,
                         "trace",
                     ),
                     (
@@ -278,6 +299,7 @@ def build_fixed_hold_validation_plan(
         adjudication_profile=profile,
         proof_requirements=_proof_requirements(output_names),
         candidate_eligible_on_pass=False,
+        protocol_definition=definition.manifest(),
     )
 
 
@@ -363,6 +385,7 @@ class FixedHoldFamilyJobPlan:
             self.definition.identity.removeprefix("fixed-hold-definition:"),
             self.plan_hash,
             fixed_hold_family_job_implementation_sha256(),
+            fixed_hold_shared_trace_implementation_sha256(),
             fixed_hold_trace_implementation_sha256(),
             selection_inference_implementation_sha256(),
             *dict(
@@ -456,33 +479,12 @@ def materialize_fixed_hold_cache(
     scoped_plan: FixedHoldFamilyJobPlan,
     content: bytes,
 ) -> None:
-    root = Path(repository_root).resolve()
-    target = (root / scoped_plan.cache_output_name).resolve()
-    if root != target and root not in target.parents:
-        raise ValueError("fixed-hold cache path escaped the repository")
-    expected_hash = sha256(content).hexdigest()
-    if target.exists():
-        if not target.is_file() or sha256(target.read_bytes()).hexdigest() != (
-            expected_hash
-        ):
-            raise ValueError("existing fixed-hold cache has different bytes")
-        return
-    target.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{scoped_plan.artifact_namespace}-",
-        suffix=".tmp",
-        dir=target.parent,
+    root = Path(repository_root).absolute()
+    publish_reproducible_cache(
+        repository_root=root,
+        relative_path=scoped_plan.cache_output_name,
+        content=content,
     )
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "wb") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, target)
-    finally:
-        if temporary.exists():
-            temporary.unlink()
 
 
 def fixed_hold_family_cache(
@@ -586,7 +588,7 @@ def validate_fixed_hold_cache_provenance(
 
 
 def verify_fixed_hold_cache_producer(
-    writer: StateWriter,
+    writer: FixedHoldJobAuthority,
     *,
     scoped_plan: FixedHoldFamilyJobPlan,
     repository_root: str | Path,
@@ -652,11 +654,6 @@ def verify_fixed_hold_cache_producer(
     trace = parse_canonical(trace_content)
     if not isinstance(trace, dict) or canonical_bytes(trace) != trace_content:
         raise ValueError("fixed-hold producer trace is not canonical")
-    neutral = extract_fixed_hold_family_trace_from_subject(
-        trace,
-        definition=scoped_plan.definition,
-        validator=FIXED_HOLD_TRACE_VALIDATOR,
-    )
     producer_payload = provenance["producer_execution"]
     execution = RunningJobExecution.from_mapping(
         {
@@ -669,13 +666,31 @@ def verify_fixed_hold_cache_producer(
             )
         }
     )
-    if (
-        trace.get("mission_id") != scoped_plan.mission_id
-        or trace.get("subject_executable_id") != producer_id
-        or trace.get("job_id") != execution.job_id
-        or trace.get("job_hash") != execution.job_hash
-    ):
-        raise ValueError("fixed-hold producer trace execution drifted")
+    if trace.get("schema") == FIXED_HOLD_FAMILY_TRACE_SCHEMA:
+        neutral = validate_fixed_hold_family_trace(
+            trace,
+            definition=scoped_plan.definition,
+            validator=FIXED_HOLD_TRACE_VALIDATOR,
+        )
+        if producer_trace_hash != cache_hash:
+            raise ValueError(
+                "shared fixed-hold producer trace must be the exact cache"
+            )
+    else:
+        # Historical Jobs emitted a subject-bound copy of the full family
+        # trace.  Preserve that exact validation route for immutable evidence.
+        neutral = extract_fixed_hold_family_trace_from_subject(
+            trace,
+            definition=scoped_plan.definition,
+            validator=FIXED_HOLD_TRACE_VALIDATOR,
+        )
+        if (
+            trace.get("mission_id") != scoped_plan.mission_id
+            or trace.get("subject_executable_id") != producer_id
+            or trace.get("job_id") != execution.job_id
+            or trace.get("job_hash") != execution.job_hash
+        ):
+            raise ValueError("fixed-hold producer trace execution drifted")
     cache = fixed_hold_family_cache(
         scoped_plan=scoped_plan,
         neutral_trace=neutral,
@@ -744,6 +759,10 @@ def build_fixed_hold_measurement(
         or calculation.get("job_id") != job_id
         or calculation.get("job_hash") != job_hash
         or calculation.get("protocol_id") != scoped_plan.definition.protocol_id
+        or calculation.get("protocol_definition")
+        != scoped_plan.definition.manifest()
+        or scoped_plan.plan.get("protocol_definition")
+        != scoped_plan.definition.manifest()
     ):
         raise ValueError("fixed-hold calculation belongs to another Job")
     requirements = parse_proof_requirements(
@@ -871,26 +890,31 @@ def validated_fixed_hold_recomputed_criterion_ids(
 
 def materialize_fixed_hold_evidence(
     *,
-    writer: StateWriter,
+    writer: FixedHoldJobAuthority,
     scoped_plan: FixedHoldFamilyJobPlan,
     execution: RunningJobExecution,
     neutral_trace: Mapping[str, Any],
+    shared_trace_sha256: str,
 ) -> tuple[dict[str, str], str]:
-    trace = bind_fixed_hold_family_trace(
-        family_trace=neutral_trace,
+    trace = validate_fixed_hold_family_trace(
+        neutral_trace,
         definition=scoped_plan.definition,
         validator=FIXED_HOLD_TRACE_VALIDATOR,
+    )
+    names = scoped_plan.output_names
+    trace_hash = writer.evidence.finalize(canonical_bytes(trace)).sha256
+    if trace_hash != _digest(
+        "shared fixed-hold cache trace hash",
+        shared_trace_sha256,
+    ):
+        raise ValueError("shared fixed-hold trace differs from its family cache")
+    calculation = build_fixed_hold_shared_trace_calculation(
+        trace=trace,
+        definition=scoped_plan.definition,
         mission_id=scoped_plan.mission_id,
         executable_id=scoped_plan.executable_id,
         job_id=execution.job_id,
         job_hash=execution.job_hash,
-    )
-    names = scoped_plan.output_names
-    trace_hash = writer.evidence.finalize(canonical_bytes(trace)).sha256
-    calculation = build_fixed_hold_trace_calculation(
-        trace=trace,
-        definition=scoped_plan.definition,
-        validator=FIXED_HOLD_TRACE_VALIDATOR,
         trace_output_name=names["trace"],
         trace_hash=trace_hash,
     )
@@ -951,6 +975,7 @@ __all__ = [
     "build_fixed_hold_family_job_plan",
     "build_fixed_hold_measurement",
     "build_fixed_hold_result",
+    "build_fixed_hold_shared_trace_calculation",
     "build_fixed_hold_validation_plan",
     "fixed_hold_cache_output_name",
     "fixed_hold_cache_provenance_output_name",
@@ -961,6 +986,7 @@ __all__ = [
     "materialize_fixed_hold_cache",
     "materialize_fixed_hold_evidence",
     "validate_fixed_hold_cache_provenance",
+    "validate_fixed_hold_shared_trace_calculation",
     "validated_fixed_hold_recomputed_criterion_ids",
     "verify_fixed_hold_cache_producer",
 ]

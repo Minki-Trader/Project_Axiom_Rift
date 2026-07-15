@@ -3,9 +3,14 @@ from __future__ import annotations
 from types import SimpleNamespace
 import unittest
 
+import numpy as np
 import pandas as pd
 
+from axiom_rift.research.drawdown_state_replay import (
+    _drawdown_causal_surface_digest,
+)
 from axiom_rift.research.fixed_hold_trace_engine import (
+    _causal_surface_digest,
     _intent_rows,
     _trade_rows,
     fixed_hold_trace_engine_implementation_sha256,
@@ -92,6 +97,52 @@ class FixedHoldTraceEngineTests(unittest.TestCase):
         identity = fixed_hold_trace_engine_implementation_sha256()
         self.assertEqual(len(identity), 64)
         self.assertTrue(all(value in "0123456789abcdef" for value in identity))
+
+    def test_causal_surface_digest_covers_every_simulation_input(self) -> None:
+        names = ("score", "volatility", "run", "effective_spread")
+        baseline = tuple(
+            (name, np.array([1.0, 2.0, np.nan])) for name in names
+        )
+        baseline_digest = _causal_surface_digest(baseline)
+
+        for changed_name in names:
+            changed = tuple(
+                (
+                    name,
+                    np.array([1.0, 9.0, np.nan])
+                    if name == changed_name
+                    else np.array([1.0, 2.0, np.nan]),
+                )
+                for name in names
+            )
+            with self.subTest(changed_name=changed_name):
+                self.assertNotEqual(
+                    _causal_surface_digest(changed),
+                    baseline_digest,
+                )
+
+    def test_drawdown_digest_covers_every_simulation_input(self) -> None:
+        names = ("score", "volatility", "run", "effective_spread")
+        baseline = tuple(
+            (name, np.array([1.0, 2.0, np.nan])) for name in names
+        )
+        baseline_digest = _drawdown_causal_surface_digest(baseline)
+
+        for changed_name in names:
+            changed = tuple(
+                (
+                    name,
+                    np.array([1.0, 9.0, np.nan])
+                    if name == changed_name
+                    else np.array([1.0, 2.0, np.nan]),
+                )
+                for name in names
+            )
+            with self.subTest(changed_name=changed_name):
+                self.assertNotEqual(
+                    _drawdown_causal_surface_digest(changed),
+                    baseline_digest,
+                )
 
 
 if __name__ == "__main__":

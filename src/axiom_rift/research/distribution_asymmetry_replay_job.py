@@ -18,7 +18,7 @@ import axiom_rift.research.historical_family_stu0032 as historical_family_bindin
 import axiom_rift.research.scientific_trace as scientific_trace_module
 import axiom_rift.research.selection_inference as selection_inference_module
 import axiom_rift.storage.evidence as evidence_module
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.operations.running_job import RunningJobExecution
 from axiom_rift.research.distribution_asymmetry_replay import (
     calibrate_distribution_asymmetry_replay_selector,
     causal_distribution_asymmetry_replay_spread,
@@ -37,6 +37,8 @@ from axiom_rift.research.fixed_hold_family_trace import (
     FixedHoldProtocolDefinition,
 )
 from axiom_rift.research.fixed_hold_replay_runtime import (
+    FixedHoldRepairContext,
+    FixedHoldRuntimeContext,
     FixedHoldReplayRuntimeAdapter,
     build_fixed_hold_replay_job_plan,
     execute_fixed_hold_replay_job,
@@ -146,7 +148,7 @@ def distribution_asymmetry_replay_job_implementation_sha256() -> str:
 
 
 def materialize_distribution_asymmetry_replay_job_implementation(
-    writer: StateWriter,
+    writer: FixedHoldRuntimeContext,
 ) -> str:
     return materialize_fixed_hold_replay_job_implementation(
         writer,
@@ -155,7 +157,9 @@ def materialize_distribution_asymmetry_replay_job_implementation(
 
 
 def materialize_distribution_asymmetry_running_job_repair_proof(
-    writer: StateWriter,
+    writer: FixedHoldRepairContext,
+    *,
+    verification_evidence_hashes: tuple[str, ...],
 ) -> str:
     return materialize_running_job_implementation_repair_proof(
         writer,
@@ -164,6 +168,7 @@ def materialize_distribution_asymmetry_running_job_repair_proof(
             "replace absent historical evaluation addresses without changing "
             "the registered scientific Executable family"
         ),
+        verification_evidence_hashes=verification_evidence_hashes,
     )
 
 

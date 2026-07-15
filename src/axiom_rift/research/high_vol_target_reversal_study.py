@@ -14,9 +14,13 @@ import numpy as np
 import pandas as pd
 import scipy
 
-from axiom_rift.core.canonical import canonical_bytes, parse_canonical
-from axiom_rift.operations import writer as writer_module
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.research.evidence_inputs import read_surface_manifest_evidence_inputs
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.running_job_context import (
+    RunningJobExecutionContext,
+    running_job_execution_context_implementation_sha256,
+)
 from axiom_rift.research.discovery import DATASET_SHA256, OBSERVED_MATERIAL_ID, ROLLING_SPLIT_SHA256, discovery_implementation_sha256
 from axiom_rift.research.scientific_study import EVIDENCE_MODES, PLANNED_CLAIMS, claim_metrics, discovery_criteria, planned_verdict
 from axiom_rift.research.high_vol_target_reversal_chassis import executable_configuration_map, loader_implementation_sha256, high_vol_target_reversal_chassis_implementation_sha256
@@ -49,7 +53,7 @@ def surface_manifest_output_name(*, study_id: str) -> str:
 
 
 def build_environment_manifest() -> dict[str, object]:
-    value = {"dataset_sha256": DATASET_SHA256, "loader_implementation_sha256": loader_implementation_sha256(), "material_identity": OBSERVED_MATERIAL_ID, "numpy_version": np.__version__, "pandas_version": pd.__version__, "python_version": ".".join(str(value) for value in sys.version_info[:3]), "runner_implementation_sha256": sha256(Path(__file__).resolve().read_bytes()).hexdigest(), "schema": "scientific_engine_environment.v1", "scipy_version": scipy.__version__, "high_vol_target_reversal_chassis_implementation_sha256": high_vol_target_reversal_chassis_implementation_sha256(), "high_vol_target_reversal_discovery_implementation_sha256": high_vol_target_reversal_discovery_implementation_sha256(), "shared_discovery_implementation_sha256": discovery_implementation_sha256(), "split_artifact_sha256": ROLLING_SPLIT_SHA256, "validator_id": SCIENTIFIC_DISCOVERY_VALIDATOR_ID, "writer_implementation_sha256": sha256(Path(writer_module.__file__).resolve().read_bytes()).hexdigest()}
+    value = {"dataset_sha256": DATASET_SHA256, "loader_implementation_sha256": loader_implementation_sha256(), "material_identity": OBSERVED_MATERIAL_ID, "numpy_version": np.__version__, "pandas_version": pd.__version__, "python_version": ".".join(str(value) for value in sys.version_info[:3]), "runner_implementation_sha256": sha256(Path(__file__).resolve().read_bytes()).hexdigest(), "schema": "scientific_engine_environment.v1", "scipy_version": scipy.__version__, "high_vol_target_reversal_chassis_implementation_sha256": high_vol_target_reversal_chassis_implementation_sha256(), "high_vol_target_reversal_discovery_implementation_sha256": high_vol_target_reversal_discovery_implementation_sha256(), "shared_discovery_implementation_sha256": discovery_implementation_sha256(), "split_artifact_sha256": ROLLING_SPLIT_SHA256, "validator_id": SCIENTIFIC_DISCOVERY_VALIDATOR_ID, "running_job_context_implementation_sha256": running_job_execution_context_implementation_sha256()}
     canonical_bytes(value)
     return value
 
@@ -79,27 +83,22 @@ class HighVolTargetReversalJobPacket:
         return dict(self.output_manifest)
 
 
-def _load(writer: StateWriter, inputs: tuple[str, ...]) -> tuple[dict[str, Any], str, str]:
-    surface = None
-    manifest = None
-    for artifact_hash in inputs:
-        try:
-            artifact = writer.evidence.verify(artifact_hash)
-            value = parse_canonical((writer.evidence._root / artifact.relative_path).read_bytes())
-        except (FileNotFoundError, OSError, RuntimeError, ValueError):
-            continue
-        if isinstance(value, dict) and value.get("schema") == "high_vol_target_reversal_surface.v1":
-            surface = (value, artifact_hash)
-        if isinstance(value, dict) and value.get("schema") == "high_vol_target_reversal_surface_manifest.v1":
-            manifest = (value, artifact_hash)
-    if surface is None or manifest is None or manifest[0].get("surface_artifact_hash") != surface[1]:
-        raise ValueError("high volatility target reversal surface missing")
-    return surface[0], surface[1], manifest[1]
+def _load(writer: RunningJobExecutionContext, inputs: tuple[str, ...]) -> tuple[dict[str, Any], str, str]:
+    binding = read_surface_manifest_evidence_inputs(
+        writer.evidence,
+        inputs,
+        surface_schema="high_vol_target_reversal_surface.v1",
+        manifest_schema="high_vol_target_reversal_surface_manifest.v1",
+        expected_surface_implementation_sha256=(
+            high_vol_target_reversal_discovery_implementation_sha256()
+        ),
+    )
+    return binding.surface.value, binding.surface.artifact_sha256, binding.manifest.artifact_sha256
 
 
 def execute_high_vol_target_reversal_job(*, repository_root: str | Path, execution: RunningJobExecution) -> HighVolTargetReversalJobPacket:
     root = Path(repository_root).resolve()
-    writer = StateWriter(root)
+    writer = RunningJobExecutionContext(root)
     binding = writer.verify_running_job_execution(execution, expected_callable_identity=CALLABLE_IDENTITY)
     spec = binding["spec"]
     subject = spec.get("evidence_subject")
@@ -121,7 +120,9 @@ def execute_high_vol_target_reversal_job(*, repository_root: str | Path, executi
         manifest_value = {"schema": "high_vol_target_reversal_surface_manifest.v1", "surface_artifact_hash": surface_hash, "surface_implementation_sha256": high_vol_target_reversal_discovery_implementation_sha256()}
         manifest_hash = writer.evidence.finalize(canonical_bytes(manifest_value)).sha256
     else:
-        surface, surface_hash, manifest_hash = _load(writer, inputs)
+        surface, surface_hash, manifest_hash = _load(
+            writer, tuple(identity for identity in inputs if identity not in required)
+        )
     evaluation = project_high_vol_target_reversal_evaluation(surface, job_execution={**execution.payload(), "identity": execution.identity}, subject_executable_id=executable_id, surface_artifact_hash=surface_hash, surface_manifest_hash=manifest_hash)
     evaluation_hash = writer.evidence.finalize(canonical_bytes(evaluation)).sha256
     measurement = build_measurement(executable_id=executable_id, job_id=execution.job_id, job_hash=execution.job_hash, evaluation_artifact_hash=evaluation_hash, evaluation=evaluation, mission_id=mission_id)
@@ -135,5 +136,3 @@ def execute_high_vol_target_reversal_job(*, repository_root: str | Path, executi
 
 
 __all__ = ["CALLABLE_IDENTITY", "CRITERIA", "EVIDENCE_DEPTH", "EVIDENCE_MODES", "PLANNED_CLAIMS", "build_environment_manifest", "build_high_vol_target_reversal_validation_plan", "execute_high_vol_target_reversal_job", "output_names", "surface_manifest_output_name", "surface_output_name"]
-
-

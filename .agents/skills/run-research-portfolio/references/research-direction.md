@@ -133,10 +133,30 @@ serializing them by recency.
 
 Review only the exact diagnosis set named by the writer trigger. Determine
 whether the shared chassis, rather than each mechanism independently, is the
-current bottleneck. Choose `change_research_layer` or `rotate_architecture` and
-state the evidence that would reopen the reviewed path. Bind the typed review
-identity to the exact `trigger_record_id` so a later review cannot collide with
-or impersonate this conclusion.
+current bottleneck. Choose exactly one typed conclusion:
+
+- `bounded_same_architecture`: use only when the quant team identifies one
+  bounded and testable continuation that either exclusion conclusion would
+  wrongly suppress. Bind the exact reviewed family, trigger, covered diagnosis
+  set, and stop or reopen condition. Select one closed mode:
+  - `existing_axis`: bind one exact currently selectable axis ID and immutable
+    axis identity under the reviewed family;
+  - `new_mechanism`: bind one expert-selected typed `ResearchLayer`; the next
+    Decision must add a genuinely distinct mechanism in the exact reviewed
+    family and layer.
+- `change_research_layer`: require the next selected or newly admitted axis to
+  leave the reviewed layers.
+- `rotate_architecture`: require the next selected or newly admitted axis to
+  leave the reviewed architecture family.
+
+Use ArchitectureReview v2 only for `bounded_same_architecture`; preserve legacy
+v1 identity for the two exclusion conclusions. The bounded review and the next
+QuantTeam Decision review must cite the current Portfolio snapshot, exact
+review, trigger, and every covered diagnosis. Free-form exceptions, an
+unselectable existing axis, a caller-invented family, or a new mechanism in a
+different layer cannot satisfy the direction. Bind every review identity to
+the exact `trigger_record_id` so a later review cannot collide with or
+impersonate the conclusion.
 
 Do not declare scientific exhaustion from the review itself. Mission exhaustion
 still requires the current evidence-bound disposition for every axis and the

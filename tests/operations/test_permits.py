@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+import os
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.permits import (
     PermitAuthority,
     PermitError,
+    PermitKeyStore,
     PermitKind,
     PermitStatus,
     SubjectKind,
@@ -77,6 +83,76 @@ class PermitTests(unittest.TestCase):
         for overrides in cases:
             with self.subTest(overrides=overrides), self.assertRaises(PermitError):
                 self.validate(**overrides)
+
+
+class PermitKeyStoreTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.temporary = TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.path = Path(self.temporary.name) / "local" / "permit.key"
+
+    def test_concurrent_first_creation_returns_one_durable_key(self) -> None:
+        stores = tuple(PermitKeyStore(self.path) for _ in range(16))
+
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            secrets = tuple(pool.map(lambda store: store.load_or_create(), stores))
+
+        self.assertEqual(len(set(secrets)), 1)
+        self.assertEqual(secrets[0], self.path.read_bytes())
+        self.assertEqual(len(secrets[0]), 32)
+        self.assertEqual(
+            tuple(self.path.parent.glob(".permit-key.*.tmp")),
+            (),
+        )
+
+    def test_public_key_path_is_never_chmodded_after_publication(self) -> None:
+        with patch.object(
+            Path,
+            "chmod",
+            side_effect=AssertionError("public path chmod is unsafe"),
+        ):
+            secret = PermitKeyStore(self.path).load_or_create()
+
+        self.assertEqual(self.path.read_bytes(), secret)
+
+    def test_invalid_or_hard_linked_key_fails_closed(self) -> None:
+        self.path.parent.mkdir(parents=True)
+        self.path.write_bytes(b"short")
+        with self.assertRaisesRegex(PermitError, "invalid"):
+            PermitKeyStore(self.path).load_or_create()
+
+        self.path.write_bytes(b"k" * 32)
+        alias = self.path.with_suffix(".alias")
+        os.link(self.path, alias)
+        with self.assertRaisesRegex(PermitError, "hard-link alias"):
+            PermitKeyStore(self.path).load_or_create()
+
+    def test_symbolic_link_key_is_rejected(self) -> None:
+        self.path.parent.mkdir(parents=True)
+        outside = Path(self.temporary.name) / "outside.key"
+        outside.write_bytes(b"x" * 32)
+        try:
+            self.path.symlink_to(outside)
+        except OSError as exc:
+            self.skipTest(f"symbolic links unavailable: {exc}")
+
+        with self.assertRaisesRegex(PermitError, "link-like"):
+            PermitKeyStore(self.path).load_or_create()
+
+    def test_missing_directory_below_symbolic_link_is_not_created(self) -> None:
+        outside = Path(self.temporary.name) / "outside-keys"
+        outside.mkdir()
+        linked_parent = Path(self.temporary.name) / "linked-keys"
+        try:
+            linked_parent.symlink_to(outside, target_is_directory=True)
+        except OSError as exc:
+            self.skipTest(f"directory symbolic links unavailable: {exc}")
+
+        nested_key = linked_parent / "missing" / "permit.key"
+        with self.assertRaisesRegex(PermitError, "link-like"):
+            PermitKeyStore(nested_key).load_or_create()
+
+        self.assertFalse((outside / "missing").exists())
 
 
 if __name__ == "__main__":

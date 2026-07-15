@@ -29,6 +29,7 @@ from axiom_rift.research.us500_source_eligibility_validation import (
 )
 from axiom_rift.research.us500_source import (
     US500_COLUMNS,
+    US500SourceError,
     _completed_rate_epochs,
     audit_us500_historical_bytes,
     derive_runtime_facts,
@@ -83,6 +84,28 @@ def runtime_probe() -> dict[str, object]:
 
 
 class US500SourceTests(unittest.TestCase):
+    def test_runtime_integer_fields_reject_bool_without_coercion(self) -> None:
+        integer_fields = (
+            "digits",
+            "latest_rate_mt5_epoch_seconds",
+            "mt5_epoch_minus_observed_utc_seconds",
+            "observed_utc_epoch_seconds",
+            "rates_count",
+            "retrieval_latency_ms",
+            "terminal_build",
+            "tick_mt5_epoch_seconds",
+        )
+        for field in integer_fields:
+            for value in (False, True):
+                with self.subTest(field=field, value=value):
+                    probe = runtime_probe()
+                    probe[field] = value
+                    with self.assertRaisesRegex(
+                        US500SourceError,
+                        "integer fields",
+                    ):
+                        derive_runtime_facts(probe)
+
     def test_coordinate_probe_manifest_preserves_documented_and_observed_time(self) -> None:
         manifest = build_mt5_time_coordinate_probe_manifest(
             probes=(runtime_probe(),),

@@ -149,7 +149,7 @@ class CrossAssetDownsideSpilloverDiscoveryTests(unittest.TestCase):
         for value in subject._source_identity_payload().values():
             self.assertIn(value.encode("ascii"), encoded)
 
-    def test_byte_gate_hashes_tail_but_never_sends_tail_values_to_parser(self) -> None:
+    def test_missing_prefix_fails_without_opening_raw_parent(self) -> None:
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             path = root / US500_RAW_RELATIVE_PATH
@@ -160,28 +160,25 @@ class CrossAssetDownsideSpilloverDiscoveryTests(unittest.TestCase):
             content += _raw_row("2026.04.30 23:55:00")
             content += _raw_row("2026.05.01 00:00:00", "TAIL_SENTINEL")
             path.write_bytes(content)
-            digest = sha256(content).hexdigest()
-            original = subject.pd.read_csv
+            original_open = Path.open
 
-            def guarded(stream, *args, **kwargs):
-                parser_bytes = stream.getvalue()
-                self.assertNotIn(b"TAIL_SENTINEL", parser_bytes)
-                self.assertNotIn(b"2026.05.01 00:00:00", parser_bytes)
-                return original(stream, *args, **kwargs)
+            def guarded_open(candidate, *args, **kwargs):
+                if candidate.resolve() == path.resolve():
+                    raise AssertionError("routine loader opened the raw parent")
+                return original_open(candidate, *args, **kwargs)
 
-            with patch.object(subject.pd, "read_csv", side_effect=guarded) as parser:
-                loaded = subject.load_us500_observed_development(
-                    root, expected_raw_sha256=digest
-                )
-            self.assertEqual(len(loaded.frame), 3)
-            self.assertEqual(loaded.metadata.raw_sha256, digest)
-            self.assertEqual(loaded.metadata.last_time, subject.DEVELOPMENT_END)
-            parser.assert_called_once()
-
-            with patch.object(subject.pd, "read_csv") as forbidden_parser:
-                with self.assertRaises(subject.CrossAssetDownsideSpilloverBoundaryError):
+            with patch.object(Path, "open", new=guarded_open), patch.object(
+                subject.pd, "read_csv"
+            ) as forbidden_parser:
+                with self.assertRaisesRegex(
+                    subject.CrossAssetDownsideSpilloverBoundaryError,
+                    "observed-development prefix",
+                ):
                     subject.load_us500_observed_development(
-                        root, expected_raw_sha256="0" * 64
+                        root,
+                        expected_raw_sha256=(
+                            subject.US500_OBSERVED_DEVELOPMENT_SPEC.parent_raw_sha256
+                        ),
                     )
             forbidden_parser.assert_not_called()
 

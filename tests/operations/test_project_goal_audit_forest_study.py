@@ -29,6 +29,8 @@ from axiom_rift.research.forest_replay import (
     forest_replay_dependency_paths,
     forest_replay_implementation_artifact,
     forest_replay_implementation_identity,
+    forest_replay_source_closure_artifact,
+    forest_replay_source_dependency_paths,
 )
 from axiom_rift.research.governance import ResearchLayer
 from axiom_rift.research.implementation_closure import (
@@ -129,10 +131,13 @@ class ProjectGoalAuditForestStudyTests(unittest.TestCase):
             expected = forest_replay_implementation_identity().rsplit(":", 1)[-1]
             self.assertEqual(
                 set(manifest["artifact_hashes"]),
-                {expected}
+                {
+                    expected,
+                    sha256(forest_replay_source_closure_artifact()).hexdigest(),
+                }
                 | {
                     sha256(path.read_bytes()).hexdigest()
-                    for path in forest_replay_dependency_paths()
+                    for path in forest_replay_source_dependency_paths()
                 },
             )
             self.assertEqual(
@@ -143,7 +148,15 @@ class ProjectGoalAuditForestStudyTests(unittest.TestCase):
                     job_artifact_hashes=manifest["artifact_hashes"],
                     artifact_reader=writer.evidence.read_verified,
                 ),
-                (expected,),
+                tuple(
+                    sorted(
+                        {expected}
+                        | {
+                            sha256(path.read_bytes()).hexdigest()
+                            for path in forest_replay_dependency_paths()
+                        }
+                    )
+                ),
             )
             component_bytes = writer.evidence.read_verified(expected)
             self.assertEqual(component_bytes, forest_replay_implementation_artifact())

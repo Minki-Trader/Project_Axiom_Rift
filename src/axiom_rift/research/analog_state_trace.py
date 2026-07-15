@@ -24,7 +24,7 @@ from axiom_rift.research.analog_state_family import (
     ANALOG_FAMILY_BLOCK_LENGTHS,
     ANALOG_FAMILY_BOOTSTRAP_SAMPLES,
     ANALOG_FAMILY_MONTE_CARLO_CONFIDENCE_PPM,
-    P1_STU0061_ANALOG_FAMILY,
+    AnalogFamilySpec,
     analog_family_executable,
     analog_family_executable_map,
     analog_family_implementation_sha256,
@@ -284,21 +284,43 @@ _ALLOWED_INTENT_STATUSES = frozenset(
 _ALLOWED_REGIMES = frozenset({"high", "low", "middle"})
 
 
+def _legacy_family() -> AnalogFamilySpec:
+    """Load the frozen compatibility family only on legacy call paths."""
+
+    from axiom_rift.research.historical_analog_family_stu0061 import (
+        STU0061_ANALOG_FAMILY,
+    )
+
+    return STU0061_ANALOG_FAMILY
+
+
 def analog_trace_implementation_sha256() -> str:
     return sha256(_THIS_FILE.read_bytes()).hexdigest()
 
 
-def analog_family_trace_implementation_identities() -> dict[str, str]:
+def analog_family_trace_implementation_identities(
+    *,
+    replay_implementation_sha256: str | None = None,
+) -> dict[str, str]:
     """Bind cache bytes to every implementation that can change their rows."""
 
-    # Imported lazily because the replay adapter imports this validation module.
-    from axiom_rift.research.analog_state_replay import (
-        analog_replay_implementation_sha256,
-    )
+    if replay_implementation_sha256 is None:
+        # Reconstruction compatibility only. Prospective callers pass the
+        # exact implementation bundle and never import the historical runner.
+        from axiom_rift.research.analog_state_replay import (
+            analog_replay_implementation_sha256,
+        )
+
+        replay_identity = analog_replay_implementation_sha256()
+    else:
+        replay_identity = _digest(
+            "analog replay implementation",
+            replay_implementation_sha256,
+        )
 
     value = {
         "analog_family_sha256": analog_family_implementation_sha256(),
-        "analog_replay_sha256": analog_replay_implementation_sha256(),
+        "analog_replay_sha256": replay_identity,
         "analog_trace_sha256": analog_trace_implementation_sha256(),
         "discovery_sha256": discovery_implementation_sha256(),
         "loader_sha256": loader_implementation_sha256(),
@@ -311,12 +333,17 @@ def analog_family_trace_implementation_identities() -> dict[str, str]:
     return value
 
 
-def analog_family_execution_contracts() -> dict[str, str]:
+def analog_family_execution_contracts(
+    family: AnalogFamilySpec | None = None,
+) -> dict[str, str]:
     """Return the one clock and cost contract shared by all four members."""
 
+    bound_family = _legacy_family() if family is None else family
+    if not isinstance(bound_family, AnalogFamilySpec):
+        raise ScientificTraceError("analog execution family is not typed")
     executables = tuple(
         analog_family_executable(configuration)
-        for configuration in P1_STU0061_ANALOG_FAMILY.configurations()
+        for configuration in bound_family.configurations()
     )
     clocks = {item.clock_contract for item in executables}
     costs = {item.cost_contract for item in executables}
@@ -330,16 +357,31 @@ def analog_family_execution_contracts() -> dict[str, str]:
     }
 
 
-def analog_original_family_provenance() -> dict[str, object]:
+def analog_original_family_provenance(
+    family: AnalogFamilySpec | None = None,
+    *,
+    context_id: str = ANALOG_REPLAY_ORIGINAL_FAMILY_CONTEXT_ID,
+    end_global_exposure_count: int = (
+        ANALOG_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT
+    ),
+) -> dict[str, object]:
     """Preserve the original Study boundary without reusing it for replay."""
 
+    bound_family = _legacy_family() if family is None else family
+    if (
+        not isinstance(bound_family, AnalogFamilySpec)
+        or type(context_id) is not str
+        or not context_id
+        or not context_id.isascii()
+        or type(end_global_exposure_count) is not int
+        or end_global_exposure_count < 0
+    ):
+        raise ScientificTraceError("analog original-family provenance is invalid")
     return {
-        "context_id": ANALOG_REPLAY_ORIGINAL_FAMILY_CONTEXT_ID,
-        "end_global_exposure_count": (
-            ANALOG_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT
-        ),
-        "family_id": P1_STU0061_ANALOG_FAMILY.family_id,
-        "family_size": 4,
+        "context_id": context_id,
+        "end_global_exposure_count": end_global_exposure_count,
+        "family_id": bound_family.family_id,
+        "family_size": len(bound_family.configurations()),
         "role": "immutable_original_family_provenance_not_adjustment_factor",
     }
 
@@ -452,15 +494,20 @@ def analog_observation_id(kind: str, value: Mapping[str, Any]) -> str:
     return f"observation:{digest}"
 
 
-def expected_analog_family_inventory() -> tuple[dict[str, object], ...]:
-    mapping = analog_family_executable_map(P1_STU0061_ANALOG_FAMILY)
+def expected_analog_family_inventory(
+    family: AnalogFamilySpec | None = None,
+) -> tuple[dict[str, object], ...]:
+    bound_family = _legacy_family() if family is None else family
+    if not isinstance(bound_family, AnalogFamilySpec):
+        raise ScientificTraceError("analog inventory family is not typed")
+    mapping = analog_family_executable_map(bound_family)
     by_configuration = {
         value.configuration_id: (executable_id, value)
         for executable_id, value in mapping.items()
     }
     inventory: list[dict[str, object]] = []
     for ordinal, configuration in enumerate(
-        P1_STU0061_ANALOG_FAMILY.configurations(), start=1
+        bound_family.configurations(), start=1
     ):
         executable_id, mapped = by_configuration[configuration.configuration_id]
         inventory.append(
@@ -500,9 +547,14 @@ def analog_calculation_parameters() -> dict[str, object]:
     }
 
 
-def _validate_family(trace: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
-    if trace.get("family_id") != P1_STU0061_ANALOG_FAMILY.family_id:
-        raise ScientificTraceError("analog trace family is not the P1 replay family")
+def _validate_family(
+    trace: Mapping[str, Any],
+    *,
+    family_spec: AnalogFamilySpec,
+    expected_inventory: tuple[dict[str, object], ...],
+) -> dict[str, dict[str, Any]]:
+    if trace.get("family_id") != family_spec.family_id:
+        raise ScientificTraceError("analog trace family does not match its bound family")
     raw = _sequence("analog ordered family", trace.get("ordered_family"))
     family: list[dict[str, Any]] = []
     for item in raw:
@@ -510,7 +562,7 @@ def _validate_family(trace: Mapping[str, Any]) -> dict[str, dict[str, Any]]:
         if set(member) != _FAMILY_MEMBER_FIELDS:
             raise ScientificTraceError("analog family member schema is invalid")
         family.append(dict(member))
-    if tuple(family) != expected_analog_family_inventory():
+    if tuple(family) != expected_inventory:
         raise ScientificTraceError(
             "analog trace family or historical reference mapping drifted"
         )
@@ -555,6 +607,7 @@ def _validate_windows(trace: Mapping[str, Any]) -> tuple[dict[str, Any], ...]:
 def _validate_invariance(
     trace: Mapping[str, Any],
     *,
+    family_spec: AnalogFamilySpec,
     windows: tuple[dict[str, Any], ...],
 ) -> int:
     raw = _sequence("analog invariance comparisons", trace.get("invariance_comparisons"))
@@ -565,17 +618,25 @@ def _validate_invariance(
             raise ScientificTraceError("analog invariance comparison schema is invalid")
         fold_id = _ascii("invariance fold_id", comparison.get("fold_id"))
         profile_id = _ascii("invariance profile_id", comparison.get("profile_id"))
-        P1_STU0061_ANALOG_FAMILY.profile(profile_id)
+        family_spec.profile(profile_id)
         _integer("invariance compared rows", comparison.get("compared_row_count"), minimum=1)
-        full = _digest("full score digest", comparison.get("full_score_values_sha256"))
-        prefix = _digest("prefix score digest", comparison.get("prefix_score_values_sha256"))
+        full = _digest(
+            "full causal surface digest",
+            comparison.get("full_score_values_sha256"),
+        )
+        prefix = _digest(
+            "prefix causal surface digest",
+            comparison.get("prefix_score_values_sha256"),
+        )
         if full != prefix:
-            raise ScientificTraceError("analog feature prefix invariance failed")
+            raise ScientificTraceError(
+                "analog causal surface prefix invariance failed"
+            )
         comparisons.append((fold_id, profile_id))
     expected = tuple(
         (str(window["fold_id"]), profile.profile_id)
         for window in windows
-        for profile in P1_STU0061_ANALOG_FAMILY.profiles
+        for profile in family_spec.profiles
     )
     if tuple(comparisons) != expected:
         raise ScientificTraceError("analog invariance inventory is incomplete")
@@ -839,7 +900,14 @@ def _validate_eligible_days(
 
 def _validated_family_trace_parts(
     trace: Mapping[str, Any],
+    *,
+    family_spec: AnalogFamilySpec,
+    expected_inventory: tuple[dict[str, object], ...],
+    expected_implementation_identities: Mapping[str, str],
+    expected_provenance: Mapping[str, object],
 ) -> dict[str, Any]:
+    if not isinstance(family_spec, AnalogFamilySpec):
+        raise ScientificTraceError("analog trace family binding is not typed")
     if not isinstance(trace, Mapping) or set(trace) != _FAMILY_TRACE_FIELDS:
         raise ScientificTraceError("analog family trace schema is invalid")
     try:
@@ -858,28 +926,36 @@ def _validated_family_trace_parts(
         or normalized.get("controls") != ANALOG_REPLAY_CONTROLS
     ):
         raise ScientificTraceError("analog family trace authority binding drifted")
-    contracts = analog_family_execution_contracts()
+    contracts = analog_family_execution_contracts(family_spec)
     if any(normalized.get(name) != value for name, value in contracts.items()):
         raise ScientificTraceError("analog family trace clock or cost drifted")
     implementations = normalized.get("implementation_identities")
     if (
         not isinstance(implementations, dict)
         or set(implementations) != _IMPLEMENTATION_IDENTITY_FIELDS
-        or implementations != analog_family_trace_implementation_identities()
+        or implementations != dict(expected_implementation_identities)
     ):
         raise ScientificTraceError("analog family trace implementation is stale")
     provenance = normalized.get("original_family_provenance")
     if (
         not isinstance(provenance, dict)
         or set(provenance) != _ORIGINAL_FAMILY_PROVENANCE_FIELDS
-        or provenance != analog_original_family_provenance()
+        or provenance != dict(expected_provenance)
     ):
         raise ScientificTraceError(
             "analog original-family exposure provenance drifted"
         )
-    family = _validate_family(normalized)
+    family = _validate_family(
+        normalized,
+        family_spec=family_spec,
+        expected_inventory=expected_inventory,
+    )
     windows = _validate_windows(normalized)
-    prefix_mismatches = _validate_invariance(normalized, windows=windows)
+    prefix_mismatches = _validate_invariance(
+        normalized,
+        family_spec=family_spec,
+        windows=windows,
+    )
     trades = _validate_trades(
         normalized,
         family=family,
@@ -911,9 +987,41 @@ def _validated_family_trace_parts(
 def validate_analog_family_trace(
     trace: Mapping[str, Any],
 ) -> dict[str, object]:
-    """Validate one strict family-neutral artifact against current authority."""
+    """Validate one frozen reconstruction artifact against legacy authority."""
 
-    return dict(_validated_family_trace_parts(trace)["normalized"])
+    family = _legacy_family()
+    return dict(
+        _validated_family_trace_parts(
+            trace,
+            family_spec=family,
+            expected_inventory=expected_analog_family_inventory(family),
+            expected_implementation_identities=(
+                analog_family_trace_implementation_identities()
+            ),
+            expected_provenance=analog_original_family_provenance(family),
+        )["normalized"]
+    )
+
+
+def validate_bound_analog_family_trace(
+    trace: Mapping[str, Any],
+    *,
+    family_spec: AnalogFamilySpec,
+    expected_inventory: tuple[dict[str, object], ...],
+    expected_implementation_identities: Mapping[str, str],
+    expected_provenance: Mapping[str, object],
+) -> dict[str, object]:
+    """Validate prospective rows only against caller-bound typed authority."""
+
+    return dict(
+        _validated_family_trace_parts(
+            trace,
+            family_spec=family_spec,
+            expected_inventory=expected_inventory,
+            expected_implementation_identities=expected_implementation_identities,
+            expected_provenance=expected_provenance,
+        )["normalized"]
+    )
 
 
 def validate_analog_family_trace_cache_manifest(
@@ -959,7 +1067,7 @@ def validate_analog_family_trace_cache_manifest(
         or manifest.get("cache_schema") != ANALOG_FAMILY_TRACE_SCHEMA
         or manifest.get("claim_authority") is not False
         or manifest.get("dataset_sha256") != DATASET_SHA256
-        or manifest.get("family_id") != P1_STU0061_ANALOG_FAMILY.family_id
+        or manifest.get("family_id") != _legacy_family().family_id
         or manifest.get("implementation_identities")
         != analog_family_trace_implementation_identities()
         or manifest.get("material_identity") != OBSERVED_MATERIAL_ID
@@ -1062,7 +1170,16 @@ def _validated_subject_trace_parts(
         binding.get("cache_manifest"),
         family_trace_sha256=neutral_hash,
     )
-    parts = _validated_family_trace_parts(neutral)
+    family = _legacy_family()
+    parts = _validated_family_trace_parts(
+        neutral,
+        family_spec=family,
+        expected_inventory=expected_analog_family_inventory(family),
+        expected_implementation_identities=(
+            analog_family_trace_implementation_identities()
+        ),
+        expected_provenance=analog_original_family_provenance(family),
+    )
     if subject_id not in {
         item["executable_id"] for item in parts["family"].values()
     }:
@@ -1322,7 +1439,7 @@ def _derive_metrics_and_statistics(
     }
     selection_result = infer_concurrent_selection_family(
         plan=_selection_plan(
-            family_id=P1_STU0061_ANALOG_FAMILY.family_id,
+            family_id=str(parts["normalized"]["family_id"]),
             hypothesis_ids=family_ids,
             registration_ids=registration_ids,
             parameters=parameters,
@@ -1536,6 +1653,7 @@ __all__ = [
     "extract_analog_family_trace_cache_material",
     "extract_analog_family_trace_from_subject",
     "validate_analog_family_trace",
+    "validate_bound_analog_family_trace",
     "validate_analog_family_trace_cache_manifest",
     "validate_analog_trace_calculation",
 ]

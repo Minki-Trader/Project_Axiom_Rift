@@ -106,19 +106,14 @@ class DistributionAsymmetryReplayTests(unittest.TestCase):
         )
         self.assertEqual(
             self.definition.prospective_executable_ids,
-            (
-                "executable:a5212b60085271ac190bf3bd7e0c8c1f5eee12a59230b18e61a944cc95cd7a13",
-                "executable:ec7ff807b862116eb2328e88a1a0907d21ec0892fd3884368b4c31506941962c",
-                "executable:0671f7fdc65789bb8fc0a978bd809d9af21b52b13a63e3c1995e7500f2654c57",
-                "executable:51063767d6952596cfa205f2ec7d5a4f1a2f58e3e46e2531decbebeb94f3efee",
-                "executable:772e433af6b28b916b0123cd286d35b458ecbb9147a56fd1e09e448e7119ae68",
-                "executable:c5368b82f4a1f1547ad21e365329d30472f6e8ff76d1fca598e86c3209e99a45",
-                "executable:72175cfa19acb03bfc0e93513cae1f3b007f22409cb21b39f9fd1ce4ea90e9cb",
-                "executable:55d20f65bd702e11500336b8e8cb76a83c1256c614bc24f838c34538a95b9e68",
-                "executable:99a56560f364b2ef9bb3078529cd3dd745e4eb717333750a18466efe0c811c23",
-                "executable:ed69ee11bbceb9b2bf9954e283d9cc2296cc24323ee550812e06d32244504c5d",
-                "executable:10811db4bc01710b067c5dad33ef1af7c4166304689126907fef44ac91210907",
-                "executable:e84d855c8cfa88dcc0e7fc32c36e453972c4d109ab51a59e8d099ded52329129",
+            tuple(
+                distribution_asymmetry_replay_executable(
+                    configuration,
+                    historical_context_prior_global_exposure_count=(
+                        HISTORICAL_CONTEXT_COUNT
+                    ),
+                ).identity
+                for configuration in self.configurations
             ),
         )
 

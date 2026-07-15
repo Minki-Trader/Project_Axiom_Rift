@@ -403,14 +403,73 @@ def required_axis_scientific_references(
     axis_id: str,
     axis_identity: str,
 ) -> tuple[AxisEvidenceReference, ...]:
-    """Return every latest scientific interpretation on one Mission axis.
+    """Compatibility projection for one Mission axis.
+
+    Multi-axis writer boundaries must use
+    :func:`required_axes_scientific_references` so the explicit audit slice is
+    decoded once rather than once per axis.
+    """
+
+    target = (mission_id, axis_id, axis_identity)
+    return required_axes_scientific_references(
+        index,
+        targets=(target,),
+    )[target]
+
+
+def required_axes_scientific_references(
+    index: LocalIndex,
+    *,
+    targets: tuple[tuple[str, str, str], ...],
+) -> dict[tuple[str, str, str], tuple[AxisEvidenceReference, ...]]:
+    """Audit every latest scientific interpretation for several axes once.
 
     This intentionally scans scientific completion history only at the rare
     additive-disposition/terminal boundary.  A caller cannot omit an
-    inconvenient partial positive and submit only a negative memory.
+    inconvenient partial positive and submit only a negative memory.  The
+    complete slice also preserves the prior fail-closed check for malformed
+    scientific completions outside any one requested axis.  Callers therefore
+    batch all axes at the boundary instead of weakening this into a local
+    best-effort lookup or repeating the same global decode per axis.
     """
 
-    required: set[tuple[AxisEvidenceKind, str]] = set()
+    if (
+        type(targets) is not tuple
+        or not targets
+        or any(
+            type(target) is not tuple
+            or len(target) != 3
+            or any(
+                type(value) is not str or not value or not value.isascii()
+                for value in target
+            )
+            for target in targets
+        )
+        or len(set(targets)) != len(targets)
+    ):
+        raise AxisDispositionEvidenceError(
+            "axis scientific-reference audit targets are malformed"
+        )
+    normalized_targets = tuple(sorted(targets))
+    required: dict[
+        tuple[str, str, str],
+        set[tuple[AxisEvidenceKind, str]],
+    ] = {target: set() for target in normalized_targets}
+    targets_by_mission_axis: dict[
+        str,
+        dict[str, tuple[tuple[str, str, str], ...]],
+    ] = {}
+    for mission_id in sorted({target[0] for target in normalized_targets}):
+        mission_targets = tuple(
+            target for target in normalized_targets if target[0] == mission_id
+        )
+        targets_by_mission_axis[mission_id] = {
+            axis_id: tuple(
+                target for target in mission_targets if target[1] == axis_id
+            )
+            for axis_id in sorted({target[1] for target in mission_targets})
+        }
+
     for completion in index.records_by_kind("job-completed"):
         scientific = completion.payload.get("scientific")
         if (
@@ -429,7 +488,13 @@ def required_axis_scientific_references(
             raise AxisDispositionEvidenceError(
                 "scientific completion lacks its Job declaration"
             )
-        if declaration.payload.get("mission_id") != mission_id:
+        completion_mission_id = declaration.payload.get("mission_id")
+        mission_targets = (
+            None
+            if not isinstance(completion_mission_id, str)
+            else targets_by_mission_axis.get(completion_mission_id)
+        )
+        if mission_targets is None:
             continue
         executable_id = scientific.get("executable_id")
         if not isinstance(executable_id, str):
@@ -443,11 +508,15 @@ def required_axis_scientific_references(
             )
         trial_axis_id = trial.payload.get("portfolio_axis_id")
         trial_axis_identity = trial.payload.get("portfolio_axis_identity")
-        if trial_axis_id != axis_id:
+        matching_targets = (
+            None
+            if not isinstance(trial_axis_id, str)
+            else mission_targets.get(trial_axis_id)
+        )
+        if matching_targets is None:
             continue
-        if (
-            trial.payload.get("mission_id") != mission_id
-            or trial_axis_identity != axis_identity
+        if trial.payload.get("mission_id") != completion_mission_id or any(
+            trial_axis_identity != target[2] for target in matching_targets
         ):
             raise AxisDispositionEvidenceError(
                 "scientific completion has stale Portfolio axis lineage"
@@ -471,25 +540,32 @@ def required_axis_scientific_references(
                 raise AxisDispositionEvidenceError(
                     "historical adjudication stream head is malformed"
                 )
-            required.add(
-                (
-                    AxisEvidenceKind.HISTORICAL_ADJUDICATION,
-                    historical_head.record_id,
+            for target in matching_targets:
+                required[target].add(
+                    (
+                        AxisEvidenceKind.HISTORICAL_ADJUDICATION,
+                        historical_head.record_id,
+                    )
                 )
-            )
             continue
         adjudication = scientific.get("adjudication")
         if not isinstance(adjudication, dict):
             raise AxisDispositionEvidenceError(
                 "legacy scientific completion lacks its additive adjudication"
             )
-        required.add((AxisEvidenceKind.JOB_COMPLETION, completion.record_id))
-    return tuple(
-        AxisEvidenceReference(kind=kind, record_id=record_id)
-        for kind, record_id in sorted(
-            required, key=lambda item: (item[0].value, item[1])
+        for target in matching_targets:
+            required[target].add(
+                (AxisEvidenceKind.JOB_COMPLETION, completion.record_id)
+            )
+    return {
+        target: tuple(
+            AxisEvidenceReference(kind=kind, record_id=record_id)
+            for kind, record_id in sorted(
+                required[target], key=lambda item: (item[0].value, item[1])
+            )
         )
-    )
+        for target in normalized_targets
+    }
 
 
 __all__ = [
@@ -498,4 +574,5 @@ __all__ = [
     "aggregate_axis_evidence_state",
     "derive_axis_evidence_binding",
     "required_axis_scientific_references",
+    "required_axes_scientific_references",
 ]

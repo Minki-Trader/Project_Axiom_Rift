@@ -9,10 +9,19 @@ from unittest.mock import patch
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.operations.writer import RunningJobExecution
+from axiom_rift.operations.running_job_context import (
+    running_job_execution_context_dependency_paths,
+)
 from axiom_rift.research import analog_state_scoped_job as scoped_job
+from axiom_rift.research.implementation_closure import (
+    ImplementationClosureError,
+    require_current_job_source_closure,
+)
 from axiom_rift.research.analog_state_family import (
-    P1_STU0061_ANALOG_FAMILY,
     analog_family_executable,
+)
+from axiom_rift.research.historical_analog_family_stu0061 import (
+    STU0061_ANALOG_FAMILY as P1_STU0061_ANALOG_FAMILY,
 )
 from axiom_rift.research.analog_state_replay_v2 import (
     ANALOG_SCOPED_QUERY_SCOPE_ID,
@@ -99,7 +108,9 @@ class _FakeWriter:
 
 
 def _neutral_scoped_trace() -> dict[str, object]:
-    contracts = analog_family_execution_contracts()
+    contracts = analog_family_execution_contracts(
+        P1_STU0061_ANALOG_FAMILY
+    )
     return {
         "attribution": ANALOG_REPLAY_TRACE_ATTRIBUTION,
         "clock_contract": contracts["clock_contract"],
@@ -114,8 +125,14 @@ def _neutral_scoped_trace() -> dict[str, object]:
         "intent_observations": [],
         "invariance_comparisons": [],
         "material_identity": OBSERVED_MATERIAL_ID,
-        "ordered_family": list(expected_analog_family_inventory_scoped_v2()),
-        "original_family_provenance": analog_original_family_provenance(),
+        "ordered_family": list(
+            expected_analog_family_inventory_scoped_v2(
+                P1_STU0061_ANALOG_FAMILY
+            )
+        ),
+        "original_family_provenance": analog_original_family_provenance(
+            P1_STU0061_ANALOG_FAMILY
+        ),
         "protocol_id": ANALOG_STATE_TRACE_PROTOCOL_ID,
         "schema": ANALOG_FAMILY_TRACE_SCHEMA,
         "split_artifact_sha256": ROLLING_SPLIT_SHA256,
@@ -126,12 +143,23 @@ def _neutral_scoped_trace() -> dict[str, object]:
 
 def _fixture_scoped_trace_validator(
     value: object,
+    *,
+    family: object,
+    original_family_provenance: object,
 ) -> dict[str, object]:
     normalized = parse_canonical(canonical_bytes(value))
     if not isinstance(normalized, dict):
         raise ValueError("fixture scoped trace is not an object")
+    if family != P1_STU0061_ANALOG_FAMILY:
+        raise ValueError("fixture scoped family binding drifted")
+    if original_family_provenance != analog_original_family_provenance(
+        P1_STU0061_ANALOG_FAMILY
+    ):
+        raise ValueError("fixture scoped provenance drifted")
     if normalized.get("ordered_family") != list(
-        expected_analog_family_inventory_scoped_v2()
+        expected_analog_family_inventory_scoped_v2(
+            P1_STU0061_ANALOG_FAMILY
+        )
     ):
         raise ValueError("fixture scoped inventory drifted")
     if normalized.get("implementation_identities") != (
@@ -160,23 +188,96 @@ def _passing_metrics() -> dict[str, dict[str, int]]:
     return metrics
 
 
+def _fixture_inference_manifest(
+    *,
+    family_id: str,
+    member_ids: tuple[str, ...],
+    subject_id: str,
+    raw_pvalue_ppm: int = 0,
+    adjusted_pvalue_ppm: int = 0,
+) -> dict[str, object]:
+    members = tuple(sorted(member_ids))
+    if subject_id not in members:
+        raise AssertionError("fixture inference subject is outside its family")
+    hypotheses = [
+        {
+            "family_id": family_id,
+            "family_size": len(members),
+            "familywise": {
+                "synchronized_max": {
+                    "monte_carlo_upper_pvalue_ppm": (
+                        adjusted_pvalue_ppm if member_id == subject_id else 0
+                    )
+                }
+            },
+            "hypothesis_id": member_id,
+            "raw": {
+                "monte_carlo_upper_pvalue_ppm": (
+                    raw_pvalue_ppm if member_id == subject_id else 0
+                )
+            },
+        }
+        for member_id in members
+    ]
+    return {
+        "hypotheses": hypotheses,
+        "plan": {
+            "family_id": family_id,
+            "family_size": len(members),
+            "hypotheses": [
+                {"hypothesis_id": member_id} for member_id in members
+            ],
+        },
+    }
+
+
 def _fixture_calculation(
     *,
     trace: dict[str, object],
     trace_output_name: str,
     trace_hash: str,
 ) -> dict[str, object]:
+    subject_id = str(trace["subject_executable_id"])
+    configuration = next(
+        configuration
+        for configuration in P1_STU0061_ANALOG_FAMILY.configurations()
+        if analog_family_executable_scoped_v2(configuration).identity
+        == subject_id
+    )
+    projected_subject_id = analog_family_executable(configuration).identity
+    projected_family_ids = tuple(
+        analog_family_executable(item).identity
+        for item in P1_STU0061_ANALOG_FAMILY.configurations()
+    )
+    metrics = _passing_metrics()
     return {
         "evidence_modes": list(scoped_job.ANALOG_REPLAY_EVIDENCE_MODES),
-        "executable_id": trace["subject_executable_id"],
+        "executable_id": subject_id,
         "job_hash": trace["job_hash"],
         "job_id": trace["job_id"],
-        "metrics": _passing_metrics(),
+        "metrics": metrics,
         "mission_id": trace["mission_id"],
         "parameters": {"fixture": True},
         "protocol_id": scoped_job.ANALOG_SCOPED_TRACE_PROTOCOL_ID,
         "schema": SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
-        "statistics": {"fixture": True},
+        "statistics": {
+            "paired_control_family": _fixture_inference_manifest(
+                family_id=(
+                    f"family:{configuration.configuration_id}:"
+                    "paired-controls-v1"
+                ),
+                member_ids=(
+                    "paired-control:feature",
+                    "paired-control:opposite",
+                ),
+                subject_id="paired-control:opposite",
+            ),
+            "selection_family": _fixture_inference_manifest(
+                family_id=P1_STU0061_ANALOG_FAMILY.family_id,
+                member_ids=projected_family_ids,
+                subject_id=projected_subject_id,
+            ),
+        },
         "trace": {
             "output_name": trace_output_name,
             "sha256": trace_hash,
@@ -227,7 +328,9 @@ def _binding(
 
 class AnalogStateScopedJobTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.inventory = expected_analog_family_inventory_scoped_v2()
+        self.inventory = expected_analog_family_inventory_scoped_v2(
+            P1_STU0061_ANALOG_FAMILY
+        )
         self.producer_id = str(self.inventory[0]["executable_id"])
         self.consumer_id = str(self.inventory[1]["executable_id"])
 
@@ -246,6 +349,27 @@ class AnalogStateScopedJobTests(unittest.TestCase):
         self.assertTrue(scoped_ids.isdisjoint(v1_ids))
         self.assertIn(plan.executable_id, scoped_ids)
         self.assertFalse(plan.plan["candidate_eligible_on_pass"])
+        registrations = {
+            item["criterion_id"]: item
+            for item in plan.plan["adjudication_profile"]["multiplicity"]
+        }
+        paired = registrations["D02-opposite-sign-uncertainty"]
+        selection = registrations["E01-familywise-selection"]
+        self.assertEqual(paired["family_size"], 2)
+        self.assertEqual(
+            paired["ordered_member_ids"],
+            ["paired-control:feature", "paired-control:opposite"],
+        )
+        self.assertEqual(selection["family_size"], 4)
+        self.assertEqual(
+            selection["ordered_member_ids"],
+            [str(item["executable_id"]) for item in self.inventory],
+        )
+        self.assertEqual(selection["member_id"], self.producer_id)
+        self.assertEqual(
+            {item["method"] for item in registrations.values()},
+            {"synchronized_max_moving_block_familywise.v1"},
+        )
         self.assertEqual(len(plan.plan["proof_requirements"]), 8)
         self.assertEqual(
             {
@@ -266,6 +390,125 @@ class AnalogStateScopedJobTests(unittest.TestCase):
             scoped_job.analog_scoped_job_implementation_sha256(),
             plan.job_input_hashes(),
         )
+
+    def test_implementation_manifest_binds_narrow_running_job_context(
+        self,
+    ) -> None:
+        writer = _FakeWriter()
+        identity = scoped_job.materialize_analog_scoped_job_implementation(
+            writer
+        )
+        self.assertEqual(
+            identity,
+            scoped_job.analog_scoped_job_implementation_sha256(),
+        )
+        manifest = parse_canonical(writer.evidence.read_verified(identity))
+        self.assertEqual(
+            manifest,
+            parse_canonical(
+                scoped_job.analog_scoped_job_implementation_artifact()
+            ),
+        )
+        dependency_paths = set(scoped_job.analog_scoped_job_dependency_paths())
+        self.assertTrue(
+            set(running_job_execution_context_dependency_paths()).issubset(
+                dependency_paths
+            )
+        )
+        writer_path = (
+            Path(scoped_job.__file__).resolve().parents[1]
+            / "operations"
+            / "writer.py"
+        )
+        self.assertNotIn(writer_path, dependency_paths)
+        expected_hashes = {
+            sha256(
+                scoped_job.analog_scoped_job_source_closure_artifact()
+            ).hexdigest(),
+            *(
+                sha256(path.read_bytes()).hexdigest()
+                for path in dependency_paths
+            ),
+        }
+        self.assertEqual(set(manifest["artifact_hashes"]), expected_hashes)
+        self.assertTrue(expected_hashes.issubset(writer.evidence.artifacts))
+
+        with self.assertRaisesRegex(
+            ImplementationClosureError,
+            "reconstruction-only.*analog_state_scoped_job.py",
+        ):
+            require_current_job_source_closure(
+                callable_identity=scoped_job.CALLABLE_IDENTITY,
+                job_artifact_hashes=tuple(manifest["artifact_hashes"]),
+                artifact_reader=writer.evidence.read_verified,
+                source_root=Path(__file__).resolve().parents[2] / "src",
+            )
+
+    def test_measurement_preserves_raw_and_adjusted_scoped_family_values(
+        self,
+    ) -> None:
+        plan = scoped_job.build_analog_state_scoped_plan(
+            mission_id=MISSION_ID,
+            study_id=STUDY_ID,
+            executable_id=self.producer_id,
+        )
+        execution = _execution("1")
+        trace = {
+            "job_hash": execution.job_hash,
+            "job_id": execution.job_id,
+            "mission_id": MISSION_ID,
+            "subject_executable_id": self.producer_id,
+        }
+        calculation = _fixture_calculation(
+            trace=trace,
+            trace_output_name=plan.output_names["trace"],
+            trace_hash="a" * 64,
+        )
+        statistics = calculation["statistics"]
+        metrics = calculation["metrics"]
+        expected = {
+            "D02-opposite-sign-uncertainty": (12_345, 45_678),
+            "E01-familywise-selection": (23_456, 56_789),
+        }
+        for criterion_id, (raw, adjusted) in expected.items():
+            if criterion_id.startswith("D02"):
+                manifest = statistics["paired_control_family"]
+                member_id = "paired-control:opposite"
+                metrics["registered_control_contrast"][
+                    "opposite_sign_pvalue_upper_ppm"
+                ] = adjusted
+            else:
+                manifest = statistics["selection_family"]
+                configuration = P1_STU0061_ANALOG_FAMILY.configurations()[0]
+                member_id = analog_family_executable(configuration).identity
+                metrics["selection_aware_signal_evidence"][
+                    "selection_aware_pvalue_ppm"
+                ] = adjusted
+            hypothesis = next(
+                item
+                for item in manifest["hypotheses"]
+                if item["hypothesis_id"] == member_id
+            )
+            hypothesis["raw"]["monte_carlo_upper_pvalue_ppm"] = raw
+            hypothesis["familywise"]["synchronized_max"][
+                "monte_carlo_upper_pvalue_ppm"
+            ] = adjusted
+        measurement = scoped_job.build_analog_scoped_measurement(
+            scoped_plan=plan,
+            job_id=execution.job_id,
+            job_hash=execution.job_hash,
+            calculation=calculation,
+            trace_hash="a" * 64,
+            calculation_hash="b" * 64,
+        )
+        observed = {
+            item["criterion_id"]: (
+                item["raw_pvalue_ppm"],
+                item["adjusted_pvalue_ppm"],
+            )
+            for item in measurement["multiplicity"]
+        }
+        self.assertEqual(observed, expected)
 
     def test_cache_and_producer_trace_hashes_are_one_atomic_input_pair(self) -> None:
         plan = scoped_job.build_analog_state_scoped_plan(
@@ -293,7 +536,15 @@ class AnalogStateScopedJobTests(unittest.TestCase):
         relabelled = _neutral_scoped_trace()
         relabelled["ordered_family"] = list(expected_analog_family_inventory())
         with self.assertRaisesRegex(ValueError, "scoped v2 family inventory"):
-            validate_analog_family_trace_scoped_v2(relabelled)
+            validate_analog_family_trace_scoped_v2(
+                relabelled,
+                family=P1_STU0061_ANALOG_FAMILY,
+                original_family_provenance=(
+                    analog_original_family_provenance(
+                        P1_STU0061_ANALOG_FAMILY
+                    )
+                ),
+            )
 
     def test_calculation_projection_is_transparent_and_never_evidence(self) -> None:
         producer_plan = scoped_job.build_analog_state_scoped_plan(
@@ -406,7 +657,7 @@ class AnalogStateScopedJobTests(unittest.TestCase):
             root = Path(temporary).resolve()
             with patch.object(
                 scoped_job,
-                "StateWriter",
+                "RunningJobExecutionContext",
                 return_value=writer,
             ), patch.object(
                 scoped_job,
@@ -447,7 +698,9 @@ class AnalogStateScopedJobTests(unittest.TestCase):
                 },
                 {
                     item["executable_id"]
-                    for item in expected_analog_family_inventory_scoped_v2()
+                    for item in expected_analog_family_inventory_scoped_v2(
+                        P1_STU0061_ANALOG_FAMILY
+                    )
                 },
             )
             cache_target = root / cache_name
@@ -472,7 +725,7 @@ class AnalogStateScopedJobTests(unittest.TestCase):
             )
             with patch.object(
                 scoped_job,
-                "StateWriter",
+                "RunningJobExecutionContext",
                 return_value=writer,
             ), patch.object(
                 scoped_job,

@@ -13,14 +13,20 @@ import pandas as pd
 import scipy
 import sklearn
 
-from axiom_rift.core.canonical import canonical_bytes, parse_canonical
-from axiom_rift.operations import writer as writer_module
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.running_job_context import (
+    RunningJobExecutionContext,
+    running_job_execution_context_implementation_sha256,
+)
 from axiom_rift.research.discovery import (
     DATASET_SHA256,
     OBSERVED_MATERIAL_ID,
     ROLLING_SPLIT_SHA256,
     discovery_implementation_sha256,
+)
+from axiom_rift.research.evidence_inputs import (
+    read_surface_manifest_evidence_inputs,
 )
 from axiom_rift.research.event_direction_meta_chassis import (
     executable_configuration_map,
@@ -169,9 +175,7 @@ def build_environment_manifest() -> dict[str, object]:
         "sklearn_version": sklearn.__version__,
         "split_artifact_sha256": ROLLING_SPLIT_SHA256,
         "validator_id": SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
-        "writer_implementation_sha256": sha256(
-            Path(writer_module.__file__).resolve().read_bytes()
-        ).hexdigest(),
+        "running_job_context_implementation_sha256": running_job_execution_context_implementation_sha256(),
     }
     canonical_bytes(value)
     return value
@@ -266,34 +270,23 @@ class EventDirectionMetaJobPacket:
 
 
 def _load(
-    writer: StateWriter,
+    writer: RunningJobExecutionContext,
     inputs: tuple[str, ...],
 ) -> tuple[dict[str, Any], str, str]:
-    surface = None
-    manifest = None
-    for artifact_hash in inputs:
-        try:
-            artifact = writer.evidence.verify(artifact_hash)
-            value = parse_canonical(
-                (writer.evidence._root / artifact.relative_path).read_bytes()
-            )
-        except (FileNotFoundError, OSError, RuntimeError, ValueError):
-            continue
-        if isinstance(value, dict) and value.get("schema") == (
-            "event_direction_meta_surface.v1"
-        ):
-            surface = (value, artifact_hash)
-        if isinstance(value, dict) and value.get("schema") == (
-            "event_direction_meta_surface_manifest.v1"
-        ):
-            manifest = (value, artifact_hash)
-    if (
-        surface is None
-        or manifest is None
-        or manifest[0].get("surface_artifact_hash") != surface[1]
-    ):
-        raise ValueError("event direction meta surface is missing")
-    return surface[0], surface[1], manifest[1]
+    binding = read_surface_manifest_evidence_inputs(
+        writer.evidence,
+        inputs,
+        surface_schema="event_direction_meta_surface.v1",
+        manifest_schema="event_direction_meta_surface_manifest.v1",
+        expected_surface_implementation_sha256=(
+            event_direction_meta_discovery_implementation_sha256()
+        ),
+    )
+    return (
+        binding.surface.value,
+        binding.surface.artifact_sha256,
+        binding.manifest.artifact_sha256,
+    )
 
 
 def execute_event_direction_meta_job(
@@ -302,7 +295,7 @@ def execute_event_direction_meta_job(
     execution: RunningJobExecution,
 ) -> EventDirectionMetaJobPacket:
     root = Path(repository_root).resolve()
-    writer = StateWriter(root)
+    writer = RunningJobExecutionContext(root)
     binding = writer.verify_running_job_execution(
         execution,
         expected_callable_identity=CALLABLE_IDENTITY,
@@ -355,7 +348,10 @@ def execute_event_direction_meta_job(
             canonical_bytes(manifest_value)
         ).sha256
     else:
-        surface, surface_hash, manifest_hash = _load(writer, inputs)
+        surface, surface_hash, manifest_hash = _load(
+            writer,
+            tuple(identity for identity in inputs if identity not in required),
+        )
     evaluation = project_event_direction_meta_evaluation(
         surface,
         job_execution={**execution.payload(), "identity": execution.identity},

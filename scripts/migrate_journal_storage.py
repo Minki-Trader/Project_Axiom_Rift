@@ -22,6 +22,7 @@ from axiom_rift.operations.writer import StateWriter  # noqa: E402
 
 OPERATION_ID = "journal-storage-segmentation-v1"
 CONTRACT_OPERATION_ID = "journal-segmentation-operations-contract-v1"
+LOCAL_GIT_TIMEOUT_SECONDS = 2 * 60
 
 
 def git(*arguments: str) -> str:
@@ -30,6 +31,7 @@ def git(*arguments: str) -> str:
         cwd=ROOT,
         check=True,
         capture_output=True,
+        timeout=LOCAL_GIT_TIMEOUT_SECONDS,
     )
     return result.stdout.decode("ascii").strip()
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 import yaml
 
 from axiom_rift.core.canonical import canonical_bytes
@@ -108,6 +109,7 @@ class StudyKpiWriterTests(unittest.TestCase):
                             "executable_id": self.executable_id,
                             "measurement_artifact_hashes": [measurement.sha256],
                             "scientific_eligible": True,
+                            "verdict": "failed",
                         },
                     },
                 )
@@ -220,6 +222,152 @@ class StudyKpiWriterTests(unittest.TestCase):
                 "trade_count": 124,
                 "monthly_realized_exit_drawdown_share_of_gross_profit_ppm": 72_000,
             },
+        )
+
+    def test_batch_decision_inventory_is_batch_keyed_and_query_bounded(
+        self,
+    ) -> None:
+        self._put_decision("stop_batch")
+        unrelated_job_id = "job:" + "8" * 64
+        with LocalIndex(self.writer.index_path) as index:
+            index.put(
+                IndexRecord(
+                    kind="job-evidence-decision",
+                    record_id=digest("decision", {"unrelated": True}),
+                    subject=f"Job:{unrelated_job_id}",
+                    status="stop_batch",
+                    fingerprint="8" * 64,
+                    payload={"completion_record_id": None},
+                )
+            )
+            payload_calls: list[tuple[str, str, str, int]] = []
+            subject_calls: list[tuple[str, str, int]] = []
+            payload_lookup = index.records_by_payload_text
+            subject_lookup = index.records_by_subject_status
+
+            def counted_payload(kind: str, lookup_name: str, value: str):
+                records = payload_lookup(kind, lookup_name, value)
+                payload_calls.append((kind, lookup_name, value, len(records)))
+                return records
+
+            def counted_subject(subject: str, status: str):
+                records = subject_lookup(subject, status)
+                subject_calls.append((subject, status, len(records)))
+                return records
+
+            with patch.object(
+                index,
+                "records_by_payload_text",
+                side_effect=counted_payload,
+            ), patch.object(
+                index,
+                "records_by_subject_status",
+                side_effect=counted_subject,
+            ), patch.object(
+                index,
+                "records_by_kind",
+                side_effect=AssertionError(
+                    "Batch decision inventory decoded project-wide history"
+                ),
+            ):
+                completion_ids = self.writer._batch_stop_completion_ids(
+                    index,
+                    self.batch_id,
+                )
+        self.assertEqual(completion_ids, (self.completion_id,))
+        self.assertEqual(
+            payload_calls,
+            [
+                (
+                    "job-declared",
+                    "batch_id",
+                    self.batch_id,
+                    1,
+                )
+            ],
+        )
+        self.assertEqual(
+            subject_calls,
+            [
+                (f"Job:{self.job_id}", "continue_batch", 0),
+                (f"Job:{self.job_id}", "stop_batch", 1),
+            ],
+        )
+
+    def test_study_kpi_display_allocation_decodes_only_identity_and_collisions(
+        self,
+    ) -> None:
+        collision_identity = "executable:" + "4" * 64
+        with LocalIndex(self.writer.index_path) as index:
+            index.put_many(
+                (
+                    IndexRecord(
+                        kind="study-kpi",
+                        record_id="STU-KPI-COLLISION",
+                        subject="Study:STU-KPI-COLLISION",
+                        status="not_supported",
+                        fingerprint="4" * 64,
+                        payload={
+                            "executable_display_id": "EXE-" + "3" * 12,
+                            "executable_id": collision_identity,
+                        },
+                    ),
+                    IndexRecord(
+                        kind="study-kpi",
+                        record_id="STU-KPI-UNRELATED-MALFORMED",
+                        subject="Study:STU-KPI-UNRELATED-MALFORMED",
+                        status="not_evaluable",
+                        fingerprint="5" * 64,
+                        payload={
+                            "executable_display_id": None,
+                            "executable_id": "executable:" + "5" * 64,
+                        },
+                    ),
+                )
+            )
+            decoded: list[tuple[str, str, int]] = []
+            payload_lookup = index.records_by_payload_text
+
+            def counted_payload(kind: str, lookup_name: str, value: str):
+                records = payload_lookup(kind, lookup_name, value)
+                decoded.append((lookup_name, value, len(records)))
+                return records
+
+            with patch.object(
+                index,
+                "records_by_payload_text",
+                side_effect=counted_payload,
+            ), patch.object(
+                index,
+                "records_by_kind",
+                side_effect=AssertionError(
+                    "Study KPI display allocation decoded the full ledger"
+                ),
+            ):
+                display_id = self.writer._study_kpi_display_id(
+                    index,
+                    self.executable_id,
+                )
+        self.assertEqual(display_id, "EXE-" + "3" * 16)
+        self.assertEqual(
+            decoded,
+            [
+                (
+                    "study_kpi_executable_id",
+                    self.executable_id,
+                    0,
+                ),
+                (
+                    "study_kpi_executable_display_id",
+                    "EXE-" + "3" * 12,
+                    1,
+                ),
+                (
+                    "study_kpi_executable_display_id",
+                    "EXE-" + "3" * 16,
+                    0,
+                ),
+            ],
         )
 
     def test_historical_payload_uses_final_completion_and_original_close(self) -> None:
@@ -340,6 +488,222 @@ class StudyKpiWriterTests(unittest.TestCase):
         self.assertEqual(payload["sequence"], 22)
         self.assertEqual(payload["provenance"], "prospective_close")
         self.assertIsNone(payload["historical_study_close_event_id"])
+
+    def test_not_evaluable_science_cannot_be_closed_as_not_supported(self) -> None:
+        job_id = "job:" + "4" * 64
+        job_hash = "5" * 64
+        completion_id = digest("completion", {"not_evaluable": True})
+        measurement = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "executable_id": self.executable_id,
+                    "job_hash": job_hash,
+                    "job_id": job_id,
+                    "metrics": {},
+                    "schema": "scientific_measurement.test.v1",
+                }
+            )
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            existing = index.get("job-completed", self.completion_id)
+            assert existing is not None
+            scientific = dict(existing.payload["scientific"])
+            scientific["measurement_artifact_hashes"] = [measurement.sha256]
+            scientific["verdict"] = "not_evaluable"
+            index.put(
+                IndexRecord(
+                    kind="job-declared",
+                    record_id=job_id,
+                    subject=f"Job:{job_id}",
+                    status="declared",
+                    fingerprint=job_hash,
+                    payload={
+                        "batch_id": self.batch_id,
+                        "study_id": self.study_id,
+                    },
+                )
+            )
+            index.put(
+                IndexRecord(
+                    kind="job-completed",
+                    record_id=completion_id,
+                    subject=f"Job:{job_id}",
+                    status="success",
+                    fingerprint=job_hash,
+                    payload={"job_id": job_id, "scientific": scientific},
+                )
+            )
+            index.put(
+                IndexRecord(
+                    kind="job-evidence-decision",
+                    record_id=digest("decision", {"not_evaluable": True}),
+                    subject=f"Job:{job_id}",
+                    status="stop_batch",
+                    fingerprint=job_hash,
+                    payload={"completion_record_id": completion_id},
+                )
+            )
+            for rejected_outcome in ("not_supported", "pruned"):
+                with self.subTest(outcome=rejected_outcome), self.assertRaisesRegex(
+                    TransitionError,
+                    "disposition-driving scientific adjudication",
+                ):
+                    self.writer._study_kpi_payload(
+                        index=index,
+                        study_id=self.study_id,
+                        outcome=rejected_outcome,
+                        completion_record_id=completion_id,
+                        closed_at_utc="2026-07-12T00:00:00Z",
+                    )
+            payload = self.writer._study_kpi_payload(
+                index=index,
+                study_id=self.study_id,
+                outcome="not_evaluable",
+                completion_record_id=completion_id,
+                closed_at_utc="2026-07-12T00:00:00Z",
+            )
+        assert payload is not None
+        self.assertEqual(payload["outcome"], "not_evaluable")
+
+    def test_engineering_completion_cannot_become_a_scientific_outcome(self) -> None:
+        job_id = "job:" + "6" * 64
+        job_hash = "7" * 64
+        executable_id = "executable:" + "8" * 64
+        completion_id = digest("completion", {"prospective_engineering": True})
+        with LocalIndex(self.writer.index_path) as index:
+            index.put(
+                IndexRecord(
+                    kind="job-declared",
+                    record_id=job_id,
+                    subject=f"Job:{job_id}",
+                    status="declared",
+                    fingerprint=job_hash,
+                    payload={
+                        "batch_id": self.batch_id,
+                        "spec": {
+                            "evidence_subject": {
+                                "id": executable_id,
+                                "kind": "Executable",
+                            }
+                        },
+                        "study_id": self.study_id,
+                    },
+                )
+            )
+            index.put(
+                IndexRecord(
+                    kind="job-completed",
+                    record_id=completion_id,
+                    subject=f"Job:{job_id}",
+                    status="failed",
+                    fingerprint=job_hash,
+                    payload={
+                        "engineering_disposition": {
+                            "job_id": job_id,
+                            "schema": "engineering_failure_disposition.v1",
+                        },
+                        "failure": {"failure_kind": "engineering"},
+                        "job_id": job_id,
+                    },
+                )
+            )
+            index.put(
+                IndexRecord(
+                    kind="job-evidence-decision",
+                    record_id=digest(
+                        "decision",
+                        {"prospective_engineering": True},
+                    ),
+                    subject=f"Job:{job_id}",
+                    status="stop_batch",
+                    fingerprint=job_hash,
+                    payload={"completion_record_id": completion_id},
+                )
+            )
+            for rejected_outcome in ("not_supported", "pruned", "supported"):
+                with self.subTest(outcome=rejected_outcome), self.assertRaisesRegex(
+                    TransitionError,
+                    "cannot become a scientific outcome",
+                ):
+                    self.writer._study_kpi_payload(
+                        index=index,
+                        study_id=self.study_id,
+                        outcome=rejected_outcome,
+                        completion_record_id=completion_id,
+                        closed_at_utc="2026-07-12T00:00:00Z",
+                    )
+            payload = self.writer._study_kpi_payload(
+                index=index,
+                study_id=self.study_id,
+                outcome="evidence_gap",
+                completion_record_id=completion_id,
+                closed_at_utc="2026-07-12T00:00:00Z",
+            )
+        assert payload is not None
+        self.assertEqual(payload["source"], "typed_engineering_failure_completion")
+        self.assertEqual(payload["outcome"], "evidence_gap")
+
+    def test_writer_derived_unavailable_study_cannot_be_pruned(self) -> None:
+        with LocalIndex(self.writer.index_path) as index:
+            index.put(
+                IndexRecord(
+                    kind="batch-close",
+                    record_id=digest("batch-close", {"stopped_early": True}),
+                    subject=f"Batch:{self.batch_id}",
+                    status="stopped_early",
+                    fingerprint=self.job_hash,
+                    payload={"outcome": "stopped_early"},
+                )
+            )
+            with self.assertRaisesRegex(
+                TransitionError,
+                "unavailable state is not writer-derived",
+            ):
+                self.writer._study_kpi_payload(
+                    index=index,
+                    study_id=self.study_id,
+                    outcome="pruned",
+                    completion_record_id=None,
+                    closed_at_utc="2026-07-12T00:00:00Z",
+                )
+            payload = self.writer._study_kpi_payload(
+                index=index,
+                study_id=self.study_id,
+                outcome="not_evaluable",
+                completion_record_id=None,
+                closed_at_utc="2026-07-12T00:00:00Z",
+            )
+        assert payload is not None
+        self.assertEqual(payload["source"], "writer_derived_unavailable")
+        self.assertEqual(payload["outcome"], "not_evaluable")
+
+    def test_rich_partial_positive_remains_a_positive_study_close(self) -> None:
+        completion = IndexRecord(
+            kind="job-completed",
+            record_id=digest("completion", {"partial_positive": True}),
+            subject=f"Job:{self.job_id}",
+            status="success",
+            fingerprint=self.job_hash,
+            payload={
+                "scientific": {
+                    "adjudication": {"state": "partial_positive"},
+                    "scientific_eligible": True,
+                    "verdict": "not_evaluable",
+                }
+            },
+        )
+        self.writer._require_scientific_study_outcome(
+            completion=completion,
+            outcome="preserved",
+        )
+        with self.assertRaisesRegex(
+            TransitionError,
+            "disposition-driving scientific adjudication",
+        ):
+            self.writer._require_scientific_study_outcome(
+                completion=completion,
+                outcome="not_supported",
+            )
 
     def test_intermediate_continue_batch_completion_is_rejected(self) -> None:
         self._put_decision("continue_batch")

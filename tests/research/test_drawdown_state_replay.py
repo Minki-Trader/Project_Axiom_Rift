@@ -9,7 +9,12 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.core.canonical import canonical_bytes, parse_canonical
+import axiom_rift.operations.writer as writer_module
+from axiom_rift.operations.running_job import (
+    RunningJobExecution as BoundaryRunningJobExecution,
+    running_job_authority_dependency_paths,
+)
 from axiom_rift.research.drawdown_state_replay import (
     DRAWDOWN_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT,
     causal_drawdown_replay_spread,
@@ -28,9 +33,20 @@ from axiom_rift.research.drawdown_state_replay_job import (
     drawdown_replay_job_implementation_sha256,
     materialize_drawdown_replay_job_implementation,
 )
-from axiom_rift.operations.writer import StateWriter
+from axiom_rift.operations.writer import (
+    RunningJobExecution,
+    StateWriter,
+    TransitionError,
+)
+from axiom_rift.research.evidence_proofs import (
+    build_proof_references,
+    parse_proof_references,
+    parse_proof_requirements,
+    validate_proof_artifacts,
+)
 from axiom_rift.research.fixed_hold_family_job import (
     build_fixed_hold_measurement,
+    build_fixed_hold_shared_trace_calculation,
 )
 from axiom_rift.research.fixed_hold_family_trace import (
     FIXED_HOLD_REPLAY_CRITERIA,
@@ -58,7 +74,36 @@ HISTORICAL_CONTEXT_COUNT = 578
 
 
 class DrawdownReplayBoundaryTests(unittest.TestCase):
-    def test_job_implementation_closure_is_writer_readable(self) -> None:
+    def test_runtime_closure_uses_the_narrow_running_job_authority(self) -> None:
+        dependencies = set(
+            fixed_hold_replay_runtime_dependency_paths(RUNTIME_ADAPTER)
+        )
+        self.assertNotIn(Path(writer_module.__file__).resolve(), dependencies)
+        self.assertTrue(
+            set(running_job_authority_dependency_paths()).issubset(
+                dependencies
+            )
+        )
+        self.assertIs(RunningJobExecution, BoundaryRunningJobExecution)
+        closure = parse_canonical(
+            drawdown_replay_job_implementation_artifact()
+        )
+        self.assertIsInstance(closure, dict)
+        assert isinstance(closure, dict)
+        bound_paths = {
+            item["path"] for item in closure["dependencies"]
+        }
+        source_root = Path(__file__).resolve().parents[2] / "src"
+        expected_boundary_paths = {
+            path.relative_to(source_root).as_posix()
+            for path in running_job_authority_dependency_paths()
+        }
+        self.assertTrue(expected_boundary_paths.issubset(bound_paths))
+        self.assertNotIn("axiom_rift/operations/writer.py", bound_paths)
+
+    def test_historical_closure_is_materialized_but_not_generic_job_authority(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temporary:
             writer = StateWriter(
                 temporary,
@@ -71,13 +116,15 @@ class DrawdownReplayBoundaryTests(unittest.TestCase):
                 identity,
                 drawdown_replay_job_implementation_sha256(),
             )
-            manifest = writer._require_job_implementation_evidence(
-                {
-                    "callable_identity": CALLABLE_IDENTITY,
-                    "implementation_identity": identity,
-                },
-                allowed_historical_control_ids=("STU-0048",),
-            )
+            manifest = parse_canonical(writer.evidence.read_verified(identity))
+            with self.assertRaisesRegex(TransitionError, "hardcodes"):
+                writer._require_job_implementation_evidence(
+                    {
+                        "callable_identity": CALLABLE_IDENTITY,
+                        "implementation_identity": identity,
+                    }
+                )
+            self.assertIsInstance(manifest, dict)
         self.assertEqual(
             manifest["schema"],
             "job_implementation_evidence.v1",
@@ -372,6 +419,64 @@ class DrawdownReplayIntegrationTests(unittest.TestCase):
                 trace_hash=self.trace_hash,
                 calculation=self.calculation,
                 expected_evidence_modes=FIXED_HOLD_REPLAY_EVIDENCE_MODES,
+                expected_metric_bindings_by_mode={
+                    mode: tuple(values) for mode, values in by_mode.items()
+                },
+                mission_id="MIS-0006",
+                executable_id=self.target_id,
+                job_id="job:drawdown-integration-test",
+                job_hash="1" * 64,
+            ),
+            FIXED_HOLD_REPLAY_EVIDENCE_MODES,
+        )
+        shared_hash = sha256(canonical_bytes(self.neutral)).hexdigest()
+        shared_calculation = build_fixed_hold_shared_trace_calculation(
+            trace=self.neutral,
+            definition=self.definition,
+            mission_id="MIS-0006",
+            executable_id=self.target_id,
+            job_id="job:drawdown-integration-test",
+            job_hash="1" * 64,
+            trace_output_name=self.job_plan.output_names["trace"],
+            trace_hash=shared_hash,
+        )
+        self.assertEqual(
+            shared_calculation["metrics"],
+            self.calculation["metrics"],
+        )
+        self.assertEqual(
+            shared_calculation["statistics"],
+            self.calculation["statistics"],
+        )
+        requirements = parse_proof_requirements(
+            self.job_plan.plan["proof_requirements"],
+            evidence_modes=FIXED_HOLD_REPLAY_EVIDENCE_MODES,
+        )
+        calculation_hash = sha256(
+            canonical_bytes(shared_calculation)
+        ).hexdigest()
+        artifact_hashes = {
+            self.job_plan.output_names["trace"]: shared_hash,
+            self.job_plan.output_names["calculation"]: calculation_hash,
+        }
+        references = parse_proof_references(
+            build_proof_references(
+                requirements=requirements,
+                artifact_hashes=artifact_hashes,
+            ),
+            requirements=requirements,
+        )
+        self.assertEqual(
+            validate_proof_artifacts(
+                requirements=requirements,
+                references=references,
+                artifacts={
+                    self.job_plan.output_names["trace"]: self.neutral,
+                    self.job_plan.output_names["calculation"]: (
+                        shared_calculation
+                    ),
+                },
+                artifact_hashes=artifact_hashes,
                 expected_metric_bindings_by_mode={
                     mode: tuple(values) for mode, values in by_mode.items()
                 },

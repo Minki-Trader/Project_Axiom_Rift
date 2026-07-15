@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
-from io import BytesIO
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -14,6 +13,11 @@ import pandas as pd
 from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.research.data import load_observed_development
+from axiom_rift.research.external_observed_development import (
+    ExternalObservedDevelopmentError,
+    US500_OBSERVED_DEVELOPMENT_SPEC,
+    load_external_observed_development,
+)
 from axiom_rift.research.dense_short_synthesis_chassis import (
     calibrate_synthesis_selector,
     terminal_return_sign_12,
@@ -48,11 +52,7 @@ from axiom_rift.research.us500_market_coherence_chassis import (
     us500_market_coherence_configurations,
     us500_market_coherence_executable,
 )
-from axiom_rift.research.us500_source import (
-    US500_COLUMNS,
-    US500_RAW_RELATIVE_PATH,
-    us500_source_contract,
-)
+from axiom_rift.research.us500_source import us500_source_contract
 from axiom_rift.research.volatility_clock_label_chassis import fit_label_model
 from axiom_rift.research.volatility_clock_label_discovery import deterministic_score
 
@@ -78,91 +78,18 @@ def us500_market_coherence_discovery_implementation_sha256() -> str:
     return sha256(_THIS_FILE.read_bytes()).hexdigest()
 
 
-def _record(raw: bytes) -> bytes:
-    value = raw[:-1] if raw.endswith(b"\n") else raw
-    value = value[:-1] if value.endswith(b"\r") else value
-    if not value:
-        raise US500MarketCoherenceBoundaryError("US500 source contains an empty row")
-    return value
-
-
-def _stamp(row: bytes) -> bytes:
-    value, separator, _ = row.partition(b",")
-    if not separator or len(value) != 19:
-        raise US500MarketCoherenceBoundaryError("US500 timestamp field is invalid")
-    try:
-        parsed = pd.Timestamp(value.decode("ascii"))
-    except (UnicodeError, ValueError) as exc:
-        raise US500MarketCoherenceBoundaryError("US500 timestamp is invalid") from exc
-    if parsed.second != 0 or parsed.minute % 5 != 0:
-        raise US500MarketCoherenceBoundaryError("US500 timestamp is off the M5 grid")
-    return value
-
-
 def load_us500_development(repository_root: str | Path) -> US500Development:
-    root = Path(repository_root).resolve()
-    path = (root / US500_RAW_RELATIVE_PATH).resolve()
-    if root not in path.parents or not path.is_file():
-        raise US500MarketCoherenceBoundaryError("US500 raw snapshot is absent")
-    boundary = DEVELOPMENT_END.strftime(_TIME_FORMAT).encode("ascii")
-    expected_header = b",".join(value.encode("ascii") for value in US500_COLUMNS)
-    full_hash = sha256()
-    prefix_hash = sha256()
-    prefix = BytesIO()
-    previous: bytes | None = None
-    rows = 0
-    saw_tail = False
-    with path.open("rb") as handle:
-        header = handle.readline()
-        if _record(header) != expected_header:
-            raise US500MarketCoherenceBoundaryError("US500 schema differs")
-        full_hash.update(header)
-        prefix_hash.update(header)
-        prefix.write(header)
-        for raw in handle:
-            full_hash.update(raw)
-            stamp = _stamp(_record(raw))
-            if previous is not None and stamp <= previous:
-                raise US500MarketCoherenceBoundaryError("US500 timestamps are not increasing")
-            previous = stamp
-            if stamp <= boundary:
-                if saw_tail:
-                    raise US500MarketCoherenceBoundaryError("US500 development follows tail")
-                prefix_hash.update(raw)
-                prefix.write(raw)
-                rows += 1
-            else:
-                saw_tail = True
-    if full_hash.hexdigest() != US500_RAW_SHA256:
-        raise US500MarketCoherenceBoundaryError("US500 raw SHA256 changed")
-    if rows == 0 or not saw_tail:
-        raise US500MarketCoherenceBoundaryError("US500 boundary is not exposed")
-    prefix.seek(0)
     try:
-        frame = pd.read_csv(
-            prefix,
-            usecols=["time", "close"],
-            dtype={"time": "string", "close": "float64"},
-            engine="c",
-        )
-    finally:
-        prefix.close()
-    frame["time"] = pd.to_datetime(frame["time"], format=_TIME_FORMAT, errors="raise")
-    close = frame["close"].to_numpy(dtype=float)
-    if (
-        len(frame) != rows
-        or frame["time"].duplicated().any()
-        or not frame["time"].is_monotonic_increasing
-        or frame["time"].iloc[-1] != DEVELOPMENT_END
-        or np.any(~np.isfinite(close))
-        or np.any(close <= 0)
-    ):
-        raise US500MarketCoherenceBoundaryError("US500 development prefix is invalid")
+        loaded = load_external_observed_development(repository_root, "US500")
+    except ExternalObservedDevelopmentError as exc:
+        raise US500MarketCoherenceBoundaryError(
+            "US500 observed-development prefix is invalid"
+        ) from exc
     return US500Development(
-        frame=frame,
-        raw_sha256=full_hash.hexdigest(),
-        prefix_sha256=prefix_hash.hexdigest(),
-        row_count=rows,
+        frame=loaded.frame,
+        raw_sha256=US500_OBSERVED_DEVELOPMENT_SPEC.parent_raw_sha256,
+        prefix_sha256=US500_OBSERVED_DEVELOPMENT_SPEC.prefix_sha256,
+        row_count=US500_OBSERVED_DEVELOPMENT_SPEC.row_count,
     )
 
 

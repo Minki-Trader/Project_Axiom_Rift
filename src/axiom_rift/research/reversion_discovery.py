@@ -28,6 +28,7 @@ from axiom_rift.research.discovery import (
     DATASET_SHA256,
     OBSERVED_MATERIAL_ID,
     ROLLING_SPLIT_SHA256,
+    _causal_prefix_mismatch_count,
     DiscoveryBoundaryError,
     _consecutive_run,
     _daily_series,
@@ -372,15 +373,6 @@ def _evaluate_configuration(
         prefix_score, prefix_volatility, prefix_run = compute_overextension_score(
             prefix_frame, configuration.window
         )
-        prefix_mismatches += int(
-            (~np.isclose(
-                prefix_score,
-                score[:prefix_end],
-                rtol=0.0,
-                atol=0.0,
-                equal_nan=True,
-            )).sum()
-        )
         prefix_time = pd.to_datetime(prefix_frame["time"], errors="raise")
         prefix_train_mask = (
             (prefix_time >= pd.Timestamp(train["start"]))
@@ -390,6 +382,21 @@ def _evaluate_configuration(
         prefix_spread = causal_effective_spread(
             pd.to_numeric(prefix_frame["spread"], errors="raise").to_numpy(dtype=float),
             _time_ns(prefix_frame),
+        )
+        prefix_mismatches += _causal_prefix_mismatch_count(
+            full_surfaces=(
+                ("score", score),
+                ("volatility", volatility),
+                ("run", run),
+                ("effective_spread", effective_spread),
+            ),
+            prefix_surfaces=(
+                ("score", prefix_score),
+                ("volatility", prefix_volatility),
+                ("run", prefix_run),
+                ("effective_spread", prefix_spread),
+            ),
+            compared_row_count=prefix_end,
         )
         prefix_simulation = simulate_fixed_hold(
             frame=prefix_frame,

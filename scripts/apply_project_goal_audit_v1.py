@@ -506,7 +506,7 @@ def _science_contract(root: Path) -> bytes:
     addition = """
 scientific_adjudication_v2:
   prospective_activation_required: true
-  validator_identity_binds_protocol_and_dependencies: true
+  validator_semantic_and_operational_identity_authority: contracts/evidence.yaml
   stages:
     discovery:
       purpose: frontier_mapping
@@ -660,10 +660,22 @@ study_close_delivery_checkpoint:
 
 def _evidence_contract(root: Path) -> bytes:
     text = _authority_text(root, "contracts/evidence.yaml")
+    text = _replace_once(
+        text,
+        "  identity_binds_protocol_domains_and_implementation_hash: true\n",
+        "  identity_binds_protocol_domains_and_implementation_hash: true\n"
+        "  semantic_and_operational_identity:\n"
+        "    semantic_validator_identity_binds_protocol_domains_implementation_bytes_and_authored_dependencies: true\n"
+        "    semantic_dependency_may_be_downgraded_to_closure_only: false\n"
+        "    inferred_recursive_execution_closure_binds_registry_and_job_implementation_authority: true\n"
+        "    closure_only_drift_reidentifies_validator_executable_claim_trial_or_history: false\n"
+        "    closure_only_drift_blocks_or_reidentifies_future_job_execution: true\n",
+        label="validator semantic and operational identity",
+    )
     addition = """
 scientific_adjudication_v2:
   plan_measurement_and_result_are_exact_bound_artifacts: true
-  validator_dependency_hashes_are_identity: true
+  authored_semantic_validator_dependency_hashes_are_identity: true
   criterion_roles_are_preregistered: true
   component_dimensions_are_non_compensatory: true
   invalid_unresolved_and_diagnostic_are_not_failed: true
@@ -953,12 +965,13 @@ def inspect_correction_prefix(
 
     ordered = tuple(correction_steps() if steps is None else steps)
     expected_ids = {step.operation_id for step in ordered}
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         unknown = sorted(
             record.record_id
-            for record in index.records_by_kind("operation")
-            if record.record_id.startswith(CORRECTION_OPERATION_PREFIX)
-            and record.record_id not in expected_ids
+            for record in index.records_by_kind_prefix(
+                "operation", CORRECTION_OPERATION_PREFIX
+            )
+            if record.record_id not in expected_ids
         )
         if unknown:
             raise RuntimeError(
@@ -999,7 +1012,7 @@ def inspect_correction_prefix(
 def _recorded_authority_replacements(
     writer: StateWriter,
 ) -> dict[str, bytes] | None:
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         operation = index.get("operation", AUTHORITY_OPERATION_ID)
     if operation is None:
         return None
@@ -1050,7 +1063,7 @@ def build_historical_adjudication_requests(
 
     rows: list[tuple[str, str, str, tuple[str, ...]]] = []
     state_counts: Counter[str] = Counter()
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         for completion in index.records_by_kind("job-completed"):
             scientific = completion.payload.get("scientific")
             if not isinstance(scientific, dict):
@@ -1310,7 +1323,7 @@ def _require_control_progress(
         expected_event_id = EXPECTED_INITIAL_EVENT_ID
     else:
         step = correction_steps()[prefix - 1]
-        with LocalIndex(writer.index_path) as index:
+        with LocalIndex.open_read_only(writer.index_path) as index:
             operation = index.get("operation", step.operation_id)
         if operation is None or operation.authority_event_id is None:
             raise RuntimeError("correction operation authority is absent")
@@ -1371,7 +1384,7 @@ def _require_report_binding(
     )
     if manifest_bytes != plan.withdrawal_manifest_bytes:
         raise RuntimeError("withdrawal manifest evidence differs")
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         operation = index.get("operation", WITHDRAW_OPERATION_ID)
     event = _operation_event(writer, operation)
     payload = event.get("payload")
@@ -1399,7 +1412,7 @@ def _require_authority_progress(
         if authority.get("manifest_digest") != EXPECTED_INITIAL_AUTHORITY_MANIFEST:
             raise RuntimeError("pre-migration authority manifest differs")
         return
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         operation = index.get("operation", AUTHORITY_OPERATION_ID)
     event = _operation_event(writer, operation)
     payload = event.get("payload")
@@ -1440,7 +1453,7 @@ def _require_protocol_progress(
     report_hash: str,
     authority_manifest_digest: str,
 ) -> None:
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         count = index.count_by_kind("research-protocol-activation")
         head = index.event_head("research-protocol:scientific")
         record = None if head is None else index.get(head.record_kind, head.record_id)
@@ -1471,7 +1484,7 @@ def _require_source_progress(
     plan: CorrectionPlan,
 ) -> None:
     applied = max(0, min(len(plan.source_corrections), prefix - 3))
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         if index.count_by_kind("source-authority-invalidation") != applied:
             raise RuntimeError("source invalidation count differs from the prefix")
         for position, correction in enumerate(plan.source_corrections):
@@ -1555,7 +1568,7 @@ def _require_historical_progress(
         len(request.validity_overrides) for request in applied_requests
     )
     observed_override_count = 0
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         if index.count_by_kind("historical-scientific-adjudication") != len(
             applied_requests
         ):
@@ -1617,7 +1630,7 @@ def _require_close_progress(
 ) -> None:
     if prefix < step_count:
         return
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         operation = index.get("operation", CLOSE_INITIATIVE_OPERATION_ID)
         closes = tuple(
             record
@@ -1664,7 +1677,7 @@ def validate_correction_progress(
         plan=plan,
     )
     control = _require_control_progress(writer, prefix=observed_prefix)
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         _require_invariant_counts(index)
         expected_withdrawals = 0 if observed_prefix == 0 else 1
         if index.count_by_kind("portfolio-decision-withdrawal") != expected_withdrawals:
@@ -1707,7 +1720,7 @@ def validate_completed_correction_ancestor(
     writer.evidence.verify(report_hash)
 
     operations: list[Any] = []
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         for step in steps:
             operation = index.get("operation", step.operation_id)
             if operation is None:

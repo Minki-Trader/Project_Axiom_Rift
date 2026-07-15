@@ -31,6 +31,10 @@ class FakeIndex:
     def __init__(self, _path: object) -> None:
         pass
 
+    @classmethod
+    def open_read_only(cls, path: object):
+        return cls(path)
+
     def __enter__(self):
         return self
 
@@ -41,6 +45,13 @@ class FakeIndex:
         if kind != "operation":
             return ()
         return tuple(self.records.values())
+
+    def records_by_kind_prefix(self, kind: str, prefix: str):
+        return tuple(
+            record
+            for record in self.records_by_kind(kind)
+            if record.record_id.startswith(prefix)
+        )
 
     def get(self, kind: str, record_id: str):
         if kind != "operation":

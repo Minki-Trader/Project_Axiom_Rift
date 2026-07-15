@@ -23,6 +23,21 @@ transaction:
   reject_future_cursor_or_index: true
   recover_trailing_cursor_or_index: true
   projection_guard_binds_exact_record_digest_chain: true
+read_only_engine_boundary:
+  control_and_journal_construction_creates_directories: false
+  reader_may_create_or_initialize_writer_lock: false
+  local_index_open_mode: sqlite_mode_ro_query_only
+  current_schema_required_without_reader_migration: true
+  missing_index_creation_allowed: false
+  reader_side_journal_wal_or_shm_creation_allowed: false
+  exposed_index_capability_has_mutation_methods: false
+  engine_snapshot:
+    existing_writer_lock_required: true
+    every_decoded_projection_record_rejoins_exact_journal_authority: true
+  workflow_projection_reads:
+    sqlite_read_only_capability_required: true
+    direct_read_write_local_index_open_allowed: false
+    stable_head_guard_remains_decision_authority: true
 journal_storage:
   schema: journal_manifest_v1
   sealed_segment_schema: journal_segment_seal_v1
@@ -46,6 +61,22 @@ authority_migration:
   exact_bound_paths_and_old_new_hashes_required: true
   crash_recovery_materializes_pending_files_before_control: true
   scientific_trial_holdout_and_claim_delta: 0
+  local_main_correction_delivery:
+    authority_changing_code_checkpoint_remains_unpublished_before_apply: true
+    origin_main_is_strict_ancestor_of_local_head: true
+    divergent_or_non_ancestor_origin_allowed: false
+    clean_git_index_required: true
+    head_control_and_journal_equal_origin_baseline: true
+    head_authority_bytes_equal_exact_reviewed_replacements: true
+    worktree_change_is_none_or_exact_resumable_correction_suffix: true
+    correction_state_uses_a_second_local_commit: true
+    both_commits_delivered_by_one_non_force_fast_forward_push: true
+    force_push_allowed: false
+    correction_journal_event_upper_bound: 2
+    segmented_journal_headroom_uses_max_event_bytes: true
+    resumable_headroom_subtracts_exact_head_suffix_events: true
+    insufficient_segment_headroom_blocks_before_correction_mutation: true
+    segmented_rollover_during_this_one_off_correction_allowed: false
 goal_ingress:
   persistent_project_goal_authority: OPERATING_DIRECTION.md
   bare_or_one_line_goal_allowed: true
@@ -68,6 +99,7 @@ research_direction:
     - build_portfolio
     - portfolio_decision
     - execute_portfolio_decision
+    - review_study_continuation
     - diagnose_study
     - review_architecture
   study_close_order:
@@ -84,6 +116,17 @@ research_direction:
     threshold_preregistered_in_initial_portfolio: true
     exact_unreviewed_diagnosis_set_bound: true
     required_before_later_scientific_mutation: true
+  study_continuation:
+    action: review_study_continuation
+    record_kind: study-continuation-decision
+    event: study_continuation_reviewed
+    only_after_exact_intermediate_batch_close: true
+    exact_single_next_action_required: true
+    continue_action: freeze_batch
+    close_action: judge_study
+    later_batch_open_requires_current_continue_record_and_exact_batch_id: true
+    commitment_bound_excess_allowed: false
+    judge_study_bypass_allowed: false
 active_state:
   historical_arrays_allowed: false
   one_exact_next_action: true
@@ -107,6 +150,8 @@ job:
     - resume_action
     - evidence_subject
   resume_existing_before_new: true
+  input_hashes_are_sorted_and_unique: true
+  duplicate_input_identity_inflation_allowed: false
   identity_and_attempt_stream_are_mission_bound: true
   success_cache_binds_expected_outputs_and_storage_classes: true
   success_cache_reuse_reverifies_every_output_hash_and_availability: true
@@ -122,13 +167,106 @@ job:
   producer_start_permit_consumption_engine_entry_and_completion_rejoined: true
   later_same_work_fingerprint_attempt_may_substitute: false
   transient_output_success_is_not_reusable: true
+  logical_output_namespace:
+    spelling: normalized_relative_ascii_posix
+    backslash_drive_colon_dot_empty_and_parent_components_allowed: false
+    windows_reserved_components_allowed: false
+    case_insensitive_aliases_allowed: false
+    durable_evidence_roots: [evidence, scientific, source]
+    reproducible_cache_root: local/cache
+    transient_output_and_log_root: local/jobs
+    completion_must_repeat_the_exact_declared_names_and_classes: true
+  worker_claim_namespace:
+    worker_input_and_resource_claims: portable_nonempty_ascii_logical_identifiers
+    worker_ids_inputs_outputs_and_resources_are_casefold_unique: true
+    worker_output_claims_are_internal_work_shard_labels: true
+    worker_output_claims_are_expected_output_file_names: false
   repeated_success_cache_observation_creates_no_duplicate_record: true
   success_cache_observation_is_read_only_and_preserves_next_action: true
   every_implementation_identity_is_canonical_content_addressed_evidence: true
   implementation_evidence_binds_callable_protocol_and_artifact_hashes: true
   implementation_artifact_hashes_are_sorted_and_unique: true
+  prospective_job_source_authority:
+    every_subject_kind_is_covered: true
+    checked_at_declaration_and_start: true
+    one_exact_typed_source_closure_required: true
+    source_paths_are_normalized_relative_link_free_and_confined_to_current_src: true
+    durable_artifact_bytes_must_equal_current_path_bytes: true
+    callable_identity_derives_exact_module_path_and_defined_function: true
+    source_closure_plus_separately_verified_component_artifacts_explains_manifest: true
+    path_relabel_hash_swap_or_post_declaration_byte_drift_fails_closed: true
+    production_historical_replay_or_fixture_exemption_allowed: false
+    historical_completion_remains_read_only_evidence: true
+    external_observed_development_prefix:
+      manifest_and_source_closure_are_bidirectionally_bound: true
+      exact_source_key_material_prefix_and_loader_required: true
+      job_builder_derives_sorted_input_hashes_before_declaration: true
+      writer_silently_adds_missing_input_hashes: false
+      quarantined_raw_parent_is_not_a_routine_job_input: true
+      declaration_verifies_physical_prefix_identity_once: true
+      start_and_cached_success_reuse_reverify_physical_prefix_identity: true
+      identity_scan_checks_link_path_regular_inode_device_mode_size_mtime_hash_rows_and_times: true
+      numeric_ohlc_and_volume_parse_is_deferred_to_the_execution_loader: true
+      missing_drifted_or_link_swapped_prefix_fails_closed: true
   failed_attempt_equivalence_ignores_budget_and_timeout_changes: true
-  failed_retry_requires_a_different_implementation_artifact_set: true
+  failed_retry_requires_a_changed_typed_basis: true
+  retry_family:
+    schema: job_retry_family.v1
+    writer_derived_from_control_subject_and_typed_work_lane: true
+    arbitrary_input_hashes_change_exact_work_but_not_retry_family: true
+    declaration_and_completion_project_one_atomic_family_stream: true
+    current_failed_family_head_required: true
+    caller_omission_of_retry_proof_bypasses_family_guard: false
+    legacy_reconstruction:
+      only_when_family_stream_is_absent: true
+      indexed_current_mission_job_declarations_only: true
+      batch_bound_family_prefers_exact_indexed_batch_slice: true
+      global_job_or_completion_history_scan_allowed: false
+      stored_spec_rederives_family: true
+      exact_work_attempt_head_required: true
+      latest_journal_authority_sequence_governs: true
+      latest_success_supersedes_older_failure: true
+      malformed_or_ambiguous_history_fails_closed: true
+  implementation_retry:
+    schema: job_changed_cause.v1
+    actual_implementation_artifact_set_must_change: true
+    semantic_and_scientific_input_change_allowed: false
+    exact_prior_engineering_failure_required: true
+    registered_engineering_validator_required: true
+    validation_plan_and_every_result_artifact_must_be_opened: true
+    cause_resolved_and_material_change_are_validator_derived: true
+    caller_passed_method_explanation_or_byte_change_is_authority: false
+    deterministic_retry_basis_created_and_consumed_with_job_declaration: true
+    retry_basis_binds_consuming_job_id_and_hash: true
+    retry_basis_reuse_or_collision_allowed: false
+  same_implementation_retry:
+    schema: job_retry_resume_authority.v1
+    allowed_changed_dimensions: [cause, information, compute_budget]
+    exact_prior_completion_failure_disposition_and_resume_condition_bound: true
+    changed_basis_and_independent_verification_evidence_required: true
+    registered_engineering_validator_required: true
+    validation_plan_and_every_result_artifact_must_be_opened: true
+    caller_verdict_or_verification_method_is_authority: false
+    exact_validator_facts_and_registry_trace_persisted: true
+    deterministic_retry_basis_consumed_with_same_job_declaration_event: true
+    production_registry_default_empty_and_fail_closed: true
+    feasible_repair_requires_narrow_validator_not_family_abandonment: true
+    validator_absence_or_failure_is_scientific_failure: false
+    operational_resolution_evidence_is_not_a_job_input: true
+    scientific_semantics_changed: false
+    repeated_family_dimension_and_basis_allowed: false
+    requires_scientific_change_disposition_allowed: false
+    runtime_source_resolution:
+      caller_proof_required: false
+      exact_prior_runtime_source_ineligibility_bound: true
+      writer_derived_fresh_runtime_eligible_source_head_required: true
+      unchanged_job_specification_required: true
+      stale_or_repeated_source_state_allowed: false
+    compute_budget_reestimate:
+      compute_and_wall_fields_only: true
+      trial_and_stop_budget_unchanged: true
+      prior_reservations_are_not_refunded: true
+      cumulative_original_frozen_batch_ceiling_required: true
   one_shot_job_permit_consumed_at_start: true
   runtime_bound:
     preregister_action_depth_and_claim_surfaces: true
@@ -146,6 +284,55 @@ repair:
     - changed_cause_proof
     - interrupted_action
     - exact_resume_action
+  unrecovered_disposition_observation:
+    schema: engineering_failure_disposition_observation.v1
+    exact_job_hash_and_cause_required: true
+    exact_repair_and_failed_attempt_set_required: true
+    exact_attempt_verification_receipts_reopened: true
+    independent_check_plan_and_result_artifacts_required: true
+    artifact_existence_without_typed_observation_allowed: false
+  implementation_semantic_equivalence:
+    production_executable_bound_in_place_close_requires_v2: true
+    schema: running_job_implementation_repair.v2
+    validator_domain: scientific
+    dedicated_registered_protocol_required: true
+    writer_executes_validator_at_close: true
+    writer_derives_exact_surface_inventory:
+      - callable
+      - protocol
+      - scientific_binding
+      - runtime_binding
+      - source_binding
+      - component_parity_binding
+      - external_dependency_binding
+      - decision
+      - lifecycle
+      - cost
+      - source
+      - claim
+    content_addressed_plan_result_measurements_required: true
+    exact_old_and_new_implementation_manifests_and_artifact_sets_opened: true
+    generic_safe_method: python_source_closure_path_ast.v1
+    one_exact_job_implementation_source_closure_required: true
+    source_closure_must_explain_complete_outer_artifact_set: true
+    old_new_callable_schema_and_relative_path_inventory_must_match: true
+    changed_source_measurements_bind_exact_relative_path_and_old_new_hashes: true
+    raw_closure_manifest_is_not_treated_as_python_source: true
+    changed_generic_paths_must_be_python_source: true
+    canonical_ast_equality_ignores_only_comments_layout_and_locations: true
+    canonical_ast_equality_is_sufficient_by_itself: false
+    full_python_closure_requires_constant_only_source_independent_provenance_scan: true
+    imports_calls_io_reflection_context_or_source_byte_observation_fail_generic_route: true
+    path_swap_hash_set_only_or_ambiguous_role_mapping_can_pass: false
+    duplicate_content_hashes_across_distinct_paths_are_path_scoped: true
+    behavior_change_requires_protocol_specific_validator_or_new_scientific_identity: true
+    exact_old_new_identity_claim_and_registry_trace_bound: true
+    passed_full_surface_coverage_only: true
+    scientific_candidate_and_release_eligibility: false
+    caller_scientific_semantics_changed_false_is_authority: false
+    missing_failed_not_evaluable_partial_or_self_authored_only_close_allowed: false
+    rejection_preserves_requires_scientific_change_disposition: true
+    engineering_fixture_and_non_implementation_paths_preserved: true
   semantic_change_becomes_new_executable: true
 permit_matrix:
   source: [Study, Executable]
@@ -453,6 +640,13 @@ project_goal_audit_v2_operations:
   audit_correction:
     historical_evidence_scope_overlay_is_additive: true
     effective_axis_projection_applies_invalid_source_and_replay_overlays: true
+    pruned_axis_reopen:
+      additive_typed_authority_required: true
+      exact_deferred_requires_reopen_projection_required: true
+      exact_prior_snapshot_decision_axis_replay_and_scope_evidence_bound: true
+      authorized_transition: pruned_to_preserved
+      original_snapshot_rewrite_allowed: false
+      arbitrary_or_cross_axis_reuse_allowed: false
     replay_obligation:
       priorities:
         - P0
@@ -468,10 +662,34 @@ project_goal_audit_v2_operations:
       one_new_executable_matches_at_most_one_original: true
       satisfaction_is_single_writer_only: true
       defer_requires_exact_resume_condition: true
+      satisfaction_invalidation:
+        plan_is_read_only_and_state_derived: true
+        canonical_audit_manifest_hash_required_at_commit: true
+        permitted_exact_E01_batch_family_revalidation_failures:
+          - selection_family_size_mismatch
+          - selection_family_disagreement
+          - selection_family_membership_mismatch
+        historical_membership_defect_requires_member_set_mismatch: true
+        same_member_set_order_only_difference_returns_obligation_to_pending: false
+        prospective_resolution_exact_canonical_order_required: true
+        registration_self_consistency_precedes_typed_defect: true
+        malformed_missing_hash_forged_or_unrelated_registration_fails_closed: true
+        arbitrary_pending_deferred_in_progress_or_valid_head_allowed: false
+        append_only_satisfied_to_pending_transition: true
+        scheduler_constraints_reattached: true
+        scientific_trial_holdout_candidate_or_terminal_credit: false
+      satisfaction_projection:
+        recorded_head_stream_lineage_and_same_event_writer_operation_required: true
+        recorded_decision_study_trial_close_diagnosis_and_evidence_lineage_required: true
+        current_scientific_or_multiplicity_protocol_reexecution_allowed: false
+        current_reaudit_only_through_explicit_satisfaction_invalidation_plan: true
+        pending_invalidation_rederives_current_manifest_on_routine_read: false
   validation_economics:
     routine_mode: fast_bounded_suffix
     full_maintenance_mode: explicit_complete_reconstruction
     exact_staging_mode: explicit_delivery_check
+    unrelated_commit_reads_study_close_projection: false
+    local_validation_subprocess_timeout_seconds: 120
     permitted_scientific_job_waits_for_unrelated_full_suite: false
     tracked_test_manifest:
       source: git_index
@@ -479,6 +697,14 @@ project_goal_audit_v2_operations:
       excluded_untracked_tests_reported: true
       untracked_or_unrelated_user_test_is_acceptance_authority: false
       intended_new_test_must_be_staged_before_inclusion: true
+      focused_selection_preserves_full_frozen_manifest: true
+      focused_selection_rebuilds_runtime_projection_by_default: false
+      focused_runtime_projection_rebuild_requires_explicit_flag: true
+      focused_execution_timeout_seconds_default: 1800
+      full_execution_timeout_seconds_default: 7200
+      execution_timeout_seconds_maximum: 86400
+      execution_timeout_is_shared_by_projection_rebuild_and_pytest: true
+      execution_timeout_is_explicit_failure_after_input_postconditions: true
       protected_development_inputs:
         declaration_source: indexed_foundation_data_manifest
         allowed_roles:
@@ -536,6 +762,13 @@ concurrent_family_engine_boundary:
   job_subject_must_be_exact_family_member: true
   untyped_family_label_or_size_is_authority: false
   runner_convention_is_capability: false
+  scientific_v2_E01_completion_binding:
+    exact_active_batch_open_id_required: true
+    durable_plan_registration_and_batch_are_three_way_equal: true
+    exact_order_set_size_and_subject_member_required: true
+    mission_and_executable_plan_identity_rechecked: true
+    derived_content_addressed_batch_binding_persisted: true
+    absent_reversed_partial_or_cross_batch_family_fails_closed: true
 authority_activation_boundary:
   planning_is_local_and_read_only: true
   planning_network_fetch_allowed: false
@@ -547,4 +780,17 @@ authority_activation_boundary:
   frozen_parent_and_addendum_provenance_required: true
   observed_development_materialization_required_before_apply: true
   foundation_data_replacement_uses_same_authority_event: true
-
+  foundation_data_or_exposure_generic_replacement_allowed: false
+  foundation_data_change_requires_typed_derivation_proof: true
+  foundation_document_schema_and_exact_nested_shape_required: true
+  raw_parent_is_confined_link_free_regular_file_and_hashed_as_opaque_bytes: true
+  derivation_proof_recomputes_parent_and_exact_prefix_bytes: true
+  observed_ohlc_requires_finite_strictly_positive_prices: true
+  quarantined_parent_scan_parses_market_values: false
+  proof_binds_both_foundation_data_documents: true
+  unchanged_material_identity_rejects_any_foundation_document_mutation: true
+  changed_material_identity_preserves_predecessor_non_derivation_policy: true
+  mutable_foundation_fields_are_limited_to_verified_data_derivations: true
+  claim_access_forward_restricted_sealed_protection_and_role_policy_preserved: true
+  non_derivation_policy_digest_required: true
+  crash_recovery_revalidates_latest_effective_derivation_proof: true

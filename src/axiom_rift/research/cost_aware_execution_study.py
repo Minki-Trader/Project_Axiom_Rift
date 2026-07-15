@@ -12,9 +12,12 @@ import numpy as np
 import pandas as pd
 import scipy
 
-from axiom_rift.core.canonical import canonical_bytes, parse_canonical
-from axiom_rift.operations import writer as writer_module
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.running_job_context import (
+    RunningJobExecutionContext,
+    running_job_execution_context_implementation_sha256,
+)
 from axiom_rift.research.cost_aware_execution_discovery import (
     compute_registered_cost_aware_execution_surface,
     cost_aware_execution_implementation_sha256,
@@ -29,6 +32,9 @@ from axiom_rift.research.discovery import (
     discovery_implementation_sha256,
 )
 from axiom_rift.research.event_label_discovery import event_label_implementation_sha256
+from axiom_rift.research.evidence_inputs import (
+    read_surface_manifest_evidence_inputs,
+)
 from axiom_rift.research.scientific_study import (
     EVIDENCE_MODES,
     PLANNED_CLAIMS,
@@ -111,9 +117,7 @@ def build_environment_manifest() -> dict[str, object]:
         "shared_discovery_implementation_sha256": discovery_implementation_sha256(),
         "split_artifact_sha256": ROLLING_SPLIT_SHA256,
         "validator_id": SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
-        "writer_implementation_sha256": sha256(
-            Path(writer_module.__file__).resolve().read_bytes()
-        ).hexdigest(),
+        "running_job_context_implementation_sha256": running_job_execution_context_implementation_sha256(),
     }
     canonical_bytes(value)
     return value
@@ -190,33 +194,23 @@ class CostAwareExecutionJobPacket:
 
 
 def _load_surface(
-    writer: StateWriter,
+    writer: RunningJobExecutionContext,
     input_hashes: tuple[str, ...],
 ) -> tuple[dict[str, Any], str, str]:
-    surface: tuple[dict[str, Any], str] | None = None
-    manifest: tuple[dict[str, Any], str] | None = None
-    for artifact_hash in input_hashes:
-        try:
-            artifact = writer.evidence.verify(artifact_hash)
-            value = parse_canonical(
-                (writer.evidence._root / artifact.relative_path).read_bytes()
-            )
-        except (FileNotFoundError, OSError, RuntimeError, ValueError):
-            continue
-        if isinstance(value, dict) and value.get("schema") == "cost_aware_execution_surface.v1":
-            surface = (value, artifact_hash)
-        if (
-            isinstance(value, dict)
-            and value.get("schema") == "cost_aware_execution_surface_manifest.v1"
-        ):
-            manifest = (value, artifact_hash)
-    if (
-        surface is None
-        or manifest is None
-        or manifest[0].get("surface_artifact_hash") != surface[1]
-    ):
-        raise ValueError("cost-aware execution surface is missing")
-    return surface[0], surface[1], manifest[1]
+    binding = read_surface_manifest_evidence_inputs(
+        writer.evidence,
+        input_hashes,
+        surface_schema="cost_aware_execution_surface.v1",
+        manifest_schema="cost_aware_execution_surface_manifest.v1",
+        expected_surface_implementation_sha256=(
+            cost_aware_execution_implementation_sha256()
+        ),
+    )
+    return (
+        binding.surface.value,
+        binding.surface.artifact_sha256,
+        binding.manifest.artifact_sha256,
+    )
 
 
 def execute_cost_aware_execution_job(
@@ -225,7 +219,7 @@ def execute_cost_aware_execution_job(
     execution: RunningJobExecution,
 ) -> CostAwareExecutionJobPacket:
     root = Path(repository_root).resolve()
-    writer = StateWriter(root)
+    writer = RunningJobExecutionContext(root)
     binding = writer.verify_running_job_execution(
         execution, expected_callable_identity=CALLABLE_IDENTITY
     )
@@ -272,7 +266,10 @@ def execute_cost_aware_execution_job(
         }
         manifest_hash = writer.evidence.finalize(canonical_bytes(manifest_value)).sha256
     else:
-        surface, surface_hash, manifest_hash = _load_surface(writer, inputs)
+        surface, surface_hash, manifest_hash = _load_surface(
+            writer,
+            tuple(identity for identity in inputs if identity not in required),
+        )
     evaluation = project_cost_aware_execution_evaluation(
         surface,
         job_execution={**execution.payload(), "identity": execution.identity},

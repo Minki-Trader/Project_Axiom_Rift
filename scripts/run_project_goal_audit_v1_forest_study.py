@@ -50,9 +50,10 @@ from axiom_rift.research.forest_replay import (  # noqa: E402
     P0_REPLAY_EVIDENCE_MODES,
     build_p0_composite_validation_plan,
     compute_p0_forest_replay,
-    forest_replay_dependency_paths,
     forest_replay_implementation_artifact,
     forest_replay_implementation_identity,
+    forest_replay_source_closure_artifact,
+    forest_replay_source_dependency_paths,
 )
 from axiom_rift.research.governance import (  # noqa: E402
     DiagnosisConfidence,
@@ -71,6 +72,10 @@ from axiom_rift.research.portfolio import (  # noqa: E402
 from axiom_rift.research.portfolio_projection import (  # noqa: E402
     component_surface_registry,
     portfolio_axes_from_projection,
+)
+from axiom_rift.research.reproducible_cache import (  # noqa: E402
+    ReproducibleCacheError,
+    publish_reproducible_cache,
 )
 from axiom_rift.research.selection_inference import (  # noqa: E402
     DEFAULT_BASE_SEED,
@@ -93,7 +98,7 @@ AXIS_ID = "axis-p0-composite-audit-reanalysis"
 OPERATION_PREFIX = "p0-composite-audit-v1-"
 PERMIT_EXPIRY_UTC = "2027-12-31T23:59:59Z"
 CALLABLE_IDENTITY = (
-    "axiom_rift.research.forest_replay.compute_p0_forest_replay"
+    "axiom_rift.research.forest_replay.compute_p0_forest_replay.v1"
 )
 JOB_PROTOCOL = "python.source.p0_composite_reanalysis.v1"
 
@@ -161,7 +166,7 @@ class ForestStudyDesign:
 
 
 def _operation_record(writer: StateWriter, operation_id: str) -> Any:
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         record = index.get("operation", operation_id)
     if record is None or record.status != "success":
         raise RuntimeError(f"operation is absent or unsuccessful: {operation_id}")
@@ -195,12 +200,13 @@ def inspect_operation_prefix(
 
     ordered = tuple(steps)
     expected_ids = {step.operation_id for step in ordered}
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         unknown = sorted(
             record.record_id
-            for record in index.records_by_kind("operation")
-            if record.record_id.startswith(OPERATION_PREFIX)
-            and record.record_id not in expected_ids
+            for record in index.records_by_kind_prefix(
+                "operation", OPERATION_PREFIX
+            )
+            if record.record_id not in expected_ids
         )
         records = tuple(index.get("operation", step.operation_id) for step in ordered)
     if unknown:
@@ -251,10 +257,12 @@ def inspect_operation_prefix(
 
 
 def _has_forest_operations(writer: StateWriter) -> bool:
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         return any(
-            record.record_id.startswith(OPERATION_PREFIX)
-            for record in index.records_by_kind("operation")
+            True
+            for _record in index.records_by_kind_prefix(
+                "operation", OPERATION_PREFIX
+            )
         )
 
 
@@ -262,7 +270,7 @@ def _verify_active_protocol(writer: StateWriter, report_hash: str) -> None:
     control = writer.read_control()
     if control is None:
         raise RuntimeError("control is absent")
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         head = index.event_head("research-protocol:scientific")
         protocol = None if head is None else index.get(head.record_kind, head.record_id)
     if (
@@ -344,7 +352,7 @@ def _base_snapshot_id(writer: StateWriter, prefix: int) -> str:
         decision_id = _operation_result(
             writer, STUDY_CLOSE_STEPS[1].operation_id
         ).get("decision_id")
-        with LocalIndex(writer.index_path) as index:
+        with LocalIndex.open_read_only(writer.index_path) as index:
             decision = (
                 None
                 if not isinstance(decision_id, str)
@@ -354,7 +362,7 @@ def _base_snapshot_id(writer: StateWriter, prefix: int) -> str:
             raise RuntimeError("structural Decision projection is absent")
         snapshot_id = decision.payload.get("portfolio_snapshot_id")
     else:
-        with LocalIndex(writer.index_path) as index:
+        with LocalIndex.open_read_only(writer.index_path) as index:
             head = index.event_head(f"portfolio:{MISSION_ID}")
         snapshot_id = None if head is None else head.record_id
     if not isinstance(snapshot_id, str):
@@ -402,7 +410,7 @@ def build_forest_study_design(
         block_lengths=block_lengths,
         base_seed=base_seed,
     )
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         snapshot_record = index.get("portfolio-snapshot", base_snapshot_id)
         if snapshot_record is None:
             raise RuntimeError("base Portfolio snapshot projection is absent")
@@ -648,8 +656,9 @@ def _finalize_job_inputs(
         {component_implementation.sha256}
         | {
             writer.evidence.finalize(path.read_bytes()).sha256
-            for path in forest_replay_dependency_paths()
+            for path in forest_replay_source_dependency_paths()
         }
+        | {writer.evidence.finalize(forest_replay_source_closure_artifact()).sha256}
     )
     implementation = writer.evidence.finalize(
         canonical_bytes(
@@ -713,19 +722,19 @@ def _materialize_bundle(writer: StateWriter, bundle: Any) -> tuple[int, int]:
             continue
         if classes[output_name] != "reproducible_cache":
             raise RuntimeError("forest replay output class is unsupported")
-        target = (writer.root / output_name).resolve()
-        cache_root = (writer.root / "local" / "cache").resolve()
-        if cache_root not in target.parents:
-            raise RuntimeError("forest cache path escapes local/cache")
-        if target.exists():
-            if not target.is_file() or target.read_bytes() != content:
-                raise RuntimeError("existing forest cache bytes differ")
-        else:
-            target.parent.mkdir(parents=True, exist_ok=True)
-            target.write_bytes(content)
+        try:
+            published_hash = publish_reproducible_cache(
+                repository_root=writer.root,
+                relative_path=output_name,
+                content=content,
+            )
+        except ReproducibleCacheError as exc:
+            raise RuntimeError("forest cache publication failed") from exc
+        if published_hash != hashes[output_name]:
+            raise RuntimeError("published forest cache hash changed")
         cache_count += 1
-    if (durable_count, cache_count) != (3, 11):
-        raise RuntimeError("forest replay must materialize exactly 3 durable and 11 cache outputs")
+    if (durable_count, cache_count) != (5, 9):
+        raise RuntimeError("forest replay must materialize exactly 5 durable and 9 cache outputs")
     return durable_count, cache_count
 
 
@@ -885,7 +894,7 @@ def _apply_study_close_step(
 
 
 def _study_close_record_id(writer: StateWriter) -> str:
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         records = tuple(
             record
             for record in index.records_by_subject_status(
@@ -946,7 +955,7 @@ def verify_study_close_postconditions(
     completion_id = _operation_result(
         writer, STUDY_CLOSE_STEPS[12].operation_id
     )["completion_record_id"]
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         trial = index.get("trial", design.replay_plan.executable_id)
         completion = index.get("job-completed", completion_id)
         candidate = index.event_head(
@@ -988,13 +997,13 @@ def study_close_summary(
         "applied_step_count": len(STUDY_CLOSE_STEPS) - initial_prefix,
         "bootstrap_samples": design.replay_plan.bootstrap_samples,
         "candidate_created": False,
-        "durable_output_count": 3,
+        "durable_output_count": 5,
         "executable_id": design.replay_plan.executable_id,
         "holdout_reveal_delta": 0,
         "initiative_id": INITIATIVE_ID,
         "mode": "study_close_checkpoint",
         "next_stage": "diagnose_after_exact_local_main_checkpoint",
-        "reproducible_cache_count": 11,
+        "reproducible_cache_count": 9,
         "report_sha256": design.report_hash,
         "schema": "p0_composite_audit_study_close.v1",
         "study_close_event_id": close.authority_event_id,
@@ -1154,7 +1163,7 @@ def verify_diagnose_postconditions(
     ):
         raise RuntimeError("diagnosed audit did not close INI-0017 at a stable boundary")
     preserved = _preserved_snapshot(design)
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         head = index.event_head(f"portfolio:{MISSION_ID}")
         snapshot = None if head is None else index.get(head.record_kind, head.record_id)
         candidate = index.event_head(

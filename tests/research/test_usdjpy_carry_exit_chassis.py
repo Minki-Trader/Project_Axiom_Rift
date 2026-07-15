@@ -241,6 +241,32 @@ class USDJPYCarryExitChassisTests(unittest.TestCase):
             )
         )
 
+    def test_session_gate_uses_scheduled_entry_clock_not_future_row(self) -> None:
+        frame, score, volatility, run, spread = fixture()
+        frame["time"] = pd.date_range(
+            "2026-01-05 14:50:00", periods=len(frame), freq="5min"
+        )
+        frame.loc[1:, "time"] += pd.Timedelta(minutes=5)
+        score[:] = np.nan
+        score[0, 1] = 2.0
+        score[:, 2] = 0.01
+        result = simulate_usdjpy_carry_exit(
+            frame=frame,
+            score=score,
+            volatility=volatility,
+            run=run,
+            threshold=1.0,
+            configuration=usdjpy_carry_exit_configurations()[1],
+            test_start=frame["time"].iloc[0],
+            test_end=frame["time"].iloc[-1],
+            fold_id="rw_fixture",
+            regime_cutoffs=(0.5, 1.5),
+            effective_spread=spread,
+        )
+        self.assertFalse(
+            any(row[0] == "target_direction" for row in result.intent_rows)
+        )
+
     def test_missing_holding_state_safe_exits_and_bounds_pnl(self) -> None:
         frame, score, volatility, run, spread = fixture()
         score[:, 2] = 0.01

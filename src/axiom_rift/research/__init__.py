@@ -1,87 +1,103 @@
-"""Research operating boundaries for the Axiom kernel."""
+"""Research operating boundaries for the Axiom kernel.
 
-from .governance import (
-    ArchitectureReview,
-    ArchitectureReviewConclusion,
-    DiagnosisConfidence,
-    EvidenceState,
-    MissionResearchIntake,
-    REQUIRED_INTAKE_SURFACES,
-    ResearchGovernanceError,
-    ResearchLayer,
-    StudyDiagnosis,
-    diagnosis_branch,
-)
-from .chassis import (
-    ArchitectureChassisSpec,
-    ArchitectureRole,
-    ArchitectureRoleSpec,
-    ChassisIdentityError,
-    ComponentParityDimension,
-    ComponentParityEvidence,
-    ControlledStudyChassis,
-    architecture_component_semantic_surface_identity,
-    architecture_family_identity,
-    component_domain,
-    component_semantic_surface_identity,
-    executable_semantic_surface_identity,
-    normalize_architecture_payload,
-    require_combinable_chassis,
-    validate_controlled_executable,
-)
+The package root is intentionally lazy.  Importing one protocol module must
+not execute every governance, Portfolio, source, and trial implementation as a
+hidden part of that module's scientific implementation closure.  Public names
+remain source-compatible and are loaded only when callers request them.
+"""
 
-from .portfolio import (
-    BatchSpec,
-    BatchSpecError,
-    ConcurrentFamilyEvaluationMode,
-    ConcurrentFamilyManifest,
-    DecisionKind,
-    DecisionOption,
-    PortfolioAction,
-    PortfolioAxis,
-    PortfolioDecision,
-    PortfolioDecisionError,
-    PortfolioSnapshot,
-)
-from .sources import (
-    CandidateBinding,
-    CandidateSourceBinding,
-    InferenceDependency,
-    InferenceDependencyKind,
-    ObservationAssessment,
-    RecertificationResult,
-    RuntimeObservation,
-    RuntimeObservationState,
-    SleeveDependencySpec,
-    SleeveRuntimeDecision,
-    SleeveSpec,
-    SourceAction,
-    SourceContract,
-    SourceContractError,
-    SourceEligibility,
-    SourceEligibilityError,
-    SourceEligibilityReceipt,
-    SourceEligibilityState,
-    SourceFailureKind,
-    SourceTransitionEvidence,
-    SourceType,
-    assess_observation,
-    bind_candidate_source,
-    evaluate_sleeves,
-    recertify_source,
-)
-from .trials import (
-    MaterialReference,
-    NegativeMemory,
-    SemanticWarning,
-    StudyTrialContext,
-    TrialAccountant,
-    TrialAccountingError,
-    TrialDecision,
-)
+from __future__ import annotations
+
+from importlib import import_module
+from typing import Any
+
+
+_PUBLIC_MODULE_BY_NAME = {
+    "ArchitectureChassisSpec": "chassis",
+    "ArchitectureContinuationDirection": "governance",
+    "ArchitectureContinuationMode": "governance",
+    "ArchitectureReview": "governance",
+    "ArchitectureReviewConclusion": "governance",
+    "ArchitectureRole": "chassis",
+    "ArchitectureRoleSpec": "chassis",
+    "BatchSpec": "portfolio",
+    "BatchSpecError": "portfolio",
+    "CandidateBinding": "sources",
+    "CandidateSourceBinding": "sources",
+    "ChassisIdentityError": "chassis",
+    "ComponentParityDimension": "chassis",
+    "ComponentParityEvidence": "chassis",
+    "ControlledStudyChassis": "chassis",
+    "ConcurrentFamilyEvaluationMode": "portfolio",
+    "ConcurrentFamilyManifest": "portfolio",
+    "DecisionBasisRecord": "portfolio",
+    "DecisionKind": "portfolio",
+    "DecisionLens": "portfolio",
+    "DecisionLensAssessment": "portfolio",
+    "DecisionLensPosition": "portfolio",
+    "DecisionOption": "portfolio",
+    "DiagnosisConfidence": "governance",
+    "EvidenceState": "governance",
+    "InferenceDependency": "sources",
+    "InferenceDependencyKind": "sources",
+    "MaterialReference": "trials",
+    "MissionResearchIntake": "governance",
+    "NegativeMemory": "trials",
+    "ObservationAssessment": "sources",
+    "PortfolioAction": "portfolio",
+    "PortfolioAxis": "portfolio",
+    "PortfolioDecision": "portfolio",
+    "PortfolioDecisionError": "portfolio",
+    "PortfolioSnapshot": "portfolio",
+    "QuantTeamDecisionReview": "portfolio",
+    "REQUIRED_INTAKE_SURFACES": "governance",
+    "RecertificationResult": "sources",
+    "RuntimeObservation": "sources",
+    "RuntimeObservationState": "sources",
+    "ResearchGovernanceError": "governance",
+    "ResearchLayer": "governance",
+    "SemanticWarning": "trials",
+    "SleeveDependencySpec": "sources",
+    "SleeveRuntimeDecision": "sources",
+    "SleeveSpec": "sources",
+    "SourceAction": "sources",
+    "SourceContract": "sources",
+    "SourceContractError": "sources",
+    "SourceEligibility": "sources",
+    "SourceEligibilityError": "sources",
+    "SourceEligibilityReceipt": "sources",
+    "SourceEligibilityState": "sources",
+    "SourceFailureKind": "sources",
+    "SourceTransitionEvidence": "sources",
+    "SourceType": "sources",
+    "StopRuleState": "study_continuation",
+    "StudyContinuationDecision": "study_continuation",
+    "StudyContinuationError": "study_continuation",
+    "StudyContinuationOutcome": "study_continuation",
+    "StudyDiagnosis": "governance",
+    "StudyTrialContext": "trials",
+    "TrialAccountant": "trials",
+    "TrialAccountingError": "trials",
+    "TrialDecision": "trials",
+    "architecture_component_semantic_surface_identity": "chassis",
+    "architecture_family_identity": "chassis",
+    "assess_observation": "sources",
+    "bind_candidate_source": "sources",
+    "component_domain": "chassis",
+    "component_semantic_surface_identity": "chassis",
+    "diagnosis_branch": "governance",
+    "evaluate_sleeves": "sources",
+    "executable_semantic_surface_identity": "chassis",
+    "normalize_architecture_payload": "chassis",
+    "recertify_source": "sources",
+    "require_combinable_chassis": "chassis",
+    "validate_controlled_executable": "chassis",
+}
 
 __all__ = [
     "ArchitectureChassisSpec",
+    "ArchitectureContinuationDirection",
+    "ArchitectureContinuationMode",
     "ArchitectureReview",
     "ArchitectureReviewConclusion",
     "ArchitectureRole",
@@ -96,7 +112,11 @@ __all__ = [
     "ControlledStudyChassis",
     "ConcurrentFamilyEvaluationMode",
     "ConcurrentFamilyManifest",
+    "DecisionBasisRecord",
     "DecisionKind",
+    "DecisionLens",
+    "DecisionLensAssessment",
+    "DecisionLensPosition",
     "DecisionOption",
     "DiagnosisConfidence",
     "EvidenceState",
@@ -111,6 +131,7 @@ __all__ = [
     "PortfolioDecision",
     "PortfolioDecisionError",
     "PortfolioSnapshot",
+    "QuantTeamDecisionReview",
     "REQUIRED_INTAKE_SURFACES",
     "RecertificationResult",
     "RuntimeObservation",
@@ -133,6 +154,10 @@ __all__ = [
     "SourceType",
     "StudyTrialContext",
     "StudyDiagnosis",
+    "StopRuleState",
+    "StudyContinuationDecision",
+    "StudyContinuationError",
+    "StudyContinuationOutcome",
     "TrialAccountant",
     "TrialAccountingError",
     "TrialDecision",
@@ -150,3 +175,19 @@ __all__ = [
     "require_combinable_chassis",
     "validate_controlled_executable",
 ]
+
+if set(__all__) != set(_PUBLIC_MODULE_BY_NAME):
+    raise RuntimeError("research public lazy import registry drifted")
+
+
+def __getattr__(name: str) -> Any:
+    module_name = _PUBLIC_MODULE_BY_NAME.get(name)
+    if module_name is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    value = getattr(import_module(f"{__name__}.{module_name}"), name)
+    globals()[name] = value
+    return value
+
+
+def __dir__() -> list[str]:
+    return sorted({*globals(), *__all__})

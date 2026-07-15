@@ -16,7 +16,7 @@ import axiom_rift.research.historical_family_stu0048 as historical_binding_modul
 import axiom_rift.research.scientific_trace as scientific_trace_module
 import axiom_rift.research.selection_inference as selection_inference_module
 import axiom_rift.storage.evidence as evidence_module
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.operations.running_job import RunningJobExecution
 from axiom_rift.research.drawdown_state_replay import (
     compute_stu0048_drawdown_family_trace,
     drawdown_replay_protocol_definition,
@@ -29,6 +29,8 @@ from axiom_rift.research.fixed_hold_family_trace import (
     FixedHoldProtocolDefinition,
 )
 from axiom_rift.research.fixed_hold_replay_runtime import (
+    FixedHoldRepairContext,
+    FixedHoldRuntimeContext,
     FixedHoldReplayRuntimeAdapter,
     build_fixed_hold_replay_job_plan,
     execute_fixed_hold_replay_job,
@@ -121,7 +123,7 @@ def drawdown_replay_job_implementation_sha256() -> str:
 
 
 def materialize_drawdown_replay_job_implementation(
-    writer: StateWriter,
+    writer: FixedHoldRuntimeContext,
 ) -> str:
     return materialize_fixed_hold_replay_job_implementation(
         writer,
@@ -130,14 +132,16 @@ def materialize_drawdown_replay_job_implementation(
 
 
 def materialize_drawdown_running_job_implementation_repair_proof(
-    writer: StateWriter,
+    writer: FixedHoldRepairContext,
     *,
     explanation: str,
+    verification_evidence_hashes: tuple[str, ...],
 ) -> str:
     return materialize_running_job_implementation_repair_proof(
         writer,
         adapter=RUNTIME_ADAPTER,
         explanation=explanation,
+        verification_evidence_hashes=verification_evidence_hashes,
     )
 
 

@@ -16,7 +16,10 @@ from axiom_rift.operations.validation import (
     validator_identity,
     validator_implementation_sha256,
 )
-from axiom_rift.research.validation import SCIENTIFIC_DISCOVERY_VALIDATOR_ID
+from axiom_rift.research.validation import (
+    SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
+    ScientificDiscoveryValidator,
+)
 from axiom_rift.research.scientific_trace import (
     SCIENTIFIC_TRACE_PROTOCOL_IDS,
     scientific_trace_validation_dependency_paths,
@@ -420,10 +423,18 @@ class ScientificValidationV2Tests(unittest.TestCase):
         registry = EvidenceValidatorRegistry((ScientificAdjudicationValidatorV2(),))
         return registry.validate(request)[0]
 
-    def test_v1_identity_is_unchanged_and_v2_binds_adjudication_dependency(self) -> None:
+    def test_v1_and_v2_identities_bind_declared_dependency_closures(self) -> None:
+        v1_validator = ScientificDiscoveryValidator()
         self.assertEqual(
             SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
-            "validator:be52054dee02a15d426c88fdfec13f66e9a7410f5dec88f881c403187859f136",
+            validator_identity(
+                protocol=v1_validator.protocol,
+                domains=v1_validator.domains,
+                implementation_sha256=validator_implementation_sha256(
+                    implementation_path=v1_validator.implementation_path,
+                    dependency_paths=v1_validator.dependency_paths,
+                ),
+            ),
         )
         validator = ScientificAdjudicationValidatorV2()
         implementation_hash = validator_implementation_sha256(
@@ -443,19 +454,35 @@ class ScientificValidationV2Tests(unittest.TestCase):
         dependency_paths = set(SCIENTIFIC_VALIDATION_V2_DEPENDENCIES)
         trace_paths = set(scientific_trace_validation_dependency_paths())
         self.assertTrue(trace_paths.issubset(dependency_paths))
-        self.assertEqual(len(SCIENTIFIC_TRACE_PROTOCOL_IDS), 7)
+        self.assertEqual(len(SCIENTIFIC_TRACE_PROTOCOL_IDS), 8)
+        trace_names = {path.name for path in trace_paths}
+        self.assertEqual(
+            trace_names,
+            {
+                "analog_state_family.py",
+                "analog_state_replay.py",
+                "analog_state_replay_v2.py",
+                "analog_state_scoped_job.py",
+                "analog_state_trace.py",
+                "fixed_hold_family_trace.py",
+                "historical_family_binding.py",
+            },
+        )
         self.assertTrue(
             {
+                "analog_fixed_hold_replay.py",
                 "composite_consensus_replay.py",
                 "composite_router_replay.py",
                 "distribution_asymmetry_replay.py",
+                "historical_family_replay.py",
                 "historical_family_stu0016.py",
                 "historical_family_stu0017.py",
                 "historical_family_stu0032.py",
                 "historical_family_stu0048.py",
                 "historical_family_stu0051.py",
+                "historical_family_stu0061.py",
                 "volatility_duration_replay.py",
-            }.issubset({path.name for path in trace_paths})
+            }.isdisjoint(trace_names)
         )
         self.assertIn(
             Path(__file__).resolve().parents[2]
@@ -658,6 +685,33 @@ class ScientificValidationV2Tests(unittest.TestCase):
 
             with self.assertRaises(EvidenceValidationError):
                 self._validate(request)
+
+    def test_validated_facts_preserve_exact_multiplicity_registrations(
+        self,
+    ) -> None:
+        plan = _plan()
+        with TemporaryDirectory() as root:
+            validated = self._validate(
+                _request(Path(root), plan=plan, measurement=_measurement())
+            )
+
+        self.assertEqual(
+            validated.facts["multiplicity_registrations"],
+            plan["adjudication_profile"]["multiplicity"],
+        )
+        registrations = validated.facts["multiplicity_registrations"]
+        self.assertEqual(
+            [item["criterion_id"] for item in registrations],
+            sorted(item["criterion_id"] for item in registrations),
+        )
+        self.assertEqual(
+            {item["family_registration_hash"] for item in registrations},
+            {FAMILY_HASH},
+        )
+        self.assertEqual(
+            {tuple(item["ordered_member_ids"]) for item in registrations},
+            {FAMILY_MEMBERS},
+        )
 
     def test_prospective_family_registration_is_exact_and_subject_bound(self) -> None:
         incomplete = deepcopy(_plan())

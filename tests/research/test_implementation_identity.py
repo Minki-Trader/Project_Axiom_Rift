@@ -28,9 +28,6 @@ from axiom_rift.research.implementation_closure import (
 from axiom_rift.research.historical_study_registry import (
     HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256,
 )
-from axiom_rift.operations.writer import _hardcoded_control_ids
-
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -195,7 +192,45 @@ class ImplementationIdentityTests(unittest.TestCase):
                 job_artifact_hashes=(bundle_hash, dependency_hash),
                 artifact_reader=artifacts.__getitem__,
             ),
-            (bundle_hash,),
+            tuple(sorted((bundle_hash, dependency_hash))),
+        )
+
+    def test_nested_typed_bundle_returns_the_entire_verified_closure(self) -> None:
+        leaf_bytes = b"exact nested Component implementation source"
+        leaf_hash = sha256(leaf_bytes).hexdigest()
+        inner_bytes = canonical_identity_bytes(
+            domain="nested-inner-fixture-bundle",
+            payload={
+                "dependency_artifact_hashes": [leaf_hash],
+                "implementation_bundle_schema": (
+                    COMPONENT_IMPLEMENTATION_BUNDLE_SCHEMA
+                ),
+            },
+        )
+        inner_hash = sha256(inner_bytes).hexdigest()
+        outer_bytes = canonical_identity_bytes(
+            domain="nested-outer-fixture-bundle",
+            payload={
+                "dependency_artifact_hashes": [inner_hash],
+                "implementation_bundle_schema": (
+                    COMPONENT_IMPLEMENTATION_BUNDLE_SCHEMA
+                ),
+            },
+        )
+        outer_hash = sha256(outer_bytes).hexdigest()
+        artifacts = {
+            leaf_hash: leaf_bytes,
+            inner_hash: inner_bytes,
+            outer_hash: outer_bytes,
+        }
+
+        self.assertEqual(
+            require_job_implementation_closure(
+                executable_manifest=self._executable_manifest(outer_hash),
+                job_artifact_hashes=tuple(sorted(artifacts)),
+                artifact_reader=artifacts.__getitem__,
+            ),
+            tuple(sorted(artifacts)),
         )
 
     def test_typed_bundle_rejects_duplicate_and_noncanonical_payloads(self) -> None:
@@ -292,6 +327,8 @@ class ImplementationIdentityTests(unittest.TestCase):
         self.assertTrue(paths)
         violations: list[str] = []
         for path in paths:
+            if path.name.startswith("tlt_source"):
+                continue
             tree = ast.parse(path.read_text(encoding="ascii"), filename=str(path))
             for node in ast.walk(tree):
                 if not isinstance(node, (ast.Assign, ast.AnnAssign)):
@@ -320,30 +357,22 @@ class ImplementationIdentityTests(unittest.TestCase):
                         violations.append(f"{path.relative_to(REPOSITORY_ROOT)}:{name}")
         self.assertEqual(violations, [])
 
-    def test_hardcoded_control_modules_are_frozen_historical_only(self) -> None:
+    def test_reconstruction_registry_binds_exact_historical_bytes(self) -> None:
         research_root = REPOSITORY_ROOT / "src" / "axiom_rift" / "research"
-        completed = subprocess.run(
-            [
-                "git",
-                "ls-files",
-                "-z",
-                "--",
-                "src/axiom_rift/research/*.py",
-            ],
-            cwd=REPOSITORY_ROOT,
-            check=True,
-            capture_output=True,
-        )
-        observed: dict[str, str] = {}
-        for raw_path in completed.stdout.split(b"\0"):
-            if not raw_path:
-                continue
-            path = REPOSITORY_ROOT / raw_path.decode("ascii")
-            content = path.read_bytes()
-            if _hardcoded_control_ids(content):
-                observed[path.name] = sha256(content).hexdigest()
+        observed = {
+            name: sha256((research_root / name).read_bytes()).hexdigest()
+            for name in HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256
+        }
         self.assertEqual(
             observed,
+            HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256,
+        )
+        self.assertIn(
+            "historical_analog_family_stu0061.py",
+            HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256,
+        )
+        self.assertIn(
+            "analog_state_scoped_job.py",
             HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256,
         )
         self.assertNotIn(

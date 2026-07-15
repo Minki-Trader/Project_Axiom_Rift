@@ -25,7 +25,7 @@ from axiom_rift.operations.permits import (
     SubjectKind,
 )
 from axiom_rift.operations.study_close_delivery import StudyCloseGuardCapability
-from axiom_rift.operations.writer import StateWriter
+from axiom_rift.operations.writer import StateWriter, TransitionError
 from axiom_rift.research.chassis import (
     ArchitectureChassisSpec,
     ArchitectureRole,
@@ -51,6 +51,8 @@ from axiom_rift.research.forest_replay import (
     forest_replay_implementation_artifact,
     forest_replay_implementation_identity,
     forest_replay_implementation_manifest,
+    forest_replay_source_closure_artifact,
+    forest_replay_source_dependency_paths,
     p0_replay_family_inventory_hash,
 )
 from axiom_rift.research.governance import (
@@ -66,12 +68,20 @@ from axiom_rift.research.evidence_proofs import (
 )
 from axiom_rift.research.portfolio import (
     BatchSpec,
+    DecisionBasisRecord,
+    DecisionLens,
+    DecisionLensAssessment,
+    DecisionLensPosition,
     DecisionOption,
     PortfolioAction,
     PortfolioAxis,
     PortfolioDecision,
     PortfolioDecisionError,
     PortfolioSnapshot,
+    QuantTeamDecisionReview,
+)
+from axiom_rift.research.p0_replay_adapters import (
+    forest_replay_adapter_dependency_paths,
 )
 from axiom_rift.research.protocol import (
     ResearchProtocol,
@@ -116,8 +126,9 @@ def _finalize_forest_job_implementation(
         {component_implementation.sha256}
         | {
             writer.evidence.finalize(path.read_bytes()).sha256
-            for path in forest_replay_dependency_paths()
+            for path in forest_replay_source_dependency_paths()
         }
+        | {writer.evidence.finalize(forest_replay_source_closure_artifact()).sha256}
     )
     implementation = writer.evidence.finalize(
         canonical_bytes(
@@ -686,12 +697,21 @@ class ForestReplayTests(unittest.TestCase):
                 "axiom_rift/research/audit_integrity_proof.py",
                 "axiom_rift/research/equity_premium_trade_chassis.py",
                 "axiom_rift/research/implementation_closure.py",
+                "axiom_rift/research/p0_selection_inference.py",
                 "axiom_rift/research/scientific_trace.py",
                 (
                     "axiom_rift/research/"
                     "session_dense_positive_sleeve_chassis.py"
                 ),
             }.issubset(relative_paths)
+        )
+        adapter_relative_paths = {
+            path.relative_to(REPOSITORY_ROOT / "src").as_posix()
+            for path in forest_replay_adapter_dependency_paths()
+        }
+        self.assertIn(
+            "axiom_rift/research/p0_selection_inference.py",
+            adapter_relative_paths,
         )
         self.assertTrue(
             {
@@ -703,40 +723,47 @@ class ForestReplayTests(unittest.TestCase):
         canonical_bytes(self.bundle.support_manifest()).decode("ascii")
 
     def test_transitive_source_mutation_reidentifies_forest_bundle(self) -> None:
-        original_manifest = forest_replay_implementation_manifest()
-        original_identity = forest_replay_implementation_identity()
-        target = next(
-            path
-            for path in forest_replay_dependency_paths()
-            if path.name == "analog_state_family.py"
-        )
-        original_read_bytes = Path.read_bytes
-        original_content = original_read_bytes(target)
-        original_hash = sha256(original_content).hexdigest()
-        mutated_hash = sha256(original_content + b"\n").hexdigest()
+        for target_name in (
+            "analog_state_family.py",
+            "p0_selection_inference.py",
+        ):
+            with self.subTest(target_name=target_name):
+                original_manifest = forest_replay_implementation_manifest()
+                original_identity = forest_replay_implementation_identity()
+                target = next(
+                    path
+                    for path in forest_replay_dependency_paths()
+                    if path.name == target_name
+                )
+                original_read_bytes = Path.read_bytes
+                original_content = original_read_bytes(target)
+                original_hash = sha256(original_content).hexdigest()
+                mutated_hash = sha256(original_content + b"\n").hexdigest()
 
-        def one_byte_mutation(path: Path) -> bytes:
-            content = original_read_bytes(path)
-            if path.resolve() == target.resolve():
-                return content + b"\n"
-            return content
+                def one_byte_mutation(path: Path) -> bytes:
+                    content = original_read_bytes(path)
+                    if path.resolve() == target.resolve():
+                        return content + b"\n"
+                    return content
 
-        with patch.object(Path, "read_bytes", one_byte_mutation):
-            mutated_manifest = forest_replay_implementation_manifest()
-            mutated_identity = forest_replay_implementation_identity()
+                with patch.object(Path, "read_bytes", one_byte_mutation):
+                    mutated_manifest = forest_replay_implementation_manifest()
+                    mutated_identity = forest_replay_implementation_identity()
 
-        original_hashes = set(
-            original_manifest["dependency_artifact_hashes"]
-        )
-        mutated_hashes = set(mutated_manifest["dependency_artifact_hashes"])
-        self.assertIn(original_hash, original_hashes)
-        self.assertNotIn(original_hash, mutated_hashes)
-        self.assertIn(mutated_hash, mutated_hashes)
-        self.assertEqual(
-            original_hashes - {original_hash},
-            mutated_hashes - {mutated_hash},
-        )
-        self.assertNotEqual(original_identity, mutated_identity)
+                original_hashes = set(
+                    original_manifest["dependency_artifact_hashes"]
+                )
+                mutated_hashes = set(
+                    mutated_manifest["dependency_artifact_hashes"]
+                )
+                self.assertIn(original_hash, original_hashes)
+                self.assertNotIn(original_hash, mutated_hashes)
+                self.assertIn(mutated_hash, mutated_hashes)
+                self.assertEqual(
+                    original_hashes - {original_hash},
+                    mutated_hashes - {mutated_hash},
+                )
+                self.assertNotEqual(original_identity, mutated_identity)
 
     def test_implementation_artifact_is_the_component_identity_preimage(self) -> None:
         expected = forest_replay_implementation_identity().rsplit(":", 1)[-1]
@@ -752,7 +779,7 @@ class ForestReplayTests(unittest.TestCase):
     def test_writer_declaration_paths_and_implementation_evidence_are_valid(self) -> None:
         repository_root = Path(__file__).resolve().parents[2]
         callable_identity = (
-            "axiom_rift.research.forest_replay.compute_p0_forest_replay"
+            "axiom_rift.research.forest_replay.compute_p0_forest_replay.v1"
         )
         with TemporaryDirectory() as temporary:
             writer = StateWriter(
@@ -791,6 +818,36 @@ class ForestReplayTests(unittest.TestCase):
                 "worker_claims": [],
             }
             StateWriter._validate_job_spec(spec)
+            self.assertEqual(
+                P0_STATISTICAL_OUTPUT,
+                "evidence/p0-forest/composite/statistical-inference.json",
+            )
+            self.assertEqual(
+                P0_COMPOSITE_SUPPORT_OUTPUT,
+                "evidence/p0-forest/composite/composite-support.json",
+            )
+            legacy = deepcopy(spec)
+            replacements = {
+                P0_STATISTICAL_OUTPUT: (
+                    "local/cache/p0-forest/support/statistical-inference.json"
+                ),
+                P0_COMPOSITE_SUPPORT_OUTPUT: (
+                    "local/cache/p0-forest/support/composite-support.json"
+                ),
+            }
+            legacy["expected_outputs"] = [
+                replacements.get(path, path)
+                for path in legacy["expected_outputs"]
+            ]
+            for current, old in replacements.items():
+                legacy["output_classes"][old] = legacy["output_classes"].pop(
+                    current
+                )
+            with self.assertRaisesRegex(
+                TransitionError,
+                "durable_evidence output is outside its logical namespace",
+            ):
+                StateWriter._validate_job_spec(legacy)
             resolved = writer._require_job_implementation_evidence(spec)
         self.assertEqual(
             resolved["artifact_hashes"], source_hashes
@@ -1044,6 +1101,54 @@ class ForestReplayTests(unittest.TestCase):
                     "repair historical interpretation while preserving prospective branches"
                 ),
                 commitment_batches=1,
+                quant_team_review=QuantTeamDecisionReview(
+                    assessments=(
+                        DecisionLensAssessment(
+                            lens=DecisionLens.CAUSALITY,
+                            position=DecisionLensPosition.SUPPORT,
+                            option_ids=(
+                                "retain-label-contrast",
+                                "run-selected-set-audit",
+                            ),
+                            basis_records=(
+                                DecisionBasisRecord(
+                                    kind="portfolio-snapshot",
+                                    record_id=snapshot.identity,
+                                ),
+                            ),
+                            finding=(
+                                "the selected-set audit isolates the current "
+                                "historical interpretation defect"
+                            ),
+                        ),
+                        DecisionLensAssessment(
+                            lens=DecisionLens.RISK,
+                            position=DecisionLensPosition.UNCERTAIN,
+                            option_ids=("run-selected-set-audit",),
+                            basis_records=(
+                                DecisionBasisRecord(
+                                    kind="portfolio-snapshot",
+                                    record_id=snapshot.identity,
+                                ),
+                            ),
+                            finding=(
+                                "one bounded audit Batch delays the retained "
+                                "prospective label contrast"
+                            ),
+                        ),
+                    ),
+                    claim_boundary=(
+                        "allocation only; no scientific or candidate claim"
+                    ),
+                    resolution_basis=(
+                        "repair the exact historical interpretation before "
+                        "spending a prospective contrast"
+                    ),
+                    disagreement_resolution=(
+                        "retain the label contrast as an independently "
+                        "selectable Portfolio branch"
+                    ),
+                ),
                 baseline_executable=replay_plan.baseline_executable,
             )
             writer.record_portfolio_decision(
@@ -1155,7 +1260,7 @@ class ForestReplayTests(unittest.TestCase):
             self.assertEqual(trial.result["trial_delta"], 1)
 
             callable_identity = (
-                "axiom_rift.research.forest_replay.compute_p0_forest_replay"
+                "axiom_rift.research.forest_replay.compute_p0_forest_replay.v1"
             )
             implementation_identity, source_hashes = (
                 _finalize_forest_job_implementation(
@@ -1230,6 +1335,9 @@ class ForestReplayTests(unittest.TestCase):
             self.assertEqual(
                 writer.read_control()["next_action"],
                 {
+                    "completion_record_id": completed.result[
+                        "completion_record_id"
+                    ],
                     "job_id": declared.result["job_id"],
                     "kind": "judge_job_evidence",
                 },

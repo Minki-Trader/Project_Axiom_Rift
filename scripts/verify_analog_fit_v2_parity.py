@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass, field
+from hashlib import sha256
 import json
 from pathlib import Path
-import sqlite3
 import sys
 from threading import Event, Thread
 import time
@@ -27,9 +27,12 @@ import numpy as np  # noqa: E402
 import pandas as pd  # noqa: E402
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical  # noqa: E402
+from axiom_rift.operations.running_job import RunningJobAuthority  # noqa: E402
 from axiom_rift.research.analog_state_family import (  # noqa: E402
-    P1_STU0061_ANALOG_FAMILY,
     fit_fold_analog_family,
+)
+from axiom_rift.research.historical_analog_family_stu0061 import (  # noqa: E402
+    STU0061_ANALOG_FAMILY as P1_STU0061_ANALOG_FAMILY,
 )
 from axiom_rift.research.analog_state_fit_v2 import (  # noqa: E402
     DEFAULT_ANALOG_QUERY_CHUNK_ROWS,
@@ -39,7 +42,6 @@ from axiom_rift.research.analog_state_fit_v2 import (  # noqa: E402
     prepare_analog_frame,
 )
 from axiom_rift.research.analog_state_replay import (  # noqa: E402
-    _digest_score,
     _fold_payloads,
     analog_replay_implementation_sha256,
     compute_analog_family_trace,
@@ -52,6 +54,7 @@ from axiom_rift.research.analog_state_replay_v2 import (  # noqa: E402
     trace_v2_is_exact_v1_semantic_parity,
 )
 from axiom_rift.research.analog_state_trace import (  # noqa: E402
+    analog_original_family_provenance,
     extract_analog_family_trace_from_subject,
 )
 from axiom_rift.research.data import load_observed_development  # noqa: E402
@@ -73,6 +76,19 @@ SCOPED_TRACE_MAX_ELAPSED_SECONDS = 150.0
 SCOPED_TRACE_MAX_PEAK_RSS_BYTES = 805_306_368
 SCOPED_MAX_QUERY_ROW_RATIO = 0.30
 SCOPED_MAX_FIT_TIME_RATIO = 0.60
+
+
+def _digest_score(values: np.ndarray) -> str:
+    """Reproduce the immutable v1 score-vector parity identity."""
+
+    array = np.asarray(values, dtype="<f8").copy()
+    array[np.isnan(array)] = np.nan
+    material = (
+        b"analog-score-vector.v1\0"
+        + len(array).to_bytes(8, "big")
+        + array.tobytes(order="C")
+    )
+    return sha256(material).hexdigest()
 
 
 @dataclass(slots=True)
@@ -106,21 +122,26 @@ class _RssSampler:
             self._thread.join(timeout=2.0)
 
 
-def _reference_trace(root: Path) -> dict[str, object]:
-    index_path = root / "local" / "index.sqlite"
-    connection = sqlite3.connect(f"file:{index_path.as_posix()}?mode=ro", uri=True)
-    try:
-        row = connection.execute(
-            "select payload_json from records where kind='job-completed' "
-            "and record_id=?",
-            (REFERENCE_COMPLETION_RECORD_ID,),
-        ).fetchone()
-    finally:
-        connection.close()
-    if row is None:
+def _reference_trace(
+    root: Path,
+    *,
+    foundation_root: Path | None = None,
+) -> dict[str, object]:
+    root = root.resolve()
+    authority = RunningJobAuthority(
+        root,
+        foundation_root=(
+            root if foundation_root is None else foundation_root.resolve()
+        ),
+    )
+    with authority.open_stable_index() as (_control, index):
+        completion = index.get(
+            "job-completed",
+            REFERENCE_COMPLETION_RECORD_ID,
+        )
+    if completion is None:
         raise RuntimeError("STU-0106 reference completion is absent")
-    completion = json.loads(row[0])
-    outputs = completion.get("outputs")
+    outputs = completion.payload.get("outputs")
     if (
         not isinstance(outputs, dict)
         or outputs.get(REFERENCE_TRACE_OUTPUT) != REFERENCE_TRACE_SHA256
@@ -247,21 +268,32 @@ def verify_trace(*, root: Path, engine: str) -> dict[str, object]:
     if engine not in {"v1-trace", "v2-trace", "v2-scoped-trace"}:
         raise ValueError("analog trace verifier engine is invalid")
     reference = _reference_trace(root)
+    provenance = analog_original_family_provenance(P1_STU0061_ANALOG_FAMILY)
     started = time.perf_counter()
     with _RssSampler() as memory:
         if engine == "v2-trace":
-            trace, metrics = compute_analog_family_trace_v2(root)
+            trace, metrics = compute_analog_family_trace_v2(
+                root,
+                family=P1_STU0061_ANALOG_FAMILY,
+                original_family_provenance=provenance,
+            )
             semantic_trace_exact = trace_v2_is_exact_v1_semantic_parity(
                 trace,
                 reference,
+                family=P1_STU0061_ANALOG_FAMILY,
             )
             implementation_bundle = analog_replay_v2_bundle_sha256()
             parity_mode = "full_vector_exact"
         elif engine == "v2-scoped-trace":
-            trace, metrics = compute_analog_family_trace_scoped_v2(root)
+            trace, metrics = compute_analog_family_trace_scoped_v2(
+                root,
+                family=P1_STU0061_ANALOG_FAMILY,
+                original_family_provenance=provenance,
+            )
             semantic_trace_exact = trace_scoped_v2_is_exact_v1_decision_parity(
                 trace,
                 reference,
+                family=P1_STU0061_ANALOG_FAMILY,
             )
             implementation_bundle = analog_replay_v2_bundle_sha256()
             parity_mode = "reachable_decisions_exact"

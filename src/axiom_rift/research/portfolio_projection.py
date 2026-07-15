@@ -13,6 +13,10 @@ from collections.abc import Iterable, Mapping
 from typing import Any
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
+from axiom_rift.core.component_surface import (
+    ComponentManifestError,
+    component_spec_from_manifest,
+)
 from axiom_rift.core.identity import ComponentSpec, ExecutableSpec
 from axiom_rift.research.chassis import (
     ArchitectureChassisSpec,
@@ -23,10 +27,15 @@ from axiom_rift.research.chassis import (
 )
 from axiom_rift.research.governance import ResearchLayer
 from axiom_rift.research.portfolio import (
+    DecisionBasisRecord,
+    DecisionLens,
+    DecisionLensAssessment,
+    DecisionLensPosition,
     DecisionOption,
     PortfolioAction,
     PortfolioAxis,
     PortfolioDecision,
+    QuantTeamDecisionReview,
 )
 
 
@@ -38,36 +47,12 @@ def component_from_identity_payload(value: Mapping[str, Any]) -> ComponentSpec:
     """Rebuild one ComponentSpec and prove exact identity-payload equivalence."""
 
     try:
-        normalized = parse_canonical(canonical_bytes(dict(value)))
-    except (TypeError, ValueError) as exc:
-        raise PortfolioProjectionError("component payload is not canonical") from exc
-    if (
-        not isinstance(normalized, dict)
-        or normalized.get("schema") != "component_spec.v1"
-        or set(normalized)
-        != {
-            "implementation",
-            "protocol",
-            "schema",
-            "semantic_dependencies",
-            "spec",
-        }
-        or not isinstance(normalized.get("semantic_dependencies"), list)
-    ):
-        raise PortfolioProjectionError("component identity payload is malformed")
-    try:
-        component = ComponentSpec(
+        return component_spec_from_manifest(
+            value,
             display_name="rehydrated durable architecture component",
-            protocol=normalized["protocol"],
-            implementation=normalized["implementation"],
-            spec=normalized["spec"],
-            semantic_dependencies=tuple(normalized["semantic_dependencies"]),
         )
-    except (TypeError, ValueError) as exc:
+    except ComponentManifestError as exc:
         raise PortfolioProjectionError("component identity cannot be rebuilt") from exc
-    if component.to_identity_payload() != normalized:
-        raise PortfolioProjectionError("component identity payload changed on rebuild")
-    return component
 
 
 def component_surface_registry(
@@ -189,16 +174,22 @@ def portfolio_decision_from_projection(
         "recent_positive_lineage_id",
         "schema",
     }
+    allowed_fields = (
+        base_fields,
+        base_fields | {"replay_obligation_ids"},
+        base_fields | {"quant_team_review"},
+        base_fields | {"quant_team_review", "replay_obligation_ids"},
+    )
     if (
         not isinstance(normalized, dict)
-        or set(normalized) not in (
-            base_fields,
-            base_fields | {"replay_obligation_ids"},
-        )
+        or set(normalized) not in allowed_fields
         or normalized.get("schema") not in {
             "portfolio_decision.v1",
             "portfolio_decision.v2",
+            "portfolio_decision.v3",
         }
+        or (normalized.get("schema") == "portfolio_decision.v3")
+        != ("quant_team_review" in normalized)
         or not isinstance(normalized.get("options"), list)
     ):
         raise PortfolioProjectionError("Portfolio Decision fields are malformed")
@@ -220,12 +211,81 @@ def portfolio_decision_from_projection(
             if baseline_payload is None
             else executable_from_identity_payload(baseline_payload)
         )
+        review_payload = normalized.get("quant_team_review")
+        if review_payload is not None and (
+            not isinstance(review_payload, dict)
+            or set(review_payload)
+            != {
+                "assessments",
+                "claim_boundary",
+                "disagreement_resolution",
+                "resolution_basis",
+                "schema",
+            }
+            or review_payload.get("schema")
+            != "quant_team_decision_review.v1"
+            or not isinstance(review_payload.get("assessments"), list)
+        ):
+            raise PortfolioProjectionError(
+                "quant-team Decision review is malformed"
+            )
+        if review_payload is not None:
+            for item in review_payload["assessments"]:
+                if (
+                    not isinstance(item, dict)
+                    or set(item)
+                    != {
+                        "basis_records",
+                        "finding",
+                        "lens",
+                        "option_ids",
+                        "position",
+                    }
+                    or not isinstance(item.get("basis_records"), list)
+                    or not isinstance(item.get("option_ids"), list)
+                    or any(
+                        not isinstance(basis, dict)
+                        or set(basis) != {"kind", "record_id"}
+                        for basis in item.get("basis_records", [])
+                    )
+                ):
+                    raise PortfolioProjectionError(
+                        "quant-team lens assessment is malformed"
+                    )
+        review = (
+            None
+            if review_payload is None
+            else QuantTeamDecisionReview(
+                assessments=tuple(
+                    DecisionLensAssessment(
+                        lens=DecisionLens(item["lens"]),
+                        position=DecisionLensPosition(item["position"]),
+                        option_ids=tuple(item["option_ids"]),
+                        basis_records=tuple(
+                            DecisionBasisRecord(
+                                kind=basis["kind"],
+                                record_id=basis["record_id"],
+                            )
+                            for basis in item["basis_records"]
+                        ),
+                        finding=item["finding"],
+                    )
+                    for item in review_payload["assessments"]
+                ),
+                claim_boundary=review_payload["claim_boundary"],
+                resolution_basis=review_payload["resolution_basis"],
+                disagreement_resolution=review_payload[
+                    "disagreement_resolution"
+                ],
+            )
+        )
         decision = PortfolioDecision(
             decision_id=normalized["decision_id"],
             chosen_option_id=normalized["chosen_option_id"],
             options=options,
             rationale=normalized["rationale"],
             commitment_batches=normalized["commitment_batches"],
+            quant_team_review=review,
             baseline_executable=baseline,
             replay_obligation_ids=tuple(
                 normalized.get("replay_obligation_ids", ())
@@ -402,9 +462,55 @@ def portfolio_axes_from_projection(
     return axes
 
 
+def architecture_surfaces_from_axis_projection(
+    values: Iterable[Mapping[str, Any]],
+) -> tuple[str, ...]:
+    """Return the exact architecture Component surfaces needed to rehydrate axes."""
+
+    surfaces: set[str] = set()
+    for value in values:
+        if not isinstance(value, Mapping):
+            raise PortfolioProjectionError("Portfolio axis projection is not an object")
+        architecture = value.get("architecture_chassis")
+        if architecture is None:
+            continue
+        if (
+            not isinstance(architecture, Mapping)
+            or architecture.get("schema") != "architecture_chassis.v2"
+            or not isinstance(architecture.get("roles"), Mapping)
+        ):
+            raise PortfolioProjectionError("architecture chassis payload is malformed")
+        for role in architecture["roles"].values():
+            if not isinstance(role, Mapping) or not isinstance(
+                role.get("component_semantic_surfaces"), list
+            ):
+                raise PortfolioProjectionError("architecture role payload is malformed")
+            for surface in role["component_semantic_surfaces"]:
+                digest = (
+                    ""
+                    if not isinstance(surface, str)
+                    else surface.removeprefix("architecture-component-surface:")
+                )
+                if (
+                    not isinstance(surface, str)
+                    or not surface.startswith("architecture-component-surface:")
+                    or len(digest) != 64
+                    or any(
+                        character not in "0123456789abcdef"
+                        for character in digest
+                    )
+                ):
+                    raise PortfolioProjectionError(
+                        "architecture Component surface identity is malformed"
+                    )
+                surfaces.add(surface)
+    return tuple(sorted(surfaces))
+
+
 __all__ = [
     "PortfolioProjectionError",
     "architecture_chassis_from_identity_payload",
+    "architecture_surfaces_from_axis_projection",
     "component_from_identity_payload",
     "component_surface_registry",
     "executable_from_identity_payload",

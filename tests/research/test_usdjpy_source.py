@@ -24,6 +24,7 @@ from axiom_rift.research.sources import (
 )
 from axiom_rift.research.usdjpy_source import (
     USDJPY_COLUMNS,
+    USDJPYSourceError,
     _completed_rate_epochs,
     audit_usdjpy_historical_bytes,
     derive_runtime_facts,
@@ -82,6 +83,28 @@ def runtime_probe() -> dict[str, object]:
 
 
 class USDJPYSourceTests(unittest.TestCase):
+    def test_runtime_integer_fields_reject_bool_without_coercion(self) -> None:
+        integer_fields = (
+            "digits",
+            "latest_rate_mt5_epoch_seconds",
+            "mt5_epoch_minus_observed_utc_seconds",
+            "observed_utc_epoch_seconds",
+            "rates_count",
+            "retrieval_latency_ms",
+            "terminal_build",
+            "tick_mt5_epoch_seconds",
+        )
+        for field in integer_fields:
+            for value in (False, True):
+                with self.subTest(field=field, value=value):
+                    probe = runtime_probe()
+                    probe[field] = value
+                    with self.assertRaisesRegex(
+                        USDJPYSourceError,
+                        "integer fields",
+                    ):
+                        derive_runtime_facts(probe)
+
     def test_completed_bars_use_only_the_observed_mt5_coordinate(self) -> None:
         import numpy as np
 

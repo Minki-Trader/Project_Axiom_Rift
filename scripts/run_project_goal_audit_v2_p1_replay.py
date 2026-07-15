@@ -14,9 +14,21 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical  # noqa: E402
+from axiom_rift.core.identity import canonical_digest  # noqa: E402
 from axiom_rift.operations.replay_projection import (  # noqa: E402
+    ReplayAuthorityError,
     obligation_heads,
     replay_evidence_record_ids,
+    require_satisfaction_invalidation_record,
+)
+from axiom_rift.operations.running_job import RunningJobExecution  # noqa: E402
+from axiom_rift.operations.running_job_context import (  # noqa: E402
+    running_job_execution_context_dependency_paths,
+)
+from axiom_rift.operations.scientific_history import (  # noqa: E402
+    HistoricalBatchFamilyObservation,
+    HistoricalFamilyMemberExpectation,
+    project_historical_batch_family_observation,
 )
 from axiom_rift.operations.strict_operation_chain import (  # noqa: E402
     OperationStep,
@@ -28,7 +40,6 @@ from axiom_rift.operations.validation import (  # noqa: E402
 )
 from axiom_rift.operations.writer import (  # noqa: E402
     RecoveryRequired,
-    RunningJobExecution,
     StateWriter,
 )
 from axiom_rift.research import data as data_module  # noqa: E402
@@ -39,11 +50,13 @@ from axiom_rift.research import selection_inference as selection_module  # noqa:
 from axiom_rift.research import scientific_trace as scientific_trace_module  # noqa: E402
 from axiom_rift.research import validation_v2 as validation_v2_module  # noqa: E402
 from axiom_rift.research.analog_state_family import (  # noqa: E402
-    P1_STU0061_ANALOG_FAMILY,
     AnalogFamilyConfiguration,
     analog_family_executable,
     analog_family_executable_map,
     analog_replay_controlled_chassis,
+)
+from axiom_rift.research.historical_analog_family_stu0061 import (  # noqa: E402
+    STU0061_ANALOG_FAMILY as P1_STU0061_ANALOG_FAMILY,
 )
 from axiom_rift.research import analog_state_family as family_module  # noqa: E402
 from axiom_rift.research import analog_state_replay as replay_module  # noqa: E402
@@ -69,7 +82,7 @@ from axiom_rift.research.effective_axis import (  # noqa: E402
     EffectiveAxisStatus,
 )
 from axiom_rift.operations.effective_axis_projection import (  # noqa: E402
-    effective_axis_resolution,
+    effective_axis_resolutions,
 )
 from axiom_rift.research.governance import (  # noqa: E402
     DiagnosisConfidence,
@@ -88,8 +101,10 @@ from axiom_rift.research.portfolio import (  # noqa: E402
     PortfolioSnapshot,
 )
 from axiom_rift.research.portfolio_projection import (  # noqa: E402
+    PortfolioProjectionError,
     component_surface_registry,
     portfolio_axes_from_projection,
+    portfolio_decision_from_projection,
 )
 from axiom_rift.research.replay_obligation import (  # noqa: E402
     ReplayDeferral,
@@ -100,9 +115,7 @@ from axiom_rift.research.replay_obligation import (  # noqa: E402
     ReplayResumeCondition,
     ReplayResumeConditionKind,
     ReplaySatisfaction,
-)
-from axiom_rift.research.replay_exposure import (  # noqa: E402
-    derive_frozen_family_exposure_context,
+    historical_replay_obligation_from_identity_payload,
 )
 from axiom_rift.research.trials import NegativeMemory, TrialAccountant  # noqa: E402
 from axiom_rift.research.validation_v2 import (  # noqa: E402
@@ -116,7 +129,11 @@ from axiom_rift.operations.permits import (  # noqa: E402
     PermitKeyStore,
     SubjectKind,
 )
-from axiom_rift.storage.index import IndexRecord, LocalIndex  # noqa: E402
+from axiom_rift.storage.index import (  # noqa: E402
+    IndexRecord,
+    LocalIndex,
+    LocalIndexView,
+)
 
 
 MISSION_ID = "MIS-0006"
@@ -160,6 +177,19 @@ class ReplayMember:
         return f"member-{self.ordinal:02d}"
 
 
+def _canonical_statistical_family_ids(
+    members: Sequence[ReplayMember],
+) -> tuple[str, ...]:
+    """Return family-set order without changing member execution order."""
+
+    executable_ids = tuple(member.executable.identity for member in members)
+    if not executable_ids or len(set(executable_ids)) != len(executable_ids):
+        raise ValueError(
+            "STU-0061 statistical family requires unique Executables"
+        )
+    return tuple(sorted(executable_ids))
+
+
 @dataclass(frozen=True, slots=True)
 class ReplayInterpretation:
     all_original_criteria_recomputed: bool
@@ -183,6 +213,22 @@ class P1ReplayDesign:
     proposal: Mapping[str, Any]
     batch_spec: BatchSpec
     controlled_chassis: Any
+    historical_family: HistoricalBatchFamilyObservation
+
+    def __post_init__(self) -> None:
+        if not self.members or tuple(
+            member.ordinal for member in self.members
+        ) != tuple(range(1, len(self.members) + 1)):
+            raise ValueError("STU-0061 replay members are not exactly ordered")
+        concurrent_family = self.batch_spec.concurrent_family
+        if (
+            concurrent_family is None
+            or concurrent_family.executable_ids
+            != _canonical_statistical_family_ids(self.members)
+        ):
+            raise ValueError(
+                "STU-0061 Batch statistical family is not canonical"
+            )
 
     @property
     def target_member(self) -> ReplayMember:
@@ -267,39 +313,35 @@ def ordered_replay_members() -> tuple[ReplayMember, ...]:
 
 def _require_historical_non_p1_exposure(
     writer: StateWriter,
-    index: LocalIndex,
+    index: LocalIndex | LocalIndexView,
     members: Sequence[ReplayMember],
-) -> int:
-    """Keep the prospective family outside its frozen historical context."""
+) -> HistoricalBatchFamilyObservation:
+    """Recover STU-0106 only as immutable audit/exposure observation."""
 
-    p1_executable_ids = {member.executable.identity for member in members}
-    if len(p1_executable_ids) != 4:
-        raise RuntimeError("P1 replay executable exclusion set is not exact")
-    trials = tuple(index.records_by_kind("trial"))
     prior_floor = TrialAccountant.from_foundation(
         writer.foundation_root
     ).prior_global_multiplicity_floor
-    context = derive_frozen_family_exposure_context(
-        trials=trials,
+    observation = project_historical_batch_family_observation(
+        index,
         prior_global_exposure_floor=prior_floor,
         study_id=STUDY_ID,
-        expected_family_size=4,
+        batch_id=None,
+        expected_members=tuple(
+            HistoricalFamilyMemberExpectation(
+                configuration_id=member.configuration.configuration_id,
+                historical_reference_executable_id=str(
+                    member.configuration.historical_reference_executable_id
+                ),
+            )
+            for member in members
+        ),
+        expected_prior_global_exposure_count=(
+            ANALOG_REPLAY_PRIOR_GLOBAL_EXPOSURE_COUNT
+        ),
         # The legacy STU-0061 Executables predate embedded context fields.
-        # Exact family ids and the first immutable trial sequence bind the
-        # frozen head; the constant below remains the independent check.
-        parameter_name=None,
-        allow_unregistered=True,
+        exposure_parameter_name=None,
     )
-    if context.family_executable_ids and (
-        set(context.family_executable_ids) != p1_executable_ids
-    ):
-        raise RuntimeError("STU-0061 replay registered family drifted")
-    historical_exposure = context.prior_global_exposure_count
-    if historical_exposure != ANALOG_REPLAY_PRIOR_GLOBAL_EXPOSURE_COUNT:
-        raise RuntimeError(
-            "STU-0061 replay historical non-P1 exposure context drifted"
-        )
-    return historical_exposure
+    return observation
 
 
 def _projection_payloads(
@@ -315,7 +357,7 @@ def _projection_payloads(
 
 
 def _base_snapshot_id(writer: StateWriter) -> str:
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         bridge_operation = index.get(
             "operation", OPERATION_PREFIX + "bridge-decision"
         )
@@ -350,8 +392,12 @@ def build_p1_replay_design(
     members = ordered_replay_members()
     chassis = analog_replay_controlled_chassis(P1_STU0061_ANALOG_FAMILY)
     snapshot_id = _base_snapshot_id(writer) if base_snapshot_id is None else base_snapshot_id
-    with LocalIndex(writer.index_path) as index:
-        _require_historical_non_p1_exposure(writer, index, members)
+    with LocalIndex.open_read_only(writer.index_path) as index:
+        historical_family = _require_historical_non_p1_exposure(
+            writer,
+            index,
+            members,
+        )
         snapshot_record = index.get("portfolio-snapshot", snapshot_id)
         if snapshot_record is None:
             raise RuntimeError("P1 replay base Portfolio projection is absent")
@@ -362,13 +408,18 @@ def build_p1_replay_design(
         projected_axes = {
             item["axis_id"]: item for item in snapshot_record.payload["axes"]
         }
+        axis_resolutions = effective_axis_resolutions(
+            index,
+            tuple(projected_axes[axis.axis_id] for axis in prior_axes),
+        )
         selectable = tuple(
             axis
-            for axis in prior_axes
-            if effective_axis_resolution(
-                index,
-                projected_axes[axis.axis_id],
-            ).status is EffectiveAxisStatus.SELECTABLE
+            for axis, resolution in zip(
+                prior_axes,
+                axis_resolutions,
+                strict=True,
+            )
+            if resolution.status is EffectiveAxisStatus.SELECTABLE
         )
     if any(axis.axis_id == AXIS_ID for axis in prior_axes):
         raise RuntimeError("P1 replay bridge axis predates its operation chain")
@@ -502,9 +553,7 @@ def build_p1_replay_design(
         source_contract_ids=(),
         concurrent_family=ConcurrentFamilyManifest(
             evaluation_mode=ConcurrentFamilyEvaluationMode.VECTORIZED,
-            executable_ids=tuple(
-                member.executable.identity for member in members
-            ),
+            executable_ids=_canonical_statistical_family_ids(members),
         ),
         acceptance_profile={
             "candidate_authority": "none",
@@ -533,9 +582,23 @@ def build_p1_replay_design(
         proposal=proposal,
         batch_spec=batch_spec,
         controlled_chassis=chassis,
+        historical_family=historical_family,
     )
     design.target_member
     return design
+
+
+def _require_current_prospective_execution_family(
+    design: P1ReplayDesign,
+) -> None:
+    """Forbid historical payload substitution into a mutating execution."""
+
+    current_ids = tuple(member.executable.identity for member in design.members)
+    if design.historical_family.family_executable_ids != current_ids:
+        raise RuntimeError(
+            "STU-0106 is an audit-only historical family; current execution "
+            "must use the successor STU-0112 workflow"
+        )
 
 
 def _scientific_facts(completion: IndexRecord) -> Mapping[str, object] | None:
@@ -607,7 +670,7 @@ def interpret_replay_completion(completion: IndexRecord) -> ReplayInterpretation
 
 
 def _operation_record(writer: StateWriter, operation_id: str) -> IndexRecord:
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         record = index.get("operation", operation_id)
     if record is None or record.status != "success":
         raise RuntimeError(f"operation is absent or unsuccessful: {operation_id}")
@@ -636,7 +699,7 @@ def _member_completion(
     member: ReplayMember,
 ) -> IndexRecord | None:
     operation_id = OPERATION_PREFIX + member.label + "-complete-job"
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         operation = index.get("operation", operation_id)
         result = None if operation is None else operation.payload.get("result")
         completion_id = (
@@ -746,7 +809,7 @@ def validate_correction_predecessor(writer: StateWriter) -> CorrectionBoundary:
     summary = validate_completed_correction_ancestor(writer, root=writer.root)
     if summary.get("boundary_revision") != EXPECTED_CORRECTION_REVISION:
         raise RuntimeError("Project Goal audit V2 correction revision differs")
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         operations = tuple(
             index.get("operation", operation_id)
             for operation_id in CORRECTION_OPERATION_IDS
@@ -803,7 +866,7 @@ def inspect_replay_prefix(
     control = writer.read_control()
     if control is None:
         raise RuntimeError("P1 replay control is absent")
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         prefix = inspect_operation_prefix(
             index=index,
             journal=writer.journal,
@@ -813,12 +876,25 @@ def inspect_replay_prefix(
             predecessor_event_id=boundary.event_id,
             current_sequence=control["heads"]["journal"]["sequence"],
         )
-    validate_replay_prefix_semantics(
-        writer,
-        design=design,
-        prefix=prefix,
-        steps=steps,
-    )
+    current_ids = tuple(member.executable.identity for member in design.members)
+    if design.historical_family.family_executable_ids != current_ids:
+        if prefix != len(steps):
+            raise RuntimeError(
+                "STU-0106 historical audit chain is incomplete and cannot resume"
+            )
+        validate_historical_replay_prefix_semantics(
+            writer,
+            design=design,
+            prefix=prefix,
+            steps=steps,
+        )
+    else:
+        validate_replay_prefix_semantics(
+            writer,
+            design=design,
+            prefix=prefix,
+            steps=steps,
+        )
     return prefix, steps
 
 
@@ -841,7 +917,14 @@ def _implementation_dependency_paths() -> tuple[Path, ...]:
                 Path(module.__file__).resolve()
                 for module in direct_modules
             }
-            | {Path(path).resolve() for path in SCIENTIFIC_VALIDATION_V2_DEPENDENCIES}
+            | {
+                Path(path).resolve()
+                for path in SCIENTIFIC_VALIDATION_V2_DEPENDENCIES
+            }
+            | {
+                Path(path).resolve()
+                for path in running_job_execution_context_dependency_paths()
+            }
         )
     )
     if any(not path.is_file() for path in paths):
@@ -955,7 +1038,6 @@ def _require_completed_job_spec_compatible(
         )
         writer._require_job_implementation_evidence(
             actual,
-            allowed_historical_control_ids=("STU-0061",),
         )
     except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
         raise RuntimeError(
@@ -1308,7 +1390,7 @@ def _apply_study_close_step(
 
 def _study_close_record(writer: StateWriter) -> IndexRecord:
     close_operation = _operation_record(writer, OPERATION_PREFIX + "close-study")
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         matches = tuple(
             record
             for record in index.records_by_kind("study-close")
@@ -1361,7 +1443,7 @@ def _diagnosis(
 def _diagnosis_record(writer: StateWriter) -> IndexRecord:
     result = _operation_result(writer, OPERATION_PREFIX + "diagnose-study")
     diagnosis_id = result.get("study_diagnosis_id")
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         record = (
             None
             if not isinstance(diagnosis_id, str)
@@ -1382,7 +1464,7 @@ def _replay_resolution(
     interpretation = interpret_replay_completion(completion)
     diagnosis = _diagnosis_record(writer)
     close_record = _study_close_record(writer)
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         pairs = {
             obligation.identity: (obligation, head)
             for obligation, head in obligation_heads(index, mission_id=MISSION_ID)
@@ -1611,6 +1693,830 @@ def _require_job_judgement_binding(
         raise RuntimeError(f"completed P1 replay {label} judgement drifted")
 
 
+_HISTORICAL_DECISION_IDENTITY_FIELDS = frozenset(
+    {
+        "architecture_chassis",
+        "architecture_chassis_identity",
+        "baseline_executable",
+        "baseline_executable_id",
+        "chosen_option_id",
+        "commitment_batches",
+        "decision_id",
+        "locks_future_portfolio",
+        "options",
+        "quant_team_review",
+        "rationale",
+        "recent_positive_lineage_id",
+        "replay_obligation_ids",
+        "schema",
+    }
+)
+
+
+def _require_historical_digest(name: str, value: object) -> str:
+    if type(value) is not str or len(value) != 64 or any(
+        character not in "0123456789abcdef" for character in value
+    ):
+        raise RuntimeError(f"historical STU-0106 {name} digest is invalid")
+    return value
+
+
+def _historical_operation(
+    index: LocalIndex | LocalIndexView,
+    steps: Sequence[OperationStep],
+    suffix: str,
+    *,
+    subject: str | None = None,
+) -> tuple[IndexRecord, Mapping[str, Any]]:
+    operation_id = OPERATION_PREFIX + suffix
+    expected = tuple(step for step in steps if step.operation_id == operation_id)
+    record = index.get("operation", operation_id)
+    result = None if record is None else record.payload.get("result")
+    if (
+        len(expected) != 1
+        or record is None
+        or record.status != "success"
+        or record.payload.get("event_kind") != expected[0].event_kind
+        or not isinstance(result, Mapping)
+        or (subject is not None and record.subject != subject)
+    ):
+        raise RuntimeError(
+            f"historical STU-0106 operation ownership drifted: {suffix}"
+        )
+    return record, result
+
+
+def _historical_portfolio_decision(
+    index: LocalIndex | LocalIndexView,
+    decision_id: object,
+) -> IndexRecord:
+    if type(decision_id) is not str:
+        raise RuntimeError("historical STU-0106 Decision id is invalid")
+    record = index.get("portfolio-decision", decision_id)
+    if record is None:
+        raise RuntimeError("historical STU-0106 Decision is absent")
+    identity_payload = {
+        name: value
+        for name, value in record.payload.items()
+        if name in _HISTORICAL_DECISION_IDENTITY_FIELDS
+    }
+    try:
+        decision = portfolio_decision_from_projection(identity_payload)
+    except PortfolioProjectionError as exc:
+        raise RuntimeError(
+            "historical STU-0106 Decision payload is malformed"
+        ) from exc
+    if decision.identity != decision_id or record.record_id != decision_id:
+        raise RuntimeError(
+            "historical STU-0106 Decision identity is inconsistent"
+        )
+    return record
+
+
+def _historical_portfolio_snapshot(
+    index: LocalIndex | LocalIndexView,
+    snapshot_id: object,
+) -> IndexRecord:
+    if type(snapshot_id) is not str:
+        raise RuntimeError("historical STU-0106 snapshot id is invalid")
+    record = index.get("portfolio-snapshot", snapshot_id)
+    if (
+        record is None
+        or record.subject != f"Mission:{MISSION_ID}"
+        or record.record_id
+        != "portfolio:"
+        + canonical_digest(
+            domain="portfolio-snapshot",
+            payload=record.payload,
+        )
+    ):
+        raise RuntimeError(
+            "historical STU-0106 Portfolio snapshot is malformed"
+        )
+    return record
+
+
+def _require_historical_chassis_identity(
+    controlled: object,
+) -> Mapping[str, Any]:
+    if not isinstance(controlled, Mapping):
+        raise RuntimeError("historical STU-0106 controlled chassis is absent")
+    architecture = controlled.get("architecture")
+    baseline = controlled.get("baseline_executable")
+    components = controlled.get("controlled_component_identities")
+    parameters = controlled.get("controlled_parameter_bindings")
+    if (
+        not isinstance(architecture, Mapping)
+        or not isinstance(baseline, Mapping)
+        or not isinstance(components, Mapping)
+        or not isinstance(parameters, Mapping)
+    ):
+        raise RuntimeError("historical STU-0106 controlled chassis is malformed")
+    architecture_family = "architecture-family:" + canonical_digest(
+        domain="architecture-chassis",
+        payload=architecture,
+    )
+    baseline_id = "executable:" + canonical_digest(
+        domain="executable",
+        payload=baseline,
+    )
+    controlled_id = "controlled-chassis:" + canonical_digest(
+        domain="controlled-component-chassis",
+        payload={
+            "architecture_family": architecture_family,
+            "controlled_components": dict(components),
+            "controlled_parameter_bindings": dict(parameters),
+            "schema": "controlled_component_chassis.v1",
+        },
+    )
+    if (
+        controlled.get("architecture_family") != architecture_family
+        or controlled.get("baseline_executable_id") != baseline_id
+        or controlled.get("controlled_chassis_identity") != controlled_id
+    ):
+        raise RuntimeError(
+            "historical STU-0106 controlled chassis identity is inconsistent"
+        )
+    return controlled
+
+
+def _require_historical_output_evidence(
+    writer: StateWriter,
+    *,
+    completion: IndexRecord,
+    result: Mapping[str, Any],
+    declaration_spec: Mapping[str, Any],
+) -> None:
+    outputs = completion.payload.get("outputs")
+    output_classes = completion.payload.get("output_classes")
+    expected_outputs = declaration_spec.get("expected_outputs")
+    if (
+        not isinstance(outputs, Mapping)
+        or not isinstance(output_classes, Mapping)
+        or not isinstance(expected_outputs, list)
+        or set(outputs) != set(output_classes)
+        or set(outputs) != set(expected_outputs)
+        or output_classes != declaration_spec.get("output_classes")
+        or output_classes != result.get("output_classes")
+    ):
+        raise RuntimeError(
+            "historical STU-0106 Job output inventory is inconsistent"
+        )
+    for output_name, output_hash in outputs.items():
+        if type(output_name) is not str or not output_name.isascii():
+            raise RuntimeError("historical STU-0106 output name is invalid")
+        digest = _require_historical_digest("output", output_hash)
+        output_class = output_classes.get(output_name)
+        if output_class == "durable_evidence":
+            writer.evidence.read_verified(digest)
+        elif output_class != "reproducible_cache":
+            raise RuntimeError(
+                "historical STU-0106 output storage class is invalid"
+            )
+
+
+def _validate_historical_completed_replay_chain(
+    writer: StateWriter,
+    index: LocalIndex | LocalIndexView,
+    *,
+    design: P1ReplayDesign,
+    steps: Sequence[OperationStep],
+) -> None:
+    """Audit immutable completed authority without rebuilding current identities."""
+
+    family = design.historical_family
+    if (
+        family.study_id != STUDY_ID
+        or family.prior_global_exposure_count
+        != ANALOG_REPLAY_PRIOR_GLOBAL_EXPOSURE_COUNT
+        or len(family.members) != 4
+    ):
+        raise RuntimeError("historical STU-0106 family observation is malformed")
+
+    _open_initiative, initiative_result = _historical_operation(
+        index,
+        steps,
+        "open-initiative",
+        subject=f"Initiative:{INITIATIVE_ID}",
+    )
+    initiative = index.get("initiative-open", INITIATIVE_ID)
+    if (
+        initiative_result != {"initiative_id": INITIATIVE_ID}
+        or initiative is None
+        or initiative.subject != f"Initiative:{INITIATIVE_ID}"
+        or initiative.status != "open"
+    ):
+        raise RuntimeError("historical STU-0106 Initiative is malformed")
+
+    _bridge_operation, bridge_result = _historical_operation(
+        index,
+        steps,
+        "bridge-decision",
+        subject="Portfolio:active",
+    )
+    bridge = _historical_portfolio_decision(
+        index,
+        bridge_result.get("decision_id"),
+    )
+    base_snapshot = _historical_portfolio_snapshot(
+        index,
+        bridge.payload.get("portfolio_snapshot_id"),
+    )
+    _expanded_operation, expanded_result = _historical_operation(
+        index,
+        steps,
+        "expanded-snapshot",
+        subject=f"Mission:{MISSION_ID}",
+    )
+    expanded = _historical_portfolio_snapshot(
+        index,
+        expanded_result.get("portfolio_snapshot_id"),
+    )
+    base_axes = base_snapshot.payload.get("axes")
+    expanded_axes = expanded.payload.get("axes")
+    base_axes_by_id = (
+        {
+            axis.get("axis_id"): axis
+            for axis in base_axes
+            if isinstance(axis, Mapping)
+        }
+        if isinstance(base_axes, list)
+        else {}
+    )
+    expanded_axes_by_id = (
+        {
+            axis.get("axis_id"): axis
+            for axis in expanded_axes
+            if isinstance(axis, Mapping)
+        }
+        if isinstance(expanded_axes, list)
+        else {}
+    )
+    if (
+        not isinstance(base_axes, list)
+        or not isinstance(expanded_axes, list)
+        or len(base_axes_by_id) != len(base_axes)
+        or len(expanded_axes_by_id) != len(expanded_axes)
+        or set(expanded_axes_by_id).difference(base_axes_by_id) != {AXIS_ID}
+        or any(
+            expanded_axes_by_id.get(axis_id) != axis
+            for axis_id, axis in base_axes_by_id.items()
+        )
+        or bridge.payload.get("target_axis_identity")
+        not in {
+            axis.get("axis_identity")
+            for axis in base_axes
+            if isinstance(axis, Mapping)
+        }
+    ):
+        raise RuntimeError("historical STU-0106 bridge snapshot is malformed")
+
+    _replay_operation, replay_result = _historical_operation(
+        index,
+        steps,
+        "replay-decision",
+        subject="Portfolio:active",
+    )
+    replay_decision = _historical_portfolio_decision(
+        index,
+        replay_result.get("decision_id"),
+    )
+    replay_axis = expanded_axes_by_id[AXIS_ID]
+    if (
+        replay_decision.payload.get("portfolio_snapshot_id")
+        != expanded.record_id
+        or replay_decision.payload.get("target_axis_identity")
+        != replay_axis.get("axis_identity")
+        or replay_decision.payload.get("replay_obligation_ids")
+        != [TARGET_OBLIGATION_ID]
+    ):
+        raise RuntimeError("historical STU-0106 replay Decision is malformed")
+
+    _study_permit_operation, study_permit_result = _historical_operation(
+        index,
+        steps,
+        "study-permit",
+        subject=f"Initiative:{INITIATIVE_ID}",
+    )
+    study_permit = Permit.from_mapping(study_permit_result.get("permit"))
+    _study_operation, study_result = _historical_operation(
+        index,
+        steps,
+        "open-study",
+        subject=f"Study:{STUDY_ID}",
+    )
+    study = index.get("study-open", STUDY_ID)
+    controlled = _require_historical_chassis_identity(
+        None if study is None else study.payload.get("controlled_chassis")
+    )
+    if (
+        study is None
+        or study.subject != f"Study:{STUDY_ID}"
+        or study.status != "open"
+        or study.payload.get("mission_id") != MISSION_ID
+        or study.payload.get("portfolio_snapshot_id") != expanded.record_id
+        or study.payload.get("portfolio_decision_id") != replay_decision.record_id
+        or study.payload.get("portfolio_axis_identity")
+        != replay_axis.get("axis_identity")
+        or study.payload.get("replay_obligation_ids")
+        != [TARGET_OBLIGATION_ID]
+        or study.payload.get("prior_global_multiplicity")
+        != family.prior_global_exposure_count
+        or study_result.get("study_id") != STUDY_ID
+        or study_result.get("study_hash") != study.fingerprint
+        or study_result.get("controlled_chassis_identity")
+        != controlled.get("controlled_chassis_identity")
+        or study_permit.kind is not PermitKind.STUDY
+        or study_permit.subject.kind is not SubjectKind.INITIATIVE
+        or study_permit.subject.subject_id != INITIATIVE_ID
+        or study_permit.input_hash != study.fingerprint
+        or study_permit.actions != ("open_study",)
+    ):
+        raise RuntimeError("historical STU-0106 Study authority is malformed")
+
+    _batch_permit_operation, batch_permit_result = _historical_operation(
+        index,
+        steps,
+        "batch-permit",
+        subject=f"Study:{STUDY_ID}",
+    )
+    batch_permit = Permit.from_mapping(batch_permit_result.get("permit"))
+    _batch_operation, batch_result = _historical_operation(
+        index,
+        steps,
+        "open-batch",
+        subject=f"Batch:{family.batch_id}",
+    )
+    batch = index.get("batch-open", family.batch_id)
+    if (
+        batch is None
+        or batch.subject != f"Study:{STUDY_ID}"
+        or batch.payload.get("spec") != family.batch_spec_payload()
+        or batch.fingerprint != family.batch_id.removeprefix("batch:")
+        or batch.payload["spec"].get("study_hash") != study.fingerprint
+        or batch_result != {"batch_id": family.batch_id}
+        or batch_permit.kind is not PermitKind.BATCH
+        or batch_permit.subject.kind is not SubjectKind.STUDY
+        or batch_permit.subject.subject_id != STUDY_ID
+        or batch_permit.input_hash != family.batch_id.removeprefix("batch:")
+        or batch_permit.actions != ("open_batch",)
+    ):
+        raise RuntimeError("historical STU-0106 Batch authority is malformed")
+
+    completions: list[IndexRecord] = []
+    negative_memory_ids: dict[int, str | None] = {}
+    step_ids = {step.operation_id for step in steps}
+    for member in family.members:
+        stem = f"member-{member.ordinal:02d}"
+        trial_operation, trial_result = _historical_operation(
+            index,
+            steps,
+            stem + "-register-trial",
+            subject=f"Executable:{member.executable_id}",
+        )
+        trial = index.get("trial", member.executable_id)
+        expected_replay_ids = (
+            [TARGET_OBLIGATION_ID] if member.ordinal == 4 else None
+        )
+        if (
+            trial is None
+            or trial.subject != f"Batch:{family.batch_id}"
+            or trial.status != "evaluated"
+            or trial.payload.get("executable") != member.to_identity_payload()
+            or trial.payload.get("study_id") != STUDY_ID
+            or trial.payload.get("trial_delta") != 1
+            or trial.payload.get("replay_obligation_ids") != expected_replay_ids
+            or trial.authority_event_id != trial_operation.authority_event_id
+            or trial_result.get("trial_delta") != 1
+            or trial_result.get("global_multiplicity")
+            != family.prior_global_exposure_count + member.ordinal
+        ):
+            raise RuntimeError(
+                f"historical STU-0106 {stem} trial authority is malformed"
+            )
+
+        declaration_operation, declaration_result = _historical_operation(
+            index,
+            steps,
+            stem + "-declare-job",
+            subject=f"Executable:{member.executable_id}",
+        )
+        job_id = declaration_result.get("job_id")
+        job_hash = declaration_result.get("job_hash")
+        declaration = (
+            None if type(job_id) is not str else index.get("job-declared", job_id)
+        )
+        declaration_spec = (
+            None if declaration is None else declaration.payload.get("spec")
+        )
+        evidence_subject = (
+            None
+            if not isinstance(declaration_spec, Mapping)
+            else declaration_spec.get("evidence_subject")
+        )
+        if (
+            type(job_hash) is not str
+            or job_id != "job:" + job_hash
+            or declaration is None
+            or declaration.subject != f"Job:{job_id}"
+            or declaration.status != "declared"
+            or declaration.fingerprint != job_hash
+            or declaration.authority_event_id
+            != declaration_operation.authority_event_id
+            or declaration.event_sequence != 1
+            or declaration.payload.get("mission_id") != MISSION_ID
+            or declaration.payload.get("initiative_id") != INITIATIVE_ID
+            or declaration.payload.get("study_id") != STUDY_ID
+            or declaration.payload.get("batch_id") != family.batch_id
+            or not isinstance(declaration_spec, Mapping)
+            or not isinstance(evidence_subject, Mapping)
+            or evidence_subject
+            != {"kind": "Executable", "id": member.executable_id}
+        ):
+            raise RuntimeError(
+                f"historical STU-0106 {stem} Job declaration is malformed"
+            )
+        writer._require_job_implementation_evidence(declaration_spec)
+
+        _permit_operation, permit_result = _historical_operation(
+            index,
+            steps,
+            stem + "-job-permit",
+            subject=f"Job:{job_id}",
+        )
+        permit = Permit.from_mapping(permit_result.get("permit"))
+        if (
+            permit.kind is not PermitKind.JOB
+            or permit.subject.kind is not SubjectKind.JOB
+            or permit.subject.subject_id != job_id
+            or permit.input_hash != job_hash
+            or permit.actions != ("start_job",)
+        ):
+            raise RuntimeError(
+                f"historical STU-0106 {stem} Job permit is malformed"
+            )
+
+        _start_operation, start_result = _historical_operation(
+            index,
+            steps,
+            stem + "-start-job",
+            subject=f"Job:{job_id}",
+        )
+        execution_payload = start_result.get("execution")
+        if not isinstance(execution_payload, Mapping):
+            raise RuntimeError(
+                f"historical STU-0106 {stem} execution is absent"
+            )
+        execution = RunningJobExecution.from_mapping(execution_payload)
+        start = index.get("job-started", execution.start_record_id)
+        if (
+            execution.job_id != job_id
+            or execution.job_hash != job_hash
+            or execution.job_permit_id != permit.permit_id
+            or start is None
+            or start.subject != f"Job:{job_id}"
+            or start.status != "running"
+            or start.fingerprint != job_hash
+            or start.payload.get("job_permit_id") != permit.permit_id
+        ):
+            raise RuntimeError(
+                f"historical STU-0106 {stem} Job start is malformed"
+            )
+
+        completion_operation, completion_result = _historical_operation(
+            index,
+            steps,
+            stem + "-complete-job",
+            subject="Job:active",
+        )
+        completion_id = completion_result.get("completion_record_id")
+        completion = (
+            None
+            if type(completion_id) is not str
+            else index.get("job-completed", completion_id)
+        )
+        scientific = (
+            None if completion is None else completion.payload.get("scientific")
+        )
+        scientific_binding = declaration_spec.get("scientific_binding")
+        if (
+            completion is None
+            or completion.status != "success"
+            or completion.subject != f"Job:{job_id}"
+            or completion.fingerprint != job_hash
+            or completion.authority_event_id
+            != completion_operation.authority_event_id
+            or completion.event_stream != declaration.event_stream
+            or completion.event_sequence != 2
+            or completion.payload.get("job_id") != job_id
+            or completion.payload.get("start_record_id") != start.record_id
+            or completion_result.get("job_id") != job_id
+            or completion_result.get("outcome") != "success"
+            or not isinstance(scientific, Mapping)
+            or not isinstance(scientific_binding, Mapping)
+            or scientific.get("executable_id") != member.executable_id
+            or scientific.get("candidate_eligible") is not False
+            or scientific.get("scientific_eligible") is not True
+            or scientific.get("validation_plan_hash")
+            != scientific_binding.get("validation_plan_hash")
+            or scientific.get("validator_id")
+            != scientific_binding.get("validator_id")
+        ):
+            raise RuntimeError(
+                f"historical STU-0106 {stem} Job completion is malformed"
+            )
+        _require_historical_output_evidence(
+            writer,
+            completion=completion,
+            result=completion_result,
+            declaration_spec=declaration_spec,
+        )
+        completions.append(completion)
+
+        negative_suffix = stem + "-negative-memory"
+        negative_memory_id: str | None = None
+        if OPERATION_PREFIX + negative_suffix in step_ids:
+            _negative_operation, negative_result = _historical_operation(
+                index,
+                steps,
+                negative_suffix,
+            )
+            value = negative_result.get("negative_memory_id")
+            memory = (
+                None if type(value) is not str else index.get("negative-memory", value)
+            )
+            if (
+                memory is None
+                or memory.payload.get("study_id") != STUDY_ID
+                or completion.record_id
+                not in memory.payload.get("evidence_references", ())
+            ):
+                raise RuntimeError(
+                    f"historical STU-0106 {stem} negative memory is malformed"
+                )
+            negative_memory_id = value
+        negative_memory_ids[member.ordinal] = negative_memory_id
+
+        judgement_operation, _judgement_result = _historical_operation(
+            index,
+            steps,
+            stem + "-judge-job",
+            subject="Job:completed",
+        )
+        _require_job_judgement_binding(
+            index,
+            operation=judgement_operation,
+            completion=completion,
+            expected_disposition=(
+                "continue_batch" if member.ordinal < 4 else "stop_batch"
+            ),
+            expected_negative_memory_id=negative_memory_id,
+            label=stem,
+        )
+
+    dispose_operation, dispose_result = _historical_operation(
+        index,
+        steps,
+        "dispose-batch",
+        subject="Batch:active",
+    )
+    batch_closes = tuple(
+        record
+        for record in index.records_by_subject_status(
+            f"Batch:{family.batch_id}",
+            "completed",
+        )
+        if record.kind == "batch-close"
+        and record.authority_event_id == dispose_operation.authority_event_id
+    )
+    if (
+        dispose_result
+        != {"batch_id": family.batch_id, "outcome": "completed"}
+        or len(batch_closes) != 1
+        or batch_closes[0].payload.get("outcome") != "completed"
+    ):
+        raise RuntimeError("historical STU-0106 Batch close is malformed")
+    batch_close = batch_closes[0]
+
+    close_operation, close_result = _historical_operation(
+        index,
+        steps,
+        "close-study",
+        subject="Study:active",
+    )
+    close_outcome = close_result.get("outcome")
+    study_closes = tuple(
+        record
+        for record in index.records_by_subject_status(
+            f"Study:{STUDY_ID}",
+            str(close_outcome),
+        )
+        if record.kind == "study-close"
+        and record.authority_event_id == close_operation.authority_event_id
+    )
+    kpi_id = close_result.get("study_kpi_record_id")
+    kpi = None if type(kpi_id) is not str else index.get("study-kpi", kpi_id)
+    if (
+        close_result.get("study_id") != STUDY_ID
+        or len(study_closes) != 1
+        or kpi is None
+        or kpi.subject != f"Study:{STUDY_ID}"
+    ):
+        raise RuntimeError("historical STU-0106 Study close is malformed")
+    study_close = study_closes[0]
+
+    _diagnose_operation, diagnose_result = _historical_operation(
+        index,
+        steps,
+        "diagnose-study",
+        subject=f"Study:{STUDY_ID}",
+    )
+    diagnosis_id = diagnose_result.get("study_diagnosis_id")
+    diagnosis = (
+        None
+        if type(diagnosis_id) is not str
+        else index.get("study-diagnosis", diagnosis_id)
+    )
+    evidence_basis = None if diagnosis is None else diagnosis.payload.get("evidence_basis")
+    basis_pairs = {
+        (item.get("kind"), item.get("record_id"))
+        for item in evidence_basis
+        if isinstance(item, Mapping)
+    } if isinstance(evidence_basis, list) else set()
+    required_basis = {
+        ("batch-open", family.batch_id),
+        ("batch-close", batch_close.record_id),
+        ("study-close", study_close.record_id),
+        *(("job-completed", completion.record_id) for completion in completions),
+    }
+    if (
+        diagnosis is None
+        or diagnosis.subject != f"Study:{STUDY_ID}"
+        or not required_basis.issubset(basis_pairs)
+    ):
+        raise RuntimeError("historical STU-0106 diagnosis is malformed")
+
+    resolution_operation, resolution_result = _historical_operation(
+        index,
+        steps,
+        "resolve-replay",
+        subject="Mission:active",
+    )
+    stream = f"historical-replay-obligation:{TARGET_OBLIGATION_ID}"
+    historical_resolution = index.event_record(stream, 3)
+    resolution_payload = (
+        None
+        if historical_resolution is None
+        else historical_resolution.payload.get("resolution")
+    )
+    if (
+        historical_resolution is None
+        or historical_resolution.kind
+        != "historical-replay-obligation-resolution"
+        or historical_resolution.status != "satisfied"
+        or historical_resolution.authority_event_id
+        != resolution_operation.authority_event_id
+        or historical_resolution.payload.get("obligation_id")
+        != TARGET_OBLIGATION_ID
+        or not isinstance(resolution_payload, Mapping)
+        or historical_resolution.record_id
+        != "historical-replay-satisfaction:"
+        + canonical_digest(
+            domain="historical-replay-satisfaction",
+            payload=resolution_payload,
+        )
+        or resolution_payload.get("replay_study_id") != STUDY_ID
+        or resolution_payload.get("replay_executable_id")
+        != family.members[-1].executable_id
+        or resolution_payload.get("replay_study_close_record_id")
+        != study_close.record_id
+        or resolution_payload.get("study_diagnosis_id") != diagnosis.record_id
+        or resolution_result.get("satisfied_replay_obligation_ids")
+        != [TARGET_OBLIGATION_ID]
+    ):
+        raise RuntimeError(
+            "historical STU-0106 satisfaction record is malformed"
+        )
+
+    _disposition_operation, disposition_result = _historical_operation(
+        index,
+        steps,
+        "disposition-decision",
+        subject="Portfolio:active",
+    )
+    disposition = _historical_portfolio_decision(
+        index,
+        disposition_result.get("decision_id"),
+    )
+    _final_snapshot_operation, final_snapshot_result = _historical_operation(
+        index,
+        steps,
+        "disposition-snapshot",
+        subject=f"Mission:{MISSION_ID}",
+    )
+    final_snapshot = _historical_portfolio_snapshot(
+        index,
+        final_snapshot_result.get("portfolio_snapshot_id"),
+    )
+    final_axes = final_snapshot.payload.get("axes")
+    if (
+        disposition.payload.get("portfolio_snapshot_id") != expanded.record_id
+        or disposition.payload.get("study_diagnosis_id") != diagnosis.record_id
+        or not isinstance(final_axes, list)
+        or len(final_axes) != len(expanded_axes)
+        or {
+            axis.get("axis_id")
+            for axis in final_axes
+            if isinstance(axis, Mapping)
+        }
+        != {
+            axis.get("axis_id")
+            for axis in expanded_axes
+            if isinstance(axis, Mapping)
+        }
+    ):
+        raise RuntimeError(
+            "historical STU-0106 disposition authority is malformed"
+        )
+
+    _close_initiative_operation, close_initiative_result = _historical_operation(
+        index,
+        steps,
+        "close-initiative",
+        subject="Initiative:active",
+    )
+    if close_initiative_result != {
+        "initiative_id": INITIATIVE_ID,
+        "outcome": "completed",
+    }:
+        raise RuntimeError("historical STU-0106 Initiative close is malformed")
+
+
+def _require_historical_replay_zero_credit(
+    index: LocalIndex | LocalIndexView,
+) -> None:
+    initial = index.get("historical-replay-obligation", TARGET_OBLIGATION_ID)
+    obligation_payload = (
+        None if initial is None else initial.payload.get("obligation")
+    )
+    try:
+        obligation = historical_replay_obligation_from_identity_payload(
+            obligation_payload
+        )
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(
+            "historical STU-0106 replay obligation is malformed"
+        ) from exc
+    stream = f"historical-replay-obligation:{TARGET_OBLIGATION_ID}"
+    head = index.event_head(stream)
+    record = (
+        None
+        if head is None
+        else index.get(head.record_kind, head.record_id)
+    )
+    if (
+        head is None
+        or head.sequence < 4
+        or record is None
+        or record.kind != "historical-replay-satisfaction-invalidation"
+        or record.status != "pending"
+    ):
+        raise RuntimeError(
+            "historical STU-0106 audit lacks zero-credit invalidation authority"
+        )
+    try:
+        require_satisfaction_invalidation_record(
+            index,
+            obligation=obligation,
+            record=record,
+        )
+    except ReplayAuthorityError as exc:
+        raise RuntimeError(
+            "historical STU-0106 zero-credit invalidation is malformed"
+        ) from exc
+
+
+def validate_historical_replay_prefix_semantics(
+    writer: StateWriter,
+    *,
+    design: P1ReplayDesign,
+    prefix: int,
+    steps: Sequence[OperationStep],
+) -> None:
+    """Validate a completed audit-only chain with zero scientific credit."""
+
+    if prefix != len(tuple(steps)):
+        raise RuntimeError("historical STU-0106 audit chain is not complete")
+    with LocalIndex.open_read_only(writer.index_path) as index:
+        _validate_historical_completed_replay_chain(
+            writer,
+            index,
+            design=design,
+            steps=steps,
+        )
+        _require_historical_replay_zero_credit(index)
+
+
 def validate_replay_prefix_semantics(
     writer: StateWriter,
     *,
@@ -1625,7 +2531,7 @@ def validate_replay_prefix_semantics(
     def done(suffix: str) -> bool:
         return OPERATION_PREFIX + suffix in completed
 
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         if done("open-initiative"):
             initiative = _require_identity_payload(
                 index.get("initiative-open", INITIATIVE_ID),
@@ -1997,7 +2903,7 @@ def _verify_no_candidate_or_holdout(writer: StateWriter, design: P1ReplayDesign)
         or control.get("scientific", {}).get("required_future_holdout_id") is not None
     ):
         raise RuntimeError("P1 replay changed or opened holdout authority")
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         candidates = tuple(
             member.executable.identity
             for member in design.members
@@ -2120,7 +3026,7 @@ def verify_study_close_postconditions(
         raise RuntimeError("P1 replay Study-close control boundary drifted")
     member_completions: list[tuple[ReplayMember, IndexRecord]] = []
     cache_hash: str | None = None
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         heads = {
             obligation.identity: head
             for obligation, head in obligation_heads(index, mission_id=MISSION_ID)
@@ -2185,6 +3091,7 @@ def run_study_close_stage(
     explicit_recovery: bool = False,
     job_runner: Callable[..., Any] = execute_analog_replay_job,
 ) -> dict[str, Any]:
+    _require_current_prospective_execution_family(design)
     require_stable_head(writer, explicit_recovery=explicit_recovery)
     prefix, steps = inspect_replay_prefix(
         writer,
@@ -2293,7 +3200,7 @@ def verify_diagnose_postconditions(
         for item in diagnosis.payload.get("evidence_basis", [])
         if isinstance(item, Mapping) and item.get("kind") == "job-completed"
     }
-    with LocalIndex(writer.index_path) as index:
+    with LocalIndex.open_read_only(writer.index_path) as index:
         p1 = {
             obligation.identity: head
             for obligation, head in obligation_heads(index, mission_id=MISSION_ID)
@@ -2350,6 +3257,7 @@ def run_diagnose_stage(
     study_close_revision: int,
     explicit_recovery: bool = False,
 ) -> dict[str, Any]:
+    _require_current_prospective_execution_family(design)
     require_stable_head(writer, explicit_recovery=explicit_recovery)
     prefix, steps = inspect_replay_prefix(
         writer,
@@ -2443,6 +3351,7 @@ def _read_only_summary(
         ).values()
     )
     return {
+        "audit_only": True,
         "axis_count_after": len(design.expanded_snapshot.axes),
         "axis_count_before": len(design.prior_axes),
         "base_snapshot_id": design.base_snapshot_id,
@@ -2450,25 +3359,34 @@ def _read_only_summary(
         "current_prefix": prefix,
         "diagnose_operation_count": diagnose_end - diagnose_start,
         "durable_output_count": output_classes.count("durable_evidence"),
-        "executable_ids": [member.executable.identity for member in design.members],
+        "executable_ids": list(design.historical_family.family_executable_ids),
+        "historical_batch_id": design.historical_family.batch_id,
         "historical_reference_executable_ids": [
             member.configuration.historical_reference_executable_id
             for member in design.members
         ],
+        "historical_registered_executable_ids": list(
+            design.historical_family.family_executable_ids
+        ),
         "initiative_id": INITIATIVE_ID,
         "historical_non_p1_exposure_count": (
-            ANALOG_REPLAY_PRIOR_GLOBAL_EXPOSURE_COUNT
+            design.historical_family.prior_global_exposure_count
         ),
         "mode": "read_only_plan",
         "new_axis_id": design.replay_axis.axis_id,
+        "prospective_current_executable_ids": [
+            member.executable.identity for member in design.members
+        ],
         "replay_obligation_ids": list(design.work_decision.replay_obligation_ids),
         "reproducible_cache_output_count": output_classes.count(
             "reproducible_cache"
         ),
         "schema": "p1_stu0061_replay_plan.v1",
+        "scientific_credit": 0,
         "study_close_operation_count": study_close_end - study_close_start,
         "study_id": STUDY_ID,
         "target_member_ordinal": design.target_member.ordinal,
+        "terminal_credit": 0,
         "trial_delta": 4,
     }
 

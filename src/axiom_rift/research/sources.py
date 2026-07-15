@@ -377,6 +377,16 @@ def _ascii(name: str, value: object) -> str:
     return value
 
 
+def _prefixed_sha256(name: str, value: object, prefix: str) -> str:
+    text = _ascii(name, value)
+    digest = text.removeprefix(prefix)
+    if text == digest or len(digest) != 64 or any(
+        character not in "0123456789abcdef" for character in digest
+    ):
+        raise SourceContractError(f"{name} must use {prefix}<sha256>")
+    return text
+
+
 def _snapshot(value: object) -> bytes:
     return canonical_bytes(value)
 
@@ -719,6 +729,150 @@ class SourceEligibilityReceipt:
             "schema": "source_eligibility_receipt.v1",
             "source_contract_id": self.source_contract_id,
         }
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class RuntimeSourceDriftObservation:
+    """Exact source-drift evidence observed by one running runtime Job."""
+
+    candidate_id: str
+    executable_id: str
+    facts: InitVar[object]
+    job_hash: str
+    job_id: str
+    job_start_record_id: str
+    observed_at_utc: str
+    prior_source_receipt_id: str
+    prior_source_state_record_id: str
+    producer_record_id: str
+    source_contract_id: str
+    _facts_bytes: bytes = field(init=False, repr=False, compare=False)
+    identity: str = field(init=False)
+
+    def __post_init__(self, facts: object) -> None:
+        for name, prefix in (
+            ("candidate_id", "candidate:"),
+            ("executable_id", "executable:"),
+            ("job_id", "job:"),
+            ("prior_source_receipt_id", "source-receipt:"),
+            ("source_contract_id", "source:"),
+        ):
+            _prefixed_sha256(name, getattr(self, name), prefix)
+        for name in (
+            "job_hash",
+            "job_start_record_id",
+            "prior_source_state_record_id",
+            "producer_record_id",
+        ):
+            value = _ascii(name, getattr(self, name))
+            if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+                raise SourceContractError(f"{name} must be a sha256 digest")
+        observed = _ascii("observed_at_utc", self.observed_at_utc)
+        try:
+            parsed = datetime.fromisoformat(observed.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise SourceContractError("observed_at_utc must be ISO-8601") from exc
+        if parsed.tzinfo is None:
+            raise SourceContractError("observed_at_utc must include a timezone")
+        values = _semantic_mapping(
+            "runtime source drift observation",
+            facts,
+            required=_RECEIPT_FACT_FIELDS[SourceTransitionEvidence.DRIFT],
+        )
+        if set(values) != _RECEIPT_FACT_FIELDS[SourceTransitionEvidence.DRIFT]:
+            raise SourceContractError(
+                "runtime source drift observation facts differ from the exact schema"
+            )
+        for name in ("changed_surface", "observed_change", "dependent_action"):
+            _ascii(name, values[name])
+        if values["dependent_action"] != "fail_closed":
+            raise SourceContractError(
+                "runtime source drift observation must fail closed"
+            )
+        facts_bytes = canonical_bytes(values)
+        object.__setattr__(self, "_facts_bytes", facts_bytes)
+        object.__setattr__(
+            self,
+            "identity",
+            "runtime-source-drift:"
+            + canonical_digest(
+                domain="runtime-source-drift-observation",
+                payload=self.to_identity_payload(),
+            ),
+        )
+
+    def fact_values(self) -> dict[str, CanonicalValue]:
+        value = parse_canonical(self._facts_bytes)
+        if type(value) is not dict:
+            raise SourceContractError("runtime source drift facts are malformed")
+        return value
+
+    def to_identity_payload(self) -> dict[str, CanonicalValue]:
+        return {
+            "candidate_id": self.candidate_id,
+            "executable_id": self.executable_id,
+            "facts": self.fact_values(),
+            "job_hash": self.job_hash,
+            "job_id": self.job_id,
+            "job_start_record_id": self.job_start_record_id,
+            "observed_at_utc": self.observed_at_utc,
+            "prior_source_receipt_id": self.prior_source_receipt_id,
+            "prior_source_state": SourceEligibilityState.RUNTIME_ELIGIBLE.value,
+            "prior_source_state_record_id": self.prior_source_state_record_id,
+            "producer_record_id": self.producer_record_id,
+            "schema": "runtime_source_drift_observation.v1",
+            "source_contract_id": self.source_contract_id,
+        }
+
+    def to_bytes(self) -> bytes:
+        return canonical_bytes(self.to_identity_payload())
+
+    @classmethod
+    def from_bytes(cls, content: bytes) -> RuntimeSourceDriftObservation:
+        value = parse_canonical(content)
+        expected = {
+            "candidate_id",
+            "executable_id",
+            "facts",
+            "job_hash",
+            "job_id",
+            "job_start_record_id",
+            "observed_at_utc",
+            "prior_source_receipt_id",
+            "prior_source_state",
+            "prior_source_state_record_id",
+            "producer_record_id",
+            "schema",
+            "source_contract_id",
+        }
+        if type(value) is not dict or set(value) != expected:
+            raise SourceContractError(
+                "runtime source drift observation differs from the exact schema"
+            )
+        if (
+            value["schema"] != "runtime_source_drift_observation.v1"
+            or value["prior_source_state"]
+            != SourceEligibilityState.RUNTIME_ELIGIBLE.value
+        ):
+            raise SourceContractError("runtime source drift observation schema is invalid")
+        observation = cls(
+            candidate_id=value["candidate_id"],
+            executable_id=value["executable_id"],
+            facts=value["facts"],
+            job_hash=value["job_hash"],
+            job_id=value["job_id"],
+            job_start_record_id=value["job_start_record_id"],
+            observed_at_utc=value["observed_at_utc"],
+            prior_source_receipt_id=value["prior_source_receipt_id"],
+            prior_source_state_record_id=value["prior_source_state_record_id"],
+            producer_record_id=value["producer_record_id"],
+            source_contract_id=value["source_contract_id"],
+        )
+        if observation.to_bytes() != content:
+            raise SourceContractError(
+                "runtime source drift observation is not canonical"
+            )
+        return observation
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -1154,6 +1308,7 @@ __all__ = [
     "RecertificationResult",
     "RuntimeObservation",
     "RuntimeObservationState",
+    "RuntimeSourceDriftObservation",
     "SleeveDependencySpec",
     "SleeveRuntimeDecision",
     "SleeveSpec",

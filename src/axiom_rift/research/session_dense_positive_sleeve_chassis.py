@@ -52,7 +52,7 @@ def simulate_session_dense_positive_sleeves(*,frame:pd.DataFrame,score:np.ndarra
     if v.ndim!=2 or v.shape!=(len(frame),2):raise ValueError("session dense positive sleeve score matrix invalid")
     sp=np.asarray(effective_spread,float);slots=[_slot(frame=frame,score=v[:,0],volatility=volatility,run=run,hold=12,test_start=test_start,test_end=test_end,fold_id=fold_id,regime_cutoffs=regime_cutoffs,effective_spread=sp,name="regime_router")]
     if configuration.profile=="session_dense_positive_subject":
-        target=v[:,1].copy();entry_hours=pd.to_datetime(frame["time"],errors="raise").shift(-1).dt.hour.to_numpy();target[~np.isin(entry_hours,np.arange(15,23))]=np.nan
+        target=v[:,1].copy();entry_hours=(pd.to_datetime(frame["time"],errors="raise")+pd.Timedelta(minutes=5)).dt.hour.to_numpy();target[~np.isin(entry_hours,np.arange(15,23))]=np.nan
         slots.append(_slot(frame=frame,score=target,volatility=volatility,run=run,hold=6,test_start=test_start,test_end=test_end,fold_id=fold_id,regime_cutoffs=regime_cutoffs,effective_spread=sp,name="target_direction"))
     trades=concat_simulation_trades([x.trades for x in slots],extra_columns=("slot",))
     trades=trades.sort_values(["decision_time","slot"],kind="stable").reset_index(drop=True);return SimulationResult(trades,tuple(r for x in slots for r in x.intent_rows),sum(x.unresolved_cost_signal_count for x in slots),sum(x.gap_excluded_signal_count for x in slots),sum(x.causality_violation_count for x in slots))

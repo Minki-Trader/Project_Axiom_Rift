@@ -24,7 +24,11 @@ from axiom_rift.research.us500_recertification import (
     receipt_from_payload,
     source_recertification_plan_hash,
 )
-from axiom_rift.research.us500_source import derive_runtime_facts, us500_source_contract
+from axiom_rift.research.us500_source import (
+    US500SourceError,
+    derive_runtime_facts,
+    us500_source_contract,
+)
 
 
 _THIS_FILE = Path(__file__).resolve()
@@ -182,7 +186,12 @@ class US500RecertificationValidator:
             )
             probe = _mapping(measurement.get("runtime_probe"), "runtime probe")
             proposed = us500_source_contract()
-            runtime_facts = derive_runtime_facts(probe)
+            try:
+                runtime_facts = derive_runtime_facts(probe)
+            except US500SourceError as exc:
+                raise EvidenceValidationError(
+                    "US500 recertification runtime probe schema is invalid"
+                ) from exc
             if (
                 set(measurement) != expected_fields
                 or measurement.get("schema") != "us500_source_recertification_measurement.v1"

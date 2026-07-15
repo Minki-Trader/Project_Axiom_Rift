@@ -10,12 +10,22 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from hashlib import sha256
 from typing import Any, Callable
 
+from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.core.identity import canonical_digest
+from axiom_rift.operations.recorded_transition_authority import (
+    RecordedTransitionAuthorityError,
+    require_recorded_transition_authority,
+)
 from axiom_rift.operations.evidence_scope_projection import (
     evidence_scope_overlay_record,
     evidence_scope_stream,
+)
+from axiom_rift.operations.scientific_multiplicity_authority import (
+    MULTIPLICITY_BATCH_BINDING_FIELDS,
+    build_multiplicity_batch_binding,
 )
 from axiom_rift.research.effective_evidence_scope import (
     HistoricalEvidenceScopeOverlay,
@@ -38,7 +48,15 @@ from axiom_rift.research.replay_obligation import (
     historical_replay_obligation_from_identity_payload,
     replay_deferral_from_identity_payload,
 )
-from axiom_rift.storage.index import IndexRecord, LocalIndex
+from axiom_rift.research.replay_satisfaction_invalidation import (
+    ReplayMultiplicityBindingDefect,
+    ReplayMultiplicityDefectCode,
+    ReplaySatisfactionInvalidationAuditManifest,
+    ReplaySelectionFamilyObservation,
+    SELECTION_CRITERION_ID,
+)
+from axiom_rift.storage.index import IndexRecord, LocalIndex, LocalIndexView
+from axiom_rift.storage.evidence import EvidenceStore
 from axiom_rift.storage.study_kpi import validate_study_id
 
 
@@ -62,6 +80,16 @@ class ReplayProjectionError(ReplayAuthorityError):
 
 class ReplayTransitionError(ReplayAuthorityError):
     """A requested replay transition is not currently authorized."""
+
+
+class ReplayMultiplicityBindingError(ReplayTransitionError):
+    """The exact Batch-wide E01 family no longer supports satisfaction."""
+
+    def __init__(self, defect: ReplayMultiplicityBindingDefect) -> None:
+        super().__init__(
+            "scientific replay selection family does not bind the exact Batch family"
+        )
+        self.defect = defect
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,14 +225,20 @@ def resume_record(
 
 
 def obligation_heads(
-    index: LocalIndex,
+    index: LocalIndex | LocalIndexView,
     *,
     mission_id: str,
 ) -> tuple[tuple[HistoricalReplayObligation, IndexRecord], ...]:
     """Return exact current heads for one Mission's replay obligations."""
 
     resolved: list[tuple[HistoricalReplayObligation, IndexRecord]] = []
-    for initial in index.records_by_kind("historical-replay-obligation"):
+    mission_subject = f"Mission:{mission_id}"
+    for initial in index.records_by_subject_status(
+        mission_subject,
+        ReplayObligationStatus.PENDING.value,
+    ):
+        if initial.kind != "historical-replay-obligation":
+            continue
         raw = initial.payload.get("obligation")
         try:
             obligation = historical_replay_obligation_from_identity_payload(raw)
@@ -217,7 +251,7 @@ def obligation_heads(
         stream = obligation_stream(obligation.identity)
         if (
             initial.record_id != obligation.identity
-            or initial.subject != f"Mission:{mission_id}"
+            or initial.subject != mission_subject
             or initial.status != ReplayObligationStatus.PENDING.value
             or initial.event_stream != stream
             or initial.event_sequence != 1
@@ -697,34 +731,17 @@ def typed_replay_reference_executable_id(
 ) -> str | None:
     """Read the sole typed historical reference from a prospective Executable."""
 
-    if not isinstance(executable_payload, Mapping):
-        raise ReplayProjectionError("replay Executable manifest is malformed")
-    parameters = executable_payload.get("parameters")
-    manifests = executable_payload.get("component_manifests")
-    if not isinstance(parameters, Mapping) or not isinstance(manifests, list):
-        return None
-    reference = parameters.get("historical_reference_executable_id")
-    declarations = tuple(
-        item
-        for item in manifests
-        if isinstance(item, Mapping)
-        and isinstance(item.get("spec"), Mapping)
-        and "historical_reference_executable_id"
-        in item["spec"].get("parameter_fields", [])
+    from axiom_rift.research.historical_family_binding import (
+        HistoricalFamilyBindingError,
+        historical_reference_executable_id_from_manifest,
     )
-    if reference is None and not declarations:
-        return None
-    if (
-        type(reference) is not str
-        or not reference.startswith("executable:")
-        or len(reference) != len("executable:") + 64
-        or any(char not in "0123456789abcdef" for char in reference.split(":", 1)[1])
-        or len(declarations) != 1
-    ):
-        raise ReplayTransitionError(
-            "replay Executable historical reference is not one typed component field"
+
+    try:
+        return historical_reference_executable_id_from_manifest(
+            dict(executable_payload)
         )
-    return reference
+    except HistoricalFamilyBindingError as exc:
+        raise ReplayTransitionError(str(exc)) from exc
 
 
 def replay_evidence_record_ids(
@@ -755,12 +772,624 @@ def replay_evidence_record_ids(
     )
 
 
+_ADJUDICATED_MULTIPLICITY_FIELDS = {
+    "adjusted_pvalue_ppm",
+    "alpha_ppm",
+    "criterion_id",
+    "family_id",
+    "family_size",
+    "method",
+    "raw_pvalue_ppm",
+}
+_BONFERRONI_CONCURRENT_FAMILY_METHOD = "bonferroni_concurrent_family.v1"
+_SYNCHRONIZED_MAX_FAMILYWISE_METHOD = (
+    "synchronized_max_moving_block_familywise.v1"
+)
+_BATCH_SELECTION_MULTIPLICITY_CRITERION = SELECTION_CRITERION_ID
+_MULTIPLICITY_REGISTRATION_FIELDS = {
+    "alpha_ppm",
+    "criterion_id",
+    "family_id",
+    "family_registration_hash",
+    "family_size",
+    "member_id",
+    "method",
+    "ordered_member_ids",
+}
+def _is_executable_identity(value: object) -> bool:
+    return (
+        type(value) is str
+        and value.startswith("executable:")
+        and len(value) == len("executable:") + 64
+        and all(
+            character in "0123456789abcdef"
+            for character in value.removeprefix("executable:")
+        )
+    )
+
+
+def _selection_registration_from_completion(
+    index: LocalIndex,
+    *,
+    completion: IndexRecord,
+    declaration: IndexRecord,
+    scientific: Mapping[str, Any],
+) -> Mapping[str, Any]:
+    """Recover the exact Writer-validated E01 registration.
+
+    New completions project the validator-derived registration directly.
+    Historical v2 completions predate that projection, so recover the same
+    immutable registration from the exact content-addressed validation plan
+    that Writer bound as both a Job input and a durable completion output.
+    A malformed projected field never downgrades to the historical route.
+    """
+
+    registrations = scientific.get("multiplicity_registrations")
+    if registrations is None:
+        spec = declaration.payload.get("spec")
+        binding = (
+            None if not isinstance(spec, Mapping) else spec.get("scientific_binding")
+        )
+        plan_hash = (
+            None if not isinstance(binding, Mapping) else binding.get("validation_plan_hash")
+        )
+        outputs = completion.payload.get("outputs")
+        output_classes = completion.payload.get("output_classes")
+        if (
+            type(plan_hash) is not str
+            or len(plan_hash) != 64
+            or any(character not in "0123456789abcdef" for character in plan_hash)
+            or scientific.get("validation_plan_hash") != plan_hash
+            or not isinstance(outputs, Mapping)
+            or not isinstance(output_classes, Mapping)
+        ):
+            raise ReplayTransitionError(
+                "scientific replay selection registration lacks its exact plan"
+            )
+        plan_outputs = tuple(
+            output_name
+            for output_name, output_hash in outputs.items()
+            if output_hash == plan_hash
+            and output_classes.get(output_name) == "durable_evidence"
+        )
+        if len(plan_outputs) != 1:
+            raise ReplayTransitionError(
+                "scientific replay selection registration plan is not one durable output"
+            )
+        try:
+            content = EvidenceStore(index.path.parent / "evidence").read_verified(
+                plan_hash
+            )
+            plan = parse_canonical(content)
+        except (FileNotFoundError, OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise ReplayTransitionError(
+                "scientific replay selection registration plan is unavailable"
+            ) from exc
+        if (
+            not isinstance(plan, Mapping)
+            or plan.get("schema") != "scientific_validation_plan.v2"
+            or plan.get("executable_id")
+            != scientific.get("executable_id")
+        ):
+            raise ReplayTransitionError(
+                "scientific replay selection registration plan is malformed"
+            )
+        profile = plan.get("adjudication_profile")
+        registrations = (
+            None if not isinstance(profile, Mapping) else profile.get("multiplicity")
+        )
+    if not isinstance(registrations, list) or any(
+        not isinstance(item, Mapping) for item in registrations
+    ):
+        raise ReplayTransitionError(
+            "scientific replay selection registrations are malformed"
+        )
+    matches = tuple(
+        item
+        for item in registrations
+        if item.get("criterion_id") == _BATCH_SELECTION_MULTIPLICITY_CRITERION
+    )
+    if len(matches) != 1 or set(matches[0]) != _MULTIPLICITY_REGISTRATION_FIELDS:
+        raise ReplayTransitionError(
+            "scientific replay selection registration is not exact"
+        )
+    return matches[0]
+
+
+def _require_projected_multiplicity_batch_binding(
+    *,
+    scientific: Mapping[str, Any],
+    registration: Mapping[str, Any],
+    batch_id: str,
+    concurrent_family: Mapping[str, Any],
+    ordered_member_ids: tuple[str, ...],
+    executable_id: str,
+    required: bool,
+) -> None:
+    """Recompute one Writer-derived durable E01-to-Batch binding.
+
+    Historical completions predate this additive projection and are rebuilt
+    from their independent Batch, plan, validator and completion records.
+    Completions declared under the current source-authority boundary must
+    carry the durable binding; when present, every historical record must
+    still match it byte-for-byte.
+    """
+
+    projected = scientific.get("multiplicity_batch_binding")
+    if projected is None:
+        if required:
+            raise ReplayTransitionError(
+                "scientific replay completion lacks its durable Batch binding"
+            )
+        return
+    try:
+        expected = build_multiplicity_batch_binding(
+            batch_id=batch_id,
+            concurrent_family=concurrent_family,
+            selection_registration=registration,
+            executable_id=executable_id,
+            ordered_member_ids=ordered_member_ids,
+        )
+    except KeyError as exc:
+        raise ReplayTransitionError(
+            "scientific replay selection registration is malformed"
+        ) from exc
+    if (
+        not isinstance(projected, Mapping)
+        or set(projected) != MULTIPLICITY_BATCH_BINDING_FIELDS
+        or dict(projected) != expected
+    ):
+        raise ReplayTransitionError(
+            "scientific replay durable Batch binding differs from its exact "
+            "Batch, subject, or validator registration"
+        )
+
+
+def _validated_adjudicated_multiplicity(
+    adjudication: Mapping[str, Any],
+) -> tuple[Mapping[str, Any], ...]:
+    criteria = adjudication.get("criteria")
+    if not isinstance(criteria, list) or any(
+        not isinstance(item, Mapping) for item in criteria
+    ):
+        raise ReplayTransitionError(
+            "scientific replay multiplicity criteria are malformed"
+        )
+    multiplicity_items = tuple(
+        item for item in criteria if item.get("decision_role") == "multiplicity"
+    )
+    multiplicity_criteria = {
+        item.get("criterion_id"): item
+        for item in multiplicity_items
+    }
+    if (
+        any(
+            type(item.get("criterion_id")) is not str
+            or not item["criterion_id"]
+            or not item["criterion_id"].isascii()
+            for item in multiplicity_items
+        )
+        or len(multiplicity_criteria) != len(multiplicity_items)
+    ):
+        raise ReplayTransitionError(
+            "scientific replay multiplicity criterion identity is malformed"
+        )
+    raw_rows = adjudication.get("multiplicity", [])
+    if not multiplicity_criteria:
+        if raw_rows not in (None, []):
+            raise ReplayTransitionError(
+                "scientific replay has undeclared multiplicity results"
+            )
+        return ()
+    if not isinstance(raw_rows, list) or any(
+        not isinstance(item, Mapping)
+        or set(item) != _ADJUDICATED_MULTIPLICITY_FIELDS
+        for item in raw_rows
+    ):
+        raise ReplayTransitionError(
+            "scientific replay multiplicity results are malformed"
+        )
+    rows = tuple(raw_rows)
+    by_criterion = {item.get("criterion_id"): item for item in rows}
+    if (
+        None in by_criterion
+        or len(by_criterion) != len(rows)
+        or set(by_criterion) != set(multiplicity_criteria)
+    ):
+        raise ReplayTransitionError(
+            "scientific replay multiplicity inventory is incomplete"
+        )
+    for criterion_id, row in by_criterion.items():
+        family_id = row.get("family_id")
+        family_size = row.get("family_size")
+        raw_pvalue = row.get("raw_pvalue_ppm")
+        adjusted_pvalue = row.get("adjusted_pvalue_ppm")
+        alpha_ppm = row.get("alpha_ppm")
+        method = row.get("method")
+        criterion = multiplicity_criteria[criterion_id]
+        if (
+            type(family_id) is not str
+            or not family_id
+            or not family_id.isascii()
+            or type(family_size) is not int
+            or family_size < 1
+            or type(raw_pvalue) is not int
+            or type(adjusted_pvalue) is not int
+            or type(alpha_ppm) is not int
+            or not 0 <= raw_pvalue <= adjusted_pvalue <= 1_000_000
+            or not 1 <= alpha_ppm <= 1_000_000
+            or criterion.get("operator") != "le"
+            or criterion.get("threshold") != alpha_ppm
+            or criterion.get("value") != adjusted_pvalue
+        ):
+            raise ReplayTransitionError(
+                "scientific replay multiplicity adjustment is inconsistent"
+            )
+        if method == _BONFERRONI_CONCURRENT_FAMILY_METHOD:
+            if adjusted_pvalue != min(1_000_000, raw_pvalue * family_size):
+                raise ReplayTransitionError(
+                    "scientific replay Bonferroni adjustment is inconsistent"
+                )
+        elif method != _SYNCHRONIZED_MAX_FAMILYWISE_METHOD:
+            raise ReplayTransitionError(
+                "scientific replay multiplicity method is not registered"
+            )
+    return rows
+
+
+def _require_multiplicity_batch_binding(
+    index: LocalIndex,
+    *,
+    satisfaction: ReplaySatisfaction,
+    diagnosis: IndexRecord,
+    target_completion: IndexRecord,
+    target_declaration: IndexRecord,
+    adjudication: Mapping[str, Any],
+) -> None:
+    """Bind Batch-wide selection inference to its exact concurrent family.
+
+    Multiplicity families are criterion scoped.  E01 is the selection family
+    over every Executable in the preregistered Batch.  Other criteria can use
+    smaller per-Executable control families (D02 is one such family), so their
+    family identities and sizes must not be coerced to the Batch manifest.
+    """
+
+    target_rows = _validated_adjudicated_multiplicity(adjudication)
+    target_selection_rows = tuple(
+        row
+        for row in target_rows
+        if row.get("criterion_id") == _BATCH_SELECTION_MULTIPLICITY_CRITERION
+    )
+    if not target_selection_rows:
+        return
+    if len(target_selection_rows) != 1:
+        raise ReplayTransitionError(
+            "scientific replay selection multiplicity is ambiguous"
+        )
+    target_selection = target_selection_rows[0]
+    basis = diagnosis.payload.get("evidence_basis")
+    if not isinstance(basis, list):
+        raise ReplayTransitionError(
+            "scientific replay multiplicity lacks a diagnosis evidence basis"
+        )
+    batch_id = target_declaration.payload.get("batch_id")
+    if type(batch_id) is not str:
+        raise ReplayTransitionError(
+            "scientific replay multiplicity Job lacks a Batch binding"
+        )
+    batch_references = tuple(
+        item.get("record_id")
+        for item in basis
+        if isinstance(item, Mapping) and item.get("kind") == "batch-open"
+    )
+    if batch_references.count(batch_id) != 1:
+        raise ReplayTransitionError(
+            "scientific replay multiplicity lacks one exact Batch-open binding"
+        )
+    batch = index.get("batch-open", batch_id)
+    spec = None if batch is None else batch.payload.get("spec")
+    profile = None if not isinstance(spec, Mapping) else spec.get("acceptance_profile")
+    family = (
+        None
+        if not isinstance(profile, Mapping)
+        else profile.get("concurrent_family")
+    )
+    if (
+        batch is None
+        or batch.subject != f"Study:{satisfaction.replay_study_id}"
+        or not isinstance(family, Mapping)
+        or family.get("schema") != "concurrent_family_manifest.v1"
+    ):
+        raise ReplayTransitionError(
+            "scientific replay multiplicity Batch family is malformed"
+        )
+    raw_member_ids = family.get("executable_ids")
+    family_size = family.get("family_size")
+    if (
+        not isinstance(raw_member_ids, list)
+        or not raw_member_ids
+        or any(
+            type(item) is not str
+            or not item.startswith("executable:")
+            or len(item) != len("executable:") + 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in item.removeprefix("executable:")
+            )
+            for item in raw_member_ids
+        )
+        or len(set(raw_member_ids)) != len(raw_member_ids)
+        or type(family_size) is not int
+        or family_size != len(raw_member_ids)
+        or satisfaction.replay_executable_id not in raw_member_ids
+    ):
+        raise ReplayTransitionError(
+            "scientific replay multiplicity Batch membership is not exact"
+        )
+    member_ids = tuple(raw_member_ids)
+
+    for member_id in member_ids:
+        trial = index.get("trial", member_id)
+        if (
+            trial is None
+            or trial.payload.get("study_id") != satisfaction.replay_study_id
+        ):
+            raise ReplayTransitionError(
+                "scientific replay Batch member is not bound to its Study"
+            )
+
+    completion_references = tuple(
+        item.get("record_id")
+        for item in basis
+        if isinstance(item, Mapping) and item.get("kind") == "job-completed"
+    )
+    family_completions: dict[str, tuple[IndexRecord, Mapping[str, Any]]] = {}
+    for completion_id in completion_references:
+        completion = (
+            None
+            if not isinstance(completion_id, str)
+            else index.get("job-completed", completion_id)
+        )
+        job_id = None if completion is None else completion.payload.get("job_id")
+        declaration = (
+            None
+            if not isinstance(job_id, str)
+            else index.get("job-declared", job_id)
+        )
+        if declaration is None or declaration.payload.get("batch_id") != batch_id:
+            continue
+        declaration_spec = declaration.payload.get("spec")
+        subject = (
+            None
+            if not isinstance(declaration_spec, Mapping)
+            else declaration_spec.get("evidence_subject")
+        )
+        scientific = (
+            None if completion is None else completion.payload.get("scientific")
+        )
+        member_id = (
+            None
+            if not isinstance(subject, Mapping)
+            else subject.get("id")
+        )
+        if (
+            completion is None
+            or completion.status != "success"
+            or declaration.payload.get("study_id")
+            != satisfaction.replay_study_id
+            or not isinstance(subject, Mapping)
+            or subject.get("kind") != "Executable"
+            or member_id not in member_ids
+            or not isinstance(scientific, Mapping)
+            or scientific.get("executable_id") != member_id
+            or member_id in family_completions
+        ):
+            raise ReplayTransitionError(
+                "scientific replay Batch completion binding is inconsistent"
+            )
+        family_completions[member_id] = (completion, scientific)
+    if set(family_completions) != set(member_ids):
+        raise ReplayTransitionError(
+            "scientific replay lacks one completion per exact Batch member"
+        )
+    if family_completions[satisfaction.replay_executable_id][0] != target_completion:
+        raise ReplayTransitionError(
+            "scientific replay target completion differs from its Batch member"
+        )
+
+    close_references = tuple(
+        item.get("record_id")
+        for item in basis
+        if isinstance(item, Mapping) and item.get("kind") == "batch-close"
+    )
+    matching_closes = tuple(
+        close
+        for record_id in close_references
+        if isinstance(record_id, str)
+        for close in (index.get("batch-close", record_id),)
+        if close is not None and close.subject == f"Batch:{batch_id}"
+    )
+    if (
+        len(matching_closes) != 1
+        or matching_closes[0].status != "completed"
+        or matching_closes[0].payload.get("outcome") != "completed"
+    ):
+        raise ReplayTransitionError(
+            "scientific replay multiplicity Batch is not exactly completed"
+        )
+    batch_close = matching_closes[0]
+
+    observations: list[ReplaySelectionFamilyObservation] = []
+    selection_family_bindings: set[tuple[object, ...]] = set()
+    for member_id in sorted(family_completions):
+        completion, scientific = family_completions[member_id]
+        member_adjudication = scientific.get("adjudication")
+        if not isinstance(member_adjudication, Mapping):
+            raise ReplayTransitionError(
+                "scientific replay Batch member lacks an adjudication"
+            )
+        rows = _validated_adjudicated_multiplicity(member_adjudication)
+        selection_rows = tuple(
+            row
+            for row in rows
+            if row.get("criterion_id")
+            == _BATCH_SELECTION_MULTIPLICITY_CRITERION
+        )
+        if len(selection_rows) != 1:
+            raise ReplayTransitionError(
+                "scientific replay selection multiplicity is ambiguous"
+            )
+        selection = selection_rows[0]
+        job_id = completion.payload.get("job_id")
+        declaration = (
+            None
+            if not isinstance(job_id, str)
+            else index.get("job-declared", job_id)
+        )
+        if declaration is None:
+            raise ReplayTransitionError(
+                "scientific replay selection registration lacks its Job declaration"
+            )
+        registration = _selection_registration_from_completion(
+            index,
+            completion=completion,
+            declaration=declaration,
+            scientific=scientific,
+        )
+        _require_projected_multiplicity_batch_binding(
+            scientific=scientific,
+            registration=registration,
+            batch_id=batch_id,
+            concurrent_family=family,
+            ordered_member_ids=member_ids,
+            executable_id=member_id,
+            required=(
+                "source_closure_authority" in declaration.payload
+            ),
+        )
+        registered_member_ids = registration.get("ordered_member_ids")
+        if (
+            registration.get("alpha_ppm") != selection.get("alpha_ppm")
+            or registration.get("family_id") != selection.get("family_id")
+            or registration.get("family_size") != selection.get("family_size")
+            or registration.get("method") != selection.get("method")
+            or not isinstance(registered_member_ids, list)
+        ):
+            raise ReplayTransitionError(
+                "scientific replay selection registration is unrelated to its "
+                "adjudicated Batch member"
+            )
+        try:
+            observation = ReplaySelectionFamilyObservation(
+                executable_id=member_id,
+                completion_record_id=completion.record_id,
+                family_id=selection["family_id"],
+                family_size=selection["family_size"],
+                method=selection["method"],
+                alpha_ppm=selection["alpha_ppm"],
+                registered_member_id=registration["member_id"],
+                ordered_member_ids=tuple(registered_member_ids),
+                family_registration_hash=registration[
+                    "family_registration_hash"
+                ],
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ReplayTransitionError(
+                "scientific replay selection registration is malformed"
+            ) from exc
+        observations.append(observation)
+        selection_family_bindings.add(
+            (
+                selection.get("family_id"),
+                selection.get("family_size"),
+                selection.get("method"),
+                selection.get("alpha_ppm"),
+            )
+        )
+
+    if any(item.family_size != family_size for item in observations):
+        raise ReplayMultiplicityBindingError(
+            ReplayMultiplicityBindingDefect(
+                code=(
+                    ReplayMultiplicityDefectCode.SELECTION_FAMILY_SIZE_MISMATCH
+                ),
+                criterion_id=_BATCH_SELECTION_MULTIPLICITY_CRITERION,
+                batch_open_record_id=batch_id,
+                batch_close_record_id=batch_close.record_id,
+                expected_executable_ids=member_ids,
+                expected_family_size=family_size,
+                observations=tuple(observations),
+            )
+        )
+    expected_selection_binding = (
+        target_selection.get("family_id"),
+        target_selection.get("family_size"),
+        target_selection.get("method"),
+        target_selection.get("alpha_ppm"),
+    )
+    if selection_family_bindings != {expected_selection_binding}:
+        raise ReplayMultiplicityBindingError(
+            ReplayMultiplicityBindingDefect(
+                code=(
+                    ReplayMultiplicityDefectCode.SELECTION_FAMILY_DISAGREEMENT
+                ),
+                criterion_id=_BATCH_SELECTION_MULTIPLICITY_CRITERION,
+                batch_open_record_id=batch_id,
+                batch_close_record_id=batch_close.record_id,
+                expected_executable_ids=member_ids,
+                expected_family_size=family_size,
+                observations=tuple(observations),
+            )
+        )
+
+    expected_ordered_member_ids = member_ids
+    expected_member_set = set(member_ids)
+    if any(
+        item.registered_member_id != item.executable_id
+        or any(
+            not _is_executable_identity(registered_member_id)
+            for registered_member_id in item.ordered_member_ids
+        )
+        for item in observations
+    ):
+        raise ReplayTransitionError(
+            "scientific replay selection registration is unrelated to its "
+            "exact Batch membership"
+        )
+    if any(
+        set(item.ordered_member_ids) != expected_member_set
+        for item in observations
+    ):
+        raise ReplayMultiplicityBindingError(
+            ReplayMultiplicityBindingDefect(
+                code=(
+                    ReplayMultiplicityDefectCode.SELECTION_FAMILY_MEMBERSHIP_MISMATCH
+                ),
+                criterion_id=_BATCH_SELECTION_MULTIPLICITY_CRITERION,
+                batch_open_record_id=batch_id,
+                batch_close_record_id=batch_close.record_id,
+                expected_executable_ids=member_ids,
+                expected_family_size=family_size,
+                observations=tuple(observations),
+            )
+        )
+    if any(
+        item.ordered_member_ids != expected_ordered_member_ids
+        for item in observations
+    ):
+        raise ReplayTransitionError(
+            "scientific replay selection registration order differs from the "
+            "exact prospective Batch order"
+        )
+
+
 def _require_scientific_satisfaction_evidence(
     index: LocalIndex,
     *,
     obligation: HistoricalReplayObligation,
     satisfaction: ReplaySatisfaction,
     diagnosis: IndexRecord,
+    revalidate_current_multiplicity_binding: bool,
 ) -> None:
     """Recompute the admissibility of a scientific replay resolution.
 
@@ -922,6 +1551,15 @@ def _require_scientific_satisfaction_evidence(
             raise ReplayTransitionError(
                 "scientific replay satisfaction did not validly recompute every criterion"
             )
+    if revalidate_current_multiplicity_binding:
+        _require_multiplicity_batch_binding(
+            index,
+            satisfaction=satisfaction,
+            diagnosis=diagnosis,
+            target_completion=completion,
+            target_declaration=declaration,
+            adjudication=adjudication,
+        )
 
 
 def prepare_audit_only_scope_overlay(
@@ -1010,13 +1648,22 @@ def prepare_audit_only_scope_overlays(
     )
 
 
-def require_satisfaction(
-    index: LocalIndex,
+def _require_satisfaction_lineage(
+    index: LocalIndex | LocalIndexView,
     *,
     obligation: HistoricalReplayObligation,
     satisfaction: ReplaySatisfaction,
     allow_legacy_decision_binding: bool,
-) -> None:
+) -> tuple[
+    IndexRecord,
+    IndexRecord,
+    IndexRecord,
+    IndexRecord,
+    IndexRecord,
+    Mapping[str, Any],
+]:
+    """Open the immutable subject lineage named by one satisfaction."""
+
     decision = index.get("portfolio-decision", satisfaction.portfolio_decision_id)
     study = index.get("study-open", satisfaction.replay_study_id)
     trial = index.get("trial", satisfaction.replay_executable_id)
@@ -1039,6 +1686,7 @@ def require_satisfaction(
         or close_record.subject != f"Study:{study.record_id}"
         or diagnosis.payload.get("study_id") != study.record_id
         or diagnosis.payload.get("study_close_record_id") != close_record.record_id
+        or not isinstance(decision_obligations, list)
         or (
             not allow_legacy_decision_binding
             and obligation.identity not in decision_obligations
@@ -1056,8 +1704,52 @@ def require_satisfaction(
         raise ReplayTransitionError(
             "historical replay satisfaction evidence binding is incomplete"
         )
+    basis = diagnosis.payload.get("evidence_basis")
+    if not isinstance(basis, list):
+        raise ReplayTransitionError(
+            "historical replay satisfaction evidence lineage is malformed"
+        )
+    for item in basis:
+        if (
+            not isinstance(item, Mapping)
+            or set(item) != {"kind", "record_id"}
+            or type(item.get("kind")) is not str
+            or type(item.get("record_id")) is not str
+            or index.get(item["kind"], item["record_id"]) is None
+        ):
+            raise ReplayTransitionError(
+                "historical replay satisfaction evidence lineage is unavailable"
+            )
     executable_payload = trial.payload.get("executable")
-    if not isinstance(executable_payload, dict) or not payload_contains_exact_value(
+    if not isinstance(executable_payload, Mapping):
+        raise ReplayTransitionError(
+            "replay Executable manifest is malformed"
+        )
+    return decision, study, trial, close_record, diagnosis, executable_payload
+
+
+def _require_satisfaction(
+    index: LocalIndex,
+    *,
+    obligation: HistoricalReplayObligation,
+    satisfaction: ReplaySatisfaction,
+    allow_legacy_decision_binding: bool,
+    revalidate_current_multiplicity_binding: bool,
+) -> None:
+    (
+        _decision,
+        _study,
+        _trial,
+        _close_record,
+        diagnosis,
+        executable_payload,
+    ) = _require_satisfaction_lineage(
+        index,
+        obligation=obligation,
+        satisfaction=satisfaction,
+        allow_legacy_decision_binding=allow_legacy_decision_binding,
+    )
+    if not payload_contains_exact_value(
         executable_payload, obligation.original_executable_id
     ):
         raise ReplayTransitionError(
@@ -1098,16 +1790,508 @@ def require_satisfaction(
             obligation=obligation,
             satisfaction=satisfaction,
             diagnosis=diagnosis,
+            revalidate_current_multiplicity_binding=(
+                revalidate_current_multiplicity_binding
+            ),
         )
 
 
-def build_correction_plan(
+def require_satisfaction(
+    index: LocalIndex,
+    *,
+    obligation: HistoricalReplayObligation,
+    satisfaction: ReplaySatisfaction,
+    allow_legacy_decision_binding: bool,
+) -> None:
+    """Authorize a satisfaction under the current replay protocol."""
+
+    _require_satisfaction(
+        index,
+        obligation=obligation,
+        satisfaction=satisfaction,
+        allow_legacy_decision_binding=allow_legacy_decision_binding,
+        revalidate_current_multiplicity_binding=True,
+    )
+
+
+def require_recorded_satisfaction(
+    index: LocalIndex | LocalIndexView,
+    *,
+    obligation: HistoricalReplayObligation,
+    satisfaction: ReplaySatisfaction,
+    allow_legacy_decision_binding: bool,
+    satisfaction_head: IndexRecord | None = None,
+    require_current_head: bool = True,
+) -> None:
+    """Authenticate one Writer-accepted satisfaction under recorded authority.
+
+    Projection proves the exact stream transition, immutable subject lineage,
+    Journal authority, and same-event Writer operation.  It deliberately does
+    not rerun validator, adjudication, criterion, or multiplicity semantics
+    that may have changed after the immutable satisfaction was accepted.
+    Current rules remain mandatory in ``require_satisfaction`` at every new
+    resolution and in the explicit typed invalidation audit.
+    """
+
+    stored = (
+        index.get(
+            "historical-replay-obligation-resolution",
+            satisfaction.identity,
+        )
+        if satisfaction_head is None
+        else satisfaction_head
+    )
+    if stored is None:
+        raise ReplayProjectionError("recorded replay satisfaction is unavailable")
+    parsed = _satisfaction_from_head(obligation=obligation, head=stored)
+    if parsed != satisfaction:
+        raise ReplayProjectionError(
+            "recorded replay satisfaction differs from its stored head"
+        )
+    event_kind, result = _require_recorded_transition_authority(
+        index,
+        obligation=obligation,
+        record=stored,
+        expected_event_kinds={
+            "historical_replay_correction_recorded",
+            "historical_replay_obligations_resolved",
+        },
+        require_current_head=require_current_head,
+    )
+    satisfied_ids = result.get("satisfied_replay_obligation_ids")
+    if (
+        not isinstance(satisfied_ids, list)
+        or any(type(item) is not str for item in satisfied_ids)
+        or len(satisfied_ids) != len(set(satisfied_ids))
+        or satisfied_ids != sorted(satisfied_ids)
+        or obligation.identity not in satisfied_ids
+    ):
+        raise ReplayProjectionError(
+            "recorded replay satisfaction lacks same-event Writer acceptance"
+        )
+    _require_satisfaction_lineage(
+        index,
+        obligation=obligation,
+        satisfaction=satisfaction,
+        allow_legacy_decision_binding=(
+            allow_legacy_decision_binding
+            or event_kind == "historical_replay_correction_recorded"
+        ),
+    )
+
+
+def _satisfaction_from_head(
+    *,
+    obligation: HistoricalReplayObligation,
+    head: IndexRecord,
+) -> ReplaySatisfaction:
+    raw = head.payload.get("resolution")
+    if not isinstance(raw, Mapping):
+        raise ReplayProjectionError("replay satisfaction head is malformed")
+    try:
+        satisfaction = ReplaySatisfaction(
+            obligation_id=raw["obligation_id"],
+            resolution_scope=ReplayResolutionScope(raw["resolution_scope"]),
+            portfolio_decision_id=raw["portfolio_decision_id"],
+            replay_study_id=raw["replay_study_id"],
+            replay_executable_id=raw["replay_executable_id"],
+            replay_study_close_record_id=raw["replay_study_close_record_id"],
+            study_diagnosis_id=raw["study_diagnosis_id"],
+            satisfied_criterion_ids=tuple(raw["satisfied_criterion_ids"]),
+            evidence_record_ids=tuple(raw["evidence_record_ids"]),
+            remaining_scientific_condition=raw.get(
+                "remaining_scientific_condition"
+            ),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ReplayProjectionError("replay satisfaction head is malformed") from exc
+    if (
+        head.kind != "historical-replay-obligation-resolution"
+        or head.status != ReplayObligationStatus.SATISFIED.value
+        or head.record_id != satisfaction.identity
+        or head.subject != f"Mission:{obligation.governing_mission_id}"
+        or head.event_stream != obligation_stream(obligation.identity)
+        or type(head.event_sequence) is not int
+        or head.event_sequence < 2
+        or head.payload
+        != {
+            "obligation_id": obligation.identity,
+            "prior_status": head.payload.get("prior_status"),
+            "resolution": satisfaction.to_identity_payload(),
+        }
+        or head.payload.get("prior_status")
+        not in {
+            ReplayObligationStatus.PENDING.value,
+            ReplayObligationStatus.IN_PROGRESS.value,
+        }
+        or satisfaction.obligation_id != obligation.identity
+    ):
+        raise ReplayProjectionError("replay satisfaction head is malformed")
+    return satisfaction
+
+
+def _require_recorded_transition_authority(
+    index: LocalIndex | LocalIndexView,
+    *,
+    obligation: HistoricalReplayObligation,
+    record: IndexRecord,
+    expected_event_kinds: set[str],
+    require_current_head: bool,
+) -> tuple[str, Mapping[str, Any]]:
+    """Authenticate one stored stream transition and its Writer operation."""
+
+    if record.event_stream != obligation_stream(obligation.identity):
+        raise ReplayProjectionError(
+            "recorded replay transition is outside its obligation stream"
+        )
+    try:
+        return require_recorded_transition_authority(
+            index,
+            record=record,
+            expected_event_kinds=frozenset(expected_event_kinds),
+            require_current_head=require_current_head,
+        )
+    except RecordedTransitionAuthorityError as exc:
+        raise ReplayProjectionError(str(exc)) from exc
+
+
+def derive_satisfaction_invalidation_manifest(
+    index: LocalIndex,
+    *,
+    obligation: HistoricalReplayObligation,
+    satisfaction_head: IndexRecord,
+) -> ReplaySatisfactionInvalidationAuditManifest:
+    """Revalidate one satisfied head and derive only an exact E01 defect."""
+
+    satisfaction = _satisfaction_from_head(
+        obligation=obligation,
+        head=satisfaction_head,
+    )
+    if satisfaction.resolution_scope is not ReplayResolutionScope.SCIENTIFIC:
+        raise ReplayTransitionError(
+            "only scientific replay satisfaction can be multiplicity-invalidated"
+        )
+    try:
+        require_satisfaction(
+            index,
+            obligation=obligation,
+            satisfaction=satisfaction,
+            allow_legacy_decision_binding=False,
+        )
+    except ReplayMultiplicityBindingError as exc:
+        defect = exc.defect
+    except ReplayAuthorityError:
+        raise
+    else:
+        raise ReplayTransitionError(
+            "historical replay satisfaction remains valid under the current protocol"
+        )
+    return ReplaySatisfactionInvalidationAuditManifest(
+        governing_mission_id=obligation.governing_mission_id,
+        obligation_id=obligation.identity,
+        satisfaction_record_id=satisfaction.identity,
+        satisfaction_event_sequence=satisfaction_head.event_sequence,
+        portfolio_decision_id=satisfaction.portfolio_decision_id,
+        replay_study_id=satisfaction.replay_study_id,
+        replay_executable_id=satisfaction.replay_executable_id,
+        replay_study_close_record_id=satisfaction.replay_study_close_record_id,
+        study_diagnosis_id=satisfaction.study_diagnosis_id,
+        completion_record_ids=tuple(
+            item.completion_record_id for item in defect.observations
+        ),
+        defect=defect,
+    )
+
+
+def build_satisfaction_invalidation_plan(
+    index: LocalIndex,
+    *,
+    mission_id: str,
+    obligation_id: str,
+) -> dict[str, Any]:
+    """Build the canonical audit artifact without mutating any authority."""
+
+    matches = tuple(
+        (obligation, head)
+        for obligation, head in obligation_heads(index, mission_id=mission_id)
+        if obligation.identity == obligation_id
+    )
+    if len(matches) != 1:
+        raise ReplayTransitionError(
+            "replay satisfaction invalidation names an unknown obligation"
+        )
+    obligation, head = matches[0]
+    if head.status != ReplayObligationStatus.SATISFIED.value:
+        raise ReplayTransitionError(
+            "replay satisfaction invalidation requires a satisfied head"
+        )
+    manifest = derive_satisfaction_invalidation_manifest(
+        index,
+        obligation=obligation,
+        satisfaction_head=head,
+    )
+    payload = manifest.to_identity_payload()
+    return {
+        "audit_manifest": payload,
+        "audit_manifest_sha256": sha256(canonical_bytes(payload)).hexdigest(),
+        "operation": "invalidate_historical_replay_satisfaction",
+        "schema": "replay_satisfaction_invalidation_plan.v1",
+    }
+
+
+def satisfaction_invalidation_record(
+    *,
+    obligation: HistoricalReplayObligation,
+    manifest: ReplaySatisfactionInvalidationAuditManifest,
+    audit_manifest_hash: str,
+    sequence: int,
+) -> IndexRecord:
+    payload = {
+        "audit_manifest": manifest.to_identity_payload(),
+        "audit_manifest_hash": audit_manifest_hash,
+        "candidate_delta": 0,
+        "holdout_reveal_delta": 0,
+        "obligation_id": obligation.identity,
+        "prior_satisfaction_record_id": manifest.satisfaction_record_id,
+        "prior_status": ReplayObligationStatus.SATISFIED.value,
+        "scientific_claim_delta": 0,
+        "scientific_satisfaction_delta": 0,
+        "scientific_trial_delta": 0,
+        "terminal_credit_delta": 0,
+    }
+    return _record(
+        kind="historical-replay-satisfaction-invalidation",
+        record_id=manifest.identity,
+        subject=f"Mission:{obligation.governing_mission_id}",
+        status=ReplayObligationStatus.PENDING.value,
+        fingerprint=manifest.identity.removeprefix(
+            "historical-replay-satisfaction-invalidation:"
+        ),
+        payload=payload,
+        event_stream=obligation_stream(obligation.identity),
+        event_sequence=sequence,
+    )
+
+
+def require_satisfaction_invalidation_record(
+    index: LocalIndex | LocalIndexView,
+    *,
+    obligation: HistoricalReplayObligation,
+    record: IndexRecord,
+) -> ReplaySatisfactionInvalidationAuditManifest:
+    """Rebuild a pending invalidation head from its exact prior satisfaction."""
+
+    raw_manifest = record.payload.get("audit_manifest")
+    audit_manifest_hash = record.payload.get("audit_manifest_hash")
+    try:
+        manifest = ReplaySatisfactionInvalidationAuditManifest.from_mapping(
+            raw_manifest
+        )
+    except (TypeError, ValueError) as exc:
+        raise ReplayProjectionError(
+            "replay satisfaction invalidation manifest is malformed"
+        ) from exc
+    expected_payload = {
+        "audit_manifest": manifest.to_identity_payload(),
+        "audit_manifest_hash": audit_manifest_hash,
+        "candidate_delta": 0,
+        "holdout_reveal_delta": 0,
+        "obligation_id": obligation.identity,
+        "prior_satisfaction_record_id": manifest.satisfaction_record_id,
+        "prior_status": ReplayObligationStatus.SATISFIED.value,
+        "scientific_claim_delta": 0,
+        "scientific_satisfaction_delta": 0,
+        "scientific_trial_delta": 0,
+        "terminal_credit_delta": 0,
+    }
+    if (
+        type(audit_manifest_hash) is not str
+        or sha256(canonical_bytes(manifest.to_identity_payload())).hexdigest()
+        != audit_manifest_hash
+        or record.kind != "historical-replay-satisfaction-invalidation"
+        or record.record_id != manifest.identity
+        or record.subject != f"Mission:{obligation.governing_mission_id}"
+        or record.status != ReplayObligationStatus.PENDING.value
+        or record.fingerprint
+        != manifest.identity.removeprefix(
+            "historical-replay-satisfaction-invalidation:"
+        )
+        or record.payload != expected_payload
+        or record.event_stream != obligation_stream(obligation.identity)
+        or record.event_sequence != manifest.satisfaction_event_sequence + 1
+        or manifest.governing_mission_id != obligation.governing_mission_id
+        or manifest.obligation_id != obligation.identity
+    ):
+        raise ReplayProjectionError(
+            "replay satisfaction invalidation record is malformed"
+        )
+    _event_kind, result = _require_recorded_transition_authority(
+        index,
+        obligation=obligation,
+        record=record,
+        expected_event_kinds={
+            "historical_replay_satisfaction_invalidated",
+        },
+        require_current_head=True,
+    )
+    pending_ids = result.get("pending_replay_obligation_ids")
+    if (
+        result.get("audit_manifest_hash") != audit_manifest_hash
+        or result.get("invalidated_satisfaction_record_id")
+        != manifest.satisfaction_record_id
+        or result.get("replay_obligation_id") != obligation.identity
+        or not isinstance(pending_ids, list)
+        or any(type(item) is not str for item in pending_ids)
+        or len(pending_ids) != len(set(pending_ids))
+        or pending_ids != sorted(pending_ids)
+        or obligation.identity not in pending_ids
+        or any(
+            result.get(field) != 0
+            for field in (
+                "candidate_delta",
+                "holdout_reveal_delta",
+                "scientific_claim_delta",
+                "scientific_satisfaction_delta",
+                "scientific_trial_delta",
+            )
+        )
+    ):
+        raise ReplayProjectionError(
+            "replay satisfaction invalidation lacks exact zero-delta Writer authority"
+        )
+    prior = index.get(
+        "historical-replay-obligation-resolution",
+        manifest.satisfaction_record_id,
+    )
+    if prior is None or prior.event_sequence != manifest.satisfaction_event_sequence:
+        raise ReplayProjectionError(
+            "replay satisfaction invalidation lost its exact prior head"
+        )
+    satisfaction = _satisfaction_from_head(
+        obligation=obligation,
+        head=prior,
+    )
+    require_recorded_satisfaction(
+        index,
+        obligation=obligation,
+        satisfaction=satisfaction,
+        allow_legacy_decision_binding=False,
+        satisfaction_head=prior,
+        require_current_head=False,
+    )
+    if (
+        manifest.satisfaction_record_id != satisfaction.identity
+        or manifest.satisfaction_event_sequence != prior.event_sequence
+        or manifest.portfolio_decision_id
+        != satisfaction.portfolio_decision_id
+        or manifest.replay_study_id != satisfaction.replay_study_id
+        or manifest.replay_executable_id
+        != satisfaction.replay_executable_id
+        or manifest.replay_study_close_record_id
+        != satisfaction.replay_study_close_record_id
+        or manifest.study_diagnosis_id != satisfaction.study_diagnosis_id
+    ):
+        raise ReplayProjectionError(
+            "replay satisfaction invalidation lost its exact prior satisfaction"
+        )
+    stored_evidence_ids = set(satisfaction.evidence_record_ids)
+    defect = manifest.defect
+    if (
+        defect.batch_open_record_id not in stored_evidence_ids
+        or defect.batch_close_record_id not in stored_evidence_ids
+        or not set(manifest.completion_record_ids).issubset(stored_evidence_ids)
+        or index.get("batch-open", defect.batch_open_record_id) is None
+        or index.get("batch-close", defect.batch_close_record_id) is None
+        or any(
+            index.get("job-completed", record_id) is None
+            for record_id in manifest.completion_record_ids
+        )
+    ):
+        raise ReplayProjectionError(
+            "replay satisfaction invalidation manifest left its stored evidence lineage"
+        )
+    return manifest
+
+
+def prepare_satisfaction_invalidation(
+    index: LocalIndex,
+    *,
+    mission_id: str,
+    obligation_id: str,
+    manifest: ReplaySatisfactionInvalidationAuditManifest,
+    audit_manifest_hash: str,
+) -> tuple[list[IndexRecord], dict[str, Any], dict[str, Any]]:
+    """Prepare satisfied-to-pending revocation and restore its scheduler duty."""
+
+    plan = build_satisfaction_invalidation_plan(
+        index,
+        mission_id=mission_id,
+        obligation_id=obligation_id,
+    )
+    expected = ReplaySatisfactionInvalidationAuditManifest.from_mapping(
+        plan["audit_manifest"]
+    )
+    if (
+        manifest != expected
+        or manifest.obligation_id != obligation_id
+        or plan["audit_manifest_sha256"] != audit_manifest_hash
+    ):
+        raise ReplayTransitionError(
+            "replay satisfaction invalidation artifact differs from current authority"
+        )
+    pairs = {
+        obligation.identity: (obligation, head)
+        for obligation, head in obligation_heads(index, mission_id=mission_id)
+    }
+    obligation, head = pairs[obligation_id]
+    record = satisfaction_invalidation_record(
+        obligation=obligation,
+        manifest=manifest,
+        audit_manifest_hash=audit_manifest_hash,
+        sequence=(head.event_sequence or 0) + 1,
+    )
+    constraints = constraints_for_pending(
+        item
+        for item, current_head in pairs.values()
+        if current_head.status == ReplayObligationStatus.PENDING.value
+        or item.identity == obligation_id
+    )
+    if constraints is None:
+        raise ReplayProjectionError(
+            "replay satisfaction invalidation lost its scheduler constraint"
+        )
+    return [record], constraints, {
+        "audit_manifest_hash": audit_manifest_hash,
+        "invalidated_satisfaction_record_id": manifest.satisfaction_record_id,
+        "pending_replay_obligation_ids": constraints[
+            "pending_replay_obligation_ids"
+        ],
+        "replay_obligation_id": obligation_id,
+        "scientific_claim_delta": 0,
+        "scientific_satisfaction_delta": 0,
+        "scientific_trial_delta": 0,
+        "holdout_reveal_delta": 0,
+        "candidate_delta": 0,
+    }
+
+
+def build_explicit_historical_replay_correction_audit_plan(
     index: LocalIndex,
     *,
     mission_id: str,
     adjudication_record_ids: Sequence[str],
     replay_study_id: str,
 ) -> dict[str, Any]:
+    """Build the explicit complete-history audit for one replay correction.
+
+    This is a rare operator-requested correction boundary, not a routine
+    scheduler projection.  The Trial and Study-diagnosis kind scans below are
+    deliberately complete-history audits: historical records do not have a
+    trusted replay-Study lookup key, and silently narrowing the slice could
+    omit conflicting evidence.  Keep callers on this explicitly named path
+    instead of reusing these scans for normal routing.
+    """
+
     validate_study_id(replay_study_id)
     obligations = tuple(
         derive_obligation_from_record(
@@ -1118,6 +2302,7 @@ def build_correction_plan(
         for item in adjudication_record_ids
     )
     study = index.get("study-open", replay_study_id)
+    # Intentional complete-history audit slice; never use for routine routing.
     trials = tuple(
         record
         for record in index.records_by_kind("trial")
@@ -1129,6 +2314,7 @@ def build_correction_plan(
         for record in index.records_by_subject_status(f"Study:{replay_study_id}", status)
         if record.kind == "study-close"
     )
+    # Intentional complete-history audit slice; never use for routine routing.
     diagnoses = tuple(
         record
         for record in index.records_by_kind("study-diagnosis")
@@ -1213,6 +2399,23 @@ def build_correction_plan(
         "satisfied_after_apply": sorted(item.identity for item in p0),
         "schema": "historical_replay_correction_plan.v2",
     }
+
+
+def build_correction_plan(
+    index: LocalIndex,
+    *,
+    mission_id: str,
+    adjudication_record_ids: Sequence[str],
+    replay_study_id: str,
+) -> dict[str, Any]:
+    """Compatibility wrapper for the explicit historical correction audit."""
+
+    return build_explicit_historical_replay_correction_audit_plan(
+        index,
+        mission_id=mission_id,
+        adjudication_record_ids=adjudication_record_ids,
+        replay_study_id=replay_study_id,
+    )
 
 
 def prepare_correction(
@@ -2291,9 +3494,12 @@ def prepare_resume(
 
 __all__ = [
     "ReplayAuthorityError",
+    "ReplayMultiplicityBindingError",
     "ReplayProjectionError",
     "ReplayTransitionError",
     "build_correction_plan",
+    "build_explicit_historical_replay_correction_audit_plan",
+    "build_satisfaction_invalidation_plan",
     "constraints_for_pending",
     "derive_obligation_from_record",
     "initial_obligation_record",
@@ -2305,8 +3511,11 @@ __all__ = [
     "prepare_execution_progress",
     "prepare_resume",
     "prepare_resolution",
+    "prepare_satisfaction_invalidation",
     "replay_obligation_capability_id",
     "require_diagnosed_replay",
+    "require_recorded_satisfaction",
+    "require_satisfaction_invalidation_record",
     "require_study_execution_complete",
     "require_study_pending",
     "scheduler_constraints",

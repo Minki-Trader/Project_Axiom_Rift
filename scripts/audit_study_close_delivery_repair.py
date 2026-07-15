@@ -19,6 +19,7 @@ from axiom_rift.storage.journal import (  # noqa: E402
 MANIFEST = ROOT / "records" / "STUDY_CLOSE_DELIVERY_REPAIR.json"
 CONTROL_PATH = "state/control.json"
 KPI_PATH = "records/STUDY_KPI.md"
+LOCAL_GIT_TIMEOUT_SECONDS = 2 * 60
 
 
 def git(*arguments: str, binary: bool = False) -> bytes | str:
@@ -27,6 +28,7 @@ def git(*arguments: str, binary: bool = False) -> bytes | str:
         cwd=ROOT,
         check=True,
         capture_output=True,
+        timeout=LOCAL_GIT_TIMEOUT_SECONDS,
     )
     return result.stdout if binary else result.stdout.decode("ascii").strip()
 
@@ -37,6 +39,7 @@ def ancestor(commit: str, reference: str) -> None:
         cwd=ROOT,
         check=True,
         capture_output=True,
+        timeout=LOCAL_GIT_TIMEOUT_SECONDS,
     )
 
 

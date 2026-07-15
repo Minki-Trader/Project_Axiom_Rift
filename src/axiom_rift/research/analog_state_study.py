@@ -12,9 +12,12 @@ import numpy as np
 import pandas as pd
 import scipy
 
-from axiom_rift.core.canonical import canonical_bytes, parse_canonical
-from axiom_rift.operations import writer as writer_module
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.running_job_context import (
+    RunningJobExecutionContext,
+    running_job_execution_context_implementation_sha256,
+)
 from axiom_rift.research.analog_state_discovery import (
     analog_implementation_sha256,
     compute_registered_analog_surface,
@@ -27,6 +30,9 @@ from axiom_rift.research.discovery import (
     OBSERVED_MATERIAL_ID,
     ROLLING_SPLIT_SHA256,
     discovery_implementation_sha256,
+)
+from axiom_rift.research.evidence_inputs import (
+    read_surface_manifest_evidence_inputs,
 )
 from axiom_rift.research.trend_study import (
     CRITERIA,
@@ -113,9 +119,7 @@ def build_environment_manifest() -> dict[str, object]:
         ),
         "split_artifact_sha256": ROLLING_SPLIT_SHA256,
         "validator_id": SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
-        "writer_implementation_sha256": sha256(
-            Path(writer_module.__file__).resolve().read_bytes()
-        ).hexdigest(),
+        "running_job_context_implementation_sha256": running_job_execution_context_implementation_sha256(),
     }
     canonical_bytes(value)
     return value
@@ -183,33 +187,21 @@ class AnalogJobPacket:
 
 
 def _load_surface(
-    writer: StateWriter,
+    writer: RunningJobExecutionContext,
     hashes: tuple[str, ...],
 ) -> tuple[dict[str, Any], str, str]:
-    surface: tuple[dict[str, Any], str] | None = None
-    manifest: tuple[dict[str, Any], str] | None = None
-    for digest in hashes:
-        try:
-            artifact = writer.evidence.verify(digest)
-            value = parse_canonical(
-                (writer.evidence._root / artifact.relative_path).read_bytes()
-            )
-        except (FileNotFoundError, OSError, RuntimeError, ValueError):
-            continue
-        if isinstance(value, dict) and value.get("schema") == "analog_state_surface.v2":
-            surface = value, digest
-        if (
-            isinstance(value, dict)
-            and value.get("schema") == "analog_state_surface_manifest.v2"
-        ):
-            manifest = value, digest
-    if (
-        surface is None
-        or manifest is None
-        or manifest[0].get("surface_artifact_hash") != surface[1]
-    ):
-        raise ValueError("analog surface is absent or not bound to its manifest")
-    return surface[0], surface[1], manifest[1]
+    binding = read_surface_manifest_evidence_inputs(
+        writer.evidence,
+        hashes,
+        surface_schema="analog_state_surface.v2",
+        manifest_schema="analog_state_surface_manifest.v2",
+        expected_surface_implementation_sha256=analog_implementation_sha256(),
+    )
+    return (
+        binding.surface.value,
+        binding.surface.artifact_sha256,
+        binding.manifest.artifact_sha256,
+    )
 
 
 def execute_analog_job(
@@ -218,7 +210,7 @@ def execute_analog_job(
     execution: RunningJobExecution,
 ) -> AnalogJobPacket:
     root = Path(repository_root).resolve()
-    writer = StateWriter(root)
+    writer = RunningJobExecutionContext(root)
     binding = writer.verify_running_job_execution(
         execution,
         expected_callable_identity=CALLABLE_IDENTITY,
@@ -275,7 +267,7 @@ def execute_analog_job(
     else:
         surface, surface_hash, surface_manifest_hash = _load_surface(
             writer,
-            inputs,
+            tuple(identity for identity in inputs if identity not in required),
         )
 
     evaluation = project_analog_evaluation(

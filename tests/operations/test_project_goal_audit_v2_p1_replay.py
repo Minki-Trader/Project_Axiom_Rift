@@ -1,14 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from hashlib import sha256
 import json
 from pathlib import Path
-import subprocess
-import sys
 from types import SimpleNamespace
 from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from scripts import run_project_goal_audit_v2_p1_replay as subject
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
@@ -35,6 +34,10 @@ class _FakeIndex:
     def __init__(self, _path: object = None) -> None:
         pass
 
+    @classmethod
+    def open_read_only(cls, path: object):
+        return cls(path)
+
     def __enter__(self):
         return self
 
@@ -48,6 +51,15 @@ class _FakeIndex:
             record
             for (record_kind, _), record in self.by_kind.items()
             if record_kind == kind
+        )
+
+    def records_by_kind_prefix(self, kind: str, record_id_prefix: str):
+        if kind != "operation":
+            return ()
+        return tuple(
+            record
+            for record_id, record in sorted(self.records.items())
+            if record_id.startswith(record_id_prefix)
         )
 
     def get(self, kind: str, record_id: str):
@@ -122,6 +134,27 @@ def _completion(*, state: str, incomplete: bool = False) -> IndexRecord:
 
 
 class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
+    @staticmethod
+    def _historical_completed_design(writer: StateWriter):
+        def resolutions(_index, axes, **_kwargs):
+            return tuple(
+                SimpleNamespace(
+                    status=(
+                        subject.EffectiveAxisStatus.SELECTABLE
+                        if axis.get("axis_id") == "axis-cost-aware-execution"
+                        else subject.EffectiveAxisStatus.PRUNED
+                    )
+                )
+                for axis in axes
+            )
+
+        with patch.object(
+            subject,
+            "effective_axis_resolutions",
+            side_effect=resolutions,
+        ):
+            return subject.build_p1_replay_design(writer)
+
     def test_judgement_binding_uses_same_event_decision_record(self) -> None:
         event_id = "e" * 64
         job_id = "job:" + "1" * 64
@@ -206,51 +239,58 @@ class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
                 label="member-01",
             )
 
-    def test_direct_cli_reaches_read_only_plan_without_mutating_authority(
-        self,
-    ) -> None:
-        authority_paths = (
-            subject.ROOT / "state" / "control.json",
-            subject.ROOT / "records" / "journal" / "manifest.json",
-            subject.ROOT / "records" / "STUDY_KPI.md",
-            subject.ROOT / "records" / "STUDY_CLOSE_DELIVERY_CHECKPOINT.json",
-            *sorted((subject.ROOT / "records" / "journal").glob("*.jsonl")),
-            *sorted((subject.ROOT / "records" / "journal").glob("*.seal.json")),
+    def test_read_only_main_requires_stable_head_and_emits_plan(self) -> None:
+        writer = SimpleNamespace(
+            require_stable_head=Mock(return_value={"stable": True}),
+            recover=Mock(side_effect=AssertionError("read-only recovery attempted")),
         )
-        before = {path: path.read_bytes() for path in authority_paths}
-        with TemporaryDirectory() as directory:
-            completed = subprocess.run(
-                (
-                    sys.executable,
-                    str(
-                        subject.ROOT
-                        / "scripts"
-                        / "run_project_goal_audit_v2_p1_replay.py"
-                    ),
-                ),
-                cwd=directory,
-                capture_output=True,
-                check=False,
-                text=True,
-                timeout=30,
-            )
-        self.assertEqual(completed.returncode, 0, completed.stderr)
-        summary = json.loads(completed.stdout)
+        boundary = SimpleNamespace(revision=4938, event_id="e" * 64)
+        design = SimpleNamespace()
+        expected = {"mode": "read_only_plan", "study_id": subject.STUDY_ID}
+        with patch.object(subject, "StateWriter", return_value=writer), patch.object(
+            subject,
+            "validate_correction_predecessor",
+            return_value=boundary,
+        ) as validate_predecessor, patch.object(
+            subject,
+            "build_p1_replay_design",
+            return_value=design,
+        ) as build_design, patch.object(
+            subject,
+            "_read_only_summary",
+            return_value=expected,
+        ) as read_only_summary, patch("builtins.print") as print_output:
+            subject.main(())
+
+        writer.require_stable_head.assert_called_once_with()
+        writer.recover.assert_not_called()
+        validate_predecessor.assert_called_once_with(writer)
+        build_design.assert_called_once_with(writer)
+        read_only_summary.assert_called_once_with(
+            writer,
+            design,
+            boundary=boundary,
+        )
+        summary = json.loads(print_output.call_args.args[0])
         self.assertEqual(summary["mode"], "read_only_plan")
         self.assertEqual(summary["study_id"], subject.STUDY_ID)
-        self.assertEqual(
-            {path: path.read_bytes() for path in authority_paths},
-            before,
-        )
 
     def test_family_is_exact_one_to_one_and_target_is_final(self) -> None:
         members = subject.ordered_replay_members()
+        execution_ids = tuple(
+            member.executable.identity for member in members
+        )
         references = tuple(
             member.configuration.historical_reference_executable_id
             for member in members
         )
         self.assertEqual(len(members), 4)
-        self.assertEqual(len(set(member.executable.identity for member in members)), 4)
+        self.assertEqual(len(set(execution_ids)), 4)
+        self.assertEqual(
+            subject._canonical_statistical_family_ids(members),
+            tuple(sorted(execution_ids)),
+        )
+        self.assertNotEqual(execution_ids, tuple(sorted(execution_ids)))
         self.assertEqual(len(set(references)), 4)
         self.assertEqual(references[-1], subject.TARGET_ORIGINAL_EXECUTABLE_ID)
         for row, member in enumerate(members):
@@ -375,15 +415,28 @@ class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
         )
         self.assertEqual(design.batch_spec.max_trials, 4)
         assert design.batch_spec.concurrent_family is not None
+        execution_ids = tuple(
+            member.executable.identity for member in design.members
+        )
         self.assertEqual(
             design.batch_spec.concurrent_family.executable_ids,
-            tuple(member.executable.identity for member in design.members),
+            tuple(sorted(execution_ids)),
         )
+        self.assertNotEqual(execution_ids, tuple(sorted(execution_ids)))
         self.assertEqual(
             design.batch_spec.acceptance()["concurrent_family"],
             design.batch_spec.concurrent_family.to_identity_payload(),
         )
         self.assertEqual(design.target_member.ordinal, 4)
+        with self.assertRaisesRegex(ValueError, "statistical family"):
+            replace(
+                design,
+                batch_spec=SimpleNamespace(
+                    concurrent_family=SimpleNamespace(
+                        executable_ids=execution_ids,
+                    )
+                ),
+            )
 
     def test_job_implementation_manifest_covers_direct_and_validator_dependencies(self) -> None:
         with TemporaryDirectory() as directory:
@@ -402,6 +455,20 @@ class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
             self.assertTrue(
                 {Path(path).resolve() for path in SCIENTIFIC_VALIDATION_V2_DEPENDENCIES}
                 .issubset(expected_paths)
+            )
+            self.assertTrue(
+                set(subject.running_job_execution_context_dependency_paths())
+                .issubset(expected_paths)
+            )
+            self.assertNotIn(
+                (
+                    subject.ROOT
+                    / "src"
+                    / "axiom_rift"
+                    / "operations"
+                    / "writer.py"
+                ).resolve(),
+                expected_paths,
             )
             self.assertEqual(
                 set(manifest["artifact_hashes"]),
@@ -424,6 +491,59 @@ class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
                     job_artifact_hashes=manifest["artifact_hashes"],
                     artifact_reader=writer.evidence.read_verified,
                 )
+            )
+
+    def test_job_implementation_identity_ignores_writer_but_binds_context(
+        self,
+    ) -> None:
+        baseline = subject._implementation_identity(  # type: ignore[arg-type]
+            None,
+            materialize=False,
+        )
+        writer_path = (
+            subject.ROOT
+            / "src"
+            / "axiom_rift"
+            / "operations"
+            / "writer.py"
+        ).resolve()
+        running_job_path = (
+            subject.ROOT
+            / "src"
+            / "axiom_rift"
+            / "operations"
+            / "running_job.py"
+        ).resolve()
+        original_read_bytes = Path.read_bytes
+
+        def perturb_writer(path: Path) -> bytes:
+            content = original_read_bytes(path)
+            if path.resolve() == writer_path:
+                return content + b"\n# unrelated writer perturbation"
+            return content
+
+        with patch.object(Path, "read_bytes", perturb_writer):
+            self.assertEqual(
+                subject._implementation_identity(  # type: ignore[arg-type]
+                    None,
+                    materialize=False,
+                ),
+                baseline,
+            )
+
+        def perturb_context(path: Path) -> bytes:
+            content = original_read_bytes(path)
+            if path.resolve() == running_job_path:
+                return content + b"\n# running context perturbation"
+            return content
+
+        with patch.object(Path, "read_bytes", perturb_context):
+            self.assertNotEqual(
+                subject._implementation_identity(  # type: ignore[arg-type]
+                    None,
+                    materialize=False,
+                ),
+                baseline,
             )
 
     def test_later_job_specs_bind_first_cache_and_trace_once(self) -> None:
@@ -494,6 +614,13 @@ class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
                 replay_obligation_ids=(subject.TARGET_OBLIGATION_ID,)
             ),
             target_member=SimpleNamespace(ordinal=4),
+            historical_family=SimpleNamespace(
+                family_executable_ids=tuple(
+                    f"executable:{ordinal:064x}" for ordinal in range(1, 5)
+                ),
+                batch_id="batch:" + "b" * 64,
+                prior_global_exposure_count=574,
+            ),
         )
         steps = subject.operation_steps()
         with patch.object(
@@ -509,76 +636,121 @@ class ProjectGoalAuditV2P1ReplayTests(unittest.TestCase):
         self.assertEqual(summary["durable_output_count"], 20)
         self.assertEqual(summary["reproducible_cache_output_count"], 1)
         self.assertEqual(summary["historical_non_p1_exposure_count"], 574)
+        self.assertTrue(summary["audit_only"])
+        self.assertEqual(summary["scientific_credit"], 0)
+        self.assertEqual(summary["terminal_credit"], 0)
+        self.assertEqual(
+            summary["executable_ids"],
+            summary["historical_registered_executable_ids"],
+        )
+        self.assertNotEqual(
+            summary["executable_ids"],
+            summary["prospective_current_executable_ids"],
+        )
+        self.assertEqual(summary["historical_batch_id"], "batch:" + "b" * 64)
 
     def test_historical_exposure_freezes_before_all_four_p1_trials(
         self,
     ) -> None:
         members = subject.ordered_replay_members()
-        historical = tuple(
-            IndexRecord(
-                kind="trial",
-                record_id=f"executable:{index:064x}",
-                subject="Mission:MIS-HISTORICAL",
-                status="evaluated",
-                fingerprint=f"{index:064x}",
-                payload={"study_id": "STU-HISTORICAL"},
-                authority_sequence=index + 1,
+        writer = StateWriter(subject.ROOT)
+        with LocalIndex.open_read_only(writer.index_path) as index:
+            observation = subject._require_historical_non_p1_exposure(
+                writer,
+                index,
+                members,
             )
-            for index in range(556)
+        self.assertEqual(observation.prior_global_exposure_count, 574)
+        self.assertEqual(
+            tuple(member.configuration.configuration_id for member in members),
+            tuple(member.configuration_id for member in observation.members),
         )
-        p1 = tuple(
-            IndexRecord(
-                kind="trial",
-                record_id=member.executable.identity,
-                subject=f"Study:{subject.STUDY_ID}",
-                status="registered",
-                fingerprint=f"{member.ordinal + 600:064x}",
-                payload={
-                    "executable": member.executable.to_identity_payload(),
-                    "study_id": subject.STUDY_ID,
-                },
-                authority_sequence=556 + member.ordinal,
-            )
-            for member in members
+        current_ids = tuple(member.executable.identity for member in members)
+        self.assertNotEqual(observation.family_executable_ids, current_ids)
+        design = SimpleNamespace(
+            members=members,
+            historical_family=observation,
         )
-        index = SimpleNamespace(
-            records_by_kind=lambda kind: historical + p1 if kind == "trial" else ()
+        with self.assertRaisesRegex(RuntimeError, "successor STU-0112"):
+            subject._require_current_prospective_execution_family(design)
+        self.assertNotIn(
+            'records_by_kind("trial")',
+            (
+                subject.ROOT
+                / "scripts"
+                / "run_project_goal_audit_v2_p1_replay.py"
+            ).read_text(encoding="ascii"),
         )
-        writer = SimpleNamespace(foundation_root=subject.ROOT)
-        accountant = SimpleNamespace(prior_global_multiplicity_floor=18)
-        with patch.object(
-            subject.TrialAccountant,
-            "from_foundation",
-            return_value=accountant,
+
+    def test_historical_completed_chain_ignores_current_implementation_drift(
+        self,
+    ) -> None:
+        writer = StateWriter(subject.ROOT)
+        design = self._historical_completed_design(writer)
+        steps = subject.operation_steps(writer, design=design)
+        with LocalIndex.open_read_only(writer.index_path) as index, patch.object(
+            subject,
+            "analog_family_executable",
+            side_effect=AssertionError("current implementation was consulted"),
+        ), patch.object(
+            subject,
+            "build_job_spec",
+            side_effect=AssertionError("current Job identity was rebuilt"),
         ):
-            self.assertEqual(
-                subject._require_historical_non_p1_exposure(
+            subject._validate_historical_completed_replay_chain(
+                writer,
+                index,
+                design=design,
+                steps=steps,
+            )
+
+    def test_historical_completed_chain_rejects_payload_or_owner_tampering(
+        self,
+    ) -> None:
+        class ForgedIndex:
+            def __init__(self, index, replacement_record: IndexRecord) -> None:
+                self.index = index
+                self.replacement_record = replacement_record
+
+            def __getattr__(self, name: str):
+                return getattr(self.index, name)
+
+            def get(self, kind: str, record_id: str):
+                replacement = self.replacement_record
+                if replacement.kind == kind and replacement.record_id == record_id:
+                    return replacement
+                return self.index.get(kind, record_id)
+
+        writer = StateWriter(subject.ROOT)
+        design = self._historical_completed_design(writer)
+        steps = subject.operation_steps(writer, design=design)
+        with LocalIndex.open_read_only(writer.index_path) as index:
+            operation_id = subject.OPERATION_PREFIX + "open-batch"
+            operation = index.get("operation", operation_id)
+            assert operation is not None
+            forged_owner = replace(operation, subject="Batch:forged")
+            with self.assertRaisesRegex(RuntimeError, "operation ownership"):
+                subject._validate_historical_completed_replay_chain(
                     writer,
-                    index,
-                    members,
-                ),
-                574,
+                    ForgedIndex(index, forged_owner),
+                    design=design,
+                    steps=steps,
+                )
+
+            member = design.historical_family.members[0]
+            trial = index.get("trial", member.executable_id)
+            assert trial is not None
+            forged_payload = replace(
+                trial,
+                payload={**trial.payload, "trial_delta": 2},
             )
-            foreign = IndexRecord(
-                kind="trial",
-                record_id="executable:" + "f" * 64,
-                subject="Mission:MIS-LATER",
-                status="evaluated",
-                fingerprint="f" * 64,
-                payload={"study_id": "STU-LATER"},
-                authority_sequence=561,
-            )
-            index.records_by_kind = lambda kind: (
-                historical + p1 + (foreign,) if kind == "trial" else ()
-            )
-            self.assertEqual(
-                subject._require_historical_non_p1_exposure(
+            with self.assertRaisesRegex(RuntimeError, "trial authority"):
+                subject._validate_historical_completed_replay_chain(
                     writer,
-                    index,
-                    members,
-                ),
-                574,
-            )
+                    ForgedIndex(index, forged_payload),
+                    design=design,
+                    steps=steps,
+                )
 
     def test_close_provenance_uses_durable_traces_without_requiring_cache_file(
         self,

@@ -101,8 +101,25 @@ research_direction:
     thresholds_preregistered_in_initial_portfolio: true
     exact_unreviewed_diagnosis_set_only: true
     conclusions:
+      - bounded_same_architecture
       - change_research_layer
       - rotate_architecture
+    bounded_same_architecture:
+      schema: architecture_review.v2
+      legacy_v1_review_identity_unchanged: true
+      exact_review_trigger_family_and_covered_diagnoses_bound: true
+      stop_or_reopen_condition_retained: true
+      modes:
+        existing_axis:
+          exact_current_axis_id_and_identity_required: true
+          effective_selectability_required: true
+          prior_diagnosis_coverage_is_not_a_veto: true
+        new_mechanism:
+          expert_selected_typed_research_layer_required: true
+          genuinely_distinct_mechanism_uses_existing_snapshot_rule: true
+      required_architecture_family_is_exact_reviewed_family: true
+      quant_team_review_binds_snapshot_review_trigger_and_diagnoses: true
+      free_form_override_allowed: false
     scientific_evidence: false
     required_before_next_decision_when_triggered: true
   exhaustion_requires:
@@ -118,7 +135,11 @@ portfolio:
   axis_semantics_immutable_within_mission: true
   axis_and_option_order_is_not_identity: true
   active_study_or_batch_blocks_portfolio_mutation: true
-  decision_batch_commitment_is_enforced_at_each_batch_open: true
+  decision_batch_commitment_is_positive_finite_upper_bound: true
+  commitment_preapproves_every_batch_without_review: false
+  first_batch_uses_direct_frozen_fast_path: true
+  later_batch_requires_typed_study_continuation_decision: true
+  early_study_close_before_commitment_bound_allowed: true
   initial_snapshot_requires_active_initiative: true
   mission_preregisters_exhaustion_standard: true
   exhaustion_standard_is_immutable: true
@@ -155,6 +176,26 @@ batch:
   identical_failed_retry_without_change_allowed: false
   identity_binds_study_semantic_hash_not_display_handles: true
   study_binds_portfolio_snapshot_decision_action_and_axis_identity: true
+  study_continuation:
+    append_only_decision_required_below_commitment_bound: true
+    immutable_study_question_hash_chassis_and_axis_required: true
+    exact_prior_batch_close_required: true
+    exact_registered_member_job_completion_mapping_required: true
+    exactly_one_completed_job_per_registered_member: true
+    exact_complete_durable_output_hash_set_required: true
+    stop_rule_state_is_writer_derived_from_job_evidence_decisions: true
+    no_job_evidence_state: unresolved
+    all_continue_batch_state: not_reached
+    any_stop_batch_state: reached
+    reached_state_can_continue: false
+    remaining_uncertainty_and_information_value_required: true
+    current_selectable_other_axis_set_and_opportunity_cost_required: true
+    plural_material_lens_review_required: true
+    current_snapshot_batch_close_and_all_completions_are_required_bases: true
+    continue_prebinds_exact_next_batch_identity: true
+    another_batch_identity_may_open: false
+    close_routes_directly_to_study_judgement: true
+    fixed_global_tiny_study_batch_cap: null
 study_kpi_projection:
   path: records/STUDY_KPI.md
   source_record_kind: study-kpi
@@ -201,13 +242,31 @@ study_kpi_projection:
     caller_unavailable_reason_allowed: false
     retrospective_best_fill_allowed: false
     completed_batch_requires_kpi_eligible_final_stop_completion: true
-    generic_runtime_or_engineering_completion_can_stop_batch: false
+    generic_success_or_runtime_only_completion_can_stop_batch: false
+    typed_final_engineering_failure_can_stop_batch_as_not_evaluable: true
+    scientific_close_outcome_matches_exact_adjudication: true
+    legacy_scientific_verdict_outcomes:
+      passed:
+        - preserved
+        - supported
+      failed:
+        - not_supported
+        - pruned
+      not_evaluable:
+        - evidence_gap
+        - not_evaluable
+    typed_engineering_failure_study_outcomes:
+      - evidence_gap
+      - not_evaluable
+    rich_adjudication_positive_states:
+      - confirmed
+      - frontier
+      - partial_positive
     no_final_validator_completion:
       completed_batch_allowed: false
       study_outcomes:
         - evidence_gap
         - not_evaluable
-        - pruned
       unstarted_batch_outcomes:
         - not_evaluable
         - stopped_early
@@ -243,6 +302,8 @@ data:
   decision_uses_completed_bar: true
   feature_available_by_decision_required: true
   external_available_by_decision_required: true
+  scheduled_entry_time_is_derived_from_decision_clock_not_future_row: true
+  actual_entry_requires_exact_expected_timestamp: true
   fold_isolation_required: true
   sequential_decisions_required: true
   observed_development_manifest: foundation/data_exposure.yaml
@@ -283,6 +344,13 @@ holdout:
   candidate_trial_material_and_evidence_must_postdate_registration: true
   passed_holdout_candidate_disposition_requires_later_successor: true
   reveal_count_and_future_holdout_latch_persist_across_missions: true
+  pre_reveal_engineering_gap:
+    sealed_values_remain_unread: true
+    scientific_trial_failure_holdout_or_negative_memory_credit: false
+    exact_candidate_work_context_and_disposition_required: true
+    same_context_retry_requires_changed_engineering_basis: true
+    scientific_semantics_change_invalidates_frozen_candidate: true
+    runtime_release_or_unrelated_job_bypass_allowed: false
 external_source_states:
   context_only:
     performance_allowed: false
@@ -335,7 +403,7 @@ terminals:
 live_ready_allowed: false
 scientific_adjudication_v2:
   prospective_activation_required: true
-  validator_identity_binds_protocol_and_dependencies: true
+  validator_semantic_and_operational_identity_authority: contracts/evidence.yaml
   stages:
     discovery:
       purpose: frontier_mapping
@@ -400,6 +468,15 @@ forest_execution:
 project_goal_audit_v2_protocol:
   quant_team_judgment:
     plural_lenses_required: true
+    typed_material_decision_review_required: true
+    relevant_lenses_are_dynamic_not_a_role_quota: true
+    minimum_material_lenses_on_chosen_allocation: 2
+    every_compared_option_is_reviewed: true
+    exact_durable_basis_records_required: true
+    current_portfolio_snapshot_basis_required: true
+    diagnosis_replay_and_architecture_bases_required_when_applicable: true
+    challenge_or_uncertainty_requires_explicit_resolution: true
+    role_specific_report_ceremony_required: false
     universal_scalar_decision_score_allowed: false
     harness_selects_scientific_allocation: false
     harness_enforces_bounds_but_does_not_choose_judgment: true
@@ -408,6 +485,13 @@ project_goal_audit_v2_protocol:
     executable_contains_every_participating_component_identity: true
     job_artifacts_cover_every_executable_component_implementation: true
     caller_or_fixed_identity_without_current_bytes_allowed: false
+    prospective_job_source_authority:
+      declaration_and_start_both_revalidate: true
+      exact_current_relative_path_and_durable_byte_match_required: true
+      callable_module_and_function_are_identity_derived: true
+      link_junction_escape_relabel_and_hash_swap_allowed: false
+      production_historical_or_fixture_exception_allowed: false
+      historical_completion_remains_read_only_evidence: true
     implementation_bundle:
       exact_domain_framed_bytes_are_durable_artifact: true
       every_bound_source_dependency_is_durable_artifact: true
@@ -419,12 +503,29 @@ project_goal_audit_v2_protocol:
       prospective_registration_allowed: false
       byte_identity_frozen: true
       parity_required_before_retirement: true
+    in_place_implementation_repair:
+      caller_unchanged_semantics_declaration_is_authority: false
+      exact_executable_semantic_surface_is_writer_derived: true
+      callable_protocol_decision_lifecycle_cost_source_and_claim_coverage_required: true
+      every_active_evidence_domain_binding_is_covered: true
+      registered_validator_must_recompute_complete_equivalence: true
+      generic_safe_path_is_source_closure_relative_path_python_ast_plus_source_independence: true
+      comment_or_layout_only_python_change_may_preserve_identity_only_after_constant_only_scan: true
+      source_observable_or_context_dependent_closure_is_generic_equivalence: false
+      changed_python_ast_path_swap_nonpython_or_hash_set_only_proof_is_equivalence: false
+      behavior_change_needs_protocol_specific_validation_or_new_scientific_identity: true
+      incomplete_or_nonpassed_equivalence_requires_new_executable_or_study_scope: true
   data_exposure:
     observed_development_is_distinct_content_addressed_prefix: true
     prefix_binds_parent_dataset_and_split: true
     routine_loader_opens_quarantined_parent: false
     engineering_test_sandbox_contains_quarantined_parent: false
     full_parent_integrity_materialization_scientific_or_claim_authority: false
+    observed_ohlc_requires_finite_strictly_positive_prices: true
+    same_parent_split_and_window_with_different_prefix_is_invalid: true
+    legitimate_parent_split_or_window_change_requires_new_material_identity: true
+    new_material_identity_requires_new_executable_and_trial_identity: true
+    job_data_binding_cannot_legitimize_invalid_derivation: true
   adjudication:
     comparison_state_is_scientific_state: false
     comparison_states:
@@ -461,11 +562,39 @@ project_goal_audit_v2_protocol:
     family_level_evidence_satisfies_unmatched_member: false
     satisfaction_requires_recomputed_original_criteria: true
     defer_requires_typed_exact_resume_condition: true
+    satisfied_authority_reaudit:
+      additive_original_records_preserved: true
+      current_scientific_satisfied_head_required: true
+      explicit_typed_plan_uses_current_protocol_revalidation: true
+      routine_projection_uses_recorded_authority_not_current_protocol: true
+      permitted_defects:
+        - selection_family_size_mismatch
+        - selection_family_disagreement
+        - selection_family_membership_mismatch
+      exact_registration_ordered_members_and_hash_required: true
+      historical_membership_defect_requires_member_set_mismatch: true
+      same_member_set_order_only_difference_is_scientific_revocation_authority: false
+      same_member_set_order_only_difference_is_noncredit_audit_diagnostic: true
+      prospective_resolution_exact_canonical_order_required: true
+      registration_self_consistency_precedes_typed_defect: true
+      malformed_missing_hash_forged_or_unrelated_registration_fails_closed: true
+      caller_reason_or_generic_validation_failure_allowed: false
+      transition: satisfied_to_pending
+      exact_scheduler_constraint_restored: true
+      scientific_trial_holdout_candidate_or_terminal_credit: false
   effective_axis_projection:
     immutable_portfolio_snapshot_preserved: true
+    recorded_satisfaction_reexecutes_current_scientific_protocol: false
+    recorded_satisfaction_requires_exact_stream_lineage_and_writer_operation: true
+    stored_pending_invalidation_rederives_current_audit_manifest: false
     applies_source_invalidations: true
     applies_replay_obligations: true
     applies_effective_evidence_scope_overlays: true
+    audit_deferred_pruned_axis_reopen:
+      exact_additive_authority_required: true
+      exact_structural_preserve_decision_required: true
+      resulting_snapshot_status: preserved
+      arbitrary_pruned_axis_reopen_allowed: false
     invalidated_source_axis_scheduler_eligible: false
     invalidated_source_axis_terminal_credit: false
     invalidated_source_axis_restoration_allowed: false

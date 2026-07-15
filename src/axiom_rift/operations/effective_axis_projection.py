@@ -22,7 +22,8 @@ from axiom_rift.operations.replay_projection import (
     ReplayAuthorityError,
     ReplayProjectionError,
     obligation_heads,
-    require_satisfaction,
+    require_recorded_satisfaction,
+    require_satisfaction_invalidation_record,
 )
 from axiom_rift.research.effective_axis import (
     EffectiveAxisResolution,
@@ -60,7 +61,7 @@ from axiom_rift.research.sources import (
     SourceTransitionEvidence,
     SourceType,
 )
-from axiom_rift.storage.index import IndexRecord, LocalIndex
+from axiom_rift.storage.index import IndexRecord, LocalIndex, LocalIndexView
 
 
 class EffectiveAxisProjectionError(RuntimeError):
@@ -83,17 +84,33 @@ def _identity(name: str, value: object, prefix: str) -> str:
     return text
 
 
-def _axis_source_lineage(index: LocalIndex) -> dict[str, set[str]]:
-    record_count = index.record_count()
-    cached = getattr(index, "_axiom_axis_source_lineage_cache", None)
-    if (
-        isinstance(cached, tuple)
-        and len(cached) == 2
-        and cached[0] == record_count
-        and isinstance(cached[1], dict)
-    ):
-        return cached[1]
-    lineage: dict[str, set[str]] = {}
+@dataclass(frozen=True, slots=True)
+class _AxisLineageProjection:
+    source_ids_by_axis: Mapping[str, frozenset[str]]
+    executable_ids_by_axis: Mapping[str, tuple[str, ...]]
+
+
+def _axis_lineage_projection(
+    index: LocalIndex | LocalIndexView,
+    *,
+    axis_identities: Sequence[str],
+) -> _AxisLineageProjection:
+    """Project only named axes through allowlisted payload indexes."""
+
+    identities = tuple(
+        _identity("axis lineage identity", value, "axis:")
+        for value in axis_identities
+    )
+    if identities != tuple(sorted(set(identities))):
+        raise EffectiveAxisProjectionError(
+            "axis lineage identities must be sorted and unique"
+        )
+    lineage: dict[str, set[str]] = {
+        identity: set() for identity in identities
+    }
+    executable_ids: dict[str, set[str]] = {
+        identity: set() for identity in identities
+    }
 
     def register(identity: object, executable: object) -> None:
         if identity is None and executable is None:
@@ -120,12 +137,20 @@ def _axis_source_lineage(index: LocalIndex) -> dict[str, set[str]]:
             _identity("axis source contract", source_id, "source:")
         lineage.setdefault(typed_identity, set()).update(sources)
 
-    for decision in index.records_by_kind("portfolio-decision"):
+    for decision in index.records_by_payload_text_values(
+        "portfolio-decision",
+        "target_axis_identity",
+        identities,
+    ):
         register(
             decision.payload.get("target_axis_identity"),
             decision.payload.get("baseline_executable"),
         )
-    for study in index.records_by_kind("study-open"):
+    for study in index.records_by_payload_text_values(
+        "study-open",
+        "portfolio_axis_identity",
+        identities,
+    ):
         controlled = study.payload.get("controlled_chassis")
         baseline = (
             None
@@ -135,17 +160,53 @@ def _axis_source_lineage(index: LocalIndex) -> dict[str, set[str]]:
             else controlled
         )
         register(study.payload.get("portfolio_axis_identity"), baseline)
-    for trial in index.records_by_kind("trial"):
-        register(
+    for trial in index.records_by_payload_text_values(
+        "trial",
+        "portfolio_axis_identity",
+        identities,
+    ):
+        trial_axis_identity = _identity(
+            "trial Portfolio axis identity",
             trial.payload.get("portfolio_axis_identity"),
+            "axis:",
+        )
+        register(
+            trial_axis_identity,
             trial.payload.get("executable"),
         )
-    setattr(index, "_axiom_axis_source_lineage_cache", (record_count, lineage))
-    return lineage
+        executable_ids[trial_axis_identity].add(
+            _identity(
+                "axis trial Executable id",
+                trial.record_id,
+                "executable:",
+            )
+        )
+    return _AxisLineageProjection(
+        source_ids_by_axis={
+            axis_identity: frozenset(source_ids)
+            for axis_identity, source_ids in lineage.items()
+        },
+        executable_ids_by_axis={
+            axis_identity: tuple(sorted(values))
+            for axis_identity, values in executable_ids.items()
+        },
+    )
+
+
+def _axis_source_contract_ids_from_lineage(
+    axis: Mapping[str, Any],
+    lineage: _AxisLineageProjection,
+) -> tuple[str, ...]:
+    axis_identity = _identity(
+        "Portfolio axis identity", axis.get("axis_identity"), "axis:"
+    )
+    return tuple(
+        sorted(lineage.source_ids_by_axis.get(axis_identity, frozenset()))
+    )
 
 
 def axis_source_contract_ids(
-    index: LocalIndex,
+    index: LocalIndex | LocalIndexView,
     axis: Mapping[str, Any],
 ) -> tuple[str, ...]:
     """Derive immutable source lineage from all durable axis executions."""
@@ -153,7 +214,13 @@ def axis_source_contract_ids(
     axis_identity = _identity(
         "Portfolio axis identity", axis.get("axis_identity"), "axis:"
     )
-    return tuple(sorted(_axis_source_lineage(index).get(axis_identity, set())))
+    return _axis_source_contract_ids_from_lineage(
+        axis,
+        _axis_lineage_projection(
+            index,
+            axis_identities=(axis_identity,),
+        ),
+    )
 
 
 def _source_contract_state(
@@ -280,7 +347,7 @@ def _source_contract_state(
 
 
 def validate_source_replacement_lineage(
-    index: LocalIndex,
+    index: LocalIndex | LocalIndexView,
     lineage: SourceReplacementLineage,
     *,
     require_current_replacement_source: bool,
@@ -320,8 +387,23 @@ def validate_source_replacement_lineage(
         raise EffectiveAxisProjectionError(
             "source replacement axes are missing, stale, or not schedulable"
         )
-    original_sources = set(axis_source_contract_ids(index, original_axis))
-    replacement_sources = set(axis_source_contract_ids(index, replacement_axis))
+    source_lineage = _axis_lineage_projection(
+        index,
+        axis_identities=tuple(
+            sorted(
+                {
+                    lineage.original_axis_identity,
+                    lineage.replacement_axis_identity,
+                }
+            )
+        ),
+    )
+    original_sources = set(
+        _axis_source_contract_ids_from_lineage(original_axis, source_lineage)
+    )
+    replacement_sources = set(
+        _axis_source_contract_ids_from_lineage(replacement_axis, source_lineage)
+    )
     if (
         lineage.invalidated_source_contract_id not in original_sources
         or lineage.replacement_source_contract_id not in replacement_sources
@@ -550,12 +632,14 @@ def _obligation_axis_lineage(
     return lineage
 
 
-def _all_obligation_heads(
-    index: LocalIndex,
+def _resolve_obligation_heads(
+    index: LocalIndex | LocalIndexView,
+    initials: Sequence[IndexRecord],
 ) -> tuple[tuple[HistoricalReplayObligation, IndexRecord], ...]:
     mission_ids: set[str] = set()
-    initials = tuple(index.records_by_kind("historical-replay-obligation"))
-    for initial in initials:
+    selected_ids: set[str] = set()
+    values = tuple(initials)
+    for initial in values:
         try:
             obligation = historical_replay_obligation_from_identity_payload(
                 initial.payload.get("obligation", {})
@@ -565,19 +649,108 @@ def _all_obligation_heads(
                 "historical replay obligation projection is malformed"
             ) from exc
         mission_ids.add(obligation.governing_mission_id)
+        selected_ids.add(obligation.identity)
+    if len(selected_ids) != len(values):
+        raise EffectiveAxisProjectionError(
+            "historical replay obligation selection is ambiguous"
+        )
     resolved: list[tuple[HistoricalReplayObligation, IndexRecord]] = []
     try:
         for mission_id in sorted(mission_ids):
-            resolved.extend(obligation_heads(index, mission_id=mission_id))
+            resolved.extend(
+                pair
+                for pair in obligation_heads(index, mission_id=mission_id)
+                if pair[0].identity in selected_ids
+            )
     except ReplayProjectionError as exc:
         raise EffectiveAxisProjectionError(str(exc)) from exc
-    if len(resolved) != len(initials) or len(
+    if len(resolved) != len(values) or len(
         {obligation.identity for obligation, _head in resolved}
     ) != len(resolved):
         raise EffectiveAxisProjectionError(
             "historical replay obligation Mission projection is ambiguous"
         )
     return tuple(sorted(resolved, key=lambda item: item[0].identity))
+
+
+def _obligation_initials_for_executables(
+    index: LocalIndex | LocalIndexView,
+    executable_ids: Sequence[str],
+) -> tuple[IndexRecord, ...]:
+    identities = tuple(sorted(set(executable_ids)))
+    for executable_id in identities:
+        _identity(
+            "replay lineage Executable id",
+            executable_id,
+            "executable:",
+        )
+    records: dict[str, IndexRecord] = {}
+    for record in index.records_by_payload_text_values(
+        "historical-replay-obligation",
+        "obligation_original_executable_id",
+        identities,
+    ):
+        prior = records.setdefault(record.record_id, record)
+        if prior != record:
+            raise EffectiveAxisProjectionError(
+                "historical replay obligation lookup is ambiguous"
+            )
+    return tuple(records[key] for key in sorted(records))
+
+
+def _obligation_heads_for_executables(
+    index: LocalIndex | LocalIndexView,
+    executable_ids: Sequence[str],
+) -> tuple[tuple[HistoricalReplayObligation, IndexRecord], ...]:
+    return _resolve_obligation_heads(
+        index,
+        _obligation_initials_for_executables(index, executable_ids),
+    )
+
+
+def _obligation_heads_for_mission(
+    index: LocalIndex | LocalIndexView,
+    mission_id: str,
+) -> tuple[tuple[HistoricalReplayObligation, IndexRecord], ...]:
+    _ascii("replay governing Mission id", mission_id)
+    return _resolve_obligation_heads(
+        index,
+        index.records_by_payload_text(
+            "historical-replay-obligation",
+            "obligation_governing_mission_id",
+            mission_id,
+        ),
+    )
+
+
+def _completion_ids_for_executables(
+    index: LocalIndex | LocalIndexView,
+    executable_ids: Sequence[str],
+) -> tuple[str, ...]:
+    identities = tuple(sorted(set(executable_ids)))
+    for executable_id in identities:
+        _identity(
+            "completion lineage Executable id",
+            executable_id,
+            "executable:",
+        )
+    records = index.records_by_payload_text_values(
+        "job-completed",
+        "scientific_executable_id",
+        identities,
+    )
+    return tuple(sorted(record.record_id for record in records))
+
+
+def _all_obligation_heads(
+    index: LocalIndex | LocalIndexView,
+) -> tuple[tuple[HistoricalReplayObligation, IndexRecord], ...]:
+    """Explicit complete-history replay inventory, never the axis routine path."""
+
+    return _resolve_obligation_heads(
+        index,
+        index.records_by_kind("historical-replay-obligation"),
+    )
 
 
 def _execution_binding(value: object) -> ReplayExecutionBinding:
@@ -639,13 +812,14 @@ class _OverlayAuthority:
 
 
 def _overlay_authorities(
-    index: LocalIndex,
+    index: LocalIndex | LocalIndexView,
     *,
     known_obligation_ids: set[str],
+    records: Sequence[IndexRecord],
 ) -> tuple[_OverlayAuthority, ...]:
     resolved: list[_OverlayAuthority] = []
     seen_completions: set[str] = set()
-    for record in index.records_by_kind("historical-evidence-scope-overlay"):
+    for record in records:
         try:
             overlay = historical_evidence_scope_from_payload(record.payload)
         except EvidenceScopeError as exc:
@@ -685,6 +859,7 @@ def _overlay_authorities(
                 governing_mission_id=overlay.governing_mission_id,
                 overlay_record_id=overlay.identity,
                 replay_obligation_ids=overlay.replay_obligation_ids,
+                replay_resolution_ids=overlay.replay_resolution_ids,
             )
         except ValueError as exc:
             raise EffectiveAxisProjectionError(
@@ -699,6 +874,27 @@ def _overlay_authorities(
             )
         )
     return tuple(sorted(resolved, key=lambda item: item.overlay.identity))
+
+
+def _overlay_records_for_completions(
+    index: LocalIndex | LocalIndexView,
+    completion_ids: Sequence[str],
+) -> tuple[IndexRecord, ...]:
+    identities = tuple(sorted(set(completion_ids)))
+    for completion_id in identities:
+        _ascii("overlay completion id", completion_id)
+    records: dict[str, IndexRecord] = {}
+    for record in index.records_by_payload_text_values(
+        "historical-evidence-scope-overlay",
+        "completion_record_id",
+        identities,
+    ):
+        prior = records.setdefault(record.record_id, record)
+        if prior != record:
+            raise EffectiveAxisProjectionError(
+                "historical evidence-scope lookup is ambiguous"
+            )
+    return tuple(records[key] for key in sorted(records))
 
 
 def _replay_axis_binding(
@@ -726,11 +922,26 @@ def _replay_axis_binding(
     resolution_scope: ReplayResolutionScope | None = None
     overlay_id: str | None = None
     if status is ReplayObligationStatus.PENDING:
-        if (
-            head.kind != "historical-replay-obligation"
-            or head.record_id != obligation.identity
-            or head.payload != {"obligation": obligation.to_identity_payload()}
-        ):
+        initial = (
+            head.kind == "historical-replay-obligation"
+            and head.record_id == obligation.identity
+            and head.payload == {"obligation": obligation.to_identity_payload()}
+        )
+        invalidated_satisfaction = (
+            head.kind == "historical-replay-satisfaction-invalidation"
+        )
+        if invalidated_satisfaction:
+            try:
+                require_satisfaction_invalidation_record(
+                    index,
+                    obligation=obligation,
+                    record=head,
+                )
+            except ReplayAuthorityError as exc:
+                raise EffectiveAxisProjectionError(
+                    "pending replay satisfaction invalidation is malformed"
+                ) from exc
+        elif not initial:
             raise EffectiveAxisProjectionError(
                 "pending replay obligation head is malformed"
             )
@@ -810,13 +1021,14 @@ def _replay_axis_binding(
             )
         resolution_scope = satisfaction.resolution_scope
         try:
-            require_satisfaction(
+            require_recorded_satisfaction(
                 index,
                 obligation=obligation,
                 satisfaction=satisfaction,
                 allow_legacy_decision_binding=(
                     resolution_scope is ReplayResolutionScope.AUDIT_ONLY
                 ),
+                satisfaction_head=head,
             )
         except ReplayAuthorityError as exc:
             raise EffectiveAxisProjectionError(
@@ -870,11 +1082,28 @@ class _EffectiveAuthorityIndex:
 
 
 def _source_replacement_bindings(
-    index: LocalIndex,
+    index: LocalIndex | LocalIndexView,
+    *,
+    axis_identities: Sequence[str] | None,
 ) -> tuple[SourceReplacementBinding, ...]:
     resolved: list[SourceReplacementBinding] = []
     seen_streams: set[str] = set()
-    for record in index.records_by_kind("source-replacement-lineage"):
+    if axis_identities is None:
+        records = index.records_by_kind("source-replacement-lineage")
+    else:
+        identities = tuple(sorted(set(axis_identities)))
+        for axis_identity in identities:
+            _identity(
+                "source replacement original axis identity",
+                axis_identity,
+                "axis:",
+            )
+        records = index.records_by_payload_text_values(
+            "source-replacement-lineage",
+            "lineage_original_axis_identity",
+            identities,
+        )
+    for record in records:
         try:
             lineage = SourceReplacementLineage.from_mapping(
                 record.payload.get("lineage")
@@ -935,21 +1164,78 @@ def _source_replacement_bindings(
     )
 
 
-def _effective_authority_index(index: LocalIndex) -> _EffectiveAuthorityIndex:
-    record_count = index.record_count()
-    cached = getattr(index, "_axiom_effective_axis_authority_cache", None)
-    if (
-        isinstance(cached, tuple)
-        and len(cached) == 2
-        and cached[0] == record_count
-        and isinstance(cached[1], _EffectiveAuthorityIndex)
-    ):
-        return cached[1]
-    heads = _all_obligation_heads(index)
-    obligation_ids = {obligation.identity for obligation, _head in heads}
+def _effective_authority_index(
+    index: LocalIndex | LocalIndexView,
+    *,
+    heads: Sequence[tuple[HistoricalReplayObligation, IndexRecord]],
+    scope_completion_ids: Sequence[str],
+    source_replacement_axis_identities: Sequence[str] | None,
+) -> _EffectiveAuthorityIndex:
+    """Project a keyed authority closure without reader-attached cache state."""
+
+    heads_by_id = {
+        obligation.identity: (obligation, head)
+        for obligation, head in heads
+    }
+    if len(heads_by_id) != len(tuple(heads)):
+        raise EffectiveAxisProjectionError(
+            "historical replay head selection is ambiguous"
+        )
+    overlay_records: dict[str, IndexRecord] = {}
+    while True:
+        completion_ids: set[str] = set(scope_completion_ids).union(
+            obligation.original_completion_record_id
+            for obligation, _head in heads_by_id.values()
+        )
+        for _obligation, head in heads_by_id.values():
+            resolution = head.payload.get("resolution")
+            evidence_ids = (
+                None
+                if not isinstance(resolution, Mapping)
+                else resolution.get("evidence_record_ids")
+            )
+            if isinstance(evidence_ids, list):
+                completion_ids.update(
+                    value for value in evidence_ids if type(value) is str
+                )
+        for record in _overlay_records_for_completions(index, completion_ids):
+            overlay_records[record.record_id] = record
+        referenced_ids: set[str] = set()
+        for record in overlay_records.values():
+            try:
+                overlay = historical_evidence_scope_from_payload(record.payload)
+            except EvidenceScopeError as exc:
+                raise EffectiveAxisProjectionError(
+                    "historical evidence-scope overlay is malformed"
+                ) from exc
+            referenced_ids.update(overlay.replay_obligation_ids)
+        missing_ids = referenced_ids.difference(heads_by_id)
+        if not missing_ids:
+            break
+        missing_initials = []
+        for obligation_id in sorted(missing_ids):
+            initial = index.get("historical-replay-obligation", obligation_id)
+            if initial is None:
+                raise EffectiveAxisProjectionError(
+                    "historical evidence-scope overlay references a missing obligation"
+                )
+            missing_initials.append(initial)
+        for obligation, head in _resolve_obligation_heads(
+            index,
+            missing_initials,
+        ):
+            heads_by_id[obligation.identity] = (obligation, head)
+
+    resolved_heads = tuple(
+        heads_by_id[key] for key in sorted(heads_by_id)
+    )
+    obligation_ids = set(heads_by_id)
     overlays = _overlay_authorities(
         index,
         known_obligation_ids=obligation_ids,
+        records=tuple(
+            overlay_records[key] for key in sorted(overlay_records)
+        ),
     )
     replay_bindings = tuple(
         _replay_axis_binding(
@@ -959,7 +1245,7 @@ def _effective_authority_index(index: LocalIndex) -> _EffectiveAuthorityIndex:
             lineage=_obligation_axis_lineage(index, obligation),
             overlays=overlays,
         )
-        for obligation, head in heads
+        for obligation, head in resolved_heads
     )
     replay_by_id = {binding.obligation_id: binding for binding in replay_bindings}
     for authority in overlays:
@@ -979,7 +1265,10 @@ def _effective_authority_index(index: LocalIndex) -> _EffectiveAuthorityIndex:
     scope_bindings = tuple(
         authority.completion_binding for authority in overlays
     )
-    source_replacement_bindings = _source_replacement_bindings(index)
+    source_replacement_bindings = _source_replacement_bindings(
+        index,
+        axis_identities=source_replacement_axis_identities,
+    )
     replay_by_axis: dict[str, list[ReplayAxisBinding]] = {}
     for binding in replay_bindings:
         replay_by_axis.setdefault(binding.axis_identity, []).append(binding)
@@ -1017,24 +1306,27 @@ def _effective_authority_index(index: LocalIndex) -> _EffectiveAuthorityIndex:
         scope_bindings=scope_bindings,
         source_replacement_bindings=source_replacement_bindings,
     )
-    setattr(
-        index,
-        "_axiom_effective_axis_authority_cache",
-        (record_count, authority_index),
-    )
     return authority_index
 
 
 def effective_replay_axis_bindings(
-    index: LocalIndex,
+    index: LocalIndex | LocalIndexView,
     *,
     mission_id: str | None = None,
 ) -> tuple[ReplayAxisBinding, ...]:
     """Return immutable replay-to-original-axis bindings, optionally by Mission."""
 
-    if mission_id is not None:
-        _ascii("replay governing Mission id", mission_id)
-    bindings = _effective_authority_index(index).replay_bindings
+    heads = (
+        _all_obligation_heads(index)
+        if mission_id is None
+        else _obligation_heads_for_mission(index, mission_id)
+    )
+    bindings = _effective_authority_index(
+        index,
+        heads=heads,
+        scope_completion_ids=(),
+        source_replacement_axis_identities=(),
+    ).replay_bindings
     return tuple(
         binding
         for binding in bindings
@@ -1043,7 +1335,7 @@ def effective_replay_axis_bindings(
 
 
 def mission_effective_axis_blockers(
-    index: LocalIndex,
+    index: LocalIndex | LocalIndexView,
     *,
     mission_id: str,
 ) -> tuple[ReplayAxisBinding, ...]:
@@ -1055,8 +1347,12 @@ def mission_effective_axis_blockers(
     pruned axis with that remainder is projected as requiring explicit reopen.
     """
 
-    _ascii("terminal Mission id", mission_id)
-    authority = _effective_authority_index(index)
+    authority = _effective_authority_index(
+        index,
+        heads=_obligation_heads_for_mission(index, mission_id),
+        scope_completion_ids=(),
+        source_replacement_axis_identities=(),
+    )
     replay = tuple(
         binding
         for binding in authority.replay_bindings
@@ -1065,17 +1361,23 @@ def mission_effective_axis_blockers(
     return replay
 
 
-def effective_axis_resolution(
-    index: LocalIndex,
+def _effective_axis_resolution_from_projection(
+    index: LocalIndex | LocalIndexView,
     axis: Mapping[str, Any],
     *,
-    prospective_source_ids: Sequence[str] = (),
+    prospective_source_ids: Sequence[str],
+    source_lineage: _AxisLineageProjection,
+    authority: _EffectiveAuthorityIndex,
 ) -> EffectiveAxisResolution:
     axis_identity = _identity(
         "Portfolio axis identity", axis.get("axis_identity"), "axis:"
     )
     sources = tuple(
-        sorted(set(axis_source_contract_ids(index, axis)).union(prospective_source_ids))
+        sorted(
+            set(
+                _axis_source_contract_ids_from_lineage(axis, source_lineage)
+            ).union(prospective_source_ids)
+        )
     )
     invalidations = []
     for source_id in sources:
@@ -1136,7 +1438,6 @@ def effective_axis_resolution(
             raise EffectiveAxisProjectionError(
                 "axis source-authority identity is malformed"
             ) from exc
-    authority = _effective_authority_index(index)
     try:
         return resolve_effective_axis(
             axis_id=axis["axis_id"],
@@ -1158,23 +1459,227 @@ def effective_axis_resolution(
         ) from exc
 
 
+def effective_axis_resolution(
+    index: LocalIndex | LocalIndexView,
+    axis: Mapping[str, Any],
+    *,
+    prospective_source_ids: Sequence[str] = (),
+) -> EffectiveAxisResolution:
+    """Resolve one axis from a fresh, reader-pure authority projection."""
+
+    axis_identity = _identity(
+        "Portfolio axis identity", axis.get("axis_identity"), "axis:"
+    )
+    source_lineage = _axis_lineage_projection(
+        index,
+        axis_identities=(axis_identity,),
+    )
+    return _effective_axis_resolution_from_projection(
+        index,
+        axis,
+        prospective_source_ids=prospective_source_ids,
+        source_lineage=source_lineage,
+        authority=_effective_authority_index(
+            index,
+            heads=_obligation_heads_for_executables(
+                index,
+                source_lineage.executable_ids_by_axis.get(
+                    axis_identity,
+                    (),
+                ),
+            ),
+            scope_completion_ids=_completion_ids_for_executables(
+                index,
+                source_lineage.executable_ids_by_axis.get(
+                    axis_identity,
+                    (),
+                ),
+            ),
+            source_replacement_axis_identities=(axis_identity,),
+        ),
+    )
+
+
+def effective_axis_resolutions(
+    index: LocalIndex | LocalIndexView,
+    axes: Sequence[Mapping[str, Any]],
+    *,
+    prospective_source_ids_by_axis: Mapping[str, Sequence[str]] | None = None,
+) -> tuple[EffectiveAxisResolution, ...]:
+    """Resolve an axis inventory with one explicit local projection memo.
+
+    The memo lives only for this call.  It is never attached to the index or
+    retained globally, so replacing a stable-head index cannot expose stale
+    authority while a forest-sized scheduler avoids repeated history scans.
+    """
+
+    values = tuple(axes)
+    if any(not isinstance(axis, Mapping) for axis in values):
+        raise EffectiveAxisProjectionError(
+            "Portfolio scheduler axes must be mappings"
+        )
+    axis_ids = tuple(
+        _ascii("Portfolio scheduler axis id", axis.get("axis_id"))
+        for axis in values
+    )
+    if len(axis_ids) != len(set(axis_ids)):
+        raise EffectiveAxisProjectionError(
+            "Portfolio scheduler axis ids are ambiguous"
+        )
+    prospective = (
+        {} if prospective_source_ids_by_axis is None else prospective_source_ids_by_axis
+    )
+    if not isinstance(prospective, Mapping) or any(
+        type(axis_id) is not str for axis_id in prospective
+    ):
+        raise EffectiveAxisProjectionError(
+            "prospective source inventory must be keyed by axis id"
+        )
+    unknown = set(prospective).difference(axis_ids)
+    if unknown:
+        raise EffectiveAxisProjectionError(
+            "prospective source inventory names an unknown axis"
+        )
+    normalized_prospective: dict[str, tuple[str, ...]] = {}
+    for axis_id, source_ids in prospective.items():
+        if isinstance(source_ids, (str, bytes)) or not isinstance(
+            source_ids, Sequence
+        ):
+            raise EffectiveAxisProjectionError(
+                "prospective source ids must be a sequence"
+            )
+        normalized_prospective[axis_id] = tuple(source_ids)
+    if not values:
+        return ()
+    axis_identities = tuple(
+        sorted(
+            {
+                _identity(
+                    "Portfolio scheduler axis identity",
+                    axis.get("axis_identity"),
+                    "axis:",
+                )
+                for axis in values
+            }
+        )
+    )
+    source_lineage = _axis_lineage_projection(
+        index,
+        axis_identities=axis_identities,
+    )
+    executable_ids = tuple(
+        sorted(
+            {
+                executable_id
+                for values_by_axis in source_lineage.executable_ids_by_axis.values()
+                for executable_id in values_by_axis
+            }
+        )
+    )
+    authority = _effective_authority_index(
+        index,
+        heads=_obligation_heads_for_executables(index, executable_ids),
+        scope_completion_ids=_completion_ids_for_executables(
+            index,
+            executable_ids,
+        ),
+        source_replacement_axis_identities=axis_identities,
+    )
+    return tuple(
+        _effective_axis_resolution_from_projection(
+            index,
+            axis,
+            prospective_source_ids=normalized_prospective.get(axis_id, ()),
+            source_lineage=source_lineage,
+            authority=authority,
+        )
+        for axis_id, axis in zip(axis_ids, values, strict=True)
+    )
+
+
 def selectable_axis_ids(
-    index: LocalIndex,
+    index: LocalIndex | LocalIndexView,
     axes: Sequence[Mapping[str, Any]],
 ) -> tuple[str, ...]:
     """Resolve a scheduler set without allowing one blocked axis to hide peers."""
 
-    resolutions = tuple(effective_axis_resolution(index, axis) for axis in axes)
+    resolutions = effective_axis_resolutions(index, axes)
     axis_ids = tuple(item.axis_id for item in resolutions)
     if len(axis_ids) != len(set(axis_ids)):
         raise EffectiveAxisProjectionError("Portfolio scheduler axis ids are ambiguous")
     return tuple(sorted(item.axis_id for item in resolutions if item.selectable))
 
 
+def audit_effective_axis_projection(
+    index: LocalIndex | LocalIndexView,
+) -> dict[str, int]:
+    """Run the explicit complete-history integrity audit outside routine reads."""
+
+    axis_identities: set[str] = set()
+    for kind, identity_field, executable_field in (
+        ("portfolio-decision", "target_axis_identity", "baseline_executable"),
+        ("study-open", "portfolio_axis_identity", "controlled_chassis"),
+        ("trial", "portfolio_axis_identity", "executable"),
+    ):
+        for record in index.records_by_kind(kind):
+            identity = record.payload.get(identity_field)
+            executable = record.payload.get(executable_field)
+            if identity is None and executable is None:
+                continue
+            if identity is None:
+                raise EffectiveAxisProjectionError(
+                    "Executable source lineage lacks its axis identity"
+                )
+            axis_identities.add(
+                _identity("full-audit axis identity", identity, "axis:")
+            )
+    lineage = _axis_lineage_projection(
+        index,
+        axis_identities=tuple(sorted(axis_identities)),
+    ) if axis_identities else _AxisLineageProjection(
+        source_ids_by_axis={},
+        executable_ids_by_axis={},
+    )
+    overlay_records = index.records_by_kind(
+        "historical-evidence-scope-overlay"
+    )
+    overlay_completion_ids: list[str] = []
+    for record in overlay_records:
+        try:
+            overlay = historical_evidence_scope_from_payload(record.payload)
+        except EvidenceScopeError as exc:
+            raise EffectiveAxisProjectionError(
+                "historical evidence-scope overlay is malformed"
+            ) from exc
+        overlay_completion_ids.append(overlay.completion_record_id)
+    authority = _effective_authority_index(
+        index,
+        heads=_all_obligation_heads(index),
+        scope_completion_ids=tuple(overlay_completion_ids),
+        source_replacement_axis_identities=None,
+    )
+    if {
+        binding.overlay_record_id for binding in authority.scope_bindings
+    } != {record.record_id for record in overlay_records}:
+        raise EffectiveAxisProjectionError(
+            "complete evidence-scope overlay inventory is not authoritative"
+        )
+    return {
+        "axis_count": len(lineage.source_ids_by_axis),
+        "replay_binding_count": len(authority.replay_bindings),
+        "scope_binding_count": len(authority.scope_bindings),
+        "source_replacement_binding_count": len(
+            authority.source_replacement_bindings
+        ),
+    }
+
+
 __all__ = [
     "EffectiveAxisProjectionError",
+    "audit_effective_axis_projection",
     "axis_source_contract_ids",
     "effective_axis_resolution",
+    "effective_axis_resolutions",
     "effective_replay_axis_bindings",
     "mission_effective_axis_blockers",
     "selectable_axis_ids",

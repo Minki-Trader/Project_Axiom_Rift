@@ -10,6 +10,10 @@ entry:
   writer_revalidates_actual_permit: true
   caller_boolean_authority_allowed: false
   current_candidate_and_source_state_rechecked: true
+  successful_completion_rechecks_candidate_sources_and_normal_resume: true
+  source_snapshot_is_keyed_by_source_contract: true
+  completion_requires_exact_declaration_start_and_entry_source_heads: true
+  completion_source_freshness_required_before_evidence_derivation: true
   runtime_permit_depth_scope_required: true
   release_depth_uses_release_permit_not_runtime_permit: true
   durable_runtime_engine_entry_attestation_required: true
@@ -68,6 +72,7 @@ release:
   caller_claim_summary_is_authority: false
   execution_proof_parity_coverage_derived_by_writer: true
   materialization_case_coverage_derived_by_writer: true
+  source_lifecycle_matrix_union_derived_by_writer: true
   mission_executable_candidate_activation_rechecked_at_declare_and_freeze: true
   one_active_release_per_candidate: true
   abandon_or_invalidate_path_required: true
@@ -100,12 +105,49 @@ source_freshness_scope:
   sealed_historical_performance_requires_current_wall_clock_freshness: false
   runtime_entry_and_candidate_runtime_evidence_require_freshness: true
   trial_registration_reuses_batch_permit_source_scope: true
+runtime_completion_source_receipt:
+  exact_source_keyed_entry_snapshot_required: true
+  receipt_must_remain_active_from_entry_through_completion: true
+  receipt_ttl_must_cover_entry_through_completion: true
+  later_wall_clock_age_does_not_rewrite_completed_success: true
+release_source_readiness:
+  current_fresh_source_keyed_receipt_required_separately: true
+  prior_completion_may_reuse_readiness_only_recertification_lineage: true
+  unchanged_success_reused: true
+  source_contract_semantic_mapping_or_build_drift_reuse_allowed: false
+  audit_latched_or_noneligible_source_reuse_allowed: false
+  unknown_drift_surface_fails_closed: true
+  invalidation_scope_is_exact_affected_completion_and_source: true
+active_runtime_source_drift:
+  observation_schema: runtime_source_drift_observation.v1
+  exact_running_job_candidate_source_and_prior_state_required: true
+  producer_is_exact_job_start_or_runtime_entry: true
+  source_transitions_to_suspended_before_job_completion: true
+  only_runtime_source_ineligibility_completion_may_follow: true
+  observation_artifact_is_minimum_reproduction_evidence: true
+  scientific_trial_holdout_candidate_or_release_credit: false
+pre_runtime_entry_engineering_gap:
+  exact_typed_disposition_required: true
+  runtime_engine_entry_required_for_failure_completion: false
+  retry_is_limited_to_same_candidate_evidence_depth_with_changed_basis: true
+  release_progress_allowed_before_resolution: false
 source_dependency_lifecycle:
   missing_at_dependent_entry: no_entry
   stale_or_missing_while_held: preregistered_safe_exit
   retain_baseline_pnl_for_missing_dependent_subject: false
   independent_control_unaffected: true
   unrelated_sleeves_unaffected: true
+  matrix_authority: frozen_executable_manifest
+  exact_row_dimensions:
+    - source_contract_id
+    - dependent_component_id
+    - lifecycle_surface_id
+    - materialization_case
+  job_plan_may_cover_canonical_subset: true
+  observation_requires_exact_row_identity: true
+  validator_must_derive_exact_observed_row_identities: true
+  one_global_case_observation_covers_multiple_rows: false
+  release_requires_union_of_every_derived_row: true
 source_authority_invalidation:
   audit_latched_on_exact_source_head: true
   ordinary_recertification_restores_invalidated_contract: false

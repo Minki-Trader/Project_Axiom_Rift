@@ -4,10 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from hashlib import sha256
-import os
 from pathlib import Path
 import sys
-import tempfile
 from typing import Any, Mapping
 
 import numpy as np
@@ -15,9 +13,13 @@ import pandas as pd
 import scipy
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
-from axiom_rift.operations import writer as writer_module
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.running_job_context import (
+    RunningJobExecutionContext,
+    running_job_execution_context_implementation_sha256,
+)
 from axiom_rift.research import validation as scientific_validator_module
+from axiom_rift.research.evidence_inputs import read_exact_evidence_inputs
 from axiom_rift.research.us30_sector_rotation_discovery import (
     DATASET_SHA256,
     OBSERVED_MATERIAL_ID,
@@ -39,6 +41,10 @@ from axiom_rift.research.validation import (
     SCIENTIFIC_MEASUREMENT_SCHEMA,
     SCIENTIFIC_RESULT_SCHEMA,
     build_validation_plan,
+)
+from axiom_rift.research.reproducible_cache import (
+    publish_reproducible_cache,
+    reproducible_cache_implementation_sha256,
 )
 from axiom_rift.research.us30_source import us30_source_contract
 from axiom_rift.research.us30_source_study import (
@@ -500,6 +506,9 @@ def build_environment_manifest(repository_root: str | Path) -> dict[str, object]
         "numpy_version": np.__version__,
         "pandas_version": pd.__version__,
         "python_version": ".".join(str(item) for item in sys.version_info[:3]),
+        "reproducible_cache_implementation_sha256": (
+            reproducible_cache_implementation_sha256()
+        ),
         "runner_implementation_sha256": sha256(
             Path(__file__).resolve().read_bytes()
         ).hexdigest(),
@@ -510,9 +519,7 @@ def build_environment_manifest(repository_root: str | Path) -> dict[str, object]
         "trend_dependency_sha256": trend_dependency_sha256(),
         **source,
         "validator_id": SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
-        "writer_implementation_sha256": sha256(
-            Path(writer_module.__file__).resolve().read_bytes()
-        ).hexdigest(),
+        "running_job_context_implementation_sha256": running_job_execution_context_implementation_sha256(),
     }
     canonical_bytes(value)
     return value
@@ -555,33 +562,11 @@ def _materialize_cache(
     relative_name: str,
     content: bytes,
 ) -> None:
-    target = (repository_root / relative_name).resolve()
-    cache_root = (repository_root / "local" / "cache").resolve()
-    if cache_root not in target.parents:
-        raise ValueError("us30_sector_rotation surface cache path escapes local/cache")
-    expected_hash = sha256(content).hexdigest()
-    if target.exists():
-        if not target.is_file() or sha256(target.read_bytes()).hexdigest() != (
-            expected_hash
-        ):
-            raise ValueError("existing us30_sector_rotation surface cache has different bytes")
-        return
-    target.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=".us30_sector_rotation-surface-",
-        suffix=".tmp",
-        dir=target.parent,
+    publish_reproducible_cache(
+        repository_root=repository_root,
+        relative_path=relative_name,
+        content=content,
     )
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "wb") as handle:
-            handle.write(content)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, target)
-    finally:
-        if temporary.exists():
-            temporary.unlink()
 
 
 def _build_surface_manifest(
@@ -694,40 +679,28 @@ def _validate_surface_manifest(
 
 
 def _load_surface_manifest(
-    writer: StateWriter,
+    writer: RunningJobExecutionContext,
     *,
     repository_root: Path,
     input_hashes: tuple[str, ...],
     cache_hash: str,
     environment_hash: str,
 ) -> tuple[str, dict[str, Any]]:
-    matches: list[tuple[str, dict[str, Any]]] = []
-    for input_hash in input_hashes:
-        try:
-            artifact = writer.evidence.verify(input_hash)
-            content = (
-                writer.evidence._root / artifact.relative_path
-            ).read_bytes()
-            value = parse_canonical(content)
-        except (FileNotFoundError, OSError, RuntimeError, ValueError):
-            continue
-        if isinstance(value, dict) and value.get("schema") == (
-            "us30_sector_rotation_surface_cache_manifest.v1"
-        ):
-            matches.append(
-                (
-                    input_hash,
-                    _validate_surface_manifest(
-                        value,
-                        repository_root=repository_root,
-                        cache_hash=cache_hash,
-                        environment_hash=environment_hash,
-                    ),
-                )
-            )
-    if len(matches) != 1:
-        raise ValueError("Job inputs require one exact us30_sector_rotation surface manifest")
-    return matches[0]
+    schema = "us30_sector_rotation_surface_cache_manifest.v1"
+    artifact = read_exact_evidence_inputs(
+        writer.evidence,
+        input_hashes,
+        required_schemas=(schema,),
+    ).require(schema)
+    return (
+        artifact.artifact_sha256,
+        _validate_surface_manifest(
+            artifact.value,
+            repository_root=repository_root,
+            cache_hash=cache_hash,
+            environment_hash=environment_hash,
+        ),
+    )
 
 
 def execute_us30_sector_rotation_job(
@@ -738,7 +711,7 @@ def execute_us30_sector_rotation_job(
     """Run only from a writer-derived, Journal-verified Job capability."""
 
     root = Path(repository_root).resolve()
-    writer = StateWriter(root)
+    writer = RunningJobExecutionContext(root)
     binding = writer.verify_running_job_execution(
         execution,
         expected_callable_identity=CALLABLE_IDENTITY,
@@ -773,6 +746,7 @@ def execute_us30_sector_rotation_job(
         us30_sector_rotation_implementation_sha256(),
         environment_hash,
         environment["runner_implementation_sha256"],
+        reproducible_cache_implementation_sha256(),
         loader_implementation_sha256(),
         plan_hash,
         trend_dependency_sha256(),
@@ -850,7 +824,11 @@ def execute_us30_sector_rotation_job(
         manifest_artifact_hash, cache_manifest = _load_surface_manifest(
             writer,
             repository_root=root,
-            input_hashes=inputs,
+            input_hashes=tuple(
+                identity
+                for identity in inputs
+                if identity not in required_inputs and identity != surface_hash
+            ),
             cache_hash=surface_hash,
             environment_hash=environment_hash,
         )

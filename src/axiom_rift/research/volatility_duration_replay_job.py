@@ -18,12 +18,14 @@ import axiom_rift.research.selection_inference as selection_inference_module
 import axiom_rift.research.volatility_duration_replay as replay_module
 import axiom_rift.research.volatility_duration_replay_parity as parity_module
 import axiom_rift.storage.evidence as evidence_module
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.operations.running_job import RunningJobExecution
 from axiom_rift.research.fixed_hold_family_job import (
     FixedHoldFamilyJobPacket,
     FixedHoldFamilyJobPlan,
 )
 from axiom_rift.research.fixed_hold_replay_runtime import (
+    FixedHoldRepairContext,
+    FixedHoldRuntimeContext,
     FixedHoldReplayRuntimeAdapter,
     build_fixed_hold_replay_job_plan,
     execute_fixed_hold_replay_job,
@@ -144,7 +146,7 @@ def volatility_duration_replay_job_implementation_sha256() -> str:
 
 
 def materialize_volatility_duration_replay_job_implementation(
-    writer: StateWriter,
+    writer: FixedHoldRuntimeContext,
 ) -> str:
     return materialize_fixed_hold_replay_job_implementation(
         writer,
@@ -153,7 +155,9 @@ def materialize_volatility_duration_replay_job_implementation(
 
 
 def materialize_volatility_duration_running_job_repair_proof(
-    writer: StateWriter,
+    writer: FixedHoldRepairContext,
+    *,
+    verification_evidence_hashes: tuple[str, ...],
 ) -> str:
     return materialize_running_job_implementation_repair_proof(
         writer,
@@ -162,6 +166,7 @@ def materialize_volatility_duration_running_job_repair_proof(
             "replace absent historical evaluation addresses without changing "
             "the registered scientific Executable family"
         ),
+        verification_evidence_hashes=verification_evidence_hashes,
     )
 
 

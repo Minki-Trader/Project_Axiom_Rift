@@ -12,9 +12,13 @@ import numpy as np
 import pandas as pd
 import scipy
 
-from axiom_rift.core.canonical import canonical_bytes, parse_canonical
-from axiom_rift.operations import writer as writer_module
-from axiom_rift.operations.writer import RunningJobExecution, StateWriter
+from axiom_rift.core.canonical import canonical_bytes
+from axiom_rift.research.evidence_inputs import read_surface_manifest_evidence_inputs
+from axiom_rift.operations.running_job import RunningJobExecution
+from axiom_rift.operations.running_job_context import (
+    RunningJobExecutionContext,
+    running_job_execution_context_implementation_sha256,
+)
 from axiom_rift.research.discovery import DATASET_SHA256, OBSERVED_MATERIAL_ID, ROLLING_SPLIT_SHA256, discovery_implementation_sha256
 from axiom_rift.research.independent_sleeve_portfolio_chassis import executable_configuration_map, independent_sleeve_portfolio_chassis_implementation_sha256, independent_sleeve_portfolio_followup_implementation_sha256, loader_implementation_sha256
 from axiom_rift.research.independent_sleeve_portfolio_discovery import compute_registered_independent_sleeve_portfolio_surface, independent_sleeve_portfolio_discovery_implementation_sha256, project_independent_sleeve_portfolio_evaluation
@@ -61,7 +65,7 @@ def build_environment_manifest() -> dict[str, object]:
         "shared_discovery_implementation_sha256": discovery_implementation_sha256(),
         "split_artifact_sha256": ROLLING_SPLIT_SHA256,
         "validator_id": SCIENTIFIC_DISCOVERY_VALIDATOR_ID,
-        "writer_implementation_sha256": sha256(Path(writer_module.__file__).resolve().read_bytes()).hexdigest(),
+        "running_job_context_implementation_sha256": running_job_execution_context_implementation_sha256(),
     }
     canonical_bytes(value)
     return value
@@ -92,26 +96,22 @@ class IndependentSleevePortfolioJobPacket:
         return dict(self.output_manifest)
 
 
-def _load_surface(writer: StateWriter, input_hashes: tuple[str, ...]) -> tuple[dict[str, Any], str, str]:
-    surface = manifest = None
-    for artifact_hash in input_hashes:
-        try:
-            artifact = writer.evidence.verify(artifact_hash)
-            value = parse_canonical((writer.evidence._root / artifact.relative_path).read_bytes())
-        except (FileNotFoundError, OSError, RuntimeError, ValueError):
-            continue
-        if isinstance(value, dict) and value.get("schema") == "independent_sleeve_portfolio_surface.v1":
-            surface = (value, artifact_hash)
-        if isinstance(value, dict) and value.get("schema") == "independent_sleeve_portfolio_surface_manifest.v1":
-            manifest = (value, artifact_hash)
-    if surface is None or manifest is None or manifest[0].get("surface_artifact_hash") != surface[1]:
-        raise ValueError("independent sleeve portfolio surface is missing")
-    return surface[0], surface[1], manifest[1]
+def _load_surface(writer: RunningJobExecutionContext, input_hashes: tuple[str, ...]) -> tuple[dict[str, Any], str, str]:
+    binding = read_surface_manifest_evidence_inputs(
+        writer.evidence,
+        input_hashes,
+        surface_schema="independent_sleeve_portfolio_surface.v1",
+        manifest_schema="independent_sleeve_portfolio_surface_manifest.v1",
+        expected_surface_implementation_sha256=(
+            independent_sleeve_portfolio_discovery_implementation_sha256()
+        ),
+    )
+    return binding.surface.value, binding.surface.artifact_sha256, binding.manifest.artifact_sha256
 
 
 def execute_independent_sleeve_portfolio_job(*, repository_root: str | Path, execution: RunningJobExecution) -> IndependentSleevePortfolioJobPacket:
     root = Path(repository_root).resolve()
-    writer = StateWriter(root)
+    writer = RunningJobExecutionContext(root)
     binding = writer.verify_running_job_execution(execution, expected_callable_identity=CALLABLE_IDENTITY)
     spec = binding["spec"]
     subject = spec.get("evidence_subject")
@@ -135,7 +135,9 @@ def execute_independent_sleeve_portfolio_job(*, repository_root: str | Path, exe
         manifest_value = {"schema": "independent_sleeve_portfolio_surface_manifest.v1", "surface_artifact_hash": surface_hash, "surface_implementation_sha256": independent_sleeve_portfolio_discovery_implementation_sha256()}
         manifest_hash = writer.evidence.finalize(canonical_bytes(manifest_value)).sha256
     else:
-        surface, surface_hash, manifest_hash = _load_surface(writer, inputs)
+        surface, surface_hash, manifest_hash = _load_surface(
+            writer, tuple(identity for identity in inputs if identity not in required)
+        )
     evaluation = project_independent_sleeve_portfolio_evaluation(surface, job_execution={**execution.payload(), "identity": execution.identity}, subject_executable_id=executable_id, surface_artifact_hash=surface_hash, surface_manifest_hash=manifest_hash)
     evaluation_hash = writer.evidence.finalize(canonical_bytes(evaluation)).sha256
     measurement = build_measurement(executable_id=executable_id, job_id=execution.job_id, job_hash=execution.job_hash, evaluation_artifact_hash=evaluation_hash, evaluation=evaluation, mission_id=mission_id)

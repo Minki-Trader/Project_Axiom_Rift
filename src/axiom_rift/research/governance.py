@@ -51,8 +51,14 @@ class DiagnosisConfidence(str, Enum):
 
 
 class ArchitectureReviewConclusion(str, Enum):
+    BOUNDED_SAME_ARCHITECTURE = "bounded_same_architecture"
     CHANGE_RESEARCH_LAYER = "change_research_layer"
     ROTATE_ARCHITECTURE = "rotate_architecture"
+
+
+class ArchitectureContinuationMode(str, Enum):
+    EXISTING_AXIS = "existing_axis"
+    NEW_MECHANISM = "new_mechanism"
 
 
 REQUIRED_INTAKE_SURFACES = frozenset(
@@ -115,6 +121,14 @@ def require_architecture_family(value: object) -> str:
         raise ResearchGovernanceError(
             "system_architecture_family must use the architecture-family namespace"
         )
+    return text
+
+
+def _prefixed_digest(name: str, value: object, prefix: str) -> str:
+    text = _ascii(name, value)
+    if not text.startswith(prefix):
+        raise ResearchGovernanceError(f"{name} must use the {prefix} namespace")
+    _digest(name, text.removeprefix(prefix))
     return text
 
 
@@ -234,6 +248,78 @@ class StudyDiagnosis:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class ArchitectureContinuationDirection:
+    """One expert-selected, review-bound same-architecture continuation."""
+
+    mode: ArchitectureContinuationMode
+    reviewed_architecture_family: str
+    trigger_record_id: str
+    covered_diagnosis_ids: tuple[str, ...]
+    target_axis_id: str | None = None
+    target_axis_identity: str | None = None
+    required_research_layer: ResearchLayer | None = None
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.mode, ArchitectureContinuationMode):
+            raise ResearchGovernanceError("architecture continuation mode is not typed")
+        require_architecture_family(self.reviewed_architecture_family)
+        _digest("architecture continuation trigger", self.trigger_record_id)
+        diagnoses = _ascii_values(
+            "covered_diagnosis_ids",
+            self.covered_diagnosis_ids,
+        )
+        for diagnosis_id in diagnoses:
+            _prefixed_digest(
+                "covered diagnosis identity",
+                diagnosis_id,
+                "diagnosis:",
+            )
+        object.__setattr__(self, "covered_diagnosis_ids", diagnoses)
+        if self.mode is ArchitectureContinuationMode.EXISTING_AXIS:
+            _ascii("target_axis_id", self.target_axis_id)
+            _prefixed_digest(
+                "target_axis_identity",
+                self.target_axis_identity,
+                "axis:",
+            )
+            if self.required_research_layer is not None:
+                raise ResearchGovernanceError(
+                    "existing-axis continuation cannot select a new research layer"
+                )
+        else:
+            if self.target_axis_id is not None or self.target_axis_identity is not None:
+                raise ResearchGovernanceError(
+                    "new-mechanism continuation cannot preselect an existing axis"
+                )
+            if not isinstance(self.required_research_layer, ResearchLayer):
+                raise ResearchGovernanceError(
+                    "new-mechanism continuation requires one typed research layer"
+                )
+
+    def to_identity_payload(self) -> dict[str, CanonicalValue]:
+        payload: dict[str, CanonicalValue] = {
+            "covered_diagnosis_ids": list(self.covered_diagnosis_ids),
+            "mode": self.mode.value,
+            "reviewed_architecture_family": self.reviewed_architecture_family,
+            "schema": "architecture_continuation_direction.v1",
+            "trigger_record_id": self.trigger_record_id,
+        }
+        if self.mode is ArchitectureContinuationMode.EXISTING_AXIS:
+            assert self.target_axis_id is not None
+            assert self.target_axis_identity is not None
+            payload.update(
+                {
+                    "target_axis_id": self.target_axis_id,
+                    "target_axis_identity": self.target_axis_identity,
+                }
+            )
+        else:
+            assert self.required_research_layer is not None
+            payload["required_research_layer"] = self.required_research_layer.value
+        return payload
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class ArchitectureReview:
     mission_id: str
     trigger_record_id: str
@@ -241,6 +327,7 @@ class ArchitectureReview:
     conclusion: ArchitectureReviewConclusion
     rationale: str
     stop_or_reopen_condition: str
+    continuation_direction: ArchitectureContinuationDirection | None = None
     identity: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -249,6 +336,27 @@ class ArchitectureReview:
         require_architecture_family(self.system_architecture_family)
         if not isinstance(self.conclusion, ArchitectureReviewConclusion):
             raise ResearchGovernanceError("architecture review conclusion is not typed")
+        if self.conclusion is ArchitectureReviewConclusion.BOUNDED_SAME_ARCHITECTURE:
+            if not isinstance(
+                self.continuation_direction,
+                ArchitectureContinuationDirection,
+            ):
+                raise ResearchGovernanceError(
+                    "bounded same-architecture review requires a typed direction"
+                )
+            if (
+                self.continuation_direction.reviewed_architecture_family
+                != self.system_architecture_family
+                or self.continuation_direction.trigger_record_id
+                != self.trigger_record_id
+            ):
+                raise ResearchGovernanceError(
+                    "architecture continuation differs from its parent review"
+                )
+        elif self.continuation_direction is not None:
+            raise ResearchGovernanceError(
+                "legacy architecture conclusions cannot carry a continuation direction"
+            )
         _ascii("rationale", self.rationale)
         _ascii("stop_or_reopen_condition", self.stop_or_reopen_condition)
         object.__setattr__(
@@ -262,7 +370,7 @@ class ArchitectureReview:
         )
 
     def to_identity_payload(self) -> dict[str, CanonicalValue]:
-        return {
+        payload: dict[str, CanonicalValue] = {
             "conclusion": self.conclusion.value,
             "mission_id": self.mission_id,
             "rationale": self.rationale,
@@ -271,6 +379,12 @@ class ArchitectureReview:
             "system_architecture_family": self.system_architecture_family,
             "trigger_record_id": self.trigger_record_id,
         }
+        if self.continuation_direction is not None:
+            payload["continuation_direction"] = (
+                self.continuation_direction.to_identity_payload()
+            )
+            payload["schema"] = "architecture_review.v2"
+        return payload
 
 
 def diagnosis_branch(
@@ -362,6 +476,8 @@ def diagnosis_branch(
 
 
 __all__ = [
+    "ArchitectureContinuationDirection",
+    "ArchitectureContinuationMode",
     "ArchitectureReview",
     "ArchitectureReviewConclusion",
     "DiagnosisConfidence",

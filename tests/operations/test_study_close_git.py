@@ -1132,6 +1132,37 @@ class StudyCloseGitTests(unittest.TestCase):
         validation.assert_not_called()
         full_audit.assert_not_called()
 
+    def test_unrelated_commit_hook_does_not_read_journal_or_checkpoint(self) -> None:
+        self.initialize_checkpoint()
+        (self.root / "README.md").write_text("fixture\n", encoding="ascii")
+        run(self.root, "git", "add", "README.md")
+        message = self.root / "unrelated-message.txt"
+        message.write_text("Update code documentation\n", encoding="ascii")
+
+        with patch.object(
+            study_close_git,
+            "_worktree_journal",
+            side_effect=AssertionError("unrelated commit read the Journal"),
+        ) as journal_read, patch.object(
+            study_close_git,
+            "_head_checkpoint",
+            side_effect=AssertionError("unrelated commit read the checkpoint"),
+        ) as checkpoint_read:
+            validate_commit_message(self.root, message)
+
+        journal_read.assert_not_called()
+        checkpoint_read.assert_not_called()
+
+    def test_local_git_timeout_fails_closed(self) -> None:
+        with patch.object(
+            study_close_git.subprocess,
+            "run",
+            side_effect=subprocess.TimeoutExpired(("git", "status"), 120),
+        ), self.assertRaisesRegex(
+            StudyCloseDeliveryError, "bounded local Git command timed out"
+        ):
+            study_close_git._git(self.root, "status", "--short")
+
     def test_writer_guard_calls_delivery_audit_in_a_real_git_root(self) -> None:
         writer=object.__new__(StateWriter);writer.root=self.root;writer.engineering_fixture=False
         with patch("axiom_rift.operations.study_close_git.require_study_close_guard_ready") as ready,patch("axiom_rift.operations.study_close_git.require_all_study_close_deliveries") as audit:
