@@ -4709,6 +4709,24 @@ class StateWriter:
             raise RecoveryRequired(str(exc)) from exc
 
     @staticmethod
+    def _source_authority_subject_ids(
+        executable: Mapping[str, Any],
+        *,
+        error_type: type[Exception],
+    ) -> tuple[str, ...]:
+        """Derive source-authority subjects without widening performance use."""
+
+        from axiom_rift.operations.effective_axis_projection import (
+            EffectiveAxisProjectionError,
+            source_authority_subject_ids,
+        )
+
+        try:
+            return source_authority_subject_ids(executable)
+        except EffectiveAxisProjectionError as exc:
+            raise error_type(str(exc)) from exc
+
+    @staticmethod
     def _effective_axis_resolutions(
         index: LocalIndex | LocalIndexView,
         axes: Sequence[Mapping[str, Any]],
@@ -5958,6 +5976,37 @@ class StateWriter:
                     or axis.get("axis_identity") != portfolio_axis_identity
                 ):
                     raise TransitionError("Study Portfolio axis is absent or pruned")
+                decision_baseline = decision.payload.get("baseline_executable")
+                if not isinstance(decision_baseline, Mapping):
+                    raise RecoveryRequired(
+                        "accepted Portfolio Decision baseline is malformed"
+                    )
+                source_authority_subject_ids = (
+                    self._source_authority_subject_ids(
+                        decision_baseline,
+                        error_type=RecoveryRequired,
+                    )
+                )
+                recorded_source_authority_subject_ids = decision.payload.get(
+                    "source_authority_subject_ids"
+                )
+                if (
+                    recorded_source_authority_subject_ids is not None
+                    and recorded_source_authority_subject_ids
+                    != list(source_authority_subject_ids)
+                ):
+                    raise RecoveryRequired(
+                        "accepted Portfolio Decision source authority is malformed"
+                    )
+                effective_axis = self._effective_axis_resolution(
+                    _index,
+                    axis,
+                    prospective_source_ids=source_authority_subject_ids,
+                )
+                if not effective_axis.selectable:
+                    raise TransitionError(
+                        "Study Portfolio axis is effectively blocked by current source authority"
+                    )
                 mechanism_family = axis["mechanism_family"]
                 primary_research_layer = axis["primary_research_layer"]
                 system_architecture_family = axis["system_architecture_family"]
@@ -14049,6 +14098,12 @@ class StateWriter:
             component_records: list[IndexRecord] = []
             baseline_provenance: dict[str, Any] | None = None
             resolved_architecture_family: str | None = None
+            source_authority_subject_ids: tuple[str, ...] = ()
+            if baseline is not None:
+                source_authority_subject_ids = self._source_authority_subject_ids(
+                    baseline.to_identity_payload(),
+                    error_type=TransitionError,
+                )
             if not self.engineering_fixture and decision.chosen.action in work_actions:
                 if baseline is None or architecture is None:
                     raise TransitionError(
@@ -14186,7 +14241,7 @@ class StateWriter:
                 effective_target = self._effective_axis_resolution(
                     _index,
                     target_axis,
-                    prospective_source_ids=baseline.source_contracts,
+                    prospective_source_ids=source_authority_subject_ids,
                 )
                 if not effective_target.selectable:
                     raise TransitionError(
@@ -14534,6 +14589,9 @@ class StateWriter:
                     ].to_projection_payload(),
                     "portfolio_snapshot_id": snapshot.record_id,
                     "scheduler_constraints": scheduler_constraints,
+                    "source_authority_subject_ids": list(
+                        source_authority_subject_ids
+                    ),
                     "study_diagnosis_id": diagnosis_id,
                     "target_axis_identity": target_axis["axis_identity"],
                     "resolved_architecture_family": resolved_architecture_family,
@@ -14681,30 +14739,24 @@ class StateWriter:
                 == decision.payload.get("chosen_option_id")
             )
             baseline = decision.payload.get("baseline_executable")
-            component_manifests = (
-                ()
-                if not isinstance(baseline, dict)
-                else baseline.get("component_manifests", ())
+            if not isinstance(baseline, Mapping):
+                raise RecoveryRequired(
+                    "Portfolio Decision source authority baseline is malformed"
+                )
+            bound_sources = self._source_authority_subject_ids(
+                baseline,
+                error_type=RecoveryRequired,
             )
-            bound_sources = set(
-                baseline.get("source_contracts", ())
-                if isinstance(baseline, dict)
-                else ()
+            recorded_bound_sources = decision.payload.get(
+                "source_authority_subject_ids"
             )
-            if isinstance(component_manifests, list):
-                for component in component_manifests:
-                    specification = (
-                        None
-                        if not isinstance(component, dict)
-                        else component.get("spec")
-                    )
-                    source_id = (
-                        None
-                        if not isinstance(specification, dict)
-                        else specification.get("source_contract_id")
-                    )
-                    if isinstance(source_id, str):
-                        bound_sources.add(source_id)
+            if (
+                recorded_bound_sources is not None
+                and recorded_bound_sources != list(bound_sources)
+            ):
+                raise RecoveryRequired(
+                    "Portfolio Decision source authority projection is malformed"
+                )
             source_head = index.event_head(
                 f"source:{manifest.source_contract_id}"
             )

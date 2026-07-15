@@ -200,6 +200,10 @@ axis_disposition:
   retired_invalidated_axis_scientific_or_terminal_credit: false
   exact_evidence_references_required: true
   effective_state_and_candidate_eligibility_writer_derived: true
+  source_authority_subjects_derive_from_exact_executable_manifests: true
+  zero_trial_source_axis_invalidation_is_effective_evidence: true
+  eligibility_only_source_authority_is_not_performance_authority: true
+  source_dependency_and_performance_allowed_are_crosschecked: true
   partial_invalid_unresolved_and_low_information_preserved: true
   scientific_exhaustion_requires_exact_negative_depth: true
   candidate_trial_holdout_and_claim_delta: 0

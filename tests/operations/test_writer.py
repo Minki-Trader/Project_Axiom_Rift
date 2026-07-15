@@ -3744,6 +3744,10 @@ class WriterTests(unittest.TestCase):
                 "required_target_axis_ids": ["axis-microstructure"],
             },
         )
+        self.assertEqual(
+            accepted_decision.payload["source_authority_subject_ids"],
+            [contract.source_contract_id],
+        )
         report = self.writer.evidence.finalize(
             source_audit_report_bytes(
                 finding_id="SOURCE-AUTH-001",
@@ -12059,6 +12063,229 @@ class ResearchDirectionFlowTests(unittest.TestCase):
             baseline_executable=portfolio_axis_baseline(self.axes[target_index]),
         )
         return decision
+
+    def _source_authority_decision(
+        self,
+        *,
+        tag: str,
+        source_id: str,
+    ) -> PortfolioDecision:
+        template = self._decision(
+            tag=tag,
+            target_index=0,
+            action=PortfolioAction.DEEPEN,
+        )
+        assert template.baseline_executable is not None
+        baseline = template.baseline_executable
+        source_component = ComponentSpec(
+            display_name=f"{tag} eligibility-only source authority",
+            protocol="external_source.writer_projection_fixture.v1",
+            implementation=fixture_component_implementation(
+                "fixture.external_source.writer_projection"
+            ),
+            spec={
+                "performance_allowed": False,
+                "source_contract_id": source_id,
+            },
+        )
+        source_baseline = ExecutableSpec(
+            display_name=f"{tag} source-authority baseline",
+            components=(*baseline.components, source_component),
+            parameters=baseline.parameter_values(),
+            data_contract=baseline.data_contract,
+            split_contract=baseline.split_contract,
+            clock_contract=baseline.clock_contract,
+            cost_contract=baseline.cost_contract,
+            engine_contract=baseline.engine_contract,
+        )
+        self.assertEqual(source_baseline.source_contracts, ())
+        self.assertEqual(
+            ArchitectureChassisSpec.from_executable(source_baseline).identity,
+            self.axes[0].architecture_chassis.identity,
+        )
+        return PortfolioDecision(
+            decision_id=f"DEC-DIRECTION-{tag}-SOURCE",
+            chosen_option_id=template.chosen_option_id,
+            options=template.options,
+            rationale=template.rationale,
+            commitment_batches=template.commitment_batches,
+            quant_team_review=template.quant_team_review,
+            baseline_executable=source_baseline,
+        )
+
+    def _register_context_source(self) -> tuple[SourceContract, str]:
+        contract = source_contract()
+        registered = self.writer.record_source_eligibility(
+            eligibility=SourceEligibility.register(contract),
+            receipt=None,
+            operation_id="direction-register-context-source",
+        )
+        state_record_id = canonical_digest(
+            domain="source-state",
+            payload={
+                "source_id": contract.source_contract_id,
+                "state": "context_only",
+                "ordinal": registered.result["ordinal"],
+                "evidence_receipt_id": None,
+            },
+        )
+        return contract, state_record_id
+
+    def _invalidate_context_source(
+        self,
+        *,
+        contract: SourceContract,
+        state_record_id: str,
+    ) -> None:
+        finding_id = "SOURCE-DIRECTION-ZERO-TRIAL"
+        report = self.writer.evidence.finalize(
+            source_audit_report_bytes(
+                finding_id=finding_id,
+                source_contract_id=contract.source_contract_id,
+                source_state_record_id=state_record_id,
+            )
+        )
+        manifest = SourceAuthorityAuditManifest(
+            report_artifact_hash=report.sha256,
+            report_finding_id=finding_id,
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=state_record_id,
+            surface=SourceAuthoritySurface.AVAILABILITY,
+            reason_code=SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN,
+            observed_defect="context source lacks point-in-time authority",
+            observed_at_utc=FIXED_NOW,
+        )
+        manifest_artifact = self.writer.evidence.finalize(
+            canonical_bytes(manifest.to_identity_payload())
+        )
+        invalidation = SourceAuthorityInvalidation(
+            source_contract_id=contract.source_contract_id,
+            source_state_record_id=state_record_id,
+            audit_artifact_hash=manifest_artifact.sha256,
+            surface=SourceAuthoritySurface.AVAILABILITY,
+            reason_code=SourceAuthorityReason.POINT_IN_TIME_AUTHORITY_UNPROVEN,
+            observed_defect="context source lacks point-in-time authority",
+            observed_at_utc=FIXED_NOW,
+        )
+        self.writer.suspend_source_authority_from_audit(
+            invalidation=invalidation,
+            operation_id="direction-invalidate-context-source",
+        )
+
+    def test_zero_trial_source_authority_blocks_prospective_decision(self) -> None:
+        contract, state_record_id = self._register_context_source()
+        self._invalidate_context_source(
+            contract=contract,
+            state_record_id=state_record_id,
+        )
+        decision = self._source_authority_decision(
+            tag="ZERO-TRIAL-BLOCK",
+            source_id=contract.source_contract_id,
+        )
+
+        with self.assertRaisesRegex(TransitionError, "invalidated source"):
+            self.writer.record_portfolio_decision(
+                decision=decision,
+                operation_id="reject-zero-trial-invalidated-source-decision",
+            )
+        with LocalIndex(self.writer.index_path) as index:
+            self.assertIsNone(index.get("portfolio-decision", decision.identity))
+            self.assertEqual(len(index.records_by_kind("trial")), 0)
+
+    def test_study_open_rechecks_accepted_source_authority_projection(self) -> None:
+        contract, _ = self._register_context_source()
+        decision = self._source_authority_decision(
+            tag="STUDY-RECHECK",
+            source_id=contract.source_contract_id,
+        )
+        self.writer.record_portfolio_decision(
+            decision=decision,
+            operation_id="accept-source-authority-study-decision",
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            accepted = index.get("portfolio-decision", decision.identity)
+        assert accepted is not None
+        self.assertEqual(
+            accepted.payload["source_authority_subject_ids"],
+            [contract.source_contract_id],
+        )
+
+        axis = self.axes[0]
+        assert decision.baseline_executable is not None
+        assert decision.architecture_chassis is not None
+        controlled_chassis = ControlledStudyChassis(
+            baseline_executable=decision.baseline_executable,
+            changed_domains=axis.changed_domains,
+            controlled_domains=axis.controlled_domains,
+            embedded_controlled_domains=(ResearchLayer.DATA_SOURCE,),
+            architecture=decision.architecture_chassis,
+        )
+        question = study_question("accepted source authority is current at Study open")
+        proposal = {"mechanism": "source authority recheck"}
+        study_hash = self.writer.study_input_hash(
+            question=question,
+            material_identity=OBSERVED_MATERIAL_ID,
+            semantic_proposal=proposal,
+            controlled_chassis=controlled_chassis,
+            portfolio_axis_id=axis.axis_id,
+            portfolio_axis_identity=axis.identity,
+            portfolio_decision_id=decision.identity,
+        )
+        permit = self.writer.issue_permit(
+            kind=PermitKind.STUDY,
+            subject_kind=SubjectKind.INITIATIVE,
+            subject_id="INI-DIRECTION",
+            input_hash=study_hash,
+            actions=("open_study",),
+            scope=(
+                "study",
+                f"decision:{decision.identity}",
+                f"axis:{axis.identity}",
+                f"baseline:{decision.baseline_executable.identity}",
+                f"chassis:{decision.architecture_chassis.identity}",
+                f"snapshot:{self.snapshot.identity}",
+            ),
+            expires_at_utc=FIXED_EXPIRY,
+            one_shot=True,
+            operation_id="source-authority-study-recheck-permit",
+        )
+        observed: dict[str, tuple[str, ...]] = {}
+
+        def blocked_resolution(
+            _index,
+            _axis,
+            *,
+            prospective_source_ids=(),
+        ):
+            observed["source_ids"] = tuple(prospective_source_ids)
+            return SimpleNamespace(selectable=False)
+
+        with patch.object(
+            self.writer,
+            "_effective_axis_resolution",
+            side_effect=blocked_resolution,
+        ):
+            with self.assertRaisesRegex(
+                TransitionError,
+                "blocked by current source authority",
+            ):
+                self.writer.open_study(
+                    study_id="STU-SOURCE-AUTHORITY-RECHECK",
+                    question=question,
+                    material_identity=OBSERVED_MATERIAL_ID,
+                    material_display_name="foundation observed material",
+                    semantic_proposal=proposal,
+                    controlled_chassis=controlled_chassis,
+                    portfolio_axis_id=axis.axis_id,
+                    portfolio_axis_identity=axis.identity,
+                    portfolio_decision_id=decision.identity,
+                    permit=permit,
+                    operation_id="reject-stale-source-authority-study-open",
+                )
+        self.assertEqual(
+            observed["source_ids"],
+            (contract.source_contract_id,),
+        )
 
     def test_real_portfolio_decision_requires_evidence_bound_plural_judgment(
         self,

@@ -566,6 +566,13 @@ source_authority_audit:
   ordinary_same_semantics_recertification_clears_latch: false
   resolution_policy_required: true
   current_point_in_time_defect_resolution: new_source_contract
+  axis_authority_projection:
+    source_subjects_are_writer_derived: true
+    portfolio_decision_rechecks_prospective_baseline: true
+    study_open_rechecks_accepted_baseline: true
+    stored_projection_is_crosschecked_not_trusted: true
+    performance_source_surface_is_not_widened: true
+    performance_allowed_marker_is_crosschecked_with_source_dependencies: true
 research_protocol:
   stream: research-protocol:scientific
   supported: scientific_adjudication_v2

@@ -8,16 +8,18 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from axiom_rift.core.identity import canonical_digest
+from axiom_rift.core.identity import ComponentSpec, ExecutableSpec, canonical_digest
 
 from axiom_rift.operations.effective_axis_projection import (
     EffectiveAxisProjectionError,
     audit_effective_axis_projection,
+    eligible_performance_source_ids,
     effective_axis_resolution,
     effective_axis_resolutions,
     effective_replay_axis_bindings,
     mission_effective_axis_blockers,
     selectable_axis_ids,
+    source_authority_subject_ids,
 )
 from axiom_rift.operations.evidence_scope_projection import (
     evidence_scope_overlay_record,
@@ -709,6 +711,206 @@ def _satisfy_audit_only_replay(
 
 
 class EffectiveAxisProjectionTests(unittest.TestCase):
+    @staticmethod
+    def _typed_source_executable(
+        source_id: str,
+        *,
+        performance: bool,
+        declared_source_id: str | None = None,
+        performance_allowed: bool | None = None,
+        omit_performance_allowed: bool = False,
+    ) -> ExecutableSpec:
+        specification: dict[str, object] = {
+            "source_contract_id": (
+                source_id if declared_source_id is None else declared_source_id
+            ),
+        }
+        if not omit_performance_allowed:
+            specification["performance_allowed"] = (
+                performance
+                if performance_allowed is None
+                else performance_allowed
+            )
+        component = ComponentSpec(
+            display_name="typed external source projection fixture",
+            protocol="external_source.projection_fixture.v1",
+            implementation="fixture.external_source@sha256:" + "f" * 64,
+            spec=specification,
+            semantic_dependencies=(source_id,) if performance else (),
+        )
+        return ExecutableSpec(
+            display_name="typed external source projection fixture",
+            components=(component,),
+            parameters={"performance": performance},
+            data_contract="data:projection-fixture",
+            split_contract="split:projection-fixture",
+            clock_contract="clock:projection-fixture",
+            cost_contract="cost:projection-fixture",
+            engine_contract="engine:projection-fixture",
+            source_contracts=(source_id,) if performance else (),
+        )
+
+    def test_zero_trial_typed_source_axis_is_blocked_by_its_invalidated_authority(
+        self,
+    ) -> None:
+        source_id = "source:" + "1" * 64
+        axis = _axis("7")
+        unrelated = _axis("8")
+        eligibility_only = self._typed_source_executable(
+            source_id,
+            performance=False,
+        )
+        payload = eligibility_only.to_identity_payload()
+        self.assertEqual(eligible_performance_source_ids(payload), ())
+        self.assertEqual(source_authority_subject_ids(payload), (source_id,))
+
+        with TemporaryDirectory() as temporary:
+            with LocalIndex(Path(temporary) / "index.sqlite3") as index:
+                index.put_many(
+                    (
+                        IndexRecord(
+                            kind="portfolio-decision",
+                            record_id="decision:" + "9" * 64,
+                            subject=f"Mission:{MISSION_ID}",
+                            status="accepted",
+                            fingerprint="9" * 64,
+                            payload={
+                                "baseline_executable": payload,
+                                "target_axis_identity": axis["axis_identity"],
+                            },
+                        ),
+                        _source_invalidation_record(source_id, token=130),
+                    )
+                )
+                self.assertEqual(index.records_by_kind("trial"), ())
+                resolution = effective_axis_resolution(index, axis)
+                self.assertEqual(resolution.source_contract_ids, (source_id,))
+                self.assertIs(
+                    resolution.effective_status,
+                    EffectiveAxisStatus.BLOCKED_BY_INVALIDATED_SOURCE,
+                )
+                self.assertFalse(resolution.selectable)
+                self.assertFalse(resolution.decision_option_eligible)
+                self.assertFalse(resolution.terminal_eligible)
+                self.assertEqual(
+                    selectable_axis_ids(index, (axis, unrelated)),
+                    (unrelated["axis_id"],),
+                )
+
+    def test_source_authority_subjects_preserve_performance_meaning_and_fail_closed(
+        self,
+    ) -> None:
+        source_id = "source:" + "2" * 64
+        other_source_id = "source:" + "3" * 64
+        performance = self._typed_source_executable(
+            source_id,
+            performance=True,
+        ).to_identity_payload()
+        self.assertEqual(
+            eligible_performance_source_ids(performance),
+            (source_id,),
+        )
+        self.assertEqual(
+            source_authority_subject_ids(performance),
+            (source_id,),
+        )
+
+        legacy_feature = ComponentSpec(
+            display_name="legacy source-consuming feature fixture",
+            protocol="feature.source_projection_fixture.v1",
+            implementation="fixture.feature@sha256:" + "e" * 64,
+            spec={"availability": "completed_bar_only"},
+            semantic_dependencies=(source_id,),
+        )
+        legacy_performance = ExecutableSpec(
+            display_name="legacy performance source fixture",
+            components=(legacy_feature,),
+            parameters={},
+            data_contract="data:projection-fixture",
+            split_contract="split:projection-fixture",
+            clock_contract="clock:projection-fixture",
+            cost_contract="cost:projection-fixture",
+            engine_contract="engine:projection-fixture",
+            source_contracts=(source_id,),
+        ).to_identity_payload()
+        self.assertEqual(
+            source_authority_subject_ids(legacy_performance),
+            (source_id,),
+        )
+
+        non_contract_external_material = ExecutableSpec(
+            display_name="non-SourceContract external material fixture",
+            components=(
+                ComponentSpec(
+                    display_name="bounded external development material",
+                    protocol="external_source.development_fixture.v1",
+                    implementation="fixture.external_material@sha256:" + "d" * 64,
+                    spec={"material_identity": "material:" + "a" * 64},
+                ),
+            ),
+            parameters={},
+            data_contract="data:projection-fixture",
+            split_contract="split:projection-fixture",
+            clock_contract="clock:projection-fixture",
+            cost_contract="cost:projection-fixture",
+            engine_contract="engine:projection-fixture",
+        ).to_identity_payload()
+        self.assertEqual(
+            source_authority_subject_ids(non_contract_external_material),
+            (),
+        )
+
+        for malformed_eligibility in (
+            self._typed_source_executable(
+                source_id,
+                performance=False,
+                omit_performance_allowed=True,
+            ),
+            self._typed_source_executable(
+                source_id,
+                performance=False,
+                performance_allowed=True,
+            ),
+        ):
+            with self.assertRaisesRegex(
+                EffectiveAxisProjectionError,
+                "requires explicit performance_allowed false",
+            ):
+                source_authority_subject_ids(
+                    malformed_eligibility.to_identity_payload()
+                )
+
+        omitted_performance_marker = self._typed_source_executable(
+            source_id,
+            performance=True,
+            omit_performance_allowed=True,
+        ).to_identity_payload()
+        self.assertEqual(
+            source_authority_subject_ids(omitted_performance_marker),
+            (source_id,),
+        )
+        explicit_false_performance = self._typed_source_executable(
+            source_id,
+            performance=True,
+            performance_allowed=False,
+        ).to_identity_payload()
+        with self.assertRaisesRegex(
+            EffectiveAxisProjectionError,
+            "cannot declare performance_allowed false",
+        ):
+            source_authority_subject_ids(explicit_false_performance)
+
+        mismatch = self._typed_source_executable(
+            source_id,
+            performance=True,
+            declared_source_id=other_source_id,
+        ).to_identity_payload()
+        with self.assertRaisesRegex(
+            EffectiveAxisProjectionError,
+            "disagrees with its semantic source dependency",
+        ):
+            source_authority_subject_ids(mismatch)
+
     def test_read_only_batch_projection_is_pure_equal_and_bounded(self) -> None:
         class CountingView:
             def __init__(self, view: object) -> None:

@@ -13,6 +13,10 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from axiom_rift.core.component_surface import (
+    ComponentManifestError,
+    component_spec_from_manifest,
+)
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.evidence_scope_projection import (
     EvidenceScopeProjectionError,
@@ -84,6 +88,159 @@ def _identity(name: str, value: object, prefix: str) -> str:
     return text
 
 
+def _canonical_source_ids(name: str, value: object) -> tuple[str, ...]:
+    if (
+        not isinstance(value, list)
+        or any(type(source_id) is not str for source_id in value)
+        or value != sorted(set(value))
+    ):
+        raise EffectiveAxisProjectionError(
+            f"{name} must be a sorted unique source identity list"
+        )
+    return tuple(
+        _identity(name, source_id, "source:") for source_id in value
+    )
+
+
+def eligible_performance_source_ids(
+    executable: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Return only sources authorized for performance use by an Executable.
+
+    ``source_contracts`` remains the exact performance/SourcePermit surface.
+    It must not be widened merely because an eligibility-only chassis audits a
+    SourceContract without using it in a performance Batch.
+    """
+
+    if not isinstance(executable, Mapping):
+        raise EffectiveAxisProjectionError("Executable source payload is malformed")
+    return _canonical_source_ids(
+        "Executable performance source contracts",
+        executable.get("source_contracts"),
+    )
+
+
+def source_authority_subject_ids(
+    executable: Mapping[str, Any],
+) -> tuple[str, ...]:
+    """Derive every SourceContract whose authority governs an Executable.
+
+    Performance sources are the top-level ``source_contracts`` set.  A typed
+    ``external_source.*`` component additionally names an authority subject in
+    ``spec.source_contract_id`` even when the Executable is an eligibility-only
+    no-trade audit and therefore has no performance source.  Current typed
+    manifests, semantic source dependencies, and ``performance_allowed``
+    declarations are reconstructed and cross-checked; legacy fixture payloads
+    retain their exact top-level meaning without gaining inferred authority.
+    """
+
+    performance_sources = eligible_performance_source_ids(executable)
+    if executable.get("schema") != "executable_spec.v1":
+        return performance_sources
+
+    component_ids = executable.get("component_identities")
+    manifests = executable.get("component_manifests")
+    if (
+        not isinstance(component_ids, list)
+        or not component_ids
+        or any(type(component_id) is not str for component_id in component_ids)
+        or not isinstance(manifests, list)
+        or len(component_ids) != len(manifests)
+        or len(component_ids) != len(set(component_ids))
+    ):
+        raise EffectiveAxisProjectionError(
+            "typed Executable component authority is malformed"
+        )
+
+    authority_subjects = set(performance_sources)
+    semantic_source_dependencies: set[str] = set()
+    typed_external_sources: dict[str, bool] = {}
+    for component_id, manifest in zip(component_ids, manifests, strict=True):
+        try:
+            component = component_spec_from_manifest(manifest)
+        except ComponentManifestError as exc:
+            raise EffectiveAxisProjectionError(
+                "typed Executable component manifest is malformed"
+            ) from exc
+        if component.identity != component_id:
+            raise EffectiveAxisProjectionError(
+                "typed Executable component identity differs from its manifest"
+            )
+        component_sources = tuple(
+            dependency
+            for dependency in component.semantic_dependencies
+            if dependency.startswith("source:")
+        )
+        for source_id in component_sources:
+            _identity(
+                "component semantic source dependency",
+                source_id,
+                "source:",
+            )
+        semantic_source_dependencies.update(component_sources)
+
+        specification = component.specification()
+        if component.protocol.startswith("external_source."):
+            if not isinstance(specification, Mapping):
+                raise EffectiveAxisProjectionError(
+                    "typed external_source component specification is malformed"
+                )
+            if "source_contract_id" not in specification:
+                if component_sources:
+                    raise EffectiveAxisProjectionError(
+                        "typed external_source semantic source dependency lacks a source_contract_id"
+                    )
+                continue
+            source_id = _identity(
+                "typed external_source authority subject",
+                specification.get("source_contract_id"),
+                "source:",
+            )
+            if component_sources not in {(), (source_id,)}:
+                raise EffectiveAxisProjectionError(
+                    "typed external_source component disagrees with its semantic source dependency"
+                )
+            if not component_sources and (
+                specification.get("performance_allowed") is not False
+            ):
+                raise EffectiveAxisProjectionError(
+                    "eligibility-only external_source authority requires explicit performance_allowed false"
+                )
+            if (
+                component_sources
+                and "performance_allowed" in specification
+                and specification.get("performance_allowed") is not True
+            ):
+                raise EffectiveAxisProjectionError(
+                    "performance external_source authority cannot declare performance_allowed false"
+                )
+            if source_id in typed_external_sources and (
+                typed_external_sources[source_id] != bool(component_sources)
+            ):
+                raise EffectiveAxisProjectionError(
+                    "typed external_source authority has conflicting performance semantics"
+                )
+            typed_external_sources[source_id] = bool(component_sources)
+            authority_subjects.add(source_id)
+        elif isinstance(specification, Mapping) and "source_contract_id" in specification:
+            raise EffectiveAxisProjectionError(
+                "source_contract_id requires a typed external_source component"
+            )
+
+    if semantic_source_dependencies != set(performance_sources):
+        raise EffectiveAxisProjectionError(
+            "Executable performance sources differ from component semantic dependencies"
+        )
+    if any(
+        source_id in performance_sources and not participates_in_performance
+        for source_id, participates_in_performance in typed_external_sources.items()
+    ):
+        raise EffectiveAxisProjectionError(
+            "typed external_source performance authority lacks its semantic dependency"
+        )
+    return tuple(sorted(authority_subjects))
+
+
 @dataclass(frozen=True, slots=True)
 class _AxisLineageProjection:
     source_ids_by_axis: Mapping[str, frozenset[str]]
@@ -124,17 +281,7 @@ def _axis_lineage_projection(
             return
         if not isinstance(executable, Mapping):
             raise EffectiveAxisProjectionError("axis source lineage is malformed")
-        sources = executable.get("source_contracts", ())
-        if not isinstance(sources, list):
-            raise EffectiveAxisProjectionError("axis source lineage is malformed")
-        if sources != sorted(set(sources)) or any(
-            type(source_id) is not str for source_id in sources
-        ):
-            raise EffectiveAxisProjectionError(
-                "axis source lineage is not unique and canonical"
-            )
-        for source_id in sources:
-            _identity("axis source contract", source_id, "source:")
+        sources = source_authority_subject_ids(executable)
         lineage.setdefault(typed_identity, set()).update(sources)
 
     for decision in index.records_by_payload_text_values(
@@ -1678,10 +1825,12 @@ __all__ = [
     "EffectiveAxisProjectionError",
     "audit_effective_axis_projection",
     "axis_source_contract_ids",
+    "eligible_performance_source_ids",
     "effective_axis_resolution",
     "effective_axis_resolutions",
     "effective_replay_axis_bindings",
     "mission_effective_axis_blockers",
     "selectable_axis_ids",
+    "source_authority_subject_ids",
     "validate_source_replacement_lineage",
 ]

@@ -588,6 +588,16 @@ project_goal_audit_v2_protocol:
     recorded_satisfaction_requires_exact_stream_lineage_and_writer_operation: true
     stored_pending_invalidation_rederives_current_audit_manifest: false
     applies_source_invalidations: true
+    source_authority_subject_projection:
+      writer_derived_from_exact_executable_manifests: true
+      top_level_source_contracts_remain_exact_performance_authority: true
+      declared_external_source_contract_is_authority_subject_without_performance_use: true
+      eligibility_only_authority_grants_performance_or_source_permit: false
+      eligibility_only_authority_requires_explicit_performance_allowed_false: true
+      performance_authority_rejects_explicit_performance_allowed_false: true
+      declared_contract_and_semantic_source_dependencies_crosschecked: true
+      non_source_contract_external_material_is_not_reclassified: true
+      zero_trial_axis_is_covered: true
     applies_replay_obligations: true
     applies_effective_evidence_scope_overlays: true
     audit_deferred_pruned_axis_reopen:
