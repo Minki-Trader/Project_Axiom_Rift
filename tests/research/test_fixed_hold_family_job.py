@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.operations.writer import RunningJobExecution
@@ -34,8 +36,16 @@ from axiom_rift.research.fixed_hold_family_trace import (
     FIXED_HOLD_REPLAY_CRITERIA,
     FIXED_HOLD_REPLAY_EVIDENCE_MODES,
     FIXED_HOLD_TRACE_VALIDATOR,
+    FixedHoldFamilyTraceSnapshot,
+    FixedHoldSubjectTraceSnapshot,
     bind_fixed_hold_family_trace,
     build_fixed_hold_trace_calculation,
+    validate_fixed_hold_family_trace_snapshot,
+)
+import axiom_rift.research.fixed_hold_family_trace as fixed_hold_trace_module
+import axiom_rift.research.fixed_hold_shared_trace as fixed_hold_shared_trace_module
+from axiom_rift.research.fixed_hold_shared_trace import (
+    validate_fixed_hold_shared_trace_pair,
 )
 from axiom_rift.research.scientific_trace import (
     ANALOG_FIXED_HOLD_REPLAY_TRACE_PROTOCOL_ID,
@@ -55,10 +65,24 @@ from tests.research.test_fixed_hold_family_trace import (
 
 NAMESPACE = "test-fixed-hold-family"
 
+EXPECTED_METRICS_SHA256 = (
+    "67c3c851d99dc0f222f5e958776ad4826a0ca59835f70276148ce823f12f5d87",
+    "a4a5a3a6ce722deb1e634103c5946fa8f5c0d22634802149b7eb2ca43b1720dc",
+    "b849bcf6f12a755ba8a2af31c67c85844a20e1e6aed61212a682956b5d252242",
+    "d0be2e2cfee874f287efb65704b0f5a81edad015f81058f69853dde1ca66346a",
+)
+EXPECTED_STATISTICS_SHA256 = (
+    "47882d1b3b4dc308fa92a01d2cde8f5910e1c35b8a0984f04c2b71d9e8789dfd",
+    "b86908b8fa6c933194731957c42ff203f80985019acc17f34047eceef7713fb2",
+    "0ab34023a1cc2f39f0f44f9135d63cc87a65b9999ff8c517ff4ce4df607ff5e0",
+    "af4d3b1b826fb158b17b9f757727d6055a3f6e39b9739f13495fab87356f31e4",
+)
+
 
 class _EvidenceStore:
     def __init__(self) -> None:
         self.artifacts: dict[str, bytes] = {}
+        self.read_counts: dict[str, int] = {}
 
     def finalize(self, content: bytes) -> SimpleNamespace:
         from hashlib import sha256
@@ -68,6 +92,7 @@ class _EvidenceStore:
         return SimpleNamespace(sha256=identity)
 
     def read_verified(self, identity: str) -> bytes:
+        self.read_counts[identity] = self.read_counts.get(identity, 0) + 1
         try:
             return self.artifacts[identity]
         except KeyError as exc:
@@ -108,6 +133,30 @@ def scoped_execution(ordinal: int) -> RunningJobExecution:
         job_hash=job_hash,
         start_record_id=digest("start"),
         job_permit_id=digest("permit"),
+    )
+
+
+def validate_shared_pair(
+    *,
+    trace: object,
+    calculation_proof: dict[str, object],
+    plan: object,
+    job_execution: RunningJobExecution,
+    trace_hash: str,
+) -> tuple[str, ...]:
+    return validate_fixed_hold_shared_trace_pair(
+        trace=trace,
+        trace_output_name=plan.output_names["trace"],
+        trace_hash=trace_hash,
+        calculation=calculation_proof,
+        expected_evidence_modes=FIXED_HOLD_REPLAY_EVIDENCE_MODES,
+        expected_metric_bindings_by_mode={
+            mode: () for mode in FIXED_HOLD_REPLAY_EVIDENCE_MODES
+        },
+        mission_id=plan.mission_id,
+        executable_id=plan.executable_id,
+        job_id=job_execution.job_id,
+        job_hash=job_execution.job_hash,
     )
 
 
@@ -347,6 +396,8 @@ class FixedHoldFamilyJobTests(unittest.TestCase):
         self.assertEqual(verified.sha256, cache.sha256)
         self.assertEqual(observed_provenance, provenance_hash)
         self.assertEqual(observed_trace, trace_hash)
+        self.assertEqual(writer.evidence.read_counts[provenance_hash], 1)
+        self.assertEqual(writer.evidence.read_counts[trace_hash], 1)
         self.assertEqual(len(writer.producer_calls), 1)
         producer_execution, arguments = writer.producer_calls[0]
         self.assertEqual(producer_execution, execution())
@@ -410,6 +461,8 @@ class FixedHoldFamilyJobTests(unittest.TestCase):
         )
         self.assertEqual(verified.sha256, cache.sha256)
         self.assertEqual(observed_trace, cache.sha256)
+        self.assertEqual(writer.evidence.read_counts[provenance_hash], 1)
+        self.assertEqual(writer.evidence.read_counts[trace_hash], 1)
 
     def test_family_trace_is_stored_once_without_changing_calculation(self) -> None:
         writer = _Writer()
@@ -463,6 +516,27 @@ class FixedHoldFamilyJobTests(unittest.TestCase):
                 calculation_proof["statistics"],
                 legacy["statistics"],
             )
+            expected_shared = {
+                **legacy,
+                "trace": {
+                    "output_name": plan.output_names["trace"],
+                    "sha256": shared_hash,
+                },
+            }
+            self.assertEqual(
+                canonical_bytes(calculation_proof),
+                canonical_bytes(expected_shared),
+            )
+            self.assertEqual(
+                sha256(canonical_bytes(calculation_proof["metrics"])).hexdigest(),
+                EXPECTED_METRICS_SHA256[ordinal - 1],
+            )
+            self.assertEqual(
+                sha256(
+                    canonical_bytes(calculation_proof["statistics"])
+                ).hexdigest(),
+                EXPECTED_STATISTICS_SHA256[ordinal - 1],
+            )
             self.assertEqual(
                 validate_fixed_hold_shared_trace_calculation(
                     trace=neutral,
@@ -504,6 +578,137 @@ class FixedHoldFamilyJobTests(unittest.TestCase):
                 calculation=forged,
                 definition=self.definition,
             )
+
+    def test_each_producer_and_validator_boundary_scans_family_once(self) -> None:
+        writer = _Writer()
+        neutral = family_trace(self.definition)
+        trace_hash = sha256(canonical_bytes(neutral)).hexdigest()
+        plan = self.plan(self.definition.prospective_executable_ids[-1])
+        job_execution = scoped_execution(4)
+        snapshots = []
+        bind_snapshot = (
+            fixed_hold_shared_trace_module.bind_fixed_hold_family_trace_snapshot
+        )
+
+        def capture_snapshot(**kwargs):
+            snapshot = bind_snapshot(**kwargs)
+            snapshots.append(snapshot.family)
+            return snapshot
+
+        with (
+            patch.object(
+                fixed_hold_trace_module,
+                "_validated_family_trace_parts",
+                wraps=fixed_hold_trace_module._validated_family_trace_parts,
+            ) as full_scan,
+            patch.object(
+                fixed_hold_shared_trace_module,
+                "bind_fixed_hold_family_trace_snapshot",
+                side_effect=capture_snapshot,
+            ),
+            patch.object(
+                FixedHoldFamilyTraceSnapshot,
+                "to_dict",
+                autospec=True,
+                wraps=FixedHoldFamilyTraceSnapshot.to_dict,
+            ) as family_to_dict,
+            patch.object(
+                FixedHoldSubjectTraceSnapshot,
+                "to_dict",
+                autospec=True,
+                wraps=FixedHoldSubjectTraceSnapshot.to_dict,
+            ) as subject_to_dict,
+        ):
+            cache = fixed_hold_family_cache(
+                scoped_plan=plan,
+                neutral_trace=neutral,
+                produced=False,
+            )
+            outputs, _ = materialize_fixed_hold_evidence(
+                writer=writer,  # type: ignore[arg-type]
+                scoped_plan=plan,
+                execution=job_execution,
+                neutral_trace=cache.trace(self.definition),
+                shared_trace_sha256=trace_hash,
+            )
+            self.assertEqual(full_scan.call_count, 1)
+            self.assertEqual(family_to_dict.call_count, 0)
+            self.assertEqual(subject_to_dict.call_count, 0)
+            opened_trace = parse_canonical(
+                writer.evidence.read_verified(outputs[plan.output_names["trace"]])
+            )
+            calculation_proof = parse_canonical(
+                writer.evidence.read_verified(
+                    outputs[plan.output_names["calculation"]]
+                )
+            )
+            self.assertIsInstance(opened_trace, dict)
+            self.assertIsInstance(calculation_proof, dict)
+            validated_modes = validate_shared_pair(
+                trace=opened_trace,
+                calculation_proof=calculation_proof,
+                plan=plan,
+                job_execution=job_execution,
+                trace_hash=trace_hash,
+            )
+            self.assertEqual(full_scan.call_count, 2)
+            self.assertEqual(family_to_dict.call_count, 0)
+            self.assertEqual(subject_to_dict.call_count, 0)
+
+        self.assertEqual(
+            validated_modes,
+            FIXED_HOLD_REPLAY_EVIDENCE_MODES,
+        )
+        self.assertEqual(len(snapshots), 2)
+        self.assertIsNot(snapshots[0], snapshots[1])
+        self.assertEqual(snapshots[0].sha256, snapshots[1].sha256)
+
+        forged = deepcopy(neutral)
+        forged["trade_observations"][0][
+            "native_net_pnl_micropoints"
+        ] += 1
+        with self.assertRaises(ScientificTraceError):
+            validate_shared_pair(
+                trace=forged,
+                calculation_proof=calculation_proof,
+                plan=plan,
+                job_execution=job_execution,
+                trace_hash=trace_hash,
+            )
+
+        detached = snapshots[0].to_dict()
+        detached["trade_observations"][0][
+            "native_net_pnl_micropoints"
+        ] += 1
+        with self.assertRaises(TypeError):
+            replace(snapshots[0], _normalized=detached)
+        with self.assertRaises(TypeError):
+            replace(snapshots[0], _parts={"daily": {}})
+        with self.assertRaisesRegex(ScientificTraceError, "payload is invalid"):
+            replace(snapshots[0], _payload={"parts": {}})
+
+        other_definition = replace(
+            self.definition,
+            dataset_sha256=sha256(b"different-valid-dataset").hexdigest(),
+        )
+        other_snapshot = validate_fixed_hold_family_trace_snapshot(
+            family_trace(other_definition),
+            definition=other_definition,
+            validator=FIXED_HOLD_TRACE_VALIDATOR,
+        )
+        self.assertNotEqual(snapshots[0].sha256, other_snapshot.sha256)
+        with self.assertRaisesRegex(ScientificTraceError, "payload binding"):
+            replace(snapshots[0], _payload=other_snapshot._payload)
+        self.assertEqual(
+            validate_shared_pair(
+                trace=snapshots[0],
+                calculation_proof=calculation_proof,
+                plan=plan,
+                job_execution=job_execution,
+                trace_hash=trace_hash,
+            ),
+            FIXED_HOLD_REPLAY_EVIDENCE_MODES,
+        )
 
 
 if __name__ == "__main__":

@@ -9,7 +9,7 @@ Durable payloads contain no callback or import path.
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from hashlib import sha256
 from pathlib import Path
 from typing import Any, Protocol
@@ -28,12 +28,12 @@ from axiom_rift.research.fixed_hold_family_trace import (
     FIXED_HOLD_REPLAY_CRITERIA,
     FIXED_HOLD_REPLAY_EVIDENCE_MODES,
     FIXED_HOLD_TRACE_VALIDATOR,
+    FixedHoldFamilyTraceSnapshot,
     FixedHoldProtocolDefinition,
-    bind_fixed_hold_family_trace,
-    extract_fixed_hold_family_trace_from_subject,
     fixed_hold_subject_inference_families,
     fixed_hold_trace_implementation_sha256,
-    validate_fixed_hold_family_trace,
+    validate_fixed_hold_family_trace_snapshot,
+    validate_fixed_hold_subject_trace_snapshot,
 )
 from axiom_rift.research.fixed_hold_shared_trace import (
     build_fixed_hold_shared_trace_calculation,
@@ -450,6 +450,11 @@ class FixedHoldFamilyCache:
     content: bytes
     produced: bool
     sha256: str
+    _trace_snapshot: FixedHoldFamilyTraceSnapshot | None = field(
+        default=None,
+        repr=False,
+        compare=False,
+    )
 
     def __post_init__(self) -> None:
         if type(self.content) is not bytes or type(self.produced) is not bool:
@@ -458,15 +463,25 @@ class FixedHoldFamilyCache:
             self.content
         ).hexdigest():
             raise ValueError("fixed-hold cache content hash drifted")
+        if self._trace_snapshot is not None and (
+            self._trace_snapshot.content != self.content
+            or self._trace_snapshot.sha256 != self.sha256
+        ):
+            raise ValueError("fixed-hold cache snapshot bytes drifted")
 
     def trace(
         self,
         definition: FixedHoldProtocolDefinition,
-    ) -> dict[str, object]:
+    ) -> FixedHoldFamilyTraceSnapshot:
+        if self._trace_snapshot is not None:
+            return self._trace_snapshot.require(
+                definition=definition,
+                validator=FIXED_HOLD_TRACE_VALIDATOR,
+            )
         value = parse_canonical(self.content)
         if not isinstance(value, dict) or canonical_bytes(value) != self.content:
             raise ValueError("fixed-hold cache bytes are not canonical")
-        return validate_fixed_hold_family_trace(
+        return validate_fixed_hold_family_trace_snapshot(
             value,
             definition=definition,
             validator=FIXED_HOLD_TRACE_VALIDATOR,
@@ -490,19 +505,20 @@ def materialize_fixed_hold_cache(
 def fixed_hold_family_cache(
     *,
     scoped_plan: FixedHoldFamilyJobPlan,
-    neutral_trace: Mapping[str, Any],
+    neutral_trace: Mapping[str, Any] | FixedHoldFamilyTraceSnapshot,
     produced: bool,
 ) -> FixedHoldFamilyCache:
-    normalized = validate_fixed_hold_family_trace(
+    snapshot = validate_fixed_hold_family_trace_snapshot(
         neutral_trace,
         definition=scoped_plan.definition,
         validator=FIXED_HOLD_TRACE_VALIDATOR,
     )
-    content = canonical_bytes(normalized)
+    content = snapshot.content
     return FixedHoldFamilyCache(
         content=content,
         produced=produced,
         sha256=sha256(content).hexdigest(),
+        _trace_snapshot=snapshot,
     )
 
 
@@ -600,9 +616,14 @@ def verify_fixed_hold_cache_producer(
         raise ValueError("fixed-hold producer cannot consume its own cache")
     inputs = tuple(input_hashes)
     matches: list[tuple[str, dict[str, object]]] = []
+    opened_inputs: dict[str, bytes] = {}
+    parsed_inputs: dict[str, object] = {}
     for input_hash in dict.fromkeys(inputs):
         try:
-            value = parse_canonical(writer.evidence.read_verified(input_hash))
+            content = writer.evidence.read_verified(input_hash)
+            opened_inputs[input_hash] = content
+            value = parse_canonical(content)
+            parsed_inputs[input_hash] = value
         except (FileNotFoundError, OSError, RuntimeError, TypeError, ValueError):
             continue
         if (
@@ -650,8 +671,10 @@ def verify_fixed_hold_cache_producer(
         != producer_plan.output_names["trace"]
     ):
         raise ValueError("fixed-hold cache provenance is out of scope")
-    trace_content = writer.evidence.read_verified(producer_trace_hash)
-    trace = parse_canonical(trace_content)
+    trace_content = opened_inputs.get(producer_trace_hash)
+    if trace_content is None:
+        raise ValueError("fixed-hold producer trace input is unavailable")
+    trace = parsed_inputs.get(producer_trace_hash)
     if not isinstance(trace, dict) or canonical_bytes(trace) != trace_content:
         raise ValueError("fixed-hold producer trace is not canonical")
     producer_payload = provenance["producer_execution"]
@@ -667,7 +690,7 @@ def verify_fixed_hold_cache_producer(
         }
     )
     if trace.get("schema") == FIXED_HOLD_FAMILY_TRACE_SCHEMA:
-        neutral = validate_fixed_hold_family_trace(
+        neutral = validate_fixed_hold_family_trace_snapshot(
             trace,
             definition=scoped_plan.definition,
             validator=FIXED_HOLD_TRACE_VALIDATOR,
@@ -679,11 +702,12 @@ def verify_fixed_hold_cache_producer(
     else:
         # Historical Jobs emitted a subject-bound copy of the full family
         # trace.  Preserve that exact validation route for immutable evidence.
-        neutral = extract_fixed_hold_family_trace_from_subject(
+        subject_trace = validate_fixed_hold_subject_trace_snapshot(
             trace,
             definition=scoped_plan.definition,
             validator=FIXED_HOLD_TRACE_VALIDATOR,
         )
+        neutral = subject_trace.family
         if (
             trace.get("mission_id") != scoped_plan.mission_id
             or trace.get("subject_executable_id") != producer_id
@@ -893,16 +917,16 @@ def materialize_fixed_hold_evidence(
     writer: FixedHoldJobAuthority,
     scoped_plan: FixedHoldFamilyJobPlan,
     execution: RunningJobExecution,
-    neutral_trace: Mapping[str, Any],
+    neutral_trace: Mapping[str, Any] | FixedHoldFamilyTraceSnapshot,
     shared_trace_sha256: str,
 ) -> tuple[dict[str, str], str]:
-    trace = validate_fixed_hold_family_trace(
+    trace = validate_fixed_hold_family_trace_snapshot(
         neutral_trace,
         definition=scoped_plan.definition,
         validator=FIXED_HOLD_TRACE_VALIDATOR,
     )
     names = scoped_plan.output_names
-    trace_hash = writer.evidence.finalize(canonical_bytes(trace)).sha256
+    trace_hash = writer.evidence.finalize(trace.content).sha256
     if trace_hash != _digest(
         "shared fixed-hold cache trace hash",
         shared_trace_sha256,

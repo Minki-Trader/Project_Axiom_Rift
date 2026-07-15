@@ -17,11 +17,12 @@ from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.research.fixed_hold_family_trace import (
     FIXED_HOLD_REPLAY_EVIDENCE_MODES,
     FIXED_HOLD_TRACE_VALIDATOR,
+    FixedHoldFamilyTraceSnapshot,
     FixedHoldProtocolDefinition,
-    bind_fixed_hold_family_trace,
+    bind_fixed_hold_family_trace_snapshot,
     build_fixed_hold_trace_calculation,
     fixed_hold_protocol_definition_from_manifest,
-    validate_fixed_hold_family_trace,
+    validate_fixed_hold_family_trace_snapshot,
     validate_fixed_hold_trace_calculation,
 )
 from axiom_rift.research.scientific_trace import ScientificTraceError
@@ -53,7 +54,7 @@ def _digest(name: str, value: object) -> str:
 
 def build_fixed_hold_shared_trace_calculation(
     *,
-    trace: Mapping[str, Any],
+    trace: Mapping[str, Any] | FixedHoldFamilyTraceSnapshot,
     definition: FixedHoldProtocolDefinition,
     mission_id: str,
     executable_id: str,
@@ -64,18 +65,18 @@ def build_fixed_hold_shared_trace_calculation(
 ) -> dict[str, object]:
     """Build one subject calculation over a shared family trace."""
 
-    normalized = validate_fixed_hold_family_trace(
+    family = validate_fixed_hold_family_trace_snapshot(
         trace,
         definition=definition,
         validator=FIXED_HOLD_TRACE_VALIDATOR,
     )
-    expected_hash = sha256(canonical_bytes(normalized)).hexdigest()
+    expected_hash = family.sha256
     if _digest("shared fixed-hold trace hash", trace_hash) != expected_hash:
         raise ScientificTraceError(
             "shared fixed-hold trace hash differs from the opened trace"
         )
-    subject_trace = bind_fixed_hold_family_trace(
-        family_trace=normalized,
+    subject_trace = bind_fixed_hold_family_trace_snapshot(
+        family_trace=family,
         definition=definition,
         validator=FIXED_HOLD_TRACE_VALIDATOR,
         mission_id=mission_id,
@@ -83,7 +84,7 @@ def build_fixed_hold_shared_trace_calculation(
         job_id=job_id,
         job_hash=job_hash,
     )
-    subject_hash = sha256(canonical_bytes(subject_trace)).hexdigest()
+    subject_hash = subject_trace.sha256
     legacy = build_fixed_hold_trace_calculation(
         trace=subject_trace,
         definition=definition,
@@ -107,19 +108,19 @@ def build_fixed_hold_shared_trace_calculation(
 
 def validate_fixed_hold_shared_trace_calculation(
     *,
-    trace: Mapping[str, Any],
+    trace: Mapping[str, Any] | FixedHoldFamilyTraceSnapshot,
     calculation: Mapping[str, Any],
     definition: FixedHoldProtocolDefinition,
 ) -> dict[str, dict[str, int]]:
     """Recompute a subject proof from one content-addressed family trace."""
 
-    normalized = validate_fixed_hold_family_trace(
+    family = validate_fixed_hold_family_trace_snapshot(
         trace,
         definition=definition,
         validator=FIXED_HOLD_TRACE_VALIDATOR,
     )
     trace_reference = calculation.get("trace")
-    expected_hash = sha256(canonical_bytes(normalized)).hexdigest()
+    expected_hash = family.sha256
     if (
         not isinstance(trace_reference, Mapping)
         or set(trace_reference) != {"output_name", "sha256"}
@@ -128,8 +129,8 @@ def validate_fixed_hold_shared_trace_calculation(
         raise ScientificTraceError(
             "fixed-hold calculation is not bound to the shared family trace"
         )
-    subject_trace = bind_fixed_hold_family_trace(
-        family_trace=normalized,
+    subject_trace = bind_fixed_hold_family_trace_snapshot(
+        family_trace=family,
         definition=definition,
         validator=FIXED_HOLD_TRACE_VALIDATOR,
         mission_id=calculation.get("mission_id"),
@@ -141,7 +142,7 @@ def validate_fixed_hold_shared_trace_calculation(
         **calculation,
         "trace": {
             "output_name": trace_reference.get("output_name"),
-            "sha256": sha256(canonical_bytes(subject_trace)).hexdigest(),
+            "sha256": subject_trace.sha256,
         },
     }
     return validate_fixed_hold_trace_calculation(
@@ -167,7 +168,7 @@ def _protocol_definition(
 
 def validate_fixed_hold_shared_trace_pair(
     *,
-    trace: Mapping[str, Any],
+    trace: Mapping[str, Any] | FixedHoldFamilyTraceSnapshot,
     trace_output_name: str,
     trace_hash: str,
     calculation: Mapping[str, Any],
@@ -182,8 +183,14 @@ def validate_fixed_hold_shared_trace_pair(
 ) -> tuple[str, ...]:
     """Validate one shared family trace through a closed protocol route."""
 
+    definition = _protocol_definition(calculation)
+    family = validate_fixed_hold_family_trace_snapshot(
+        trace,
+        definition=definition,
+        validator=FIXED_HOLD_TRACE_VALIDATOR,
+    )
     try:
-        actual_hash = sha256(canonical_bytes(trace)).hexdigest()
+        actual_hash = family.sha256
         opened_hash = _digest("shared fixed-hold trace hash", trace_hash)
     except (TypeError, ValueError) as exc:
         raise ScientificTraceError(str(exc)) from exc
@@ -200,7 +207,7 @@ def validate_fixed_hold_shared_trace_pair(
         raise ScientificTraceError(
             "shared fixed-hold calculation belongs to another execution"
         )
-    if trace.get("protocol_id") != calculation.get("protocol_id"):
+    if definition.protocol_id != calculation.get("protocol_id"):
         raise ScientificTraceError(
             "shared fixed-hold trace and calculation protocols differ"
         )
@@ -225,9 +232,9 @@ def validate_fixed_hold_shared_trace_pair(
             "shared fixed-hold evidence modes differ from preregistration"
         )
     derived_metrics = validate_fixed_hold_shared_trace_calculation(
-        trace=trace,
+        trace=family,
         calculation=calculation,
-        definition=_protocol_definition(calculation),
+        definition=definition,
     )
     for mode in expected_evidence_modes:
         for binding in expected_metric_bindings_by_mode.get(mode, ()):

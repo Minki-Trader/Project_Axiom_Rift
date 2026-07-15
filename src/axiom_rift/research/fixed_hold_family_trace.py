@@ -10,11 +10,13 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta
 from hashlib import sha256
 from math import ceil
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
@@ -803,6 +805,327 @@ class FixedHoldTraceValidator:
 
 
 FIXED_HOLD_TRACE_VALIDATOR = FixedHoldTraceValidator()
+
+
+_TRACE_SNAPSHOT_AUTHORITY = object()
+
+
+def _freeze_snapshot_value(value: Any) -> Any:
+    """Detach validated derivations from every caller-mutable container."""
+
+    if isinstance(value, Mapping):
+        return MappingProxyType(
+            {
+                str(key): _freeze_snapshot_value(item)
+                for key, item in value.items()
+            }
+        )
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_snapshot_value(item) for item in value)
+    return value
+
+
+class _SealedTraceSnapshotPayload:
+    """Indivisible normalized bytes projection and optional derived facts."""
+
+    __slots__ = ("__bindings", "__normalized", "__parts")
+
+    def __init__(
+        self,
+        *,
+        authority: object,
+        bindings: tuple[tuple[str, str], ...],
+        normalized: dict[str, object],
+        parts: Mapping[str, Any] | None = None,
+    ) -> None:
+        if (
+            authority is not _TRACE_SNAPSHOT_AUTHORITY
+            or type(normalized) is not dict
+            or not bindings
+            or tuple(name for name, _ in bindings)
+            != tuple(sorted({name for name, _ in bindings}))
+        ):
+            raise ScientificTraceError(
+                "fixed-hold snapshot payload lacks validation authority"
+            )
+        object.__setattr__(
+            self,
+            "_SealedTraceSnapshotPayload__bindings",
+            bindings,
+        )
+        object.__setattr__(
+            self,
+            "_SealedTraceSnapshotPayload__normalized",
+            normalized,
+        )
+        object.__setattr__(
+            self,
+            "_SealedTraceSnapshotPayload__parts",
+            None if parts is None else _freeze_snapshot_value(parts),
+        )
+
+    def __setattr__(self, name: str, value: object) -> None:
+        raise AttributeError("validated fixed-hold payloads are immutable")
+
+    def require(
+        self,
+        bindings: tuple[tuple[str, str], ...],
+    ) -> _SealedTraceSnapshotPayload:
+        if self.__bindings != bindings:
+            raise ScientificTraceError(
+                "fixed-hold snapshot payload binding drifted"
+            )
+        return self
+
+    def detached(self) -> dict[str, object]:
+        return deepcopy(self.__normalized)
+
+    def normalized(self, authority: object) -> dict[str, object]:
+        if authority is not _TRACE_SNAPSHOT_AUTHORITY:
+            raise ScientificTraceError(
+                "fixed-hold snapshot projection lacks validation authority"
+            )
+        return self.__normalized
+
+    def parts(self, authority: object) -> Mapping[str, Any]:
+        if authority is not _TRACE_SNAPSHOT_AUTHORITY or self.__parts is None:
+            raise ScientificTraceError(
+                "fixed-hold snapshot derivation lacks validation authority"
+            )
+        return self.__parts
+
+
+def _family_payload_bindings(
+    *,
+    content_sha256: str,
+    definition_identity: str,
+    validator_identity: str,
+) -> tuple[tuple[str, str], ...]:
+    return (
+        ("content_sha256", _digest("fixed-hold payload hash", content_sha256)),
+        (
+            "definition_identity",
+            _ascii("fixed-hold payload definition", definition_identity),
+        ),
+        (
+            "validator_identity",
+            _ascii("fixed-hold payload validator", validator_identity),
+        ),
+    )
+
+
+def _subject_payload_bindings(
+    *,
+    content_sha256: str,
+    definition_identity: str,
+    validator_identity: str,
+    family_sha256: str,
+    subject_id: str,
+) -> tuple[tuple[str, str], ...]:
+    return tuple(
+        sorted(
+            (
+                *_family_payload_bindings(
+                    content_sha256=content_sha256,
+                    definition_identity=definition_identity,
+                    validator_identity=validator_identity,
+                ),
+                (
+                    "family_sha256",
+                    _digest("fixed-hold payload family hash", family_sha256),
+                ),
+                (
+                    "subject_id",
+                    _identity(
+                        "fixed-hold payload subject",
+                        subject_id,
+                        "executable",
+                    ),
+                ),
+            )
+        )
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class FixedHoldFamilyTraceSnapshot:
+    """One immutable, fully scanned family trace at one trust boundary.
+
+    The constructor is intentionally capability-gated.  Durable bytes cannot
+    claim that they are validated by carrying a snapshot-shaped payload.
+    """
+
+    content: bytes
+    sha256: str
+    definition_identity: str
+    validator_identity: str
+    _payload: _SealedTraceSnapshotPayload = field(
+        repr=False,
+        compare=False,
+    )
+    _authority: object = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self._authority is not _TRACE_SNAPSHOT_AUTHORITY:
+            raise ScientificTraceError(
+                "fixed-hold family snapshot lacks validation authority"
+            )
+        if type(self.content) is not bytes:
+            raise ScientificTraceError(
+                "fixed-hold family snapshot content must be bytes"
+            )
+        if not isinstance(self._payload, _SealedTraceSnapshotPayload):
+            raise ScientificTraceError(
+                "fixed-hold family snapshot payload is invalid"
+            )
+        observed = sha256(self.content).hexdigest()
+        if _digest("fixed-hold family snapshot hash", self.sha256) != observed:
+            raise ScientificTraceError(
+                "fixed-hold family snapshot content hash drifted"
+            )
+        object.__setattr__(self, "sha256", observed)
+        object.__setattr__(
+            self,
+            "definition_identity",
+            _ascii(
+                "fixed-hold family snapshot definition identity",
+                self.definition_identity,
+            ),
+        )
+        object.__setattr__(
+            self,
+            "validator_identity",
+            _ascii(
+                "fixed-hold family snapshot validator identity",
+                self.validator_identity,
+            ),
+        )
+        self._payload.require(
+            _family_payload_bindings(
+                content_sha256=observed,
+                definition_identity=self.definition_identity,
+                validator_identity=self.validator_identity,
+            )
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        self._payload.require(
+            _family_payload_bindings(
+                content_sha256=self.sha256,
+                definition_identity=self.definition_identity,
+                validator_identity=self.validator_identity,
+            )
+        )
+        return self._payload.detached()
+
+    def require(
+        self,
+        *,
+        definition: FixedHoldProtocolDefinition,
+        validator: FixedHoldTraceValidator,
+    ) -> FixedHoldFamilyTraceSnapshot:
+        _require_validator(validator)
+        if (
+            self.definition_identity != definition.identity
+            or self.validator_identity != validator.identity
+        ):
+            raise ScientificTraceError(
+                "fixed-hold family snapshot authority drifted"
+            )
+        if sha256(self.content).hexdigest() != self.sha256:
+            raise ScientificTraceError(
+                "fixed-hold family snapshot content hash drifted"
+            )
+        self._payload.require(
+            _family_payload_bindings(
+                content_sha256=self.sha256,
+                definition_identity=self.definition_identity,
+                validator_identity=self.validator_identity,
+            )
+        )
+        return self
+
+
+@dataclass(frozen=True, slots=True)
+class FixedHoldSubjectTraceSnapshot:
+    """One subject envelope over an independently validated family snapshot."""
+
+    content: bytes
+    sha256: str
+    subject_id: str
+    family: FixedHoldFamilyTraceSnapshot = field(repr=False, compare=False)
+    _payload: _SealedTraceSnapshotPayload = field(
+        repr=False,
+        compare=False,
+    )
+    _authority: object = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self._authority is not _TRACE_SNAPSHOT_AUTHORITY:
+            raise ScientificTraceError(
+                "fixed-hold subject snapshot lacks validation authority"
+            )
+        if type(self.content) is not bytes:
+            raise ScientificTraceError(
+                "fixed-hold subject snapshot content must be bytes"
+            )
+        if not isinstance(self.family, FixedHoldFamilyTraceSnapshot):
+            raise ScientificTraceError(
+                "fixed-hold subject snapshot family is invalid"
+            )
+        if not isinstance(self._payload, _SealedTraceSnapshotPayload):
+            raise ScientificTraceError(
+                "fixed-hold subject snapshot payload is invalid"
+            )
+        observed = sha256(self.content).hexdigest()
+        if _digest("fixed-hold subject snapshot hash", self.sha256) != observed:
+            raise ScientificTraceError(
+                "fixed-hold subject snapshot content hash drifted"
+        )
+        object.__setattr__(self, "sha256", observed)
+        self._payload.require(
+            _subject_payload_bindings(
+                content_sha256=observed,
+                definition_identity=self.family.definition_identity,
+                validator_identity=self.family.validator_identity,
+                family_sha256=self.family.sha256,
+                subject_id=self.subject_id,
+            )
+        )
+
+    def to_dict(self) -> dict[str, object]:
+        self._payload.require(
+            _subject_payload_bindings(
+                content_sha256=self.sha256,
+                definition_identity=self.family.definition_identity,
+                validator_identity=self.family.validator_identity,
+                family_sha256=self.family.sha256,
+                subject_id=self.subject_id,
+            )
+        )
+        return self._payload.detached()
+
+    def require(
+        self,
+        *,
+        definition: FixedHoldProtocolDefinition,
+        validator: FixedHoldTraceValidator,
+    ) -> FixedHoldSubjectTraceSnapshot:
+        self.family.require(definition=definition, validator=validator)
+        if sha256(self.content).hexdigest() != self.sha256:
+            raise ScientificTraceError(
+                "fixed-hold subject snapshot content hash drifted"
+            )
+        self._payload.require(
+            _subject_payload_bindings(
+                content_sha256=self.sha256,
+                definition_identity=definition.identity,
+                validator_identity=validator.identity,
+                family_sha256=self.family.sha256,
+                subject_id=self.subject_id,
+            )
+        )
+        return self
 
 
 def _require_validator(validator: FixedHoldTraceValidator) -> None:
@@ -1614,7 +1937,8 @@ def _validated_family_trace_parts(
     if not isinstance(trace, Mapping) or set(trace) != _FAMILY_TRACE_FIELDS:
         raise ScientificTraceError("fixed-hold family trace schema is invalid")
     try:
-        normalized = parse_canonical(canonical_bytes(trace))
+        content = canonical_bytes(trace)
+        normalized = parse_canonical(content)
     except (TypeError, ValueError) as exc:
         raise ScientificTraceError(
             "fixed-hold family trace is not canonical"
@@ -1666,6 +1990,7 @@ def _validated_family_trace_parts(
         trades=trades,
     )
     return {
+        "content": content,
         "daily": daily,
         "family": family,
         "intent_counts": intent_counts,
@@ -1674,6 +1999,70 @@ def _validated_family_trace_parts(
         "trades": trades,
         "windows": windows,
     }
+
+
+def validate_fixed_hold_family_trace_snapshot(
+    trace: Mapping[str, Any] | FixedHoldFamilyTraceSnapshot,
+    *,
+    definition: FixedHoldProtocolDefinition,
+    validator: FixedHoldTraceValidator,
+) -> FixedHoldFamilyTraceSnapshot:
+    """Open one family boundary and retain its immutable derived facts."""
+
+    if isinstance(trace, FixedHoldFamilyTraceSnapshot):
+        return trace.require(definition=definition, validator=validator)
+    parts = _validated_family_trace_parts(
+        trace,
+        definition=definition,
+        validator=validator,
+    )
+    content = parts["content"]
+    if type(content) is not bytes:
+        raise RuntimeError("validated fixed-hold family lost canonical bytes")
+    derived = {
+        name: value
+        for name, value in parts.items()
+        if name not in {"content", "normalized"}
+    }
+    content_sha256 = sha256(content).hexdigest()
+    payload = _SealedTraceSnapshotPayload(
+        authority=_TRACE_SNAPSHOT_AUTHORITY,
+        bindings=_family_payload_bindings(
+            content_sha256=content_sha256,
+            definition_identity=definition.identity,
+            validator_identity=validator.identity,
+        ),
+        normalized=parts["normalized"],
+        parts=derived,
+    )
+    return FixedHoldFamilyTraceSnapshot(
+        content=content,
+        sha256=content_sha256,
+        definition_identity=definition.identity,
+        validator_identity=validator.identity,
+        _payload=payload,
+        _authority=_TRACE_SNAPSHOT_AUTHORITY,
+    )
+
+
+def _fixed_hold_family_snapshot_parts(
+    snapshot: FixedHoldFamilyTraceSnapshot,
+    *,
+    definition: FixedHoldProtocolDefinition,
+    validator: FixedHoldTraceValidator,
+) -> Mapping[str, Any]:
+    snapshot.require(definition=definition, validator=validator)
+    return snapshot._payload.parts(_TRACE_SNAPSHOT_AUTHORITY)
+
+
+def _fixed_hold_family_snapshot_value(
+    snapshot: FixedHoldFamilyTraceSnapshot,
+    *,
+    definition: FixedHoldProtocolDefinition,
+    validator: FixedHoldTraceValidator,
+) -> dict[str, object]:
+    snapshot.require(definition=definition, validator=validator)
+    return snapshot._payload.normalized(_TRACE_SNAPSHOT_AUTHORITY)
 
 
 def build_fixed_hold_family_trace(
@@ -1716,26 +2105,24 @@ def build_fixed_hold_family_trace(
         "trade_observations": [dict(item) for item in trade_observations],
         "windows": [dict(item) for item in windows],
     }
-    return validate_fixed_hold_family_trace(
+    return validate_fixed_hold_family_trace_snapshot(
         value,
         definition=definition,
         validator=validator,
-    )
+    ).to_dict()
 
 
 def validate_fixed_hold_family_trace(
-    trace: Mapping[str, Any],
+    trace: Mapping[str, Any] | FixedHoldFamilyTraceSnapshot,
     *,
     definition: FixedHoldProtocolDefinition,
     validator: FixedHoldTraceValidator,
 ) -> dict[str, object]:
-    return dict(
-        _validated_family_trace_parts(
-            trace,
-            definition=definition,
-            validator=validator,
-        )["normalized"]
-    )
+    return validate_fixed_hold_family_trace_snapshot(
+        trace,
+        definition=definition,
+        validator=validator,
+    ).to_dict()
 
 
 def _subject_neutral_trace(
@@ -1774,47 +2161,67 @@ def _subject_neutral_trace(
     }
 
 
-def _validated_subject_trace_parts(
-    trace: Mapping[str, Any],
+def validate_fixed_hold_subject_trace_snapshot(
+    trace: Mapping[str, Any] | FixedHoldSubjectTraceSnapshot,
     *,
     definition: FixedHoldProtocolDefinition,
     validator: FixedHoldTraceValidator,
-) -> dict[str, Any]:
+) -> FixedHoldSubjectTraceSnapshot:
+    """Open one subject boundary with exactly one neutral-family full scan."""
+
     _require_validator(validator)
+    if isinstance(trace, FixedHoldSubjectTraceSnapshot):
+        return trace.require(definition=definition, validator=validator)
     if not isinstance(trace, Mapping) or set(trace) != _SUBJECT_TRACE_FIELDS:
         raise ScientificTraceError("fixed-hold subject trace schema is invalid")
+    try:
+        content = canonical_bytes(trace)
+        normalized = parse_canonical(content)
+    except (TypeError, ValueError) as exc:
+        raise ScientificTraceError(
+            "fixed-hold subject trace is not canonical"
+        ) from exc
+    if not isinstance(normalized, dict):
+        raise ScientificTraceError("fixed-hold subject trace must be an object")
     if (
-        trace.get("schema") != SCIENTIFIC_EVALUATION_TRACE_SCHEMA
-        or trace.get("protocol_id") != definition.protocol_id
-        or trace.get("adapter_implementation_sha256")
+        normalized.get("schema") != SCIENTIFIC_EVALUATION_TRACE_SCHEMA
+        or normalized.get("protocol_id") != definition.protocol_id
+        or normalized.get("adapter_implementation_sha256")
         != fixed_hold_trace_implementation_sha256()
     ):
         raise ScientificTraceError("fixed-hold subject trace binding drifted")
-    _ascii("fixed-hold trace mission_id", trace.get("mission_id"))
-    _ascii("fixed-hold trace job_id", trace.get("job_id"))
-    _digest("fixed-hold trace job_hash", trace.get("job_hash"))
+    _ascii("fixed-hold trace mission_id", normalized.get("mission_id"))
+    _ascii("fixed-hold trace job_id", normalized.get("job_id"))
+    _digest("fixed-hold trace job_hash", normalized.get("job_hash"))
     subject_id = _identity(
         "fixed-hold trace subject_executable_id",
-        trace.get("subject_executable_id"),
+        normalized.get("subject_executable_id"),
         "executable",
     )
-    neutral = _subject_neutral_trace(trace)
-    neutral_hash = sha256(canonical_bytes(neutral)).hexdigest()
-    attribution = _mapping("fixed-hold subject attribution", trace["attribution"])
+    neutral = _subject_neutral_trace(normalized)
+    family = validate_fixed_hold_family_trace_snapshot(
+        neutral,
+        definition=definition,
+        validator=validator,
+    )
+    attribution = _mapping(
+        "fixed-hold subject attribution",
+        normalized["attribution"],
+    )
     binding = _mapping(
         "fixed-hold family trace binding",
         attribution["family_trace_binding"],
     )
     if (
-        binding.get("family_trace_sha256") != neutral_hash
+        binding.get("family_trace_sha256") != family.sha256
         or binding.get("definition_identity") != definition.identity
         or binding.get("validator_identity") != validator.identity
     ):
         raise ScientificTraceError(
             "fixed-hold subject family binding drifted"
         )
-    parts = _validated_family_trace_parts(
-        neutral,
+    parts = _fixed_hold_family_snapshot_parts(
+        family,
         definition=definition,
         validator=validator,
     )
@@ -1824,27 +2231,61 @@ def _validated_subject_trace_parts(
         raise ScientificTraceError(
             "fixed-hold trace subject is outside its family"
         )
-    return {**parts, "subject_id": subject_id}
+    content_sha256 = sha256(content).hexdigest()
+    payload = _SealedTraceSnapshotPayload(
+        authority=_TRACE_SNAPSHOT_AUTHORITY,
+        bindings=_subject_payload_bindings(
+            content_sha256=content_sha256,
+            definition_identity=definition.identity,
+            validator_identity=validator.identity,
+            family_sha256=family.sha256,
+            subject_id=subject_id,
+        ),
+        normalized=normalized,
+    )
+    return FixedHoldSubjectTraceSnapshot(
+        content=content,
+        sha256=content_sha256,
+        subject_id=subject_id,
+        family=family,
+        _payload=payload,
+        _authority=_TRACE_SNAPSHOT_AUTHORITY,
+    )
 
 
-def bind_fixed_hold_family_trace(
+def _fixed_hold_subject_snapshot_value(
+    snapshot: FixedHoldSubjectTraceSnapshot,
     *,
-    family_trace: Mapping[str, Any],
+    definition: FixedHoldProtocolDefinition,
+    validator: FixedHoldTraceValidator,
+) -> dict[str, object]:
+    snapshot.require(definition=definition, validator=validator)
+    return snapshot._payload.normalized(_TRACE_SNAPSHOT_AUTHORITY)
+
+
+def bind_fixed_hold_family_trace_snapshot(
+    *,
+    family_trace: Mapping[str, Any] | FixedHoldFamilyTraceSnapshot,
     definition: FixedHoldProtocolDefinition,
     validator: FixedHoldTraceValidator,
     mission_id: str,
     executable_id: str,
     job_id: str,
     job_hash: str,
-) -> dict[str, object]:
-    normalized = validate_fixed_hold_family_trace(
+) -> FixedHoldSubjectTraceSnapshot:
+    family = validate_fixed_hold_family_trace_snapshot(
         family_trace,
+        definition=definition,
+        validator=validator,
+    )
+    parts = _fixed_hold_family_snapshot_parts(
+        family,
         definition=definition,
         validator=validator,
     )
     family_ids = {
         str(item["executable_id"])
-        for item in normalized["ordered_family"]  # type: ignore[index]
+        for item in parts["family"].values()
     }
     subject_id = _identity(
         "fixed-hold replay executable_id",
@@ -1855,12 +2296,16 @@ def bind_fixed_hold_family_trace(
         raise ScientificTraceError(
             "fixed-hold replay subject is outside its family"
         )
-    neutral_bytes = canonical_bytes(normalized)
+    normalized = _fixed_hold_family_snapshot_value(
+        family,
+        definition=definition,
+        validator=validator,
+    )
     family_binding = {
         "clock_contract": normalized["clock_contract"],
         "cost_contract": normalized["cost_contract"],
         "definition_identity": definition.identity,
-        "family_trace_sha256": sha256(neutral_bytes).hexdigest(),
+        "family_trace_sha256": family.sha256,
         "implementation_identities": normalized[
             "implementation_identities"
         ],
@@ -1889,29 +2334,62 @@ def bind_fixed_hold_family_trace(
         "schema": SCIENTIFIC_EVALUATION_TRACE_SCHEMA,
         "subject_executable_id": subject_id,
     }
-    _validated_subject_trace_parts(
-        value,
+    content = canonical_bytes(value)
+    content_sha256 = sha256(content).hexdigest()
+    payload = _SealedTraceSnapshotPayload(
+        authority=_TRACE_SNAPSHOT_AUTHORITY,
+        bindings=_subject_payload_bindings(
+            content_sha256=content_sha256,
+            definition_identity=definition.identity,
+            validator_identity=validator.identity,
+            family_sha256=family.sha256,
+            subject_id=subject_id,
+        ),
+        normalized=value,
+    )
+    return FixedHoldSubjectTraceSnapshot(
+        content=content,
+        sha256=content_sha256,
+        subject_id=subject_id,
+        family=family,
+        _payload=payload,
+        _authority=_TRACE_SNAPSHOT_AUTHORITY,
+    )
+
+
+def bind_fixed_hold_family_trace(
+    *,
+    family_trace: Mapping[str, Any] | FixedHoldFamilyTraceSnapshot,
+    definition: FixedHoldProtocolDefinition,
+    validator: FixedHoldTraceValidator,
+    mission_id: str,
+    executable_id: str,
+    job_id: str,
+    job_hash: str,
+) -> dict[str, object]:
+    return bind_fixed_hold_family_trace_snapshot(
+        family_trace=family_trace,
         definition=definition,
         validator=validator,
-    )
-    canonical_bytes(value)
-    return value
+        mission_id=mission_id,
+        executable_id=executable_id,
+        job_id=job_id,
+        job_hash=job_hash,
+    ).to_dict()
 
 
 def extract_fixed_hold_family_trace_from_subject(
-    trace: Mapping[str, Any],
+    trace: Mapping[str, Any] | FixedHoldSubjectTraceSnapshot,
     *,
     definition: FixedHoldProtocolDefinition,
     validator: FixedHoldTraceValidator,
 ) -> dict[str, object]:
-    parts = _validated_subject_trace_parts(
+    snapshot = validate_fixed_hold_subject_trace_snapshot(
         trace,
         definition=definition,
         validator=validator,
     )
-    neutral = dict(parts["normalized"])
-    canonical_bytes(neutral)
-    return neutral
+    return snapshot.family.to_dict()
 
 
 def _profit_factor(values: Sequence[int]) -> int:
@@ -2078,7 +2556,7 @@ def _validate_metric_inventory(
 
 def _derive_metrics_and_statistics(
     *,
-    trace: Mapping[str, Any],
+    trace: Mapping[str, Any] | FixedHoldSubjectTraceSnapshot,
     definition: FixedHoldProtocolDefinition,
     validator: FixedHoldTraceValidator,
     parameters: Mapping[str, Any],
@@ -2090,15 +2568,20 @@ def _derive_metrics_and_statistics(
         raise ScientificTraceError(
             "fixed-hold calculation parameters drifted"
         )
-    parts = _validated_subject_trace_parts(
+    snapshot = validate_fixed_hold_subject_trace_snapshot(
         trace,
+        definition=definition,
+        validator=validator,
+    )
+    parts = _fixed_hold_family_snapshot_parts(
+        snapshot.family,
         definition=definition,
         validator=validator,
     )
     family = parts["family"]
     trades = parts["trades"]
     daily = parts["daily"]
-    subject_id = str(parts["subject_id"])
+    subject_id = snapshot.subject_id
     subject_member = next(
         item for item in family.values() if item["executable_id"] == subject_id
     )
@@ -2360,31 +2843,41 @@ def _derive_metrics_and_statistics(
 
 def build_fixed_hold_trace_calculation(
     *,
-    trace: Mapping[str, Any],
+    trace: Mapping[str, Any] | FixedHoldSubjectTraceSnapshot,
     definition: FixedHoldProtocolDefinition,
     validator: FixedHoldTraceValidator,
     trace_output_name: str,
     trace_hash: str,
 ) -> dict[str, object]:
-    expected_hash = sha256(canonical_bytes(trace)).hexdigest()
+    snapshot = validate_fixed_hold_subject_trace_snapshot(
+        trace,
+        definition=definition,
+        validator=validator,
+    )
+    expected_hash = snapshot.sha256
     if _digest("fixed-hold trace hash", trace_hash) != expected_hash:
         raise ScientificTraceError(
             "fixed-hold trace hash differs from the opened trace"
         )
     parameters = fixed_hold_calculation_parameters(definition, validator)
     metrics, statistics = _derive_metrics_and_statistics(
-        trace=trace,
+        trace=snapshot,
         definition=definition,
         validator=validator,
         parameters=parameters,
     )
+    subject = _fixed_hold_subject_snapshot_value(
+        snapshot,
+        definition=definition,
+        validator=validator,
+    )
     value = {
         "evidence_modes": list(FIXED_HOLD_REPLAY_EVIDENCE_MODES),
-        "executable_id": trace["subject_executable_id"],
-        "job_hash": trace["job_hash"],
-        "job_id": trace["job_id"],
+        "executable_id": subject["subject_executable_id"],
+        "job_hash": subject["job_hash"],
+        "job_id": subject["job_id"],
         "metrics": metrics,
-        "mission_id": trace["mission_id"],
+        "mission_id": subject["mission_id"],
         "parameters": parameters,
         "protocol_definition": definition.manifest(),
         "protocol_id": definition.protocol_id,
@@ -2404,7 +2897,7 @@ def build_fixed_hold_trace_calculation(
 
 def validate_fixed_hold_trace_calculation(
     *,
-    trace: Mapping[str, Any],
+    trace: Mapping[str, Any] | FixedHoldSubjectTraceSnapshot,
     calculation: Mapping[str, Any],
     definition: FixedHoldProtocolDefinition,
     validator: FixedHoldTraceValidator,
@@ -2425,13 +2918,18 @@ def validate_fixed_hold_trace_calculation(
         raise ScientificTraceError(
             "fixed-hold calculation protocol definition drifted"
         )
-    parts = _validated_subject_trace_parts(
+    snapshot = validate_fixed_hold_subject_trace_snapshot(
         trace,
         definition=definition,
         validator=validator,
     )
+    subject = _fixed_hold_subject_snapshot_value(
+        snapshot,
+        definition=definition,
+        validator=validator,
+    )
     if any(
-        calculation.get(name) != trace.get(trace_name)
+        calculation.get(name) != subject.get(trace_name)
         for name, trace_name in (
             ("executable_id", "subject_executable_id"),
             ("job_hash", "job_hash"),
@@ -2457,7 +2955,7 @@ def validate_fixed_hold_trace_calculation(
             "fixed-hold calculation trace reference is invalid"
         )
     _ascii("fixed-hold trace output name", trace_reference.get("output_name"))
-    if trace_reference.get("sha256") != sha256(canonical_bytes(trace)).hexdigest():
+    if trace_reference.get("sha256") != snapshot.sha256:
         raise ScientificTraceError(
             "fixed-hold calculation is not bound to the opened trace"
         )
@@ -2474,7 +2972,7 @@ def validate_fixed_hold_trace_calculation(
             "fixed-hold calculation statistics schema is invalid"
         )
     metrics, expected_statistics = _derive_metrics_and_statistics(
-        trace=trace,
+        trace=snapshot,
         definition=definition,
         validator=validator,
         parameters=parameters,
@@ -2487,7 +2985,7 @@ def validate_fixed_hold_trace_calculation(
         raise ScientificTraceError(
             "fixed-hold deterministic inference proof drifted"
         )
-    if parts["subject_id"] != calculation["executable_id"]:
+    if snapshot.subject_id != calculation["executable_id"]:
         raise RuntimeError("fixed-hold subject identity changed during validation")
     return metrics
 
@@ -2502,9 +3000,12 @@ __all__ = [
     "FIXED_HOLD_REPLAY_EVIDENCE_MODES",
     "FIXED_HOLD_TRACE_VALIDATOR",
     "FIXED_HOLD_TRACE_VALIDATOR_SCHEMA",
+    "FixedHoldFamilyTraceSnapshot",
     "FixedHoldProtocolDefinition",
+    "FixedHoldSubjectTraceSnapshot",
     "FixedHoldTraceValidator",
     "bind_fixed_hold_family_trace",
+    "bind_fixed_hold_family_trace_snapshot",
     "build_fixed_hold_family_trace",
     "build_fixed_hold_trace_calculation",
     "expected_fixed_hold_control_inventory",
@@ -2520,5 +3021,7 @@ __all__ = [
     "fixed_hold_trace_implementation_identities",
     "fixed_hold_trace_implementation_sha256",
     "validate_fixed_hold_family_trace",
+    "validate_fixed_hold_family_trace_snapshot",
+    "validate_fixed_hold_subject_trace_snapshot",
     "validate_fixed_hold_trace_calculation",
 ]

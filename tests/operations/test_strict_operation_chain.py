@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import unittest
 
 from axiom_rift.operations.strict_operation_chain import (
+    OperationChainCursor,
     OperationStep,
     StrictOperationChainError,
     inspect_operation_prefix,
@@ -82,6 +83,75 @@ def _bound_operation(
 
 
 class StrictOperationChainTests(unittest.TestCase):
+    def test_cursor_rejects_reuse_and_revision_gap(self) -> None:
+        step = OperationStep("cursor-step", "cursor_done", "run")
+        cursor = OperationChainCursor(
+            operation_prefix="cursor-",
+            predecessor_sequence=50,
+            predecessor_event_id="0" * 64,
+            steps=(step,),
+            completed=0,
+            current_sequence=50,
+            current_event_id="0" * 64,
+        )
+        for revision, reused in ((51, True), (52, False)):
+            with self.subTest(
+                revision=revision,
+                reused=reused,
+            ), self.assertRaisesRegex(
+                StrictOperationChainError,
+                "full prefix recovery",
+            ):
+                cursor.advance(
+                    step=step,
+                    revision=revision,
+                    event_id="1" * 64,
+                    reused=reused,
+                )
+
+    def test_cursor_allows_only_future_dynamic_plan_changes(self) -> None:
+        completed_step = OperationStep(
+            "cursor-complete-job",
+            "job_completed",
+            "run",
+        )
+        old_tail = OperationStep(
+            "cursor-judge-job",
+            "job_evidence_judged",
+            "run",
+        )
+        negative_memory = OperationStep(
+            "cursor-negative-memory",
+            "negative_memory_recorded",
+            "run",
+        )
+        cursor = OperationChainCursor(
+            operation_prefix="cursor-",
+            predecessor_sequence=50,
+            predecessor_event_id="0" * 64,
+            steps=(completed_step, old_tail),
+            completed=1,
+            current_sequence=51,
+            current_event_id="1" * 64,
+        )
+
+        replanned = cursor.replan(
+            (completed_step, negative_memory, old_tail)
+        )
+        self.assertEqual(replanned.completed, 1)
+        self.assertEqual(replanned.steps[1], negative_memory)
+
+        rewritten = OperationStep(
+            "cursor-rewritten-completion",
+            "job_completed",
+            "run",
+        )
+        with self.assertRaisesRegex(
+            StrictOperationChainError,
+            "rewrote completed authority",
+        ):
+            cursor.replan((rewritten, old_tail))
+
     def test_inspection_uses_indexed_prefix_and_preserves_plan_order(self) -> None:
         predecessor = "0" * 64
         steps = (

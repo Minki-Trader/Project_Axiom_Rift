@@ -106,6 +106,88 @@ class _AcceptedHistoricalFamilyAuthorityReached(RuntimeError):
 
 
 class FixedHoldReplayWorkflowTests(unittest.TestCase):
+    def test_study_close_stage_uses_two_full_prefix_audits(self) -> None:
+        prefix = "audit-fixture-"
+        predecessor_sequence = 100
+        predecessor_event_id = "0" * 64
+        steps = tuple(
+            OperationStep(
+                prefix + str(ordinal),
+                f"fixture_event_{ordinal}",
+                STUDY_CLOSE_STAGE,
+            )
+            for ordinal in range(3)
+        )
+        initial = workflow_module.OperationChainCursor(
+            operation_prefix=prefix,
+            predecessor_sequence=predecessor_sequence,
+            predecessor_event_id=predecessor_event_id,
+            steps=steps,
+            completed=0,
+            current_sequence=predecessor_sequence,
+            current_event_id=predecessor_event_id,
+        )
+        final = workflow_module.OperationChainCursor(
+            operation_prefix=prefix,
+            predecessor_sequence=predecessor_sequence,
+            predecessor_event_id=predecessor_event_id,
+            steps=steps,
+            completed=len(steps),
+            current_sequence=predecessor_sequence + len(steps),
+            current_event_id=f"{len(steps):064x}",
+        )
+        transitions = tuple(
+            workflow_module.TransitionResult(
+                event_id=f"{ordinal:064x}",
+                revision=predecessor_sequence + ordinal,
+                reused=False,
+                result={},
+            )
+            for ordinal in range(1, len(steps) + 1)
+        )
+        design = SimpleNamespace(
+            members=(
+                SimpleNamespace(
+                    executable=SimpleNamespace(identity="executable:" + "a" * 64)
+                ),
+            ),
+            spec=SimpleNamespace(
+                initiative_id="INI-FIXTURE",
+                operation_prefix=prefix,
+                study_id="STU-FIXTURE",
+                target_obligation_id="replay-obligation:" + "b" * 64,
+            ),
+        )
+        inspect = Mock(side_effect=(initial, final))
+        with patch.multiple(
+            workflow_module,
+            _apply_study_close_step=Mock(side_effect=transitions),
+            _inspect_replay_cursor=inspect,
+            _operation_result=Mock(return_value={"batch_id": "BAT-FIXTURE"}),
+            inspect_replay_prefix=Mock(
+                side_effect=AssertionError("normal path rescanned the full prefix")
+            ),
+            require_stable_head=Mock(return_value={}),
+            verify_study_close_postconditions=Mock(
+                return_value={
+                    "study_close_event_id": "c" * 64,
+                    "study_close_record_id": "d" * 64,
+                    "study_close_revision": predecessor_sequence + len(steps),
+                }
+            ),
+        ):
+            summary = workflow_module.run_study_close_stage(
+                object(),
+                design=design,
+                repository_root=Path.cwd(),
+                job_runner=Mock(),
+                job_implementation_materializer=Mock(),
+            )
+
+        self.assertEqual(inspect.call_count, 2)
+        self.assertEqual(summary["applied_step_count"], len(steps))
+        self.assertEqual(summary["operation_count"], len(steps))
+
     def test_diagnosis_uses_cause_specific_reopen_authority(self) -> None:
         registered_condition = (
             "stop after the exact family; reopen only with new registered material"

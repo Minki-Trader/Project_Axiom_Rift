@@ -52,6 +52,102 @@ def validate_operation_plan(
     return normalized
 
 
+def _event_id(name: str, value: object) -> str:
+    if (
+        type(value) is not str
+        or len(value) != 64
+        or value != value.lower()
+        or any(character not in "0123456789abcdef" for character in value)
+    ):
+        raise StrictOperationChainError(f"{name} must be a lowercase SHA-256 digest")
+    return value
+
+
+@dataclass(frozen=True, slots=True)
+class OperationChainCursor:
+    """Advance a fully authenticated chain through consecutive Writer heads."""
+
+    operation_prefix: str
+    predecessor_sequence: int
+    predecessor_event_id: str
+    steps: tuple[OperationStep, ...]
+    completed: int
+    current_sequence: int
+    current_event_id: str
+
+    def __post_init__(self) -> None:
+        normalized = validate_operation_plan(
+            self.steps,
+            operation_prefix=self.operation_prefix,
+        )
+        if (
+            type(self.predecessor_sequence) is not int
+            or self.predecessor_sequence < 1
+            or type(self.completed) is not int
+            or not 0 <= self.completed <= len(normalized)
+            or self.current_sequence
+            != self.predecessor_sequence + self.completed
+        ):
+            raise StrictOperationChainError("operation cursor position is invalid")
+        _event_id("operation cursor predecessor", self.predecessor_event_id)
+        _event_id("operation cursor head", self.current_event_id)
+        object.__setattr__(self, "steps", normalized)
+
+    def advance(
+        self,
+        *,
+        step: OperationStep,
+        revision: int,
+        event_id: str,
+        reused: bool,
+    ) -> OperationChainCursor:
+        if (
+            self.completed >= len(self.steps)
+            or step != self.steps[self.completed]
+            or type(reused) is not bool
+            or reused
+            or type(revision) is not int
+            or revision != self.current_sequence + 1
+        ):
+            raise StrictOperationChainError(
+                "operation transition requires full prefix recovery"
+            )
+        return OperationChainCursor(
+            operation_prefix=self.operation_prefix,
+            predecessor_sequence=self.predecessor_sequence,
+            predecessor_event_id=self.predecessor_event_id,
+            steps=self.steps,
+            completed=self.completed + 1,
+            current_sequence=revision,
+            current_event_id=_event_id("operation transition event", event_id),
+        )
+
+    def replan(
+        self,
+        steps: Sequence[OperationStep],
+    ) -> OperationChainCursor:
+        normalized = validate_operation_plan(
+            steps,
+            operation_prefix=self.operation_prefix,
+        )
+        if (
+            len(normalized) < self.completed
+            or normalized[: self.completed] != self.steps[: self.completed]
+        ):
+            raise StrictOperationChainError(
+                "dynamic operation plan rewrote completed authority"
+            )
+        return OperationChainCursor(
+            operation_prefix=self.operation_prefix,
+            predecessor_sequence=self.predecessor_sequence,
+            predecessor_event_id=self.predecessor_event_id,
+            steps=normalized,
+            completed=self.completed,
+            current_sequence=self.current_sequence,
+            current_event_id=self.current_event_id,
+        )
+
+
 def inspect_operation_prefix(
     *,
     index: LocalIndex,
@@ -150,6 +246,7 @@ def stage_bounds(
 
 
 __all__ = [
+    "OperationChainCursor",
     "OperationStep",
     "StrictOperationChainError",
     "inspect_operation_prefix",

@@ -35,6 +35,7 @@ from axiom_rift.operations.replay_projection import (
     with_scheduler_constraints,
 )
 from axiom_rift.operations.strict_operation_chain import (
+    OperationChainCursor,
     OperationStep,
     inspect_operation_prefix,
     stage_bounds,
@@ -43,6 +44,7 @@ from axiom_rift.operations.writer import (
     RecoveryRequired,
     RunningJobExecution,
     StateWriter,
+    TransitionResult,
 )
 from axiom_rift.research.chassis import ControlledStudyChassis
 from axiom_rift.research.discovery import OBSERVED_MATERIAL_ID
@@ -2083,6 +2085,71 @@ def inspect_replay_prefix(
     return completed, steps
 
 
+def _inspect_replay_cursor(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+) -> OperationChainCursor:
+    with writer.open_stable_index() as (control, index):
+        steps = operation_steps(
+            writer,
+            design,
+            _control=control,
+            _index=index,
+        )
+        completed = inspect_operation_prefix(
+            index=index,
+            journal=writer.journal,
+            steps=steps,
+            operation_prefix=design.spec.operation_prefix,
+            predecessor_sequence=design.spec.boundary.sequence,
+            predecessor_event_id=design.spec.boundary.event_id,
+            current_sequence=control["heads"]["journal"]["sequence"],
+        )
+        head = control["heads"]["journal"]
+        expected_event_id = design.spec.boundary.event_id
+        if completed:
+            operation = index.get("operation", steps[completed - 1].operation_id)
+            expected_event_id = (
+                None if operation is None else operation.authority_event_id
+            )
+        if (
+            head.get("sequence") != design.spec.boundary.sequence + completed
+            or head.get("event_id") != expected_event_id
+        ):
+            raise RuntimeError("replay operation cursor head is not exact")
+    assert isinstance(expected_event_id, str)
+    return OperationChainCursor(
+        operation_prefix=design.spec.operation_prefix,
+        predecessor_sequence=design.spec.boundary.sequence,
+        predecessor_event_id=design.spec.boundary.event_id,
+        steps=steps,
+        completed=completed,
+        current_sequence=head["sequence"],
+        current_event_id=expected_event_id,
+    )
+
+
+def _refresh_replay_cursor_plan(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+    cursor: OperationChainCursor,
+) -> OperationChainCursor:
+    with writer.open_stable_index() as (control, index):
+        head = control["heads"]["journal"]
+        if (
+            head.get("sequence") != cursor.current_sequence
+            or head.get("event_id") != cursor.current_event_id
+        ):
+            raise RuntimeError("replay operation plan refresh crossed an authority event")
+        steps = operation_steps(
+            writer,
+            design,
+            _control=control,
+            _index=index,
+        )
+    return cursor.replan(steps)
+
+
 def require_stable_head(
     writer: StateWriter,
     *,
@@ -3139,35 +3206,61 @@ def run_study_close_stage(
     explicit_recovery: bool = False,
 ) -> dict[str, Any]:
     require_stable_head(writer, explicit_recovery=explicit_recovery)
-    initial, steps = inspect_replay_prefix(writer, design)
-    _, end = stage_bounds(steps, stage=STUDY_CLOSE_STAGE)
+    cursor = _inspect_replay_cursor(writer, design)
+    initial = cursor.completed
+    _, end = stage_bounds(cursor.steps, stage=STUDY_CLOSE_STAGE)
     if initial > end:
         raise RuntimeError("replay diagnosis already began")
     while True:
-        completed, steps = inspect_replay_prefix(writer, design)
-        _, end = stage_bounds(steps, stage=STUDY_CLOSE_STAGE)
-        if completed == end:
+        _, end = stage_bounds(cursor.steps, stage=STUDY_CLOSE_STAGE)
+        if cursor.completed == end:
             break
-        if completed > end or steps[completed].stage != STUDY_CLOSE_STAGE:
+        if (
+            cursor.completed > end
+            or cursor.steps[cursor.completed].stage != STUDY_CLOSE_STAGE
+        ):
             raise RuntimeError("replay Study-close prefix changed concurrently")
-        _apply_study_close_step(
+        completed = cursor.completed
+        step = cursor.steps[completed]
+        transition = _apply_study_close_step(
             writer,
             design=design,
-            step=steps[completed],
+            step=step,
             repository_root=repository_root,
             job_runner=job_runner,
             job_implementation_materializer=(
                 job_implementation_materializer
             ),
         )
-        advanced, _ = inspect_replay_prefix(writer, design)
-        if advanced != completed + 1:
-            raise RuntimeError("replay Study-close step did not advance once")
+        if not isinstance(transition, TransitionResult):
+            raise RuntimeError("replay Study-close step returned no Writer transition")
+        try:
+            cursor = cursor.advance(
+                step=step,
+                revision=transition.revision,
+                event_id=transition.event_id,
+                reused=transition.reused,
+            )
+        except RuntimeError as exc:
+            # Idempotent reuse or a concurrent authority event is exceptional,
+            # not a reason to trust the memory cursor.  Reauthenticate the
+            # complete prefix and require exactly one durable advancement.
+            recovered = _inspect_replay_cursor(writer, design)
+            if recovered.completed != completed + 1:
+                raise RuntimeError(
+                    "replay Study-close step did not advance once"
+                ) from exc
+            cursor = recovered
+        if step.event_kind in {
+            "job_completed",
+            "research_protocol_activated",
+        }:
+            cursor = _refresh_replay_cursor_plan(writer, design, cursor)
     verified = verify_study_close_postconditions(writer, design)
-    final, final_steps = inspect_replay_prefix(writer, design)
-    _, final_end = stage_bounds(final_steps, stage=STUDY_CLOSE_STAGE)
+    final_cursor = _inspect_replay_cursor(writer, design)
+    _, final_end = stage_bounds(final_cursor.steps, stage=STUDY_CLOSE_STAGE)
     return {
-        "applied_step_count": final - initial,
+        "applied_step_count": final_cursor.completed - initial,
         "batch_id": _operation_result(
             writer,
             design.spec.operation_prefix + "open-batch",
@@ -3269,8 +3362,9 @@ def run_diagnose_stage(
     explicit_recovery: bool = False,
 ) -> dict[str, Any]:
     require_stable_head(writer, explicit_recovery=explicit_recovery)
-    initial, steps = inspect_replay_prefix(writer, design)
-    start, end = stage_bounds(steps, stage=DIAGNOSE_STAGE)
+    cursor = _inspect_replay_cursor(writer, design)
+    initial = cursor.completed
+    start, end = stage_bounds(cursor.steps, stage=DIAGNOSE_STAGE)
     close = _operation_record(
         writer,
         design.spec.operation_prefix + "close-study",
@@ -3293,20 +3387,37 @@ def run_diagnose_stage(
                 raise RuntimeError("Study-close checkpoint control head is not exact")
     writer._require_study_close_delivery_guard()
     while True:
-        completed, steps = inspect_replay_prefix(writer, design)
-        _, end = stage_bounds(steps, stage=DIAGNOSE_STAGE)
-        if completed == end:
+        _, end = stage_bounds(cursor.steps, stage=DIAGNOSE_STAGE)
+        if cursor.completed == end:
             break
-        if completed < start or steps[completed].stage != DIAGNOSE_STAGE:
+        if (
+            cursor.completed < start
+            or cursor.steps[cursor.completed].stage != DIAGNOSE_STAGE
+        ):
             raise RuntimeError("replay diagnosis prefix changed concurrently")
-        _apply_diagnose_step(
+        completed = cursor.completed
+        step = cursor.steps[completed]
+        transition = _apply_diagnose_step(
             writer,
             design=design,
-            step=steps[completed],
+            step=step,
         )
-        advanced, _ = inspect_replay_prefix(writer, design)
-        if advanced != completed + 1:
-            raise RuntimeError("replay diagnosis step did not advance once")
+        if not isinstance(transition, TransitionResult):
+            raise RuntimeError("replay diagnosis step returned no Writer transition")
+        try:
+            cursor = cursor.advance(
+                step=step,
+                revision=transition.revision,
+                event_id=transition.event_id,
+                reused=transition.reused,
+            )
+        except RuntimeError as exc:
+            recovered = _inspect_replay_cursor(writer, design)
+            if recovered.completed != completed + 1:
+                raise RuntimeError(
+                    "replay diagnosis step did not advance once"
+                ) from exc
+            cursor = recovered
     verified = verify_diagnose_postconditions(writer, design)
     with writer.open_stable_index() as (final_control, _index):
         next_action = final_control["next_action"]
