@@ -535,7 +535,7 @@ def _build_fixed_hold_replay_projection(
     )
 
     trials = []
-    for ordinal in range(1, prefix_length + 1):
+    for ordinal in range(1, len(prospective_ids) + 1):
         executable_id = prospective_ids[ordinal - 1]
         authority_sequence = 3 + ordinal
         trials.append(
@@ -568,7 +568,7 @@ def _build_fixed_hold_replay_projection(
         batch,
         *trials,
     ]
-    include_progress = prefix_length == 4 and tamper != "target_pending"
+    include_progress = tamper != "target_pending"
     if include_progress:
         target_executable_id = prospective_ids[-1]
         if tamper == "wrong_progress_target":
@@ -630,13 +630,101 @@ def _build_fixed_hold_replay_projection(
         )
         records.extend((progress, progress_operation, progress_journal_event))
 
+    execution_order = list(prospective_ids[:prefix_length])
+    if tamper == "execution_non_prefix" and prefix_length >= 2:
+        execution_order[0], execution_order[1] = (
+            execution_order[1],
+            execution_order[0],
+        )
+    current_job_id = ""
+    current_job_hash = ""
+    budget_stream = f"batch-budget:{batch_spec.identity}"
+    for ordinal, executable_id in enumerate(execution_order, start=1):
+        job_hash = f"{100 + ordinal:064x}"
+        job_id = f"job:{job_hash}"
+        current_job_id = job_id
+        current_job_hash = job_hash
+        work_fingerprint = f"{200 + ordinal:064x}"
+        declaration = IndexRecord(
+            kind="job-declared",
+            record_id=job_id,
+            subject=f"Job:{job_id}",
+            status="declared",
+            fingerprint=job_hash,
+            payload={
+                "batch_id": batch_spec.identity,
+                "mission_id": mission_id,
+                "spec": {
+                    "evidence_subject": {
+                        "kind": "Executable",
+                        "id": executable_id,
+                    }
+                },
+                "study_id": study_id,
+                "work_fingerprint": work_fingerprint,
+            },
+            event_stream=f"job-attempt:{work_fingerprint}",
+            event_sequence=1,
+            authority_sequence=20 + ordinal,
+            authority_event_id=f"{20 + ordinal:064x}",
+            authority_offset=(20 + ordinal) * 100,
+        )
+        reservation = IndexRecord(
+            kind="batch-budget-reservation",
+            record_id=f"{300 + ordinal:064x}",
+            subject=f"Batch:{batch_spec.identity}",
+            status="reserved",
+            fingerprint=job_hash,
+            payload={
+                "compute_seconds": ordinal,
+                "job_id": job_id,
+                "wall_seconds": ordinal,
+            },
+            event_stream=budget_stream,
+            event_sequence=ordinal,
+            authority_sequence=20 + ordinal,
+            authority_event_id=f"{20 + ordinal:064x}",
+            authority_offset=(20 + ordinal) * 100,
+        )
+        records.extend((reservation, declaration))
+        if ordinal == prefix_length:
+            continue
+        completion = IndexRecord(
+            kind="job-completed",
+            record_id=f"{400 + ordinal:064x}",
+            subject=f"Job:{job_id}",
+            status="success",
+            fingerprint=job_hash,
+            payload={"job_id": job_id},
+            event_stream=declaration.event_stream,
+            event_sequence=2,
+            authority_sequence=30 + ordinal,
+            authority_event_id=f"{30 + ordinal:064x}",
+            authority_offset=(30 + ordinal) * 100,
+        )
+        decision = IndexRecord(
+            kind="job-evidence-decision",
+            record_id=f"decision:{500 + ordinal:064x}",
+            subject=f"Job:{job_id}",
+            status="continue_batch",
+            fingerprint=job_hash,
+            payload={"completion_record_id": completion.record_id},
+            authority_sequence=40 + ordinal,
+            authority_event_id=f"{40 + ordinal:064x}",
+            authority_offset=(40 + ordinal) * 100,
+        )
+        if tamper != "prior_completion_missing" or ordinal != 1:
+            records.append(completion)
+        if tamper != "prior_decision_missing" or ordinal != 1:
+            records.append(decision)
+
     with LocalIndex(index_path) as index:
         index.rebuild(records)
 
     subject_executable_id = prospective_ids[prefix_length - 1]
     execution = RunningJobExecution(
-        job_id="job:" + "1" * 64,
-        job_hash="2" * 64,
+        job_id=current_job_id,
+        job_hash=current_job_hash,
         start_record_id="3" * 64,
         job_permit_id="4" * 64,
     )
@@ -1152,7 +1240,7 @@ def test_context_projects_only_the_verified_execution_family(
 
 
 @pytest.mark.parametrize("prefix_length", (1, 2, 3))
-def test_fixed_hold_replay_non_target_jobs_require_exact_correction_pending_prefix(
+def test_fixed_hold_replay_non_target_jobs_require_full_family_and_execution_prefix(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     prefix_length: int,
@@ -1171,21 +1259,27 @@ def test_fixed_hold_replay_non_target_jobs_require_exact_correction_pending_pref
         parameter_name=None,
     )
 
-    historical_prefix = tuple(
+    historical_family = tuple(
         member.historical_reference_executable_id
-        for member in fixture.family.members[:prefix_length]
+        for member in fixture.family.members
     )
-    assert projection.exposure.family_executable_ids == (
-        fixture.prospective_ids[:prefix_length]
-    )
+    assert projection.exposure.family_executable_ids == fixture.prospective_ids
     assert projection.registered_member_bindings == tuple(
         zip(
-            fixture.prospective_ids[:prefix_length],
-            historical_prefix,
+            fixture.prospective_ids,
+            historical_family,
             strict=True,
         )
     )
-    assert projection.target_prospective_executable_id is None
+    assert projection.execution_prefix_executable_ids == (
+        fixture.prospective_ids[:prefix_length]
+    )
+    assert projection.completed_member_executable_ids == (
+        fixture.prospective_ids[: prefix_length - 1]
+    )
+    assert projection.target_prospective_executable_id == (
+        fixture.prospective_ids[-1]
+    )
 
 
 def test_fixed_hold_replay_target_job_requires_exact_in_progress_binding(
@@ -1214,6 +1308,10 @@ def test_fixed_hold_replay_target_job_requires_exact_in_progress_binding(
         fixture.prospective_ids[-1],
         fixture.family.target_historical_executable_id,
     )
+    assert projection.execution_prefix_executable_ids == fixture.prospective_ids
+    assert projection.completed_member_executable_ids == (
+        fixture.prospective_ids[:-1]
+    )
 
 
 @pytest.mark.parametrize(
@@ -1222,9 +1320,12 @@ def test_fixed_hold_replay_target_job_requires_exact_in_progress_binding(
         (2, "non_prefix", "prospective family differs"),
         (2, "invalidation_result", "same-event Writer authority"),
         (3, "family_cross_event", "same-event Writer authority"),
-        (4, "target_pending", "target was registered without progress"),
+        (1, "target_pending", "fully registered family lacks progress"),
         (4, "wrong_progress_target", "execution binding differs"),
         (4, "progress_payload", "execution binding differs"),
+        (2, "execution_non_prefix", "execution declarations are not an exact prefix"),
+        (2, "prior_completion_missing", "completed-member prefix"),
+        (2, "prior_decision_missing", "completed-member prefix"),
     ),
 )
 def test_fixed_hold_replay_context_rejects_authority_and_prefix_tampering(

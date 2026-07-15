@@ -20,12 +20,29 @@ from axiom_rift.operations.replay_projection import (
     obligation_heads,
     require_satisfaction_invalidation_record,
 )
-from axiom_rift.operations.writer import StateWriter
+from axiom_rift.operations.permits import PermitAuthority, PermitKind, SubjectKind
+from axiom_rift.operations.running_job import RunningJobAuthority, RunningJobExecution
+from axiom_rift.operations.writer import StateWriter, TransitionError
 from axiom_rift.research.fixed_hold_family_trace import (
     fixed_hold_subject_inference_families,
 )
+from axiom_rift.research.portfolio import (
+    BatchSpec,
+    ConcurrentFamilyEvaluationMode,
+    ConcurrentFamilyManifest,
+)
 from axiom_rift.storage.evidence import EvidenceStore
 from axiom_rift.storage.index import IndexRecord, LocalIndex
+from tests.operations.test_writer import (
+    FIXED_EXPIRY,
+    FIXED_NOW,
+    OBSERVED_MATERIAL_ID,
+    executable_spec,
+    initiative_objective,
+    job_spec,
+    mission_goal,
+    study_question,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -174,6 +191,161 @@ class _Writer:
                 }
             }
         }
+
+
+def test_real_writer_requires_full_vectorized_family_before_first_job(
+    tmp_path: Path,
+) -> None:
+    writer = StateWriter(
+        tmp_path / "writer",
+        permit_authority=PermitAuthority(b"r" * 32),
+        clock=lambda: FIXED_NOW,
+        engineering_fixture=True,
+        foundation_root=ROOT,
+    )
+    writer.initialize_ready()
+    writer.open_mission(
+        mission_id="MIS-FIXED-HOLD-REGRESSION",
+        goal=mission_goal("fixed-hold vectorized family"),
+        operation_id="fixed-hold-open-mission",
+    )
+    initiative_id = "INI-FIXED-HOLD-REGRESSION"
+    writer.open_initiative(
+        initiative_id=initiative_id,
+        objective=initiative_objective("fixed-hold vectorized family"),
+        operation_id="fixed-hold-open-initiative",
+    )
+
+    study_id = "STU-FIXED-HOLD-REGRESSION"
+    question = study_question("fixed-hold vectorized family")
+    proposal = {"mechanism": "exact family registration before engine entry"}
+    study_hash = writer.study_input_hash(
+        question=question,
+        material_identity=OBSERVED_MATERIAL_ID,
+        semantic_proposal=proposal,
+    )
+    study_permit = writer.issue_permit(
+        kind=PermitKind.STUDY,
+        subject_kind=SubjectKind.INITIATIVE,
+        subject_id=initiative_id,
+        input_hash=study_hash,
+        actions=("open_study",),
+        scope=("study",),
+        expires_at_utc=FIXED_EXPIRY,
+        one_shot=True,
+        operation_id="fixed-hold-permit-study",
+    )
+    opened_study = writer.open_study(
+        study_id=study_id,
+        question=question,
+        material_identity=OBSERVED_MATERIAL_ID,
+        material_display_name="fixed-hold vectorized family fixture",
+        semantic_proposal=proposal,
+        permit=study_permit,
+        operation_id="fixed-hold-open-study",
+    )
+
+    members = tuple(
+        executable_spec(f"fixed-hold-member-{ordinal:02d}")
+        for ordinal in range(1, 5)
+    )
+    family = ConcurrentFamilyManifest(
+        evaluation_mode=ConcurrentFamilyEvaluationMode.VECTORIZED,
+        executable_ids=tuple(member.identity for member in members),
+    )
+    batch = BatchSpec(
+        batch_id="BAT-FIXED-HOLD-REGRESSION",
+        study_id=study_id,
+        study_hash=opened_study.result["study_hash"],
+        display_name="fixed-hold vectorized family regression",
+        max_trials=len(members),
+        max_compute_seconds=120,
+        max_wall_seconds=120,
+        stop_rule="stop after the exact vectorized family",
+        concurrent_family=family,
+        acceptance_profile={"causality": "required", "unknown_cost": "reject"},
+        adaptive_basis={
+            "uncertainty": "fixture",
+            "causal_complexity": "fixture",
+            "surface_curvature": "fixture",
+            "compute_cost": "bounded",
+            "expected_information_value": "positive",
+            "portfolio_opportunity_cost": "declared",
+        },
+    )
+    batch_permit = writer.issue_permit(
+        kind=PermitKind.BATCH,
+        subject_kind=SubjectKind.STUDY,
+        subject_id=study_id,
+        input_hash=batch.identity.removeprefix("batch:"),
+        actions=("open_batch",),
+        scope=("batch",),
+        expires_at_utc=FIXED_EXPIRY,
+        one_shot=True,
+        operation_id="fixed-hold-permit-batch",
+    )
+    writer.open_batch(
+        batch_spec=batch,
+        permit=batch_permit,
+        operation_id="fixed-hold-open-batch",
+    )
+
+    writer.register_trial(
+        executable=members[0],
+        operation_id="fixed-hold-register-member-01",
+    )
+    member01_subject = {"kind": "Executable", "id": members[0].identity}
+    with pytest.raises(TransitionError, match=r"3 missing"):
+        writer.declare_job(
+            spec=job_spec(writer, member01_subject),
+            operation_id="fixed-hold-reject-partial-family-job",
+        )
+    assert writer.read_control()["scientific"]["active_job"] is None
+
+    for ordinal, member in enumerate(members[1:], start=2):
+        writer.register_trial(
+            executable=member,
+            operation_id=f"fixed-hold-register-member-{ordinal:02d}",
+        )
+    declared = writer.declare_job(
+        spec=job_spec(writer, member01_subject),
+        operation_id="fixed-hold-declare-member-01-job",
+    )
+    job_permit = writer.issue_permit(
+        kind=PermitKind.JOB,
+        subject_kind=SubjectKind.JOB,
+        subject_id=declared.result["job_id"],
+        input_hash=declared.result["job_hash"],
+        actions=("start_job",),
+        scope=("job",),
+        expires_at_utc=FIXED_EXPIRY,
+        one_shot=True,
+        operation_id="fixed-hold-permit-member-01-job",
+    )
+    started = writer.start_job(
+        permit=job_permit,
+        operation_id="fixed-hold-start-member-01-job",
+    )
+    execution = RunningJobExecution.from_mapping(started.result["execution"])
+    context = RunningJobAuthority(
+        writer.root,
+        foundation_root=ROOT,
+    ).verify_running_job_execution(
+        execution,
+        expected_callable_identity="fixture.callable",
+        expected_evidence_subject=member01_subject,
+    )
+
+    assert context["spec"]["evidence_subject"] == member01_subject
+    assert context["batch_id"] == batch.identity
+    assert writer.read_control()["scientific"]["active_job"]["status"] == "running"
+    with LocalIndex(writer.index_path) as index:
+        head = index.event_head(f"batch-trials:{batch.identity}")
+        assert head is not None and head.sequence == len(members)
+        assert tuple(
+            index.event_record(f"batch-trials:{batch.identity}", ordinal).record_id
+            for ordinal in range(1, len(members) + 1)
+        ) == tuple(member.identity for member in members)
 
 
 def test_runner_derives_natural_ids_and_current_boundary(tmp_path: Path) -> None:

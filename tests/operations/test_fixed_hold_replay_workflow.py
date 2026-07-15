@@ -657,7 +657,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         "axiom_rift.operations.fixed_hold_replay_workflow._member_completion",
         return_value=None,
     )
-    def test_operation_plan_preserves_incremental_registration_prefix(
+    def test_operation_plan_preregisters_family_before_any_job(
         self,
         _completion,
     ) -> None:
@@ -671,6 +671,15 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             for index, operation_id in enumerate(operation_ids)
         }
         prefix = design.spec.operation_prefix
+        register_positions = tuple(
+            positions[prefix + member.label + "-register-trial"]
+            for member in design.members
+        )
+        declare_positions = tuple(
+            positions[prefix + member.label + "-declare-job"]
+            for member in design.members
+        )
+        assert max(register_positions) < min(declare_positions)
         for current, following in zip(
             design.members[:-1],
             design.members[1:],
@@ -684,7 +693,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             ] < positions[prefix + current.label + "-judge-job"]
             assert positions[
                 prefix + current.label + "-judge-job"
-            ] < positions[prefix + following.label + "-register-trial"]
+            ] < positions[prefix + following.label + "-declare-job"]
 
     def test_prefix_inspection_shares_one_authenticated_snapshot(self) -> None:
         writer = _empty_workflow_writer()
@@ -1026,8 +1035,8 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         operation_ids = {step.operation_id for step in steps}
         prefix = design.spec.operation_prefix
         self.assertIn(prefix + "member-02-register-trial", operation_ids)
-        self.assertNotIn(prefix + "member-03-register-trial", operation_ids)
-        self.assertNotIn(prefix + "member-04-register-trial", operation_ids)
+        self.assertIn(prefix + "member-03-register-trial", operation_ids)
+        self.assertIn(prefix + "member-04-register-trial", operation_ids)
         self.assertIn(prefix + "member-02-complete-job", operation_ids)
         self.assertIn(prefix + "member-02-judge-job", operation_ids)
         self.assertNotIn(prefix + "member-03-declare-job", operation_ids)

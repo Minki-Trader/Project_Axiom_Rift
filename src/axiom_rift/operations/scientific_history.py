@@ -615,7 +615,7 @@ def project_registered_replay_member_bindings(
 
 
 def _event_stream_records(
-    index: LocalIndex,
+    index: LocalIndex | LocalIndexView,
     *,
     stream: str,
     required: bool,
@@ -649,6 +649,137 @@ def _event_stream_records(
             f"scientific history stream head is inconsistent: {stream}"
         )
     return tuple(records)
+
+
+def project_running_batch_job_prefix(
+    index: LocalIndex | LocalIndexView,
+    *,
+    mission_id: str,
+    study_id: str,
+    batch_id: str,
+    expected_executable_ids: tuple[str, ...],
+    active_job_id: str,
+    subject_executable_id: str,
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """Project one active Job after the exact successful member prefix."""
+
+    if (
+        not expected_executable_ids
+        or len(set(expected_executable_ids)) != len(expected_executable_ids)
+        or subject_executable_id not in expected_executable_ids
+    ):
+        raise ScientificHistoryProjectionError(
+            "fixed-hold execution family is malformed"
+        )
+    budget_records = _event_stream_records(
+        index,
+        stream=f"batch-budget:{batch_id}",
+        required=True,
+    )
+    if any(
+        record.subject != f"Batch:{batch_id}"
+        or record.kind not in {
+            "batch-budget-repair",
+            "batch-budget-reservation",
+        }
+        or (
+            record.kind == "batch-budget-repair"
+            and record.status != "repaired"
+        )
+        for record in budget_records
+    ):
+        raise ScientificHistoryProjectionError(
+            "fixed-hold Batch budget history is malformed"
+        )
+    declarations: list[tuple[IndexRecord, str]] = []
+    for reservation in budget_records:
+        if reservation.kind == "batch-budget-repair":
+            continue
+        job_id = reservation.payload.get("job_id")
+        declaration = (
+            None
+            if not isinstance(job_id, str)
+            else index.get("job-declared", job_id)
+        )
+        spec = None if declaration is None else declaration.payload.get("spec")
+        subject = None if not isinstance(spec, Mapping) else spec.get(
+            "evidence_subject"
+        )
+        executable_id = (
+            None if not isinstance(subject, Mapping) else subject.get("id")
+        )
+        if (
+            reservation.status != "reserved"
+            or declaration is None
+            or declaration.subject != f"Job:{job_id}"
+            or declaration.status != "declared"
+            or declaration.fingerprint != reservation.fingerprint
+            or declaration.payload.get("mission_id") != mission_id
+            or declaration.payload.get("study_id") != study_id
+            or declaration.payload.get("batch_id") != batch_id
+            or not isinstance(declaration.event_stream, str)
+            or type(declaration.event_sequence) is not int
+            or not isinstance(subject, Mapping)
+            or subject.get("kind") != "Executable"
+            or not isinstance(executable_id, str)
+        ):
+            raise ScientificHistoryProjectionError(
+                "fixed-hold execution declaration is malformed"
+            )
+        declarations.append((declaration, executable_id))
+    ordinal = expected_executable_ids.index(subject_executable_id) + 1
+    execution_ids = tuple(item[1] for item in declarations)
+    if (
+        len(declarations) != ordinal
+        or execution_ids != expected_executable_ids[:ordinal]
+        or declarations[-1][0].record_id != active_job_id
+    ):
+        raise ScientificHistoryProjectionError(
+            "fixed-hold execution declarations are not an exact prefix"
+        )
+    completed_ids: list[str] = []
+    for declaration, executable_id in declarations[:-1]:
+        completion = index.event_record(
+            declaration.event_stream,
+            declaration.event_sequence + 1,
+        )
+        decisions = (
+            ()
+            if completion is None
+            else tuple(
+                record
+                for record in index.records_by_fingerprint(
+                    completion.fingerprint
+                )
+                if record.kind == "job-evidence-decision"
+                and record.subject == f"Job:{declaration.record_id}"
+                and record.status == "continue_batch"
+                and record.payload.get("completion_record_id")
+                == completion.record_id
+            )
+        )
+        if (
+            completion is None
+            or completion.kind != "job-completed"
+            or completion.subject != f"Job:{declaration.record_id}"
+            or completion.status != "success"
+            or completion.fingerprint != declaration.fingerprint
+            or completion.payload.get("job_id") != declaration.record_id
+            or len(decisions) != 1
+        ):
+            raise ScientificHistoryProjectionError(
+                "fixed-hold completed-member prefix lacks exact authority"
+            )
+        completed_ids.append(executable_id)
+    current = declarations[-1][0]
+    if index.event_record(
+        current.event_stream,
+        current.event_sequence + 1,
+    ) is not None:
+        raise ScientificHistoryProjectionError(
+            "fixed-hold active member is already completed"
+        )
+    return execution_ids, tuple(completed_ids)
 
 
 def project_study_job_evidence(
@@ -832,5 +963,6 @@ __all__ = [
     "project_batch_job_evidence",
     "project_historical_batch_family_observation",
     "project_registered_replay_member_bindings",
+    "project_running_batch_job_prefix",
     "project_study_job_evidence",
 ]

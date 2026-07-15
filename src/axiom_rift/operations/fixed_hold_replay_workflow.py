@@ -1979,6 +1979,9 @@ def operation_steps(
                 STUDY_CLOSE_STAGE,
             )
         )
+    # Freeze the complete concurrent family before any member Job can expose
+    # evidence.  Registration order remains the protocol's execution order;
+    # the Batch manifest separately carries canonical set-like membership.
     for member in design.members:
         stem = prefix + member.label
         steps.append(
@@ -1988,6 +1991,8 @@ def operation_steps(
                 STUDY_CLOSE_STAGE,
             )
         )
+    for member in design.members:
+        stem = prefix + member.label
         steps.extend(
             (
                 OperationStep(stem + "-declare-job", "job_declared", STUDY_CLOSE_STAGE),

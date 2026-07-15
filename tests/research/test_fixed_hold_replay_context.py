@@ -99,6 +99,8 @@ class _RuntimeContext:
                     strict=True,
                 )
             ),
+            execution_prefix_executable_ids=(self.subject_id,),
+            completed_member_executable_ids=(),
             target_prospective_executable_id=self.family_ids[-1],
         )
 

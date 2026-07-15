@@ -62,6 +62,7 @@ CALCULATION_FIELDS = {
     "metrics",
     "mission_id",
     "parameters",
+    "protocol_definition",
     "protocol_id",
     "schema",
     "statistics",

@@ -594,7 +594,7 @@ def registered_fixed_hold_replay_context(
     binding: Mapping[str, object],
     subject_executable_id: str,
 ) -> RunningJobFixedHoldReplayContext:
-    """Recover typed family authority at the first trial sequence."""
+    """Recover a fully preregistered family and its exact execution prefix."""
 
     study_id = binding.get("study_id")
     batch_id = binding.get("batch_id")
@@ -643,16 +643,20 @@ def registered_fixed_hold_replay_context(
         if member.historical_reference_executable_id
         == definition.family.target_historical_executable_id
     )
-    expected_target = (
-        None
-        if len(registered_ids) < target_ordinal
-        else definition.prospective_executable_ids[target_ordinal - 1]
+    expected_target = definition.prospective_executable_ids[
+        target_ordinal - 1
+    ]
+    subject_ordinal = (
+        definition.prospective_executable_ids.index(subject_executable_id)
+        + 1
     )
     if (
-        registered_ids
-        != definition.prospective_executable_ids[: len(registered_ids)]
-        or context.registered_member_bindings
-        != expected_bindings[: len(registered_ids)]
+        registered_ids != definition.prospective_executable_ids
+        or context.registered_member_bindings != expected_bindings
+        or context.execution_prefix_executable_ids
+        != definition.prospective_executable_ids[:subject_ordinal]
+        or context.completed_member_executable_ids
+        != definition.prospective_executable_ids[: subject_ordinal - 1]
         or context.target_prospective_executable_id != expected_target
         or context.batch_family_executable_ids
         != tuple(sorted(definition.prospective_executable_ids))

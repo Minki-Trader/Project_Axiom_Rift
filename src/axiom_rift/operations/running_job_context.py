@@ -26,8 +26,10 @@ from axiom_rift.operations.running_job import (
     running_job_authority_dependency_paths,
 )
 from axiom_rift.operations.scientific_history import (
+    ScientificHistoryProjectionError,
     project_frozen_family_exposure_context,
     project_registered_replay_member_bindings,
+    project_running_batch_job_prefix,
 )
 from axiom_rift.operations.recorded_transition_authority import (
     RecordedTransitionAuthorityError,
@@ -125,7 +127,9 @@ class RunningJobFixedHoldReplayContext:
     exposure: FrozenFamilyExposureContext
     batch_family_executable_ids: tuple[str, ...]
     registered_member_bindings: tuple[tuple[str, str], ...]
-    target_prospective_executable_id: str | None
+    execution_prefix_executable_ids: tuple[str, ...]
+    completed_member_executable_ids: tuple[str, ...]
+    target_prospective_executable_id: str
 
 
 def _require_correction_pending_invalidation(
@@ -743,7 +747,6 @@ class RunningJobExecutionContext:
                 expected_family_size=expected_family_size,
                 parameter_name=parameter_name,
                 allow_unregistered=False,
-                allow_partial_registered=True,
             )
             concurrent_ids = concurrent_family.get("executable_ids")
             registered_bindings = project_registered_replay_member_bindings(
@@ -770,13 +773,27 @@ class RunningJobExecutionContext:
                     for item in exposure.family_executable_ids
                 )
                 or registered_ids != exposure.family_executable_ids
-                or registered_historical_ids
-                != historical_family_ids[: len(registered_historical_ids)]
-                or subject_executable_id != registered_ids[-1]
+                or len(registered_ids) != expected_family_size
+                or registered_historical_ids != historical_family_ids
             ):
                 raise RunningJobAuthorityError(
                     "fixed-hold prospective family differs from its Batch"
                 )
+            try:
+                (
+                    execution_prefix_executable_ids,
+                    completed_member_executable_ids,
+                ) = project_running_batch_job_prefix(
+                    index,
+                    mission_id=bound.mission_id,
+                    study_id=study_id,
+                    batch_id=batch_id,
+                    expected_executable_ids=registered_ids,
+                    active_job_id=bound.execution.job_id,
+                    subject_executable_id=subject_executable_id,
+                )
+            except ScientificHistoryProjectionError as exc:
+                raise RunningJobAuthorityError(str(exc)) from exc
             obligation_stream = (
                 f"historical-replay-obligation:{replay_obligation_id}"
             )
@@ -795,12 +812,9 @@ class RunningJobExecutionContext:
                 )
                 + 1
             )
-            prefix_length = len(registered_bindings)
-            target_prospective_executable_id = (
-                None
-                if prefix_length < target_ordinal
-                else registered_ids[target_ordinal - 1]
-            )
+            target_prospective_executable_id = registered_ids[
+                target_ordinal - 1
+            ]
             if (
                 current_obligation is None
                 or current_obligation.subject != f"Mission:{bound.mission_id}"
@@ -816,94 +830,84 @@ class RunningJobExecutionContext:
                 raise RunningJobAuthorityError(
                     "fixed-hold replay obligation current head is not executable"
                 )
-            if current_obligation.status == "in_progress":
-                binding_payload = current_obligation.payload.get("binding")
-                try:
-                    if not isinstance(binding_payload, Mapping):
-                        raise ReplayObligationError(
-                            "replay execution binding is absent"
-                        )
-                    binding = ReplayExecutionBinding(
-                        obligation_ids=tuple(
-                            binding_payload.get("obligation_ids", ())
-                        ),
-                        portfolio_decision_id=binding_payload.get(
-                            "portfolio_decision_id"
-                        ),
-                        replay_study_id=binding_payload.get("replay_study_id"),
-                        replay_executable_id=binding_payload.get(
-                            "replay_executable_id"
-                        ),
-                    )
-                except (TypeError, ReplayObligationError) as exc:
-                    raise RunningJobAuthorityError(
-                        "fixed-hold replay execution binding is malformed"
-                    ) from exc
-                if (
-                    canonical_bytes(binding.to_identity_payload())
-                    != canonical_bytes(binding_payload)
-                    or binding.obligation_ids != (replay_obligation_id,)
-                    or binding.portfolio_decision_id
-                    != study_payload.get("portfolio_decision_id")
-                    or binding.replay_study_id != study_id
-                    or prefix_length < target_ordinal
-                    or binding.replay_executable_id
-                    != target_prospective_executable_id
-                    or current_obligation.kind
-                    != "historical-replay-obligation-progress"
-                    or current_obligation.fingerprint != binding.identity
-                    or current_obligation.payload
-                    != {
-                        "binding": binding.to_identity_payload(),
-                        "obligation_id": replay_obligation_id,
-                        "prior_status": "pending",
-                    }
-                    or current_obligation.record_id
-                    != "historical-replay-progress:"
-                    + canonical_digest(
-                        domain="historical-replay-obligation-progress",
-                        payload=current_obligation.payload,
-                    )
-                ):
-                    raise RunningJobAuthorityError(
-                        "fixed-hold replay execution binding differs from its Study"
-                    )
-                predecessor = index.event_record(
-                    obligation_stream,
-                    current_obligation.event_sequence - 1,
+            if current_obligation.status != "in_progress":
+                raise RunningJobAuthorityError(
+                    "fixed-hold fully registered family lacks progress authority"
                 )
-                if predecessor is None:
-                    raise RunningJobAuthorityError(
-                        "fixed-hold replay progress predecessor is absent"
+            binding_payload = current_obligation.payload.get("binding")
+            try:
+                if not isinstance(binding_payload, Mapping):
+                    raise ReplayObligationError(
+                        "replay execution binding is absent"
                     )
-                _require_correction_pending_invalidation(
-                    index,
-                    obligation=obligation,
-                    record=predecessor,
-                    family_record=family_record,
-                    require_current_head=False,
+                binding = ReplayExecutionBinding(
+                    obligation_ids=tuple(
+                        binding_payload.get("obligation_ids", ())
+                    ),
+                    portfolio_decision_id=binding_payload.get(
+                        "portfolio_decision_id"
+                    ),
+                    replay_study_id=binding_payload.get("replay_study_id"),
+                    replay_executable_id=binding_payload.get(
+                        "replay_executable_id"
+                    ),
                 )
-                try:
-                    require_recorded_transition_authority(
-                        index,
-                        record=current_obligation,
-                        expected_event_kinds=frozenset({"trial_registered"}),
-                        require_current_head=True,
-                    )
-                except RecordedTransitionAuthorityError as exc:
-                    raise RunningJobAuthorityError(str(exc)) from exc
-            else:
-                if prefix_length >= target_ordinal:
-                    raise RunningJobAuthorityError(
-                        "fixed-hold target was registered without progress authority"
-                    )
-                _require_correction_pending_invalidation(
+            except (TypeError, ReplayObligationError) as exc:
+                raise RunningJobAuthorityError(
+                    "fixed-hold replay execution binding is malformed"
+                ) from exc
+            if (
+                canonical_bytes(binding.to_identity_payload())
+                != canonical_bytes(binding_payload)
+                or binding.obligation_ids != (replay_obligation_id,)
+                or binding.portfolio_decision_id
+                != study_payload.get("portfolio_decision_id")
+                or binding.replay_study_id != study_id
+                or binding.replay_executable_id
+                != target_prospective_executable_id
+                or current_obligation.kind
+                != "historical-replay-obligation-progress"
+                or current_obligation.fingerprint != binding.identity
+                or current_obligation.payload
+                != {
+                    "binding": binding.to_identity_payload(),
+                    "obligation_id": replay_obligation_id,
+                    "prior_status": "pending",
+                }
+                or current_obligation.record_id
+                != "historical-replay-progress:"
+                + canonical_digest(
+                    domain="historical-replay-obligation-progress",
+                    payload=current_obligation.payload,
+                )
+            ):
+                raise RunningJobAuthorityError(
+                    "fixed-hold replay execution binding differs from its Study"
+                )
+            predecessor = index.event_record(
+                obligation_stream,
+                current_obligation.event_sequence - 1,
+            )
+            if predecessor is None:
+                raise RunningJobAuthorityError(
+                    "fixed-hold replay progress predecessor is absent"
+                )
+            _require_correction_pending_invalidation(
+                index,
+                obligation=obligation,
+                record=predecessor,
+                family_record=family_record,
+                require_current_head=False,
+            )
+            try:
+                require_recorded_transition_authority(
                     index,
-                    obligation=obligation,
                     record=current_obligation,
-                    family_record=family_record,
+                    expected_event_kinds=frozenset({"trial_registered"}),
                     require_current_head=True,
                 )
+            except RecordedTransitionAuthorityError as exc:
+                raise RunningJobAuthorityError(str(exc)) from exc
         return RunningJobFixedHoldReplayContext(
             family_authority_id=family_authority_id,
             replay_obligation_id=replay_obligation_id,
@@ -911,6 +915,12 @@ class RunningJobExecutionContext:
             exposure=exposure,
             batch_family_executable_ids=tuple(sorted(concurrent_ids)),
             registered_member_bindings=registered_bindings,
+            execution_prefix_executable_ids=(
+                execution_prefix_executable_ids
+            ),
+            completed_member_executable_ids=(
+                completed_member_executable_ids
+            ),
             target_prospective_executable_id=(
                 target_prospective_executable_id
             ),
