@@ -217,6 +217,7 @@ class WriterHistoryQueryTests(unittest.TestCase):
                 ("backfill_historical_study_kpis", "study-open"): 1,
                 ("rebuild_study_kpi_projection", "study-kpi"): 1,
                 ("backfill_component_manifests", "trial"): 1,
+                ("backfill_semantic_question_registry", "study-open"): 1,
                 ("backfill_executable_semantic_surfaces", "trial"): 1,
                 (
                     "record_historical_scientific_adjudications",

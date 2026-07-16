@@ -49,9 +49,11 @@ Before the first Initiative of every real Mission:
    Portfolio Decisions, Executable components, and Mission terminals.
 4. Treat `records/STUDY_KPI.md` as a navigation projection, never scientific
    authority or a retrospective winner table.
-5. Map prior work by causal question, primary research layer, architecture
-   family, changed and controlled domains, outcome, evidence state, and reopen
-   condition. Mark legacy work honestly when typed classification is absent.
+5. Map prior work by exact semantic question core, typed Study lineage, primary
+   research layer, architecture family, outcome, evidence state, and reopen
+   condition. Give every repeated exact core a relation or an explicit
+   unresolved disposition. Mark legacy work honestly when typed classification
+   is absent.
 6. State at least two competing bottleneck hypotheses, underexplored layers,
    architecture findings, and one Mission thesis.
 
@@ -111,6 +113,16 @@ as implicit zero PnL.
 ## Register Before Evidence
 
 - Define one causal question and explicit changed and controlled variables.
+- Let the Writer derive its exact semantic question core. A repeated exact core
+  requires typed predecessor lineage. A non-revision relation between distinct
+  cores requires accepted expert-reviewed equivalence; a semantic revision must
+  remain distinct and non-equivalent.
+- Treat equivalence as question-core scope only. It never transfers or merges
+  Study, Batch, Executable, trial, evidence, claim, KPI, negative-memory, or
+  multiplicity authority, and it is never inferred from fuzzy text similarity.
+- Bind historical reconciliation to the exact current-protocol audit artifact
+  carrying the plural quant-team review; caller rationale alone is not review
+  authority.
 - Bind the Study to the current intake, Portfolio snapshot, axis identity,
   Decision, and immutable development material.
 - Build Executable identity from ordered components, parameters, data, split,
@@ -283,6 +295,13 @@ completion when present, and negative memory when present. Classify the
 evidence state, confidence, counterfactual, and reopen condition. KPI magnitude
 alone cannot choose the state. Engineering failure is `engineering_gap`, not
 scientific falsification.
+
+Classify engineering reentry from exact gap and repair evidence, not from a
+diagnosis label alone. `not_identifiable` may support reentry only when the
+bound record proves a recoverable non-scientific inability and the successor
+produces its own valid result. A successor never inherits or rewrites prior
+evidence; semantic revision remains a distinct estimand and cannot resolve the
+predecessor question.
 
 Interpret the validator independently of Job status. An operationally
 successful Job may carry a failed scientific verdict, while an engineering or

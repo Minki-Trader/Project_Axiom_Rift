@@ -5765,6 +5765,8 @@ class StateWriter:
         question: Mapping[str, Any],
         material_identity: str,
         semantic_proposal: Mapping[str, Any],
+        semantic_question_equivalence: Any | None = None,
+        semantic_question_lineage: Any | None = None,
         controlled_chassis: Any | None = None,
         portfolio_axis_id: str | None = None,
         portfolio_axis_identity: str | None = None,
@@ -5792,8 +5794,46 @@ class StateWriter:
             controlled_chassis, ControlledStudyChassis
         ):
             raise TransitionError("controlled_chassis must be a ControlledStudyChassis")
-        return _digest(
-            {
+        from axiom_rift.research.semantic_question import (
+            SemanticQuestionEquivalenceProposal,
+            SemanticQuestionLineageProposal,
+        )
+
+        if semantic_question_equivalence is not None and not isinstance(
+            semantic_question_equivalence,
+            SemanticQuestionEquivalenceProposal,
+        ):
+            raise TransitionError(
+                "semantic_question_equivalence must be a typed proposal"
+            )
+        if semantic_question_lineage is not None and not isinstance(
+            semantic_question_lineage,
+            SemanticQuestionLineageProposal,
+        ):
+            raise TransitionError(
+                "semantic_question_lineage must be a typed proposal"
+            )
+        if (
+            semantic_question_equivalence is not None
+            and semantic_question_lineage is None
+        ):
+            raise TransitionError(
+                "semantic question equivalence requires exact Study lineage"
+            )
+        expected_equivalence_id = (
+            None
+            if semantic_question_equivalence is None
+            else semantic_question_equivalence.identity
+        )
+        if (
+            semantic_question_lineage is not None
+            and semantic_question_lineage.equivalence_proposal_id
+            != expected_equivalence_id
+        ):
+            raise TransitionError(
+                "semantic question lineage and equivalence proposals diverge"
+            )
+        input_payload: dict[str, Any] = {
                 "controlled_chassis": (
                     None
                     if controlled_chassis is None
@@ -5805,7 +5845,17 @@ class StateWriter:
                 "portfolio_axis_identity": portfolio_axis_identity,
                 "portfolio_decision_id": portfolio_decision_id,
                 "semantic_proposal": dict(semantic_proposal),
-            },
+        }
+        if semantic_question_equivalence is not None:
+            input_payload["semantic_question_equivalence"] = (
+                semantic_question_equivalence.to_identity_payload()
+            )
+        if semantic_question_lineage is not None:
+            input_payload["semantic_question_lineage"] = (
+                semantic_question_lineage.to_identity_payload()
+            )
+        return _digest(
+            input_payload,
             domain="study-input",
         )
 
@@ -5817,6 +5867,8 @@ class StateWriter:
         material_identity: str,
         material_display_name: str,
         semantic_proposal: Mapping[str, Any],
+        semantic_question_equivalence: Any | None = None,
+        semantic_question_lineage: Any | None = None,
         controlled_chassis: Any | None = None,
         permit: Permit,
         operation_id: str,
@@ -5847,6 +5899,33 @@ class StateWriter:
         _require_ascii("material_identity", material_identity)
         _require_ascii("material_display_name", material_display_name)
         semantic_proposal_manifest = _copy(semantic_proposal)
+        from axiom_rift.research.semantic_question import (
+            SemanticQuestionCore,
+            SemanticQuestionEquivalenceProposal,
+            SemanticQuestionError,
+            SemanticQuestionLineageProposal,
+        )
+
+        try:
+            semantic_question_core = SemanticQuestionCore.from_question_manifest(
+                question_manifest
+            )
+        except SemanticQuestionError as exc:
+            raise TransitionError(str(exc)) from exc
+        if semantic_question_equivalence is not None and not isinstance(
+            semantic_question_equivalence,
+            SemanticQuestionEquivalenceProposal,
+        ):
+            raise TransitionError(
+                "semantic_question_equivalence must be a typed proposal"
+            )
+        if semantic_question_lineage is not None and not isinstance(
+            semantic_question_lineage,
+            SemanticQuestionLineageProposal,
+        ):
+            raise TransitionError(
+                "semantic_question_lineage must be a typed proposal"
+            )
         from axiom_rift.research.trials import (
             MaterialReference,
             StudyTrialContext,
@@ -5872,6 +5951,8 @@ class StateWriter:
             question=question_manifest,
             material_identity=material_identity,
             semantic_proposal=semantic_proposal_manifest,
+            semantic_question_equivalence=semantic_question_equivalence,
+            semantic_question_lineage=semantic_question_lineage,
             controlled_chassis=controlled_chassis,
             portfolio_axis_id=portfolio_axis_id,
             portfolio_axis_identity=portfolio_axis_identity,
@@ -6208,6 +6289,27 @@ class StateWriter:
                     "portfolio_snapshot_id": portfolio_snapshot_id,
                     "commitment_batches": commitment_batches,
                     "semantic_proposal": semantic_proposal_manifest,
+                    "semantic_question_core_id": semantic_question_core.identity,
+                    "semantic_question_equivalence": (
+                        None
+                        if semantic_question_equivalence is None
+                        else semantic_question_equivalence.to_identity_payload()
+                    ),
+                    "semantic_question_equivalence_id": (
+                        None
+                        if semantic_question_equivalence is None
+                        else semantic_question_equivalence.identity
+                    ),
+                    "semantic_question_lineage": (
+                        None
+                        if semantic_question_lineage is None
+                        else semantic_question_lineage.to_identity_payload()
+                    ),
+                    "semantic_question_lineage_id": (
+                        None
+                        if semantic_question_lineage is None
+                        else semantic_question_lineage.identity
+                    ),
                     "prior_global_multiplicity": prior_global_multiplicity,
                     "prior_material_trial_count": prior_material_trial_count,
                     "semantic_warning_ids": [
@@ -6221,9 +6323,77 @@ class StateWriter:
                     ),
                 },
             )
-            return body, [consumption, record], {
+            semantic_records: list[IndexRecord] = []
+            from axiom_rift.operations.semantic_question_registry import (
+                SemanticQuestionRegistryError,
+                SemanticQuestionRegistryIntegrityError,
+                require_repeated_core_lineage,
+                require_semantic_question_projection,
+                require_semantic_question_registry_activation,
+                semantic_question_prospective_equivalence_record,
+                semantic_question_prospective_lineage_record,
+                semantic_question_records_for_study,
+            )
+
+            try:
+                registry_active = (
+                    require_semantic_question_registry_activation(_index)
+                    is not None
+                )
+                if registry_active:
+                    require_repeated_core_lineage(
+                        _index,
+                        successor_study_id=study_id,
+                        successor_core_id=semantic_question_core.identity,
+                        proposal=semantic_question_lineage,
+                    )
+                    for projected in semantic_question_records_for_study(record):
+                        pending = require_semantic_question_projection(
+                            _index, projected
+                        )
+                        if pending is not None:
+                            semantic_records.append(pending)
+                    equivalence_record = None
+                    if semantic_question_equivalence is not None:
+                        equivalence_record = (
+                            semantic_question_prospective_equivalence_record(
+                                _index,
+                                record,
+                                semantic_question_equivalence,
+                            )
+                        )
+                        pending = require_semantic_question_projection(
+                            _index, equivalence_record
+                        )
+                        if pending is not None:
+                            semantic_records.append(pending)
+                    if semantic_question_lineage is not None:
+                        lineage_record = (
+                            semantic_question_prospective_lineage_record(
+                                _index,
+                                record,
+                                semantic_question_lineage,
+                                equivalence_record=equivalence_record,
+                            )
+                        )
+                        pending = require_semantic_question_projection(
+                            _index, lineage_record
+                        )
+                        if pending is not None:
+                            semantic_records.append(pending)
+            except SemanticQuestionRegistryIntegrityError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except SemanticQuestionRegistryError as exc:
+                raise TransitionError(str(exc)) from exc
+            return body, [consumption, record, *semantic_records], {
                 "study_id": study_id,
                 "study_hash": study_hash,
+                "semantic_question_core_id": semantic_question_core.identity,
+                "semantic_question_lineage_id": (
+                    None
+                    if semantic_question_lineage is None
+                    else semantic_question_lineage.identity
+                ),
                 "controlled_chassis_identity": (
                     None
                     if controlled_chassis is None
@@ -6246,6 +6416,17 @@ class StateWriter:
                 "portfolio_decision_id": portfolio_decision_id,
                 "study_hash": study_hash,
                 "permit_id": permit.permit_id,
+                "semantic_question_core_id": semantic_question_core.identity,
+                "semantic_question_equivalence_id": (
+                    None
+                    if semantic_question_equivalence is None
+                    else semantic_question_equivalence.identity
+                ),
+                "semantic_question_lineage_id": (
+                    None
+                    if semantic_question_lineage is None
+                    else semantic_question_lineage.identity
+                ),
             },
             prepare=prepare,
         )
@@ -9954,6 +10135,27 @@ class StateWriter:
                 },
             )
             records = [record]
+            from axiom_rift.operations.semantic_question_registry import (
+                SemanticQuestionRegistryError,
+                SemanticQuestionRegistryIntegrityError,
+                require_semantic_question_registry_activation,
+                semantic_question_lineage_resolution_records,
+            )
+
+            try:
+                if (
+                    require_semantic_question_registry_activation(_index)
+                    is not None
+                ):
+                    records.extend(
+                        semantic_question_lineage_resolution_records(
+                            _index, record
+                        )
+                    )
+            except SemanticQuestionRegistryIntegrityError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except SemanticQuestionRegistryError as exc:
+                raise TransitionError(str(exc)) from exc
             if kpi_payload is not None:
                 kpi_fingerprint = _digest(kpi_payload, domain="study-kpi")
                 records.append(
@@ -12990,6 +13192,292 @@ class StateWriter:
         ):
             raise RecordCollisionError("Executable semantic surface projection collision")
         return None
+
+    def backfill_semantic_question_registry(
+        self,
+        *,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Bind every historical Study to one exact question core, without credit."""
+
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            science = current["scientific"]
+            if any(
+                science[name] is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_holdout_evaluation",
+                    "active_job",
+                    "active_release",
+                    "active_repair",
+                    "active_study",
+                )
+            ):
+                raise TransitionError(
+                    "Semantic question backfill requires a stable scientific boundary"
+                )
+            from axiom_rift.operations.semantic_question_registry import (
+                SemanticQuestionRegistryError,
+                SemanticQuestionRegistryIntegrityError,
+                backfill_semantic_question_records,
+                require_semantic_question_projection,
+                semantic_question_registry_activation_record,
+            )
+
+            try:
+                study_opens = index.records_by_kind("study-open")
+                projections = backfill_semantic_question_records(study_opens)
+                core_count = sum(
+                    record.kind == "semantic-question-core"
+                    for record in projections
+                )
+                binding_count = sum(
+                    record.kind == "semantic-question-study"
+                    for record in projections
+                )
+                if binding_count != len(study_opens):
+                    raise SemanticQuestionRegistryIntegrityError(
+                        "semantic question backfill lost a Study binding"
+                    )
+                activation = semantic_question_registry_activation_record(
+                    operation_id=operation_id,
+                    study_count=binding_count,
+                    core_count=core_count,
+                )
+                records: list[IndexRecord] = []
+                for projection in (*projections, activation):
+                    pending = require_semantic_question_projection(
+                        index, projection
+                    )
+                    if pending is not None:
+                        records.append(pending)
+            except SemanticQuestionRegistryIntegrityError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except SemanticQuestionRegistryError as exc:
+                raise TransitionError(str(exc)) from exc
+            return self._body(current), records, {
+                "claim": science["claim"],
+                "core_count": core_count,
+                "holdout_delta": 0,
+                "projected_record_count": len(records),
+                "study_binding_count": binding_count,
+                "trial_delta": 0,
+            }
+
+        return self._commit(
+            event_kind="semantic_question_registry_backfilled",
+            operation_id=operation_id,
+            subject="ProjectGoal:OPERATING_DIRECTION.md",
+            payload={
+                "claim_delta": "none",
+                "holdout_delta": 0,
+                "trial_delta": 0,
+            },
+            prepare=prepare,
+        )
+
+    def record_semantic_question_corrections(
+        self,
+        *,
+        equivalence_proposals: Sequence[Any],
+        lineage_proposals: Sequence[Any],
+        review_artifact_hash: str,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Add expert-reviewed historical lineage without rewriting verdicts."""
+
+        self._require_study_close_delivery_guard()
+        _require_digest(
+            "semantic question review artifact",
+            review_artifact_hash,
+        )
+        if not self.engineering_fixture:
+            self.evidence.verify(review_artifact_hash)
+        from axiom_rift.research.semantic_question import (
+            SemanticQuestionEquivalenceProposal,
+            SemanticQuestionLineageProposal,
+        )
+
+        if (
+            not isinstance(equivalence_proposals, (list, tuple))
+            or any(
+                not isinstance(item, SemanticQuestionEquivalenceProposal)
+                for item in equivalence_proposals
+            )
+            or not isinstance(lineage_proposals, (list, tuple))
+            or not lineage_proposals
+            or any(
+                not isinstance(item, SemanticQuestionLineageProposal)
+                for item in lineage_proposals
+            )
+        ):
+            raise TransitionError(
+                "semantic question corrections require typed proposal sequences"
+            )
+        if len({item.identity for item in equivalence_proposals}) != len(
+            equivalence_proposals
+        ) or len({item.identity for item in lineage_proposals}) != len(
+            lineage_proposals
+        ):
+            raise TransitionError(
+                "semantic question correction proposals must be unique"
+            )
+        if len({item.successor_study_id for item in lineage_proposals}) != len(
+            lineage_proposals
+        ):
+            raise TransitionError(
+                "one correction event may record only one incoming edge per Study"
+            )
+        equivalence_ids = tuple(
+            sorted(item.identity for item in equivalence_proposals)
+        )
+        lineage_ids = tuple(sorted(item.identity for item in lineage_proposals))
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError("control is absent")
+            science = current["scientific"]
+            if any(
+                science[name] is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_holdout_evaluation",
+                    "active_job",
+                    "active_release",
+                    "active_repair",
+                    "active_study",
+                )
+            ):
+                raise TransitionError(
+                    "Semantic question correction requires a stable scientific boundary"
+                )
+            from axiom_rift.operations.semantic_question_registry import (
+                SemanticQuestionRegistryError,
+                SemanticQuestionRegistryIntegrityError,
+                require_semantic_question_projection,
+                require_semantic_question_registry_activation,
+                semantic_question_equivalence_record,
+                semantic_question_lineage_record,
+            )
+
+            try:
+                if require_semantic_question_registry_activation(index) is None:
+                    raise SemanticQuestionRegistryError(
+                        "semantic question registry is not active"
+                    )
+                if not self.engineering_fixture:
+                    protocol_head = index.event_head(
+                        "research-protocol:scientific"
+                    )
+                    protocol = (
+                        None
+                        if protocol_head is None
+                        else index.get(
+                            protocol_head.record_kind,
+                            protocol_head.record_id,
+                        )
+                    )
+                    if (
+                        protocol is None
+                        or protocol.kind != "research-protocol-activation"
+                        or protocol.status != "active"
+                        or protocol.event_sequence != protocol_head.sequence
+                        or protocol.payload.get("authority_manifest_digest")
+                        != current["authority"]["manifest_digest"]
+                    ):
+                        raise RecoveryRequired(
+                            "semantic question review lacks the active protocol"
+                        )
+                    if (
+                        protocol.payload.get("audit_artifact_hash")
+                        != review_artifact_hash
+                    ):
+                        raise SemanticQuestionRegistryError(
+                            "semantic question review artifact differs from the active protocol"
+                        )
+                records: list[IndexRecord] = []
+                accepted_equivalences: dict[str, IndexRecord] = {}
+                for proposal in equivalence_proposals:
+                    projected = semantic_question_equivalence_record(
+                        index, proposal
+                    )
+                    pending = require_semantic_question_projection(
+                        index, projected
+                    )
+                    accepted_equivalences[proposal.identity] = (
+                        projected
+                        if pending is not None
+                        else index.get(projected.kind, projected.record_id)
+                    )  # type: ignore[assignment]
+                    if accepted_equivalences[proposal.identity] is None:
+                        raise SemanticQuestionRegistryIntegrityError(
+                            "accepted semantic question equivalence disappeared"
+                        )
+                    if pending is not None:
+                        records.append(pending)
+                for proposal in lineage_proposals:
+                    accepted = None
+                    equivalence_id = proposal.equivalence_proposal_id
+                    if equivalence_id is not None:
+                        accepted = accepted_equivalences.get(equivalence_id)
+                        if accepted is None:
+                            matches = tuple(
+                                record
+                                for record in index.records_by_fingerprint(
+                                    equivalence_id
+                                )
+                                if record.kind
+                                == "semantic-question-equivalence"
+                            )
+                            if len(matches) != 1:
+                                raise SemanticQuestionRegistryError(
+                                    "lineage equivalence is unavailable or ambiguous"
+                                )
+                            accepted = matches[0]
+                    projected = semantic_question_lineage_record(
+                        index,
+                        proposal,
+                        equivalence_record=accepted,
+                    )
+                    pending = require_semantic_question_projection(
+                        index, projected
+                    )
+                    if pending is not None:
+                        records.append(pending)
+            except SemanticQuestionRegistryIntegrityError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except SemanticQuestionRegistryError as exc:
+                raise TransitionError(str(exc)) from exc
+            return self._body(current), records, {
+                "claim": science["claim"],
+                "equivalence_count": len(equivalence_proposals),
+                "holdout_delta": 0,
+                "lineage_count": len(lineage_proposals),
+                "projected_record_count": len(records),
+                "review_artifact_hash": review_artifact_hash,
+                "trial_delta": 0,
+            }
+
+        return self._commit(
+            event_kind="semantic_question_corrections_recorded",
+            operation_id=operation_id,
+            subject="ProjectGoal:OPERATING_DIRECTION.md",
+            payload={
+                "claim_delta": "none",
+                "equivalence_proposal_ids": list(equivalence_ids),
+                "holdout_delta": 0,
+                "lineage_proposal_ids": list(lineage_ids),
+                "review_artifact_hash": review_artifact_hash,
+                "trial_delta": 0,
+            },
+            prepare=prepare,
+        )
 
     def backfill_executable_semantic_surfaces(
         self,

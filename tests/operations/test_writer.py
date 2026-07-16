@@ -9620,6 +9620,7 @@ class ScientificLifecycleTests(unittest.TestCase):
                 study_id="STU-CONTINUATION",
                 study_hash=opened.result["study_hash"],
                 max_compute_seconds=90,
+                max_trials=1,
             )
             first_permit = writer.issue_permit(
                 kind=PermitKind.BATCH,
@@ -9687,7 +9688,7 @@ class ScientificLifecycleTests(unittest.TestCase):
                 disposition="continue_batch",
             )
             writer.dispose_batch(
-                outcome="stopped_early",
+                outcome="budget_exhausted",
                 operation_id="continuation-first-close",
             )
             second_batch = batch_spec(
