@@ -8,6 +8,7 @@ from unittest.mock import MagicMock, Mock, patch
 
 import axiom_rift.research.volatility_duration_replay_profile as profile_module
 from axiom_rift.operations.fixed_hold_replay_workflow import (
+    ReplayAxisAdmission,
     ReplayInitiativeLifecycle,
 )
 from axiom_rift.research.semantic_question import SemanticQuestionRelation
@@ -44,7 +45,16 @@ class P0Stu0051CompletedBarProfileTests(unittest.TestCase):
         )
         self.assertEqual((spec.mission_id, spec.initiative_id), ("MIS-0006", "INI-0025"))
         self.assertEqual((spec.study_id, spec.batch_display_id), ("STU-0113", "BAT-0113"))
-        self.assertEqual(spec.boundary.sequence, 5392)
+        self.assertIs(spec.axis_admission, ReplayAxisAdmission.REVISE_PROTOCOL)
+        self.assertEqual(spec.boundary.sequence, 5394)
+        self.assertEqual(
+            spec.boundary.event_id,
+            "cf68a2c0a29b78ea6f52a8fce3b859b1dd5068347b1701b7ee0e981cd92c9bbf",
+        )
+        self.assertEqual(
+            spec.operation_prefix,
+            "p0-stu0051-completed-bar-replay-v2-",
+        )
         self.assertEqual(self.runner.HISTORICAL_CONTEXT_COUNT, 626)
         self.assertEqual(
             lineage.relation,

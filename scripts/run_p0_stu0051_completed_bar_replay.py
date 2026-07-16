@@ -66,9 +66,9 @@ PREDECESSOR_CORE_ID = (
 PREDECESSOR_CLOSE_RECORD_ID = (
     "225ce0ee1d3d504b58553a03171f6d1b4076cdada29e279230bbdbe9cd0d76a8"
 )
-PREDECESSOR_REVISION = 5392
+PREDECESSOR_REVISION = 5394
 PREDECESSOR_EVENT_ID = (
-    "4ef799d5a98024918e436e20f6bf0201ad76b2a167a3b0110350124fa73ac929"
+    "cf68a2c0a29b78ea6f52a8fce3b859b1dd5068347b1701b7ee0e981cd92c9bbf"
 )
 PERMIT_EXPIRY_UTC = "2027-12-31T23:59:59Z"
 
@@ -85,8 +85,8 @@ def mission_spec() -> FixedHoldReplayMissionSpec:
         batch_display_id=BATCH_DISPLAY_ID,
         axis_id="axis-stu0051-volatility-duration-replay-bridge",
         bridge_axis_id="axis-stu0051-volatility-duration-replay-bridge",
-        operation_prefix="p0-stu0051-completed-bar-replay-v1-",
-        decision_prefix="DEC-P0-STU0051-COMPLETED-BAR-V1",
+        operation_prefix="p0-stu0051-completed-bar-replay-v2-",
+        decision_prefix="DEC-P0-STU0051-COMPLETED-BAR-V2",
         target_obligation_id=TARGET_OBLIGATION_ID,
         original_study_id="STU-0051",
         job_protocol=JOB_IMPLEMENTATION_PROTOCOL,
