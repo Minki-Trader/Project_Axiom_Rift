@@ -2650,6 +2650,42 @@ def _study_permit(
     )
 
 
+def _permit_issue_transition(
+    writer: StateWriter,
+    *,
+    operation_id: str,
+    permit: Permit,
+) -> TransitionResult:
+    """Authenticate one just-issued Permit as its exact Writer transition."""
+
+    with writer.open_stable_index() as (control, index):
+        operation = index.get("operation", operation_id)
+        result = (
+            None
+            if operation is None
+            else operation.payload.get("result")
+        )
+        head = control.get("heads", {}).get("journal", {})
+        if (
+            operation is None
+            or operation.status != "success"
+            or operation.payload.get("event_kind") != "permit_issued"
+            or not isinstance(result, Mapping)
+            or result.get("permit") != permit.payload()
+            or type(operation.authority_sequence) is not int
+            or not isinstance(operation.authority_event_id, str)
+            or head.get("sequence") != operation.authority_sequence
+            or head.get("event_id") != operation.authority_event_id
+        ):
+            raise RuntimeError("replay Permit transition projection is invalid")
+    return TransitionResult(
+        event_id=operation.authority_event_id,
+        revision=operation.authority_sequence,
+        reused=False,
+        result=dict(result),
+    )
+
+
 def fixed_hold_replay_study_input_hash(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
@@ -2753,7 +2789,12 @@ def _apply_study_close_step(
             operation_id=operation_id,
         )
     if operation_id == prefix + "study-permit":
-        return _study_permit(writer, design)
+        permit = _study_permit(writer, design)
+        return _permit_issue_transition(
+            writer,
+            operation_id=operation_id,
+            permit=permit,
+        )
     if operation_id == prefix + "open-study":
         return writer.open_study(
             study_id=spec.study_id,
@@ -2770,7 +2811,7 @@ def _apply_study_close_step(
             operation_id=operation_id,
         )
     if operation_id == prefix + "batch-permit":
-        return writer.issue_permit(
+        permit = writer.issue_permit(
             kind=PermitKind.BATCH,
             subject_kind=SubjectKind.STUDY,
             subject_id=spec.study_id,
@@ -2780,6 +2821,11 @@ def _apply_study_close_step(
             expires_at_utc=spec.permit_expiry_utc,
             one_shot=True,
             operation_id=operation_id,
+        )
+        return _permit_issue_transition(
+            writer,
+            operation_id=operation_id,
+            permit=permit,
         )
     if operation_id == prefix + "open-batch":
         return writer.open_batch(
@@ -2813,7 +2859,7 @@ def _apply_study_close_step(
             return result
         if operation_id == stem + "-job-permit":
             declaration = _operation_result(writer, stem + "-declare-job")
-            return writer.issue_permit(
+            permit = writer.issue_permit(
                 kind=PermitKind.JOB,
                 subject_kind=SubjectKind.JOB,
                 subject_id=declaration["job_id"],
@@ -2823,6 +2869,11 @@ def _apply_study_close_step(
                 expires_at_utc=spec.permit_expiry_utc,
                 one_shot=True,
                 operation_id=operation_id,
+            )
+            return _permit_issue_transition(
+                writer,
+                operation_id=operation_id,
+                permit=permit,
             )
         if operation_id == stem + "-start-job":
             return writer.start_job(

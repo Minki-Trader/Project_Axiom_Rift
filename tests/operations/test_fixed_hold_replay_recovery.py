@@ -67,6 +67,96 @@ def _operation(suffix: str, event_kind: str, sequence: int, result: dict):
 
 
 class FixedHoldReplayRecoveryTests(unittest.TestCase):
+    def test_permit_issue_is_rebound_to_exact_writer_transition(self) -> None:
+        payload = {"permit_id": "a" * 64}
+        permit = SimpleNamespace(payload=Mock(return_value=payload))
+        operation = _operation(
+            "study-permit",
+            "permit_issued",
+            101,
+            {"permit": payload},
+        )
+        index = SimpleNamespace(get=Mock(return_value=operation))
+        control = {
+            "heads": {
+                "journal": {
+                    "event_id": operation.authority_event_id,
+                    "sequence": operation.authority_sequence,
+                }
+            }
+        }
+        writer = SimpleNamespace(
+            open_stable_index=Mock(return_value=_Snapshot(control, index))
+        )
+
+        transition = workflow._permit_issue_transition(
+            writer,
+            operation_id=PREFIX + "study-permit",
+            permit=permit,
+        )
+
+        self.assertEqual(transition.event_id, operation.authority_event_id)
+        self.assertEqual(transition.revision, operation.authority_sequence)
+        self.assertFalse(transition.reused)
+        self.assertEqual(transition.result, {"permit": payload})
+
+        attacked = {
+            "heads": {
+                "journal": {
+                    "event_id": "f" * 64,
+                    "sequence": operation.authority_sequence,
+                }
+            }
+        }
+        writer.open_stable_index.return_value = _Snapshot(attacked, index)
+        with self.assertRaisesRegex(RuntimeError, "Permit transition"):
+            workflow._permit_issue_transition(
+                writer,
+                operation_id=PREFIX + "study-permit",
+                permit=permit,
+            )
+
+    def test_study_permit_step_returns_authenticated_transition(self) -> None:
+        permit = object()
+        transition = workflow.TransitionResult(
+            event_id="1" * 64,
+            revision=101,
+            reused=False,
+            result={"permit": {}},
+        )
+        design = SimpleNamespace(
+            members=(),
+            spec=SimpleNamespace(operation_prefix=PREFIX),
+        )
+        writer = object()
+        with (
+            patch.object(workflow, "_study_permit", return_value=permit),
+            patch.object(
+                workflow,
+                "_permit_issue_transition",
+                return_value=transition,
+            ) as bind,
+        ):
+            observed = workflow._apply_study_close_step(
+                writer,
+                design=design,
+                step=OperationStep(
+                    PREFIX + "study-permit",
+                    "permit_issued",
+                    STUDY_CLOSE_STAGE,
+                ),
+                repository_root=Path.cwd(),
+                job_runner=Mock(),
+                job_implementation_materializer=Mock(),
+            )
+
+        self.assertIs(observed, transition)
+        bind.assert_called_once_with(
+            writer,
+            operation_id=PREFIX + "study-permit",
+            permit=permit,
+        )
+
     def test_diagnosis_replans_at_diagnosis_and_resolution_handoffs(self) -> None:
         close_event_id = "1" * 64
         initial_steps = (
