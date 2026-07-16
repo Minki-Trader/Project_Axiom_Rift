@@ -134,8 +134,23 @@ def _put_authenticated_satisfaction(
     )
 
 
-def _adjudication_payload(token: int) -> dict[str, object]:
+def _historical_executable_payload(
+    token: int,
+    source_contract_ids: tuple[str, ...] = (),
+) -> dict[str, object]:
+    return {
+        "schema": "effective_axis_original_fixture.v1",
+        "source_contracts": list(source_contract_ids),
+        "token": token,
+    }
+
+
+def _adjudication_payload(
+    token: int,
+    source_contract_ids: tuple[str, ...] = (),
+) -> dict[str, object]:
     criterion_id = f"criterion-{token}"
+    executable = _historical_executable_payload(token, source_contract_ids)
     return {
         "adjudication": {
             "candidate_eligible": False,
@@ -154,7 +169,8 @@ def _adjudication_payload(token: int) -> dict[str, object]:
         "audit_artifact_hash": f"{token + 10:064x}",
         "completion_record_id": f"{token + 20:064x}",
         "disposition": "replay_required",
-        "executable_id": f"executable:{token + 30:064x}",
+        "executable_id": "executable:"
+        + canonical_digest(domain="executable", payload=executable),
         "measurement_artifact_hash": f"{token + 40:064x}",
         "reason_codes": ["missing_exact_uncertainty"],
         "replay_priority": ReplayPriority.P1.value,
@@ -233,8 +249,11 @@ def _seed_obligation(
     axis: dict[str, str],
     source_contract_ids: tuple[str, ...] = (),
     study_axis_identity: str | None = None,
+    trial_study_id: str | None = None,
+    trial_axis: dict[str, str] | None = None,
+    declared_executable_id: str | None = None,
 ):
-    payload = _adjudication_payload(token)
+    payload = _adjudication_payload(token, source_contract_ids)
     obligation = derive_historical_replay_obligation(
         governing_mission_id=MISSION_ID,
         historical_adjudication_id=f"historical-adjudication:{token:064x}",
@@ -246,6 +265,35 @@ def _seed_obligation(
         axis["axis_identity"]
         if study_axis_identity is None
         else study_axis_identity
+    )
+    registration_study_id = (
+        obligation.original_study_id
+        if trial_study_id is None
+        else trial_study_id
+    )
+    registration_axis = axis if trial_axis is None else trial_axis
+    declaration_executable_id = (
+        obligation.original_executable_id
+        if declared_executable_id is None
+        else declared_executable_id
+    )
+    registration_study_records = (
+        ()
+        if registration_study_id == obligation.original_study_id
+        else (
+            IndexRecord(
+                kind="study-open",
+                record_id=registration_study_id,
+                subject=f"Study:{registration_study_id}",
+                status="open",
+                fingerprint=f"{token + 81:064x}",
+                payload={
+                    "mission_id": historical_mission_id,
+                    "portfolio_axis_id": registration_axis["axis_id"],
+                    "portfolio_axis_identity": registration_axis["axis_identity"],
+                },
+            ),
+        )
     )
     index.put_many(
         (
@@ -261,6 +309,7 @@ def _seed_obligation(
                     "portfolio_axis_identity": effective_study_axis,
                 },
             ),
+            *registration_study_records,
             IndexRecord(
                 kind="trial",
                 record_id=obligation.original_executable_id,
@@ -270,14 +319,13 @@ def _seed_obligation(
                     "executable:"
                 ),
                 payload={
-                    "executable": {
-                        "schema": "effective_axis_original_fixture.v1",
-                        "source_contracts": list(source_contract_ids),
-                    },
+                    "executable": _historical_executable_payload(
+                        token, source_contract_ids
+                    ),
                     "mission_id": historical_mission_id,
-                    "portfolio_axis_id": axis["axis_id"],
-                    "portfolio_axis_identity": axis["axis_identity"],
-                    "study_id": obligation.original_study_id,
+                    "portfolio_axis_id": registration_axis["axis_id"],
+                    "portfolio_axis_identity": registration_axis["axis_identity"],
+                    "study_id": registration_study_id,
                 },
             ),
             IndexRecord(
@@ -290,7 +338,7 @@ def _seed_obligation(
                     "mission_id": historical_mission_id,
                     "spec": {
                         "evidence_subject": {
-                            "id": obligation.original_executable_id,
+                            "id": declaration_executable_id,
                             "kind": "Executable",
                         }
                     },
@@ -364,6 +412,9 @@ def _seed_replay_execution(
         "schema": "effective_axis_replay_fixture.v1",
         "source_contracts": [],
     }
+    replay_executable_id = "executable:" + canonical_digest(
+        domain="executable", payload=executable
+    )
     decision = IndexRecord(
         kind="portfolio-decision",
         record_id=decision_id,
@@ -372,6 +423,7 @@ def _seed_replay_execution(
         fingerprint=decision_id.removeprefix("decision:"),
         payload={
             "baseline_executable": executable,
+            "baseline_executable_id": replay_executable_id,
             "replay_obligation_ids": [obligation.identity],
             "target_axis_identity": replay_axis["axis_identity"],
         },
@@ -570,6 +622,9 @@ def _satisfy_audit_only_replay(
         "schema": "effective_axis_audit_fixture.v1",
         "source_contracts": [],
     }
+    executable_id = "executable:" + canonical_digest(
+        domain="executable", payload=executable
+    )
     completion_id = f"{token + 220:064x}"
     close_id = f"{token + 221:064x}"
     diagnosis_id = f"diagnosis:{token + 222:064x}"
@@ -582,6 +637,7 @@ def _satisfy_audit_only_replay(
         fingerprint=decision_id.removeprefix("decision:"),
         payload={
             "baseline_executable": executable,
+            "baseline_executable_id": executable_id,
             "replay_obligation_ids": [obligation.identity],
             "target_axis_identity": replay_axis["axis_identity"],
         },
@@ -776,6 +832,7 @@ class EffectiveAxisProjectionTests(unittest.TestCase):
                             fingerprint="9" * 64,
                             payload={
                                 "baseline_executable": payload,
+                                "baseline_executable_id": eligibility_only.identity,
                                 "target_axis_identity": axis["axis_identity"],
                             },
                         ),
@@ -1000,6 +1057,15 @@ class EffectiveAxisProjectionTests(unittest.TestCase):
                                 "baseline_executable": {
                                     "source_contracts": [invalid_source]
                                 },
+                                "baseline_executable_id": (
+                                    "executable:"
+                                    + canonical_digest(
+                                        domain="executable",
+                                        payload={
+                                            "source_contracts": [invalid_source]
+                                        },
+                                    )
+                                ),
                                 "target_axis_identity": old_axis["axis_identity"],
                             },
                         ),
@@ -1654,6 +1720,64 @@ class EffectiveAxisProjectionTests(unittest.TestCase):
                 with self.assertRaisesRegex(
                     EffectiveAxisProjectionError,
                     "trial-to-Study-to-axis lineage",
+                ):
+                    audit_effective_axis_projection(index)
+
+    def test_reused_executable_binds_replay_to_completion_study_axis(self) -> None:
+        registration_axis = _axis("7")
+        completion_axis = _axis("8")
+        with TemporaryDirectory() as temporary:
+            with LocalIndex(Path(temporary) / "index.sqlite3") as index:
+                obligation = _seed_obligation(
+                    index,
+                    token=31,
+                    axis=completion_axis,
+                    trial_study_id="STU-PRIOR-REGISTRATION",
+                    trial_axis=registration_axis,
+                )
+                completion_resolution = effective_axis_resolution(
+                    index, completion_axis
+                )
+                registration_resolution = effective_axis_resolution(
+                    index, registration_axis
+                )
+                self.assertIs(
+                    completion_resolution.effective_status,
+                    EffectiveAxisStatus.BLOCKED_BY_REPLAY_OBLIGATION,
+                )
+                self.assertEqual(
+                    completion_resolution.blocking_replay_obligation_ids,
+                    (obligation.identity,),
+                )
+                self.assertTrue(registration_resolution.selectable)
+                bindings = effective_replay_axis_bindings(index)
+                self.assertEqual(len(bindings), 1)
+                self.assertEqual(
+                    bindings[0].axis_identity,
+                    completion_axis["axis_identity"],
+                )
+                self.assertEqual(
+                    bindings[0].original_study_id,
+                    obligation.original_study_id,
+                )
+                audit_effective_axis_projection(index)
+
+    def test_reused_completion_with_wrong_declared_executable_fails_closed(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temporary:
+            with LocalIndex(Path(temporary) / "index.sqlite3") as index:
+                _seed_obligation(
+                    index,
+                    token=32,
+                    axis=_axis("8"),
+                    trial_study_id="STU-PRIOR-REGISTRATION",
+                    trial_axis=_axis("7"),
+                    declared_executable_id="executable:" + "f" * 64,
+                )
+                with self.assertRaisesRegex(
+                    EffectiveAxisProjectionError,
+                    "lineage",
                 ):
                     audit_effective_axis_projection(index)
 

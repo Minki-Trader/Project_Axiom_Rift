@@ -9,6 +9,12 @@ from axiom_rift.operations.evidence_scope_projection import (
     EvidenceScopeProjectionError,
     effective_completion_evidence_scope,
 )
+from axiom_rift.operations.executable_axis_lineage import (
+    ExecutableAxisLineageError,
+    completion_executable_axis_lineage,
+    holdout_completion_executable_lineage,
+    registered_executable_axis_lineage,
+)
 from axiom_rift.operations.historical_cost_semantics_reader import (
     HistoricalCostSemanticsProjectionError,
     effective_historical_negative_memory_cost_authority,
@@ -74,40 +80,6 @@ def _ascii_list(name: str, value: object) -> tuple[str, ...]:
     return tuple(sorted(value))
 
 
-def _require_trial_binding(
-    index: LocalIndex,
-    *,
-    executable_id: object,
-    mission_id: str,
-    axis_id: str,
-    axis_identity: str,
-) -> tuple[IndexRecord, str]:
-    if type(executable_id) is not str:
-        raise AxisDispositionEvidenceError("axis evidence executable is absent")
-    trial = index.get("trial", executable_id)
-    study_id = None if trial is None else trial.payload.get("study_id")
-    study = (
-        None
-        if not isinstance(study_id, str)
-        else index.get("study-open", study_id)
-    )
-    if (
-        trial is None
-        or trial.status != "evaluated"
-        or trial.payload.get("mission_id") != mission_id
-        or trial.payload.get("portfolio_axis_id") != axis_id
-        or trial.payload.get("portfolio_axis_identity") != axis_identity
-        or study is None
-        or study.payload.get("mission_id") != mission_id
-        or study.payload.get("portfolio_axis_id") != axis_id
-        or study.payload.get("portfolio_axis_identity") != axis_identity
-    ):
-        raise AxisDispositionEvidenceError(
-            "axis evidence trial is stale or belongs to another axis"
-        )
-    return trial, study_id
-
-
 def _state_from_adjudication(value: Mapping[str, Any]) -> AxisEvidenceState:
     state = value.get("state")
     invalid_metrics = value.get("invalid_metrics")
@@ -160,23 +132,17 @@ def _job_completion_binding(
         raise AxisDispositionEvidenceError(
             "axis Job completion lacks current rich scientific authority"
         )
-    executable_id = scientific.get("executable_id")
-    _, study_id = _require_trial_binding(
-        index,
-        executable_id=executable_id,
-        mission_id=mission_id,
-        axis_id=axis_id,
-        axis_identity=axis_identity,
-    )
-    spec = declaration.payload.get("spec")
+    try:
+        lineage = completion_executable_axis_lineage(index, completion)
+    except ExecutableAxisLineageError as exc:
+        raise AxisDispositionEvidenceError(str(exc)) from exc
     if (
-        declaration.payload.get("study_id") != study_id
-        or not isinstance(spec, dict)
-        or spec.get("evidence_subject")
-        != {"kind": "Executable", "id": executable_id}
+        lineage.mission_id != mission_id
+        or lineage.axis_id != axis_id
+        or lineage.axis_identity != axis_identity
     ):
         raise AxisDispositionEvidenceError(
-            "axis Job completion subject is not bound to its trial"
+            "axis Job completion subject is not bound to its declared Study axis"
         )
     state = _state_from_adjudication(adjudication)
     if (
@@ -187,8 +153,8 @@ def _job_completion_binding(
     return AxisEvidenceBinding(
         state=state,
         candidate_eligible=scope.candidate_eligible,
-        study_ids=(study_id,),
-        executable_ids=(executable_id,),
+        study_ids=(lineage.study_id,),
+        executable_ids=(lineage.executable_id,),
         evidence_modes=scope.evidence_modes,
     )
 
@@ -243,17 +209,18 @@ def _historical_adjudication_binding(
         raise AxisDispositionEvidenceError(
             "historical axis adjudication binds a zero-credit completion"
         )
-    _, study_id = _require_trial_binding(
-        index,
-        executable_id=executable_id,
-        mission_id=mission_id,
-        axis_id=axis_id,
-        axis_identity=axis_identity,
-    )
+    try:
+        lineage = completion_executable_axis_lineage(index, completion)
+    except ExecutableAxisLineageError as exc:
+        raise AxisDispositionEvidenceError(str(exc)) from exc
     scientific = completion.payload.get("scientific")
     if (
-        payload.get("study_id") != study_id
-        or declaration.payload.get("study_id") != study_id
+        lineage.mission_id != mission_id
+        or lineage.axis_id != axis_id
+        or lineage.axis_identity != axis_identity
+        or lineage.executable_id != executable_id
+        or payload.get("study_id") != lineage.study_id
+        or declaration.payload.get("study_id") != lineage.study_id
         or not isinstance(scientific, dict)
     ):
         raise AxisDispositionEvidenceError(
@@ -289,8 +256,8 @@ def _historical_adjudication_binding(
     return AxisEvidenceBinding(
         state=state,
         candidate_eligible=False,
-        study_ids=(study_id,),
-        executable_ids=(executable_id,),
+        study_ids=(lineage.study_id,),
+        executable_ids=(lineage.executable_id,),
         evidence_modes=scope.evidence_modes,
     )
 
@@ -311,24 +278,54 @@ def _negative_memory_binding(
     except HistoricalCostSemanticsProjectionError as exc:
         raise AxisDispositionEvidenceError(str(exc)) from exc
     executable_id = record.subject.removeprefix("Executable:")
-    _, study_id = _require_trial_binding(
-        index,
-        executable_id=executable_id,
-        mission_id=mission_id,
-        axis_id=axis_id,
-        axis_identity=axis_identity,
+    try:
+        registration = registered_executable_axis_lineage(index, executable_id)
+    except ExecutableAxisLineageError as exc:
+        raise AxisDispositionEvidenceError(str(exc)) from exc
+    registration_trial = index.get("trial", registration.executable_id)
+    registration_study = index.get("study-open", registration.study_id)
+    study_id = record.payload.get("study_id")
+    study = (
+        None
+        if not isinstance(study_id, str)
+        else index.get("study-open", study_id)
     )
     evidence_references = record.payload.get("evidence_references")
+    memory_holdout_id = record.payload.get("holdout_id")
     modes = _ascii_list(
         "negative-memory evidence modes",
         record.payload.get("executed_evidence_modes"),
     )
     if (
         record.status != "durable"
+        or registration.executable_id != executable_id
+        or registration.axis_id != axis_id
+        or registration.axis_identity != axis_identity
+        or registration_trial is None
+        or registration_study is None
+        or registration_trial.payload.get("portfolio_snapshot_id")
+        != registration_study.payload.get("portfolio_snapshot_id")
+        or registration_trial.payload.get("material_identity")
+        != registration_study.payload.get("material_identity")
         or record.payload.get("mission_id") != mission_id
-        or record.payload.get("study_id") != study_id
+        or study is None
+        or study.kind != "study-open"
+        or study.subject != f"Study:{study_id}"
+        or study.status not in {"open", "closed"}
+        or study.payload.get("portfolio_axis_id") != axis_id
+        or study.payload.get("portfolio_axis_identity") != axis_identity
+        or study.payload.get("material_identity")
+        != registration_trial.payload.get("material_identity")
         or record.payload.get("portfolio_axis_id") != axis_id
         or record.payload.get("portfolio_axis_identity") != axis_identity
+        or (
+            memory_holdout_id is not None
+            and (
+                type(memory_holdout_id) is not str
+                or not memory_holdout_id
+                or not memory_holdout_id.isascii()
+            )
+        )
         or not isinstance(evidence_references, list)
         or not evidence_references
     ):
@@ -341,6 +338,8 @@ def _negative_memory_binding(
         if cost_authority is None
         else frozenset(cost_authority.affected_completion_ids)
     )
+    has_study_context_evidence = False
+    has_holdout_context_evidence = False
     for completion_id in evidence_references:
         completion = (
             None
@@ -351,6 +350,44 @@ def _negative_memory_binding(
             None if completion is None else completion.payload.get("scientific")
         )
         scope = None if completion is None else _effective_scope(index, completion)
+        job_id = None if completion is None else completion.payload.get("job_id")
+        declaration = (
+            None
+            if not isinstance(job_id, str)
+            else index.get("job-declared", job_id)
+        )
+        declared_study_id = (
+            None if declaration is None else declaration.payload.get("study_id")
+        )
+        lineage_valid = False
+        if isinstance(declared_study_id, str) and completion is not None:
+            try:
+                lineage = completion_executable_axis_lineage(index, completion)
+            except ExecutableAxisLineageError as exc:
+                raise AxisDispositionEvidenceError(str(exc)) from exc
+            lineage_valid = bool(
+                lineage.executable_id == executable_id
+                and lineage.mission_id == mission_id
+                and lineage.study_id == study_id
+                and lineage.axis_id == axis_id
+                and lineage.axis_identity == axis_identity
+            )
+            has_study_context_evidence = True
+        elif declared_study_id is None and completion is not None:
+            try:
+                holdout_lineage = holdout_completion_executable_lineage(
+                    index, completion
+                )
+            except ExecutableAxisLineageError as exc:
+                raise AxisDispositionEvidenceError(str(exc)) from exc
+            lineage_valid = bool(
+                holdout_lineage.executable_id == executable_id
+                and holdout_lineage.mission_id == mission_id
+                and type(memory_holdout_id) is str
+                and holdout_lineage.holdout_id == memory_holdout_id
+                and holdout_lineage.registration == registration
+            )
+            has_holdout_context_evidence = True
         if (
             completion is None
             or completion.status not in {"success", "failed"}
@@ -360,6 +397,7 @@ def _negative_memory_binding(
             or scientific.get("verdict") != "failed"
             or scope.candidate_eligible is not False
             or scientific.get("executable_id") != executable_id
+            or not lineage_valid
         ):
             raise AxisDispositionEvidenceError(
                 "negative memory lacks exact candidate-ineligible falsification"
@@ -378,6 +416,14 @@ def _negative_memory_binding(
                 "negative-memory completion evidence modes",
                 list(scope.evidence_modes),
             )
+        )
+    if not has_study_context_evidence and registration.study_id != study_id:
+        raise AxisDispositionEvidenceError(
+            "holdout-only negative memory changed its registration Study context"
+        )
+    if has_holdout_context_evidence != (memory_holdout_id is not None):
+        raise AxisDispositionEvidenceError(
+            "negative memory holdout context differs from its evidence"
         )
     expected_memory_modes = set(modes)
     if cost_authority is not None:
@@ -542,27 +588,39 @@ def required_axes_scientific_references(
         )
         if mission_targets is None:
             continue
-        executable_id = scientific.get("executable_id")
-        if not isinstance(executable_id, str):
+        declared_study_id = declaration.payload.get("study_id")
+        if declared_study_id is None:
+            try:
+                holdout_lineage = holdout_completion_executable_lineage(
+                    index, completion
+                )
+            except ExecutableAxisLineageError as exc:
+                raise AxisDispositionEvidenceError(str(exc)) from exc
+            if holdout_lineage.mission_id != completion_mission_id:
+                raise AxisDispositionEvidenceError(
+                    "Study-less scientific completion changed Mission authority"
+                )
+            # Holdout outcomes are consumed through candidate or negative-memory
+            # authority.  They do not acquire the registration Study's axis merely
+            # because the immutable Executable has one counted Trial there.
+            continue
+        if not isinstance(declared_study_id, str):
             raise AxisDispositionEvidenceError(
-                "scientific completion lacks its Executable"
+                "scientific completion Study binding is malformed"
             )
-        trial = index.get("trial", executable_id)
-        if trial is None:
-            raise AxisDispositionEvidenceError(
-                "scientific completion lacks its counted trial"
-            )
-        trial_axis_id = trial.payload.get("portfolio_axis_id")
-        trial_axis_identity = trial.payload.get("portfolio_axis_identity")
+        try:
+            lineage = completion_executable_axis_lineage(index, completion)
+        except ExecutableAxisLineageError as exc:
+            raise AxisDispositionEvidenceError(str(exc)) from exc
         matching_targets = (
             None
-            if not isinstance(trial_axis_id, str)
-            else mission_targets.get(trial_axis_id)
+            if not isinstance(lineage.axis_id, str)
+            else mission_targets.get(lineage.axis_id)
         )
         if matching_targets is None:
             continue
-        if trial.payload.get("mission_id") != completion_mission_id or any(
-            trial_axis_identity != target[2] for target in matching_targets
+        if lineage.mission_id != completion_mission_id or any(
+            lineage.axis_identity != target[2] for target in matching_targets
         ):
             raise AxisDispositionEvidenceError(
                 "scientific completion has stale Portfolio axis lineage"

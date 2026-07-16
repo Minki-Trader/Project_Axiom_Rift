@@ -89,6 +89,11 @@ from axiom_rift.operations.job_completion_projection import (
     JobCompletionProjectionIntegrityError,
     project_job_completion,
 )
+from axiom_rift.operations.executable_axis_lineage import (
+    ExecutableAxisLineageError,
+    completion_executable_axis_lineage,
+    holdout_completion_executable_lineage,
+)
 from axiom_rift.operations.observed_development_binding import (
     ObservedDevelopmentBindingError,
     scientific_observed_development_job_binding,
@@ -24350,24 +24355,49 @@ class StateWriter:
                 declaration = index.get(
                     "job-declared", completion.payload.get("job_id", "")
                 )
-                executable_id = scientific.get("executable_id")
-                trial = (
-                    None
-                    if not isinstance(executable_id, str)
-                    else index.get("trial", executable_id)
-                )
                 if (
                     declaration is None
                     or declaration.payload.get("mission_id")
                     != science["active_mission"]
-                    or trial is None
                 ):
                     continue
-                axis_id = trial.payload.get("portfolio_axis_id")
+                declared_study_id = declaration.payload.get("study_id")
+                if declared_study_id is None:
+                    try:
+                        holdout_lineage = holdout_completion_executable_lineage(
+                            index, completion
+                        )
+                    except ExecutableAxisLineageError as exc:
+                        raise TransitionError(
+                            "Study-less positive evidence has malformed holdout lineage"
+                        ) from exc
+                    if holdout_lineage.mission_id != science["active_mission"]:
+                        raise TransitionError(
+                            "Study-less positive evidence changed Mission authority"
+                        )
+                    # Candidate authority is frozen from the originating Study
+                    # evidence before holdout.  The Study-less holdout result is
+                    # consumed by that candidate stream and must not manufacture
+                    # a second axis completion or require a second disposition.
+                    continue
+                elif not isinstance(declared_study_id, str):
+                    raise TransitionError(
+                        "positive scientific evidence has malformed Study lineage"
+                    )
+                else:
+                    try:
+                        lineage = completion_executable_axis_lineage(
+                            index, completion
+                        )
+                    except ExecutableAxisLineageError as exc:
+                        raise TransitionError(
+                            "positive scientific evidence has malformed Portfolio lineage"
+                        ) from exc
+                    axis_id = lineage.axis_id
+                    axis_identity = lineage.axis_identity
                 if (
                     axis_id not in axes
-                    or trial.payload.get("portfolio_axis_identity")
-                    != axes[axis_id]["axis_identity"]
+                    or axis_identity != axes[axis_id]["axis_identity"]
                 ):
                     raise TransitionError(
                         "positive scientific evidence has stale Portfolio lineage"

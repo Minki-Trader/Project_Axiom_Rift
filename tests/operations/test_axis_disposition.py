@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
@@ -338,6 +340,39 @@ class AxisDispositionWriterTests(unittest.TestCase):
                 tag=f"negative-{ordinal}",
                 state="contradicted",
             )
+            if ordinal == 1:
+                registration_study_id = (
+                    "STU-DISPOSITION-NEGATIVE-PRIOR-REGISTRATION"
+                )
+                registration_axis = self.axes[2]
+                trial = negative[1]
+                negative[1] = replace(
+                    trial,
+                    payload={
+                        **trial.payload,
+                        "portfolio_axis_id": registration_axis.axis_id,
+                        "portfolio_axis_identity": registration_axis.identity,
+                        "study_id": registration_study_id,
+                    },
+                )
+                negative.append(
+                    IndexRecord(
+                        kind="study-open",
+                        record_id=registration_study_id,
+                        subject=f"Study:{registration_study_id}",
+                        status="closed",
+                        fingerprint=_digest(
+                            "axis-disposition-study",
+                            "negative-prior-registration",
+                        ),
+                        payload={
+                            "mission_id": self.mission_id,
+                            "portfolio_axis_id": registration_axis.axis_id,
+                            "portfolio_axis_identity": registration_axis.identity,
+                            "portfolio_snapshot_id": self.snapshot.identity,
+                        },
+                    )
+                )
             records.extend(negative)
             memory_id = "negative-memory:" + _digest(
                 "axis-disposition-negative-memory", str(ordinal)
@@ -774,6 +809,375 @@ class AxisDispositionWriterTests(unittest.TestCase):
                     for target in targets
                 },
             )
+
+    def test_cross_study_reuse_binds_completion_and_adjudication_to_declared_axis(
+        self,
+    ) -> None:
+        records, completion_id, executable_id, completion_study_id = (
+            self._job_records(
+                axis_index=1,
+                tag="cross-study-reuse",
+                state="unresolved",
+            )
+        )
+        registration_study_id = "STU-DISPOSITION-PRIOR-REGISTRATION"
+        registration_axis = self.axes[0]
+        trial = records[1]
+        records[1] = replace(
+            trial,
+            payload={
+                **trial.payload,
+                "portfolio_axis_id": registration_axis.axis_id,
+                "portfolio_axis_identity": registration_axis.identity,
+                "study_id": registration_study_id,
+            },
+        )
+        records.append(
+            IndexRecord(
+                kind="study-open",
+                record_id=registration_study_id,
+                subject=f"Study:{registration_study_id}",
+                status="closed",
+                fingerprint=_digest(
+                    "axis-disposition-study", "prior-registration"
+                ),
+                payload={
+                    "mission_id": self.mission_id,
+                    "portfolio_axis_id": registration_axis.axis_id,
+                    "portfolio_axis_identity": registration_axis.identity,
+                    "portfolio_snapshot_id": self.snapshot.identity,
+                },
+            )
+        )
+        historical_id = "historical-adjudication:" + _digest(
+            "axis-disposition-historical", "cross-study-reuse"
+        )
+        records.append(
+            IndexRecord(
+                kind="historical-scientific-adjudication",
+                record_id=historical_id,
+                subject=f"Study:{completion_study_id}",
+                status="unresolved_qualification",
+                fingerprint=historical_id.removeprefix(
+                    "historical-adjudication:"
+                ),
+                payload={
+                    "adjudication": {
+                        "candidate_eligible": False,
+                        "invalid_metrics": [],
+                        "state": "unresolved",
+                    },
+                    "completion_record_id": completion_id,
+                    "effective_state": "unresolved",
+                    "executable_id": executable_id,
+                    "schema": "historical_scientific_adjudication.v2",
+                    "study_id": completion_study_id,
+                    "validity_overrides": [],
+                },
+                event_stream=f"historical-adjudication:{completion_id}",
+                event_sequence=1,
+            )
+        )
+        with TemporaryDirectory() as temporary:
+            with LocalIndex(Path(temporary) / "index.sqlite3") as index:
+                index.put_many(records)
+                for reference in (
+                    AxisEvidenceReference(
+                        kind=AxisEvidenceKind.JOB_COMPLETION,
+                        record_id=completion_id,
+                    ),
+                    AxisEvidenceReference(
+                        kind=AxisEvidenceKind.HISTORICAL_ADJUDICATION,
+                        record_id=historical_id,
+                    ),
+                ):
+                    binding = derive_axis_evidence_binding(
+                        index,
+                        reference=reference,
+                        mission_id=self.mission_id,
+                        axis_id=self.axes[1].axis_id,
+                        axis_identity=self.axes[1].identity,
+                    )
+                    self.assertEqual(
+                        binding.study_ids, (completion_study_id,)
+                    )
+                    self.assertEqual(binding.executable_ids, (executable_id,))
+
+    def test_holdout_negative_memory_preserves_global_executable_reuse(
+        self,
+    ) -> None:
+        axis = self.axes[1]
+        executable_payload = {
+            "schema": "axis_disposition_holdout_fixture.v1",
+            "source_contracts": [],
+        }
+        executable_id = "executable:" + canonical_digest(
+            domain="executable", payload=executable_payload
+        )
+        registration_study_id = "STU-PRIOR-MISSION-HOLDOUT-REGISTRATION"
+        registration_mission_id = "MIS-PRIOR-HOLDOUT-REGISTRATION"
+        material_identity = "material:" + "a" * 64
+        snapshot_id = "portfolio:" + "b" * 64
+        job_id = "job:" + _digest("axis-disposition-job", "holdout")
+        completion_id = _digest("axis-disposition-completion", "holdout")
+        memory_id = "negative-memory:" + _digest(
+            "axis-disposition-negative-memory", "holdout"
+        )
+        holdout_id = "holdout:" + _digest(
+            "axis-disposition-holdout", "exact"
+        )
+
+        def records(declared_holdout_id: str) -> tuple[IndexRecord, ...]:
+            return (
+                IndexRecord(
+                    kind="study-open",
+                    record_id=registration_study_id,
+                    subject=f"Study:{registration_study_id}",
+                    status="closed",
+                    fingerprint=_digest(
+                        "axis-disposition-study", "holdout-registration"
+                    ),
+                    payload={
+                        "material_identity": material_identity,
+                        "mission_id": registration_mission_id,
+                        "portfolio_axis_id": axis.axis_id,
+                        "portfolio_axis_identity": axis.identity,
+                        "portfolio_snapshot_id": snapshot_id,
+                    },
+                ),
+                IndexRecord(
+                    kind="trial",
+                    record_id=executable_id,
+                    subject="Batch:BAT-HOLDOUT-REGISTRATION",
+                    status="evaluated",
+                    fingerprint=executable_id.removeprefix("executable:"),
+                    payload={
+                        "executable": executable_payload,
+                        "material_identity": material_identity,
+                        "mission_id": registration_mission_id,
+                        "portfolio_axis_id": axis.axis_id,
+                        "portfolio_axis_identity": axis.identity,
+                        "portfolio_snapshot_id": snapshot_id,
+                        "study_id": registration_study_id,
+                    },
+                ),
+                IndexRecord(
+                    kind="job-declared",
+                    record_id=job_id,
+                    subject=f"Job:{job_id}",
+                    status="declared",
+                    fingerprint=job_id.removeprefix("job:"),
+                    payload={
+                        "mission_id": self.mission_id,
+                        "study_id": None,
+                        "spec": {
+                            "evidence_subject": {
+                                "id": executable_id,
+                                "kind": "Executable",
+                            },
+                            "holdout_binding": {
+                                "holdout_id": declared_holdout_id
+                            },
+                        },
+                    },
+                ),
+                IndexRecord(
+                    kind="job-completed",
+                    record_id=completion_id,
+                    subject=f"Job:{job_id}",
+                    status="success",
+                    fingerprint=_digest(
+                        "axis-disposition-result", "holdout"
+                    ),
+                    payload={
+                        "job_id": job_id,
+                        "scientific": {
+                            "candidate_eligible": False,
+                            "executed_evidence_modes": list(MODES),
+                            "executable_id": executable_id,
+                            "scientific_eligible": True,
+                            "verdict": "failed",
+                        },
+                    },
+                ),
+                IndexRecord(
+                    kind="negative-memory",
+                    record_id=memory_id,
+                    subject=f"Executable:{executable_id}",
+                    status="durable",
+                    fingerprint=executable_id.removeprefix("executable:"),
+                    payload={
+                        "evidence_references": [completion_id],
+                        "executed_evidence_modes": list(MODES),
+                        "holdout_id": holdout_id,
+                        "mission_id": self.mission_id,
+                        "portfolio_axis_id": axis.axis_id,
+                        "portfolio_axis_identity": axis.identity,
+                        "portfolio_snapshot_id": snapshot_id,
+                        "study_id": registration_study_id,
+                    },
+                ),
+            )
+
+        reference = AxisEvidenceReference(
+            kind=AxisEvidenceKind.NEGATIVE_MEMORY,
+            record_id=memory_id,
+        )
+        with TemporaryDirectory() as temporary:
+            with LocalIndex(Path(temporary) / "index.sqlite3") as index:
+                index.put_many(records(holdout_id))
+                binding = derive_axis_evidence_binding(
+                    index,
+                    reference=reference,
+                    mission_id=self.mission_id,
+                    axis_id=axis.axis_id,
+                    axis_identity=axis.identity,
+                )
+                self.assertEqual(
+                    binding.study_ids, (registration_study_id,)
+                )
+                self.assertEqual(binding.executable_ids, (executable_id,))
+                self.assertEqual(
+                    required_axis_scientific_references(
+                        index,
+                        mission_id=self.mission_id,
+                        axis_id=axis.axis_id,
+                        axis_identity=axis.identity,
+                    ),
+                    (),
+                )
+        completion_study_id = "STU-HOLDOUT-MIXED-COMPLETION"
+        study_job_id = "job:" + _digest(
+            "axis-disposition-job", "holdout-mixed-study"
+        )
+        study_completion_id = _digest(
+            "axis-disposition-completion", "holdout-mixed-study"
+        )
+        mixed_records = list(records(holdout_id))
+        mixed_records[-1] = replace(
+            mixed_records[-1],
+            payload={
+                **mixed_records[-1].payload,
+                "evidence_references": sorted(
+                    [completion_id, study_completion_id]
+                ),
+                "study_id": completion_study_id,
+            },
+        )
+        mixed_records.extend(
+            (
+                IndexRecord(
+                    kind="study-open",
+                    record_id=completion_study_id,
+                    subject=f"Study:{completion_study_id}",
+                    status="closed",
+                    fingerprint=_digest(
+                        "axis-disposition-study", "holdout-mixed-study"
+                    ),
+                    payload={
+                        "material_identity": material_identity,
+                        "mission_id": self.mission_id,
+                        "portfolio_axis_id": axis.axis_id,
+                        "portfolio_axis_identity": axis.identity,
+                        "portfolio_snapshot_id": snapshot_id,
+                    },
+                ),
+                IndexRecord(
+                    kind="job-declared",
+                    record_id=study_job_id,
+                    subject=f"Job:{study_job_id}",
+                    status="declared",
+                    fingerprint=study_job_id.removeprefix("job:"),
+                    payload={
+                        "mission_id": self.mission_id,
+                        "study_id": completion_study_id,
+                        "spec": {
+                            "evidence_subject": {
+                                "id": executable_id,
+                                "kind": "Executable",
+                            }
+                        },
+                    },
+                ),
+                IndexRecord(
+                    kind="job-completed",
+                    record_id=study_completion_id,
+                    subject=f"Job:{study_job_id}",
+                    status="success",
+                    fingerprint=_digest(
+                        "axis-disposition-result", "holdout-mixed-study"
+                    ),
+                    payload={
+                        "job_id": study_job_id,
+                        "scientific": {
+                            "candidate_eligible": False,
+                            "executed_evidence_modes": list(MODES),
+                            "executable_id": executable_id,
+                            "scientific_eligible": True,
+                            "verdict": "failed",
+                        },
+                    },
+                ),
+            )
+        )
+        with TemporaryDirectory() as temporary:
+            with LocalIndex(Path(temporary) / "index.sqlite3") as index:
+                index.put_many(mixed_records)
+                binding = derive_axis_evidence_binding(
+                    index,
+                    reference=reference,
+                    mission_id=self.mission_id,
+                    axis_id=axis.axis_id,
+                    axis_identity=axis.identity,
+                )
+                self.assertEqual(binding.study_ids, (completion_study_id,))
+                self.assertEqual(binding.executable_ids, (executable_id,))
+        forged_presence_records = list(mixed_records)
+        memory_index = next(
+            ordinal
+            for ordinal, item in enumerate(forged_presence_records)
+            if item.kind == "negative-memory"
+        )
+        forged_presence_records[memory_index] = replace(
+            forged_presence_records[memory_index],
+            payload={
+                **forged_presence_records[memory_index].payload,
+                "evidence_references": [study_completion_id],
+            },
+        )
+        with TemporaryDirectory() as temporary:
+            with LocalIndex(Path(temporary) / "index.sqlite3") as index:
+                index.put_many(forged_presence_records)
+                with self.assertRaisesRegex(
+                    AxisDispositionEvidenceError,
+                    "holdout context differs",
+                ):
+                    derive_axis_evidence_binding(
+                        index,
+                        reference=reference,
+                        mission_id=self.mission_id,
+                        axis_id=axis.axis_id,
+                        axis_identity=axis.identity,
+                    )
+        with TemporaryDirectory() as temporary:
+            with LocalIndex(Path(temporary) / "index.sqlite3") as index:
+                index.put_many(
+                    records(
+                        "holdout:"
+                        + _digest("axis-disposition-holdout", "forged")
+                    )
+                )
+                with self.assertRaisesRegex(
+                    AxisDispositionEvidenceError,
+                    "candidate-ineligible falsification",
+                ):
+                    derive_axis_evidence_binding(
+                        index,
+                        reference=reference,
+                        mission_id=self.mission_id,
+                        axis_id=axis.axis_id,
+                        axis_identity=axis.identity,
+                    )
 
     def test_batched_scientific_reference_audit_remains_globally_fail_closed(
         self,

@@ -22,6 +22,12 @@ from axiom_rift.operations.evidence_scope_projection import (
     EvidenceScopeProjectionError,
     effective_completion_evidence_scope,
 )
+from axiom_rift.operations.executable_axis_lineage import (
+    DeclaredExecutableAxisLineage,
+    ExecutableAxisLineageError,
+    completion_executable_axis_lineage,
+    declared_executable_axis_lineage,
+)
 from axiom_rift.operations.historical_cost_semantics_common import (
     COMPLETION_SCOPE_RECORD_KIND,
 )
@@ -276,21 +282,47 @@ def _axis_lineage_projection(
     executable_ids: dict[str, set[str]] = {
         identity: set() for identity in identities
     }
+    study_axis_by_id: dict[str, str] = {}
+    study_mission_ids: set[str] = set()
 
-    def register(identity: object, executable: object) -> None:
-        if identity is None and executable is None:
+    def register(
+        identity: object,
+        executable: object,
+        *,
+        executable_id: object = None,
+    ) -> None:
+        if identity is None and executable is None and executable_id is None:
             return
         if identity is None:
             raise EffectiveAxisProjectionError(
                 "Executable source lineage lacks its axis identity"
             )
         typed_identity = _identity("axis source-lineage identity", identity, "axis:")
+        if (executable is None) != (executable_id is None):
+            raise EffectiveAxisProjectionError(
+                "axis Executable payload and identity must be paired"
+            )
         if executable is None:
             return
         if not isinstance(executable, Mapping):
             raise EffectiveAxisProjectionError("axis source lineage is malformed")
         sources = source_authority_subject_ids(executable)
         lineage.setdefault(typed_identity, set()).update(sources)
+        typed_executable_id = _identity(
+            "axis lineage Executable id",
+            executable_id,
+            "executable:",
+        )
+        if typed_executable_id != (
+            "executable:"
+            + canonical_digest(domain="executable", payload=dict(executable))
+        ):
+            raise EffectiveAxisProjectionError(
+                "axis Executable identity differs from its payload"
+            )
+        executable_ids.setdefault(typed_identity, set()).add(
+            typed_executable_id
+        )
 
     for decision in index.records_by_payload_text_values(
         "portfolio-decision",
@@ -300,12 +332,22 @@ def _axis_lineage_projection(
         register(
             decision.payload.get("target_axis_identity"),
             decision.payload.get("baseline_executable"),
+            executable_id=decision.payload.get("baseline_executable_id"),
         )
     for study in index.records_by_payload_text_values(
         "study-open",
         "portfolio_axis_identity",
         identities,
     ):
+        study_axis_identity = _identity(
+            "Study Portfolio axis identity",
+            study.payload.get("portfolio_axis_identity"),
+            "axis:",
+        )
+        study_axis_by_id[study.record_id] = study_axis_identity
+        study_mission_ids.add(
+            _ascii("Study Mission id", study.payload.get("mission_id"))
+        )
         controlled = study.payload.get("controlled_chassis")
         baseline = (
             None
@@ -314,7 +356,15 @@ def _axis_lineage_projection(
             if isinstance(controlled, Mapping)
             else controlled
         )
-        register(study.payload.get("portfolio_axis_identity"), baseline)
+        register(
+            study_axis_identity,
+            baseline,
+            executable_id=(
+                controlled.get("baseline_executable_id")
+                if isinstance(controlled, Mapping)
+                else None
+            ),
+        )
     for trial in index.records_by_payload_text_values(
         "trial",
         "portfolio_axis_identity",
@@ -328,13 +378,39 @@ def _axis_lineage_projection(
         register(
             trial_axis_identity,
             trial.payload.get("executable"),
+            executable_id=trial.record_id,
         )
-        executable_ids[trial_axis_identity].add(
-            _identity(
-                "axis trial Executable id",
-                trial.record_id,
-                "executable:",
+    for declaration in index.records_by_payload_text_values(
+        "job-declared",
+        "mission_id",
+        study_mission_ids,
+    ):
+        declared_study_id = declaration.payload.get("study_id")
+        if declared_study_id not in study_axis_by_id:
+            continue
+        spec = declaration.payload.get("spec")
+        subject = (
+            None
+            if not isinstance(spec, Mapping)
+            else spec.get("evidence_subject")
+        )
+        if not isinstance(subject, Mapping) or subject.get("kind") != "Executable":
+            continue
+        try:
+            declared = declared_executable_axis_lineage(index, declaration)
+        except ExecutableAxisLineageError as exc:
+            raise EffectiveAxisProjectionError(
+                "Executable trial-to-Study-to-axis lineage is malformed or ambiguous"
+            ) from exc
+        trial = index.get("trial", declared.executable_id)
+        if trial is None:
+            raise EffectiveAxisProjectionError(
+                "axis Job declaration lost its counted Executable"
             )
+        register(
+            declared.axis_identity,
+            trial.payload.get("executable"),
+            executable_id=declared.executable_id,
         )
     return _AxisLineageProjection(
         source_ids_by_axis={
@@ -679,91 +755,22 @@ def validate_source_replacement_lineage(
         ) from exc
 
 
-@dataclass(frozen=True, slots=True)
-class _ExecutableAxisLineage:
-    executable_id: str
-    mission_id: str
-    study_id: str
-    axis_id: str
-    axis_identity: str
-
-
-def _trial_axis_lineage(
-    index: LocalIndex,
-    executable_id: str,
-) -> _ExecutableAxisLineage:
-    executable_id = _identity("lineage Executable id", executable_id, "executable:")
-    trial = index.get("trial", executable_id)
-    if trial is None:
-        raise EffectiveAxisProjectionError(
-            "replay or evidence-scope Executable lacks its counted trial"
-        )
-    payload = trial.payload
-    mission_id = _ascii("trial Mission id", payload.get("mission_id"))
-    study_id = _ascii("trial Study id", payload.get("study_id"))
-    axis_id = _ascii("trial Portfolio axis id", payload.get("portfolio_axis_id"))
-    axis_identity = _identity(
-        "trial Portfolio axis identity",
-        payload.get("portfolio_axis_identity"),
-        "axis:",
-    )
-    study = index.get("study-open", study_id)
-    if (
-        trial.record_id != executable_id
-        or trial.status != "evaluated"
-        or trial.fingerprint != executable_id.removeprefix("executable:")
-        or study is None
-        or study.status not in {"open", "closed"}
-        or study.payload.get("mission_id") != mission_id
-        or study.payload.get("portfolio_axis_id") != axis_id
-        or study.payload.get("portfolio_axis_identity") != axis_identity
-        or study.subject != f"Study:{study_id}"
-    ):
-        raise EffectiveAxisProjectionError(
-            "Executable trial-to-Study-to-axis lineage is malformed or ambiguous"
-        )
-    return _ExecutableAxisLineage(
-        executable_id=executable_id,
-        mission_id=mission_id,
-        study_id=study_id,
-        axis_id=axis_id,
-        axis_identity=axis_identity,
-    )
-
-
 def _completion_axis_lineage(
     index: LocalIndex,
     completion: IndexRecord,
-) -> _ExecutableAxisLineage:
-    scientific = completion.payload.get("scientific")
-    executable_id = (
-        None
-        if not isinstance(scientific, Mapping)
-        else scientific.get("executable_id")
-    )
-    lineage = _trial_axis_lineage(
-        index,
-        _identity("completion Executable id", executable_id, "executable:"),
-    )
-    job_id = _ascii("completion Job id", completion.payload.get("job_id"))
-    declaration = index.get("job-declared", job_id)
-    if (
-        completion.status not in {"success", "failed", "not_evaluable"}
-        or declaration is None
-        or declaration.payload.get("mission_id") != lineage.mission_id
-        or declaration.payload.get("study_id") != lineage.study_id
-    ):
+) -> DeclaredExecutableAxisLineage:
+    try:
+        return completion_executable_axis_lineage(index, completion)
+    except ExecutableAxisLineageError as exc:
         raise EffectiveAxisProjectionError(
             "completion-to-Job-to-Executable axis lineage is malformed"
-        )
-    return lineage
+        ) from exc
 
 
 def _obligation_axis_lineage(
     index: LocalIndex,
     obligation: HistoricalReplayObligation,
-) -> _ExecutableAxisLineage:
-    lineage = _trial_axis_lineage(index, obligation.original_executable_id)
+) -> DeclaredExecutableAxisLineage:
     completion = index.get(
         "job-completed", obligation.original_completion_record_id
     )
@@ -776,15 +783,33 @@ def _obligation_axis_lineage(
         else _completion_axis_lineage(index, completion)
     )
     if (
-        lineage.study_id != obligation.original_study_id
-        or completion_lineage != lineage
+        completion_lineage is None
+        or completion_lineage.executable_id != obligation.original_executable_id
+        or completion_lineage.study_id != obligation.original_study_id
         or close_record is None
+        or close_record.kind != "study-close"
         or close_record.subject != f"Study:{obligation.original_study_id}"
+        or close_record.status
+        not in {
+            "supported",
+            "not_supported",
+            "not_evaluable",
+            "evidence_gap",
+            "pruned",
+            "preserved",
+            "failed",
+        }
+        or close_record.payload.get("study_id")
+        not in (None, obligation.original_study_id)
+        or close_record.payload.get("portfolio_axis_id")
+        not in (None, completion_lineage.axis_id)
+        or close_record.payload.get("portfolio_axis_identity")
+        not in (None, completion_lineage.axis_identity)
     ):
         raise EffectiveAxisProjectionError(
             "replay obligation is not bound to its exact original Executable axis"
         )
-    return lineage
+    return completion_lineage
 
 
 def _resolve_obligation_heads(

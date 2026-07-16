@@ -111,10 +111,19 @@ def _authenticated_transition_records(
     return journal_event, operation, replace(transition, **authority)
 
 
+def _historical_executable_payload(token: int) -> dict[str, object]:
+    return {
+        "schema": "historical_fixture.v1",
+        "source_contracts": [],
+        "token": token,
+    }
+
+
 def _adjudication_payload(
     token: int,
     priority: ReplayPriority = ReplayPriority.P1,
 ) -> dict[str, object]:
+    executable = _historical_executable_payload(token)
     return {
         "adjudication": {
             "candidate_eligible": False,
@@ -124,7 +133,8 @@ def _adjudication_payload(
         "audit_artifact_hash": f"{token + 10:064x}",
         "completion_record_id": f"{token + 20:064x}",
         "disposition": "replay_required",
-        "executable_id": f"executable:{token + 30:064x}",
+        "executable_id": "executable:"
+        + canonical_digest(domain="executable", payload=executable),
         "measurement_artifact_hash": f"{token + 40:064x}",
         "reason_codes": ["missing_exact_uncertainty"],
         "replay_priority": priority.value,
@@ -159,6 +169,41 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
         for token, obligation in enumerate(self.obligations, start=1):
             historical_mission_id = f"MIS-HIST-{token:04d}"
             job_id = f"job:{token + 70:064x}"
+            registration_study_id = (
+                "STU-HIST-REGISTRATION-0001"
+                if token == 1
+                else obligation.original_study_id
+            )
+            registration_axis_id = (
+                "axis-historical-registration"
+                if token == 1
+                else self.affected_axis_id
+            )
+            registration_axis_identity = (
+                "axis:" + "d" * 64
+                if token == 1
+                else self.affected_axis_identity
+            )
+            registration_study_records = (
+                (
+                    IndexRecord(
+                        kind="study-open",
+                        record_id=registration_study_id,
+                        subject=f"Study:{registration_study_id}",
+                        status="closed",
+                        fingerprint=f"{token + 81:064x}",
+                        payload={
+                            "mission_id": historical_mission_id,
+                            "portfolio_axis_id": registration_axis_id,
+                            "portfolio_axis_identity": (
+                                registration_axis_identity
+                            ),
+                        },
+                    ),
+                )
+                if token == 1
+                else ()
+            )
             records.extend(
                 (
                     IndexRecord(
@@ -175,6 +220,7 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
                             ),
                         },
                     ),
+                    *registration_study_records,
                     IndexRecord(
                         kind="trial",
                         record_id=obligation.original_executable_id,
@@ -186,13 +232,13 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
                             )
                         ),
                         payload={
-                            "executable": {"schema": "historical_fixture.v1"},
+                            "executable": _historical_executable_payload(token),
                             "mission_id": historical_mission_id,
-                            "portfolio_axis_id": self.affected_axis_id,
+                            "portfolio_axis_id": registration_axis_id,
                             "portfolio_axis_identity": (
-                                self.affected_axis_identity
+                                registration_axis_identity
                             ),
-                            "study_id": obligation.original_study_id,
+                            "study_id": registration_study_id,
                         },
                     ),
                     IndexRecord(
@@ -235,7 +281,11 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
                         subject=f"Study:{obligation.original_study_id}",
                         status="failed",
                         fingerprint=f"{token + 50:064x}",
-                        payload={"study_id": obligation.original_study_id},
+                        payload=(
+                            {}
+                            if token == 1
+                            else {"study_id": obligation.original_study_id}
+                        ),
                     ),
                     IndexRecord(
                         kind="historical-scientific-adjudication",
@@ -1091,7 +1141,11 @@ class MultiplicityReplaySatisfactionTests(unittest.TestCase):
             "audit_artifact_hash": "1" * 64,
             "completion_record_id": "2" * 64,
             "disposition": "replay_required",
-            "executable_id": "executable:" + "3" * 64,
+            "executable_id": "executable:"
+            + canonical_digest(
+                domain="executable",
+                payload={"schema": "historical_fixture.v1"},
+            ),
             "measurement_artifact_hash": "4" * 64,
             "reason_codes": ["missing_exact_uncertainty"],
             "replay_priority": ReplayPriority.P1.value,

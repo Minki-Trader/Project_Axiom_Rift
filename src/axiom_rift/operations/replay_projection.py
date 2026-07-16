@@ -24,6 +24,10 @@ from axiom_rift.operations.evidence_scope_projection import (
     evidence_scope_overlay_record,
     evidence_scope_stream,
 )
+from axiom_rift.operations.executable_axis_lineage import (
+    ExecutableAxisLineageError,
+    completion_executable_axis_lineage,
+)
 from axiom_rift.operations.completion_validity_projection import (
     CompletionValidityProjectionError,
     current_completion_validity_invalidation,
@@ -692,76 +696,41 @@ def _obligation_affected_axis_identity(
 ) -> str:
     """Resolve the immutable axis whose historical credit is under replay."""
 
-    study = index.get("study-open", obligation.original_study_id)
-    trial = index.get("trial", obligation.original_executable_id)
     completion = index.get(
         "job-completed", obligation.original_completion_record_id
-    )
-    declaration = (
-        None
-        if completion is None
-        else index.get("job-declared", completion.payload.get("job_id", ""))
     )
     close_record = index.get(
         "study-close", obligation.original_study_close_record_id
     )
-    study_payload = {} if study is None else study.payload
-    trial_payload = {} if trial is None else trial.payload
-    scientific = (
-        None if completion is None else completion.payload.get("scientific")
-    )
-    job_id = None if completion is None else completion.payload.get("job_id")
-    axis_id = study_payload.get("portfolio_axis_id")
-    axis_identity = study_payload.get("portfolio_axis_identity")
-    historical_mission_id = study_payload.get("mission_id")
-    axis_digest = (
-        ""
-        if type(axis_identity) is not str
-        else axis_identity.removeprefix("axis:")
-    )
+    try:
+        lineage = (
+            None
+            if completion is None
+            else completion_executable_axis_lineage(index, completion)
+        )
+    except ExecutableAxisLineageError as exc:
+        raise ReplayProjectionError(
+            "historical replay affected-axis lineage is malformed or ambiguous"
+        ) from exc
     if (
-        study is None
-        or study.subject != f"Study:{obligation.original_study_id}"
-        or study.status not in {"open", "closed"}
-        or type(axis_id) is not str
-        or not axis_id
-        or not axis_id.isascii()
-        or type(historical_mission_id) is not str
-        or not historical_mission_id
-        or not historical_mission_id.isascii()
-        or type(axis_identity) is not str
-        or len(axis_digest) != 64
-        or any(character not in "0123456789abcdef" for character in axis_digest)
-        or trial is None
-        or trial.status != "evaluated"
-        or trial.fingerprint
-        != obligation.original_executable_id.removeprefix("executable:")
-        or trial_payload.get("mission_id") != historical_mission_id
-        or trial_payload.get("study_id") != obligation.original_study_id
-        or trial_payload.get("portfolio_axis_id") != axis_id
-        or trial_payload.get("portfolio_axis_identity") != axis_identity
-        or completion is None
-        or completion.status not in {"success", "failed", "not_evaluable"}
-        or not isinstance(scientific, Mapping)
-        or scientific.get("executable_id") != obligation.original_executable_id
-        or declaration is None
-        or type(job_id) is not str
-        or declaration.record_id != job_id
-        or declaration.subject != f"Job:{job_id}"
-        or completion.subject != f"Job:{job_id}"
-        or declaration.payload.get("mission_id") != historical_mission_id
-        or declaration.payload.get("study_id") != obligation.original_study_id
-        or declaration.payload.get("spec", {}).get("evidence_subject")
-        != {"kind": "Executable", "id": obligation.original_executable_id}
+        lineage is None
+        or lineage.executable_id != obligation.original_executable_id
+        or lineage.study_id != obligation.original_study_id
         or close_record is None
+        or close_record.kind != "study-close"
         or close_record.subject != f"Study:{obligation.original_study_id}"
         or close_record.status not in {*_STUDY_OUTCOMES, "failed"}
-        or close_record.payload.get("study_id") != obligation.original_study_id
+        or close_record.payload.get("study_id")
+        not in (None, obligation.original_study_id)
+        or close_record.payload.get("portfolio_axis_id")
+        not in (None, lineage.axis_id)
+        or close_record.payload.get("portfolio_axis_identity")
+        not in (None, lineage.axis_identity)
     ):
         raise ReplayProjectionError(
             "historical replay affected-axis lineage is malformed or ambiguous"
         )
-    return axis_identity
+    return lineage.axis_identity
 
 
 def _decision_target_axis_identity(
@@ -3241,15 +3210,17 @@ def _diagnosis_binds_original_obligation(
     obligation: HistoricalReplayObligation,
 ) -> bool:
     basis = diagnosis.payload.get("evidence_basis")
-    trial = index.get("trial", obligation.original_executable_id)
     completion = index.get(
         "job-completed", obligation.original_completion_record_id
     )
-    declaration = (
-        None
-        if completion is None
-        else index.get("job-declared", completion.payload.get("job_id", ""))
-    )
+    try:
+        lineage = (
+            None
+            if completion is None
+            else completion_executable_axis_lineage(index, completion)
+        )
+    except ExecutableAxisLineageError:
+        lineage = None
     close_record = index.get(
         "study-close", obligation.original_study_close_record_id
     )
@@ -3280,13 +3251,9 @@ def _diagnosis_binds_original_obligation(
             obligation.original_completion_record_id,
         )
         in references
-        and trial is not None
-        and trial.payload.get("study_id") == obligation.original_study_id
-        and completion is not None
-        and declaration is not None
-        and declaration.payload.get("study_id") == obligation.original_study_id
-        and declaration.payload.get("spec", {}).get("evidence_subject")
-        == {"kind": "Executable", "id": obligation.original_executable_id}
+        and lineage is not None
+        and lineage.study_id == obligation.original_study_id
+        and lineage.executable_id == obligation.original_executable_id
         and close_record is not None
         and close_record.subject == f"Study:{obligation.original_study_id}"
     )
