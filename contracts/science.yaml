@@ -63,6 +63,7 @@ research_direction:
       - mission_terminals
       - negative_memory
       - portfolio_decisions
+      - semantic_question_lineage
       - study_kpi
       - study_questions
       - validator_evidence
@@ -127,6 +128,32 @@ research_direction:
     - primary_research_layer_diversity
     - system_architecture_family_diversity
     - validator_demonstrated_negative_depth
+semantic_question_registry:
+  core_fields:
+    - causal_question
+    - changed_variables
+    - controlled_variables
+  protocol_fields_are_not_core_identity: true
+  natural_language_similarity_or_fuzzy_stripping_is_authority: false
+  one_study_one_core: true
+  repeated_exact_core_requires_typed_lineage: true
+  relations:
+    - engineering_reentry
+    - continuation
+    - independent_replication
+    - confirmation
+    - semantic_revision
+  distinct_core_nonrevision_relation_requires_explicit_equivalence: true
+  semantic_revision_requires_distinct_non_equivalent_core: true
+  equivalence_scope: declared_question_core_only
+  equivalence_is_transitive_authority: false
+  executable_trial_evidence_claim_kpi_and_negative_memory_transfer: false
+  engineering_reentry_requires_exact_non_scientific_gap_and_successor_evidence: true
+  not_identifiable_label_alone_is_reentry_authority: false
+  semantic_revision_resolves_predecessor_estimand: false
+  historical_correction_requires_current_protocol_review_artifact: true
+  historical_review_uses_plural_quant_team_lenses: true
+  historical_corrections_are_additive_zero_credit: true
 portfolio:
   broad_before_deep: true
   recent_positive_monopoly_allowed: false

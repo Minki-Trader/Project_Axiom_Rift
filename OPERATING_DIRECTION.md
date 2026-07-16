@@ -168,6 +168,18 @@ The durable work vocabulary is:
   not copied folders for each Initiative or evidence depth.
 - [MUST] OD-TAX-009 Trials, claims, and negative memory bind to immutable
   Executables. A Lineage never merges distinct Executable evidence.
+- [MUST] OD-TAX-010 An exact semantic question core consists only of the declared
+  causal question and its changed and controlled variables. It groups research
+  intent but never merges Studies, Batches, Executables, trials, evidence,
+  claims, KPI, or negative memory.
+- [MUST] OD-TAX-011 Every Study binds exactly one semantic question core. Reuse of
+  an existing exact core requires a typed predecessor relation. A relation
+  between distinct cores requires explicit expert-reviewed equivalence unless
+  it is a semantic revision to a distinct non-equivalent estimand.
+- [MUST] OD-TAX-012 A successor result never rewrites or inherits predecessor
+  evidence. Engineering reentry may resolve only an exact predecessor
+  non-scientific gap through successor-only evidence; semantic revision retains
+  a distinct estimand and no retrospective resolution authority.
 
 ## 6. Scientific Freedom And Coherent Execution
 

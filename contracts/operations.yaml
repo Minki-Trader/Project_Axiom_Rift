@@ -127,6 +127,29 @@ research_direction:
     later_batch_open_requires_current_continue_record_and_exact_batch_id: true
     commitment_bound_excess_allowed: false
     judge_study_bypass_allowed: false
+semantic_question_registry:
+  state_writer_is_only_writer: true
+  activation_event: semantic_question_registry_backfilled
+  activation_is_atomic_with_complete_historical_projection: true
+  activation_requires_stable_scientific_boundary: true
+  historical_source_scan:
+    allowed_only_at_explicit_backfill: true
+    source_kind: study-open
+    routine_repeat_lookup_is_fingerprint_indexed: true
+  one_study_binds_exactly_one_core: true
+  prospective_study_open_atomically_records_core_binding_and_typed_lineage: true
+  repeated_exact_core_without_typed_lineage_allowed: false
+  distinct_core_nonrevision_lineage_requires_accepted_exact_equivalence: true
+  semantic_revision_conflicting_with_accepted_equivalence_allowed: false
+  historical_correction:
+    event: semantic_question_corrections_recorded
+    additive_only: true
+    exact_current_protocol_audit_artifact_required: true
+    plural_quant_team_review_required: true
+    rewrites_old_records: false
+    trial_holdout_claim_and_failure_deltas: zero
+  successor_close_resolution_is_additive_and_successor_only: true
+  equivalence_or_lineage_is_executable_trial_claim_kpi_or_memory_authority: false
 active_state:
   historical_arrays_allowed: false
   one_exact_next_action: true
