@@ -224,6 +224,11 @@ def proof_requirements_for_modes(
 
     requirements: list[ProofRequirement] = []
     for mode in evidence_modes:
+        if proof_protocol_id is None and mode in TERMINAL_EVIDENCE_MODES:
+            raise ScientificEvidenceProofError(
+                "terminal scientific evidence requires a registered atomic "
+                "trace protocol"
+            )
         if proof_protocol_id is None:
             kinds = _PROOF_KINDS_BY_MODE.get(mode)
         else:
@@ -276,12 +281,16 @@ def parse_proof_requirements(
             output_name=_ascii("proof output_name", item["output_name"]),
             proof_kind=_ascii("proof kind", item["proof_kind"]),
         )
-        known = dict(_PROOF_KINDS_BY_MODE.get(requirement.evidence_mode, {}))
         if requirement.evidence_mode in TERMINAL_EVIDENCE_MODES:
+            known: dict[str, str] = {}
             for alternative in _trace_kind_alternatives(
                 requirement.evidence_mode
             ):
                 known.update(alternative)
+        else:
+            known = dict(
+                _PROOF_KINDS_BY_MODE.get(requirement.evidence_mode, {})
+            )
         if known.get(requirement.proof_kind) != requirement.artifact_schema:
             raise ScientificEvidenceProofError(
                 "proof kind is invalid for its evidence mode"
@@ -310,12 +319,13 @@ def parse_proof_requirements(
             "proof requirements do not exactly cover evidence modes"
         )
     for mode in evidence_modes:
-        alternatives = [set(_PROOF_KINDS_BY_MODE.get(mode, {}).items())]
         if mode in TERMINAL_EVIDENCE_MODES:
-            alternatives.extend(
+            alternatives = [
                 set(value.items())
                 for value in _trace_kind_alternatives(mode)
-            )
+            ]
+        else:
+            alternatives = [set(_PROOF_KINDS_BY_MODE.get(mode, {}).items())]
         if grouped[mode] not in alternatives:
             raise ScientificEvidenceProofError(
                 "proof requirements mix incompatible protocols"
@@ -556,6 +566,16 @@ def validate_proof_artifacts(
 ) -> tuple[str, ...]:
     """Open exact proof inventory and dispatch each selected protocol."""
 
+    if any(
+        item.evidence_mode in TERMINAL_EVIDENCE_MODES
+        and item.proof_kind
+        not in (_ATOMIC_TRACE_PROOF_KINDS | {CALCULATION_PROOF_KIND})
+        for item in requirements
+    ):
+        raise ScientificEvidenceProofError(
+            "terminal scientific evidence requires an atomic trace and "
+            "calculation proof"
+        )
     expected_outputs = {item.output_name for item in requirements}
     if set(artifacts) != expected_outputs or set(artifact_hashes) != expected_outputs:
         raise ScientificEvidenceProofError("proof artifact inventory drifted")
