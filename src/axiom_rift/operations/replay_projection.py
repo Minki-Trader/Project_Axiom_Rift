@@ -966,10 +966,137 @@ def require_study_pending(
     return tuple(raw)
 
 
+def _is_bound_lower_priority_family_control(
+    index: LocalIndex,
+    *,
+    study_record: IndexRecord,
+    batch_record: IndexRecord | None,
+    executable_id: str,
+    reference_executable_id: str,
+    selected_obligation_ids: tuple[str, ...],
+    matched_obligation_id: str,
+    heads: Mapping[
+        str,
+        tuple[HistoricalReplayObligation, IndexRecord],
+    ],
+) -> bool:
+    """Recognize a preregistered P1 control required by one selected P0 family."""
+
+    if len(selected_obligation_ids) != 1 or batch_record is None:
+        return False
+    proposal = study_record.payload.get("semantic_proposal")
+    if not isinstance(proposal, Mapping) or not any(
+        name in proposal
+        for name in (
+            "concurrent_family",
+            "historical_family_authority_id",
+            "historical_family_identity",
+        )
+    ):
+        return False
+    from axiom_rift.research.historical_family_binding import (
+        HistoricalFamilyBindingError,
+        historical_family_authority_from_payload,
+        historical_family_from_manifest,
+    )
+
+    authority_id = proposal.get("historical_family_authority_id")
+    authority_record = (
+        None
+        if not isinstance(authority_id, str)
+        else index.get("historical-family-authority", authority_id)
+    )
+    try:
+        if authority_record is None:
+            raise HistoricalFamilyBindingError(
+                "historical family authority is absent"
+            )
+        authority = historical_family_authority_from_payload(
+            authority_record.payload
+        )
+        proposed_family = historical_family_from_manifest(
+            proposal.get("concurrent_family")
+        )
+    except HistoricalFamilyBindingError as exc:
+        raise ReplayProjectionError(
+            "replay family control authority is malformed"
+        ) from exc
+    selected_id = selected_obligation_ids[0]
+    selected_pair = heads.get(selected_id)
+    control_pair = heads.get(matched_obligation_id)
+    if selected_pair is None or control_pair is None:
+        raise ReplayProjectionError(
+            "replay family control obligation projection is incomplete"
+        )
+    selected, selected_head = selected_pair
+    control, control_head = control_pair
+    batch_spec = batch_record.payload.get("spec")
+    profile = (
+        None
+        if not isinstance(batch_spec, Mapping)
+        else batch_spec.get("acceptance_profile")
+    )
+    concurrent = (
+        None
+        if not isinstance(profile, Mapping)
+        else profile.get("concurrent_family")
+    )
+    member_ids = (
+        None
+        if not isinstance(concurrent, Mapping)
+        else concurrent.get("executable_ids")
+    )
+    references = tuple(
+        member.historical_reference_executable_id
+        for member in authority.family.members
+    )
+    return bool(
+        authority_record.record_id == authority.identity == authority_id
+        and authority_record.status == "accepted"
+        and authority_record.subject
+        == f"ReplayObligation:{selected_id}"
+        and authority.replay_obligation_id == selected_id
+        and authority.family == proposed_family
+        and proposal.get("historical_family_identity")
+        == authority.family.identity
+        and proposal.get("historical_obligation_id") == selected_id
+        and proposal.get("original_study_id")
+        == authority.family.original_study_id
+        and batch_record.subject == f"Study:{study_record.record_id}"
+        and isinstance(profile, Mapping)
+        and profile.get("historical_family_authority_id") == authority.identity
+        and profile.get("historical_family_identity") == authority.family.identity
+        and isinstance(concurrent, Mapping)
+        and concurrent.get("schema") == "concurrent_family_manifest.v1"
+        and isinstance(member_ids, list)
+        and all(type(member_id) is str for member_id in member_ids)
+        and member_ids == sorted(set(member_ids))
+        and concurrent.get("family_size") == len(member_ids)
+        and executable_id in member_ids
+        and selected.governing_mission_id == control.governing_mission_id
+        == study_record.payload.get("mission_id")
+        and selected.original_study_id == control.original_study_id
+        == authority.family.original_study_id
+        and selected.original_executable_id
+        == authority.family.target_historical_executable_id
+        and reference_executable_id in references
+        and reference_executable_id
+        != authority.family.target_historical_executable_id
+        and control.original_executable_id == reference_executable_id
+        and selected.claim_ids == control.claim_ids
+        and selected.criterion_ids == control.criterion_ids
+        and selected_head.status == ReplayObligationStatus.PENDING.value
+        and control_head.status == ReplayObligationStatus.PENDING.value
+        and effective_replay_priority(index, selected) is ReplayPriority.P0
+        and effective_replay_priority(index, control) is ReplayPriority.P1
+    )
+
+
 def prepare_execution_progress(
     index: LocalIndex,
     *,
     study_record: IndexRecord,
+    batch_record: IndexRecord | None = None,
     executable_id: str,
     executable_payload: Mapping[str, Any],
 ) -> tuple[tuple[str, ...], list[IndexRecord]]:
@@ -1014,6 +1141,17 @@ def prepare_execution_progress(
         return (), []
     obligation_id = global_matches[0]
     if obligation_id not in obligation_ids:
+        if _is_bound_lower_priority_family_control(
+            index,
+            study_record=study_record,
+            batch_record=batch_record,
+            executable_id=executable_id,
+            reference_executable_id=reference,
+            selected_obligation_ids=obligation_ids,
+            matched_obligation_id=obligation_id,
+            heads=heads,
+        ):
+            return (), []
         raise ReplayTransitionError(
             "trial manifest references an unselected Mission replay obligation"
         )

@@ -13703,6 +13703,7 @@ class StateWriter:
                     prepare_execution_progress(
                         index,
                         study_record=study_record,
+                        batch_record=batch_record,
                         executable_id=executable_id,
                         executable_payload=executable.to_identity_payload(),
                     )

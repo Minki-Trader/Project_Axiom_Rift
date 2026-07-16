@@ -37,6 +37,12 @@ from axiom_rift.operations.replay_projection import (
     with_scheduler_constraints,
 )
 from axiom_rift.research.historical_adjudication import ReplayPriority
+from axiom_rift.research.historical_family_binding import (
+    ControlBinding,
+    HistoricalFamilyAuthority,
+    HistoricalFamilySpec,
+    HistoricalMemberSpec,
+)
 from axiom_rift.research.replay_obligation import (
     ReplayObligationStatus,
     ReplayResolutionScope,
@@ -496,6 +502,194 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
         )
         self.assertEqual(post_family, ())
         self.assertEqual(post_family_records, [])
+
+    def test_selected_p0_family_admits_only_exact_frozen_p1_controls(self) -> None:
+        payloads: list[dict[str, object]] = []
+        obligations = []
+        for token in range(11, 15):
+            payload = deepcopy(
+                _adjudication_payload(
+                    token,
+                    (
+                        ReplayPriority.P0
+                        if token == 14
+                        else ReplayPriority.P1
+                    ),
+                )
+            )
+            payload["study_id"] = "STU-9000"
+            payload["adjudication"]["claims"] = [  # type: ignore[index]
+                {"claim_id": "family-claim"}
+            ]
+            payload["adjudication"]["criteria"] = [  # type: ignore[index]
+                {"criterion_id": "family-criterion"}
+            ]
+            payloads.append(payload)
+            obligations.append(
+                derive_historical_replay_obligation(
+                    governing_mission_id=MISSION_ID,
+                    historical_adjudication_id=(
+                        f"historical-adjudication:{token:064x}"
+                    ),
+                    adjudication_payload=payload,
+                )
+            )
+        family_obligations = tuple(obligations)
+        references = tuple(
+            obligation.original_executable_id
+            for obligation in family_obligations
+        )
+        family = HistoricalFamilySpec(
+            original_study_id="STU-9000",
+            original_batch_id="batch:" + "b" * 64,
+            target_historical_executable_id=references[3],
+            members=tuple(
+                HistoricalMemberSpec(
+                    ordinal=ordinal,
+                    configuration_id=f"family-member-{ordinal}",
+                    historical_reference_executable_id=reference,
+                    parameters={"variant": ordinal},
+                )
+                for ordinal, reference in enumerate(references, start=1)
+            ),
+            controls=(
+                ControlBinding(
+                    subject_historical_executable_id=references[0],
+                    opposite_historical_executable_id=references[1],
+                    feature_historical_executable_ids=(references[2],),
+                ),
+                ControlBinding(
+                    subject_historical_executable_id=references[1],
+                    opposite_historical_executable_id=references[0],
+                    feature_historical_executable_ids=(references[3],),
+                ),
+                ControlBinding(
+                    subject_historical_executable_id=references[2],
+                    opposite_historical_executable_id=references[3],
+                    feature_historical_executable_ids=(references[0],),
+                ),
+                ControlBinding(
+                    subject_historical_executable_id=references[3],
+                    opposite_historical_executable_id=references[2],
+                    feature_historical_executable_ids=(references[1],),
+                ),
+            ),
+        )
+        selected = family_obligations[3]
+        authority = HistoricalFamilyAuthority(
+            replay_obligation_id=selected.identity,
+            family=family,
+            reconstruction_source_path="records/family-fixture.json",
+            reconstruction_source_sha256="f" * 64,
+        )
+        for obligation, payload in zip(
+            family_obligations,
+            payloads,
+            strict=True,
+        ):
+            self.index.put_many(
+                (
+                    IndexRecord(
+                        kind="historical-scientific-adjudication",
+                        record_id=obligation.historical_adjudication_id,
+                        subject="Study:STU-9000",
+                        status="replay_required",
+                        fingerprint=obligation.identity.removeprefix(
+                            "historical-replay-obligation:"
+                        ),
+                        payload=payload,
+                    ),
+                    initial_obligation_record(obligation),
+                )
+            )
+        self.index.put(
+            IndexRecord(
+                kind="historical-family-authority",
+                record_id=authority.identity,
+                subject=f"ReplayObligation:{selected.identity}",
+                status="accepted",
+                fingerprint=authority.identity.removeprefix(
+                    "historical-family-authority:"
+                ),
+                payload=authority.to_identity_payload(),
+            )
+        )
+        prospective_ids = tuple(
+            f"executable:{token:064x}" for token in range(201, 205)
+        )
+        study = IndexRecord(
+            kind="study-open",
+            record_id="STU-9001",
+            subject=f"Mission:{MISSION_ID}",
+            status="open",
+            fingerprint="e" * 64,
+            payload={
+                "mission_id": MISSION_ID,
+                "portfolio_decision_id": DECISION_ID,
+                "replay_obligation_ids": [selected.identity],
+                "semantic_proposal": {
+                    "candidate_eligible": False,
+                    "concurrent_family": family.manifest(),
+                    "historical_family_authority_id": authority.identity,
+                    "historical_family_identity": family.identity,
+                    "historical_obligation_id": selected.identity,
+                    "original_study_id": family.original_study_id,
+                },
+            },
+        )
+        batch = IndexRecord(
+            kind="batch-open",
+            record_id="batch:" + "c" * 64,
+            subject=f"Study:{study.record_id}",
+            status="open",
+            fingerprint="c" * 64,
+            payload={
+                "spec": {
+                    "acceptance_profile": {
+                        "concurrent_family": {
+                            "evaluation_mode": "vectorized",
+                            "executable_ids": list(prospective_ids),
+                            "family_size": len(prospective_ids),
+                            "schema": "concurrent_family_manifest.v1",
+                        },
+                        "historical_family_authority_id": authority.identity,
+                        "historical_family_identity": family.identity,
+                    }
+                }
+            },
+        )
+
+        control_ids, control_records = prepare_execution_progress(
+            self.index,
+            study_record=study,
+            batch_record=batch,
+            executable_id=prospective_ids[0],
+            executable_payload=self._executable_payload(references[0]),
+        )
+        self.assertEqual(control_ids, ())
+        self.assertEqual(control_records, [])
+
+        with self.assertRaisesRegex(
+            ReplayTransitionError,
+            "unselected Mission replay obligation",
+        ):
+            prepare_execution_progress(
+                self.index,
+                study_record=study,
+                batch_record=None,
+                executable_id=prospective_ids[0],
+                executable_payload=self._executable_payload(references[0]),
+            )
+
+        selected_ids, selected_records = prepare_execution_progress(
+            self.index,
+            study_record=study,
+            batch_record=batch,
+            executable_id=prospective_ids[3],
+            executable_payload=self._executable_payload(references[3]),
+        )
+        self.assertEqual(selected_ids, (selected.identity,))
+        self.assertEqual(len(selected_records), 1)
 
     def test_obligation_heads_are_mission_scoped_and_preserve_exact_heads(
         self,
