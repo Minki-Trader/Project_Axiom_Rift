@@ -17,6 +17,7 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (  # noqa: E402
     FixedHoldReplayMember,
     FixedHoldReplayMissionSpec,
     ReplayAuthorityBoundary,
+    ReplayInitiativeLifecycle,
     build_fixed_hold_replay_design,
 )
 from axiom_rift.operations.running_job import RunningJobAuthority  # noqa: E402
@@ -289,6 +290,9 @@ def mission_spec(
     boundary: ReplayAuthorityBoundary,
 ) -> FixedHoldReplayMissionSpec:
     return FixedHoldReplayMissionSpec(
+        initiative_lifecycle=(
+            ReplayInitiativeLifecycle.OWN_BOUNDED_INITIATIVE
+        ),
         mission_id=MISSION_ID,
         initiative_id=initiative_id,
         study_id=study_id,

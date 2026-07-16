@@ -33,6 +33,17 @@ from axiom_rift.storage.index import IndexRecord, LocalIndex
 MISSION_ID = "MIS-REPLAY-RESUME"
 ORIGINAL_STUDY_ID = "STU-ORIGINAL-REPLAY"
 PROTOCOL_ID = "python.source.exact_replay.v1"
+ORIGINAL_AXIS_ID = "AXS-ORIGINAL-REPLAY"
+ORIGINAL_AXIS_IDENTITY = "axis:" + "0" * 64
+ORIGINAL_SOURCE_ID = "source:" + "a" * 64
+ORIGINAL_EXECUTABLE = {
+    "schema": "original_fixture.v1",
+    "source_contracts": [ORIGINAL_SOURCE_ID],
+}
+ORIGINAL_EXECUTABLE_ID = "executable:" + canonical_digest(
+    domain="executable",
+    payload=ORIGINAL_EXECUTABLE,
+)
 
 
 def _adjudication_payload() -> dict[str, object]:
@@ -48,7 +59,7 @@ def _adjudication_payload() -> dict[str, object]:
         "audit_artifact_hash": "1" * 64,
         "completion_record_id": "2" * 64,
         "disposition": "replay_required",
-        "executable_id": "executable:" + "3" * 64,
+        "executable_id": ORIGINAL_EXECUTABLE_ID,
         "measurement_artifact_hash": "4" * 64,
         "reason_codes": ["missing_exact_uncertainty"],
         "replay_priority": ReplayPriority.P1.value,
@@ -155,7 +166,7 @@ class ReplayResumeProjectionTests(unittest.TestCase):
         )
         self.original_job_id = "job:" + "8" * 64
         self.original_diagnosis_id = "diagnosis:" + "9" * 64
-        self.source_id = "source:" + "a" * 64
+        self.source_id = ORIGINAL_SOURCE_ID
         self._put_many(
             (
                 IndexRecord(
@@ -176,10 +187,14 @@ class ReplayResumeProjectionTests(unittest.TestCase):
                 IndexRecord(
                     kind="study-open",
                     record_id=ORIGINAL_STUDY_ID,
-                    subject=f"Mission:{MISSION_ID}",
+                    subject=f"Study:{ORIGINAL_STUDY_ID}",
                     status="open",
                     fingerprint="b" * 64,
-                    payload={"mission_id": MISSION_ID},
+                    payload={
+                        "mission_id": MISSION_ID,
+                        "portfolio_axis_id": ORIGINAL_AXIS_ID,
+                        "portfolio_axis_identity": ORIGINAL_AXIS_IDENTITY,
+                    },
                     authority_sequence=1,
                     authority_event_id=f"{1:064x}",
                 ),
@@ -218,7 +233,14 @@ class ReplayResumeProjectionTests(unittest.TestCase):
                     subject=f"Job:{self.original_job_id}",
                     status="not_evaluable",
                     fingerprint="2" * 64,
-                    payload={"job_id": self.original_job_id},
+                    payload={
+                        "job_id": self.original_job_id,
+                        "scientific": {
+                            "executable_id": (
+                                self.obligation.original_executable_id
+                            )
+                        },
+                    },
                     authority_sequence=1,
                     authority_event_id=f"{1:064x}",
                 ),
@@ -227,12 +249,16 @@ class ReplayResumeProjectionTests(unittest.TestCase):
                     record_id=self.obligation.original_executable_id,
                     subject="Batch:BAT-ORIGINAL",
                     status="evaluated",
-                    fingerprint="3" * 64,
+                    fingerprint=(
+                        self.obligation.original_executable_id.removeprefix(
+                            "executable:"
+                        )
+                    ),
                     payload={
-                        "executable": {
-                            "schema": "original_fixture.v1",
-                            "source_contracts": [self.source_id],
-                        },
+                        "executable": ORIGINAL_EXECUTABLE,
+                        "mission_id": MISSION_ID,
+                        "portfolio_axis_id": ORIGINAL_AXIS_ID,
+                        "portfolio_axis_identity": ORIGINAL_AXIS_IDENTITY,
                         "study_id": ORIGINAL_STUDY_ID,
                     },
                     authority_sequence=1,

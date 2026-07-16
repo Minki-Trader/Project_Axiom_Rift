@@ -16,6 +16,7 @@ import axiom_rift.research.historical_family_binding as historical_family_bindin
 import axiom_rift.research.replay_exposure as replay_exposure_module
 import axiom_rift.research.replay_obligation as replay_obligation_module
 import axiom_rift.research.replay_satisfaction_invalidation as replay_satisfaction_invalidation_module
+import axiom_rift.research.semantic_question as semantic_question_module
 import axiom_rift.research.trials as trials_module
 import axiom_rift.storage.evidence as evidence_module
 from axiom_rift.research import historical_scientific_validity
@@ -62,6 +63,12 @@ from axiom_rift.research.replay_satisfaction_invalidation import (
     ReplaySatisfactionInvalidationAuditManifestV2,
     ReplaySatisfactionInvalidationManifest,
     replay_satisfaction_invalidation_manifest_from_mapping,
+)
+from axiom_rift.research.semantic_question import (
+    SemanticQuestionCore,
+    SemanticQuestionEquivalenceProposal,
+    SemanticQuestionError,
+    SemanticQuestionLineageProposal,
 )
 from axiom_rift.research.trials import TrialAccountant
 from axiom_rift.storage.evidence import (
@@ -525,6 +532,90 @@ def _require_bound_active_job(
         )
 
 
+def _fixed_hold_replay_study_input_payload(
+    *,
+    study_id: str,
+    study_payload: Mapping[str, Any],
+    question: Mapping[str, Any],
+    proposal: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Rebuild the exact Writer-bound Study identity at the Job boundary."""
+
+    equivalence_payload = study_payload.get("semantic_question_equivalence")
+    lineage_payload = study_payload.get("semantic_question_lineage")
+    try:
+        equivalence = (
+            None
+            if equivalence_payload is None
+            else SemanticQuestionEquivalenceProposal.from_identity_payload(
+                equivalence_payload
+            )
+        )
+        lineage = (
+            None
+            if lineage_payload is None
+            else SemanticQuestionLineageProposal.from_identity_payload(
+                lineage_payload
+            )
+        )
+        semantic_core = (
+            None
+            if study_payload.get("semantic_question_core_id") is None
+            and lineage is None
+            else SemanticQuestionCore.from_question_manifest(question)
+        )
+    except (SemanticQuestionError, TypeError) as exc:
+        raise RunningJobAuthorityError(
+            "fixed-hold replay Study semantic authority is malformed"
+        ) from exc
+    equivalence_id = study_payload.get("semantic_question_equivalence_id")
+    lineage_id = study_payload.get("semantic_question_lineage_id")
+    semantic_core_id = study_payload.get("semantic_question_core_id")
+    if (
+        (equivalence is None and equivalence_id is not None)
+        or (equivalence is not None and equivalence.identity != equivalence_id)
+        or (lineage is None and lineage_id is not None)
+        or (lineage is not None and lineage.identity != lineage_id)
+        or (
+            lineage is not None
+            and (
+                lineage.successor_study_id != study_id
+                or semantic_core is None
+                or lineage.successor_core_id != semantic_core.identity
+                or lineage.equivalence_proposal_id
+                != (None if equivalence is None else equivalence.identity)
+            )
+        )
+        or (
+            semantic_core is not None
+            and semantic_core.identity != semantic_core_id
+        )
+    ):
+        raise RunningJobAuthorityError(
+            "fixed-hold replay Study semantic authority is malformed"
+        )
+    identity_payload: dict[str, Any] = {
+        "controlled_chassis": study_payload.get("controlled_chassis"),
+        "question_hash": study_payload.get("question_hash"),
+        "material_identity": study_payload.get("material_identity"),
+        "portfolio_axis_id": study_payload.get("portfolio_axis_id"),
+        "portfolio_axis_identity": study_payload.get(
+            "portfolio_axis_identity"
+        ),
+        "portfolio_decision_id": study_payload.get("portfolio_decision_id"),
+        "semantic_proposal": dict(proposal),
+    }
+    if equivalence is not None:
+        identity_payload["semantic_question_equivalence"] = (
+            equivalence.to_identity_payload()
+        )
+    if lineage is not None:
+        identity_payload["semantic_question_lineage"] = (
+            lineage.to_identity_payload()
+        )
+    return identity_payload
+
+
 class RunningJobExecutionContext:
     """Expose only projections bound to one verified running Job."""
 
@@ -786,30 +877,20 @@ class RunningJobExecutionContext:
                     payload=dict(question),
                 )
                 != study_payload.get("question_hash")
-                or canonical_digest(
-                    domain="study-input",
-                    payload={
-                        "controlled_chassis": study_payload.get(
-                            "controlled_chassis"
-                        ),
-                        "question_hash": study_payload.get("question_hash"),
-                        "material_identity": study_payload.get(
-                            "material_identity"
-                        ),
-                        "portfolio_axis_id": study_payload.get(
-                            "portfolio_axis_id"
-                        ),
-                        "portfolio_axis_identity": study_payload.get(
-                            "portfolio_axis_identity"
-                        ),
-                        "portfolio_decision_id": study_payload.get(
-                            "portfolio_decision_id"
-                        ),
-                        "semantic_proposal": dict(proposal),
-                    },
-                )
-                != study.fingerprint
             ):
+                raise RunningJobAuthorityError(
+                    "fixed-hold replay Study authority is malformed"
+                )
+            study_input_payload = _fixed_hold_replay_study_input_payload(
+                study_id=study_id,
+                study_payload=study_payload,
+                question=question,
+                proposal=proposal,
+            )
+            if canonical_digest(
+                domain="study-input",
+                payload=study_input_payload,
+            ) != study.fingerprint:
                 raise RunningJobAuthorityError(
                     "fixed-hold replay Study authority is malformed"
                 )
@@ -1248,6 +1329,7 @@ def running_job_execution_context_dependency_paths() -> tuple[Path, ...]:
                 Path(replay_exposure_module.__file__).resolve(),
                 Path(replay_obligation_module.__file__).resolve(),
                 Path(replay_satisfaction_invalidation_module.__file__).resolve(),
+                Path(semantic_question_module.__file__).resolve(),
                 Path(recorded_transition_authority_module.__file__).resolve(),
                 Path(scientific_history_module.__file__).resolve(),
                 Path(trials_module.__file__).resolve(),

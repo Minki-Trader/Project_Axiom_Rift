@@ -34,6 +34,18 @@ from axiom_rift.operations.replay_projection import (
     scheduler_constraints,
     with_scheduler_constraints,
 )
+from axiom_rift.operations.replay_initiative_lifecycle import (
+    ReplayInitiativeBindingPhase,
+    ReplayInitiativeLifecycle,
+    require_replay_initiative_binding,
+)
+from axiom_rift.operations.replay_workflow_recovery import (
+    diagnosis_architecture_review_trigger as _diagnosis_architecture_review_trigger,
+    replay_initiative_binding_phase,
+    replay_resolution_operation_present,
+    require_borrowed_replay_admission as _require_borrowed_replay_admission,
+    terminal_replay_reconstruction_allowed as _terminal_replay_reconstruction_allowed,
+)
 from axiom_rift.operations.strict_operation_chain import (
     OperationChainCursor,
     OperationStep,
@@ -102,6 +114,9 @@ from axiom_rift.research.replay_obligation import (
     ReplayResumeCondition,
     ReplayResumeConditionKind,
     ReplaySatisfaction,
+)
+from axiom_rift.research.semantic_question import (
+    SemanticQuestionLineageProposal,
 )
 from axiom_rift.research.trials import NegativeMemory
 from axiom_rift.research.validation_v2 import (
@@ -213,6 +228,7 @@ class FixedHoldReplayMissionSpec:
     permit_expiry_utc: str
     boundary: ReplayAuthorityBoundary
     display_name: str
+    initiative_lifecycle: ReplayInitiativeLifecycle
 
     def __post_init__(self) -> None:
         for name in (
@@ -233,6 +249,11 @@ class FixedHoldReplayMissionSpec:
         ):
             _ascii(name, getattr(self, name))
         _digest("Job implementation identity", self.job_implementation_identity)
+        if not isinstance(
+            self.initiative_lifecycle,
+            ReplayInitiativeLifecycle,
+        ):
+            raise ValueError("replay Initiative lifecycle is not typed")
         if not self.target_obligation_id.startswith(
             "historical-replay-obligation:"
         ):
@@ -329,8 +350,18 @@ class FixedHoldReplayDesign:
     batch_spec: BatchSpec
     controlled_chassis: ControlledStudyChassis
     criterion_ids: tuple[str, ...]
+    semantic_question_lineage: SemanticQuestionLineageProposal | None = None
 
     def __post_init__(self) -> None:
+        if self.semantic_question_lineage is not None and (
+            not isinstance(
+                self.semantic_question_lineage,
+                SemanticQuestionLineageProposal,
+            )
+            or self.semantic_question_lineage.successor_study_id
+            != self.spec.study_id
+        ):
+            raise ValueError("replay semantic question lineage is not exact")
         if not self.members or tuple(
             member.ordinal for member in self.members
         ) != tuple(range(1, len(self.members) + 1)):
@@ -494,52 +525,6 @@ def _projection_payloads(
     return tuple(values)
 
 
-def _terminal_replay_reconstruction_allowed(
-    index: LocalIndexView,
-    spec: FixedHoldReplayMissionSpec,
-    target_head: IndexRecord,
-) -> bool:
-    """Permit read-only reconstruction only after the exact diagnosis chain."""
-
-    if target_head.status not in {"satisfied", "deferred"}:
-        return False
-    expected = (
-        ("diagnose-study", {"study_diagnosis_recorded"}),
-        (
-            "resolve-replay",
-            {
-                "historical_replay_obligations_resolved",
-                "historical_replay_obligations_deferred",
-            },
-        ),
-        ("disposition-decision", {"portfolio_decision_recorded"}),
-        ("disposition-snapshot", {"portfolio_snapshot_recorded"}),
-        ("close-initiative", {"initiative_closed"}),
-    )
-    records = tuple(
-        index.get("operation", spec.operation_prefix + suffix)
-        for suffix, _event_kinds in expected
-    )
-    if any(record is None for record in records):
-        return False
-    if any(
-        record.status != "success"
-        or record.payload.get("event_kind") not in event_kinds
-        for record, (_suffix, event_kinds) in zip(
-            records,
-            expected,
-            strict=True,
-        )
-        if record is not None
-    ):
-        return False
-    close_result = records[-1].payload.get("result")
-    return (
-        isinstance(close_result, Mapping)
-        and close_result.get("initiative_id") == spec.initiative_id
-    )
-
-
 def build_fixed_hold_replay_design(
     writer: StateWriter,
     *,
@@ -554,10 +539,27 @@ def build_fixed_hold_replay_design(
     mechanism_family: str,
     why_now: str,
     stop_or_reopen_condition: str,
+    semantic_question_lineage: SemanticQuestionLineageProposal | None = None,
 ) -> FixedHoldReplayDesign:
     """Build one exact forest-preserving replay design from durable state."""
 
+    if (
+        semantic_question_lineage is not None
+        and (
+            not isinstance(
+                semantic_question_lineage,
+                SemanticQuestionLineageProposal,
+            )
+            or semantic_question_lineage.successor_study_id != spec.study_id
+        )
+    ):
+        raise RuntimeError("replay semantic lineage does not bind its Study")
     with writer.open_stable_index() as (_control, index):
+        _require_borrowed_replay_admission(
+            control=_control,
+            index=index,
+            spec=spec,
+        )
         base_snapshot_id = _base_snapshot_id(index, spec)
         snapshot_record = index.get("portfolio-snapshot", base_snapshot_id)
         if snapshot_record is None:
@@ -602,14 +604,29 @@ def build_fixed_hold_replay_design(
             "historical-family-authority",
             historical_family_authority_id,
         )
-        terminal_reconstruction = (
-            target is not None
-            and _terminal_replay_reconstruction_allowed(
-                index,
-                spec,
-                target[1],
+        binding_phase = (
+            None
+            if target is None
+            else replay_initiative_binding_phase(
+                control=_control,
+                index=index,
+                spec=spec,
+                target_head=target[1],
             )
         )
+        terminal_reconstruction = (
+            binding_phase is ReplayInitiativeBindingPhase.TERMINAL_HANDOFF
+        )
+        if binding_phase is not None:
+            require_replay_initiative_binding(
+                control=_control,
+                index=index,
+                lifecycle=spec.initiative_lifecycle,
+                mission_id=spec.mission_id,
+                initiative_id=spec.initiative_id,
+                operation_prefix=spec.operation_prefix,
+                phase=binding_phase,
+            )
         bridge_review_mode = _accepted_decision_review_mode(
             index,
             spec.operation_prefix + "bridge-decision",
@@ -886,6 +903,7 @@ def build_fixed_hold_replay_design(
         portfolio_axis_id=replay_axis.axis_id,
         portfolio_axis_identity=replay_axis.identity,
         portfolio_decision_id=work_decision.identity,
+        semantic_question_lineage=semantic_question_lineage,
     )
     batch_budget = fixed_hold_replay_batch_budget(members)
     batch_spec = BatchSpec(
@@ -936,6 +954,7 @@ def build_fixed_hold_replay_design(
         target_executable_id=target_executable_id,
         question=question,
         proposal=proposal,
+        semantic_question_lineage=semantic_question_lineage,
         batch_spec=batch_spec,
         controlled_chassis=controlled_chassis,
         criterion_ids=criterion_ids,
@@ -1892,6 +1911,33 @@ def operation_steps(
             )
     assert _control is not None
     prefix = design.spec.operation_prefix
+    binding_phase = ReplayInitiativeBindingPhase.EXECUTION
+    if replay_resolution_operation_present(_index, design.spec):
+        replay_heads = {
+            obligation.identity: head
+            for obligation, head in obligation_heads(
+                _index,
+                mission_id=design.spec.mission_id,
+            )
+        }
+        replay_head = replay_heads.get(design.spec.target_obligation_id)
+        if replay_head is None:
+            raise RuntimeError("replay operation plan lost its exact obligation")
+        binding_phase = replay_initiative_binding_phase(
+            control=_control,
+            index=_index,
+            spec=design.spec,
+            target_head=replay_head,
+        )
+    require_replay_initiative_binding(
+        control=_control,
+        index=_index,
+        lifecycle=design.spec.initiative_lifecycle,
+        mission_id=design.spec.mission_id,
+        initiative_id=design.spec.initiative_id,
+        operation_prefix=prefix,
+        phase=binding_phase,
+    )
     budget_repair_boundary = _batch_budget_repair_boundary(
         writer,
         design,
@@ -1945,8 +1991,19 @@ def operation_steps(
             criterion_ids=design.criterion_ids,
         ).all_criteria_recomputed
     )
-    steps: list[OperationStep] = [
-        OperationStep(prefix + "open-initiative", "initiative_opened", STUDY_CLOSE_STAGE),
+    steps: list[OperationStep] = []
+    if (
+        design.spec.initiative_lifecycle
+        is ReplayInitiativeLifecycle.OWN_BOUNDED_INITIATIVE
+    ):
+        steps.append(
+            OperationStep(
+                prefix + "open-initiative",
+                "initiative_opened",
+                STUDY_CLOSE_STAGE,
+            )
+        )
+    steps.extend([
         OperationStep(prefix + "bridge-decision", "portfolio_decision_recorded", STUDY_CLOSE_STAGE),
         OperationStep(prefix + "expanded-snapshot", "portfolio_snapshot_recorded", STUDY_CLOSE_STAGE),
         OperationStep(prefix + "replay-decision", "portfolio_decision_recorded", STUDY_CLOSE_STAGE),
@@ -1954,7 +2011,7 @@ def operation_steps(
         OperationStep(prefix + "open-study", "study_opened", STUDY_CLOSE_STAGE),
         OperationStep(prefix + "batch-permit", "permit_issued", STUDY_CLOSE_STAGE),
         OperationStep(prefix + "open-batch", "batch_opened", STUDY_CLOSE_STAGE),
-    ]
+    ])
     activation_operation_ids = list(
         _recorded_protocol_activation_operation_ids(
             writer,
@@ -2054,11 +2111,32 @@ def operation_steps(
                 ),
                 DIAGNOSE_STAGE,
             ),
-            OperationStep(prefix + "disposition-decision", "portfolio_decision_recorded", DIAGNOSE_STAGE),
-            OperationStep(prefix + "disposition-snapshot", "portfolio_snapshot_recorded", DIAGNOSE_STAGE),
-            OperationStep(prefix + "close-initiative", "initiative_closed", DIAGNOSE_STAGE),
         )
     )
+    if (
+        _diagnosis_architecture_review_trigger(_index, design.spec) is None
+        and design.spec.initiative_lifecycle
+        is ReplayInitiativeLifecycle.OWN_BOUNDED_INITIATIVE
+    ):
+        steps.extend(
+            (
+                OperationStep(
+                    prefix + "disposition-decision",
+                    "portfolio_decision_recorded",
+                    DIAGNOSE_STAGE,
+                ),
+                OperationStep(
+                    prefix + "disposition-snapshot",
+                    "portfolio_snapshot_recorded",
+                    DIAGNOSE_STAGE,
+                ),
+                OperationStep(
+                    prefix + "close-initiative",
+                    "initiative_closed",
+                    DIAGNOSE_STAGE,
+                ),
+            )
+        )
     return tuple(steps)
 
 
@@ -2251,15 +2329,7 @@ def _study_permit(
     design: FixedHoldReplayDesign,
 ) -> Permit:
     spec = design.spec
-    study_hash = writer.study_input_hash(
-        question=design.question,
-        material_identity=OBSERVED_MATERIAL_ID,
-        semantic_proposal=design.proposal,
-        controlled_chassis=design.controlled_chassis,
-        portfolio_axis_id=design.replay_axis.axis_id,
-        portfolio_axis_identity=design.replay_axis.identity,
-        portfolio_decision_id=design.work_decision.identity,
-    )
+    study_hash = fixed_hold_replay_study_input_hash(writer, design)
     return writer.issue_permit(
         kind=PermitKind.STUDY,
         subject_kind=SubjectKind.INITIATIVE,
@@ -2281,6 +2351,24 @@ def _study_permit(
         expires_at_utc=spec.permit_expiry_utc,
         one_shot=True,
         operation_id=spec.operation_prefix + "study-permit",
+    )
+
+
+def fixed_hold_replay_study_input_hash(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+) -> str:
+    """Recompute the one Study identity shared by Batch, permit, and open."""
+
+    return writer.study_input_hash(
+        question=design.question,
+        material_identity=OBSERVED_MATERIAL_ID,
+        semantic_proposal=design.proposal,
+        controlled_chassis=design.controlled_chassis,
+        portfolio_axis_id=design.replay_axis.axis_id,
+        portfolio_axis_identity=design.replay_axis.identity,
+        portfolio_decision_id=design.work_decision.identity,
+        semantic_question_lineage=design.semantic_question_lineage,
     )
 
 
@@ -2375,6 +2463,7 @@ def _apply_study_close_step(
             material_identity=OBSERVED_MATERIAL_ID,
             material_display_name="foundation observed development material",
             semantic_proposal=design.proposal,
+            semantic_question_lineage=design.semantic_question_lineage,
             controlled_chassis=design.controlled_chassis,
             portfolio_axis_id=design.replay_axis.axis_id,
             portfolio_axis_identity=design.replay_axis.identity,
@@ -3290,8 +3379,8 @@ def verify_diagnose_postconditions(
     completed, steps = inspect_replay_prefix(writer, design)
     if completed != len(steps):
         raise RuntimeError("replay diagnosis chain is incomplete")
-    expected_snapshot = _disposition_snapshot(writer, design)
     with writer.open_stable_index() as (control, index):
+        trigger_id = _diagnosis_architecture_review_trigger(index, design.spec)
         obligations = {
             obligation.identity: head
             for obligation, head in obligation_heads(
@@ -3312,13 +3401,54 @@ def verify_diagnose_postconditions(
         portfolio_head = index.event_head(
             f"portfolio:{design.spec.mission_id}"
         )
-    expected_next_action = with_scheduler_constraints(
-        {
-            "kind": "choose_next_initiative_or_terminal",
-            "mission_id": design.spec.mission_id,
-        },
-        constraints,
+        require_replay_initiative_binding(
+            control=control,
+            index=index,
+            lifecycle=design.spec.initiative_lifecycle,
+            mission_id=design.spec.mission_id,
+            initiative_id=design.spec.initiative_id,
+            operation_prefix=design.spec.operation_prefix,
+        )
+    borrowed = (
+        design.spec.initiative_lifecycle
+        is ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE
     )
+    expected_snapshot = (
+        None
+        if trigger_id is not None or borrowed
+        else _disposition_snapshot(writer, design)
+    )
+    if trigger_id is not None:
+        expected_next_action = with_scheduler_constraints(
+            {
+                "kind": "review_architecture",
+                "trigger_record_id": trigger_id,
+            },
+            constraints,
+        )
+        expected_portfolio_id = design.expanded_snapshot.identity
+    elif borrowed:
+        diagnosis = _diagnosis_record(writer, design)
+        expected_next_action = with_scheduler_constraints(
+            {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": design.expanded_snapshot.identity,
+                "study_diagnosis_id": diagnosis.record_id,
+            },
+            constraints,
+        )
+        expected_portfolio_id = design.expanded_snapshot.identity
+    else:
+        assert expected_snapshot is not None
+        expected_next_action = with_scheduler_constraints(
+            {
+                "kind": "choose_next_initiative_or_terminal",
+                "mission_id": design.spec.mission_id,
+            },
+            constraints,
+        )
+        expected_portfolio_id = expected_snapshot.identity
+    initiative_remains_active = trigger_id is not None or borrowed
     if (
         control is None
         or target is None
@@ -3328,25 +3458,31 @@ def verify_diagnose_postconditions(
             for name in (
                 "active_batch",
                 "active_executable",
-                "active_initiative",
                 "active_job",
                 "active_repair",
                 "active_study",
             )
         )
+        or control.get("scientific", {}).get("active_initiative")
+        != (design.spec.initiative_id if initiative_remains_active else None)
         or control.get("next_action") != expected_next_action
         or portfolio_head is None
-        or portfolio_head.record_id != expected_snapshot.identity
+        or portfolio_head.record_id != expected_portfolio_id
     ):
         raise RuntimeError("replay final scientific or scheduler state drifted")
     _verify_no_candidate_or_holdout(writer, design)
     return {
         "axis_status": (
-            "preserved"
+            "pending_architecture_review"
+            if trigger_id is not None
+            else "pending_portfolio_decision"
+            if borrowed
+            else "preserved"
             if _disposition_decision(writer, design).chosen.action
             is PortfolioAction.PRESERVE
             else "pruned"
         ),
+        "architecture_review_trigger_id": trigger_id,
         "pending_replay_obligation_ids": pending,
         "replay_obligation_status": target.status,
     }
@@ -3417,15 +3553,31 @@ def run_diagnose_stage(
                     "replay diagnosis step did not advance once"
                 ) from exc
             cursor = recovered
+        if step.event_kind in {
+            "study_diagnosis_recorded",
+            "historical_replay_obligations_resolved",
+            "historical_replay_obligations_deferred",
+        }:
+            cursor = _refresh_replay_cursor_plan(writer, design, cursor)
     verified = verify_diagnose_postconditions(writer, design)
     with writer.open_stable_index() as (final_control, _index):
         next_action = final_control["next_action"]
+    trigger_id = verified.get("architecture_review_trigger_id")
+    mode = (
+        "replay_resolved_architecture_review_required"
+        if isinstance(trigger_id, str)
+        else "replay_resolved_active_initiative_preserved"
+        if design.spec.initiative_lifecycle
+        is ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE
+        else "diagnosed_replay_and_initiative_closed"
+    )
     return {
         "applied_step_count": end - initial,
         "candidate_created": False,
         "holdout_reveal_delta": 0,
         "initiative_id": design.spec.initiative_id,
-        "mode": "diagnosed_replay_and_initiative_closed",
+        "initiative_lifecycle": design.spec.initiative_lifecycle.value,
+        "mode": mode,
         "next_action": next_action,
         "replay_obligation_id": design.spec.target_obligation_id,
         "schema": "fixed_hold_replay_diagnosis.v1",
@@ -3465,6 +3617,7 @@ def read_only_summary(
             for member in design.members
         ],
         "initiative_id": design.spec.initiative_id,
+        "initiative_lifecycle": design.spec.initiative_lifecycle.value,
         "mode": "read_only_plan",
         "new_axis_id": design.replay_axis.axis_id,
         "replay_obligation_ids": list(
@@ -3489,12 +3642,14 @@ __all__ = [
     "FixedHoldReplayMember",
     "FixedHoldReplayMissionSpec",
     "ReplayAuthorityBoundary",
+    "ReplayInitiativeLifecycle",
     "ReplayInterpretation",
     "build_fixed_hold_replay_design",
     "build_replay_job_spec",
     "activate_current_scientific_protocol",
     "fixed_hold_replay_batch_budget",
     "fixed_hold_replay_job_budget",
+    "fixed_hold_replay_study_input_hash",
     "inspect_replay_prefix",
     "interpret_fixed_hold_completion",
     "operation_steps",

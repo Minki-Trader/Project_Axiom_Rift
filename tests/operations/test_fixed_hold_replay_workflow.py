@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
@@ -14,6 +15,7 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
     FixedHoldReplayDesign,
     FixedHoldReplayMissionSpec,
     ReplayAuthorityBoundary,
+    ReplayInitiativeLifecycle,
     ReplayInterpretation,
     _accepted_decision_review_mode,
     _all_member_repair_chains,
@@ -61,7 +63,7 @@ def _snapshot_writer(index: object, *, control: dict | None = None):
     )
 
 
-def _empty_workflow_writer():
+def _empty_workflow_writer(*, active_initiative: str | None = None):
     authority_digest = "a" * 64
     protocol_record_id = "protocol-activation:" + "b" * 64
     protocol_head = SimpleNamespace(
@@ -77,6 +79,14 @@ def _empty_workflow_writer():
         },
         status="active",
     )
+    initiative = SimpleNamespace(
+        subject=(
+            None
+            if active_initiative is None
+            else f"Initiative:{active_initiative}"
+        ),
+        status="open",
+    )
 
     class EmptyIndex:
         @staticmethod
@@ -84,8 +94,12 @@ def _empty_workflow_writer():
             return protocol_head if stream == "research-protocol:scientific" else None
 
         @staticmethod
-        def get(_kind: str, record_id: str):
-            return protocol if record_id == protocol_record_id else None
+        def get(kind: str, record_id: str):
+            if record_id == protocol_record_id:
+                return protocol
+            if kind == "initiative-open" and record_id == active_initiative:
+                return initiative
+            return None
 
         @staticmethod
         def records_by_kind_prefix(_kind: str, _prefix: str):
@@ -94,9 +108,23 @@ def _empty_workflow_writer():
     return _snapshot_writer(
         EmptyIndex(),
         control={
+            "authorizations": (
+                {}
+                if active_initiative is None
+                else {
+                    f"Initiative:{active_initiative}": {
+                        "kind": "Initiative",
+                        "subject_id": active_initiative,
+                    }
+                }
+            ),
             "authority": {"manifest_digest": authority_digest},
             "heads": {"journal": {"sequence": 100}},
-            "scientific": {"active_batch": None},
+            "scientific": {
+                "active_batch": None,
+                "active_initiative": active_initiative,
+                "active_mission": "MIS-9001",
+            },
         },
     )
 
@@ -466,6 +494,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         self,
     ) -> None:
         spec = self._spec()
+        diagnosis_id = "diagnosis:" + "1" * 64
         expected_events = {
             "diagnose-study": "study_diagnosis_recorded",
             "resolve-replay": "historical_replay_obligations_resolved",
@@ -475,22 +504,52 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         }
         records = {
             spec.operation_prefix + suffix: SimpleNamespace(
+                authority_event_id=(
+                    "1" * 64 if suffix == "diagnose-study" else "2" * 64
+                ),
+                authority_sequence=(101 if suffix == "diagnose-study" else 102),
                 status="success",
                 payload={
                     "event_kind": event_kind,
                     "result": (
                         {"initiative_id": spec.initiative_id}
                         if suffix == "close-initiative"
+                        else {
+                            "satisfied_replay_obligation_ids": [
+                                spec.target_obligation_id
+                            ]
+                        }
+                        if suffix == "resolve-replay"
+                        else {
+                            "architecture_review_trigger_id": None,
+                            "study_diagnosis_id": diagnosis_id,
+                        }
+                        if suffix == "diagnose-study"
                         else {}
                     ),
                 },
             )
             for suffix, event_kind in expected_events.items()
         }
-        index = SimpleNamespace(
-            get=lambda _kind, record_id: records.get(record_id)
+        diagnosis = SimpleNamespace(
+            authority_event_id="1" * 64,
+            authority_sequence=101,
+            payload={"mission_id": spec.mission_id},
+            subject=f"Study:{spec.study_id}",
         )
-        terminal = SimpleNamespace(status="satisfied")
+        index = SimpleNamespace(
+            get=lambda kind, record_id: (
+                diagnosis
+                if (kind, record_id) == ("study-diagnosis", diagnosis_id)
+                else records.get(record_id)
+            )
+        )
+        terminal = SimpleNamespace(
+            authority_event_id="2" * 64,
+            authority_sequence=102,
+            payload={"obligation_id": spec.target_obligation_id},
+            status="satisfied",
+        )
         self.assertTrue(
             _terminal_replay_reconstruction_allowed(index, spec, terminal)
         )
@@ -531,6 +590,9 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
 
     def _spec(self) -> FixedHoldReplayMissionSpec:
         return FixedHoldReplayMissionSpec(
+            initiative_lifecycle=(
+                ReplayInitiativeLifecycle.OWN_BOUNDED_INITIATIVE
+            ),
             mission_id="MIS-9001",
             initiative_id="INI-9001",
             study_id="STU-9001",
@@ -664,7 +726,16 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
                     return authority_record
                 return None
 
-        writer = _snapshot_writer(GateIndex())
+        writer = _snapshot_writer(
+            GateIndex(),
+            control={
+                "authorizations": {},
+                "scientific": {
+                    "active_initiative": None,
+                    "active_mission": spec.mission_id,
+                },
+            },
+        )
         patches = {
             "_accepted_decision_review_mode": Mock(return_value=False),
             "_base_snapshot_id": Mock(return_value=snapshot_id),
@@ -821,6 +892,41 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             steps[-4].event_kind,
             "historical_replay_obligations_deferred",
         )
+
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow._member_completion",
+        return_value=None,
+    )
+    def test_borrowed_operation_plan_preserves_owner_and_router_handoff(
+        self,
+        _completion,
+    ) -> None:
+        original = self._design()
+        spec = replace(
+            original.spec,
+            initiative_lifecycle=(
+                ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE
+            ),
+        )
+        design = SimpleNamespace(**{**vars(original), "spec": spec})
+        operation_ids = {
+            step.operation_id
+            for step in operation_steps(
+                _empty_workflow_writer(active_initiative=spec.initiative_id),
+                design,
+            )
+        }
+        self.assertNotIn(spec.operation_prefix + "open-initiative", operation_ids)
+        self.assertNotIn(
+            spec.operation_prefix + "disposition-decision",
+            operation_ids,
+        )
+        self.assertNotIn(
+            spec.operation_prefix + "disposition-snapshot",
+            operation_ids,
+        )
+        self.assertNotIn(spec.operation_prefix + "close-initiative", operation_ids)
+        self.assertIn(spec.operation_prefix + "resolve-replay", operation_ids)
 
     @patch(
         "axiom_rift.operations.fixed_hold_replay_workflow._member_completion",

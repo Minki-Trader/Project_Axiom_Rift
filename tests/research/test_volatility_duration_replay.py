@@ -15,6 +15,9 @@ from axiom_rift.research.fixed_hold_family_trace import (
 from axiom_rift.research.historical_family_replay import (
     STU0051_HISTORICAL_FAMILY,
 )
+from axiom_rift.research.historical_family_binding import (
+    historical_family_from_manifest,
+)
 from axiom_rift.research.scientific_trace import (
     VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID,
     trace_proof_kinds,
@@ -48,6 +51,10 @@ from axiom_rift.storage.evidence import EvidenceStore
 
 
 HISTORICAL_CONTEXT_COUNT = 582
+FAMILY_AUTHORITY_ID = "historical-family-authority:" + "a" * 64
+BOUND_FAMILY = historical_family_from_manifest(
+    STU0051_HISTORICAL_FAMILY.manifest()
+)
 
 
 class _EvidenceStore:
@@ -238,6 +245,11 @@ class VolatilityDurationReplayTests(unittest.TestCase):
                     executable_id=executable.identity,
                     historical_context_prior_global_exposure_count=(
                         HISTORICAL_CONTEXT_COUNT
+                    ),
+                    historical_family=BOUND_FAMILY,
+                    historical_family_authority_id=FAMILY_AUTHORITY_ID,
+                    replay_obligation_id=(
+                        VOLATILITY_DURATION_REPLAY_HISTORICAL_CONTEXT_ID
                     ),
                 )
             )

@@ -17,6 +17,7 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (  # noqa: E402
     FixedHoldReplayMember,
     FixedHoldReplayMissionSpec,
     ReplayAuthorityBoundary,
+    ReplayInitiativeLifecycle,
     build_fixed_hold_replay_design,
 )
 from axiom_rift.operations.scientific_history import (  # noqa: E402
@@ -28,6 +29,9 @@ from axiom_rift.research.fixed_hold_family_trace import (  # noqa: E402
 )
 from axiom_rift.research.historical_family_replay import (  # noqa: E402
     STU0051_HISTORICAL_FAMILY,
+)
+from axiom_rift.research.historical_family_binding import (  # noqa: E402
+    historical_family_from_manifest,
 )
 from axiom_rift.research.trials import TrialAccountant  # noqa: E402
 from axiom_rift.research.volatility_duration_replay import (  # noqa: E402
@@ -56,10 +60,17 @@ PREDECESSOR_REVISION = 5020
 PREDECESSOR_EVENT_ID = (
     "61da2fdb1930956b0acc9886042af09ca98eb70301e5394cfdaa922b58964fc2"
 )
+HISTORICAL_FAMILY_AUTHORITY_ID = (
+    "historical-family-authority:"
+    "a1996ed0e967f188c6a68fa8ef512996d7754d998f829961e6872107b145bea3"
+)
 
 
 def mission_spec() -> FixedHoldReplayMissionSpec:
     return FixedHoldReplayMissionSpec(
+        initiative_lifecycle=(
+            ReplayInitiativeLifecycle.OWN_BOUNDED_INITIATIVE
+        ),
         mission_id=MISSION_ID,
         initiative_id=INITIATIVE_ID,
         study_id=STUDY_ID,
@@ -85,6 +96,9 @@ def mission_spec() -> FixedHoldReplayMissionSpec:
 
 
 def ordered_members() -> tuple[FixedHoldReplayMember, ...]:
+    historical_family = historical_family_from_manifest(
+        STU0051_HISTORICAL_FAMILY.manifest()
+    )
     values: list[FixedHoldReplayMember] = []
     for configuration in volatility_duration_replay_configurations():
         executable = volatility_duration_replay_executable(
@@ -107,6 +121,13 @@ def ordered_members() -> tuple[FixedHoldReplayMember, ...]:
                     executable_id=executable.identity,
                     historical_context_prior_global_exposure_count=(
                         HISTORICAL_CONTEXT_COUNT
+                    ),
+                    historical_family=historical_family,
+                    historical_family_authority_id=(
+                        HISTORICAL_FAMILY_AUTHORITY_ID
+                    ),
+                    replay_obligation_id=(
+                        VOLATILITY_DURATION_REPLAY_HISTORICAL_CONTEXT_ID
                     ),
                 ),
             )
@@ -181,6 +202,7 @@ def build_design(writer: StateWriter):
             )
         ),
         historical_family_manifest=STU0051_HISTORICAL_FAMILY.manifest(),
+        historical_family_authority_id=HISTORICAL_FAMILY_AUTHORITY_ID,
         criterion_ids=criterion_ids,
         causal_question=(
             "Does an exact prospective reconstruction of the four-member "

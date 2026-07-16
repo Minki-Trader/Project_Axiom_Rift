@@ -61,6 +61,11 @@ from axiom_rift.research.replay_satisfaction_invalidation import (
     ReplaySelectionFamilyObservation,
     SELECTION_CRITERION_ID,
 )
+from axiom_rift.research.semantic_question import (
+    SemanticQuestionCore,
+    SemanticQuestionLineageProposal,
+    SemanticQuestionRelation,
+)
 from axiom_rift.storage.evidence import EvidenceStore
 from axiom_rift.storage.index import IndexRecord, LocalIndex
 
@@ -85,6 +90,9 @@ HISTORICAL_SCIENTIFIC_VALIDITY_PATH = (
     / "axiom_rift"
     / "research"
     / "historical_scientific_validity.py"
+).resolve()
+SEMANTIC_QUESTION_PATH = (
+    SOURCE_ROOT / "axiom_rift" / "research" / "semantic_question.py"
 ).resolve()
 WRITER_PATH = (
     SOURCE_ROOT / "axiom_rift" / "operations" / "writer.py"
@@ -262,6 +270,7 @@ def _build_fixed_hold_replay_projection(
     *,
     prefix_length: int,
     tamper: str | None = None,
+    semantic_lineage: bool = False,
 ) -> SimpleNamespace:
     if prefix_length not in {1, 2, 3, 4}:
         raise ValueError("fixture prefix must select one family ordinal")
@@ -345,7 +354,27 @@ def _build_fixed_hold_replay_projection(
         "mechanism": "fixture-fixed-hold",
         "original_study_id": family.original_study_id,
     }
-    question = {"causal_question": "fixture replay authority"}
+    question = {
+        "causal_question": "fixture replay authority",
+        "changed_variables": ["fixture replay treatment"],
+        "controlled_variables": ["fixture replay control"],
+        "done_conditions": ["fixture replay family is complete"],
+        "evidence_modes": ["development"],
+    }
+    semantic_core = SemanticQuestionCore.from_question_manifest(question)
+    lineage = (
+        SemanticQuestionLineageProposal(
+            predecessor_study_id="STU-PREDECESSOR",
+            successor_study_id=study_id,
+            predecessor_core_id=semantic_core.identity,
+            successor_core_id=semantic_core.identity,
+            relation=SemanticQuestionRelation.CONTINUATION,
+            rationale="fixture production replay continuation",
+            basis_record_ids=("study-open:STU-PREDECESSOR",),
+        )
+        if semantic_lineage
+        else None
+    )
     question_hash = canonical_digest(
         domain="study-question",
         payload=question,
@@ -363,20 +392,34 @@ def _build_fixed_hold_replay_projection(
         "question_hash": question_hash,
         "replay_obligation_ids": [obligation.identity],
         "semantic_proposal": proposal,
+        "semantic_question_core_id": semantic_core.identity,
+        "semantic_question_equivalence": None,
+        "semantic_question_equivalence_id": None,
+        "semantic_question_lineage": (
+            None if lineage is None else lineage.to_identity_payload()
+        ),
+        "semantic_question_lineage_id": (
+            None if lineage is None else lineage.identity
+        ),
     }
+    study_input_payload = {
+        "controlled_chassis": controlled_chassis,
+        "question_hash": question_hash,
+        "material_identity": study_payload["material_identity"],
+        "portfolio_axis_id": study_payload["portfolio_axis_id"],
+        "portfolio_axis_identity": study_payload[
+            "portfolio_axis_identity"
+        ],
+        "portfolio_decision_id": portfolio_decision_id,
+        "semantic_proposal": proposal,
+    }
+    if lineage is not None:
+        study_input_payload["semantic_question_lineage"] = (
+            lineage.to_identity_payload()
+        )
     study_hash = canonical_digest(
         domain="study-input",
-        payload={
-            "controlled_chassis": controlled_chassis,
-            "question_hash": question_hash,
-            "material_identity": study_payload["material_identity"],
-            "portfolio_axis_id": study_payload["portfolio_axis_id"],
-            "portfolio_axis_identity": study_payload[
-                "portfolio_axis_identity"
-            ],
-            "portfolio_decision_id": portfolio_decision_id,
-            "semantic_proposal": proposal,
-        },
+        payload=study_input_payload,
     )
     study = IndexRecord(
         kind="study-open",
@@ -1757,6 +1800,30 @@ def test_fixed_hold_replay_target_job_requires_exact_in_progress_binding(
     )
 
 
+def test_fixed_hold_replay_runtime_reopens_lineage_bound_study_hash(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _build_fixed_hold_replay_projection(
+        tmp_path,
+        prefix_length=1,
+        semantic_lineage=True,
+    )
+    context = _verified_replay_context(tmp_path, monkeypatch, fixture)
+
+    projection = context.project_bound_fixed_hold_replay_context(
+        study_id=fixture.study_id,
+        batch_id=fixture.batch_id,
+        subject_executable_id=fixture.subject_executable_id,
+        expected_family_size=4,
+        parameter_name=None,
+    )
+
+    assert projection.execution_prefix_executable_ids == (
+        fixture.prospective_ids[:1]
+    )
+
+
 def test_fixed_hold_replay_v2_uses_prior_family_and_current_validity_head(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -2037,6 +2104,7 @@ def test_context_digest_binds_only_its_exact_project_local_closure(
     assert RUNNING_JOB_PATH in paths
     assert COMPLETION_VALIDITY_PATH in paths
     assert HISTORICAL_SCIENTIFIC_VALIDITY_PATH in paths
+    assert SEMANTIC_QUESTION_PATH in paths
     assert WRITER_PATH not in paths
     assert all(path.is_file() and path.is_relative_to(SOURCE_ROOT) for path in paths)
 
@@ -2067,6 +2135,16 @@ def test_context_digest_binds_only_its_exact_project_local_closure(
         return content
 
     monkeypatch.setattr(Path, "read_bytes", perturb_context_dependency)
+    running_job_execution_context_implementation_sha256.cache_clear()
+    assert running_job_execution_context_implementation_sha256() != baseline
+
+    def perturb_semantic_dependency(path: Path) -> bytes:
+        content = original_read_bytes(path)
+        if path.resolve() == SEMANTIC_QUESTION_PATH:
+            return content + b"\n# semantic dependency perturbation"
+        return content
+
+    monkeypatch.setattr(Path, "read_bytes", perturb_semantic_dependency)
     running_job_execution_context_implementation_sha256.cache_clear()
     assert running_job_execution_context_implementation_sha256() != baseline
 

@@ -20,6 +20,7 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (  # noqa: E402
     FixedHoldReplayMember,
     FixedHoldReplayMissionSpec,
     ReplayAuthorityBoundary,
+    ReplayInitiativeLifecycle,
     build_fixed_hold_replay_design,
 )
 from axiom_rift.operations.scientific_history import (  # noqa: E402
@@ -225,6 +226,9 @@ def historical_context_count(
 def mission_spec(authority: RunAuthority) -> FixedHoldReplayMissionSpec:
     route = authority.family
     return FixedHoldReplayMissionSpec(
+        initiative_lifecycle=(
+            ReplayInitiativeLifecycle.OWN_BOUNDED_INITIATIVE
+        ),
         mission_id=MISSION_ID,
         initiative_id=authority.initiative_id,
         study_id=authority.study_id,

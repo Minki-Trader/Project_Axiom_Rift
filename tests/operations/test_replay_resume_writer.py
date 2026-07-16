@@ -28,6 +28,13 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MISSION_ID = "MIS-REPLAY-RESUME-WRITER"
 STUDY_ID = "STU-REPLAY-RESUME-WRITER"
 PROTOCOL_ID = "python.source.exact_replay.v1"
+ORIGINAL_AXIS_ID = "AXS-REPLAY-RESUME-WRITER"
+ORIGINAL_AXIS_IDENTITY = "axis:" + "0" * 64
+ORIGINAL_EXECUTABLE = {"schema": "original_fixture.v1"}
+ORIGINAL_EXECUTABLE_ID = "executable:" + canonical_digest(
+    domain="executable",
+    payload=ORIGINAL_EXECUTABLE,
+)
 
 
 def _typed_replay_executable(original_executable_id: str) -> dict[str, object]:
@@ -105,7 +112,7 @@ class ReplayResumeWriterTests(unittest.TestCase):
             "audit_artifact_hash": "1" * 64,
             "completion_record_id": "2" * 64,
             "disposition": "replay_required",
-            "executable_id": "executable:" + "3" * 64,
+            "executable_id": ORIGINAL_EXECUTABLE_ID,
             "measurement_artifact_hash": "4" * 64,
             "reason_codes": ["missing_exact_uncertainty"],
             "replay_priority": ReplayPriority.P1.value,
@@ -137,10 +144,14 @@ class ReplayResumeWriterTests(unittest.TestCase):
             IndexRecord(
                 kind="study-open",
                 record_id=STUDY_ID,
-                subject=f"Mission:{MISSION_ID}",
+                subject=f"Study:{STUDY_ID}",
                 status="open",
                 fingerprint="a" * 64,
-                payload={"mission_id": MISSION_ID},
+                payload={
+                    "mission_id": MISSION_ID,
+                    "portfolio_axis_id": ORIGINAL_AXIS_ID,
+                    "portfolio_axis_identity": ORIGINAL_AXIS_IDENTITY,
+                },
             ),
             IndexRecord(
                 kind="study-close",
@@ -173,16 +184,28 @@ class ReplayResumeWriterTests(unittest.TestCase):
                 subject=f"Job:{original_job_id}",
                 status="not_evaluable",
                 fingerprint="2" * 64,
-                payload={"job_id": original_job_id},
+                payload={
+                    "job_id": original_job_id,
+                    "scientific": {
+                        "executable_id": obligation.original_executable_id
+                    },
+                },
             ),
             IndexRecord(
                 kind="trial",
                 record_id=obligation.original_executable_id,
                 subject="Batch:BAT-ORIGINAL-WRITER",
                 status="evaluated",
-                fingerprint="3" * 64,
+                fingerprint=(
+                    obligation.original_executable_id.removeprefix(
+                        "executable:"
+                    )
+                ),
                 payload={
-                    "executable": {"schema": "original_fixture.v1"},
+                    "executable": ORIGINAL_EXECUTABLE,
+                    "mission_id": MISSION_ID,
+                    "portfolio_axis_id": ORIGINAL_AXIS_ID,
+                    "portfolio_axis_identity": ORIGINAL_AXIS_IDENTITY,
                     "study_id": STUDY_ID,
                 },
             ),

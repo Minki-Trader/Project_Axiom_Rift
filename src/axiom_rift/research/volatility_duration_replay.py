@@ -56,6 +56,7 @@ from axiom_rift.research.historical_family_replay import (
     STU0051_HISTORICAL_FAMILY,
     HistoricalMemberSpec,
 )
+from axiom_rift.research.historical_family_binding import HistoricalFamilyLike
 from axiom_rift.research.scientific_trace import (
     VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID,
 )
@@ -201,10 +202,12 @@ def _configuration_from_member(
 
 
 def volatility_duration_replay_configurations(
+    *,
+    historical_family: HistoricalFamilyLike = STU0051_HISTORICAL_FAMILY,
 ) -> tuple[VolatilityDurationReplayConfiguration, ...]:
     values = tuple(
         _configuration_from_member(member)
-        for member in STU0051_HISTORICAL_FAMILY.members
+        for member in historical_family.members
     )
     if tuple(value.ordinal for value in values) != (1, 2, 3, 4):
         raise RuntimeError("STU-0051 volatility-duration family order drifted")
@@ -526,10 +529,15 @@ def volatility_duration_replay_executable_map(
 def volatility_duration_replay_protocol_definition(
     *,
     historical_context_prior_global_exposure_count: int,
+    historical_family: HistoricalFamilyLike = STU0051_HISTORICAL_FAMILY,
 ) -> FixedHoldProtocolDefinition:
-    configurations = volatility_duration_replay_configurations()
+    if historical_family.manifest() != STU0051_HISTORICAL_FAMILY.manifest():
+        raise ValueError("STU-0051 Writer-bound historical family drifted")
+    configurations = volatility_duration_replay_configurations(
+        historical_family=historical_family
+    )
     return FixedHoldProtocolDefinition(
-        family=STU0051_HISTORICAL_FAMILY,
+        family=historical_family,
         prospective_executable_ids=tuple(
             volatility_duration_replay_executable(
                 configuration,
@@ -764,10 +772,26 @@ def compute_stu0051_volatility_duration_family_trace(
             historical_context_prior_global_exposure_count
         )
     )
+    return compute_stu0051_volatility_duration_family_trace_from_definition(
+        repository_root,
+        definition,
+    )
+
+
+def compute_stu0051_volatility_duration_family_trace_from_definition(
+    repository_root: str | Path,
+    definition: FixedHoldProtocolDefinition,
+) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
+    """Compute from the exact Writer-bound definition used by the Job."""
+
+    if definition.family.manifest() != STU0051_HISTORICAL_FAMILY.manifest():
+        raise ValueError("STU-0051 trace historical family drifted")
     return compute_fixed_hold_family_trace(
         repository_root,
         definition=definition,
-        configurations=volatility_duration_replay_configurations(),
+        configurations=volatility_duration_replay_configurations(
+            historical_family=definition.family
+        ),
         feature_builder=compute_volatility_duration_replay_score,
         selector_calibrator=calibrate_volatility_duration_replay_selector,
         spread_builder=causal_volatility_duration_replay_spread,
@@ -785,6 +809,7 @@ __all__ = [
     "calibrate_volatility_duration_replay_selector",
     "causal_volatility_duration_replay_spread",
     "compute_stu0051_volatility_duration_family_trace",
+    "compute_stu0051_volatility_duration_family_trace_from_definition",
     "compute_volatility_duration_replay_score",
     "volatility_duration_replay_configurations",
     "volatility_duration_replay_controlled_chassis",
