@@ -176,6 +176,15 @@ _HISTORICAL_CONTROL_ID = re.compile(r"^(?:MIS|STU)-[0-9]{4}$")
 class ImplementationClosureError(ValueError):
     """Raised when prospective code identity is not closed by durable bytes."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        same_identity_repairable: bool = False,
+    ) -> None:
+        super().__init__(message)
+        self.same_identity_repairable = same_identity_repairable
+
 
 def semantic_dependency_closure(
     *,
@@ -1341,17 +1350,20 @@ def require_current_job_source_closure(
         or _path_traverses_link_like(source_root)
     ):
         raise ImplementationClosureError(
-            "Job source root and its traversal must be link-free"
+            "Job source root and its traversal must be link-free",
+            same_identity_repairable=True,
         )
     try:
         normalized_root = source_root.resolve(strict=True)
     except OSError as exc:
         raise ImplementationClosureError(
-            "Job source root is unavailable"
+            "Job source root is unavailable",
+            same_identity_repairable=True,
         ) from exc
     if not normalized_root.is_dir():
         raise ImplementationClosureError(
-            "Job source root must be a directory"
+            "Job source root must be a directory",
+            same_identity_repairable=True,
         )
 
     opened: dict[str, bytes] = {}
@@ -1361,11 +1373,13 @@ def require_current_job_source_closure(
             content = artifact_reader(identity)
         except Exception as exc:
             raise ImplementationClosureError(
-                f"Job source artifact is unavailable: {identity}"
+                f"Job source artifact is unavailable: {identity}",
+                same_identity_repairable=True,
             ) from exc
         if type(content) is not bytes or sha256(content).hexdigest() != identity:
             raise ImplementationClosureError(
-                f"Job source artifact hash mismatch: {identity}"
+                f"Job source artifact hash mismatch: {identity}",
+                same_identity_repairable=True,
             )
         opened[identity] = content
         try:
@@ -1447,18 +1461,21 @@ def require_current_job_source_closure(
             candidate = candidate / part
             if _link_like(candidate):
                 raise ImplementationClosureError(
-                    "Job source closure paths must not traverse links or junctions"
+                    "Job source closure paths must not traverse links or junctions",
+                    same_identity_repairable=True,
                 )
         try:
             resolved = candidate.resolve(strict=True)
             resolved.relative_to(normalized_root)
         except (OSError, ValueError) as exc:
             raise ImplementationClosureError(
-                "Job source closure path escapes or is unavailable"
+                "Job source closure path escapes or is unavailable",
+                same_identity_repairable=True,
             ) from exc
         if not resolved.is_file():
             raise ImplementationClosureError(
-                "Job source closure path must resolve to a regular file"
+                "Job source closure path must resolve to a regular file",
+                same_identity_repairable=True,
             )
         current_bytes = resolved.read_bytes()
         identity = dependency["sha256"]
@@ -1467,7 +1484,8 @@ def require_current_job_source_closure(
             or opened.get(identity) != current_bytes
         ):
             raise ImplementationClosureError(
-                "Job source closure does not match current project source bytes"
+                "Job source closure does not match current project source bytes",
+                same_identity_repairable=True,
             )
         _reject_prospective_evidence_capability_escape(
             relative_path=dependency["path"],
@@ -1481,7 +1499,8 @@ def require_current_job_source_closure(
         callable_tree = ast.parse(callable_bytes, mode="exec")
     except (SyntaxError, TypeError, ValueError) as exc:
         raise ImplementationClosureError(
-            "Job callable module is not parseable Python"
+            "Job callable module is not parseable Python",
+            same_identity_repairable=True,
         ) from exc
     if not any(
         isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
@@ -1489,7 +1508,8 @@ def require_current_job_source_closure(
         for node in callable_tree.body
     ):
         raise ImplementationClosureError(
-            "Job callable function is not defined in its identity-derived module"
+            "Job callable function is not defined in its identity-derived module",
+            same_identity_repairable=True,
         )
 
     return {

@@ -31,6 +31,7 @@ from axiom_rift.operations.running_job import (
 from axiom_rift.operations.scientific_history import (
     ScientificHistoryProjectionError,
     project_frozen_family_exposure_context,
+    project_historical_family_end_global_exposure_count,
     project_registered_replay_member_bindings,
     project_running_batch_job_prefix,
 )
@@ -144,6 +145,7 @@ class RunningJobFixedHoldReplayContext:
     family_authority_id: str
     replay_obligation_id: str
     family: HistoricalFamilySpec
+    original_family_end_global_exposure_count: int
     exposure: FrozenFamilyExposureContext
     batch_family_executable_ids: tuple[str, ...]
     registered_member_bindings: tuple[tuple[str, str], ...]
@@ -1001,6 +1003,18 @@ class RunningJobExecutionContext:
                 raise RunningJobAuthorityError(
                     "fixed-hold historical family differs from its obligation"
                 )
+            try:
+                original_family_end_global_exposure_count = (
+                    project_historical_family_end_global_exposure_count(
+                        index,
+                        prior_global_exposure_floor=(
+                            self.prior_global_multiplicity_floor
+                        ),
+                        family=family,
+                    )
+                )
+            except ScientificHistoryProjectionError as exc:
+                raise RunningJobAuthorityError(str(exc)) from exc
             batch = index.get("batch-open", batch_id)
             batch_payload = None if batch is None else batch.payload
             batch_spec = (
@@ -1084,6 +1098,13 @@ class RunningJobExecutionContext:
                 parameter_name=parameter_name,
                 allow_unregistered=False,
             )
+            if (
+                exposure.prior_global_exposure_count
+                < original_family_end_global_exposure_count
+            ):
+                raise RunningJobAuthorityError(
+                    "fixed-hold replay predates its original family end"
+                )
             concurrent_ids = concurrent_family.get("executable_ids")
             registered_bindings = project_registered_replay_member_bindings(
                 index,
@@ -1248,6 +1269,9 @@ class RunningJobExecutionContext:
             family_authority_id=family_authority_id,
             replay_obligation_id=replay_obligation_id,
             family=family,
+            original_family_end_global_exposure_count=(
+                original_family_end_global_exposure_count
+            ),
             exposure=exposure,
             batch_family_executable_ids=tuple(sorted(concurrent_ids)),
             registered_member_bindings=registered_bindings,

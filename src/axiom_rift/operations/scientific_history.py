@@ -9,6 +9,7 @@ from axiom_rift.core.canonical import CanonicalValue, canonical_bytes, parse_can
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.research.historical_family_binding import (
     HistoricalFamilyBindingError,
+    HistoricalFamilySpec,
     historical_reference_executable_id_from_manifest,
 )
 from axiom_rift.research.replay_exposure import (
@@ -137,6 +138,149 @@ def _historical_executable_identity(value: object) -> str:
             "historical Executable identity is malformed"
         )
     return value
+
+
+def project_historical_family_end_global_exposure_count(
+    index: LocalIndex | LocalIndexView,
+    *,
+    prior_global_exposure_floor: int,
+    family: HistoricalFamilySpec,
+) -> int:
+    """Derive one original family's inclusive global trial exposure end.
+
+    The data-only family authority chooses the exact historical Study, Batch,
+    ordered member identities, and member parameters.  The immutable Batch
+    trial stream authenticates those members, while covering authority-sequence
+    counts place them in the project-wide trial order without a history scan.
+    A concurrent family cannot contain an unrelated interleaved trial.
+    """
+
+    if not isinstance(index, (LocalIndex, LocalIndexView)):
+        raise TypeError("historical family end projection requires LocalIndex")
+    if (
+        type(prior_global_exposure_floor) is not int
+        or prior_global_exposure_floor < 0
+        or not isinstance(family, HistoricalFamilySpec)
+    ):
+        raise ScientificHistoryProjectionError(
+            "historical family end projection bounds are invalid"
+        )
+
+    batch = index.get("batch-open", family.original_batch_id)
+    batch_spec = None if batch is None else batch.payload.get("spec")
+    batch_stream = f"study-batches:{family.original_study_id}"
+    if (
+        batch is None
+        or batch.kind != "batch-open"
+        or batch.record_id != family.original_batch_id
+        or batch.subject != f"Study:{family.original_study_id}"
+        or batch.status != "open"
+        or batch.event_stream != batch_stream
+        or type(batch.event_sequence) is not int
+        or batch.event_sequence < 1
+        or index.event_record(batch_stream, batch.event_sequence) != batch
+        or not isinstance(batch_spec, dict)
+        or batch.record_id
+        != "batch:" + canonical_digest(domain="batch-spec", payload=batch_spec)
+        or batch.fingerprint != batch.record_id.removeprefix("batch:")
+        or batch_spec.get("max_trials") != family.family_size
+    ):
+        raise ScientificHistoryProjectionError(
+            "historical family differs from its original Batch authority"
+        )
+
+    trial_stream = f"batch-trials:{family.original_batch_id}"
+    head = index.event_head(trial_stream)
+    if head is None or head.sequence != family.family_size:
+        raise ScientificHistoryProjectionError(
+            "historical family original Batch member count is invalid"
+        )
+
+    first_global_trial_count: int | None = None
+    final_global_trial_count: int | None = None
+    recorded_ids: list[str] = []
+    for ordinal, member in enumerate(family.members, start=1):
+        trial = index.event_record(trial_stream, ordinal)
+        executable = None if trial is None else trial.payload.get("executable")
+        parameters = (
+            None
+            if not isinstance(executable, Mapping)
+            else executable.get("parameters")
+        )
+        sequence = None if trial is None else trial.authority_sequence
+        if (
+            trial is None
+            or trial.kind != "trial"
+            or trial.status != "evaluated"
+            or trial.subject != f"Batch:{family.original_batch_id}"
+            or trial.event_stream != trial_stream
+            or trial.event_sequence != ordinal
+            or trial.payload.get("study_id") != family.original_study_id
+            or trial.record_id
+            != member.historical_reference_executable_id
+            or trial.fingerprint != trial.record_id.removeprefix("executable:")
+            or not isinstance(executable, dict)
+            or trial.record_id
+            != "executable:"
+            + canonical_digest(domain="executable", payload=executable)
+            or not isinstance(parameters, dict)
+            or canonical_bytes(parameters)
+            != canonical_bytes(member.parameter_values())
+            or type(sequence) is not int
+            or sequence < 1
+        ):
+            raise ScientificHistoryProjectionError(
+                "historical family original Batch member is malformed"
+            )
+
+        prior_count = index.count_by_kind_before_authority_sequence(
+            "trial", sequence
+        )
+        inclusive_count = index.count_by_kind_before_authority_sequence(
+            "trial", sequence + 1
+        )
+        if inclusive_count != prior_count + 1:
+            raise ScientificHistoryProjectionError(
+                "historical family trial authority position is ambiguous"
+            )
+        if first_global_trial_count is None:
+            first_global_trial_count = prior_count
+        elif prior_count != first_global_trial_count + ordinal - 1:
+            raise ScientificHistoryProjectionError(
+                "historical family contains an interleaved global trial"
+            )
+        final_global_trial_count = inclusive_count
+        recorded_ids.append(trial.record_id)
+
+    if (
+        final_global_trial_count is None
+        or recorded_ids
+        != [
+            member.historical_reference_executable_id
+            for member in family.members
+        ]
+        or head.record_id != recorded_ids[-1]
+        or head.fingerprint != recorded_ids[-1].removeprefix("executable:")
+    ):
+        raise ScientificHistoryProjectionError(
+            "historical family original Batch stream head is inconsistent"
+        )
+
+    acceptance = batch_spec.get("acceptance_profile")
+    concurrent = (
+        None
+        if not isinstance(acceptance, Mapping)
+        else acceptance.get("concurrent_family")
+    )
+    if concurrent is not None and (
+        not isinstance(concurrent, Mapping)
+        or concurrent.get("family_size") != family.family_size
+        or concurrent.get("executable_ids") != recorded_ids
+    ):
+        raise ScientificHistoryProjectionError(
+            "historical family differs from its original concurrent manifest"
+        )
+    return prior_global_exposure_floor + final_global_trial_count
 
 
 def project_historical_batch_family_observation(
@@ -962,6 +1106,7 @@ __all__ = [
     "project_frozen_family_exposure_context",
     "project_batch_job_evidence",
     "project_historical_batch_family_observation",
+    "project_historical_family_end_global_exposure_count",
     "project_registered_replay_member_bindings",
     "project_running_batch_job_prefix",
     "project_study_job_evidence",

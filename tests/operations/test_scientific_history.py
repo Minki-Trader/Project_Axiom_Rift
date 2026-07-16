@@ -11,9 +11,15 @@ from axiom_rift.operations.scientific_history import (
     ScientificHistoryProjectionError,
     project_frozen_family_exposure_context,
     project_historical_batch_family_observation,
+    project_historical_family_end_global_exposure_count,
     project_study_job_evidence,
 )
 from axiom_rift.operations.writer import StateWriter
+from axiom_rift.research.historical_family_binding import (
+    ControlBinding,
+    HistoricalFamilySpec,
+    HistoricalMemberSpec,
+)
 from axiom_rift.research.replay_exposure import (
     derive_frozen_family_exposure_context,
 )
@@ -887,6 +893,224 @@ class ScientificHistoryProjectionTests(unittest.TestCase):
                     expected_prior_global_exposure_count=574,
                     exposure_parameter_name=None,
                 )
+
+    @staticmethod
+    def _populate_original_family_end_projection(
+        index: LocalIndex,
+        *,
+        interleaved: bool = False,
+        mismatched_member: bool = False,
+    ) -> tuple[HistoricalFamilySpec, int]:
+        study_id = "STU-7001"
+        floor = 18
+        prior_count = 7
+        executable_payloads = tuple(
+            {
+                "clock_contract": "clock:historical",
+                "component_identities": [],
+                "component_manifests": [],
+                "cost_contract": "cost:historical",
+                "data_contract": "data:historical",
+                "engine_contract": f"engine:historical:{ordinal}",
+                "parameters": {
+                    "configuration_id": f"configuration-{ordinal}",
+                    "fixture_slot": ordinal,
+                },
+                "schema": "executable_spec.v1",
+                "source_contracts": [],
+                "split_contract": "split:historical",
+            }
+            for ordinal in range(1, 5)
+        )
+        executable_ids = tuple(
+            "executable:"
+            + canonical_digest(domain="executable", payload=payload)
+            for payload in executable_payloads
+        )
+        batch_spec = {
+            "acceptance_profile": {},
+            "adaptive_basis": {
+                "causal_complexity": "fixture",
+                "compute_cost": "fixture",
+                "expected_information_value": "fixture",
+                "portfolio_opportunity_cost": "fixture",
+                "surface_curvature": "fixture",
+                "uncertainty": "fixture",
+            },
+            "max_compute_seconds": 4,
+            "max_trials": 4,
+            "max_wall_seconds": 4,
+            "schema": "batch_spec.v1",
+            "source_contract_ids": [],
+            "stop_rule": "exact original family",
+            "study_hash": "9" * 64,
+        }
+        batch_digest = canonical_digest(domain="batch-spec", payload=batch_spec)
+        batch_id = f"batch:{batch_digest}"
+        members = tuple(
+            HistoricalMemberSpec(
+                ordinal=ordinal,
+                configuration_id=f"configuration-{ordinal}",
+                historical_reference_executable_id=executable_ids[ordinal - 1],
+                parameters=executable_payloads[ordinal - 1]["parameters"],
+            )
+            for ordinal in range(1, 5)
+        )
+        opposite_indices = (1, 0, 3, 2)
+        feature_indices = (2, 2, 0, 0)
+        family = HistoricalFamilySpec(
+            original_study_id=study_id,
+            original_batch_id=batch_id,
+            target_historical_executable_id=executable_ids[-1],
+            members=members,
+            controls=tuple(
+                ControlBinding(
+                    subject_historical_executable_id=executable_id,
+                    opposite_historical_executable_id=(
+                        executable_ids[opposite_indices[index]]
+                    ),
+                    feature_historical_executable_ids=(
+                        executable_ids[feature_indices[index]],
+                    ),
+                )
+                for index, executable_id in enumerate(executable_ids)
+            ),
+        )
+        batch = IndexRecord(
+            kind="batch-open",
+            record_id=batch_id,
+            subject=f"Study:{study_id}",
+            status="open",
+            fingerprint=batch_digest,
+            payload={"spec": batch_spec},
+            event_stream=f"study-batches:{study_id}",
+            event_sequence=1,
+            authority_sequence=90,
+            authority_event_id=f"{90:064x}",
+            authority_offset=90,
+        )
+        prior = tuple(
+            IndexRecord(
+                kind="trial",
+                record_id=f"executable:{ordinal:064x}",
+                subject="Batch:prior",
+                status="evaluated",
+                fingerprint=f"{ordinal:064x}",
+                payload={"study_id": "STU-PRIOR"},
+                authority_sequence=ordinal,
+                authority_event_id=f"{ordinal:064x}",
+                authority_offset=ordinal,
+            )
+            for ordinal in range(1, prior_count + 1)
+        )
+        family_sequences = (100, 102, 103, 104) if interleaved else (
+            100,
+            101,
+            102,
+            103,
+        )
+        family_trials = []
+        for ordinal, (executable_id, payload, sequence) in enumerate(
+            zip(
+                executable_ids,
+                executable_payloads,
+                family_sequences,
+                strict=True,
+            ),
+            start=1,
+        ):
+            if mismatched_member and ordinal == 3:
+                payload = {**payload, "engine_contract": "engine:attacked"}
+                executable_id = "executable:" + canonical_digest(
+                    domain="executable", payload=payload
+                )
+            family_trials.append(
+                IndexRecord(
+                    kind="trial",
+                    record_id=executable_id,
+                    subject=f"Batch:{batch_id}",
+                    status="evaluated",
+                    fingerprint=executable_id.removeprefix("executable:"),
+                    payload={"executable": payload, "study_id": study_id},
+                    event_stream=f"batch-trials:{batch_id}",
+                    event_sequence=ordinal,
+                    authority_sequence=sequence,
+                    authority_event_id=f"{sequence:064x}",
+                    authority_offset=sequence,
+                )
+            )
+        interleaved_trial = (
+            IndexRecord(
+                kind="trial",
+                record_id="executable:" + "f" * 64,
+                subject="Batch:interleaved",
+                status="evaluated",
+                fingerprint="f" * 64,
+                payload={"study_id": "STU-INTERLEAVED"},
+                authority_sequence=101,
+                authority_event_id=f"{101:064x}",
+                authority_offset=101,
+            ),
+        ) if interleaved else ()
+        index.rebuild((batch, *prior, *family_trials, *interleaved_trial))
+        return family, floor + prior_count + family.family_size
+
+    def test_original_family_end_is_derived_from_exact_global_trial_order(
+        self,
+    ) -> None:
+        with LocalIndex(self.path) as index:
+            family, expected = self._populate_original_family_end_projection(
+                index
+            )
+            with patch.object(
+                index,
+                "records_by_kind",
+                side_effect=AssertionError("global trial scan"),
+            ):
+                actual = project_historical_family_end_global_exposure_count(
+                    index.read_only(),
+                    prior_global_exposure_floor=18,
+                    family=family,
+                )
+            self.assertEqual(actual, expected)
+
+    def test_original_family_end_rejects_interleaving_and_member_mismatch(
+        self,
+    ) -> None:
+        for attack, message in (
+            ("interleaved", "interleaved global trial"),
+            ("mismatched", "member is malformed"),
+            ("wrong-batch", "original Batch authority"),
+        ):
+            with self.subTest(attack=attack):
+                path = Path(self.temporary.name) / f"{attack}.sqlite"
+                with LocalIndex(path) as index:
+                    family, _expected = (
+                        self._populate_original_family_end_projection(
+                            index,
+                            interleaved=attack == "interleaved",
+                            mismatched_member=attack == "mismatched",
+                        )
+                    )
+                    if attack == "wrong-batch":
+                        family = HistoricalFamilySpec(
+                            original_study_id=family.original_study_id,
+                            original_batch_id="batch:" + "0" * 64,
+                            target_historical_executable_id=(
+                                family.target_historical_executable_id
+                            ),
+                            members=family.members,
+                            controls=family.controls,
+                        )
+                    with self.assertRaisesRegex(
+                        ScientificHistoryProjectionError,
+                        message,
+                    ):
+                        project_historical_family_end_global_exposure_count(
+                            index.read_only(),
+                            prior_global_exposure_floor=18,
+                            family=family,
+                        )
 
 
 if __name__ == "__main__":

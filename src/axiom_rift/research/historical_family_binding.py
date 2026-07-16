@@ -682,6 +682,7 @@ class HistoricalFamilyReplayContext:
     replay_obligation_id: str
     family: HistoricalFamilySpec
     prior_global_exposure_count: int
+    original_family_end_global_exposure_count: int
 
     def __post_init__(self) -> None:
         _sha256_identity(
@@ -704,6 +705,16 @@ class HistoricalFamilyReplayContext:
         ):
             raise HistoricalFamilyBindingError(
                 "replay context prior exposure count must be non-negative"
+            )
+        if (
+            type(self.original_family_end_global_exposure_count) is not int
+            or self.original_family_end_global_exposure_count
+            < self.family.family_size
+            or self.original_family_end_global_exposure_count
+            > self.prior_global_exposure_count
+        ):
+            raise HistoricalFamilyBindingError(
+                "replay context original family end exposure is invalid"
             )
 
 

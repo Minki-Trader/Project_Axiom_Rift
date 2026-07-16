@@ -161,16 +161,52 @@ def _write_test_foundation(root: Path, *, prior_floor: int = 7) -> None:
     )
 
 
+def _fixed_hold_original_executable_payloads() -> tuple[dict[str, object], ...]:
+    return tuple(
+        {
+            "component_manifests": [],
+            "fixture_original_slot": ordinal,
+            "parameters": {"fixture_slot": ordinal},
+            "schema": "fixture_historical_executable.v1",
+        }
+        for ordinal in range(1, 5)
+    )
+
+
+def _fixed_hold_original_batch_spec() -> dict[str, object]:
+    return {
+        "acceptance_profile": {},
+        "adaptive_basis": {
+            "causal_complexity": "fixture",
+            "compute_cost": "fixture",
+            "expected_information_value": "fixture",
+            "portfolio_opportunity_cost": "fixture",
+            "surface_curvature": "fixture",
+            "uncertainty": "fixture",
+        },
+        "max_compute_seconds": 4,
+        "max_trials": 4,
+        "max_wall_seconds": 4,
+        "schema": "batch_spec.v1",
+        "source_contract_ids": [],
+        "stop_rule": "exact original family",
+        "study_hash": "8" * 64,
+    }
+
+
 def _fixed_hold_historical_family() -> HistoricalFamilySpec:
+    payloads = _fixed_hold_original_executable_payloads()
     references = tuple(
-        f"executable:{ordinal:064x}" for ordinal in range(1, 5)
+        "executable:"
+        + canonical_digest(domain="executable", payload=payload)
+        for payload in payloads
     )
     members = tuple(
         HistoricalMemberSpec(
             ordinal=ordinal,
             configuration_id=f"configuration-{ordinal}",
             historical_reference_executable_id=references[ordinal - 1],
-            parameters={"fixture_slot": ordinal},
+            parameters=payloads[ordinal - 1]["parameters"],
         )
         for ordinal in range(1, 5)
     )
@@ -190,7 +226,11 @@ def _fixed_hold_historical_family() -> HistoricalFamilySpec:
     )
     return HistoricalFamilySpec(
         original_study_id="STU-8001",
-        original_batch_id="batch:" + "8" * 64,
+        original_batch_id="batch:"
+        + canonical_digest(
+            domain="batch-spec",
+            payload=_fixed_hold_original_batch_spec(),
+        ),
         target_historical_executable_id=references[-1],
         members=members,
         controls=controls,
@@ -208,7 +248,7 @@ def _invalidation_manifest(
 
 
     observations = []
-    for ordinal, reference in enumerate(references, start=1):
+    for ordinal, reference in enumerate(sorted(references), start=1):
         ordered_member_ids = (reference,)
         family_registration_hash = canonical_digest(
             domain="scientific-v2-multiplicity-family",
@@ -282,6 +322,45 @@ def _build_fixed_hold_replay_projection(
     historical_references = tuple(
         member.historical_reference_executable_id
         for member in family.members
+    )
+    original_payloads = _fixed_hold_original_executable_payloads()
+    assert historical_references == tuple(
+        "executable:"
+        + canonical_digest(domain="executable", payload=payload)
+        for payload in original_payloads
+    )
+    original_batch_spec = _fixed_hold_original_batch_spec()
+    original_batch = IndexRecord(
+        kind="batch-open",
+        record_id=family.original_batch_id,
+        subject=f"Study:{family.original_study_id}",
+        status="open",
+        fingerprint=family.original_batch_id.removeprefix("batch:"),
+        payload={"spec": original_batch_spec},
+        event_stream=f"study-batches:{family.original_study_id}",
+        event_sequence=1,
+    )
+    original_trials = tuple(
+        IndexRecord(
+            kind="trial",
+            record_id=executable_id,
+            subject=f"Batch:{family.original_batch_id}",
+            status="evaluated",
+            fingerprint=executable_id.removeprefix("executable:"),
+            payload={
+                "executable": original_payloads[ordinal - 1],
+                "study_id": family.original_study_id,
+            },
+            event_stream=f"batch-trials:{family.original_batch_id}",
+            event_sequence=ordinal,
+            authority_sequence=ordinal,
+            authority_event_id=f"{ordinal:064x}",
+            authority_offset=ordinal * 10,
+        )
+        for ordinal, executable_id in enumerate(
+            historical_references,
+            start=1,
+        )
     )
     obligation = HistoricalReplayObligation(
         governing_mission_id=mission_id,
@@ -604,7 +683,7 @@ def _build_fixed_hold_replay_projection(
     trials = []
     for ordinal in range(1, len(prospective_ids) + 1):
         executable_id = prospective_ids[ordinal - 1]
-        authority_sequence = 3 + ordinal
+        authority_sequence = 7 + ordinal
         trials.append(
             IndexRecord(
                 kind="trial",
@@ -625,6 +704,8 @@ def _build_fixed_hold_replay_projection(
         )
 
     records = [
+        original_batch,
+        *original_trials,
         initial,
         satisfaction,
         invalidation,
@@ -666,9 +747,9 @@ def _build_fixed_hold_replay_projection(
             payload=progress_payload,
             event_stream=obligation_stream,
             event_sequence=4,
-            authority_sequence=7,
-            authority_event_id=f"{7:064x}",
-            authority_offset=700,
+            authority_sequence=11,
+            authority_event_id=f"{11:064x}",
+            authority_offset=1_100,
         )
         progress_operation_id = "fixture-target-trial-registration"
         progress_operation = IndexRecord(
@@ -678,22 +759,22 @@ def _build_fixed_hold_replay_projection(
             status="success",
             fingerprint="fixture-target-trial-registration",
             payload={"event_kind": "trial_registered", "result": {}},
-            authority_sequence=7,
-            authority_event_id=f"{7:064x}",
-            authority_offset=700,
+            authority_sequence=11,
+            authority_event_id=f"{11:064x}",
+            authority_offset=1_100,
         )
         progress_journal_event = IndexRecord(
             kind="journal-event",
-            record_id=f"{7:064x}",
+            record_id=f"{11:064x}",
             subject=f"Executable:{prospective_ids[-1]}",
             status="trial_registered",
-            fingerprint=f"{7:064x}",
+            fingerprint=f"{11:064x}",
             payload={"operation_id": progress_operation_id},
             event_stream="control",
-            event_sequence=7,
-            authority_sequence=7,
-            authority_event_id=f"{7:064x}",
-            authority_offset=700,
+            event_sequence=11,
+            authority_sequence=11,
+            authority_event_id=f"{11:064x}",
+            authority_offset=1_100,
         )
         records.extend((progress, progress_operation, progress_journal_event))
 
@@ -1750,6 +1831,7 @@ def test_fixed_hold_replay_non_target_jobs_require_full_family_and_execution_pre
         for member in fixture.family.members
     )
     assert projection.exposure.family_executable_ids == fixture.prospective_ids
+    assert projection.original_family_end_global_exposure_count == 11
     assert projection.registered_member_bindings == tuple(
         zip(
             fixture.prospective_ids,
@@ -1787,6 +1869,7 @@ def test_fixed_hold_replay_target_job_requires_exact_in_progress_binding(
     )
 
     assert projection.exposure.family_executable_ids == fixture.prospective_ids
+    assert projection.original_family_end_global_exposure_count == 11
     assert projection.target_prospective_executable_id == (
         fixture.prospective_ids[-1]
     )

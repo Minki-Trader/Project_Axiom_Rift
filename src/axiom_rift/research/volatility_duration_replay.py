@@ -25,9 +25,6 @@ from axiom_rift.research.chassis import (
     ControlledStudyChassis,
     validate_controlled_executable,
 )
-from axiom_rift.research.completed_period_atomic_trace import (
-    completed_period_proxy_execution_spec,
-)
 from axiom_rift.research.discovery import (
     DATASET_SHA256,
     EXPECTED_FOLD_IDS,
@@ -56,7 +53,6 @@ from axiom_rift.research.historical_family_replay import (
     STU0051_HISTORICAL_FAMILY,
     HistoricalMemberSpec,
 )
-from axiom_rift.research.historical_family_binding import HistoricalFamilyLike
 from axiom_rift.research.scientific_trace import (
     VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID,
 )
@@ -86,7 +82,7 @@ VOLATILITY_DURATION_REPLAY_CLOCK_CONTRACT = (
     "clock:fpmarkets_m5_bar_open_completed_plus_5m_v2"
 )
 VOLATILITY_DURATION_REPLAY_COST_CONTRACT = (
-    "cost:fpmarkets_completed_bar_spread_proxy_segment_positive_median_min_1_unknown_entry_cancel_"
+    "cost:bid_bar_segment_positive_median_min_1_unknown_entry_cancel_"
     "half_spread_stress_v1"
 )
 _THIS_FILE = Path(__file__).resolve()
@@ -202,12 +198,10 @@ def _configuration_from_member(
 
 
 def volatility_duration_replay_configurations(
-    *,
-    historical_family: HistoricalFamilyLike = STU0051_HISTORICAL_FAMILY,
 ) -> tuple[VolatilityDurationReplayConfiguration, ...]:
     values = tuple(
         _configuration_from_member(member)
-        for member in historical_family.members
+        for member in STU0051_HISTORICAL_FAMILY.members
     )
     if tuple(value.ordinal for value in values) != (1, 2, 3, 4):
         raise RuntimeError("STU-0051 volatility-duration family order drifted")
@@ -304,15 +298,14 @@ def volatility_duration_replay_components() -> tuple[ComponentSpec, ...]:
         semantic_dependencies=(trade.identity,),
     )
     execution = ComponentSpec(
-        display_name="completed-period spread-proxy replay execution",
-        protocol="execution.fpmarkets_completed_period_spread_proxy.v2",
+        display_name="causal segment spread replay execution",
+        protocol="execution.fpmarkets_segment_spread.replay.v2",
         implementation=_local("causal_volatility_duration_replay_spread"),
-        spec=completed_period_proxy_execution_spec(
-            repair_policy=(
-                "same_contiguous_segment_strict_prior_positive_288_bar_"
-                "median_min_1_else_unknown"
-            )
-        ),
+        spec={
+            "point": "0.01",
+            "stress": "half_effective_spread_each_side",
+            "zero_spread": "lagged_positive_segment_median_min_1_else_unknown",
+        },
         semantic_dependencies=(lifecycle.identity,),
     )
     risk = ComponentSpec(
@@ -529,15 +522,10 @@ def volatility_duration_replay_executable_map(
 def volatility_duration_replay_protocol_definition(
     *,
     historical_context_prior_global_exposure_count: int,
-    historical_family: HistoricalFamilyLike = STU0051_HISTORICAL_FAMILY,
 ) -> FixedHoldProtocolDefinition:
-    if historical_family.manifest() != STU0051_HISTORICAL_FAMILY.manifest():
-        raise ValueError("STU-0051 Writer-bound historical family drifted")
-    configurations = volatility_duration_replay_configurations(
-        historical_family=historical_family
-    )
+    configurations = volatility_duration_replay_configurations()
     return FixedHoldProtocolDefinition(
-        family=historical_family,
+        family=STU0051_HISTORICAL_FAMILY,
         prospective_executable_ids=tuple(
             volatility_duration_replay_executable(
                 configuration,
@@ -772,26 +760,10 @@ def compute_stu0051_volatility_duration_family_trace(
             historical_context_prior_global_exposure_count
         )
     )
-    return compute_stu0051_volatility_duration_family_trace_from_definition(
-        repository_root,
-        definition,
-    )
-
-
-def compute_stu0051_volatility_duration_family_trace_from_definition(
-    repository_root: str | Path,
-    definition: FixedHoldProtocolDefinition,
-) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
-    """Compute from the exact Writer-bound definition used by the Job."""
-
-    if definition.family.manifest() != STU0051_HISTORICAL_FAMILY.manifest():
-        raise ValueError("STU-0051 trace historical family drifted")
     return compute_fixed_hold_family_trace(
         repository_root,
         definition=definition,
-        configurations=volatility_duration_replay_configurations(
-            historical_family=definition.family
-        ),
+        configurations=volatility_duration_replay_configurations(),
         feature_builder=compute_volatility_duration_replay_score,
         selector_calibrator=calibrate_volatility_duration_replay_selector,
         spread_builder=causal_volatility_duration_replay_spread,
@@ -809,7 +781,6 @@ __all__ = [
     "calibrate_volatility_duration_replay_selector",
     "causal_volatility_duration_replay_spread",
     "compute_stu0051_volatility_duration_family_trace",
-    "compute_stu0051_volatility_duration_family_trace_from_definition",
     "compute_volatility_duration_replay_score",
     "volatility_duration_replay_configurations",
     "volatility_duration_replay_controlled_chassis",

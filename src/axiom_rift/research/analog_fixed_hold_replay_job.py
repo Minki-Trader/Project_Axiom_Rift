@@ -161,6 +161,7 @@ def build_analog_fixed_hold_replay_job_plan(
     study_id: str,
     executable_id: str,
     historical_context_prior_global_exposure_count: int,
+    original_family_end_global_exposure_count: int,
     historical_family: HistoricalFamilySpec,
     historical_family_authority_id: str,
     replay_obligation_id: str,
@@ -172,6 +173,9 @@ def build_analog_fixed_hold_replay_job_plan(
         executable_id=executable_id,
         historical_context_prior_global_exposure_count=(
             historical_context_prior_global_exposure_count
+        ),
+        original_family_end_global_exposure_count=(
+            original_family_end_global_exposure_count
         ),
         historical_family=historical_family,
         historical_family_authority_id=historical_family_authority_id,

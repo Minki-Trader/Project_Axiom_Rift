@@ -135,6 +135,157 @@ class _AcceptedHistoricalFamilyAuthorityReached(RuntimeError):
 
 
 class FixedHoldReplayWorkflowTests(unittest.TestCase):
+    def test_pre_study_admission_binds_current_replacement_trigger(self) -> None:
+        obligation_id = "historical-replay-obligation:" + "1" * 64
+        replaced_id = "job-implementation-preflight:" + "2" * 64
+        accepted_id = "job-implementation-preflight:" + "3" * 64
+        stream = (
+            "replay-job-implementation-preflight-replacement:"
+            + replaced_id
+        )
+        accepted_payload = {
+            "batch_id": None,
+            "failure_fingerprint": None,
+            "mission_id": "MIS-9001",
+            "outcome": "accepted",
+            "protocol_id": "python.source.fixture.v1",
+            "reason_code": None,
+            "replacement_for_preflight_id": replaced_id,
+            "replay_obligation_ids": [obligation_id],
+            "schema": workflow_module.PREFLIGHT_SCHEMA,
+            "source_closure_authority": {"schema": "fixture.v1"},
+            "study_id": None,
+        }
+        trigger = SimpleNamespace(
+            event_stream=stream,
+            payload=accepted_payload,
+            record_id=accepted_id,
+            status="accepted",
+        )
+        resume_head = SimpleNamespace(
+            kind="historical-replay-obligation-resume",
+            payload={
+                "resume_evidence": {"trigger_record_id": accepted_id}
+            },
+            status="pending",
+        )
+        index = SimpleNamespace(
+            event_head=lambda value: (
+                SimpleNamespace(record_id=accepted_id)
+                if value == stream
+                else None
+            ),
+            get=lambda kind, record_id: (
+                trigger
+                if (kind, record_id)
+                == ("job-implementation-preflight", accepted_id)
+                else None
+            ),
+        )
+        writer = SimpleNamespace(
+            evidence=SimpleNamespace(read_verified=Mock()),
+            foundation_root=Path("fixture-root"),
+            open_stable_index=lambda: _StableSnapshot({}, index),
+        )
+        executable = SimpleNamespace(
+            identity="executable:" + "4" * 64,
+            to_identity_payload=lambda: {"schema": "fixture-executable.v1"},
+        )
+        request = SimpleNamespace(
+            callable_identity="fixture.fixed_hold.execute.v1",
+            executable_ids=(executable.identity,),
+            executables=(executable,),
+            implementation_identity="5" * 64,
+            mission_id="MIS-9001",
+            protocol_id="python.source.fixture.v1",
+            replay_obligation_ids=(obligation_id,),
+        )
+        result = SimpleNamespace(
+            accepted=True,
+            to_record_payload=lambda: {"outcome": "accepted"},
+        )
+        design = SimpleNamespace(
+            batch_spec=SimpleNamespace(
+                to_identity_payload=lambda: {"schema": "batch_spec.v1"}
+            ),
+            spec=SimpleNamespace(
+                job_protocol="python.source.fixture.v1",
+                mission_id="MIS-9001",
+                target_obligation_id=obligation_id,
+            ),
+        )
+        with (
+            patch.object(
+                workflow_module,
+                "_materialize_replay_implementation_preflight_request",
+                return_value=request,
+            ),
+            patch.object(
+                workflow_module,
+                "evaluate_replay_job_implementation_preflight",
+                return_value=result,
+            ),
+            patch.object(
+                workflow_module,
+                "obligation_heads",
+                return_value=((SimpleNamespace(identity=obligation_id), resume_head),),
+            ),
+            patch.object(
+                workflow_module,
+                "_prospective_replay_study_surface",
+                return_value={"mission_id": "MIS-9001"},
+            ),
+            patch.object(
+                workflow_module,
+                "derive_replay_job_scientific_surface",
+                return_value={"schema": "replay_job_scientific_surface.v2"},
+            ),
+            patch.object(
+                workflow_module,
+                "replay_job_scientific_surface_hash",
+                return_value="6" * 64,
+            ),
+            patch.object(
+                workflow_module,
+                "require_active_replay_job_replacement_binding",
+            ) as require_binding,
+        ):
+            admission = (
+                workflow_module.require_replay_implementation_admission(
+                    writer,
+                    design,
+                    job_implementation_materializer=Mock(),
+                )
+            )
+            self.assertEqual(
+                admission.result_payload,
+                {"outcome": "accepted"},
+            )
+            self.assertEqual(
+                admission.replacement_preflight_id,
+                accepted_id,
+            )
+            require_binding.assert_called_once()
+            active = require_binding.call_args.kwargs["active_payload"]
+            self.assertEqual(
+                active["implementation_identity"],
+                request.implementation_identity,
+            )
+            self.assertEqual(active["scientific_surface_hash"], "6" * 64)
+
+            index.event_head = lambda _stream: SimpleNamespace(
+                record_id="job-implementation-preflight:" + "7" * 64
+            )
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "replacement implementation authority is malformed",
+            ):
+                workflow_module.require_replay_implementation_admission(
+                    writer,
+                    design,
+                    job_implementation_materializer=Mock(),
+                )
+
     def test_study_close_stage_uses_two_full_prefix_audits(self) -> None:
         prefix = "audit-fixture-"
         predecessor_sequence = 100
@@ -239,7 +390,20 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         close_record = SimpleNamespace(record_id="a" * 64)
         cases = (
             (
+                "preflight-engineering-gap",
+                SimpleNamespace(),
+                None,
+                ReplayInterpretation(
+                    all_criteria_recomputed=False,
+                    close_outcome="evidence_gap",
+                    diagnosis_state=workflow_module.EvidenceState.ENGINEERING_GAP,
+                    disposition=workflow_module.PortfolioAction.PRESERVE,
+                    reason_code="pre_job_implementation_authority_invalid",
+                ),
+            ),
+            (
                 "engineering-gap",
+                None,
                 (object(), SimpleNamespace()),
                 ReplayInterpretation(
                     all_criteria_recomputed=False,
@@ -252,6 +416,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             (
                 "criterion-incomplete",
                 None,
+                None,
                 ReplayInterpretation(
                     all_criteria_recomputed=False,
                     close_outcome="not_evaluable",
@@ -262,6 +427,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             ),
             (
                 "complete-success",
+                None,
                 None,
                 ReplayInterpretation(
                     all_criteria_recomputed=True,
@@ -274,9 +440,12 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
                 ),
             ),
         )
-        for name, engineering_failure, interpretation in cases:
+        for name, preflight_rejection, engineering_failure, interpretation in cases:
             with self.subTest(name=name), patch.multiple(
                 workflow_module,
+                _implementation_preflight_rejection=Mock(
+                    return_value=preflight_rejection
+                ),
                 _engineering_failure_member=Mock(
                     return_value=engineering_failure
                 ),
@@ -285,7 +454,13 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
                 _workflow_interpretation=Mock(return_value=interpretation),
             ):
                 diagnosis = workflow_module._diagnosis(object(), design)
-            if name == "engineering-gap":
+            if name == "preflight-engineering-gap":
+                self.assertIn(
+                    "accepted replacement prospective implementation preflight",
+                    diagnosis.reopen_condition,
+                )
+                self.assertIn("new prospective implementation", diagnosis.counterfactual)
+            elif name == "engineering-gap":
                 self.assertIn("Repair", diagnosis.reopen_condition)
                 self.assertIn("engineering", diagnosis.counterfactual)
             elif name == "criterion-incomplete":
@@ -1201,6 +1376,48 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         )
         self.assertLess(activation_index, register_index)
         self.assertLess(register_index, declare_index)
+
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow."
+        "_protocol_activation_step_needed",
+        return_value=True,
+    )
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow._member_completion",
+        return_value=None,
+    )
+    def test_protocol_activation_is_not_retroactively_inserted_before_trials(
+        self,
+        _completion,
+        _activation_needed,
+    ) -> None:
+        design = self._design()
+        base_writer = _empty_workflow_writer()
+        with base_writer.open_stable_index() as (control, base_index):
+            registration_id = (
+                design.spec.operation_prefix
+                + design.members[0].label
+                + "-register-trial"
+            )
+
+            class LegacyRegistrationIndex:
+                def get(self, kind: str, record_id: str):
+                    if kind == "operation" and record_id == registration_id:
+                        return SimpleNamespace(status="success")
+                    return base_index.get(kind, record_id)
+
+                def __getattr__(self, name: str):
+                    return getattr(base_index, name)
+
+            writer = _snapshot_writer(
+                LegacyRegistrationIndex(),
+                control=control,
+            )
+            steps = operation_steps(writer, design)
+
+        operation_ids = tuple(step.operation_id for step in steps)
+        self.assertIn(registration_id, operation_ids)
+        self.assertNotIn(_protocol_activation_operation_id(design), operation_ids)
 
     @patch(
         "axiom_rift.operations.fixed_hold_replay_workflow."

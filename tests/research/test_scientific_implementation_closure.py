@@ -76,6 +76,7 @@ FIXED_HOLD_REPLAY_CONTEXT = HistoricalFamilyReplayContext(
     replay_obligation_id="historical-replay-obligation:" + "2" * 64,
     family=WRITER_BOUND_STU0061_FAMILY,
     prior_global_exposure_count=FIXED_HOLD_CONTEXT,
+    original_family_end_global_exposure_count=492,
 )
 
 

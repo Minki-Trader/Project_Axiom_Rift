@@ -70,6 +70,7 @@ _BASIS_KINDS = frozenset(
         "batch-open",
         "job-completed",
         "job-declared",
+        "job-implementation-preflight",
         "study-close",
         "study-diagnosis",
         "study-open",
@@ -84,6 +85,59 @@ class SemanticQuestionRegistryError(ValueError):
 
 class SemanticQuestionRegistryIntegrityError(RuntimeError):
     """Durable semantic-question projection differs from its source records."""
+
+
+def _is_typed_replay_implementation_rejection(
+    record: IndexRecord,
+    *,
+    study_id: str,
+) -> bool:
+    from axiom_rift.operations.replay_job_implementation_preflight import (
+        REPLACEMENT_REQUIRED,
+    )
+
+    if (
+        record.kind != "job-implementation-preflight"
+        or record.status != "rejected"
+        or record.payload.get("schema")
+        != "replay_job_implementation_preflight.v1"
+        or record.payload.get("outcome") != "rejected"
+        or record.payload.get("remediation_kind") != REPLACEMENT_REQUIRED
+        or record.payload.get("study_id") != study_id
+        or record.payload.get("source_closure_authority") is not None
+        or record.payload.get("reason_code")
+        not in {
+            "historical_replay_lineage_invalid",
+            "implementation_manifest_invalid",
+            "source_closure_invalid",
+        }
+        or type(record.payload.get("failure_detail")) is not str
+        or not record.payload["failure_detail"]
+        or not record.payload["failure_detail"].isascii()
+    ):
+        return False
+    batch_id = record.payload.get("batch_id")
+    if (
+        type(batch_id) is not str
+        or record.subject != f"Batch:{batch_id}"
+        or record.event_stream
+        != f"replay-job-implementation-preflight-batch:{batch_id}"
+    ):
+        return False
+    from axiom_rift.operations.replay_job_implementation_preflight import (
+        ReplayJobImplementationPreflightError,
+        replay_job_scientific_surface_hash,
+    )
+
+    try:
+        surface = record.payload.get("scientific_surface")
+        return (
+            isinstance(surface, Mapping)
+            and replay_job_scientific_surface_hash(surface)
+            == record.payload.get("scientific_surface_hash")
+        )
+    except ReplayJobImplementationPreflightError:
+        return False
 
 
 def _record(
@@ -388,6 +442,7 @@ class StudySemanticEvidence:
     diagnoses: tuple[IndexRecord, ...]
     batch_opens: tuple[IndexRecord, ...]
     batch_closes: tuple[IndexRecord, ...]
+    implementation_preflights: tuple[IndexRecord, ...]
     job_declarations: tuple[IndexRecord, ...]
     job_completions: tuple[IndexRecord, ...]
     trials: tuple[IndexRecord, ...]
@@ -404,6 +459,7 @@ class StudySemanticEvidence:
             *self.diagnoses,
             *self.batch_opens,
             *self.batch_closes,
+            *self.implementation_preflights,
             *self.job_declarations,
             *self.job_completions,
             *self.trials,
@@ -472,6 +528,13 @@ class StudySemanticEvidence:
         )
         return close_gap and (
             bool(self.engineering_gap_completion_ids)
+            or any(
+                _is_typed_replay_implementation_rejection(
+                    record,
+                    study_id=self.study_id,
+                )
+                for record in self.implementation_preflights
+            )
             or batch_gap
             or diagnosis_gap
         )
@@ -522,6 +585,7 @@ def study_semantic_evidence(
         kind="batch-open",
     )
     batch_closes: list[IndexRecord] = []
+    implementation_preflights: list[IndexRecord] = []
     declarations: list[IndexRecord] = []
     completions: list[IndexRecord] = []
     trials: list[IndexRecord] = []
@@ -532,6 +596,14 @@ def study_semantic_evidence(
                 subject=f"Batch:{batch.record_id}",
                 statuses=_BATCH_OUTCOMES,
                 kind="batch-close",
+            )
+        )
+        implementation_preflights.extend(
+            _records_by_subject_statuses(
+                index,
+                subject=f"Batch:{batch.record_id}",
+                statuses=("accepted", "rejected"),
+                kind="job-implementation-preflight",
             )
         )
         batch_declarations = tuple(
@@ -573,6 +645,12 @@ def study_semantic_evidence(
         ),
         batch_closes=tuple(
             sorted(batch_closes, key=lambda item: (item.kind, item.record_id))
+        ),
+        implementation_preflights=tuple(
+            sorted(
+                implementation_preflights,
+                key=lambda item: (item.kind, item.record_id),
+            )
         ),
         job_declarations=tuple(
             sorted(declarations, key=lambda item: (item.kind, item.record_id))
@@ -653,6 +731,7 @@ def _require_basis_scope(
                 *predecessor.study_closes,
                 *predecessor.diagnoses,
                 *predecessor.batch_closes,
+                *predecessor.implementation_preflights,
                 *predecessor.job_completions,
             )
             if (
@@ -664,6 +743,10 @@ def _require_basis_scope(
                     "not_evaluable",
                     "not_identifiable",
                 }
+                or _is_typed_replay_implementation_rejection(
+                    record,
+                    study_id=predecessor.study_id,
+                )
                 or (
                     isinstance(record.payload.get("failure"), Mapping)
                     and record.payload["failure"].get("failure_kind")
@@ -801,6 +884,7 @@ def _require_prospective_basis_scope(
                 *predecessor.study_closes,
                 *predecessor.diagnoses,
                 *predecessor.batch_closes,
+                *predecessor.implementation_preflights,
                 *predecessor.job_completions,
             )
             if (
@@ -812,6 +896,10 @@ def _require_prospective_basis_scope(
                     "not_evaluable",
                     "not_identifiable",
                 }
+                or _is_typed_replay_implementation_rejection(
+                    record,
+                    study_id=predecessor.study_id,
+                )
                 or (
                     isinstance(record.payload.get("failure"), Mapping)
                     and record.payload["failure"].get("failure_kind")

@@ -27,10 +27,12 @@ from axiom_rift.operations.recorded_transition_authority import (  # noqa: E402
 )
 from axiom_rift.operations.scientific_history import (  # noqa: E402
     project_frozen_family_exposure_context,
+    project_historical_family_end_global_exposure_count,
 )
 from axiom_rift.operations.writer import StateWriter  # noqa: E402
 from axiom_rift.research.analog_fixed_hold_replay import (  # noqa: E402
     ANALOG_FIXED_HOLD_REPLAY_CONTEXT_PARAMETER,
+    ANALOG_FIXED_HOLD_REPLAY_ORIGINAL_END_PARAMETER,
     analog_fixed_hold_replay_configurations,
     analog_fixed_hold_replay_controlled_chassis,
     analog_fixed_hold_replay_executable,
@@ -266,11 +268,11 @@ def derive_historical_context(
     foundation_root: Path,
     study_id: str,
     historical_family: HistoricalFamilySpec,
-) -> FrozenFamilyExposureContext:
+) -> tuple[FrozenFamilyExposureContext, int]:
     floor = TrialAccountant.from_foundation(
         foundation_root
     ).prior_global_multiplicity_floor
-    return project_frozen_family_exposure_context(
+    prospective = project_frozen_family_exposure_context(
         index,
         prior_global_exposure_floor=floor,
         study_id=study_id,
@@ -280,6 +282,12 @@ def derive_historical_context(
         allow_unregistered=True,
         allow_partial_registered=True,
     )
+    original_end = project_historical_family_end_global_exposure_count(
+        index,
+        prior_global_exposure_floor=floor,
+        family=historical_family,
+    )
+    return prospective, original_end
 
 
 def mission_spec(
@@ -322,6 +330,7 @@ def ordered_members(
     *,
     study_id: str,
     historical_context_count: int,
+    original_family_end_global_exposure_count: int,
     historical_family_authority: HistoricalFamilyAuthority,
 ) -> tuple[FixedHoldReplayMember, ...]:
     values: list[FixedHoldReplayMember] = []
@@ -336,6 +345,9 @@ def ordered_members(
             historical_family=historical_family_authority.family,
             historical_context_prior_global_exposure_count=(
                 historical_context_count
+            ),
+            original_family_end_global_exposure_count=(
+                original_family_end_global_exposure_count
             ),
         )
         values.append(
@@ -352,6 +364,9 @@ def ordered_members(
                     executable_id=executable.identity,
                     historical_context_prior_global_exposure_count=(
                         historical_context_count
+                    ),
+                    original_family_end_global_exposure_count=(
+                        original_family_end_global_exposure_count
                     ),
                     historical_family=historical_family_authority.family,
                     historical_family_authority_id=(
@@ -376,12 +391,15 @@ def require_historical_context(
     *,
     context: FrozenFamilyExposureContext,
     historical_context_count: int,
+    original_family_end_global_exposure_count: int,
     members: tuple[FixedHoldReplayMember, ...],
 ) -> None:
     prospective = tuple(member.executable.identity for member in members)
     registered = context.family_executable_ids
     if (
         context.prior_global_exposure_count != historical_context_count
+        or historical_context_count
+        < original_family_end_global_exposure_count
         or len(registered) > len(prospective)
         or registered != prospective[: len(registered)]
     ):
@@ -405,7 +423,7 @@ def build_design(writer: StateWriter):
         family_authority = require_historical_family_authority(
             index,
         )
-        historical_context = derive_historical_context(
+        historical_context, original_family_end = derive_historical_context(
             index,
             foundation_root=writer.foundation_root,
             study_id=study_id,
@@ -417,11 +435,13 @@ def build_design(writer: StateWriter):
     members = ordered_members(
         study_id=study_id,
         historical_context_count=historical_context_count,
+        original_family_end_global_exposure_count=original_family_end,
         historical_family_authority=family_authority,
     )
     require_historical_context(
         context=historical_context,
         historical_context_count=historical_context_count,
+        original_family_end_global_exposure_count=original_family_end,
         members=members,
     )
     target_id = family_authority.family.target_historical_executable_id
@@ -450,7 +470,8 @@ def build_design(writer: StateWriter):
             historical_family=family_authority.family,
             historical_context_prior_global_exposure_count=(
                 historical_context_count
-            )
+            ),
+            original_family_end_global_exposure_count=original_family_end,
         ),
         historical_family_manifest=family_authority.family.manifest(),
         historical_family_authority_id=family_authority.identity,

@@ -123,6 +123,7 @@ from axiom_rift.research.replay_obligation import (
     ReplaySatisfaction,
 )
 from axiom_rift.research.semantic_question import (
+    SemanticQuestionCore,
     SemanticQuestionLineageProposal,
 )
 from axiom_rift.research.trials import NegativeMemory
@@ -130,6 +131,14 @@ from axiom_rift.research.validation_v2 import (
     SCIENTIFIC_ADJUDICATION_VALIDATOR_V2_ID,
 )
 from axiom_rift.operations.permits import Permit, PermitKind, SubjectKind
+from axiom_rift.operations.replay_job_implementation_preflight import (
+    PREFLIGHT_SCHEMA,
+    ReplayJobImplementationPreflightRequest,
+    derive_replay_job_scientific_surface,
+    evaluate_replay_job_implementation_preflight,
+    replay_job_scientific_surface_hash,
+    require_active_replay_job_replacement_binding,
+)
 from axiom_rift.storage.index import IndexRecord, LocalIndexView
 
 
@@ -319,6 +328,15 @@ class FixedHoldReplayMember:
     @property
     def label(self) -> str:
         return f"member-{self.ordinal:02d}"
+
+
+@dataclass(frozen=True, slots=True)
+class ReplayImplementationAdmission:
+    """One in-memory pre-Study check handed to the Writer boundary."""
+
+    request: ReplayJobImplementationPreflightRequest
+    result_payload: Mapping[str, Any]
+    replacement_preflight_id: str | None
 
 
 def _canonical_statistical_family_ids(
@@ -1361,6 +1379,84 @@ def _engineering_failure_member(
     return None if not failures else failures[0]
 
 
+def _implementation_preflight_record(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+    *,
+    _index: LocalIndexView | None = None,
+) -> IndexRecord | None:
+    operation_id = design.spec.operation_prefix + "implementation-preflight"
+    index_context = (
+        writer.open_stable_index()
+        if _index is None
+        else nullcontext((None, _index))
+    )
+    with index_context as (_control, index):
+        operation = index.get("operation", operation_id)
+        result = None if operation is None else operation.payload.get("result")
+        preflight_id = (
+            None
+            if not isinstance(result, Mapping)
+            else result.get("preflight_id")
+        )
+        record = (
+            None
+            if not isinstance(preflight_id, str)
+            else index.get("job-implementation-preflight", preflight_id)
+        )
+        stream_head = (
+            None
+            if record is None or not isinstance(record.event_stream, str)
+            else index.event_head(record.event_stream)
+        )
+    if operation is None:
+        return None
+    if (
+        operation.status != "success"
+        or operation.payload.get("event_kind")
+        != "replay_job_implementation_preflight_recorded"
+        or record is None
+        or record.payload.get("schema")
+        != "replay_job_implementation_preflight.v1"
+        or stream_head is None
+        or stream_head.record_id != record.record_id
+        or sorted(record.payload.get("executable_ids", ()))
+        != sorted(member.executable.identity for member in design.members)
+        or record.payload.get("replay_obligation_ids")
+        != [design.spec.target_obligation_id]
+        or record.payload.get("protocol_id") != design.spec.job_protocol
+    ):
+        raise RuntimeError("replay implementation preflight projection is malformed")
+    return record
+
+
+def _implementation_preflight_rejection(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+    *,
+    _index: LocalIndexView | None = None,
+) -> IndexRecord | None:
+    from axiom_rift.operations.replay_job_implementation_preflight import (
+        REPLACEMENT_REQUIRED,
+    )
+
+    record = _implementation_preflight_record(
+        writer,
+        design,
+        _index=_index,
+    )
+    if record is None or record.status == "accepted":
+        return None
+    if (
+        record.status != "rejected"
+        or record.payload.get("outcome") != "rejected"
+        or record.payload.get("remediation_kind") != REPLACEMENT_REQUIRED
+        or not isinstance(record.payload.get("failure_fingerprint"), str)
+    ):
+        raise RuntimeError("replay implementation rejection is malformed")
+    return record
+
+
 def _member_unrecovered_repair_operation_id(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
@@ -1446,6 +1542,14 @@ def _workflow_interpretation(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
 ) -> ReplayInterpretation:
+    if _implementation_preflight_rejection(writer, design) is not None:
+        return ReplayInterpretation(
+            all_criteria_recomputed=False,
+            close_outcome="evidence_gap",
+            diagnosis_state=EvidenceState.ENGINEERING_GAP,
+            disposition=PortfolioAction.PRESERVE,
+            reason_code="pre_job_implementation_authority_invalid",
+        )
     if _engineering_failure_member(writer, design) is not None:
         return ReplayInterpretation(
             all_criteria_recomputed=False,
@@ -2308,6 +2412,18 @@ def operation_steps(
         OperationStep(prefix + "batch-permit", "permit_issued", STUDY_CLOSE_STAGE),
         OperationStep(prefix + "open-batch", "batch_opened", STUDY_CLOSE_STAGE),
     ])
+    registration_steps = tuple(
+        OperationStep(
+            prefix + member.label + "-register-trial",
+            "trial_registered",
+            STUDY_CLOSE_STAGE,
+        )
+        for member in design.members
+    )
+    legacy_registration_started = any(
+        _index.get("operation", step.operation_id) is not None
+        for step in registration_steps
+    )
     activation_operation_ids = list(
         _recorded_protocol_activation_operation_ids(
             writer,
@@ -2323,6 +2439,11 @@ def operation_steps(
             _control=_control,
             _index=_index,
         )
+        # Protocol activation cannot be inserted retroactively before an
+        # already authoritative trial prefix.  Such a legacy attempt must be
+        # preflight-rejected and diagnosed; its successor activates before
+        # registering any new trial.
+        and not legacy_registration_started
         and current_activation_operation_id not in activation_operation_ids
     ):
         activation_operation_ids.append(current_activation_operation_id)
@@ -2334,65 +2455,87 @@ def operation_steps(
                 STUDY_CLOSE_STAGE,
             )
         )
-    # Freeze the complete concurrent family before any member Job can expose
-    # evidence.  Registration order remains the protocol's execution order;
-    # the Batch manifest separately carries canonical set-like membership.
-    for member in design.members:
-        stem = prefix + member.label
-        steps.append(
-            OperationStep(
-                stem + "-register-trial",
-                "trial_registered",
-                STUDY_CLOSE_STAGE,
+    preflight_step = OperationStep(
+        prefix + "implementation-preflight",
+        "replay_job_implementation_preflight_recorded",
+        STUDY_CLOSE_STAGE,
+    )
+    preflight = _implementation_preflight_record(
+        writer,
+        design,
+        _index=_index,
+    )
+    # New Studies must pass the non-journal admission gate before this chain.
+    # The durable step exists only to recover a legacy family that was already
+    # fully registered before the gate was introduced.
+    steps.extend(registration_steps)
+    if legacy_registration_started or preflight is not None:
+        steps.append(preflight_step)
+    implementation_rejection = _implementation_preflight_rejection(
+        writer,
+        design,
+        _index=_index,
+    )
+    if implementation_rejection is None:
+        for member in design.members:
+            stem = prefix + member.label
+            steps.extend(
+                (
+                    OperationStep(
+                        stem + "-declare-job",
+                        "job_declared",
+                        STUDY_CLOSE_STAGE,
+                    ),
+                    OperationStep(
+                        stem + "-job-permit",
+                        "permit_issued",
+                        STUDY_CLOSE_STAGE,
+                    ),
+                    OperationStep(
+                        stem + "-start-job",
+                        "job_started",
+                        STUDY_CLOSE_STAGE,
+                    ),
+                )
             )
-        )
-    for member in design.members:
-        stem = prefix + member.label
-        steps.extend(
-            (
-                OperationStep(stem + "-declare-job", "job_declared", STUDY_CLOSE_STAGE),
-                OperationStep(stem + "-job-permit", "permit_issued", STUDY_CLOSE_STAGE),
-                OperationStep(stem + "-start-job", "job_started", STUDY_CLOSE_STAGE),
+            repair_steps = repair_chains[member.ordinal]
+            steps.extend(repair_steps)
+            unrecovered_repair = any(
+                item.event_kind == "repair_concluded_unrecovered"
+                for item in repair_steps
             )
-        )
-        repair_steps = repair_chains[member.ordinal]
-        steps.extend(repair_steps)
-        unrecovered_repair = any(
-            item.event_kind == "repair_concluded_unrecovered"
-            for item in repair_steps
-        )
-        steps.append(
-            OperationStep(
-                stem + "-complete-job",
-                "job_completed",
-                STUDY_CLOSE_STAGE,
-            )
-        )
-        if member.ordinal in failed:
             steps.append(
                 OperationStep(
-                    stem + "-negative-memory",
-                    "negative_memory_recorded",
+                    stem + "-complete-job",
+                    "job_completed",
                     STUDY_CLOSE_STAGE,
                 )
             )
-        steps.append(
-            OperationStep(
-                stem + "-judge-job",
-                "job_evidence_judged",
-                STUDY_CLOSE_STAGE,
-            )
-        )
-        if unrecovered_repair:
-            break
-        if budget_repair_boundary == member.ordinal:
+            if member.ordinal in failed:
+                steps.append(
+                    OperationStep(
+                        stem + "-negative-memory",
+                        "negative_memory_recorded",
+                        STUDY_CLOSE_STAGE,
+                    )
+                )
             steps.append(
                 OperationStep(
-                    _batch_budget_repair_operation_id(design),
-                    "batch_budget_repaired",
+                    stem + "-judge-job",
+                    "job_evidence_judged",
                     STUDY_CLOSE_STAGE,
                 )
             )
+            if unrecovered_repair:
+                break
+            if budget_repair_boundary == member.ordinal:
+                steps.append(
+                    OperationStep(
+                        _batch_budget_repair_operation_id(design),
+                        "batch_budget_repaired",
+                        STUDY_CLOSE_STAGE,
+                    )
+                )
     steps.extend(
         (
             OperationStep(prefix + "dispose-batch", "batch_disposed", STUDY_CLOSE_STAGE),
@@ -2620,6 +2763,213 @@ def build_replay_job_spec(
     }
 
 
+def _materialize_replay_implementation_preflight_request(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+    *,
+    job_implementation_materializer: Callable[[StateWriter], str],
+    replacement_for_preflight_id: str | None = None,
+) -> ReplayJobImplementationPreflightRequest:
+    """Seal plans and implementation once for the complete replay family."""
+
+    for member in design.members:
+        plan = canonical_bytes(member.job_plan.plan)
+        if writer.evidence.finalize(plan).sha256 != member.job_plan.plan_hash:
+            raise RuntimeError("replay validation plan identity drifted")
+    implementation_identity = job_implementation_materializer(writer)
+    if implementation_identity != design.spec.job_implementation_identity:
+        raise RuntimeError("replay Job implementation materialization drifted")
+    return ReplayJobImplementationPreflightRequest(
+        mission_id=design.spec.mission_id,
+        protocol_id=design.spec.job_protocol,
+        callable_identity=design.spec.callable_identity,
+        implementation_identity=implementation_identity,
+        executables=tuple(member.executable for member in design.members),
+        scientific_bindings=tuple(
+            member.job_plan.scientific_binding() for member in design.members
+        ),
+        replay_obligation_ids=(design.spec.target_obligation_id,),
+        replacement_for_preflight_id=replacement_for_preflight_id,
+    )
+
+
+def require_replay_implementation_admission(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+    *,
+    job_implementation_materializer: Callable[[StateWriter], str],
+) -> ReplayImplementationAdmission:
+    """Fail before a new Study transition if its Job code is not admissible."""
+
+    request = _materialize_replay_implementation_preflight_request(
+        writer,
+        design,
+        job_implementation_materializer=job_implementation_materializer,
+    )
+    with writer.open_stable_index() as (_control, index):
+        result = evaluate_replay_job_implementation_preflight(
+            request,
+            index=index,
+            artifact_reader=writer.evidence.read_verified,
+            source_root=(writer.foundation_root / "src").absolute(),
+        )
+        replacement = _pending_replacement_implementation_preflight(
+            index,
+            design,
+        )
+        if result.accepted and replacement is not None:
+            scientific_surface = derive_replay_job_scientific_surface(
+                request,
+                study_payload=_prospective_replay_study_surface(design),
+                batch_payload={
+                    "spec": design.batch_spec.to_identity_payload()
+                },
+                artifact_reader=writer.evidence.read_verified,
+            )
+            require_active_replay_job_replacement_binding(
+                accepted_payload=replacement.payload,
+                active_payload={
+                    "callable_identity": request.callable_identity,
+                    "executable_ids": list(request.executable_ids),
+                    "executable_manifests": [
+                        executable.to_identity_payload()
+                        for executable in request.executables
+                    ],
+                    "implementation_identity": request.implementation_identity,
+                    "mission_id": request.mission_id,
+                    "protocol_id": request.protocol_id,
+                    "replacement_for_preflight_id": None,
+                    "replay_obligation_ids": list(
+                        request.replay_obligation_ids
+                    ),
+                    "schema": PREFLIGHT_SCHEMA,
+                    "scientific_surface": scientific_surface,
+                    "scientific_surface_hash": (
+                        replay_job_scientific_surface_hash(
+                            scientific_surface
+                        )
+                    ),
+                },
+            )
+    if not result.accepted:
+        raise RuntimeError(
+            "replay implementation admission failed before Study execution: "
+            f"{result.reason_code}: {result.failure_detail}"
+        )
+    return ReplayImplementationAdmission(
+        request=request,
+        result_payload=result.to_record_payload(),
+        replacement_preflight_id=(
+            None if replacement is None else replacement.record_id
+        ),
+    )
+
+
+def _prospective_replay_study_surface(
+    design: FixedHoldReplayDesign,
+) -> dict[str, Any]:
+    """Render the exact Study fields used by the replacement science boundary."""
+
+    core = SemanticQuestionCore.from_question_manifest(design.question)
+    return {
+        "changed_domains": [
+            domain.value
+            for domain in design.controlled_chassis.changed_domains
+        ],
+        "controlled_chassis": (
+            design.controlled_chassis.to_identity_payload()
+        ),
+        "controlled_domains": [
+            domain.value
+            for domain in design.controlled_chassis.controlled_domains
+        ],
+        "material_identity": OBSERVED_MATERIAL_ID,
+        "mechanism_family": design.replay_axis.mechanism_family,
+        "mission_id": design.spec.mission_id,
+        "portfolio_action": design.work_decision.chosen.action.value,
+        "primary_research_layer": (
+            design.replay_axis.primary_research_layer.value
+        ),
+        "question": dict(design.question),
+        "replay_obligation_ids": [design.spec.target_obligation_id],
+        "semantic_proposal": dict(design.proposal),
+        "semantic_question_core_id": core.identity,
+    }
+
+
+def _pending_replacement_implementation_preflight(
+    index: LocalIndexView,
+    design: FixedHoldReplayDesign,
+) -> IndexRecord | None:
+    """Resolve a current accepted replacement trigger before any Study write."""
+
+    heads = {
+        obligation.identity: head
+        for obligation, head in obligation_heads(
+            index,
+            mission_id=design.spec.mission_id,
+        )
+    }
+    head = heads.get(design.spec.target_obligation_id)
+    if (
+        head is None
+        or head.kind != "historical-replay-obligation-resume"
+        or head.status != "pending"
+    ):
+        return None
+    evidence = head.payload.get("resume_evidence")
+    trigger_id = (
+        None
+        if not isinstance(evidence, Mapping)
+        else evidence.get("trigger_record_id")
+    )
+    if not isinstance(trigger_id, str) or not trigger_id.startswith(
+        "job-implementation-preflight:"
+    ):
+        return None
+    trigger = index.get("job-implementation-preflight", trigger_id)
+    stream_head = (
+        None
+        if trigger is None or not isinstance(trigger.event_stream, str)
+        else index.event_head(trigger.event_stream)
+    )
+    replacement_for = (
+        None
+        if trigger is None
+        else trigger.payload.get("replacement_for_preflight_id")
+    )
+    if (
+        trigger is None
+        or trigger.status != "accepted"
+        or trigger.payload.get("schema") != PREFLIGHT_SCHEMA
+        or trigger.payload.get("outcome") != "accepted"
+        or trigger.payload.get("mission_id") != design.spec.mission_id
+        or trigger.payload.get("batch_id") is not None
+        or trigger.payload.get("study_id") is not None
+        or trigger.payload.get("replay_obligation_ids")
+        != [design.spec.target_obligation_id]
+        or trigger.payload.get("protocol_id") != design.spec.job_protocol
+        or not isinstance(replacement_for, str)
+        or trigger.event_stream
+        != (
+            "replay-job-implementation-preflight-replacement:"
+            + replacement_for
+        )
+        or stream_head is None
+        or stream_head.record_id != trigger.record_id
+        or not isinstance(
+            trigger.payload.get("source_closure_authority"),
+            Mapping,
+        )
+        or trigger.payload.get("failure_fingerprint") is not None
+        or trigger.payload.get("reason_code") is not None
+    ):
+        raise RuntimeError(
+            "pending replay replacement implementation authority is malformed"
+        )
+    return trigger
+
+
 def _study_permit(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
@@ -2761,6 +3111,7 @@ def _apply_study_close_step(
     repository_root: Path,
     job_runner: Callable[..., FixedHoldFamilyJobPacket],
     job_implementation_materializer: Callable[[StateWriter], str],
+    implementation_admission: ReplayImplementationAdmission | None = None,
 ) -> Any:
     spec = design.spec
     operation_id = step.operation_id
@@ -2796,6 +3147,7 @@ def _apply_study_close_step(
             permit=permit,
         )
     if operation_id == prefix + "open-study":
+        replay_admission = implementation_admission
         return writer.open_study(
             study_id=spec.study_id,
             question=design.question,
@@ -2809,6 +3161,14 @@ def _apply_study_close_step(
             portfolio_decision_id=design.work_decision.identity,
             permit=_permit_from_operation(writer, prefix + "study-permit"),
             operation_id=operation_id,
+            replay_implementation_request=(
+                None
+                if replay_admission is None
+                else replay_admission.request
+            ),
+            replay_batch_spec=(
+                None if replay_admission is None else design.batch_spec
+            ),
         )
     if operation_id == prefix + "batch-permit":
         permit = writer.issue_permit(
@@ -2837,6 +3197,16 @@ def _apply_study_close_step(
         return activate_current_scientific_protocol(writer, design)
     if operation_id == _batch_budget_repair_operation_id(design):
         return repair_fixed_hold_replay_batch_budget(writer, design)
+    if operation_id == prefix + "implementation-preflight":
+        request = _materialize_replay_implementation_preflight_request(
+            writer,
+            design,
+            job_implementation_materializer=job_implementation_materializer,
+        )
+        return writer.record_replay_job_implementation_preflight(
+            request=request,
+            operation_id=operation_id,
+        )
     for member in design.members:
         stem = prefix + member.label
         if operation_id == stem + "-register-trial":
@@ -2845,11 +3215,6 @@ def _apply_study_close_step(
                 operation_id=operation_id,
             )
         if operation_id == stem + "-declare-job":
-            implementation_identity = job_implementation_materializer(writer)
-            if implementation_identity != spec.job_implementation_identity:
-                raise RuntimeError(
-                    "replay Job implementation materialization drifted"
-                )
             result = writer.declare_job(
                 spec=build_replay_job_spec(writer, design, member),
                 operation_id=operation_id,
@@ -3031,6 +3396,11 @@ def _apply_study_close_step(
                 operation_id=operation_id,
             )
     if operation_id == prefix + "dispose-batch":
+        if _implementation_preflight_rejection(writer, design) is not None:
+            return writer.dispose_batch(
+                outcome="not_evaluable",
+                operation_id=operation_id,
+            )
         return writer.dispose_batch(
             outcome=(
                 "engineering_failure"
@@ -3040,6 +3410,12 @@ def _apply_study_close_step(
             operation_id=operation_id,
         )
     if operation_id == prefix + "close-study":
+        if _implementation_preflight_rejection(writer, design) is not None:
+            return writer.close_study(
+                outcome="evidence_gap",
+                kpi_completion_record_id=None,
+                operation_id=operation_id,
+            )
         engineering_failure = _engineering_failure_member(writer, design)
         if engineering_failure is not None:
             _failed_member, failed_completion = engineering_failure
@@ -3104,6 +3480,7 @@ def _diagnosis(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
 ) -> StudyDiagnosis:
+    preflight_rejection = _implementation_preflight_rejection(writer, design)
     engineering_failure = _engineering_failure_member(writer, design)
     completion = _member_completion(writer, design, design.target_member)
     interpretation = _workflow_interpretation(writer, design)
@@ -3115,7 +3492,23 @@ def _diagnosis(
             {},
         ).get("state")
     )
-    if engineering_failure is not None:
+    if preflight_rejection is not None:
+        rationale = (
+            "The exact family failed prospective implementation authority "
+            "before any Job declaration or compute reservation. No scientific "
+            "criterion was evaluated, so the Study is an engineering gap."
+        )
+        counterfactual = (
+            "A new prospective implementation with a complete current source "
+            "closure could execute the same protocol and historical family "
+            "without inheriting evidence from this Study."
+        )
+        reopen_condition = (
+            "Reopen only after an accepted replacement prospective "
+            "implementation preflight binds new Executable identities to the "
+            "same protocol and exact historical family."
+        )
+    elif engineering_failure is not None:
         rationale = (
             "A typed unrecovered Repair ended execution without creating "
             "scientific evidence; this is an engineering gap."
@@ -3203,6 +3596,7 @@ def _replay_resolution(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
 ) -> ReplaySatisfaction | ReplayDeferral:
+    preflight_rejection = _implementation_preflight_rejection(writer, design)
     engineering_failure = _engineering_failure_member(writer, design)
     completion = _member_completion(writer, design, design.target_member)
     interpretation = _workflow_interpretation(writer, design)
@@ -3263,7 +3657,12 @@ def _replay_resolution(
                 criterion_ids=obligation.criterion_ids,
             )
             for kind in (
-                (ReplayResumeConditionKind.SAME_PROTOCOL_REPAIR,)
+                (
+                    ReplayResumeConditionKind
+                    .REPLACEMENT_PROSPECTIVE_IMPLEMENTATION,
+                )
+                if preflight_rejection is not None
+                else (ReplayResumeConditionKind.SAME_PROTOCOL_REPAIR,)
                 if engineering_failure is not None
                 else (
                     ReplayResumeConditionKind.REGISTERED_DEVELOPMENT_MATERIAL,
@@ -3531,6 +3930,7 @@ def verify_study_close_postconditions(
     completions = tuple(
         _member_completion(writer, design, member) for member in design.members
     )
+    preflight_rejection = _implementation_preflight_rejection(writer, design)
     engineering_failure = _engineering_failure_member(writer, design)
     with writer.open_stable_index() as (control, index):
         study_kpi = index.get("study-kpi", design.spec.study_id)
@@ -3551,7 +3951,36 @@ def verify_study_close_postconditions(
         or control.get("scientific", {}).get("active_job") is not None
     ):
         raise RuntimeError("replay Study-close state drifted")
-    if engineering_failure is None:
+    if preflight_rejection is not None:
+        disposed = _operation_result(
+            writer,
+            design.spec.operation_prefix + "dispose-batch",
+        )
+        unavailable_reason = (
+            None if study_kpi is None else study_kpi.payload.get(
+                "unavailable_reason"
+            )
+        )
+        if (
+            any(value is not None for value in completions)
+            or disposed.get("outcome") != "not_evaluable"
+            or close_record.status != "evidence_gap"
+            or study_kpi is None
+            or study_kpi.status != "evidence_gap"
+            or study_kpi.payload.get("completion_record_id") is not None
+            or study_kpi.payload.get("source") != "writer_derived_unavailable"
+            or unavailable_reason
+            not in {
+                "started_batch_implementation_authority_invalid_"
+                "without_final_validator_completion",
+                "unstarted_batch_implementation_authority_invalid_"
+                "without_final_validator_completion",
+            }
+        ):
+            raise RuntimeError(
+                "replay implementation gap lacks typed Batch, Study, or KPI terminal"
+            )
+    elif engineering_failure is None:
         if any(value is None for value in completions):
             raise RuntimeError("replay member completion is absent")
         for member, completion in zip(
@@ -3646,6 +4075,22 @@ def run_study_close_stage(
     require_stable_head(writer, explicit_recovery=explicit_recovery)
     cursor = _inspect_replay_cursor(writer, design)
     initial = cursor.completed
+    applied_trial_delta = 0
+    implementation_admission: ReplayImplementationAdmission | None = None
+    registration_boundaries = tuple(
+        ordinal
+        for ordinal, item in enumerate(cursor.steps)
+        if item.event_kind == "trial_registered"
+    )
+    if (
+        registration_boundaries
+        and initial <= max(registration_boundaries)
+    ):
+        implementation_admission = require_replay_implementation_admission(
+            writer,
+            design,
+            job_implementation_materializer=job_implementation_materializer,
+        )
     _, end = stage_bounds(cursor.steps, stage=STUDY_CLOSE_STAGE)
     if initial > end:
         raise RuntimeError("replay diagnosis already began")
@@ -3669,9 +4114,12 @@ def run_study_close_stage(
             job_implementation_materializer=(
                 job_implementation_materializer
             ),
+            implementation_admission=implementation_admission,
         )
         if not isinstance(transition, TransitionResult):
             raise RuntimeError("replay Study-close step returned no Writer transition")
+        if step.event_kind == "trial_registered":
+            applied_trial_delta += 1
         try:
             cursor = cursor.advance(
                 step=step,
@@ -3691,6 +4139,7 @@ def run_study_close_stage(
             cursor = recovered
         if step.event_kind in {
             "job_completed",
+            "replay_job_implementation_preflight_recorded",
             "research_protocol_activated",
         }:
             cursor = _refresh_replay_cursor_plan(writer, design, cursor)
@@ -3716,7 +4165,7 @@ def run_study_close_stage(
         "replay_obligation_id": design.spec.target_obligation_id,
         "schema": "fixed_hold_replay_study_close.v1",
         "study_id": design.spec.study_id,
-        "trial_delta": len(design.members),
+        "trial_delta": applied_trial_delta,
         **dict(verified),
     }
 
@@ -3933,7 +4382,7 @@ def run_diagnose_stage(
         "study_close_event_id": study_close_event_id,
         "study_close_revision": study_close_revision,
         "study_id": design.spec.study_id,
-        "trial_delta": len(design.members),
+        "trial_delta": 0,
         **dict(verified),
     }
 
@@ -3949,6 +4398,10 @@ def read_only_summary(
         output_class
         for member in design.members
         for output_class in member.job_plan.expected_output_classes().values()
+    )
+    remaining_trial_delta = sum(
+        step.event_kind == "trial_registered"
+        for step in steps[completed:close_end]
     )
     return {
         "axis_count_after": len(design.expanded_snapshot.axes),
@@ -3986,7 +4439,7 @@ def read_only_summary(
         "study_close_operation_count": close_end - close_start,
         "study_id": design.spec.study_id,
         "target_member_ordinal": design.target_member.ordinal,
-        "trial_delta": len(design.members),
+        "trial_delta": remaining_trial_delta,
     }
 
 

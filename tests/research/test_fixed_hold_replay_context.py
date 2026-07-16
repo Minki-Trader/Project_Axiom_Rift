@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.running_job_context import (
     RunningJobFixedHoldReplayContext,
@@ -22,6 +24,7 @@ from axiom_rift.research.historical_family_binding import (
     historical_family_from_manifest,
 )
 from axiom_rift.research.fixed_hold_replay_runtime import (
+    build_fixed_hold_replay_job_plan,
     registered_fixed_hold_replay_context,
 )
 from axiom_rift.storage.index import IndexRecord, LocalIndex
@@ -29,6 +32,7 @@ from axiom_rift.storage.index import IndexRecord, LocalIndex
 
 STUDY_ID = "STU-CONTEXT"
 CONTEXT = 622
+ORIGINAL_FAMILY_END = 492
 STUDY_HASH = "4" * 64
 BATCH_SPEC = {"study_hash": STUDY_HASH, "study_id": STUDY_ID}
 BATCH_DIGEST = canonical_digest(domain="batch-spec", payload=BATCH_SPEC)
@@ -46,10 +50,12 @@ class _RuntimeContext:
         index_path: Path,
         subject_id: str,
         family_ids: tuple[str, ...],
+        original_family_end: int = 492,
     ) -> None:
         self.index_path = index_path
         self.subject_id = subject_id
         self.family_ids = family_ids
+        self.original_family_end = original_family_end
 
     def project_bound_fixed_hold_replay_context(
         self,
@@ -86,6 +92,9 @@ class _RuntimeContext:
                 "historical-replay-obligation:" + "2" * 64
             ),
             family=WRITER_BOUND_STU0061_FAMILY,
+            original_family_end_global_exposure_count=(
+                self.original_family_end
+            ),
             exposure=exposure,
             batch_family_executable_ids=tuple(sorted(self.family_ids)),
             registered_member_bindings=tuple(
@@ -135,6 +144,7 @@ def test_registered_context_reads_only_exact_batch_family(tmp_path: Path) -> Non
             configuration,
             historical_family=WRITER_BOUND_STU0061_FAMILY,
             historical_context_prior_global_exposure_count=CONTEXT,
+            original_family_end_global_exposure_count=ORIGINAL_FAMILY_END,
         )
         for configuration in analog_fixed_hold_replay_configurations(
             WRITER_BOUND_STU0061_FAMILY
@@ -207,6 +217,43 @@ def test_registered_context_reads_only_exact_batch_family(tmp_path: Path) -> Non
     assert context.exposure.family_executable_ids == tuple(
         item.identity for item in executables
     )
+
+    with pytest.raises(
+        ValueError,
+        match="differs from its frozen context",
+    ):
+        registered_fixed_hold_replay_context(
+            _RuntimeContext(
+                index_path,
+                executables[0].identity,
+                tuple(item.identity for item in executables),
+                original_family_end=493,
+            ),
+            adapter=RUNTIME_ADAPTER,
+            binding=binding,
+            subject_executable_id=executables[0].identity,
+        )
+
+
+def test_bound_plan_requires_original_family_end_context() -> None:
+    with pytest.raises(
+        ValueError,
+        match="requires exact historical family authority",
+    ):
+        build_fixed_hold_replay_job_plan(
+            adapter=RUNTIME_ADAPTER,
+            mission_id="MIS-0006",
+            study_id="STU-0112",
+            executable_id="executable:" + "a" * 64,
+            historical_context_prior_global_exposure_count=CONTEXT,
+            historical_family=WRITER_BOUND_STU0061_FAMILY,
+            historical_family_authority_id=(
+                "historical-family-authority:" + "1" * 64
+            ),
+            replay_obligation_id=(
+                "historical-replay-obligation:" + "2" * 64
+            ),
+        )
 
 
 def test_file_is_ascii() -> None:

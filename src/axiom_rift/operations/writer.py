@@ -5958,6 +5958,396 @@ class StateWriter:
             domain="study-input",
         )
 
+    @staticmethod
+    def _current_accepted_replay_replacement_preflight(
+        index: LocalIndex,
+        *,
+        mission_id: str,
+        obligation_ids: tuple[str, ...],
+    ) -> IndexRecord | None:
+        """Resolve one exact replacement trigger at a pending Study boundary."""
+
+        if not obligation_ids:
+            return None
+        from axiom_rift.operations.replay_projection import obligation_heads
+
+        heads = {
+            obligation.identity: head
+            for obligation, head in obligation_heads(
+                index,
+                mission_id=mission_id,
+            )
+        }
+        triggers: list[IndexRecord] = []
+        for obligation_id in obligation_ids:
+            head = heads.get(obligation_id)
+            if head is None:
+                raise TransitionError(
+                    "replay implementation admission lacks its obligation"
+                )
+            resume = head
+            if (
+                head.kind != "historical-replay-obligation-resume"
+                and head.status == "in_progress"
+                and isinstance(head.event_stream, str)
+                and type(head.event_sequence) is int
+                and head.event_sequence >= 2
+            ):
+                resume = index.event_record(
+                    head.event_stream,
+                    head.event_sequence - 1,
+                )
+            evidence = (
+                resume.payload.get("resume_evidence")
+                if resume.kind == "historical-replay-obligation-resume"
+                else None
+            )
+            trigger_id = (
+                evidence.get("trigger_record_id")
+                if isinstance(evidence, Mapping)
+                else None
+            )
+            if not isinstance(trigger_id, str) or not trigger_id.startswith(
+                "job-implementation-preflight:"
+            ):
+                continue
+            trigger = index.get("job-implementation-preflight", trigger_id)
+            stream_head = (
+                None
+                if trigger is None
+                or not isinstance(trigger.event_stream, str)
+                else index.event_head(trigger.event_stream)
+            )
+            replacement_for = (
+                None
+                if trigger is None
+                else trigger.payload.get("replacement_for_preflight_id")
+            )
+            if (
+                trigger is None
+                or trigger.status != "accepted"
+                or trigger.payload.get("schema")
+                != "replay_job_implementation_preflight.v1"
+                or trigger.payload.get("outcome") != "accepted"
+                or trigger.payload.get("mission_id") != mission_id
+                or trigger.payload.get("replay_obligation_ids")
+                != list(obligation_ids)
+                or trigger.payload.get("batch_id") is not None
+                or trigger.payload.get("study_id") is not None
+                or not isinstance(replacement_for, str)
+                or trigger.event_stream
+                != (
+                    "replay-job-implementation-preflight-replacement:"
+                    + replacement_for
+                )
+                or stream_head is None
+                or stream_head.record_id != trigger.record_id
+                or not isinstance(
+                    trigger.payload.get("source_closure_authority"),
+                    Mapping,
+                )
+                or trigger.payload.get("failure_fingerprint") is not None
+                or trigger.payload.get("reason_code") is not None
+                or trigger.payload.get("remediation_kind") is not None
+            ):
+                raise RecoveryRequired(
+                    "replay replacement implementation trigger is malformed"
+                )
+            triggers.append(trigger)
+        if not triggers:
+            return None
+        if (
+            len(triggers) != len(obligation_ids)
+            or len({trigger.record_id for trigger in triggers}) != 1
+        ):
+            raise TransitionError(
+                "replay obligations mix replacement implementation authority"
+            )
+        return triggers[0]
+
+    @staticmethod
+    def _study_replay_implementation_admission(
+        index: LocalIndex,
+        *,
+        study_id: str,
+    ) -> IndexRecord | None:
+        study = index.get("study-open", study_id)
+        admission_id = (
+            None
+            if study is None
+            else study.payload.get("replay_implementation_admission_id")
+        )
+        if admission_id is None:
+            return None
+        admission = (
+            index.get("replay-implementation-admission", admission_id)
+            if isinstance(admission_id, str)
+            else None
+        )
+        if admission is None:
+            raise RecoveryRequired(
+                "Study replay implementation admission is unavailable"
+            )
+        payload = admission.payload
+        accepted_id = payload.get("accepted_replacement_preflight_id")
+        accepted = (
+            index.get("job-implementation-preflight", accepted_id)
+            if isinstance(accepted_id, str)
+            else None
+        )
+        accepted_head = (
+            None
+            if accepted is None
+            or not isinstance(accepted.event_stream, str)
+            else index.event_head(accepted.event_stream)
+        )
+        fingerprint = _digest(
+            payload,
+            domain="replay-implementation-admission",
+        )
+        request = payload.get("request")
+        surface = payload.get("scientific_surface")
+        source_authority = payload.get("source_closure_authority")
+        from axiom_rift.operations.replay_job_implementation_preflight import (
+            PREFLIGHT_SCHEMA,
+            ReplayJobImplementationPreflightError,
+            replay_job_scientific_surface_hash,
+            require_active_replay_job_replacement_binding,
+        )
+        from axiom_rift.research.implementation_closure import (
+            JOB_IMPLEMENTATION_SOURCE_AUTHORITY_SCHEMA,
+        )
+
+        request_keys = {
+            "callable_identity",
+            "executable_manifests",
+            "implementation_identity",
+            "mission_id",
+            "protocol_id",
+            "replacement_for_preflight_id",
+            "replay_obligation_ids",
+            "schema",
+            "scientific_bindings",
+        }
+        source_keys = {
+            "callable_module_path",
+            "dependency_count",
+            "path_inventory_hash",
+            "schema",
+            "source_closure_hash",
+        }
+        manifests = (
+            request.get("executable_manifests")
+            if isinstance(request, Mapping)
+            else None
+        )
+        bindings = (
+            request.get("scientific_bindings")
+            if isinstance(request, Mapping)
+            else None
+        )
+        try:
+            surface_hash = (
+                replay_job_scientific_surface_hash(surface)
+                if isinstance(surface, Mapping)
+                else None
+            )
+            executable_ids = (
+                []
+                if not isinstance(manifests, list)
+                else [
+                    "executable:"
+                    + canonical_digest(
+                        domain="executable",
+                        payload=manifest,
+                    )
+                    for manifest in manifests
+                ]
+            )
+            if accepted is not None:
+                require_active_replay_job_replacement_binding(
+                    accepted_payload=accepted.payload,
+                    active_payload={
+                        "callable_identity": request.get(
+                            "callable_identity"
+                        ),
+                        "executable_ids": executable_ids,
+                        "executable_manifests": manifests,
+                        "implementation_identity": request.get(
+                            "implementation_identity"
+                        ),
+                        "mission_id": request.get("mission_id"),
+                        "protocol_id": request.get("protocol_id"),
+                        "replacement_for_preflight_id": None,
+                        "replay_obligation_ids": request.get(
+                            "replay_obligation_ids"
+                        ),
+                        "schema": PREFLIGHT_SCHEMA,
+                        "scientific_surface": surface,
+                        "scientific_surface_hash": surface_hash,
+                    },
+                )
+        except (
+            AttributeError,
+            ReplayJobImplementationPreflightError,
+            TypeError,
+            ValueError,
+        ):
+            surface_hash = None
+            executable_ids = []
+        accepted_invalid = accepted_id is not None and (
+            not isinstance(accepted_id, str)
+            or accepted is None
+            or accepted.status != "accepted"
+            or accepted.payload.get("outcome") != "accepted"
+            or accepted.payload.get("remediation_kind") is not None
+            or accepted_head is None
+            or accepted_head.record_id != accepted.record_id
+        )
+        if (
+            study is None
+            or study.status != "open"
+            or study.subject != f"Study:{study_id}"
+            or admission.status != "active"
+            or admission.subject != f"Study:{study_id}"
+            or set(payload)
+            != {
+                "accepted_replacement_preflight_id",
+                "batch_id",
+                "request",
+                "schema",
+                "scientific_surface",
+                "scientific_surface_hash",
+                "source_closure_authority",
+                "study_id",
+            }
+            or payload.get("schema")
+            != "replay_implementation_admission.v1"
+            or payload.get("study_id") != study_id
+            or not isinstance(request, Mapping)
+            or set(request) != request_keys
+            or request.get("schema")
+            != "replay_job_implementation_preflight_request.v1"
+            or request.get("replacement_for_preflight_id") is not None
+            or study.payload.get("mission_id") != request.get("mission_id")
+            or study.payload.get("replay_obligation_ids")
+            != request.get("replay_obligation_ids")
+            or type(payload.get("batch_id")) is not str
+            or not payload["batch_id"].startswith("batch:")
+            or len(payload["batch_id"].removeprefix("batch:")) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in payload["batch_id"].removeprefix("batch:")
+            )
+            or not isinstance(manifests, list)
+            or not manifests
+            or not isinstance(bindings, list)
+            or len(bindings) != len(manifests)
+            or len(executable_ids) != len(manifests)
+            or not isinstance(surface, Mapping)
+            or surface_hash != payload.get("scientific_surface_hash")
+            or surface.get("callable_identity")
+            != request.get("callable_identity")
+            or surface.get("mission_id") != request.get("mission_id")
+            or surface.get("protocol_id") != request.get("protocol_id")
+            or surface.get("replay_obligation_ids")
+            != request.get("replay_obligation_ids")
+            or not isinstance(source_authority, Mapping)
+            or set(source_authority) != source_keys
+            or source_authority.get("schema")
+            != JOB_IMPLEMENTATION_SOURCE_AUTHORITY_SCHEMA
+            or accepted_invalid
+            or admission.fingerprint != fingerprint
+            or admission.record_id
+            != f"replay-implementation-admission:{fingerprint}"
+        ):
+            raise RecoveryRequired(
+                "Study replay implementation admission is malformed"
+            )
+        return admission
+
+    def _require_replay_registration_source_authority(
+        self,
+        index: LocalIndex,
+        *,
+        admission: IndexRecord,
+        executable: Any,
+    ) -> None:
+        """Recheck current bytes before a replay trial can enter multiplicity."""
+
+        request = admission.payload.get("request")
+        manifests = (
+            None
+            if not isinstance(request, Mapping)
+            else request.get("executable_manifests")
+        )
+        bindings = (
+            None
+            if not isinstance(request, Mapping)
+            else request.get("scientific_bindings")
+        )
+        executable_manifest = executable.to_identity_payload()
+        try:
+            member_index = (
+                manifests.index(executable_manifest)
+                if isinstance(manifests, list)
+                else -1
+            )
+        except ValueError:
+            member_index = -1
+        if (
+            member_index < 0
+            or not isinstance(bindings, list)
+            or member_index >= len(bindings)
+            or not isinstance(bindings[member_index], Mapping)
+        ):
+            raise TransitionError(
+                "Executable differs from the replay implementation admission"
+            )
+        spec = {
+            "callable_identity": request["callable_identity"],
+            "evidence_subject": {
+                "kind": "Executable",
+                "id": executable.identity,
+            },
+            "implementation_identity": request["implementation_identity"],
+            "scientific_binding": bindings[member_index],
+        }
+        implementation = self._require_job_implementation_evidence(
+            spec,
+            _index=index,
+        )
+        try:
+            from axiom_rift.research.implementation_closure import (
+                ImplementationClosureError,
+                require_current_job_source_closure,
+                require_job_implementation_closure,
+            )
+
+            component_hashes = require_job_implementation_closure(
+                executable_manifest=executable_manifest,
+                job_artifact_hashes=implementation["artifact_hashes"],
+                artifact_reader=self.evidence.read_verified,
+            )
+            source_authority = require_current_job_source_closure(
+                callable_identity=request["callable_identity"],
+                job_artifact_hashes=implementation["artifact_hashes"],
+                artifact_reader=self.evidence.read_verified,
+                source_root=(self.foundation_root / "src").absolute(),
+                verified_non_source_artifact_hashes=component_hashes,
+            )
+        except ImplementationClosureError as exc:
+            raise TransitionError(
+                "replay implementation source drifted before trial "
+                f"registration: {exc}"
+            ) from exc
+        if source_authority != admission.payload.get(
+            "source_closure_authority"
+        ):
+            raise TransitionError(
+                "replay implementation source authority changed after Study admission"
+            )
+
     def open_study(
         self,
         *,
@@ -5974,6 +6364,8 @@ class StateWriter:
         portfolio_axis_id: str | None = None,
         portfolio_axis_identity: str | None = None,
         portfolio_decision_id: str | None = None,
+        replay_implementation_request: Any | None = None,
+        replay_batch_spec: Any | None = None,
     ) -> TransitionResult:
         self._require_study_close_delivery_guard()
         try:
@@ -6290,6 +6682,170 @@ class StateWriter:
                         "StudyPermit does not bind the accepted Portfolio Decision"
                     )
                 system_architecture_family = resolved_controlled_family
+            admission_record: IndexRecord | None = None
+            replacement_preflight = (
+                self._current_accepted_replay_replacement_preflight(
+                    _index,
+                    mission_id=science["active_mission"],
+                    obligation_ids=replay_obligation_ids,
+                )
+            )
+            if replay_obligation_ids:
+                from axiom_rift.operations.replay_job_implementation_preflight import (
+                    PREFLIGHT_SCHEMA,
+                    ReplayJobImplementationPreflightError,
+                    ReplayJobImplementationPreflightRequest,
+                    derive_replay_job_scientific_surface,
+                    evaluate_replay_job_implementation_preflight,
+                    replay_job_scientific_surface_hash,
+                    require_active_replay_job_replacement_binding,
+                )
+                from axiom_rift.research.portfolio import BatchSpec
+
+                if (
+                    not isinstance(
+                        replay_implementation_request,
+                        ReplayJobImplementationPreflightRequest,
+                    )
+                    or not isinstance(replay_batch_spec, BatchSpec)
+                    or replay_implementation_request.mission_id
+                    != science["active_mission"]
+                    or replay_implementation_request.replay_obligation_ids
+                    != replay_obligation_ids
+                    or replay_implementation_request.replacement_for_preflight_id
+                    is not None
+                ):
+                    raise TransitionError(
+                        "replay Study lacks typed implementation admission"
+                    )
+                current_preflight = (
+                    evaluate_replay_job_implementation_preflight(
+                        replay_implementation_request,
+                        index=_index,
+                        artifact_reader=self.evidence.read_verified,
+                        source_root=(self.foundation_root / "src").absolute(),
+                    )
+                )
+                if not current_preflight.accepted:
+                    raise TransitionError(
+                        "replay Study implementation is not current: "
+                        f"{current_preflight.reason_code}: "
+                        f"{current_preflight.failure_detail}"
+                    )
+                study_surface_payload = {
+                    "changed_domains": changed_domains,
+                    "controlled_chassis": (
+                        None
+                        if controlled_chassis is None
+                        else controlled_chassis.to_identity_payload()
+                    ),
+                    "controlled_domains": controlled_domains,
+                    "material_identity": material_identity,
+                    "mechanism_family": mechanism_family,
+                    "mission_id": science["active_mission"],
+                    "portfolio_action": portfolio_action,
+                    "primary_research_layer": primary_research_layer,
+                    "question": question_manifest,
+                    "replay_obligation_ids": list(replay_obligation_ids),
+                    "semantic_proposal": semantic_proposal_manifest,
+                    "semantic_question_core_id": semantic_question_core.identity,
+                }
+                try:
+                    scientific_surface = derive_replay_job_scientific_surface(
+                        replay_implementation_request,
+                        study_payload=study_surface_payload,
+                        batch_payload={
+                            "spec": replay_batch_spec.to_identity_payload()
+                        },
+                        artifact_reader=self.evidence.read_verified,
+                    )
+                    scientific_surface_hash = (
+                        replay_job_scientific_surface_hash(
+                            scientific_surface
+                        )
+                    )
+                    active_payload = {
+                            "callable_identity": (
+                                replay_implementation_request.callable_identity
+                            ),
+                            "executable_ids": list(
+                                replay_implementation_request.executable_ids
+                            ),
+                            "executable_manifests": [
+                                executable.to_identity_payload()
+                                for executable in (
+                                    replay_implementation_request.executables
+                                )
+                            ],
+                            "implementation_identity": (
+                                replay_implementation_request
+                                .implementation_identity
+                            ),
+                            "mission_id": (
+                                replay_implementation_request.mission_id
+                            ),
+                            "protocol_id": (
+                                replay_implementation_request.protocol_id
+                            ),
+                            "replacement_for_preflight_id": None,
+                            "replay_obligation_ids": list(
+                                replay_implementation_request
+                                .replay_obligation_ids
+                            ),
+                            "schema": PREFLIGHT_SCHEMA,
+                            "scientific_surface": scientific_surface,
+                            "scientific_surface_hash": (
+                                scientific_surface_hash
+                            ),
+                        }
+                    if replacement_preflight is not None:
+                        require_active_replay_job_replacement_binding(
+                            accepted_payload=replacement_preflight.payload,
+                            active_payload=active_payload,
+                        )
+                except ReplayJobImplementationPreflightError as exc:
+                    raise TransitionError(str(exc)) from exc
+                request_payload = (
+                    replay_implementation_request.to_identity_payload()
+                )
+                admission_payload = {
+                    "accepted_replacement_preflight_id": (
+                        None
+                        if replacement_preflight is None
+                        else replacement_preflight.record_id
+                    ),
+                    "batch_id": replay_batch_spec.identity,
+                    "request": request_payload,
+                    "schema": "replay_implementation_admission.v1",
+                    "scientific_surface": scientific_surface,
+                    "scientific_surface_hash": scientific_surface_hash,
+                    "source_closure_authority": dict(
+                        current_preflight.source_closure_authority or {}
+                    ),
+                    "study_id": study_id,
+                }
+                admission_fingerprint = _digest(
+                    admission_payload,
+                    domain="replay-implementation-admission",
+                )
+                admission_record = _record(
+                    kind="replay-implementation-admission",
+                    record_id=(
+                        "replay-implementation-admission:"
+                        + admission_fingerprint
+                    ),
+                    subject=f"Study:{study_id}",
+                    status="active",
+                    fingerprint=admission_fingerprint,
+                    payload=admission_payload,
+                )
+            elif (
+                replay_implementation_request is not None
+                or replay_batch_spec is not None
+            ):
+                raise TransitionError(
+                    "replay implementation admission lacks a replacement trigger"
+                )
             if material_identity == trial_accountant.observed_material_identity:
                 trial_context = trial_accountant.open_study(
                     material=material_reference,
@@ -6420,6 +6976,15 @@ class StateWriter:
                         if replay_obligation_ids
                         else {}
                     ),
+                    **(
+                        {
+                            "replay_implementation_admission_id": (
+                                admission_record.record_id
+                            )
+                        }
+                        if admission_record is not None
+                        else {}
+                    ),
                 },
             )
             semantic_records: list[IndexRecord] = []
@@ -6484,7 +7049,16 @@ class StateWriter:
                 raise RecoveryRequired(str(exc)) from exc
             except SemanticQuestionRegistryError as exc:
                 raise TransitionError(str(exc)) from exc
-            return body, [consumption, record, *semantic_records], {
+            return body, [
+                consumption,
+                *(
+                    (admission_record,)
+                    if admission_record is not None
+                    else ()
+                ),
+                record,
+                *semantic_records,
+            ], {
                 "study_id": study_id,
                 "study_hash": study_hash,
                 "semantic_question_core_id": semantic_question_core.identity,
@@ -6497,6 +7071,11 @@ class StateWriter:
                     None
                     if controlled_chassis is None
                     else controlled_chassis.controlled_chassis_identity
+                ),
+                "replay_implementation_admission_id": (
+                    None
+                    if admission_record is None
+                    else admission_record.record_id
                 ),
                 "prior_global_multiplicity": prior_global_multiplicity,
                 "semantic_warning_count": len(trial_context.semantic_warnings),
@@ -7710,6 +8289,17 @@ class StateWriter:
                 or study_record.fingerprint != batch_spec.study_hash
             ):
                 raise TransitionError("BatchSpec is not bound to the active Study identity")
+            replay_admission = self._study_replay_implementation_admission(
+                index,
+                study_id=study_id,
+            )
+            if (
+                replay_admission is not None
+                and replay_admission.payload.get("batch_id") != batch_id
+            ):
+                raise TransitionError(
+                    "Batch differs from the replay implementation admission"
+                )
             batch_head = index.event_head(f"study-batches:{study_id}")
             prior_batch_count = 0 if batch_head is None else batch_head.sequence
             commitment_batches = study_record.payload.get("commitment_batches")
@@ -8328,12 +8918,27 @@ class StateWriter:
                         batch["id"],
                         outcome,
                     )
-                elif next_action == exact_dispose:
-                    self._require_stop_batch_outcome(
+                elif (
+                    isinstance(next_action, Mapping)
+                    and next_action.get("kind") == "dispose_batch"
+                    and next_action.get("batch_id") == batch["id"]
+                    and set(next_action).issubset(
+                        {"basis_record_id", "batch_id", "kind"}
+                    )
+                ):
+                    disposition_basis = self._require_stop_batch_outcome(
                         _index,
                         batch["id"],
                         outcome,
                     )
+                    basis_record_id = next_action.get("basis_record_id")
+                    if (
+                        basis_record_id is not None
+                        and basis_record_id != disposition_basis
+                    ):
+                        raise TransitionError(
+                            "Batch disposition differs from its exact preflight basis"
+                        )
                 else:
                     raise TransitionError(
                         "Batch disposition is not the exact next action"
@@ -8341,8 +8946,20 @@ class StateWriter:
             if science["active_job"] is not None or science["active_repair"] is not None:
                 raise TransitionError("cannot dispose Batch with active Job or Repair")
             science["active_batch"] = None
+            basis_record_id = (
+                body.get("next_action", {}).get("basis_record_id")
+                if isinstance(body.get("next_action"), Mapping)
+                else None
+            )
+            close_payload = {"outcome": outcome}
+            if isinstance(basis_record_id, str):
+                close_payload["basis_record_id"] = basis_record_id
             fingerprint = _digest(
-                {"batch_id": batch["id"], "outcome": outcome}, domain="batch-close"
+                {
+                    "batch_id": batch["id"],
+                    **close_payload,
+                },
+                domain="batch-close",
             )
             record = _record(
                 kind="batch-close",
@@ -8350,7 +8967,7 @@ class StateWriter:
                 subject=f"Batch:{batch['id']}",
                 status=outcome,
                 fingerprint=fingerprint,
-                payload={"outcome": outcome},
+                payload=close_payload,
             )
             study_id = science["active_study"]
             study = (
@@ -9005,6 +9622,120 @@ class StateWriter:
             completion_ids.add(completion_id)
         return tuple(sorted(completion_ids))
 
+    @staticmethod
+    def _batch_rejected_replay_preflights(
+        index: LocalIndex,
+        batch_id: str,
+    ) -> tuple[IndexRecord, ...]:
+        """Return exact Writer-derived pre-Job implementation rejections."""
+
+        candidates = tuple(
+            record
+            for record in index.records_by_subject_status(
+                f"Batch:{batch_id}",
+                "rejected",
+            )
+            if record.kind == "job-implementation-preflight"
+        )
+        if len(candidates) > 1:
+            raise TransitionError(
+                "Batch has ambiguous replay implementation preflight rejection"
+            )
+        if not candidates:
+            return ()
+        record = candidates[0]
+        payload = record.payload
+        batch = index.get("batch-open", batch_id)
+        study_id = payload.get("study_id")
+        study = (
+            None
+            if not isinstance(study_id, str)
+            else index.get("study-open", study_id)
+        )
+        family_ids = (
+            None
+            if batch is None
+            else _concurrent_family_executable_ids(batch)
+        )
+        stream_head = (
+            None
+            if not isinstance(record.event_stream, str)
+            else index.event_head(record.event_stream)
+        )
+        from axiom_rift.operations.replay_job_implementation_preflight import (
+            REPLACEMENT_REQUIRED,
+            ReplayJobImplementationPreflightError,
+            replay_job_scientific_surface_hash,
+        )
+
+        try:
+            surface = payload.get("scientific_surface")
+            surface_hash = (
+                replay_job_scientific_surface_hash(surface)
+                if isinstance(surface, Mapping)
+                else None
+            )
+        except ReplayJobImplementationPreflightError as exc:
+            raise TransitionError(
+                "Batch replay implementation rejection surface is malformed"
+            ) from exc
+        fingerprint = _digest(
+            payload,
+            domain="replay-job-implementation-preflight",
+        )
+        failure_fingerprint = payload.get("failure_fingerprint")
+        validation_plans = payload.get("validation_plan_hashes")
+        executable_ids = payload.get("executable_ids")
+        if (
+            payload.get("schema")
+            != "replay_job_implementation_preflight.v1"
+            or payload.get("batch_id") != batch_id
+            or payload.get("outcome") != "rejected"
+            or payload.get("remediation_kind") != REPLACEMENT_REQUIRED
+            or payload.get("replacement_for_preflight_id") is not None
+            or payload.get("source_closure_authority") is not None
+            or payload.get("reason_code")
+            not in {
+                "historical_replay_lineage_invalid",
+                "implementation_manifest_invalid",
+                "source_closure_invalid",
+            }
+            or type(payload.get("failure_detail")) is not str
+            or not payload["failure_detail"]
+            or not payload["failure_detail"].isascii()
+            or type(failure_fingerprint) is not str
+            or len(failure_fingerprint) != 64
+            or any(
+                character not in "0123456789abcdef"
+                for character in failure_fingerprint
+            )
+            or payload.get("artifact_hashes") != []
+            or payload.get("component_implementation_hashes") != []
+            or study is None
+            or study.payload.get("mission_id") != payload.get("mission_id")
+            or study.payload.get("replay_obligation_ids")
+            != payload.get("replay_obligation_ids")
+            or not isinstance(family_ids, tuple)
+            or not isinstance(executable_ids, list)
+            or sorted(executable_ids) != sorted(family_ids)
+            or not isinstance(validation_plans, list)
+            or len(validation_plans) != len(executable_ids)
+            or validation_plans != sorted(set(validation_plans))
+            or surface_hash != payload.get("scientific_surface_hash")
+            or record.fingerprint != fingerprint
+            or record.record_id
+            != f"job-implementation-preflight:{fingerprint}"
+            or record.event_stream
+            != f"replay-job-implementation-preflight-batch:{batch_id}"
+            or record.event_sequence != 1
+            or stream_head is None
+            or stream_head.record_id != record.record_id
+        ):
+            raise TransitionError(
+                "Batch replay implementation rejection is malformed"
+            )
+        return (record,)
+
     @classmethod
     def _require_stop_batch_outcome(
         cls,
@@ -9020,11 +9751,25 @@ class StateWriter:
             if inventory is not None
             else _batch_job_decision_inventory(index, batch_id=batch_id)
         )
+        rejected_preflights = cls._batch_rejected_replay_preflights(
+            index,
+            batch_id,
+        )
         completion_ids = cls._batch_stop_completion_ids(
             index,
             batch_id,
             resolved_inventory,
         )
+        if rejected_preflights:
+            if completion_ids or resolved_inventory.decisions:
+                raise TransitionError(
+                    "pre-Job implementation rejection conflicts with Batch Job evidence"
+                )
+            if outcome != "not_evaluable":
+                raise TransitionError(
+                    "pre-Job implementation rejection requires not_evaluable Batch outcome"
+                )
+            return rejected_preflights[0].record_id
         if len(completion_ids) != 1:
             raise TransitionError(
                 "Batch disposition requires exactly one final stop_batch completion"
@@ -9070,9 +9815,36 @@ class StateWriter:
             )
         if inventory is not None and inventory.batch_id != batch_id:
             raise TransitionError("Batch evidence inventory belongs to another Batch")
+        rejected_preflights = StateWriter._batch_rejected_replay_preflights(
+            index,
+            batch_id,
+        )
         budget_head = index.event_head(f"batch-budget:{batch_id}")
         trial_head = index.event_head(f"batch-trials:{batch_id}")
         started = budget_head is not None or trial_head is not None
+        if rejected_preflights:
+            resolved_inventory = (
+                inventory
+                if inventory is not None
+                else _batch_job_decision_inventory(index, batch_id=batch_id)
+            )
+            if (
+                outcome != "not_evaluable"
+                or resolved_inventory.decisions
+                or StateWriter._batch_stop_completion_ids(
+                    index,
+                    batch_id,
+                    resolved_inventory,
+                )
+            ):
+                raise TransitionError(
+                    "Batch implementation rejection has conflicting disposition evidence"
+                )
+            return (
+                f"{'started' if started else 'unstarted'}_batch_"
+                "implementation_authority_invalid_"
+                "without_final_validator_completion"
+            )
         if not started:
             if outcome not in {"not_evaluable", "stopped_early"}:
                 raise TransitionError(
@@ -9924,10 +10696,12 @@ class StateWriter:
                         allowed_reasons = {
                             "unstarted_batch_not_evaluable_without_final_validator_completion": "not_evaluable",
                             "unstarted_batch_stopped_early_without_final_validator_completion": "stopped_early",
+                            "unstarted_batch_implementation_authority_invalid_without_final_validator_completion": "not_evaluable",
                             "started_batch_budget_exhausted_without_final_validator_completion": "budget_exhausted",
                             "started_batch_stopped_early_without_final_validator_completion": "stopped_early",
                             "started_batch_not_evaluable_without_final_validator_completion": "not_evaluable",
                             "started_batch_engineering_failure_without_final_validator_completion": "engineering_failure",
+                            "started_batch_implementation_authority_invalid_without_final_validator_completion": "not_evaluable",
                         }
                         batch_head = index.event_head(
                             f"study-batches:{study_id}"
@@ -10333,6 +11107,25 @@ class StateWriter:
         if len(batch_closes) != 1:
             raise TransitionError("Study diagnosis final Batch close is ambiguous")
         references.add(("batch-close", batch_closes[0].record_id))
+        rejected_preflights = StateWriter._batch_rejected_replay_preflights(
+            index,
+            batch_head.record_id,
+        )
+        if rejected_preflights:
+            if (
+                batch_closes[0].status != "not_evaluable"
+                or batch_closes[0].payload.get("basis_record_id")
+                != rejected_preflights[0].record_id
+            ):
+                raise TransitionError(
+                    "Study diagnosis implementation rejection has another Batch outcome"
+                )
+            references.add(
+                (
+                    "job-implementation-preflight",
+                    rejected_preflights[0].record_id,
+                )
+            )
         try:
             job_evidence = project_study_job_evidence(
                 index,
@@ -10438,8 +11231,14 @@ class StateWriter:
                 None if kpi is None else kpi.payload.get("unavailable_reason")
             )
             engineering_basis = (
-                isinstance(unavailable_reason, str)
-                and "engineering_failure" in unavailable_reason
+                unavailable_reason
+                in {
+                    "engineering_failure",
+                    "started_batch_implementation_authority_invalid_"
+                    "without_final_validator_completion",
+                    "unstarted_batch_implementation_authority_invalid_"
+                    "without_final_validator_completion",
+                }
             )
             if (
                 diagnosis.evidence_state == EvidenceState.ENGINEERING_GAP
@@ -10931,6 +11730,422 @@ class StateWriter:
                 return True
         return False
 
+    def record_replay_job_implementation_preflight(
+        self,
+        *,
+        request: Any,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Check one replay family before it spends trial or Job budget.
+
+        The Writer derives scope from the current Mission and Batch, invokes
+        the byte inspector inside the stable-index lock, and writes the result
+        itself.  Callers cannot submit an ``accepted`` result.  Rejection is
+        operational evidence only and routes the Batch to an unavailable
+        disposition without manufacturing a failed Job.
+        """
+
+        from axiom_rift.operations.replay_job_implementation_preflight import (
+            PREFLIGHT_SCHEMA,
+            ReplayJobImplementationPreflightError,
+            ReplayJobImplementationPreflightRequest,
+            derive_replay_job_scientific_surface,
+            evaluate_replay_job_implementation_preflight,
+            replay_job_scientific_surface_hash,
+            require_active_replay_job_replacement_binding,
+            require_durable_replay_job_implementation_preflight,
+            require_replacement_replay_job_scientific_surface,
+        )
+        from axiom_rift.operations.replay_projection import obligation_heads
+        from axiom_rift.research.replay_obligation import ReplayObligationStatus
+
+        self._require_study_close_delivery_guard()
+        if not isinstance(request, ReplayJobImplementationPreflightRequest):
+            raise TransitionError(
+                "replay Job implementation preflight request is not typed"
+            )
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError(
+                    "replay Job implementation preflight requires control"
+                )
+            science = current["scientific"]
+            mission_id = science.get("active_mission")
+            if mission_id != request.mission_id:
+                raise TransitionError(
+                    "replay implementation preflight belongs to another Mission"
+                )
+            if science.get("active_job") is not None or science.get(
+                "active_repair"
+            ) is not None:
+                raise TransitionError(
+                    "replay implementation preflight cannot bypass active work"
+                )
+            heads = {
+                obligation.identity: (obligation, head)
+                for obligation, head in obligation_heads(
+                    index,
+                    mission_id=mission_id,
+                )
+            }
+            selected = tuple(
+                heads.get(obligation_id)
+                for obligation_id in request.replay_obligation_ids
+            )
+            if any(item is None for item in selected):
+                raise TransitionError(
+                    "replay implementation preflight lacks its exact obligation"
+                )
+            active_batch = science.get("active_batch")
+            active_study_id = science.get("active_study")
+            batch_id: str | None = None
+            study_id: str | None = None
+            surface_batch: IndexRecord | None = None
+            surface_study: IndexRecord | None = None
+            required_replacement_preflight: IndexRecord | None = None
+            replacement = request.replacement_for_preflight_id
+            replaced_record = (
+                None
+                if replacement is None
+                else index.get("job-implementation-preflight", replacement)
+            )
+            if isinstance(active_batch, Mapping):
+                if replacement is not None:
+                    raise TransitionError(
+                        "active replay preflight cannot replace another preflight"
+                    )
+                batch_id = active_batch.get("id")
+                study_id = active_study_id
+                batch = (
+                    None
+                    if not isinstance(batch_id, str)
+                    else index.get("batch-open", batch_id)
+                )
+                study = (
+                    None
+                    if not isinstance(study_id, str)
+                    else index.get("study-open", study_id)
+                )
+                surface_batch = batch
+                surface_study = study
+                resolved_family_ids = (
+                    None
+                    if batch is None
+                    else _concurrent_family_executable_ids(batch)
+                )
+                family_ids = (
+                    None
+                    if resolved_family_ids is None
+                    else list(resolved_family_ids)
+                )
+                action = current.get("next_action")
+                trial_head = (
+                    None
+                    if not isinstance(batch_id, str)
+                    else index.event_head(f"batch-trials:{batch_id}")
+                )
+                registered_family = (
+                    ()
+                    if not isinstance(batch_id, str)
+                    else tuple(
+                        record.record_id
+                        for record in index.records_by_subject_status(
+                            f"Batch:{batch_id}",
+                            "evaluated",
+                        )
+                        if record.kind == "trial"
+                    )
+                )
+                budget_head = (
+                    None
+                    if not isinstance(batch_id, str)
+                    else index.event_head(f"batch-budget:{batch_id}")
+                )
+                declarations = (
+                    ()
+                    if not isinstance(batch_id, str)
+                    else tuple(
+                        index.records_by_payload_text(
+                            "job-declared",
+                            "batch_id",
+                            batch_id,
+                        )
+                    )
+                )
+                existing_preflight_head = (
+                    None
+                    if not isinstance(batch_id, str)
+                    else index.event_head(
+                        "replay-job-implementation-preflight-batch:"
+                        + batch_id
+                    )
+                )
+                if (
+                    batch is None
+                    or study is None
+                    or study.payload.get("mission_id") != mission_id
+                    or study.payload.get("replay_obligation_ids")
+                    != list(request.replay_obligation_ids)
+                    or not isinstance(family_ids, list)
+                    or sorted(family_ids) != sorted(request.executable_ids)
+                    or not isinstance(action, Mapping)
+                    or action.get("kind") != "declare_job"
+                    or action.get("batch_id") != batch_id
+                    or trial_head is None
+                    or trial_head.sequence != len(request.executables)
+                    or sorted(registered_family) != sorted(request.executable_ids)
+                    or budget_head is not None
+                    or declarations
+                    or existing_preflight_head is not None
+                ):
+                    raise TransitionError(
+                        "replay implementation preflight differs from the active family"
+                    )
+                if any(
+                    item is None
+                    or item[1].status
+                    != ReplayObligationStatus.IN_PROGRESS.value
+                    for item in selected
+                ):
+                    raise TransitionError(
+                        "active replay preflight obligation is not schedulable"
+                    )
+                replacement_triggers: list[IndexRecord] = []
+                for _obligation, head_record in selected:
+                    prior = (
+                        None
+                        if not isinstance(head_record.event_stream, str)
+                        or type(head_record.event_sequence) is not int
+                        or head_record.event_sequence < 2
+                        else index.event_record(
+                            head_record.event_stream,
+                            head_record.event_sequence - 1,
+                        )
+                    )
+                    resume_evidence = (
+                        None
+                        if prior is None
+                        or prior.kind
+                        != "historical-replay-obligation-resume"
+                        else prior.payload.get("resume_evidence")
+                    )
+                    trigger_id = (
+                        None
+                        if not isinstance(resume_evidence, Mapping)
+                        else resume_evidence.get("trigger_record_id")
+                    )
+                    trigger = (
+                        None
+                        if not isinstance(trigger_id, str)
+                        else index.get(
+                            "job-implementation-preflight",
+                            trigger_id,
+                        )
+                    )
+                    if trigger is not None and trigger.payload.get(
+                        "replacement_for_preflight_id"
+                    ) is not None:
+                        replacement_triggers.append(trigger)
+                if replacement_triggers:
+                    trigger_ids = {
+                        record.record_id for record in replacement_triggers
+                    }
+                    if (
+                        len(replacement_triggers) != len(selected)
+                        or len(trigger_ids) != 1
+                    ):
+                        raise TransitionError(
+                            "active replay family mixes replacement authorities"
+                        )
+                    required_replacement_preflight = replacement_triggers[0]
+            else:
+                replaced_batch_id = (
+                    None
+                    if replaced_record is None
+                    else replaced_record.payload.get("batch_id")
+                )
+                replaced_study_id = (
+                    None
+                    if replaced_record is None
+                    else replaced_record.payload.get("study_id")
+                )
+                surface_batch = (
+                    None
+                    if not isinstance(replaced_batch_id, str)
+                    else index.get("batch-open", replaced_batch_id)
+                )
+                surface_study = (
+                    None
+                    if not isinstance(replaced_study_id, str)
+                    else index.get("study-open", replaced_study_id)
+                )
+                if (
+                    science.get("active_study") is not None
+                    or science.get("active_executable") is not None
+                    or replaced_record is None
+                    or replaced_record.status != "rejected"
+                    or replaced_record.payload.get("schema") != PREFLIGHT_SCHEMA
+                    or replaced_record.payload.get("mission_id") != mission_id
+                    or replaced_record.payload.get("replay_obligation_ids")
+                    != list(request.replay_obligation_ids)
+                    or replaced_record.payload.get("protocol_id")
+                    != request.protocol_id
+                    or surface_batch is None
+                    or surface_study is None
+                    or any(
+                        item is None
+                        or item[1].status
+                        != ReplayObligationStatus.DEFERRED.value
+                        for item in selected
+                    )
+                ):
+                    raise TransitionError(
+                        "replacement replay preflight lacks its current deferral"
+                    )
+            if surface_batch is None or surface_study is None:
+                raise TransitionError(
+                    "replay implementation preflight lacks its scientific surface"
+                )
+            try:
+                for binding in request.scientific_binding_values():
+                    self._preflight_scientific_binding(
+                        {"scientific_binding": binding}
+                    )
+                scientific_surface = derive_replay_job_scientific_surface(
+                    request,
+                    study_payload=surface_study.payload,
+                    batch_payload=surface_batch.payload,
+                    artifact_reader=self.evidence.read_verified,
+                )
+                scientific_surface_hash = (
+                    replay_job_scientific_surface_hash(scientific_surface)
+                )
+            except ReplayJobImplementationPreflightError as exc:
+                raise TransitionError(str(exc)) from exc
+            scientific_candidate = {
+                "callable_identity": request.callable_identity,
+                "executable_ids": list(request.executable_ids),
+                "executable_manifests": [
+                    executable.to_identity_payload()
+                    for executable in request.executables
+                ],
+                "implementation_identity": request.implementation_identity,
+                "mission_id": request.mission_id,
+                "protocol_id": request.protocol_id,
+                "replacement_for_preflight_id": replacement,
+                "replay_obligation_ids": list(
+                    request.replay_obligation_ids
+                ),
+                "schema": PREFLIGHT_SCHEMA,
+                "scientific_surface": scientific_surface,
+                "scientific_surface_hash": scientific_surface_hash,
+            }
+            if replaced_record is not None:
+                try:
+                    require_replacement_replay_job_scientific_surface(
+                        prior_preflight_id=replaced_record.record_id,
+                        prior_payload=replaced_record.payload,
+                        replacement_payload=scientific_candidate,
+                    )
+                except ReplayJobImplementationPreflightError as exc:
+                    raise TransitionError(str(exc)) from exc
+            if required_replacement_preflight is not None:
+                trigger_head = (
+                    None
+                    if not isinstance(
+                        required_replacement_preflight.event_stream,
+                        str,
+                    )
+                    else index.event_head(
+                        required_replacement_preflight.event_stream
+                    )
+                )
+                try:
+                    require_active_replay_job_replacement_binding(
+                        accepted_payload=(
+                            required_replacement_preflight.payload
+                        ),
+                        active_payload=scientific_candidate,
+                    )
+                except ReplayJobImplementationPreflightError as exc:
+                    raise TransitionError(str(exc)) from exc
+                if (
+                    required_replacement_preflight.status != "accepted"
+                    or trigger_head is None
+                    or trigger_head.record_id
+                    != required_replacement_preflight.record_id
+                ):
+                    raise TransitionError(
+                        "active replay family lacks its current accepted replacement"
+                    )
+            result = evaluate_replay_job_implementation_preflight(
+                request,
+                index=index,
+                artifact_reader=self.evidence.read_verified,
+                source_root=(self.foundation_root / "src").absolute(),
+            )
+            try:
+                require_durable_replay_job_implementation_preflight(result)
+            except ReplayJobImplementationPreflightError as exc:
+                raise TransitionError(
+                    "replay implementation needs same-identity source repair "
+                    "before any durable rejection or scientific transition: "
+                    f"{result.reason_code}: {result.failure_detail}"
+                ) from exc
+            payload = {
+                **result.to_record_payload(),
+                "batch_id": batch_id,
+                "scientific_surface": scientific_surface,
+                "scientific_surface_hash": scientific_surface_hash,
+                "study_id": study_id,
+            }
+            fingerprint = _digest(
+                payload,
+                domain="replay-job-implementation-preflight",
+            )
+            preflight_id = f"job-implementation-preflight:{fingerprint}"
+            stream = (
+                f"replay-job-implementation-preflight-replacement:{replacement}"
+                if replacement is not None
+                else f"replay-job-implementation-preflight-batch:{batch_id}"
+            )
+            head = index.event_head(stream)
+            record = _record(
+                kind="job-implementation-preflight",
+                record_id=preflight_id,
+                subject=(
+                    f"Batch:{batch_id}"
+                    if isinstance(batch_id, str)
+                    else f"Mission:{mission_id}"
+                ),
+                status=result.status,
+                fingerprint=fingerprint,
+                payload=payload,
+                event_stream=stream,
+                event_sequence=1 if head is None else head.sequence + 1,
+            )
+            body = self._body(current)
+            if not result.accepted and isinstance(batch_id, str):
+                body["next_action"] = {
+                    "basis_record_id": preflight_id,
+                    "kind": "dispose_batch",
+                    "batch_id": batch_id,
+                }
+            return body, [record], {
+                "preflight_id": preflight_id,
+                "reason_code": result.reason_code,
+                "status": result.status,
+            }
+
+        return self._commit(
+            event_kind="replay_job_implementation_preflight_recorded",
+            operation_id=operation_id,
+            subject=f"Mission:{request.mission_id}",
+            payload={"request_identity": request.identity},
+            prepare=prepare,
+        )
+
     def declare_job(
         self, *, spec: Mapping[str, Any], operation_id: str
     ) -> TransitionResult:
@@ -11042,6 +12257,7 @@ class StateWriter:
                 raise TransitionError(str(exc)) from exc
             mission_id = science["active_mission"]
             scientific_lineage_material_identity: str | None = None
+            lineage_study_id: str | None = None
             if (
                 isinstance(scientific_binding, dict)
                 and not self.engineering_fixture
@@ -11083,6 +12299,61 @@ class StateWriter:
                 spec,
                 _index=_index,
             )
+            replay_admission = (
+                None
+                if not isinstance(lineage_study_id, str)
+                else self._study_replay_implementation_admission(
+                    _index,
+                    study_id=lineage_study_id,
+                )
+            )
+            if replay_admission is not None:
+                admitted_request = replay_admission.payload.get("request")
+                manifests = (
+                    None
+                    if not isinstance(admitted_request, Mapping)
+                    else admitted_request.get("executable_manifests")
+                )
+                bindings = (
+                    None
+                    if not isinstance(admitted_request, Mapping)
+                    else admitted_request.get("scientific_bindings")
+                )
+                subject_id = spec["evidence_subject"]["id"]
+                subject_trial = _index.get("trial", subject_id)
+                subject_manifest = (
+                    None
+                    if subject_trial is None
+                    else subject_trial.payload.get("executable")
+                )
+                try:
+                    member_index = (
+                        manifests.index(subject_manifest)
+                        if isinstance(manifests, list)
+                        else -1
+                    )
+                except ValueError:
+                    member_index = -1
+                admitted_binding = (
+                    bindings[member_index]
+                    if isinstance(bindings, list)
+                    and 0 <= member_index < len(bindings)
+                    else None
+                )
+                if (
+                    not isinstance(admitted_request, Mapping)
+                    or member_index < 0
+                    or spec["callable_identity"]
+                    != admitted_request.get("callable_identity")
+                    or spec["implementation_identity"]
+                    != admitted_request.get("implementation_identity")
+                    or scientific_binding != admitted_binding
+                    or implementation_manifest.get("protocol")
+                    != admitted_request.get("protocol_id")
+                ):
+                    raise TransitionError(
+                        "Job differs from the replay implementation admission"
+                    )
             component_implementation_hashes: tuple[str, ...] = ()
             source_closure_authority: dict[str, Any] | None = None
             external_observed_development_binding_payload: (
@@ -13719,6 +14990,30 @@ class StateWriter:
             study_record = index.get("study-open", study_id)
             if study_record is None:
                 raise TransitionError("active Study declaration is unavailable")
+            replay_admission = self._study_replay_implementation_admission(
+                index,
+                study_id=study_id,
+            )
+            if replay_admission is not None:
+                request_payload = replay_admission.payload.get("request")
+                admitted_manifests = (
+                    None
+                    if not isinstance(request_payload, Mapping)
+                    else request_payload.get("executable_manifests")
+                )
+                if (
+                    not isinstance(admitted_manifests, list)
+                    or executable.to_identity_payload()
+                    not in admitted_manifests
+                ):
+                    raise TransitionError(
+                        "Executable differs from the replay implementation admission"
+                    )
+                self._require_replay_registration_source_authority(
+                    index,
+                    admission=replay_admission,
+                    executable=executable,
+                )
             material_identity = study_record.payload["material_identity"]
             from axiom_rift.operations.replay_projection import (
                 ReplayProjectionError,

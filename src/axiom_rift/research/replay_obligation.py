@@ -53,6 +53,9 @@ class ReplayResumeConditionKind(str, Enum):
 
     REGISTERED_DEVELOPMENT_MATERIAL = "registered_development_material"
     SAME_PROTOCOL_REPAIR = "same_protocol_repair"
+    REPLACEMENT_PROSPECTIVE_IMPLEMENTATION = (
+        "replacement_prospective_implementation"
+    )
     REPLACEMENT_SOURCE_CONTRACT = "replacement_source_contract"
     EXTERNAL_DEPENDENCY_AVAILABLE = "external_dependency_available"
 
@@ -612,6 +615,7 @@ class ReplayResumeCondition:
         if self.kind in {
             ReplayResumeConditionKind.REGISTERED_DEVELOPMENT_MATERIAL,
             ReplayResumeConditionKind.SAME_PROTOCOL_REPAIR,
+            ReplayResumeConditionKind.REPLACEMENT_PROSPECTIVE_IMPLEMENTATION,
         }:
             if self.subject_id is not None:
                 raise ReplayObligationError(

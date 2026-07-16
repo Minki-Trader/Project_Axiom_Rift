@@ -57,7 +57,6 @@ EXPECTED_ARCHITECTURE_FAMILY = (
     "architecture-family:"
     "3486a02996a7b9500bfef8b4fec8ddd5c8c641cf2c506ef81a4f671e9233a48c"
 )
-HISTORICAL_CONTEXT_COUNT = 626
 PREDECESSOR_STUDY_ID = "STU-0108"
 PREDECESSOR_CORE_ID = (
     "semantic-question-core:"
@@ -125,7 +124,6 @@ def build_design(writer: StateWriter):
     design = build_volatility_duration_replay_profile_design(
         writer,
         spec=mission_spec(),
-        historical_context_count=HISTORICAL_CONTEXT_COUNT,
         historical_family_authority_id=HISTORICAL_FAMILY_AUTHORITY_ID,
         semantic_question_lineage=semantic_question_lineage(),
     )

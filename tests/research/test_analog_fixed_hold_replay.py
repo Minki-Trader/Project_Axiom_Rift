@@ -79,6 +79,7 @@ from axiom_rift.research.scientific_trace import (
 
 
 CONTEXT = 622
+ORIGINAL_FAMILY_END = 492
 EXPECTED_REFERENCES = (
     "executable:80e19339aa1562ab73a1922c1e595163d3d38963c955f46d9c8700b0830af463",
     "executable:050d071fae20cef41beecd5caf356f645ad4c3bcc16749e2fa5179f3a511dac7",
@@ -98,6 +99,7 @@ def _replay_context() -> HistoricalFamilyReplayContext:
         replay_obligation_id=REPLAY_OBLIGATION_ID,
         family=TYPED_HISTORICAL_FAMILY,
         prior_global_exposure_count=CONTEXT,
+        original_family_end_global_exposure_count=ORIGINAL_FAMILY_END,
     )
 
 
@@ -109,7 +111,7 @@ def _original_family_provenance() -> dict[str, object]:
     return analog_original_family_provenance(
         P1_STU0061_ANALOG_FAMILY,
         context_id=FAMILY_AUTHORITY_ID,
-        end_global_exposure_count=492,
+        end_global_exposure_count=ORIGINAL_FAMILY_END,
     )
 
 
@@ -470,6 +472,7 @@ def test_controlled_chassis_and_runtime_closure_are_prospective() -> None:
     chassis = analog_fixed_hold_replay_controlled_chassis(
         historical_family=TYPED_HISTORICAL_FAMILY,
         historical_context_prior_global_exposure_count=CONTEXT,
+        original_family_end_global_exposure_count=ORIGINAL_FAMILY_END,
     )
     assert chassis.baseline_executable.identity.startswith("executable:")
     paths = fixed_hold_replay_runtime_dependency_paths(RUNTIME_ADAPTER)
@@ -542,6 +545,7 @@ def test_four_jobs_share_one_exact_family_cache_producer() -> None:
             study_id="STU-0112",
             executable_id=executable_id,
             historical_context_prior_global_exposure_count=CONTEXT,
+            original_family_end_global_exposure_count=ORIGINAL_FAMILY_END,
             historical_family=TYPED_HISTORICAL_FAMILY,
             historical_family_authority_id=FAMILY_AUTHORITY_ID,
             replay_obligation_id=REPLAY_OBLIGATION_ID,

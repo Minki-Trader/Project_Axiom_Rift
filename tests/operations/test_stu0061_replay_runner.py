@@ -357,22 +357,19 @@ def test_frozen_family_separates_recorded_and_current_trace_lineage() -> None:
         "executable:e64047e1c40dc25234e69aedab3de0b36eda2aa813904e527f1a47aa307404ad",
     )
     current_prospective_ids = (
-        "executable:17be0686ed466209022bfff80e5c6854df326c56842c8c2c0c11cd34ab8ac05a",
-        "executable:884eb2c6de09fe6c2130af742c25bb8edf0a9eca6f69178660b15041f998cb33",
-        "executable:ce4e7e75a4b4b98e30693f2d6a4920e816d171b90fcba3c54d028b26c385937c",
-        "executable:5bd40e3c25d1cc450921bea84135b316e4d89015e6cc458da3e0083f60adbf77",
-    )
-    historical_trace_sha256 = (
-        "2f94b076a1305a158a054e83ac2dae118bdfab49a0faba2558d7c7c1eedfc107"
+        "executable:803e572b7fed0ad39bff7f5c84d146507c9ed3c12ec80ee638e26a77c833559a",
+        "executable:39f08e4ba558d34c902d2995fc87a75c13779fd82d7e6c9daf3971fd8d758abd",
+        "executable:07bc05c86c65cb20157bd5dc1c04349e45dfda18eca6c0700ce158bc8724c8e8",
+        "executable:519b156bcc67fa67e0939f73a8cbe4748240d69404e859b4c080b31713711f61",
     )
     current_trace_sha256 = (
-        "08b5f6de6a968bd3a78e7a987c6049938f6a9c5e36257e7ef4ca37adfd39439a"
+        "84dea5ecff142bc348f802e252d294b160db0bc197199ce2b96295bd9594e8ec"
     )
-    lineage_reason = "bounded-replay-verification-snapshot-refactor"
     family_authority = correction._historical_family_authority()
     members = module.ordered_members(
         study_id="STU-0112",
         historical_context_count=622,
+        original_family_end_global_exposure_count=492,
         historical_family_authority=family_authority,
     )
 
@@ -396,6 +393,12 @@ def test_frozen_family_separates_recorded_and_current_trace_lineage() -> None:
         ]
         for member in members
     ) == (622, 622, 622, 622)
+    assert tuple(
+        member.executable.to_identity_payload()["parameters"][
+            module.ANALOG_FIXED_HOLD_REPLAY_ORIGINAL_END_PARAMETER
+        ]
+        for member in members
+    ) == (492, 492, 492, 492)
     targets = tuple(
         member
         for member in members
@@ -406,36 +409,13 @@ def test_frozen_family_separates_recorded_and_current_trace_lineage() -> None:
     assert targets[0].ordinal == 4
     assert targets[0].executable.identity == current_prospective_ids[3]
     assert fixed_hold_trace_implementation_sha256() == current_trace_sha256
-    for member, recorded_id in zip(members, recorded_stu0112_ids, strict=True):
+    assert set(current_prospective_ids).isdisjoint(recorded_stu0112_ids)
+    for member in members:
         current_payload = member.executable.to_identity_payload()
         current_engine = str(current_payload["engine_contract"])
         current_token = f"fixed_hold_trace_{current_trace_sha256}"
-        historical_token = f"fixed_hold_trace_{historical_trace_sha256}"
         assert current_engine.count(current_token) == 1
-        historical_payload = dict(current_payload)
-        historical_payload["engine_contract"] = current_engine.replace(
-            current_token,
-            historical_token,
-        )
-        differing_fields = tuple(
-            sorted(
-                key
-                for key in current_payload
-                if current_payload[key] != historical_payload[key]
-            )
-        )
-        assert differing_fields == ("engine_contract",), lineage_reason
-        assert str(historical_payload["engine_contract"]).split(":")[:-1] == (
-            current_engine.split(":")[:-1]
-        )
-        assert str(historical_payload["engine_contract"]).split(":")[-1] == (
-            historical_token
-        )
         assert current_engine.split(":")[-1] == current_token
-        assert "executable:" + canonical_digest(
-            domain="executable",
-            payload=historical_payload,
-        ) == recorded_id
     for member in members:
         inference_families = fixed_hold_subject_inference_families(
             member.job_plan.definition,
@@ -464,6 +444,7 @@ def test_runner_recovers_one_to_three_registered_family_members(
     members = module.ordered_members(
         study_id=study_id,
         historical_context_count=historical_context_count,
+        original_family_end_global_exposure_count=492,
         historical_family_authority=family_authority,
     )
     prior_count = historical_context_count - 18
@@ -529,8 +510,12 @@ def test_runner_recovers_one_to_three_registered_family_members(
                 index,
                 "records_by_kind",
                 side_effect=AssertionError("global trial scan"),
+            ), patch.object(
+                module,
+                "project_historical_family_end_global_exposure_count",
+                return_value=492,
             ):
-                context = module.derive_historical_context(
+                context, original_end = module.derive_historical_context(
                     index.read_only(),
                     foundation_root=ROOT,
                     study_id=study_id,
@@ -549,6 +534,7 @@ def test_runner_recovers_one_to_three_registered_family_members(
                     allow_unregistered=False,
                 )
         assert context.prior_global_exposure_count == historical_context_count
+        assert original_end == 492
         assert context.family_executable_ids == tuple(
             member.executable.identity
             for member in members[:registered_count]
@@ -556,6 +542,7 @@ def test_runner_recovers_one_to_three_registered_family_members(
         module.require_historical_context(
             context=context,
             historical_context_count=historical_context_count,
+            original_family_end_global_exposure_count=original_end,
             members=members,
         )
 
@@ -568,5 +555,6 @@ def test_runner_recovers_one_to_three_registered_family_members(
         module.require_historical_context(
             context=wrong_prefix,
             historical_context_count=historical_context_count,
+            original_family_end_global_exposure_count=492,
             members=members,
         )

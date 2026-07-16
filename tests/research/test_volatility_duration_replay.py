@@ -15,8 +15,8 @@ from axiom_rift.research.fixed_hold_family_trace import (
 from axiom_rift.research.historical_family_replay import (
     STU0051_HISTORICAL_FAMILY,
 )
-from axiom_rift.research.historical_family_binding import (
-    historical_family_from_manifest,
+from axiom_rift.research.historical_study_registry import (
+    HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256,
 )
 from axiom_rift.research.scientific_trace import (
     VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID,
@@ -51,12 +51,6 @@ from axiom_rift.storage.evidence import EvidenceStore
 
 
 HISTORICAL_CONTEXT_COUNT = 582
-FAMILY_AUTHORITY_ID = "historical-family-authority:" + "a" * 64
-BOUND_FAMILY = historical_family_from_manifest(
-    STU0051_HISTORICAL_FAMILY.manifest()
-)
-
-
 class _EvidenceStore:
     def __init__(self) -> None:
         self.artifacts: dict[str, bytes] = {}
@@ -194,7 +188,7 @@ class VolatilityDurationReplayTests(unittest.TestCase):
             self.definition.prospective_executable_ids,
         )
 
-    def test_shared_runtime_binds_adapter_entry_and_all_source_dependencies(
+    def test_historical_runtime_closure_is_exact_and_quarantined(
         self,
     ) -> None:
         artifact = parse_canonical(
@@ -214,9 +208,20 @@ class VolatilityDurationReplayTests(unittest.TestCase):
             "axiom_rift/research/volatility_duration_replay_job.py",
             paths,
         )
+        self.assertIn("axiom_rift/operations/writer.py", paths)
+        self.assertIn("axiom_rift/storage/evidence.py", paths)
         self.assertIn(
-            "axiom_rift/research/volatility_duration_replay_parity.py",
+            "axiom_rift/research/historical_family_replay.py",
             paths,
+        )
+        historical_job = Path(
+            __file__
+        ).resolve().parents[2] / "src/axiom_rift/research/volatility_duration_replay_job.py"
+        self.assertEqual(
+            sha256(historical_job.read_bytes()).hexdigest(),
+            HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256[
+                "volatility_duration_replay_job.py"
+            ],
         )
         self.assertEqual(RUNTIME_ADAPTER.expected_family_size, 4)
         identity = volatility_duration_replay_job_implementation_sha256()
@@ -245,11 +250,6 @@ class VolatilityDurationReplayTests(unittest.TestCase):
                     executable_id=executable.identity,
                     historical_context_prior_global_exposure_count=(
                         HISTORICAL_CONTEXT_COUNT
-                    ),
-                    historical_family=BOUND_FAMILY,
-                    historical_family_authority_id=FAMILY_AUTHORITY_ID,
-                    replay_obligation_id=(
-                        VOLATILITY_DURATION_REPLAY_HISTORICAL_CONTEXT_ID
                     ),
                 )
             )

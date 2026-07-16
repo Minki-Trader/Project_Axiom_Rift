@@ -234,6 +234,15 @@ class FixedHoldReplayRuntimeAdapter:
             raise ValueError("runtime definition replaced its Writer-bound family")
         if value.family.family_size != self.expected_family_size:
             raise ValueError("runtime definition family size drifted")
+        if (
+            value.historical_prior_global_exposure_count
+            != context.prior_global_exposure_count
+            or value.original_family_end_global_exposure_count
+            != context.original_family_end_global_exposure_count
+        ):
+            raise ValueError(
+                "runtime definition replaced its Writer-derived exposure context"
+            )
         return value
 
     def compute_trace_from_definition(
@@ -552,17 +561,28 @@ def build_fixed_hold_replay_job_plan(
     study_id: str,
     executable_id: str,
     historical_context_prior_global_exposure_count: int,
+    original_family_end_global_exposure_count: int | None = None,
     historical_family: HistoricalFamilySpec | None = None,
     historical_family_authority_id: str | None = None,
     replay_obligation_id: str | None = None,
 ) -> FixedHoldFamilyJobPlan:
     if historical_family is None:
+        if (
+            original_family_end_global_exposure_count is not None
+            or historical_family_authority_id is not None
+            or replay_obligation_id is not None
+        ):
+            raise ValueError(
+                "legacy plan cannot accept partial historical family authority"
+            )
         definition = adapter.definition(
             historical_context_prior_global_exposure_count
         )
     else:
         if (
-            historical_family_authority_id is None
+            original_family_end_global_exposure_count is None
+            or type(original_family_end_global_exposure_count) is not int
+            or historical_family_authority_id is None
             or replay_obligation_id is None
         ):
             raise ValueError(
@@ -575,6 +595,9 @@ def build_fixed_hold_replay_job_plan(
                 family=historical_family,
                 prior_global_exposure_count=(
                     historical_context_prior_global_exposure_count
+                ),
+                original_family_end_global_exposure_count=(
+                    original_family_end_global_exposure_count
                 ),
             )
         )
@@ -624,6 +647,9 @@ def registered_fixed_hold_replay_context(
             prior_global_exposure_count=(
                 exposure.prior_global_exposure_count
             ),
+            original_family_end_global_exposure_count=(
+                context.original_family_end_global_exposure_count
+            ),
         )
     )
     expected_bindings = tuple(
@@ -646,20 +672,27 @@ def registered_fixed_hold_replay_context(
     expected_target = definition.prospective_executable_ids[
         target_ordinal - 1
     ]
+    if (
+        registered_ids != definition.prospective_executable_ids
+        or context.registered_member_bindings != expected_bindings
+        or context.target_prospective_executable_id != expected_target
+        or context.batch_family_executable_ids
+        != tuple(sorted(definition.prospective_executable_ids))
+        or subject_executable_id
+        not in definition.prospective_executable_ids
+    ):
+        raise ValueError(
+            "fixed-hold replay family differs from its frozen context"
+        )
     subject_ordinal = (
         definition.prospective_executable_ids.index(subject_executable_id)
         + 1
     )
     if (
-        registered_ids != definition.prospective_executable_ids
-        or context.registered_member_bindings != expected_bindings
-        or context.execution_prefix_executable_ids
+        context.execution_prefix_executable_ids
         != definition.prospective_executable_ids[:subject_ordinal]
         or context.completed_member_executable_ids
         != definition.prospective_executable_ids[: subject_ordinal - 1]
-        or context.target_prospective_executable_id != expected_target
-        or context.batch_family_executable_ids
-        != tuple(sorted(definition.prospective_executable_ids))
     ):
         raise ValueError(
             "fixed-hold replay family differs from its frozen context"
@@ -695,12 +728,16 @@ def execute_fixed_hold_replay_job(
         subject_executable_id=subject_id,
     )
     historical_count = replay_context.exposure.prior_global_exposure_count
+    original_family_end = (
+        replay_context.original_family_end_global_exposure_count
+    )
     scoped_plan = build_fixed_hold_replay_job_plan(
         adapter=adapter,
         mission_id=str(binding["mission_id"]),
         study_id=str(binding["study_id"]),
         executable_id=subject_id,
         historical_context_prior_global_exposure_count=historical_count,
+        original_family_end_global_exposure_count=original_family_end,
         historical_family=replay_context.family,
         historical_family_authority_id=(
             replay_context.family_authority_id

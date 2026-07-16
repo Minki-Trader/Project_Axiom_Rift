@@ -4,7 +4,7 @@ import importlib.util
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import axiom_rift.operations.volatility_duration_replay_profile as profile_module
 from axiom_rift.operations.fixed_hold_replay_workflow import (
@@ -55,7 +55,7 @@ class P0Stu0051CompletedBarProfileTests(unittest.TestCase):
             spec.operation_prefix,
             "p0-stu0051-completed-bar-replay-v2-",
         )
-        self.assertEqual(self.runner.HISTORICAL_CONTEXT_COUNT, 626)
+        self.assertFalse(hasattr(self.runner, "HISTORICAL_CONTEXT_COUNT"))
         self.assertEqual(
             lineage.relation,
             SemanticQuestionRelation.CONTINUATION,
@@ -94,81 +94,25 @@ class P0Stu0051CompletedBarProfileTests(unittest.TestCase):
             kwargs["historical_family_authority_id"],
             self.runner.HISTORICAL_FAMILY_AUTHORITY_ID,
         )
-        self.assertEqual(kwargs["historical_context_count"], 626)
+        self.assertNotIn("historical_context_count", kwargs)
         self.assertEqual(
             kwargs["semantic_question_lineage"],
             self.runner.semantic_question_lineage(),
         )
         gate.assert_called_once_with(writer, design)
 
-    def test_production_context_accepts_only_exact_crash_resume_prefixes(self) -> None:
-        members = tuple(
-            SimpleNamespace(
-                executable=SimpleNamespace(identity=f"executable:{ordinal:064x}")
-            )
-            for ordinal in range(1, 5)
+    def test_reconstruction_profile_has_no_new_executable_generator(self) -> None:
+        source = Path(profile_module.__file__).read_text(encoding="ascii")
+        self.assertIn("executable_from_identity_payload", source)
+        self.assertIn(
+            "project_historical_family_end_global_exposure_count",
+            source,
         )
-        prospective = tuple(member.executable.identity for member in members)
-        writer = MagicMock(foundation_root=ROOT)
-        writer.open_stable_index.return_value.__enter__.return_value = (
-            Mock(),
-            Mock(),
+        self.assertNotIn(
+            "from axiom_rift.research.volatility_duration_replay import",
+            source,
         )
-        spec = SimpleNamespace(study_id="STU-0113")
-
-        for prefix_length in (1, 2, 3):
-            with (
-                self.subTest(prefix_length=prefix_length),
-                patch.object(
-                    profile_module.TrialAccountant,
-                    "from_foundation",
-                    return_value=SimpleNamespace(
-                        prior_global_multiplicity_floor=0
-                    ),
-                ),
-                patch.object(
-                    profile_module,
-                    "project_frozen_family_exposure_context",
-                    return_value=SimpleNamespace(
-                        prior_global_exposure_count=626,
-                        family_executable_ids=prospective[:prefix_length],
-                    ),
-                ) as project,
-            ):
-                profile_module.require_volatility_duration_historical_context(
-                    writer,
-                    spec=spec,
-                    members=members,
-                    historical_context_count=626,
-                )
-                self.assertTrue(
-                    project.call_args.kwargs["allow_partial_registered"]
-                )
-
-        with (
-            patch.object(
-                profile_module.TrialAccountant,
-                "from_foundation",
-                return_value=SimpleNamespace(
-                    prior_global_multiplicity_floor=0
-                ),
-            ),
-            patch.object(
-                profile_module,
-                "project_frozen_family_exposure_context",
-                return_value=SimpleNamespace(
-                    prior_global_exposure_count=626,
-                    family_executable_ids=(prospective[1],),
-                ),
-            ),
-            self.assertRaisesRegex(RuntimeError, "exposure context drifted"),
-        ):
-            profile_module.require_volatility_duration_historical_context(
-                writer,
-                spec=spec,
-                members=members,
-                historical_context_count=626,
-            )
+        self.assertNotIn("historical_context_count:", source)
 
 
 if __name__ == "__main__":

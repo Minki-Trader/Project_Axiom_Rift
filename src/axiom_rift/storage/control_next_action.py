@@ -668,7 +668,18 @@ def _validate_batch_action(
     action: Mapping[str, Any], scientific: Mapping[str, Any], depth: int
 ) -> None:
     del depth
-    _exact("Batch action", action, {"batch_id", "kind"})
+    simple = {"batch_id", "kind"}
+    preflight_bound = {"basis_record_id", "batch_id", "kind"}
+    if set(action) not in (simple, preflight_bound):
+        _fail("Batch action schema is not exact")
+    if set(action) == preflight_bound:
+        if action.get("kind") != "dispose_batch":
+            _fail("Only Batch disposition can carry a preflight basis")
+        _prefixed(
+            "Batch disposition preflight basis",
+            action["basis_record_id"],
+            "job-implementation-preflight:",
+        )
     batch_id = _prefixed("Batch identity", action["batch_id"], "batch:")
     active = scientific.get("active_batch")
     if not isinstance(active, Mapping) or active.get("id") != batch_id:

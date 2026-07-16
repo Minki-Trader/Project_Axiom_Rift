@@ -137,6 +137,17 @@ class _DiagnosedReplayExecution:
     declaration: IndexRecord
 
 
+@dataclass(frozen=True, slots=True)
+class _DiagnosedReplayPreflightInvalidation:
+    progress: IndexRecord
+    study: IndexRecord
+    trial: IndexRecord
+    close: IndexRecord
+    diagnosis: IndexRecord
+    preflight: IndexRecord
+    batch_close: IndexRecord
+
+
 def _record(
     *,
     kind: str,
@@ -3541,7 +3552,7 @@ def _require_in_progress_deferral_basis(
     obligation: HistoricalReplayObligation,
     head: IndexRecord,
     deferral: ReplayDeferral,
-) -> _DiagnosedReplayExecution:
+) -> _DiagnosedReplayExecution | _DiagnosedReplayPreflightInvalidation:
     execution = deferral.execution_binding
     binding = head.payload.get("binding")
     if (
@@ -3591,6 +3602,47 @@ def _require_in_progress_deferral_basis(
         and declaration.payload.get("spec", {}).get("evidence_subject")
         == {"kind": "Executable", "id": execution.replay_executable_id}
     )
+    preflight_ids = (
+        ()
+        if not isinstance(evidence_basis, list)
+        else tuple(
+            item.get("record_id")
+            for item in evidence_basis
+            if isinstance(item, Mapping)
+            and item.get("kind") == "job-implementation-preflight"
+        )
+    )
+    exact_preflights = tuple(
+        preflight
+        for preflight_id in preflight_ids
+        if isinstance(preflight_id, str)
+        and (
+            preflight := index.get(
+                "job-implementation-preflight",
+                preflight_id,
+            )
+        )
+        is not None
+        and preflight.status == "rejected"
+        and preflight.payload.get("schema")
+        == "replay_job_implementation_preflight.v1"
+        and preflight.payload.get("mission_id")
+        == obligation.governing_mission_id
+        and preflight.payload.get("study_id") == execution.replay_study_id
+        and preflight.payload.get("replay_obligation_ids")
+        == [obligation.identity]
+        and execution.replay_executable_id
+        in preflight.payload.get("executable_ids", [])
+    )
+    basis_references = (
+        set()
+        if not isinstance(evidence_basis, list)
+        else {
+            (item.get("kind"), item.get("record_id"))
+            for item in evidence_basis
+            if isinstance(item, Mapping)
+        }
+    )
     if (
         study is None
         or study.payload.get("mission_id") != obligation.governing_mission_id
@@ -3612,35 +3664,108 @@ def _require_in_progress_deferral_basis(
         or diagnosis.payload.get("mission_id") != obligation.governing_mission_id
         or diagnosis.payload.get("study_id") != study.record_id
         or diagnosis.payload.get("study_close_record_id") != close_record.record_id
-        or len(exact_completions) != 1
-        or any(
+    ):
+        raise ReplayTransitionError(
+            "in-progress replay deferral lacks exact trial, close, and diagnosis"
+        )
+    if len(exact_completions) == 1 and not exact_preflights:
+        if any(
             item.kind
             not in {
                 ReplayResumeConditionKind.REGISTERED_DEVELOPMENT_MATERIAL,
                 ReplayResumeConditionKind.SAME_PROTOCOL_REPAIR,
             }
             for item in deferral.resume_conditions
+        ):
+            raise ReplayTransitionError(
+                "in-progress replay deferral changes its diagnosed Job surface"
+            )
+        completion = exact_completions[0]
+        declaration = index.get(
+            "job-declared", completion.payload.get("job_id", "")
+        )
+        if declaration is None:
+            raise ReplayTransitionError(
+                "in-progress replay deferral lacks its diagnosed Job declaration"
+            )
+        return _DiagnosedReplayExecution(
+            progress=head,
+            study=study,
+            trial=trial,
+            close=close_record,
+            diagnosis=diagnosis,
+            completion=completion,
+            declaration=declaration,
+        )
+    if len(exact_completions) != 0 or len(exact_preflights) != 1:
+        raise ReplayTransitionError(
+            "in-progress replay deferral mixes Job and preflight evidence"
+        )
+    preflight = exact_preflights[0]
+    batch_id = trial.subject.removeprefix("Batch:")
+    batch_closes = tuple(
+        record
+        for record in index.records_by_subject_status(
+            f"Batch:{batch_id}",
+            "not_evaluable",
+        )
+        if record.kind == "batch-close"
+        and ("batch-close", record.record_id) in basis_references
+    )
+    batch_declarations = tuple(
+        index.records_by_payload_text(
+            "job-declared",
+            "batch_id",
+            batch_id,
+        )
+    )
+    budget_head = index.event_head(f"batch-budget:{batch_id}")
+    executable_manifests = preflight.payload.get("executable_manifests")
+    current_manifest = trial.payload.get("executable")
+    if (
+        trial.subject != f"Batch:{batch_id}"
+        or preflight.subject != f"Batch:{batch_id}"
+        or preflight.payload.get("batch_id") != batch_id
+        or preflight.payload.get("remediation_kind")
+        != "replacement_required"
+        or not isinstance(executable_manifests, list)
+        or current_manifest not in executable_manifests
+        or len(batch_closes) != 1
+        or batch_declarations
+        or budget_head is not None
+        or batch_closes[0].payload.get("basis_record_id")
+        != preflight.record_id
+        or close_record.status not in {"evidence_gap", "not_evaluable"}
+        or diagnosis.status != "engineering_gap"
+        or diagnosis.payload.get("evidence_state") != "engineering_gap"
+        or {item.kind for item in deferral.resume_conditions}
+        != {ReplayResumeConditionKind.REPLACEMENT_PROSPECTIVE_IMPLEMENTATION}
+        or any(
+            item.protocol_id != preflight.payload.get("protocol_id")
+            for item in deferral.resume_conditions
+        )
+        or type(preflight.authority_sequence) is not int
+        or type(batch_closes[0].authority_sequence) is not int
+        or type(close_record.authority_sequence) is not int
+        or type(diagnosis.authority_sequence) is not int
+        or not (
+            preflight.authority_sequence
+            < batch_closes[0].authority_sequence
+            < close_record.authority_sequence
+            < diagnosis.authority_sequence
         )
     ):
         raise ReplayTransitionError(
-            "in-progress replay deferral lacks exact trial, close, and diagnosis"
+            "in-progress replay preflight deferral lacks exact engineering evidence"
         )
-    completion = exact_completions[0]
-    declaration = index.get(
-        "job-declared", completion.payload.get("job_id", "")
-    )
-    if declaration is None:
-        raise ReplayTransitionError(
-            "in-progress replay deferral lacks its diagnosed Job declaration"
-        )
-    return _DiagnosedReplayExecution(
+    return _DiagnosedReplayPreflightInvalidation(
         progress=head,
         study=study,
         trial=trial,
         close=close_record,
         diagnosis=diagnosis,
-        completion=completion,
-        declaration=declaration,
+        preflight=preflight,
+        batch_close=batch_closes[0],
     )
 
 
@@ -3839,6 +3964,116 @@ def _invalid_scientific_criterion_ids(
     return tuple(sorted(invalid))
 
 
+def _require_replacement_prospective_implementation_trigger(
+    index: LocalIndex,
+    *,
+    obligation: HistoricalReplayObligation,
+    deferral: ReplayDeferral,
+    deferral_head: IndexRecord,
+    condition: ReplayResumeCondition,
+    trigger_record_id: str,
+) -> IndexRecord:
+    progress = (
+        None
+        if deferral_head.payload.get("prior_status")
+        != ReplayObligationStatus.IN_PROGRESS.value
+        or not isinstance(deferral_head.event_stream, str)
+        or type(deferral_head.event_sequence) is not int
+        or deferral_head.event_sequence < 2
+        else index.event_record(
+            deferral_head.event_stream,
+            deferral_head.event_sequence - 1,
+        )
+    )
+    if progress is None or progress.status != ReplayObligationStatus.IN_PROGRESS.value:
+        raise ReplayTransitionError(
+            "replacement implementation requires the exact deferred replay execution"
+        )
+    diagnosed = _require_in_progress_deferral_basis(
+        index,
+        obligation=obligation,
+        head=progress,
+        deferral=deferral,
+    )
+    if not isinstance(diagnosed, _DiagnosedReplayPreflightInvalidation):
+        raise ReplayTransitionError(
+            "replacement implementation lacks a diagnosed pre-Job invalidation"
+        )
+    trigger = index.get("job-implementation-preflight", trigger_record_id)
+    manifests = (
+        None if trigger is None else trigger.payload.get("executable_manifests")
+    )
+    executable_ids = (
+        None if trigger is None else trigger.payload.get("executable_ids")
+    )
+    references = (
+        ()
+        if not isinstance(manifests, list)
+        else tuple(
+            typed_replay_reference_executable_id(manifest)
+            for manifest in manifests
+            if isinstance(manifest, Mapping)
+        )
+    )
+    trigger_head = (
+        None
+        if trigger is None or not isinstance(trigger.event_stream, str)
+        else index.event_head(trigger.event_stream)
+    )
+    from axiom_rift.operations.replay_job_implementation_preflight import (
+        ReplayJobImplementationPreflightError,
+        require_replacement_replay_job_scientific_surface,
+    )
+
+    try:
+        require_replacement_replay_job_scientific_surface(
+            prior_preflight_id=diagnosed.preflight.record_id,
+            prior_payload=diagnosed.preflight.payload,
+            replacement_payload=(
+                {} if trigger is None else trigger.payload
+            ),
+        )
+    except ReplayJobImplementationPreflightError as exc:
+        raise ReplayTransitionError(
+            "replacement implementation scientific surface is malformed"
+        ) from exc
+    if (
+        trigger is None
+        or trigger.status != "accepted"
+        or trigger.payload.get("schema")
+        != "replay_job_implementation_preflight.v1"
+        or trigger.payload.get("outcome") != "accepted"
+        or trigger.payload.get("mission_id") != obligation.governing_mission_id
+        or trigger.payload.get("batch_id") is not None
+        or trigger.payload.get("study_id") is not None
+        or trigger.payload.get("replacement_for_preflight_id")
+        != diagnosed.preflight.record_id
+        or trigger.payload.get("replay_obligation_ids") != [obligation.identity]
+        or trigger.payload.get("protocol_id") != condition.protocol_id
+        or not isinstance(executable_ids, list)
+        or len(executable_ids) != len(set(executable_ids))
+        or not isinstance(manifests, list)
+        or len(manifests) != len(executable_ids)
+        or tuple(sorted(references)) != condition.original_executable_ids
+        or any(reference is None for reference in references)
+        or not isinstance(trigger.payload.get("source_closure_authority"), Mapping)
+        or trigger.payload.get("failure_fingerprint") is not None
+        or trigger.payload.get("reason_code") is not None
+        or trigger.payload.get("remediation_kind") is not None
+        or trigger_head is None
+        or trigger_head.record_id != trigger.record_id
+        or trigger.event_stream
+        != (
+            "replay-job-implementation-preflight-replacement:"
+            + diagnosed.preflight.record_id
+        )
+    ):
+        raise ReplayTransitionError(
+            "replay resume lacks exact accepted replacement implementation preflight"
+        )
+    return trigger
+
+
 def _require_same_protocol_repair_trigger(
     index: LocalIndex,
     *,
@@ -3874,6 +4109,10 @@ def _require_same_protocol_repair_trigger(
         head=progress,
         deferral=deferral,
     )
+    if not isinstance(diagnosed, _DiagnosedReplayExecution):
+        raise ReplayTransitionError(
+            "same-protocol Job repair lacks a diagnosed Job completion"
+        )
     trigger = index.get("job-completed", trigger_record_id)
     declaration = (
         None
@@ -4215,6 +4454,17 @@ def prepare_resume(
                 condition=condition,
                 trigger_record_id=evidence.trigger_record_id,
                 repair_provenance=repair_provenance,
+            )
+        elif condition.kind is (
+            ReplayResumeConditionKind.REPLACEMENT_PROSPECTIVE_IMPLEMENTATION
+        ):
+            trigger = _require_replacement_prospective_implementation_trigger(
+                index,
+                obligation=obligation,
+                deferral=deferral,
+                deferral_head=head,
+                condition=condition,
+                trigger_record_id=evidence.trigger_record_id,
             )
         elif condition.kind is ReplayResumeConditionKind.REPLACEMENT_SOURCE_CONTRACT:
             trigger = _require_replacement_source_trigger(

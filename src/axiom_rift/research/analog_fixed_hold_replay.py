@@ -76,9 +76,11 @@ from axiom_rift.research.analog_state_trace import (
 )
 
 
-ANALOG_FIXED_HOLD_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT = 492
 ANALOG_FIXED_HOLD_REPLAY_CONTEXT_PARAMETER = (
     "historical_context_prior_global_exposure_count"
+)
+ANALOG_FIXED_HOLD_REPLAY_ORIGINAL_END_PARAMETER = (
+    "original_family_end_global_exposure_count"
 )
 _THIS_FILE = Path(__file__).resolve()
 
@@ -191,19 +193,27 @@ def _analog_family_spec(
 
 
 def _validate_historical_context(
-    value: object,
+    *,
+    prior_global_exposure_count: object,
+    original_family_end_global_exposure_count: object,
     historical_family: HistoricalFamilySpec,
-) -> int:
+) -> tuple[int, int]:
     if (
-        type(value) is not int
-        or value
-        < ANALOG_FIXED_HOLD_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT
+        type(prior_global_exposure_count) is not int
+        or type(original_family_end_global_exposure_count) is not int
+        or original_family_end_global_exposure_count
+        < historical_family.family_size
+        or prior_global_exposure_count
+        < original_family_end_global_exposure_count
     ):
         raise ValueError(
-            "analog replay context cannot precede the original "
-            f"{historical_family.original_study_id} family"
+            "analog replay historical exposure context is invalid for "
+            f"{historical_family.original_study_id}"
         )
-    return value
+    return (
+        prior_global_exposure_count,
+        original_family_end_global_exposure_count,
+    )
 
 
 def analog_fixed_hold_replay_configurations(
@@ -257,6 +267,7 @@ def analog_fixed_hold_replay_components(
                 "parameter_fields": [
                     "family_id",
                     ANALOG_FIXED_HOLD_REPLAY_CONTEXT_PARAMETER,
+                    ANALOG_FIXED_HOLD_REPLAY_ORIGINAL_END_PARAMETER,
                     "selection_alpha_ppm",
                     "selection_base_seed",
                     "selection_block_lengths",
@@ -301,6 +312,7 @@ def analog_fixed_hold_replay_executable(
     *,
     historical_family: HistoricalFamilySpec,
     historical_context_prior_global_exposure_count: int,
+    original_family_end_global_exposure_count: int,
 ) -> ExecutableSpec:
     if configuration not in analog_fixed_hold_replay_configurations(
         historical_family
@@ -309,9 +321,14 @@ def analog_fixed_hold_replay_executable(
             "configuration is outside the exact "
             f"{historical_family.original_study_id} family"
         )
-    context = _validate_historical_context(
-        historical_context_prior_global_exposure_count,
-        historical_family,
+    context, original_end = _validate_historical_context(
+        prior_global_exposure_count=(
+            historical_context_prior_global_exposure_count
+        ),
+        original_family_end_global_exposure_count=(
+            original_family_end_global_exposure_count
+        ),
+        historical_family=historical_family,
     )
     scoped = analog_family_executable_scoped_v2(configuration)
     return ExecutableSpec(
@@ -323,6 +340,7 @@ def analog_fixed_hold_replay_executable(
         parameters={
             **scoped.parameter_values(),
             ANALOG_FIXED_HOLD_REPLAY_CONTEXT_PARAMETER: context,
+            ANALOG_FIXED_HOLD_REPLAY_ORIGINAL_END_PARAMETER: original_end,
         },
         data_contract=scoped.data_contract,
         split_contract=scoped.split_contract,
@@ -336,10 +354,16 @@ def analog_fixed_hold_replay_baseline_executable(
     *,
     historical_family: HistoricalFamilySpec,
     historical_context_prior_global_exposure_count: int,
+    original_family_end_global_exposure_count: int,
 ) -> ExecutableSpec:
-    context = _validate_historical_context(
-        historical_context_prior_global_exposure_count,
-        historical_family,
+    context, original_end = _validate_historical_context(
+        prior_global_exposure_count=(
+            historical_context_prior_global_exposure_count
+        ),
+        original_family_end_global_exposure_count=(
+            original_family_end_global_exposure_count
+        ),
+        historical_family=historical_family,
     )
     original = analog_replay_baseline_executable(
         _analog_family_spec(historical_family)
@@ -361,6 +385,7 @@ def analog_fixed_hold_replay_baseline_executable(
             "query_scope_id": ANALOG_SCOPED_QUERY_SCOPE_ID,
             "signal_sign": 0,
             ANALOG_FIXED_HOLD_REPLAY_CONTEXT_PARAMETER: context,
+            ANALOG_FIXED_HOLD_REPLAY_ORIGINAL_END_PARAMETER: original_end,
         },
         data_contract=scoped.data_contract,
         split_contract=scoped.split_contract,
@@ -374,10 +399,14 @@ def analog_fixed_hold_replay_controlled_chassis(
     *,
     historical_family: HistoricalFamilySpec,
     historical_context_prior_global_exposure_count: int,
+    original_family_end_global_exposure_count: int,
 ) -> ControlledStudyChassis:
     baseline = analog_fixed_hold_replay_baseline_executable(
         historical_context_prior_global_exposure_count=(
             historical_context_prior_global_exposure_count
+        ),
+        original_family_end_global_exposure_count=(
+            original_family_end_global_exposure_count
         ),
         historical_family=historical_family,
     )
@@ -411,6 +440,9 @@ def analog_fixed_hold_replay_controlled_chassis(
                 historical_context_prior_global_exposure_count=(
                     historical_context_prior_global_exposure_count
                 ),
+                original_family_end_global_exposure_count=(
+                    original_family_end_global_exposure_count
+                ),
             ),
         )
     return chassis
@@ -436,9 +468,12 @@ def analog_fixed_hold_replay_protocol_definition(
     if not isinstance(context, HistoricalFamilyReplayContext):
         raise TypeError("analog fixed-hold replay context is not typed")
     historical_family = context.family
-    historical_count = _validate_historical_context(
-        context.prior_global_exposure_count,
-        historical_family,
+    historical_count, original_end = _validate_historical_context(
+        prior_global_exposure_count=context.prior_global_exposure_count,
+        original_family_end_global_exposure_count=(
+            context.original_family_end_global_exposure_count
+        ),
+        historical_family=historical_family,
     )
     analog_family = _analog_family_spec(historical_family)
     configurations = analog_fixed_hold_replay_configurations(
@@ -449,6 +484,7 @@ def analog_fixed_hold_replay_protocol_definition(
             configuration,
             historical_family=historical_family,
             historical_context_prior_global_exposure_count=historical_count,
+            original_family_end_global_exposure_count=original_end,
         )
         for configuration in configurations
     )
@@ -483,9 +519,7 @@ def analog_fixed_hold_replay_protocol_definition(
         ),
         historical_context_id=context.family_authority_id,
         historical_prior_global_exposure_count=historical_count,
-        original_family_end_global_exposure_count=(
-            ANALOG_FIXED_HOLD_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT
-        ),
+        original_family_end_global_exposure_count=original_end,
         alpha_ppm=ANALOG_FAMILY_ALPHA_PPM,
         bootstrap_samples=ANALOG_FAMILY_BOOTSTRAP_SAMPLES,
         block_lengths=ANALOG_FAMILY_BLOCK_LENGTHS,
@@ -867,7 +901,7 @@ def compute_analog_fixed_hold_family_trace(
 
 __all__ = [
     "ANALOG_FIXED_HOLD_REPLAY_CONTEXT_PARAMETER",
-    "ANALOG_FIXED_HOLD_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT",
+    "ANALOG_FIXED_HOLD_REPLAY_ORIGINAL_END_PARAMETER",
     "analog_fixed_hold_replay_baseline_executable",
     "analog_fixed_hold_replay_components",
     "analog_fixed_hold_replay_configurations",
