@@ -22,6 +22,7 @@ from axiom_rift.operations.study_close_checkpoint import (
     HistoricalKpiBackfillProof,
     JournalDeliveryCursor,
     LEGACY_CHECKPOINT_SCHEMA,
+    LEGACY_V2_CHECKPOINT_VALIDATOR_VERSION,
     StudyCloseCheckpointError,
     StudyCloseDeliveryCheckpoint,
     advance_close_chain,
@@ -51,6 +52,10 @@ from axiom_rift.operations.study_close_delivery import (
     prospective_closes,
     validate_delivery_checkpoint,
 )
+from axiom_rift.operations.study_close_kpi import (
+    StudyCloseKpiError,
+    validate_prospective_study_kpi,
+)
 from axiom_rift.storage.journal import (
     DurableJournal,
     JOURNAL_DIRECTORY_RELATIVE_PATH,
@@ -70,9 +75,8 @@ from axiom_rift.storage.study_kpi import StudyKpiProjectionRow, render_study_kpi
 CONTROL_PATH = "state/control.json"
 KPI_PATH = "records/STUDY_KPI.md"
 REPAIR_MANIFEST_PATH = "records/STUDY_CLOSE_DELIVERY_REPAIR.json"
-BASE_REQUIRED_PATHS = (CONTROL_PATH, KPI_PATH)
-# Kept as the exact legacy checkpoint surface for compatibility callers.
-REQUIRED_PATHS = (CONTROL_PATH, LEGACY_JOURNAL_RELATIVE_PATH, KPI_PATH)
+BASE_REQUIRED_PATHS = (CONTROL_PATH,)
+REQUIRED_PATHS = (CONTROL_PATH, LEGACY_JOURNAL_RELATIVE_PATH)
 COMMIT_MSG_HOOK_PATH = ".githooks/commit-msg"
 COMMIT_MSG_HOOK = (
     b'#!/bin/sh\nexec python scripts/validate_study_close_commit.py "$1"\n'
@@ -92,8 +96,6 @@ _ORIGIN_REMOTE = "origin"
 _ORIGIN_REMOTE_REF = "origin/main"
 _ORIGIN_PUSH_TIMEOUT_SECONDS = 30
 _LOCAL_GIT_TIMEOUT_SECONDS = 2 * 60
-
-
 class StudyCloseDeliveryError(RuntimeError):
     """A Study-close Git checkpoint is absent or malformed."""
 
@@ -559,6 +561,7 @@ def _require_clean_checkpoint_authority_inputs(
     root: Path,
     *,
     allow_staged_checkpoint: bool,
+    allow_staged_kpi: bool = False,
 ) -> None:
     """Bind full-maintenance input bytes to main, index, and worktree."""
 
@@ -591,6 +594,12 @@ def _require_clean_checkpoint_authority_inputs(
         main_content = _optional_git_file(root, "main:", path)
         index_content = _optional_git_file(root, ":", path)
         worktree_content = _optional_worktree_file(root, path)
+        if path == KPI_PATH and allow_staged_kpi:
+            if index_content is None or index_content != worktree_content:
+                raise StudyCloseDeliveryError(
+                    "explicit KPI materialization must be fully staged"
+                )
+            continue
         if not (main_content == index_content == worktree_content):
             raise StudyCloseDeliveryError(
                 "checkpoint full maintenance requires identical main, index, "
@@ -1497,8 +1506,6 @@ def _authenticate_tracked_checkpoint(
         )
     if sha256(_snapshot(root, commit, CONTROL_PATH)).hexdigest() != checkpoint.control_sha256:
         raise StudyCloseDeliveryError("checkpoint commit control hash differs")
-    if sha256(_snapshot(root, commit, KPI_PATH)).hexdigest() != checkpoint.kpi_sha256:
-        raise StudyCloseDeliveryError("checkpoint commit KPI hash differs")
     _authenticate_historical_backfill_proof(
         root,
         checkpoint.historical_kpi_backfill,
@@ -1512,9 +1519,20 @@ def _authenticate_tracked_checkpoint(
         required = {
             CHECKPOINT_PATH,
             CONTROL_PATH,
-            KPI_PATH,
             checkpoint.cursor.journal_path,
         }
+        if (
+            checkpoint.validator_version
+            == LEGACY_V2_CHECKPOINT_VALIDATOR_VERSION
+        ):
+            required.add(KPI_PATH)
+            if (
+                sha256(_snapshot(root, commit, KPI_PATH)).hexdigest()
+                != checkpoint.kpi_sha256
+            ):
+                raise StudyCloseDeliveryError(
+                    "legacy v2 Study-close KPI snapshot differs"
+                )
         if None in required or not required.issubset(changed):
             raise StudyCloseDeliveryError(
                 "Study-close checkpoint commit split required projection paths"
@@ -1547,6 +1565,21 @@ def _authenticate_tracked_checkpoint(
             raise StudyCloseDeliveryError(
                 "previous Study-close checkpoint digest differs"
             )
+        if checkpoint.basis == "maintenance":
+            expected_paths = {CHECKPOINT_PATH}
+            if checkpoint.kpi_sha256 != prior.kpi_sha256:
+                expected_paths.add(KPI_PATH)
+                if (
+                    sha256(_snapshot(root, commit, KPI_PATH)).hexdigest()
+                    != checkpoint.kpi_sha256
+                ):
+                    raise StudyCloseDeliveryError(
+                        "checkpoint maintenance KPI snapshot differs"
+                    )
+            if changed != expected_paths:
+                raise StudyCloseDeliveryError(
+                    "checkpoint maintenance commit paths differ"
+                )
         if checkpoint.schema == CHECKPOINT_SCHEMA:
             transition_closes: tuple[tuple[str, int], ...] = ()
             if checkpoint.basis == "study_close":
@@ -1558,12 +1591,17 @@ def _authenticate_tracked_checkpoint(
                         checkpoint.last_study_close_revision,
                     ),
                 )
-            _validate_delivery_checkpoint(
-                checkpoint,
-                kpi_content=_snapshot(root, commit, KPI_PATH),
-                previous=prior,
-                suffix_closes=transition_closes,
-            )
+            try:
+                validate_checkpoint_transition(
+                    prior,
+                    checkpoint,
+                    suffix_closes=transition_closes,
+                    current_kpi_sha256=checkpoint.kpi_sha256,
+                )
+            except StudyCloseCheckpointError as exc:
+                raise StudyCloseDeliveryError(
+                    "tracked Study-close checkpoint transition is invalid"
+                ) from exc
     if _trailer_commits(root, f"{commit}..{main_head}"):
         raise StudyCloseDeliveryError(
             "Study close exists after the tracked delivery checkpoint"
@@ -1591,12 +1629,132 @@ def _cached_authenticated_checkpoint(
     )
 
 
+def _validate_prospective_study_kpi(
+    event: Mapping[str, Any],
+    *,
+    previous: StudyCloseDeliveryCheckpoint,
+) -> None:
+    proof = previous.historical_kpi_backfill
+    try:
+        validate_prospective_study_kpi(
+            event,
+            historical_kpi_count=0 if proof is None else len(proof.sources),
+            prior_prospective_close_count=previous.prospective_close_count,
+        )
+    except StudyCloseKpiError as exc:
+        raise StudyCloseDeliveryError(str(exc)) from exc
+
+
+def _validate_control_tail(
+    control_content: bytes,
+    event: Mapping[str, Any],
+) -> None:
+    try:
+        control = parse_canonical(control_content)
+        if not isinstance(control, Mapping):
+            raise TypeError("control is not an object")
+        heads = control["heads"]
+        if not isinstance(heads, Mapping):
+            raise TypeError("control heads are not an object")
+        journal_head = heads["journal"]
+        if not isinstance(journal_head, Mapping):
+            raise TypeError("Journal head is not an object")
+    except (KeyError, TypeError, ValueError) as exc:
+        raise StudyCloseDeliveryError("staged Study-close control is invalid") from exc
+    if (
+        control.get("revision") != event.get("sequence")
+        or journal_head.get("sequence") != event.get("sequence")
+        or journal_head.get("event_id") != event.get("event_id")
+    ):
+        raise StudyCloseDeliveryError(
+            "staged control and Study-close Journal tail differ"
+        )
+    index_head = heads.get("index")
+    if not isinstance(index_head, Mapping) or (
+        index_head.get("required_sequence") != event.get("sequence")
+        or index_head.get("required_record_count")
+        != event.get("index_record_count")
+        or index_head.get("required_projection_digest")
+        != event.get("index_projection_digest")
+    ):
+        raise StudyCloseDeliveryError(
+            "staged control and Study-close index head differ"
+        )
+
+
+def _validate_staged_journal_suffix_paths(
+    root: Path,
+    *,
+    previous: JournalDeliveryCursor,
+    current: JournalDeliveryCursor,
+    staged_journal_paths: set[str],
+) -> None:
+    if not staged_journal_paths or current.journal_path not in staged_journal_paths:
+        raise StudyCloseDeliveryError(
+            "Study close did not stage its active Journal suffix"
+        )
+    _layout, active_path, _active_start, manifest = _journal_layout(root)
+    required = {active_path}
+    allowed = {active_path}
+    if manifest is None:
+        allowed.add(LEGACY_JOURNAL_RELATIVE_PATH)
+    else:
+        allowed.add(JOURNAL_MANIFEST_RELATIVE_PATH)
+        manifest_required = current.journal_path != previous.journal_path
+        sealed = manifest.get("sealed_segments")
+        if not isinstance(sealed, list):
+            raise StudyCloseDeliveryError(
+                "staged Journal manifest sealed declarations differ"
+            )
+        for descriptor in sealed:
+            if not isinstance(descriptor, Mapping):
+                raise StudyCloseDeliveryError(
+                    "staged Journal sealed declaration differs"
+                )
+            path = descriptor.get("path")
+            seal_path = descriptor.get("seal_path")
+            start = descriptor.get("start_offset")
+            length = descriptor.get("byte_length")
+            if (
+                type(path) is not str
+                or type(seal_path) is not str
+                or type(start) is not int
+                or type(length) is not int
+            ):
+                raise StudyCloseDeliveryError(
+                    "staged Journal sealed coordinates differ"
+                )
+            end = start + length
+            if end >= previous.next_offset and (
+                path == previous.journal_path or end > previous.next_offset
+            ):
+                required.add(seal_path)
+                manifest_required = True
+                if end > previous.next_offset:
+                    required.add(path)
+        if previous.journal_path == LEGACY_JOURNAL_RELATIVE_PATH:
+            required.add(LEGACY_JOURNAL_RELATIVE_PATH)
+            allowed.add(LEGACY_JOURNAL_RELATIVE_PATH)
+            manifest_required = True
+        if manifest_required:
+            required.add(JOURNAL_MANIFEST_RELATIVE_PATH)
+        allowed = set(required)
+    unexpected = staged_journal_paths - allowed
+    missing = required - staged_journal_paths
+    if unexpected or missing:
+        raise StudyCloseDeliveryError(
+            "Study close Journal suffix staging differs: "
+            f"missing={','.join(sorted(missing))}; "
+            f"unexpected={','.join(sorted(unexpected))}"
+        )
+
+
 def _checkpoint_from_staged_close(
     root: Path,
     *,
-    journal: JournalSnapshot | None = None,
+    suffix_events: Sequence[Mapping[str, Any]] | None = None,
+    cursor: JournalDeliveryCursor | None = None,
     control_content: bytes | None = None,
-    kpi_content: bytes | None = None,
 ) -> StudyCloseDeliveryCheckpoint:
     require_local_main(root)
     previous = _head_checkpoint(root)
@@ -1609,40 +1767,20 @@ def _checkpoint_from_staged_close(
             "Study close requires the explicit checkpoint v2 full-maintenance upgrade"
         )
     previous_commit, _parent, _message = _checkpoint_commit_info(root)
-    if journal is None or control_content is None or kpi_content is None:
+    if suffix_events is None or cursor is None or control_content is None:
         try:
-            journal = _index_journal(root)
-            control_content = _git(root, "show", f":{CONTROL_PATH}", binary=True)
-            kpi_content = _git(root, "show", f":{KPI_PATH}", binary=True)
-        except (subprocess.CalledProcessError, JournalIntegrityError) as exc:
-            raise StudyCloseDeliveryError(
-                "Study close checkpoint requires staged Journal, control, and KPI"
-            ) from exc
-        assert isinstance(control_content, bytes) and isinstance(kpi_content, bytes)
-    assert journal is not None
-    assert isinstance(control_content, bytes) and isinstance(kpi_content, bytes)
-    events, cursor = _checkpoint_projection(
-        journal=journal,
-        control_content=control_content,
-        kpi_content=kpi_content,
-    )
-    if previous.cursor.sequence > len(events):
-        raise StudyCloseDeliveryError("staged Journal precedes tracked checkpoint")
-    if previous.cursor.sequence:
-        boundary = events[previous.cursor.sequence - 1]
-        framed = canonical_bytes(boundary) + b"\n"
-        if (
-            boundary.get("event_id") != previous.cursor.event_id
-            or boundary.get("previous_event_id")
-            != previous.cursor.previous_event_id
-            or boundary.get("journal_offset") != previous.cursor.event_offset
-            or len(framed) != previous.cursor.event_bytes
-            or sha256(framed).hexdigest() != previous.cursor.boundary_sha256
-        ):
-            raise StudyCloseDeliveryError(
-                "staged Journal rewrites tracked checkpoint prefix"
+            suffix_events, cursor = _scan_tracked_journal_suffix(
+                root, previous.cursor
             )
-    suffix = events[previous.cursor.sequence :]
+            control_content = _git(root, "show", f":{CONTROL_PATH}", binary=True)
+        except (subprocess.CalledProcessError, _AuditCacheStale) as exc:
+            raise StudyCloseDeliveryError(
+                "Study close checkpoint requires a staged Journal suffix and control"
+            ) from exc
+        assert isinstance(control_content, bytes)
+    assert suffix_events is not None and cursor is not None
+    assert isinstance(control_content, bytes)
+    suffix = list(suffix_events)
     closes = _prospective_closes(suffix)
     if (
         len(closes) != 1
@@ -1658,6 +1796,8 @@ def _checkpoint_from_staged_close(
             "delivery repair manifest changed outside a full checkpoint audit"
         )
     close_event_id, close_revision = closes[0]
+    _validate_control_tail(control_content, suffix[-1])
+    _validate_prospective_study_kpi(suffix[-1], previous=previous)
     checkpoint = StudyCloseDeliveryCheckpoint(
         basis="study_close",
         parent_main=str(_git(root, "rev-parse", "HEAD")),
@@ -1672,17 +1812,22 @@ def _checkpoint_from_staged_close(
         ),
         repair_manifest_digest=previous.repair_manifest_digest,
         control_sha256=sha256(control_content).hexdigest(),
-        kpi_sha256=sha256(kpi_content).hexdigest(),
+        kpi_sha256=previous.kpi_sha256,
         last_study_close_event_id=close_event_id,
         last_study_close_revision=close_revision,
         historical_kpi_backfill=previous.historical_kpi_backfill,
     )
-    _validate_delivery_checkpoint(
-        checkpoint,
-        kpi_content=kpi_content,
-        previous=previous,
-        suffix_events=suffix,
-    )
+    try:
+        validate_checkpoint_transition(
+            previous,
+            checkpoint,
+            suffix_closes=closes,
+            current_kpi_sha256=previous.kpi_sha256,
+        )
+    except StudyCloseCheckpointError as exc:
+        raise StudyCloseDeliveryError(
+            "Study-close checkpoint transition is invalid"
+        ) from exc
     return checkpoint
 
 
@@ -1758,7 +1903,8 @@ def check_study_close_delivery_checkpoint_v2_upgrade(
     if previous.schema != LEGACY_CHECKPOINT_SCHEMA:
         raise StudyCloseDeliveryError("tracked Study-close checkpoint version differs")
     _require_clean_checkpoint_authority_inputs(
-        root, allow_staged_checkpoint=allow_staged_checkpoint
+        root,
+        allow_staged_checkpoint=allow_staged_checkpoint,
     )
     changed = set(str(_git(root, "diff", "--name-only")).splitlines()) | set(
         str(_git(root, "diff", "--cached", "--name-only")).splitlines()
@@ -1847,13 +1993,19 @@ def check_study_close_delivery_checkpoint_maintenance(
     if previous.schema != CHECKPOINT_SCHEMA:
         raise StudyCloseDeliveryError("checkpoint maintenance requires v2")
     _require_clean_checkpoint_authority_inputs(
-        root, allow_staged_checkpoint=allow_staged_checkpoint
+        root,
+        allow_staged_checkpoint=allow_staged_checkpoint,
+        allow_staged_kpi=True,
     )
     _perform_full_audit(root)
     try:
         journal = _commit_journal(root, main_head, validate_events=True)
         control_content = _snapshot(root, main_head, CONTROL_PATH)
-        kpi_content = _snapshot(root, main_head, KPI_PATH)
+        kpi_content = _optional_git_file(root, ":", KPI_PATH)
+        if kpi_content is None:
+            raise StudyCloseDeliveryError(
+                "checkpoint maintenance KPI materialization is absent"
+            )
     except (OSError, subprocess.CalledProcessError, JournalIntegrityError) as exc:
         raise StudyCloseDeliveryError(
             "checkpoint maintenance snapshot is invalid"
@@ -1922,21 +2074,44 @@ def check_study_close_delivery_checkpoint(
         allowed = canonical_milestone_paths(allowed_milestone_paths)
     except StudyCloseDeliveryPolicyError as exc:
         raise StudyCloseDeliveryError(str(exc)) from exc
-    try:
-        journal = _index_journal(root)
-        control_content = _git(root, "show", f":{CONTROL_PATH}", binary=True)
-        kpi_content = _git(root, "show", f":{KPI_PATH}", binary=True)
-    except (subprocess.CalledProcessError, JournalIntegrityError) as exc:
-        raise StudyCloseDeliveryError(
-            "checkpoint preflight requires staged Journal, control, and KPI"
-        ) from exc
-    assert isinstance(control_content, bytes) and isinstance(kpi_content, bytes)
-    previous = _head_journal(root)
-    projection_paths = _required_paths(journal) | _manifest_transition_paths(
-        previous, journal
-    )
     staged = set(str(_git(root, "diff", "--cached", "--name-only")).splitlines())
     unstaged = set(str(_git(root, "diff", "--name-only")).splitlines())
+    staged_journal = {path for path in staged if _journal_path(path)}
+    previous_checkpoint = _head_checkpoint(root)
+    if previous_checkpoint is None:
+        raise StudyCloseDeliveryError(
+            "Study close requires an initialized tracked checkpoint"
+        )
+    if (
+        CONTROL_PATH not in staged
+        or CONTROL_PATH in unstaged
+        or not staged_journal
+        or staged_journal & unstaged
+        or KPI_PATH in staged
+        or KPI_PATH in unstaged
+    ):
+        raise StudyCloseDeliveryError(
+            "checkpoint preflight requires only staged control and Journal suffix; "
+            "the KPI navigation projection is explicit maintenance"
+        )
+    try:
+        control_content = _git(root, "show", f":{CONTROL_PATH}", binary=True)
+        assert isinstance(control_content, bytes)
+        checkpoint = _checkpoint_from_staged_close(
+            root,
+            control_content=control_content,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise StudyCloseDeliveryError(
+            "checkpoint preflight requires staged control"
+        ) from exc
+    _validate_staged_journal_suffix_paths(
+        root,
+        previous=previous_checkpoint.cursor,
+        current=checkpoint.cursor,
+        staged_journal_paths=staged_journal,
+    )
+    projection_paths = {CONTROL_PATH, *staged_journal}
     try:
         expected = exact_staging_paths(
             projection_paths=tuple(projection_paths),
@@ -1951,12 +2126,6 @@ def check_study_close_delivery_checkpoint(
         )
     except StudyCloseDeliveryPolicyError as exc:
         raise StudyCloseDeliveryError(str(exc)) from exc
-    checkpoint = _checkpoint_from_staged_close(
-        root,
-        journal=journal,
-        control_content=control_content,
-        kpi_content=kpi_content,
-    )
     return StudyCloseCheckpointPlan(
         checkpoint=checkpoint,
         required_staged_paths=expected,
@@ -2261,6 +2430,143 @@ def _tracked_checkpoint_required_by_main(root: Path) -> bool:
     )
 
 
+def _validate_v2_commit_message_incremental(
+    root: Path,
+    message: str,
+    *,
+    head_checkpoint: StudyCloseDeliveryCheckpoint,
+    staged: set[str],
+    unstaged: set[str],
+) -> None:
+    """Validate a v2 close from its authenticated suffix, never full history."""
+
+    checkpoint_staged = CHECKPOINT_PATH in staged
+    checkpoint_unstaged = CHECKPOINT_PATH in unstaged
+    staged_journal = {path for path in staged if _journal_path(path)}
+    changed_journal = {
+        path for path in staged | unstaged if _journal_path(path)
+    }
+    if (
+        checkpoint_staged
+        and not changed_journal
+        and CONTROL_PATH not in staged | unstaged
+    ):
+        allowed_maintenance = {CHECKPOINT_PATH}
+        if KPI_PATH in staged:
+            allowed_maintenance.add(KPI_PATH)
+        if (
+            checkpoint_unstaged
+            or KPI_PATH in unstaged
+            or staged != allowed_maintenance
+        ):
+            raise StudyCloseDeliveryError(
+                "checkpoint maintenance must stage only its checkpoint and optional "
+                "KPI navigation materialization"
+            )
+        try:
+            staged_content = _git(
+                root, "show", f":{CHECKPOINT_PATH}", binary=True
+            )
+            assert isinstance(staged_content, bytes)
+            staged_checkpoint = StudyCloseDeliveryCheckpoint.from_bytes(
+                staged_content
+            )
+        except (
+            AssertionError,
+            subprocess.CalledProcessError,
+            StudyCloseCheckpointError,
+        ) as exc:
+            raise StudyCloseDeliveryError(
+                "staged checkpoint maintenance is malformed"
+            ) from exc
+        if staged_checkpoint.basis != "maintenance":
+            raise StudyCloseDeliveryError(
+                "staged no-close checkpoint is not maintenance"
+            )
+        expected = check_study_close_delivery_checkpoint_maintenance(
+            root, allow_staged_checkpoint=True
+        )
+        if staged_content != expected.render():
+            raise StudyCloseDeliveryError(
+                "staged checkpoint maintenance differs from the full audit"
+            )
+        _validate_checkpoint_init_trailers(message, expected)
+        return
+    try:
+        suffix, cursor = _scan_tracked_journal_suffix(
+            root, head_checkpoint.cursor
+        )
+    except _AuditCacheStale as exc:
+        raise StudyCloseDeliveryError(
+            f"staged Study-close Journal suffix is invalid: {exc}"
+        ) from exc
+    closes = _prospective_closes(suffix)
+    if not closes:
+        if checkpoint_staged or checkpoint_unstaged:
+            raise StudyCloseDeliveryError(
+                "tracked checkpoint changes only with a Study close or explicit "
+                "maintenance"
+            )
+        if KPI_PATH in staged | unstaged:
+            raise StudyCloseDeliveryError(
+                "KPI navigation projection changes only in explicit maintenance"
+            )
+        return
+    if (
+        len(closes) != 1
+        or not suffix
+        or suffix[-1].get("event_kind") != "study_closed"
+        or closes[0]
+        != (suffix[-1].get("event_id"), suffix[-1].get("sequence"))
+    ):
+        raise StudyCloseDeliveryError(
+            "one prospective Study close must end the checkpoint suffix"
+        )
+    require_local_main(root)
+    if (
+        not checkpoint_staged
+        or checkpoint_unstaged
+        or CONTROL_PATH not in staged
+        or CONTROL_PATH in unstaged
+        or not staged_journal
+        or staged_journal & unstaged
+        or KPI_PATH in staged | unstaged
+    ):
+        raise StudyCloseDeliveryError(
+            "Study close requires staged control, Journal suffix, and checkpoint; "
+            "KPI Markdown is not a routine close path"
+        )
+    _validate_staged_journal_suffix_paths(
+        root,
+        previous=head_checkpoint.cursor,
+        current=cursor,
+        staged_journal_paths=staged_journal,
+    )
+    try:
+        control_content = _git(root, "show", f":{CONTROL_PATH}", binary=True)
+        staged_checkpoint = _git(
+            root, "show", f":{CHECKPOINT_PATH}", binary=True
+        )
+    except subprocess.CalledProcessError as exc:
+        raise StudyCloseDeliveryError(
+            "pending Study close requires staged control and checkpoint"
+        ) from exc
+    assert isinstance(control_content, bytes)
+    assert isinstance(staged_checkpoint, bytes)
+    expected = _checkpoint_from_staged_close(
+        root,
+        suffix_events=suffix,
+        cursor=cursor,
+        control_content=control_content,
+    )
+    event_id, revision = closes[0]
+    _validate_trailers(message, event_id, revision)
+    if staged_checkpoint != expected.render():
+        raise StudyCloseDeliveryError(
+            "staged Study-close checkpoint projection differs"
+        )
+
+
 def validate_commit_message(repository_root: str | Path, message_path: str | Path) -> None:
     root = Path(repository_root).resolve()
     staged = set(str(_git(root, "diff", "--cached", "--name-only")).splitlines())
@@ -2268,12 +2574,26 @@ def validate_commit_message(repository_root: str | Path, message_path: str | Pat
     changed = staged | unstaged
     journal_delta = {path for path in changed if _journal_path(path)}
     projection_delta = journal_delta | (
-        changed & {CHECKPOINT_PATH, *BASE_REQUIRED_PATHS}
+        changed & {CHECKPOINT_PATH, CONTROL_PATH, KPI_PATH}
     )
     if not projection_delta:
         # The hook protects Study-close projection and checkpoint boundaries.
         # An unrelated code or documentation commit cannot contain or split
         # those bytes, so reading the complete Journal here adds no authority.
+        return
+    message = Path(message_path).read_text(encoding="utf-8")
+    head_checkpoint = _head_checkpoint(root)
+    if (
+        head_checkpoint is not None
+        and head_checkpoint.schema == CHECKPOINT_SCHEMA
+    ):
+        _validate_v2_commit_message_incremental(
+            root,
+            message,
+            head_checkpoint=head_checkpoint,
+            staged=staged,
+            unstaged=unstaged,
+        )
         return
     try:
         worktree = _worktree_journal(root)
@@ -2570,7 +2890,27 @@ def _validate_snapshot(root: Path, commit: str, event_id: str, revision: int) ->
         )
     except (OSError, JournalIntegrityError) as exc:
         raise StudyCloseDeliveryError("Study-close commit Journal is invalid") from exc
-    required = _required_paths(journal) | _manifest_transition_paths(previous, journal)
+    checkpoint_content = _optional_git_file(root, f"{commit}:", CHECKPOINT_PATH)
+    if checkpoint_content is not None:
+        try:
+            checkpoint = StudyCloseDeliveryCheckpoint.from_bytes(
+                checkpoint_content
+            )
+        except StudyCloseCheckpointError as exc:
+            raise StudyCloseDeliveryError(
+                "Study-close commit checkpoint is malformed"
+            ) from exc
+        required = {
+            CONTROL_PATH,
+            CHECKPOINT_PATH,
+            checkpoint.cursor.journal_path,
+            *_manifest_transition_paths(previous, journal),
+        }
+    else:
+        checkpoint = None
+        required = _required_paths(journal) | _manifest_transition_paths(
+            previous, journal
+        )
     changed_journal = {path for path in changed if _journal_path(path)}
     if changed_journal - set(journal.journal_paths):
         raise StudyCloseDeliveryError(
@@ -2585,8 +2925,65 @@ def _validate_snapshot(root: Path, commit: str, event_id: str, revision: int) ->
     )
     if observed_event != event_id or observed_revision != revision:
         raise StudyCloseDeliveryError("Study-close commit snapshot differs")
-    if _snapshot(root, commit, KPI_PATH) != render_projection(events):
-        raise StudyCloseDeliveryError("Study-close commit KPI differs")
+    if checkpoint is None:
+        if _snapshot(root, commit, KPI_PATH) != render_projection(events):
+            raise StudyCloseDeliveryError("Study-close commit KPI differs")
+        return
+    if (
+        checkpoint.validator_version
+        == LEGACY_V2_CHECKPOINT_VALIDATOR_VERSION
+    ):
+        legacy_kpi = _snapshot(root, commit, KPI_PATH)
+        if (
+            legacy_kpi != render_projection(events)
+            or sha256(legacy_kpi).hexdigest() != checkpoint.kpi_sha256
+        ):
+            raise StudyCloseDeliveryError(
+                "legacy v2 Study-close commit KPI differs"
+            )
+    if (
+        checkpoint.basis != "study_close"
+        or checkpoint.last_study_close_event_id != event_id
+        or checkpoint.last_study_close_revision != revision
+        or checkpoint.cursor.event_id != event_id
+        or checkpoint.cursor.sequence != revision
+        or checkpoint.control_sha256
+        != sha256(_snapshot(root, commit, CONTROL_PATH)).hexdigest()
+        or not events
+    ):
+        raise StudyCloseDeliveryError(
+            "Study-close commit checkpoint boundary differs"
+        )
+    previous_commit = checkpoint.previous_checkpoint_commit
+    previous_digest = checkpoint.previous_checkpoint_digest
+    if previous_commit is None or previous_digest is None:
+        raise StudyCloseDeliveryError(
+            "Study-close commit previous checkpoint is absent"
+        )
+    try:
+        prior = StudyCloseDeliveryCheckpoint.from_bytes(
+            _snapshot(root, previous_commit, CHECKPOINT_PATH)
+        )
+    except (subprocess.CalledProcessError, StudyCloseCheckpointError) as exc:
+        raise StudyCloseDeliveryError(
+            "Study-close commit previous checkpoint is invalid"
+        ) from exc
+    if prior.checkpoint_digest != previous_digest:
+        raise StudyCloseDeliveryError(
+            "Study-close commit previous checkpoint digest differs"
+        )
+    try:
+        validate_checkpoint_transition(
+            prior,
+            checkpoint,
+            suffix_closes=((event_id, revision),),
+            current_kpi_sha256=checkpoint.kpi_sha256,
+        )
+    except StudyCloseCheckpointError as exc:
+        raise StudyCloseDeliveryError(
+            "Study-close commit checkpoint transition differs"
+        ) from exc
+    _validate_prospective_study_kpi(events[-1], previous=prior)
 
 
 def _perform_full_audit(
@@ -2717,7 +3114,6 @@ def _inspect_tracked_study_close_delivery(
             "Study close exists after the tracked delivery checkpoint"
         )
     try:
-        current_kpi = (root / KPI_PATH).read_bytes()
         current_control = json.loads((root / CONTROL_PATH).read_bytes())
         if (
             current_control["revision"] != next_cursor.sequence
@@ -2733,7 +3129,7 @@ def _inspect_tracked_study_close_delivery(
             checkpoint,
             suffix_closes=new_closes,
             current_cursor=next_cursor,
-            current_kpi_sha256=sha256(current_kpi).hexdigest(),
+            current_kpi_sha256=checkpoint.kpi_sha256,
         )
     except (OSError, KeyError, TypeError, ValueError, StudyCloseCheckpointError) as exc:
         raise StudyCloseDeliveryError(

@@ -8672,16 +8672,11 @@ class ScientificLifecycleTests(unittest.TestCase):
                 operation_id="holdout-life-study-close-missing-kpi",
             )
         original_rebuild = writer.rebuild_study_kpi_projection
-        rebuild_attempts = 0
 
-        def fail_first_rebuild() -> bool:
-            nonlocal rebuild_attempts
-            rebuild_attempts += 1
-            if rebuild_attempts == 1:
-                raise TransitionError("injected Study KPI projection failure")
-            return original_rebuild()
+        def reject_routine_rebuild() -> bool:
+            raise AssertionError("Study close rebuilt the KPI navigation projection")
 
-        writer.rebuild_study_kpi_projection = fail_first_rebuild  # type: ignore[method-assign]
+        writer.rebuild_study_kpi_projection = reject_routine_rebuild  # type: ignore[method-assign]
         close_arguments = {
             "outcome": "supported",
             "operation_id": "holdout-life-study-close",
@@ -8689,11 +8684,13 @@ class ScientificLifecycleTests(unittest.TestCase):
                 "completion_record_id"
             ],
         }
-        with self.assertRaisesRegex(TransitionError, "injected Study KPI"):
-            writer.close_study(**close_arguments)
+        closed = writer.close_study(**close_arguments)
+        self.assertFalse(closed.reused)
         reused_close = writer.close_study(**close_arguments)
         self.assertTrue(reused_close.reused)
         writer.rebuild_study_kpi_projection = original_rebuild  # type: ignore[method-assign]
+        self.assertFalse((writer.root / "records" / "STUDY_KPI.md").exists())
+        self.assertTrue(writer.rebuild_study_kpi_projection())
         kpi_ledger = (writer.root / "records" / "STUDY_KPI.md").read_text(
             encoding="ascii"
         )
@@ -8709,6 +8706,7 @@ class ScientificLifecycleTests(unittest.TestCase):
             kpi_record.payload["completion_record_id"],
             completions[-1].result["completion_record_id"],
         )
+        self.assertFalse(writer.rebuild_study_kpi_projection())
         record_fixture_study_diagnosis(
             writer,
             study_id="STU-HOLDOUT-LIFECYCLE",
@@ -8940,12 +8938,8 @@ class ScientificLifecycleTests(unittest.TestCase):
                 operation_id="unstarted-study-close",
             )
             self.assertEqual(closed.result["study_kpi_sequence"], 1)
-            ledger = (writer.root / "records" / "STUDY_KPI.md").read_text(
-                encoding="ascii"
-            )
-            self.assertIn(
-                "| 000001 | 2026-07-11 09:00 | STU-UNSTARTED | - | - | - | - | - | not_evaluable |",
-                ledger,
+            self.assertFalse(
+                (writer.root / "records" / "STUDY_KPI.md").exists()
             )
             with LocalIndex(writer.index_path) as index:
                 kpi_record = index.get("study-kpi", "STU-UNSTARTED")
@@ -8957,6 +8951,14 @@ class ScientificLifecycleTests(unittest.TestCase):
             self.assertEqual(
                 kpi_record.payload["unavailable_reason"],
                 "unstarted_batch_not_evaluable_without_final_validator_completion",
+            )
+            self.assertTrue(writer.rebuild_study_kpi_projection())
+            ledger = (writer.root / "records" / "STUDY_KPI.md").read_text(
+                encoding="ascii"
+            )
+            self.assertIn(
+                "| 000001 | 2026-07-11 09:00 | STU-UNSTARTED | - | - | - | - | - | not_evaluable |",
+                ledger,
             )
             self.assertFalse(writer.rebuild_study_kpi_projection())
 
@@ -9151,11 +9153,10 @@ class ScientificLifecycleTests(unittest.TestCase):
                 operation_id="budget-end-study-close",
             )
             self.assertEqual(budget_closed.result["study_kpi_sequence"], 2)
-            ledger = (writer.root / "records" / "STUDY_KPI.md").read_text(
-                encoding="ascii"
-            )
-            self.assertIn(
-                "| 000002 | 2026-07-11 09:00 | STU-BUDGET-END | - | - | - | - | - | evidence_gap |",
+            self.assertEqual(
+                (writer.root / "records" / "STUDY_KPI.md").read_text(
+                    encoding="ascii"
+                ),
                 ledger,
             )
             with LocalIndex(writer.index_path) as index:
@@ -9164,6 +9165,14 @@ class ScientificLifecycleTests(unittest.TestCase):
             self.assertEqual(
                 budget_kpi.payload["unavailable_reason"],
                 "started_batch_budget_exhausted_without_final_validator_completion",
+            )
+            self.assertTrue(writer.rebuild_study_kpi_projection())
+            ledger = (writer.root / "records" / "STUDY_KPI.md").read_text(
+                encoding="ascii"
+            )
+            self.assertIn(
+                "| 000002 | 2026-07-11 09:00 | STU-BUDGET-END | - | - | - | - | - | evidence_gap |",
+                ledger,
             )
             self.assertFalse(writer.rebuild_study_kpi_projection())
             record_fixture_study_diagnosis(

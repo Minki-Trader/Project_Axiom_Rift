@@ -1,4 +1,4 @@
-"""Deterministic tracked projection of immutable Study KPI records."""
+"""Explicit lag-tolerant navigation projection of immutable Study KPI records."""
 
 from __future__ import annotations
 

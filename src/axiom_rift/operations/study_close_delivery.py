@@ -218,7 +218,7 @@ def project_checkpoint_maintenance(
     control_content: bytes,
     kpi_content: bytes,
 ) -> StudyCloseDeliveryCheckpoint:
-    """Advance only the authenticated Journal cursor after a no-close suffix."""
+    """Advance a no-close cursor and/or explicit KPI navigation materialization."""
 
     return StudyCloseDeliveryCheckpoint(
         basis="maintenance",

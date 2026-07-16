@@ -13,7 +13,8 @@ from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 CHECKPOINT_PATH = "records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json"
 LEGACY_CHECKPOINT_SCHEMA = "study_close_delivery_checkpoint.v1"
 CHECKPOINT_SCHEMA = "study_close_delivery_checkpoint.v2"
-CHECKPOINT_VALIDATOR_VERSION = "study_close_delivery_checkpoint.v2"
+LEGACY_V2_CHECKPOINT_VALIDATOR_VERSION = "study_close_delivery_checkpoint.v2"
+CHECKPOINT_VALIDATOR_VERSION = "study_close_delivery_checkpoint.v3"
 HISTORICAL_BACKFILL_ROW_COUNT = 21
 EMPTY_CLOSE_CHAIN_DIGEST = sha256(
     b"axiom-study-close-delivery-empty"
@@ -23,9 +24,14 @@ _HEX = frozenset("0123456789abcdef")
 _BASES = frozenset(
     {"full_audit", "checkpoint_upgrade", "maintenance", "study_close"}
 )
-_VALIDATOR_BY_SCHEMA = {
-    LEGACY_CHECKPOINT_SCHEMA: "study_close_delivery_checkpoint.v1",
-    CHECKPOINT_SCHEMA: CHECKPOINT_VALIDATOR_VERSION,
+_VALIDATORS_BY_SCHEMA = {
+    LEGACY_CHECKPOINT_SCHEMA: frozenset({"study_close_delivery_checkpoint.v1"}),
+    CHECKPOINT_SCHEMA: frozenset(
+        {
+            LEGACY_V2_CHECKPOINT_VALIDATOR_VERSION,
+            CHECKPOINT_VALIDATOR_VERSION,
+        }
+    ),
 }
 
 
@@ -478,8 +484,24 @@ class StudyCloseDeliveryCheckpoint:
     last_study_close_revision: int | None
     historical_kpi_backfill: HistoricalKpiBackfillProof | None = None
     schema: str = CHECKPOINT_SCHEMA
+    validator_version: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.validator_version is None:
+            default = (
+                "study_close_delivery_checkpoint.v1"
+                if self.schema == LEGACY_CHECKPOINT_SCHEMA
+                else CHECKPOINT_VALIDATOR_VERSION
+            )
+            object.__setattr__(self, "validator_version", default)
 
     def body(self) -> dict[str, Any]:
+        if (
+            self.schema not in _VALIDATORS_BY_SCHEMA
+            or self.validator_version not in _VALIDATORS_BY_SCHEMA[self.schema]
+        ):
+            raise StudyCloseCheckpointError("checkpoint version differs")
+        assert self.validator_version is not None
         body: dict[str, Any] = {
             "basis": self.basis,
             "control_sha256": self.control_sha256,
@@ -494,7 +516,7 @@ class StudyCloseDeliveryCheckpoint:
             "prospective_close_count": self.prospective_close_count,
             "repair_manifest_digest": self.repair_manifest_digest,
             "schema": self.schema,
-            "validator_version": _VALIDATOR_BY_SCHEMA[self.schema],
+            "validator_version": self.validator_version,
         }
         if self.schema == CHECKPOINT_SCHEMA:
             body["historical_kpi_backfill"] = (
@@ -524,7 +546,7 @@ class StudyCloseDeliveryCheckpoint:
         if not isinstance(value, dict):
             raise StudyCloseCheckpointError("checkpoint must be an object")
         schema = value.get("schema")
-        if schema not in _VALIDATOR_BY_SCHEMA:
+        if schema not in _VALIDATORS_BY_SCHEMA:
             raise StudyCloseCheckpointError("checkpoint version differs")
         expected = {
             "basis",
@@ -548,7 +570,7 @@ class StudyCloseDeliveryCheckpoint:
         if set(value) != expected:
             raise StudyCloseCheckpointError("checkpoint fields differ")
         if (
-            value["validator_version"] != _VALIDATOR_BY_SCHEMA[schema]
+            value["validator_version"] not in _VALIDATORS_BY_SCHEMA[schema]
             or value["basis"] not in _BASES
         ):
             raise StudyCloseCheckpointError("checkpoint version or basis differs")
@@ -616,6 +638,7 @@ class StudyCloseDeliveryCheckpoint:
                 else HistoricalKpiBackfillProof.from_mapping(backfill_value)
             ),
             schema=schema,
+            validator_version=value["validator_version"],
         )
         if close_count == 0 and (
             checkpoint.prospective_close_chain_digest != EMPTY_CLOSE_CHAIN_DIGEST
@@ -655,6 +678,13 @@ def validate_checkpoint_transition(
     _digest(current_kpi_sha256, "current KPI hash")
     if current.schema != CHECKPOINT_SCHEMA:
         raise StudyCloseCheckpointError("new checkpoint is not v2")
+    if current.validator_version not in _VALIDATORS_BY_SCHEMA[CHECKPOINT_SCHEMA]:
+        raise StudyCloseCheckpointError("new checkpoint validator differs")
+    if (
+        previous.validator_version == CHECKPOINT_VALIDATOR_VERSION
+        and current.validator_version != CHECKPOINT_VALIDATOR_VERSION
+    ):
+        raise StudyCloseCheckpointError("checkpoint validator version regressed")
     if current.cursor.sequence < previous.cursor.sequence:
         raise StudyCloseCheckpointError("checkpoint Journal cursor regressed")
     if current.cursor.next_offset < previous.cursor.next_offset:
@@ -697,6 +727,19 @@ def validate_checkpoint_transition(
             raise StudyCloseCheckpointError(
                 "Study-close checkpoint chain did not advance exactly"
             )
+        if current.validator_version == CHECKPOINT_VALIDATOR_VERSION and (
+            previous.validator_version != CHECKPOINT_VALIDATOR_VERSION
+        ):
+            raise StudyCloseCheckpointError(
+                "bounded Study close requires explicit checkpoint maintenance"
+            )
+        if (
+            current.validator_version == CHECKPOINT_VALIDATOR_VERSION
+            and current.kpi_sha256 != previous.kpi_sha256
+        ):
+            raise StudyCloseCheckpointError(
+                "routine Study close changed the explicit KPI materialization"
+            )
         return
 
     if current.basis not in {"checkpoint_upgrade", "maintenance"}:
@@ -714,10 +757,9 @@ def validate_checkpoint_transition(
         current.prospective_close_count != previous.prospective_close_count
         or current.prospective_close_chain_digest
         != previous.prospective_close_chain_digest
-        or current.kpi_sha256 != previous.kpi_sha256
     ):
         raise StudyCloseCheckpointError(
-            "non-close checkpoint changed the close chain or KPI"
+            "non-close checkpoint changed the close chain"
         )
     if current.basis == "checkpoint_upgrade":
         if previous.schema != LEGACY_CHECKPOINT_SCHEMA:
@@ -730,8 +772,13 @@ def validate_checkpoint_transition(
     if (
         current.cursor.sequence == previous.cursor.sequence
         and current.cursor.next_offset == previous.cursor.next_offset
+        and current.kpi_sha256 == previous.kpi_sha256
+        and current.validator_version == previous.validator_version
     ):
-        raise StudyCloseCheckpointError("checkpoint maintenance did not advance")
+        raise StudyCloseCheckpointError(
+            "checkpoint maintenance did not advance its Journal cursor or "
+            "navigation projection"
+        )
 
 
 def validate_no_close_suffix(
@@ -741,7 +788,12 @@ def validate_no_close_suffix(
     current_cursor: JournalDeliveryCursor,
     current_kpi_sha256: str,
 ) -> None:
-    """Recompute the routine no-close suffix and current KPI hash."""
+    """Validate a routine no-close suffix against authenticated high-water.
+
+    ``current_kpi_sha256`` is the digest of the last explicit Markdown
+    materialization recorded by the checkpoint.  Routine callers inherit that
+    authenticated value; they do not re-read the lag-tolerant navigation file.
+    """
 
     if suffix_closes:
         raise StudyCloseCheckpointError(
@@ -768,6 +820,7 @@ __all__ = [
     "HistoricalKpiSource",
     "JournalDeliveryCursor",
     "LEGACY_CHECKPOINT_SCHEMA",
+    "LEGACY_V2_CHECKPOINT_VALIDATOR_VERSION",
     "StudyCloseCheckpointError",
     "StudyCloseDeliveryCheckpoint",
     "advance_close_chain",

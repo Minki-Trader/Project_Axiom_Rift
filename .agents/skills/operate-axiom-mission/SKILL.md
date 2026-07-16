@@ -231,21 +231,23 @@ unbound scientific work.
 Every real `study_closed` event is one coherent Git milestone and an immediate
 delivery trigger.  Before any later Portfolio action, Study, Batch, or Job:
 
-1. Require the writer-created `study-kpi` record and the matching row in
-   `records/STUDY_KPI.md`.
-2. Run focused checks for the closed Study and the KPI projection. When a
+1. Require the writer-created immutable `study-kpi` record in the same Journal
+   event. Validate that one new record and its close bindings from the bounded
+   Journal suffix; do not render or scan prior KPI history.
+2. Run focused checks for the closed Study and its disposition-driving evidence.
+   When a
    repository-wide run is justified, use the Git-index-bound tracked-test
    manifest with exact path and byte hashes and report excluded untracked tests;
    do not let unrelated user files become acceptance authority.
 3. On local `main`, stage only the exact Study milestone paths. They include
-   `state/control.json`, `records/STUDY_KPI.md`, the Journal path resolved from
-   the staged snapshot, and the Study-scoped code, tests, or compact records
-   that belong to the same closeout. A legacy snapshot resolves
+   `state/control.json`, the Journal path resolved from the staged snapshot,
+   and the Study-scoped code, tests, or compact records that belong to the same
+   closeout. A legacy snapshot resolves
    `records/journal.jsonl`; a segmented snapshot resolves its active segment.
    If the close rotates the Journal, also stage the changed manifest, the new
    seal, and the new active segment. Reject unrelated staged paths; never use
-   blanket staging.
-4. After staging state, Journal, and KPI, run
+   blanket staging. Do not stage `records/STUDY_KPI.md` during routine close.
+4. After staging state and the exact Journal suffix, run
    `scripts/update_study_close_delivery_checkpoint.py`, then stage the exact
    changed `records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json`. The checkpoint must
    advance in the same commit; omission or a caller-authored substitute fails
@@ -253,8 +255,9 @@ delivery trigger.  Before any later Portfolio action, Study, Batch, or Job:
 5. Create one commit whose final paragraph is exactly two contiguous lines:
    `Axiom-Study-Close: <event_id>` followed immediately by
    `Axiom-State-Revision: <revision>`. The tracked commit-msg hook must validate
-   the staged Journal, control, deterministic KPI bytes, co-staged paths, and
-   exact trailer block. Never use `--no-verify`. Then immediately attempt a
+   the bounded staged Journal suffix, control and index heads, the exact new KPI
+   record, checkpoint transition, co-staged paths, and exact trailer block.
+   Never use `--no-verify`. Then immediately attempt a
    non-force push of `main` to `origin/main`. Observe remote tree equality
    read-only when delivery succeeds.
 
@@ -269,6 +272,11 @@ work; remote success itself is not a scientific gate.
 After the checkpoint and first push attempt, route the writer-pending
 `diagnose_study` action through `$run-research-portfolio`. Diagnosis interprets
 the final bound evidence; it does not change the closed KPI or create evidence.
+
+`records/STUDY_KPI.md` is a lag-tolerant navigation materialization, not close
+authority. Refresh it only through explicit full maintenance at a useful stable
+boundary, bind the refreshed digest in a maintenance checkpoint, and never make
+its freshness a prerequisite for later valid science.
 
 A sponsor-authorized historical KPI adoption is one coherent local-main
 milestone, not one rewritten commit per old Study.  Require the typed

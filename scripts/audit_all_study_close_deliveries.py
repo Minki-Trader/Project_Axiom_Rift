@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / "src"))
 
 from axiom_rift.operations.study_close_git import (  # noqa: E402
     CHECKPOINT_PATH,
+    KPI_PATH,
     StudyCloseDeliveryError,
     audit_all_study_close_deliveries,
     check_study_close_delivery_checkpoint_maintenance,
@@ -23,6 +24,7 @@ from axiom_rift.operations.study_close_git import (  # noqa: E402
     require_all_study_close_deliveries,
     require_study_close_guard_ready,
 )
+from axiom_rift.operations.writer import StateWriter  # noqa: E402
 
 
 def _emit(value: object, *, stream: object = sys.stdout) -> None:
@@ -58,7 +60,15 @@ def _parser() -> argparse.ArgumentParser:
     actions.add_argument(
         "--advance-no-close-checkpoint",
         action="store_true",
-        help="advance only the v2 Journal cursor after explicit full maintenance",
+        help="advance the v2 Journal cursor after explicit full maintenance",
+    )
+    actions.add_argument(
+        "--materialize-kpi-navigation",
+        action="store_true",
+        help=(
+            "explicitly rebuild and stage the lag-tolerant KPI Markdown plus its "
+            "maintenance checkpoint"
+        ),
     )
     parser.add_argument(
         "--check",
@@ -75,6 +85,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             arguments.initialize_checkpoint
             or arguments.upgrade_checkpoint_v2
             or arguments.advance_no_close_checkpoint
+            or arguments.materialize_kpi_navigation
         )
         and not arguments.full_maintenance
     ):
@@ -99,6 +110,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if arguments.check and not (
         arguments.upgrade_checkpoint_v2
         or arguments.advance_no_close_checkpoint
+        or arguments.materialize_kpi_navigation
     ):
         _emit(
             {
@@ -115,8 +127,25 @@ def main(argv: Sequence[str] | None = None) -> int:
             stream=sys.stderr,
         )
         return 2
+    if arguments.check and arguments.materialize_kpi_navigation:
+        _emit(
+            {
+                "error": {
+                    "code": "materialization_writes_required",
+                    "message": "KPI navigation materialization cannot run in --check mode",
+                    "next_command": (
+                        "python scripts/audit_all_study_close_deliveries.py "
+                        "--full-maintenance --materialize-kpi-navigation"
+                    ),
+                },
+                "schema": "study_close_audit_cli_error.v1",
+            },
+            stream=sys.stderr,
+        )
+        return 2
     checkpoint = None
     mode = "tracked_checkpoint"
+    projection_changed = False
     try:
         require_study_close_guard_ready(ROOT)
         if arguments.initialize_checkpoint:
@@ -140,6 +169,43 @@ def main(argv: Sequence[str] | None = None) -> int:
                 if arguments.check
                 else "write_no_close_checkpoint_maintenance"
             )
+        elif arguments.materialize_kpi_navigation:
+            staged = subprocess.run(
+                ("git", "diff", "--cached", "--name-only"),
+                cwd=ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.splitlines()
+            if staged:
+                raise StudyCloseDeliveryError(
+                    "KPI navigation maintenance requires an empty staged set"
+                )
+            writer = StateWriter(ROOT)
+            projection_changed = writer.rebuild_study_kpi_projection()
+            if projection_changed:
+                subprocess.run(
+                    ("git", "add", "--", KPI_PATH),
+                    cwd=ROOT,
+                    check=True,
+                    capture_output=True,
+                )
+            try:
+                checkpoint = prepare_study_close_delivery_checkpoint_maintenance(
+                    ROOT
+                )
+            except StudyCloseDeliveryError as exc:
+                if projection_changed or "did not advance" not in str(exc):
+                    raise
+                mode = "kpi_navigation_already_current"
+            else:
+                subprocess.run(
+                    ("git", "add", "--", CHECKPOINT_PATH),
+                    cwd=ROOT,
+                    check=True,
+                    capture_output=True,
+                )
+                mode = "materialize_kpi_navigation"
         elif arguments.full_maintenance:
             audit_all_study_close_deliveries(ROOT)
             mode = "full_maintenance"
@@ -160,6 +226,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 1
     result: dict[str, object] = {
         "mode": mode,
+        "projection_changed": projection_changed,
         "schema": "study_close_audit_cli_result.v1",
         "status": "valid",
     }
@@ -171,7 +238,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "next_command": (
                     "no_write"
                     if arguments.check
-                    else f"git add -- {CHECKPOINT_PATH}"
+                    else (
+                        "git diff --cached --name-only"
+                        if arguments.materialize_kpi_navigation
+                        else f"git add -- {CHECKPOINT_PATH}"
+                    )
                 ),
                 "trailers": [
                     "Axiom-Study-Close-Checkpoint: "

@@ -5,7 +5,9 @@ import unittest
 
 from axiom_rift.operations.study_close_checkpoint import (
     EMPTY_CLOSE_CHAIN_DIGEST,
+    CHECKPOINT_VALIDATOR_VERSION,
     JournalDeliveryCursor,
+    LEGACY_V2_CHECKPOINT_VALIDATOR_VERSION,
     StudyCloseCheckpointError,
     StudyCloseDeliveryCheckpoint,
     advance_close_chain,
@@ -65,7 +67,7 @@ class StudyCloseCheckpointV2Tests(unittest.TestCase):
             ),
             repair_manifest_digest=None,
             control_sha256="7" * 64,
-            kpi_sha256="8" * 64,
+            kpi_sha256=previous.kpi_sha256,
             last_study_close_event_id=close_event,
             last_study_close_revision=2,
         )
@@ -77,7 +79,7 @@ class StudyCloseCheckpointV2Tests(unittest.TestCase):
             previous,
             current,
             suffix_closes=(("2" * 64, 2),),
-            current_kpi_sha256="8" * 64,
+            current_kpi_sha256=previous.kpi_sha256,
         )
         invalid = (
             replace(current, prospective_close_count=0),
@@ -103,10 +105,20 @@ class StudyCloseCheckpointV2Tests(unittest.TestCase):
                     previous,
                     checkpoint,
                     suffix_closes=(("2" * 64, 2),),
-                    current_kpi_sha256="8" * 64,
+                    current_kpi_sha256=previous.kpi_sha256,
                 )
+        with self.assertRaisesRegex(
+            StudyCloseCheckpointError,
+            "explicit KPI materialization",
+        ):
+            validate_checkpoint_transition(
+                previous,
+                replace(current, kpi_sha256="8" * 64),
+                suffix_closes=(("2" * 64, 2),),
+                current_kpi_sha256="8" * 64,
+            )
 
-    def test_no_close_suffix_recomputes_current_kpi_hash(self) -> None:
+    def test_no_close_suffix_inherits_explicit_kpi_hash(self) -> None:
         _previous, checkpoint = self.checkpoint_pair()
         current_cursor = replace(
             checkpoint.cursor,
@@ -130,7 +142,53 @@ class StudyCloseCheckpointV2Tests(unittest.TestCase):
                 current_kpi_sha256="0" * 64,
             )
 
-    def test_maintenance_advances_only_cursor_and_never_close_authority(self) -> None:
+    def test_legacy_v2_history_is_preserved_but_new_close_requires_activation(self) -> None:
+        previous, current = self.checkpoint_pair()
+        legacy_previous = replace(
+            previous,
+            validator_version=LEGACY_V2_CHECKPOINT_VALIDATOR_VERSION,
+        )
+        legacy_current = replace(
+            current,
+            kpi_sha256="8" * 64,
+            previous_checkpoint_digest=legacy_previous.checkpoint_digest,
+            validator_version=LEGACY_V2_CHECKPOINT_VALIDATOR_VERSION,
+        )
+        validate_checkpoint_transition(
+            legacy_previous,
+            legacy_current,
+            suffix_closes=(("2" * 64, 2),),
+            current_kpi_sha256="8" * 64,
+        )
+        with self.assertRaisesRegex(
+            StudyCloseCheckpointError,
+            "explicit checkpoint maintenance",
+        ):
+            validate_checkpoint_transition(
+                legacy_previous,
+                replace(
+                    current,
+                    previous_checkpoint_digest=legacy_previous.checkpoint_digest,
+                ),
+                suffix_closes=(("2" * 64, 2),),
+                current_kpi_sha256=legacy_previous.kpi_sha256,
+            )
+        activation = replace(
+            legacy_previous,
+            basis="maintenance",
+            parent_main="d" * 40,
+            previous_checkpoint_commit="e" * 40,
+            previous_checkpoint_digest=legacy_previous.checkpoint_digest,
+            validator_version=CHECKPOINT_VALIDATOR_VERSION,
+        )
+        validate_checkpoint_transition(
+            legacy_previous,
+            activation,
+            suffix_closes=(),
+            current_kpi_sha256=legacy_previous.kpi_sha256,
+        )
+
+    def test_maintenance_advances_cursor_or_navigation_but_never_close_authority(self) -> None:
         _initial, previous = self.checkpoint_pair()
         maintenance = replace(
             previous,
@@ -155,6 +213,17 @@ class StudyCloseCheckpointV2Tests(unittest.TestCase):
             maintenance,
             suffix_closes=(),
             current_kpi_sha256=previous.kpi_sha256,
+        )
+        kpi_only = replace(
+            maintenance,
+            cursor=previous.cursor,
+            kpi_sha256="b" * 64,
+        )
+        validate_checkpoint_transition(
+            previous,
+            kpi_only,
+            suffix_closes=(),
+            current_kpi_sha256="b" * 64,
         )
         for invalid in (
             replace(maintenance, cursor=previous.cursor),

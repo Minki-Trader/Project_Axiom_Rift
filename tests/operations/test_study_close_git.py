@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import json
 from hashlib import sha256
 from pathlib import Path
@@ -55,36 +56,88 @@ def close_event(
     study_id: str = "STU-TEST",
     kpi_sequence: int = 1,
 ) -> dict[str, object]:
+    completion_record_id = "a" * 64
+    operation_id = f"close-{study_id.lower()}"
+    outcome = "supported"
+    kpi_payload: dict[str, object] = {
+        "completion_record_id": completion_record_id,
+        "executable_display_id": "EXE-" + "b" * 12,
+        "executable_id": EXECUTABLE_ID,
+        "historical_study_close_event_id": None,
+        "historical_study_close_record_id": None,
+        "historical_study_close_revision": None,
+        "metrics": {
+            "median_fold_profit_factor_milli": 1100,
+            "monthly_realized_exit_drawdown_share_of_gross_profit_ppm": 200000,
+            "net_profit_micropoints": 1000,
+            "trade_count": 100,
+        },
+        "outcome": outcome,
+        "provenance": "prospective_close",
+        "sequence": kpi_sequence,
+        "source": "scientific_job_completion",
+        "study_id": study_id,
+        "unavailable_reason": None,
+    }
     base: dict[str, object] = {
         "schema": "journal_event",
         "sequence": sequence,
         "previous_event_id": previous_event_id,
         "journal_offset": journal_offset,
         "event_kind": "study_closed",
-        "operation_id": f"close-{study_id.lower()}",
+        "operation_id": operation_id,
         "subject": f"Study:{study_id}",
-        "payload": {},
+        "payload": {
+            "kpi_completion_record_id": completion_record_id,
+            "outcome": outcome,
+        },
         "control": {},
         "index_records": [
             {
-                "kind": "study-kpi",
+                "event_sequence": None,
+                "event_stream": None,
+                "fingerprint": "d" * 64,
+                "kind": "operation",
                 "payload": {
-                    "executable_display_id": "EXE-" + "b" * 12,
-                    "executable_id": EXECUTABLE_ID,
-                    "metrics": {
-                        "median_fold_profit_factor_milli": 1100,
-                        "monthly_realized_exit_drawdown_share_of_gross_profit_ppm": 200000,
-                        "net_profit_micropoints": 1000,
-                        "trade_count": 100,
+                    "event_kind": "study_closed",
+                    "result": {
+                        "outcome": outcome,
+                        "study_id": study_id,
+                        "study_kpi_record_id": study_id,
+                        "study_kpi_sequence": kpi_sequence,
                     },
-                    "outcome": "supported",
-                    "provenance": "prospective_close",
-                    "sequence": kpi_sequence,
-                    "study_id": study_id,
                 },
+                "record_id": operation_id,
+                "status": "success",
+                "subject": "Study:active",
+            },
+            {
+                "event_sequence": None,
+                "event_stream": None,
+                "fingerprint": "e" * 64,
+                "kind": "study-close",
+                "payload": {
+                    "outcome": outcome,
+                    "study_kpi_record_id": study_id,
+                },
+                "record_id": "f" * 64,
+                "status": outcome,
+                "subject": f"Study:{study_id}",
+            },
+            {
+                "event_sequence": kpi_sequence,
+                "event_stream": "study-kpi",
+                "fingerprint": canonical_digest(
+                    domain="study-kpi", payload=kpi_payload
+                ),
+                "kind": "study-kpi",
+                "payload": kpi_payload,
+                "record_id": study_id,
+                "status": outcome,
+                "subject": f"Study:{study_id}",
             }
         ],
-        "index_record_count": sequence + 1,
+        "index_record_count": sequence + 3,
         "index_projection_digest": "c" * 64,
         "occurred_at_utc": "2026-07-12T00:00:00Z",
     }
@@ -272,17 +325,22 @@ class StudyCloseGitTests(unittest.TestCase):
         (self.root / "records" / "journal.jsonl").write_bytes(
             canonical_bytes(event) + b"\n"
         )
-        (self.root / "state" / "control.json").write_text(
-            json.dumps(
+        (self.root / "state" / "control.json").write_bytes(
+            canonical_bytes(
                 {
                     "heads": {
-                        "journal": {"event_id": EVENT_ID, "sequence": 1}
+                        "index": {
+                            "required_projection_digest": event[
+                                "index_projection_digest"
+                            ],
+                            "required_record_count": event["index_record_count"],
+                            "required_sequence": 1,
+                        },
+                        "journal": {"event_id": EVENT_ID, "sequence": 1},
                     },
                     "revision": 1,
-                },
-                separators=(",", ":"),
-            ),
-            encoding="ascii",
+                }
+            )
         )
         (self.root / "records" / "STUDY_KPI.md").write_bytes(
             render_projection(self.events)
@@ -301,20 +359,25 @@ class StudyCloseGitTests(unittest.TestCase):
         return path
 
     def write_control(self, event: dict[str, object]) -> None:
-        (self.root / "state" / "control.json").write_text(
-            json.dumps(
+        (self.root / "state" / "control.json").write_bytes(
+            canonical_bytes(
                 {
                     "heads": {
+                        "index": {
+                            "required_projection_digest": event[
+                                "index_projection_digest"
+                            ],
+                            "required_record_count": event["index_record_count"],
+                            "required_sequence": event["sequence"],
+                        },
                         "journal": {
                             "event_id": event["event_id"],
                             "sequence": event["sequence"],
-                        }
+                        },
                     },
                     "revision": event["sequence"],
-                },
-                separators=(",", ":"),
-            ),
-            encoding="ascii",
+                }
+            )
         )
 
     def commit_initial_close(self) -> None:
@@ -422,9 +485,10 @@ class StudyCloseGitTests(unittest.TestCase):
         journal.write_bytes(content + canonical_bytes(event) + b"\n")
         self.events.append(event)
         self.write_control(event)
-        (self.root / "records" / "STUDY_KPI.md").write_bytes(
-            render_projection(self.events) if valid_kpi else b"broken KPI\n"
-        )
+        if not valid_kpi:
+            (self.root / "records" / "STUDY_KPI.md").write_bytes(
+                b"broken KPI\n"
+            )
         run(self.root, "git", "add", "state", "records")
         if advance_checkpoint and study_close_git._head_checkpoint(self.root) is not None:
             prepare_study_close_delivery_checkpoint(self.root)
@@ -460,9 +524,6 @@ class StudyCloseGitTests(unittest.TestCase):
         journal.write_bytes(content + canonical_bytes(event) + b"\n")
         self.events.append(event)
         self.write_control(event)
-        (self.root / "records" / "STUDY_KPI.md").write_bytes(
-            render_projection(self.events)
-        )
         run(self.root, "git", "add", "state", "records")
         run(
             self.root,
@@ -669,6 +730,276 @@ class StudyCloseGitTests(unittest.TestCase):
             StudyCloseDeliveryError, "validation failed"
         ):
             check_study_close_delivery_checkpoint_maintenance(self.root)
+
+    def test_kpi_navigation_materializes_only_in_explicit_maintenance(self) -> None:
+        self.initialize_checkpoint()
+        ledger = self.root / "records" / "STUDY_KPI.md"
+        original_ledger = ledger.read_bytes()
+        previous = StudyCloseDeliveryCheckpoint.from_bytes(
+            (self.root / CHECKPOINT_PATH).read_bytes()
+        )
+
+        self.append_committed_close(2)
+        close_checkpoint = StudyCloseDeliveryCheckpoint.from_bytes(
+            (self.root / CHECKPOINT_PATH).read_bytes()
+        )
+        self.assertEqual(ledger.read_bytes(), original_ledger)
+        self.assertEqual(close_checkpoint.kpi_sha256, previous.kpi_sha256)
+
+        materialized = render_projection(self.events)
+        ledger.write_bytes(materialized)
+        run(self.root, "git", "add", "records/STUDY_KPI.md")
+        projected = check_study_close_delivery_checkpoint_maintenance(self.root)
+        self.assertEqual(projected.basis, "maintenance")
+        self.assertEqual(projected.cursor, close_checkpoint.cursor)
+        self.assertEqual(
+            projected.prospective_close_count,
+            close_checkpoint.prospective_close_count,
+        )
+        self.assertEqual(projected.kpi_sha256, sha256(materialized).hexdigest())
+        self.assertNotEqual(projected.kpi_sha256, close_checkpoint.kpi_sha256)
+
+        written = prepare_study_close_delivery_checkpoint_maintenance(self.root)
+        self.assertEqual(written, projected)
+        run(self.root, "git", "add", CHECKPOINT_PATH)
+        message = self.root / "materialize-kpi.txt"
+        message.write_text(
+            "Materialize Study KPI navigation\n\n"
+            f"Axiom-Study-Close-Checkpoint: {written.checkpoint_digest}\n"
+            f"Axiom-State-Revision: {written.cursor.sequence}\n",
+            encoding="ascii",
+        )
+        validate_commit_message(self.root, message)
+        run(
+            self.root,
+            "git",
+            "-c",
+            "core.hooksPath=.git/hooks",
+            "commit",
+            "-F",
+            str(message),
+        )
+        require_all_study_close_deliveries(self.root)
+
+    def test_routine_close_never_reads_or_renders_kpi_history(self) -> None:
+        self.initialize_checkpoint()
+        ledger = self.root / "records" / "STUDY_KPI.md"
+        before = ledger.read_bytes()
+        previous = StudyCloseDeliveryCheckpoint.from_bytes(
+            (self.root / CHECKPOINT_PATH).read_bytes()
+        )
+        optional_git_file = study_close_git._optional_git_file
+
+        def reject_kpi_read(root: Path, specifier: str, path: str):
+            if path == "records/STUDY_KPI.md":
+                raise AssertionError("routine close read the KPI navigation file")
+            return optional_git_file(root, specifier, path)
+
+        with patch.object(
+            study_close_git,
+            "_optional_git_file",
+            side_effect=reject_kpi_read,
+        ), patch.object(
+            study_close_git,
+            "_index_journal",
+            side_effect=AssertionError("routine close read full Journal history"),
+        ), patch.object(
+            study_close_git,
+            "render_projection",
+            side_effect=AssertionError("routine close rendered KPI history"),
+        ), patch.object(
+            study_close_git,
+            "_perform_full_audit",
+            side_effect=AssertionError("routine close ran full delivery audit"),
+        ):
+            self.append_committed_close(2)
+            require_all_study_close_deliveries(self.root)
+
+        current = StudyCloseDeliveryCheckpoint.from_bytes(
+            (self.root / CHECKPOINT_PATH).read_bytes()
+        )
+        self.assertEqual(ledger.read_bytes(), before)
+        self.assertEqual(current.kpi_sha256, previous.kpi_sha256)
+        self.assertEqual(
+            current.prospective_close_count,
+            previous.prospective_close_count + 1,
+        )
+
+    def test_prospective_kpi_suffix_rejects_self_consistent_forgeries(self) -> None:
+        first = close_event()
+        previous = StudyCloseDeliveryCheckpoint(
+            basis="full_audit",
+            parent_main="0" * 40,
+            previous_checkpoint_commit=None,
+            previous_checkpoint_digest=None,
+            cursor=JournalDeliveryCursor.from_events(
+                (first,), journal_path="records/journal.jsonl"
+            ),
+            prospective_close_count=1,
+            prospective_close_chain_digest=advance_close_chain(
+                EMPTY_CLOSE_CHAIN_DIGEST,
+                str(first["event_id"]),
+                1,
+            ),
+            repair_manifest_digest=None,
+            control_sha256="1" * 64,
+            kpi_sha256="2" * 64,
+            last_study_close_event_id=None,
+            last_study_close_revision=None,
+        )
+        valid = close_event(
+            sequence=2,
+            previous_event_id=str(first["event_id"]),
+            journal_offset=len(canonical_bytes(first)) + 1,
+            study_id="STU-0002",
+            kpi_sequence=2,
+        )
+        study_close_git._validate_prospective_study_kpi(
+            valid,
+            previous=previous,
+        )
+
+        engineering = deepcopy(valid)
+        engineering_kpi = engineering["index_records"][-1]  # type: ignore[index]
+        engineering_kpi["payload"][  # type: ignore[index]
+            "source"
+        ] = "typed_engineering_failure_completion"
+        engineering_kpi["payload"][  # type: ignore[index]
+            "unavailable_reason"
+        ] = "engineering_failure"
+        engineering_kpi["payload"]["metrics"] = {  # type: ignore[index]
+            name: None
+            for name in engineering_kpi["payload"]["metrics"]  # type: ignore[index]
+        }
+        engineering_kpi["payload"]["outcome"] = "evidence_gap"  # type: ignore[index]
+        engineering_kpi["status"] = "evidence_gap"
+        engineering_kpi["fingerprint"] = canonical_digest(
+            domain="study-kpi",
+            payload=engineering_kpi["payload"],  # type: ignore[index]
+        )
+        engineering["index_records"][1]["status"] = "evidence_gap"  # type: ignore[index]
+        engineering["index_records"][1]["payload"][  # type: ignore[index]
+            "outcome"
+        ] = "evidence_gap"
+        engineering["index_records"][0]["payload"]["result"][  # type: ignore[index]
+            "outcome"
+        ] = "evidence_gap"
+        engineering["payload"]["outcome"] = "evidence_gap"  # type: ignore[index]
+        study_close_git._validate_prospective_study_kpi(
+            engineering,
+            previous=previous,
+        )
+
+        variants: list[dict[str, object]] = []
+        duplicate = deepcopy(valid)
+        duplicate["index_records"].append(  # type: ignore[union-attr]
+            deepcopy(duplicate["index_records"][-1])  # type: ignore[index]
+        )
+        variants.append(duplicate)
+
+        wrong_sequence = deepcopy(valid)
+        wrong_kpi = wrong_sequence["index_records"][-1]  # type: ignore[index]
+        wrong_kpi["payload"]["sequence"] = 3  # type: ignore[index]
+        wrong_kpi["event_sequence"] = 3  # type: ignore[index]
+        wrong_kpi["fingerprint"] = canonical_digest(
+            domain="study-kpi",
+            payload=wrong_kpi["payload"],  # type: ignore[index]
+        )
+        wrong_sequence["index_records"][0]["payload"]["result"][  # type: ignore[index]
+            "study_kpi_sequence"
+        ] = 3
+        variants.append(wrong_sequence)
+
+        wrong_source = deepcopy(valid)
+        source_kpi = wrong_source["index_records"][-1]  # type: ignore[index]
+        source_kpi["payload"]["source"] = "summary_artifact"  # type: ignore[index]
+        source_kpi["fingerprint"] = canonical_digest(
+            domain="study-kpi",
+            payload=source_kpi["payload"],  # type: ignore[index]
+        )
+        variants.append(wrong_source)
+
+        wrong_fingerprint = deepcopy(valid)
+        wrong_fingerprint["index_records"][-1]["fingerprint"] = "0" * 64  # type: ignore[index]
+        variants.append(wrong_fingerprint)
+
+        wrong_close_binding = deepcopy(valid)
+        wrong_close_binding["index_records"][1]["payload"][  # type: ignore[index]
+            "study_kpi_record_id"
+        ] = "STU-FORGED"
+        variants.append(wrong_close_binding)
+
+        extra_field = deepcopy(valid)
+        extra_field["index_records"][-1]["payload"]["summary"] = "forged"  # type: ignore[index]
+        variants.append(extra_field)
+
+        engineering_as_science = deepcopy(valid)
+        engineering_science_kpi = engineering_as_science["index_records"][-1]  # type: ignore[index]
+        engineering_science_kpi["payload"][  # type: ignore[index]
+            "source"
+        ] = "typed_engineering_failure_completion"
+        engineering_science_kpi["payload"][  # type: ignore[index]
+            "unavailable_reason"
+        ] = "engineering_failure"
+        engineering_science_kpi["payload"]["metrics"] = {  # type: ignore[index]
+            name: None
+            for name in engineering_science_kpi["payload"]["metrics"]  # type: ignore[index]
+        }
+        engineering_science_kpi["fingerprint"] = canonical_digest(
+            domain="study-kpi",
+            payload=engineering_science_kpi["payload"],  # type: ignore[index]
+        )
+        variants.append(engineering_as_science)
+
+        invalid_outcome = deepcopy(valid)
+        invalid_outcome_kpi = invalid_outcome["index_records"][-1]  # type: ignore[index]
+        invalid_outcome_kpi["payload"]["outcome"] = "forged"  # type: ignore[index]
+        invalid_outcome_kpi["status"] = "forged"
+        invalid_outcome_kpi["fingerprint"] = canonical_digest(
+            domain="study-kpi",
+            payload=invalid_outcome_kpi["payload"],  # type: ignore[index]
+        )
+        invalid_outcome["index_records"][1]["status"] = "forged"  # type: ignore[index]
+        invalid_outcome["index_records"][1]["payload"][  # type: ignore[index]
+            "outcome"
+        ] = "forged"
+        invalid_outcome["index_records"][0]["payload"]["result"][  # type: ignore[index]
+            "outcome"
+        ] = "forged"
+        invalid_outcome["payload"]["outcome"] = "forged"  # type: ignore[index]
+        variants.append(invalid_outcome)
+
+        for value in variants:
+            with self.subTest(value=value):
+                with self.assertRaises(StudyCloseDeliveryError):
+                    study_close_git._validate_prospective_study_kpi(
+                        value,
+                        previous=previous,
+                    )
+
+    def test_partial_staged_close_append_fails_closed(self) -> None:
+        self.initialize_checkpoint()
+        journal = self.root / "records" / "journal.jsonl"
+        content = journal.read_bytes()
+        previous = self.events[-1]
+        event = close_event(
+            sequence=2,
+            previous_event_id=str(previous["event_id"]),
+            journal_offset=len(content),
+            study_id="STU-0002",
+            kpi_sequence=2,
+        )
+        frame = canonical_bytes(event) + b"\n"
+        journal.write_bytes(content + frame[:-5])
+        self.write_control(event)
+        run(self.root, "git", "add", "records/journal.jsonl")
+        run(self.root, "git", "add", "state/control.json")
+
+        with self.assertRaisesRegex(
+            StudyCloseDeliveryError,
+            "suffix|incomplete",
+        ):
+            prepare_study_close_delivery_checkpoint(self.root)
 
     def test_origin_attempt_debt_is_bound_and_exact_checkpoint_can_deliver(self) -> None:
         self.initialize_checkpoint()

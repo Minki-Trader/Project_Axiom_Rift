@@ -904,7 +904,7 @@ class StudyKpiWriterTests(unittest.TestCase):
                 kpi_metrics={"net_profit_micropoints": 9_999_999},
             )
 
-    def test_unrenderable_row_is_rejected_before_authority_and_api_recovery_repairs(self) -> None:
+    def test_unrenderable_row_is_rejected_and_only_explicit_maintenance_repairs_navigation(self) -> None:
         with self.assertRaisesRegex(ValueError, "invalid Study id"):
             validate_study_id("STU-BAD|ROW")
         with TemporaryDirectory() as temporary:
@@ -928,8 +928,11 @@ class StudyKpiWriterTests(unittest.TestCase):
             ledger.parent.mkdir(parents=True, exist_ok=True)
             ledger.write_bytes(b"corrupt\n")
             report = writer.recover()
-            self.assertTrue(report["study_kpi_projection_changed"])
+            self.assertFalse(report["study_kpi_projection_changed"])
+            self.assertEqual(ledger.read_bytes(), b"corrupt\n")
+            self.assertTrue(writer.rebuild_study_kpi_projection())
             self.assertEqual(ledger.read_bytes(), render_study_kpi(()))
+            self.assertFalse(writer.rebuild_study_kpi_projection())
 
     def test_idempotent_retry_does_not_read_a_new_clock_value(self) -> None:
         with TemporaryDirectory() as temporary:
@@ -955,6 +958,12 @@ class StudyKpiWriterTests(unittest.TestCase):
             )
         )
         self.assertEqual(science["study_kpi_projection"]["path"], LEDGER_RELATIVE_PATH)
+        self.assertEqual(
+            science["study_kpi_projection"]["materialization"],
+            "explicit_stable_boundary_maintenance",
+        )
+        self.assertTrue(science["study_kpi_projection"]["may_lag_journal_authority"])
+        self.assertFalse(science["study_kpi_projection"]["freshness_blocks_research"])
         durable = operations["authority"]["durable_journal"]
         segmented_contract = isinstance(durable, dict)
         if segmented_contract:
@@ -993,15 +1002,22 @@ class StudyKpiWriterTests(unittest.TestCase):
         self.assertFalse(
             checkpoint["remote_equality_required_before_later_scientific_work"]
         )
+        self.assertEqual(
+            operations["study_close_delivery_checkpoint"]["validator_version"],
+            "study_close_delivery_checkpoint.v3",
+        )
+        self.assertIn(
+            "records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json",
+            checkpoint["required_same_commit_paths"],
+        )
+        self.assertNotIn(
+            "records/STUDY_KPI.md",
+            checkpoint["required_same_commit_paths"],
+        )
         if segmented_contract:
             self.assertEqual(
                 checkpoint["required_journal_path"]["segmented"],
                 "manifest_active_segment",
-            )
-        else:
-            self.assertIn(
-                "records/journal.jsonl",
-                checkpoint["required_same_commit_paths"],
             )
         self.assertTrue(
             checkpoint["boot_delivery_audit"][
@@ -1020,7 +1036,12 @@ class StudyKpiWriterTests(unittest.TestCase):
         )
         self.assertTrue(
             checkpoint["boot_delivery_audit"][
-                "commit_snapshot_kpi_projection_equals_deterministic_journal_render"
+                "commit_snapshot_new_kpi_record_and_checkpoint_transition_valid"
+            ]
+        )
+        self.assertFalse(
+            checkpoint["boot_delivery_audit"][
+                "complete_kpi_projection_scan_required"
             ]
         )
         self.assertEqual(
@@ -1039,6 +1060,11 @@ class StudyKpiWriterTests(unittest.TestCase):
         self.assertEqual(enforcement["required_core_hooks_path"], ".githooks")
         self.assertTrue(
             enforcement["exact_contiguous_final_trailer_block_required"]
+        )
+        self.assertTrue(enforcement["routine_kpi_markdown_change_forbidden"])
+        self.assertEqual(
+            enforcement["complete_kpi_rerender"],
+            "explicit_maintenance_only",
         )
         self.assertFalse(enforcement["hook_bypass_allowed"])
         self.assertTrue(

@@ -405,9 +405,11 @@ Pass `StateWriter.close_study` only the final disposition-driving validator
 the writer derive the typed unavailable basis. Never pass caller-authored KPI,
 unavailable prose, or a retrospective best result.
 
-The writer creates one immutable `study-kpi` record and one deterministic row
-in `records/STUDY_KPI.md`. Missing, invalid, censored, or inapplicable values
-render as `-`, never zero or pass.
+The writer creates one immutable `study-kpi` Journal record at close. The
+lag-tolerant `records/STUDY_KPI.md` navigation view is reconstructed only during
+explicit maintenance and may not delay later valid science. When materialized,
+missing, invalid, censored, or inapplicable values render as `-`, never zero or
+pass. Use the authenticated query projection for current research decisions.
 
 At each Study close, explain in Korean chat:
 

@@ -2587,9 +2587,12 @@ class StateWriter:
                 "control_repaired": control_repaired,
                 "index_rebuilt": needs_rebuild,
             }
-        report["study_kpi_projection_changed"] = (
-            self.rebuild_study_kpi_projection()
-        )
+        # Recovery restores authority (Journal, control, and the reconstructible
+        # SQLite projection).  The Markdown KPI ledger is lag-tolerant
+        # navigation and is materialized only by explicit maintenance; making
+        # every recovery render complete KPI history would reintroduce the
+        # same history-linear bottleneck removed from routine Study close.
+        report["study_kpi_projection_changed"] = False
         return report
 
     def initialize_ready(
@@ -9403,7 +9406,12 @@ class StateWriter:
         return transition
 
     def rebuild_study_kpi_projection(self) -> bool:
-        """Materialize the tracked Markdown view from Journal-bound records."""
+        """Explicitly materialize the lag-tolerant Markdown navigation view.
+
+        This intentionally performs a complete authority scan.  Routine Study
+        close never calls it; the immutable ``study-kpi`` Journal record is the
+        close-time authority and Git delivery validates only the bounded suffix.
+        """
 
         rows: list[StudyKpiProjectionRow] = []
         with WriterLock(self.lock_path):
@@ -9844,8 +9852,6 @@ class StateWriter:
             },
             prepare=prepare,
         )
-        if not self.engineering_fixture:
-            self.rebuild_study_kpi_projection()
         return transition
 
     @staticmethod
