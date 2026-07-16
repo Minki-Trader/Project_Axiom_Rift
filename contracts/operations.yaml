@@ -278,6 +278,14 @@ repair:
   scientific_identity_frozen: true
   scientific_trial_delta: 0
   scientific_failure_delta: 0
+  started_batch_exit:
+    no_final_completion_outcomes: [budget_exhausted]
+    exact_frozen_budget_exhaustion_is_writer_derived: true
+    engineering_not_evaluable_or_early_stop_requires_stop_batch: true
+    typed_unrecovered_engineering_completion_required: true
+    batch_outcome_must_match_typed_engineering_completion: true
+    continue_batch_can_dispose_started_batch: false
+    legacy_pre_activation_projection_is_read_only: true
   required:
     - cause
     - minimum_reproduction
