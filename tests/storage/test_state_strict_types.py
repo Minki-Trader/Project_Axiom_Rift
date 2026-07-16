@@ -3,7 +3,10 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import subprocess
+import sys
 from tempfile import TemporaryDirectory
+from time import monotonic
 import unittest
 from unittest.mock import patch
 
@@ -293,6 +296,54 @@ class ControlStrictTypeTests(unittest.TestCase):
             with WriterLock(path, create_if_missing=False):
                 pass
             self.assertEqual(path.read_bytes(), b"\0")
+
+    def test_cross_process_waits_before_reading_the_locked_sentinel(self) -> None:
+        with TemporaryDirectory() as temporary:
+            path = Path(temporary) / "writer.lock"
+            path.write_bytes(b"\0")
+            repository_root = Path(__file__).resolve().parents[2]
+            environment = os.environ.copy()
+            existing_python_path = environment.get("PYTHONPATH")
+            environment["PYTHONPATH"] = os.pathsep.join(
+                value
+                for value in (
+                    str(repository_root / "src"),
+                    existing_python_path,
+                )
+                if value
+            )
+            script = (
+                "from pathlib import Path; import sys, time; "
+                "from axiom_rift.storage.state import WriterLock; "
+                "lock=WriterLock(Path(sys.argv[1]), create_if_missing=False); "
+                "lock.__enter__(); print('locked', flush=True); "
+                "time.sleep(0.5); lock.__exit__(None, None, None)"
+            )
+            process = subprocess.Popen(
+                (sys.executable, "-c", script, str(path)),
+                cwd=repository_root,
+                env=environment,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                assert process.stdout is not None
+                self.assertEqual(process.stdout.readline().strip(), "locked")
+                started = monotonic()
+                with WriterLock(
+                    path,
+                    create_if_missing=False,
+                    timeout_seconds=2,
+                ):
+                    pass
+                self.assertGreaterEqual(monotonic() - started, 0.2)
+                stdout, stderr = process.communicate(timeout=3)
+                self.assertEqual(process.returncode, 0, (stdout, stderr))
+            finally:
+                if process.poll() is None:
+                    process.kill()
+                    process.wait(timeout=3)
 
     def test_writer_lock_rejects_a_hard_link_alias(self) -> None:
         with TemporaryDirectory() as temporary:

@@ -171,11 +171,6 @@ class WriterLock(AbstractContextManager["WriterLock"]):
                     )
                 self._handle.write(b"\0")
                 self._handle.flush()
-            self._handle.seek(0)
-            if self._handle.read(2) != b"\0":
-                raise ControlStateError(
-                    "writer lock must contain exactly one sentinel byte"
-                )
             deadline = monotonic() + self.timeout_seconds
             while True:
                 try:
@@ -186,6 +181,11 @@ class WriterLock(AbstractContextManager["WriterLock"]):
                     if monotonic() >= deadline:
                         raise ConcurrentWriterError("writer process lock is busy") from exc
                     sleep(0.05)
+            self._handle.seek(0)
+            if self._handle.read(2) != b"\0":
+                raise ControlStateError(
+                    "writer lock must contain exactly one sentinel byte"
+                )
             return self
         except BaseException:
             if self._handle is not None:
