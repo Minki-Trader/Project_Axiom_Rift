@@ -3181,3 +3181,11 @@ class LocalIndexView:
         """Project an append digest without exposing projection mutation."""
 
         return self.__index.projected_digest(records)
+
+    def full_maintenance_exactly_matches(
+        self,
+        records: Iterable[IndexRecord | Mapping[str, Any]],
+    ) -> bool:
+        """Audit the full projection only at an explicit maintenance boundary."""
+
+        return self.__index.exactly_matches(records)

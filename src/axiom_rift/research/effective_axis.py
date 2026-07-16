@@ -32,7 +32,7 @@ class EffectiveAxisStatus(str, Enum):
     BLOCKED_BY_INVALIDATED_SOURCE = "blocked_by_invalidated_source"
 
 
-AXIS_REOPEN_AUTHORITY_SCHEMA = "axis_reopen_authority.v1"
+AXIS_REOPEN_AUTHORITY_SCHEMA = "axis_reopen_authority.v2"
 
 
 def _ascii(name: str, value: object) -> str:
@@ -52,13 +52,131 @@ def _identity(name: str, value: object, prefix: str) -> str:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class AxisReopenEvidence:
+    """Exact noncredit authority that makes one historical prune reopenable."""
+
+    replay_resolution_record_ids: tuple[str, ...] = ()
+    evidence_scope_overlay_ids: tuple[str, ...] = ()
+    historical_cost_completion_ids: tuple[str, ...] = ()
+    historical_cost_latch_ids: tuple[str, ...] = ()
+    historical_cost_negative_memory_ids: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        values = (
+            self.replay_resolution_record_ids,
+            self.evidence_scope_overlay_ids,
+            self.historical_cost_completion_ids,
+            self.historical_cost_latch_ids,
+            self.historical_cost_negative_memory_ids,
+        )
+        if any(
+            type(items) is not tuple
+            or any(type(item) is not str for item in items)
+            for items in values
+        ):
+            raise EffectiveAxisError(
+                "axis reopen evidence must use frozen identity tuples"
+            )
+        resolutions, overlays, completions, latches, memories = (
+            tuple(sorted(items)) for items in values
+        )
+        replay_route = bool(resolutions or overlays)
+        cost_route = bool(completions or latches or memories)
+        if (
+            any(len(items) != len(set(items)) for items in (
+                resolutions,
+                overlays,
+                completions,
+                latches,
+                memories,
+            ))
+            or (replay_route and not (resolutions and overlays))
+            or (cost_route and not (completions and latches and memories))
+            or not (replay_route or cost_route)
+        ):
+            raise EffectiveAxisError(
+                "axis reopen authority requires exact replay/scope or cost evidence"
+            )
+        for record_id in resolutions:
+            _identity(
+                "axis reopen replay resolution",
+                record_id,
+                "historical-replay-satisfaction:",
+            )
+        for overlay_id in overlays:
+            _identity(
+                "axis reopen evidence-scope overlay",
+                overlay_id,
+                "historical-evidence-scope:",
+            )
+        for completion_id in completions:
+            if len(completion_id) != 64 or any(
+                char not in "0123456789abcdef" for char in completion_id
+            ):
+                raise EffectiveAxisError(
+                    "axis reopen cost completion must be a SHA-256 digest"
+                )
+        for latch_id in latches:
+            _identity(
+                "axis reopen historical cost latch",
+                latch_id,
+                "historical-cost-semantics-latch:",
+            )
+        for memory_id in memories:
+            _identity(
+                "axis reopen historical cost negative memory",
+                memory_id,
+                "negative-memory:",
+            )
+        object.__setattr__(self, "replay_resolution_record_ids", resolutions)
+        object.__setattr__(self, "evidence_scope_overlay_ids", overlays)
+        object.__setattr__(self, "historical_cost_completion_ids", completions)
+        object.__setattr__(self, "historical_cost_latch_ids", latches)
+        object.__setattr__(
+            self,
+            "historical_cost_negative_memory_ids",
+            memories,
+        )
+
+    def to_action_fields(self) -> dict[str, object]:
+        fields: dict[str, object] = {}
+        if self.replay_resolution_record_ids:
+            fields.update(
+                {
+                    "evidence_scope_overlay_ids": list(
+                        self.evidence_scope_overlay_ids
+                    ),
+                    "replay_resolution_record_ids": list(
+                        self.replay_resolution_record_ids
+                    ),
+                }
+            )
+        if self.historical_cost_completion_ids:
+            fields.update(
+                {
+                    "historical_cost_completion_ids": list(
+                        self.historical_cost_completion_ids
+                    ),
+                    "historical_cost_latch_ids": list(
+                        self.historical_cost_latch_ids
+                    ),
+                    "historical_cost_negative_memory_ids": list(
+                        self.historical_cost_negative_memory_ids
+                    ),
+                }
+            )
+        return fields
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class AxisReopenAuthority:
     """One-shot authority to reverse one audit-invalidated historical prune.
 
     The original snapshot remains immutable.  This record binds the exact
-    structural Decision, the exact pruned axis, and every audit-only replay
-    resolution and evidence-scope overlay that made the old prune uncertain.
-    Only a later snapshot derived from that Decision may consume it.
+    structural Decision, the exact pruned axis, and either every audit-only
+    replay/scope identity or every historical cost completion/latch/negative-
+    memory identity that made the old prune uncertain.  Only a later snapshot
+    derived from that Decision may consume it.
     """
 
     mission_id: str
@@ -68,6 +186,9 @@ class AxisReopenAuthority:
     axis_identity: str
     replay_resolution_record_ids: tuple[str, ...]
     evidence_scope_overlay_ids: tuple[str, ...]
+    historical_cost_completion_ids: tuple[str, ...] = ()
+    historical_cost_latch_ids: tuple[str, ...] = ()
+    historical_cost_negative_memory_ids: tuple[str, ...] = ()
     prior_snapshot_status: str = "pruned"
     authorized_snapshot_status: str = "preserved"
 
@@ -92,46 +213,42 @@ class AxisReopenAuthority:
             raise EffectiveAxisError(
                 "axis reopen authority may only preserve an audit-deferred prune"
             )
-        if (
-            type(self.replay_resolution_record_ids) is not tuple
-            or any(
-                type(item) is not str
-                for item in self.replay_resolution_record_ids
-            )
-            or type(self.evidence_scope_overlay_ids) is not tuple
-            or any(
-                type(item) is not str
-                for item in self.evidence_scope_overlay_ids
-            )
-        ):
-            raise EffectiveAxisError(
-                "axis reopen evidence must use frozen identity tuples"
-            )
-        resolutions = tuple(sorted(self.replay_resolution_record_ids))
-        overlays = tuple(sorted(self.evidence_scope_overlay_ids))
-        if (
-            not resolutions
-            or len(resolutions) != len(set(resolutions))
-            or not overlays
-            or len(overlays) != len(set(overlays))
-        ):
-            raise EffectiveAxisError(
-                "axis reopen authority requires unique replay and scope evidence"
-            )
-        for record_id in resolutions:
-            _identity(
-                "axis reopen replay resolution",
-                record_id,
-                "historical-replay-satisfaction:",
-            )
-        for overlay_id in overlays:
-            _identity(
-                "axis reopen evidence-scope overlay",
-                overlay_id,
-                "historical-evidence-scope:",
-            )
-        object.__setattr__(self, "replay_resolution_record_ids", resolutions)
-        object.__setattr__(self, "evidence_scope_overlay_ids", overlays)
+        evidence = AxisReopenEvidence(
+            replay_resolution_record_ids=self.replay_resolution_record_ids,
+            evidence_scope_overlay_ids=self.evidence_scope_overlay_ids,
+            historical_cost_completion_ids=(
+                self.historical_cost_completion_ids
+            ),
+            historical_cost_latch_ids=self.historical_cost_latch_ids,
+            historical_cost_negative_memory_ids=(
+                self.historical_cost_negative_memory_ids
+            ),
+        )
+        object.__setattr__(
+            self,
+            "replay_resolution_record_ids",
+            evidence.replay_resolution_record_ids,
+        )
+        object.__setattr__(
+            self,
+            "evidence_scope_overlay_ids",
+            evidence.evidence_scope_overlay_ids,
+        )
+        object.__setattr__(
+            self,
+            "historical_cost_completion_ids",
+            evidence.historical_cost_completion_ids,
+        )
+        object.__setattr__(
+            self,
+            "historical_cost_latch_ids",
+            evidence.historical_cost_latch_ids,
+        )
+        object.__setattr__(
+            self,
+            "historical_cost_negative_memory_ids",
+            evidence.historical_cost_negative_memory_ids,
+        )
 
     @property
     def identity(self) -> str:
@@ -146,6 +263,15 @@ class AxisReopenAuthority:
             "axis_id": self.axis_id,
             "axis_identity": self.axis_identity,
             "evidence_scope_overlay_ids": list(self.evidence_scope_overlay_ids),
+            "historical_cost_completion_ids": list(
+                self.historical_cost_completion_ids
+            ),
+            "historical_cost_latch_ids": list(
+                self.historical_cost_latch_ids
+            ),
+            "historical_cost_negative_memory_ids": list(
+                self.historical_cost_negative_memory_ids
+            ),
             "mission_id": self.mission_id,
             "portfolio_decision_id": self.portfolio_decision_id,
             "portfolio_snapshot_id": self.portfolio_snapshot_id,
@@ -430,6 +556,75 @@ class EvidenceScopeAxisBinding:
         }
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class HistoricalCostAxisBinding:
+    """One old completion whose native-cost negative authority is qualified."""
+
+    axis_id: str
+    axis_identity: str
+    completion_record_id: str
+    executable_id: str
+    latch_record_id: str
+    semantic_class: str
+    negative_memory_ids: tuple[str, ...]
+    preserved_independent_scopes: tuple[str, ...]
+
+    def __post_init__(self) -> None:
+        _ascii("historical cost axis id", self.axis_id)
+        _identity("historical cost axis identity", self.axis_identity, "axis:")
+        completion = _ascii(
+            "historical cost completion", self.completion_record_id
+        )
+        if len(completion) != 64 or any(
+            char not in "0123456789abcdef" for char in completion
+        ):
+            raise EffectiveAxisError(
+                "historical cost completion must be a SHA-256 digest"
+            )
+        _identity(
+            "historical cost Executable", self.executable_id, "executable:"
+        )
+        _identity(
+            "historical cost latch",
+            self.latch_record_id,
+            "historical-cost-semantics-latch:",
+        )
+        _ascii("historical cost semantic class", self.semantic_class)
+        memories = tuple(sorted(self.negative_memory_ids))
+        scopes = tuple(sorted(self.preserved_independent_scopes))
+        if (
+            len(memories) != len(set(memories))
+            or any(
+                not value.startswith("negative-memory:") for value in memories
+            )
+            or len(scopes) != len(set(scopes))
+            or any(not value.isascii() or not value for value in scopes)
+        ):
+            raise EffectiveAxisError(
+                "historical cost axis authority inventory is malformed"
+            )
+        object.__setattr__(self, "negative_memory_ids", memories)
+        object.__setattr__(self, "preserved_independent_scopes", scopes)
+
+    @property
+    def requires_reopen(self) -> bool:
+        return bool(self.negative_memory_ids)
+
+    def to_projection_payload(self) -> dict[str, object]:
+        return {
+            "axis_id": self.axis_id,
+            "axis_identity": self.axis_identity,
+            "completion_record_id": self.completion_record_id,
+            "executable_id": self.executable_id,
+            "latch_record_id": self.latch_record_id,
+            "negative_memory_ids": list(self.negative_memory_ids),
+            "preserved_independent_scopes": list(
+                self.preserved_independent_scopes
+            ),
+            "semantic_class": self.semantic_class,
+        }
+
+
 def _project_effective_status(
     *,
     snapshot_status: str,
@@ -437,6 +632,7 @@ def _project_effective_status(
     source_replacements: tuple[SourceReplacementBinding, ...],
     replay_bindings: tuple[ReplayAxisBinding, ...],
     evidence_scope_bindings: tuple[EvidenceScopeAxisBinding, ...],
+    historical_cost_bindings: tuple[HistoricalCostAxisBinding, ...],
 ) -> EffectiveAxisStatus:
     """Project axis authority without promoting completion scope to axis scope."""
 
@@ -462,8 +658,12 @@ def _project_effective_status(
         and item.resolution_scope is ReplayResolutionScope.AUDIT_ONLY
         for item in replay_bindings
     )
+    cost_qualified_negative = any(
+        item.requires_reopen for item in historical_cost_bindings
+    )
     if snapshot_status == "deferred" or (
-        snapshot_status == "pruned" and audit_only_completion_scope
+        snapshot_status == "pruned"
+        and (audit_only_completion_scope or cost_qualified_negative)
     ):
         # Current authority cannot prove that a historical prune was independent
         # of the now zero-credit completion.  Reopen it explicitly rather than
@@ -485,6 +685,7 @@ class EffectiveAxisResolution:
     replay_bindings: tuple[ReplayAxisBinding, ...]
     evidence_scope_bindings: tuple[EvidenceScopeAxisBinding, ...]
     effective_status: EffectiveAxisStatus
+    historical_cost_bindings: tuple[HistoricalCostAxisBinding, ...] = ()
 
     def __post_init__(self) -> None:
         _ascii("axis id", self.axis_id)
@@ -574,12 +775,36 @@ class EffectiveAxisResolution:
             for item in scope_bindings
         ):
             raise EffectiveAxisError("evidence-scope binding belongs to another axis")
+        cost_bindings = tuple(
+            sorted(
+                self.historical_cost_bindings,
+                key=lambda item: item.completion_record_id,
+            )
+        )
+        if any(
+            not isinstance(item, HistoricalCostAxisBinding)
+            for item in cost_bindings
+        ) or len({item.completion_record_id for item in cost_bindings}) != len(
+            cost_bindings
+        ):
+            raise EffectiveAxisError(
+                "historical cost axis bindings are malformed or ambiguous"
+            )
+        if any(
+            item.axis_id != self.axis_id
+            or item.axis_identity != self.axis_identity
+            for item in cost_bindings
+        ):
+            raise EffectiveAxisError(
+                "historical cost binding belongs to another axis"
+            )
         expected = _project_effective_status(
             snapshot_status=self.snapshot_status,
             invalidations=invalidations,
             source_replacements=source_replacements,
             replay_bindings=replay_bindings,
             evidence_scope_bindings=scope_bindings,
+            historical_cost_bindings=cost_bindings,
         )
         if self.effective_status is not expected:
             raise EffectiveAxisError("effective axis status conflicts with its authority")
@@ -588,6 +813,7 @@ class EffectiveAxisResolution:
         object.__setattr__(self, "source_replacements", source_replacements)
         object.__setattr__(self, "replay_bindings", replay_bindings)
         object.__setattr__(self, "evidence_scope_bindings", scope_bindings)
+        object.__setattr__(self, "historical_cost_bindings", cost_bindings)
 
     @property
     def status(self) -> EffectiveAxisStatus:
@@ -623,6 +849,14 @@ class EffectiveAxisResolution:
         current source, replay, or scope authority is unresolved.
         """
 
+        if (
+            self.effective_status
+            is EffectiveAxisStatus.DEFERRED_REQUIRES_REOPEN
+            and any(
+                item.requires_reopen for item in self.historical_cost_bindings
+            )
+        ):
+            return False
         return self.effective_status in {
             EffectiveAxisStatus.SELECTABLE,
             EffectiveAxisStatus.PRUNED,
@@ -656,13 +890,83 @@ class EffectiveAxisResolution:
                 item.to_projection_payload()
                 for item in self.evidence_scope_bindings
             ],
-            "schema": "effective_portfolio_axis.v3",
+            "historical_cost_bindings": [
+                item.to_projection_payload()
+                for item in self.historical_cost_bindings
+            ],
+            "schema": "effective_portfolio_axis.v4",
             "snapshot_status": self.snapshot_status,
             "source_contract_ids": list(self.source_contract_ids),
             "decision_option_eligible": self.decision_option_eligible,
             "requires_reopen": self.requires_reopen,
             "terminal_eligible": self.terminal_eligible,
         }
+
+
+def axis_reopen_evidence(
+    resolution: EffectiveAxisResolution,
+) -> AxisReopenEvidence:
+    """Project the exact noncredit evidence behind one deferred old prune."""
+
+    if (
+        not isinstance(resolution, EffectiveAxisResolution)
+        or resolution.effective_status
+        is not EffectiveAxisStatus.DEFERRED_REQUIRES_REOPEN
+        or resolution.snapshot_status != "pruned"
+    ):
+        raise EffectiveAxisError(
+            "axis reopen authority requires one audit-deferred historical prune"
+        )
+    audit_bindings = tuple(
+        binding
+        for binding in resolution.replay_bindings
+        if binding.status is ReplayObligationStatus.SATISFIED
+        and binding.resolution_scope is ReplayResolutionScope.AUDIT_ONLY
+    )
+    replay_resolution_ids = tuple(
+        sorted(
+            {binding.state_record_id for binding in audit_bindings}.union(
+                resolution_id
+                for binding in resolution.evidence_scope_bindings
+                for resolution_id in binding.replay_resolution_ids
+            )
+        )
+    )
+    binding_overlay_ids = {
+        binding.evidence_scope_overlay_id
+        for binding in audit_bindings
+        if binding.evidence_scope_overlay_id is not None
+    }
+    evidence_scope_overlay_ids = tuple(
+        sorted(
+            binding_overlay_ids.union(
+                binding.overlay_record_id
+                for binding in resolution.evidence_scope_bindings
+            )
+        )
+    )
+    cost_bindings = tuple(
+        binding
+        for binding in resolution.historical_cost_bindings
+        if binding.requires_reopen
+    )
+    return AxisReopenEvidence(
+        replay_resolution_record_ids=replay_resolution_ids,
+        evidence_scope_overlay_ids=evidence_scope_overlay_ids,
+        historical_cost_completion_ids=tuple(
+            binding.completion_record_id for binding in cost_bindings
+        ),
+        historical_cost_latch_ids=tuple(
+            {binding.latch_record_id for binding in cost_bindings}
+        ),
+        historical_cost_negative_memory_ids=tuple(
+            {
+                memory_id
+                for binding in cost_bindings
+                for memory_id in binding.negative_memory_ids
+            }
+        ),
+    )
 
 
 def resolve_effective_axis(
@@ -675,6 +979,7 @@ def resolve_effective_axis(
     source_replacements: tuple[SourceReplacementBinding, ...] = (),
     replay_bindings: tuple[ReplayAxisBinding, ...] = (),
     evidence_scope_bindings: tuple[EvidenceScopeAxisBinding, ...] = (),
+    historical_cost_bindings: tuple[HistoricalCostAxisBinding, ...] = (),
 ) -> EffectiveAxisResolution:
     """Resolve current selectability without mutating the historical snapshot."""
 
@@ -684,6 +989,7 @@ def resolve_effective_axis(
         source_replacements=source_replacements,
         replay_bindings=replay_bindings,
         evidence_scope_bindings=evidence_scope_bindings,
+        historical_cost_bindings=historical_cost_bindings,
     )
     return EffectiveAxisResolution(
         axis_id=axis_id,
@@ -695,18 +1001,22 @@ def resolve_effective_axis(
         replay_bindings=replay_bindings,
         evidence_scope_bindings=evidence_scope_bindings,
         effective_status=status,
+        historical_cost_bindings=historical_cost_bindings,
     )
 
 
 __all__ = [
     "AXIS_REOPEN_AUTHORITY_SCHEMA",
     "AxisReopenAuthority",
+    "AxisReopenEvidence",
     "EffectiveAxisError",
     "EffectiveAxisResolution",
     "EffectiveAxisStatus",
     "EvidenceScopeAxisBinding",
+    "HistoricalCostAxisBinding",
     "ReplayAxisBinding",
     "SourceInvalidationBinding",
     "SourceReplacementBinding",
+    "axis_reopen_evidence",
     "resolve_effective_axis",
 ]

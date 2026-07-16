@@ -72,11 +72,29 @@ authority_migration:
     correction_state_uses_a_second_local_commit: true
     both_commits_delivered_by_one_non_force_fast_forward_push: true
     force_push_allowed: false
-    correction_journal_event_upper_bound: 2
+    correction_journal_event_upper_bound_source: exact_reviewed_plan_inventory
+    exact_ordered_correction_event_inventory_required: true
+    correction_event_operation_ids_unique_and_frozen: true
+    correction_event_kinds_and_subjects_frozen: true
+    correction_event_count_equals_plan_inventory_count: true
+    caller_selected_or_expanded_event_bound_allowed: false
+    resumable_suffix_must_be_exact_plan_prefix: true
+    foreign_or_out_of_order_suffix_allowed: false
     segmented_journal_headroom_uses_max_event_bytes: true
     resumable_headroom_subtracts_exact_head_suffix_events: true
     insufficient_segment_headroom_blocks_before_correction_mutation: true
     segmented_rollover_during_this_one_off_correction_allowed: false
+    canonical_apply_python_startup:
+      isolated_no_site_no_user_site_ignore_environment_and_safe_path_required: true
+      unsafe_parent_self_reexec_is_authority: false
+      startup_sitecustomize_usercustomize_and_pth_execution_allowed: false
+      tracked_or_untracked_automatic_load_and_native_shadow_under_import_roots_allowed: false
+      ignored_or_stale_project_bytecode_execution_allowed: false
+      empty_private_pycache_prefix_and_no_bytecode_write_required: true
+      import_root_sourceless_bytecode_and_native_shadow_scan_is_filesystem_based: true
+      exact_resolved_project_import_bytes_are_plan_bound: true
+      python_implementation_version_executable_and_pyyaml_record_provenance_are_plan_bound: true
+      import_resolution_drift_blocks_before_correction_mutation: true
 goal_ingress:
   persistent_project_goal_authority: OPERATING_DIRECTION.md
   bare_or_one_line_goal_allowed: true
@@ -588,7 +606,74 @@ project_goal_audit_correction:
   historical_state_rewrite_allowed: false
   accepted_unstarted_decision_withdrawal_requires_exact_basis_and_evidence: true
   source_authority_invalidation_is_additive_and_latched: true
+  completion_scientific_validity_invalidation_is_additive_and_completion_scoped: true
+  invalid_completion_negative_memory_is_diagnostic_only: true
   prospective_protocol_rebinds_after_later_authority_migration: true
+  correction_plan_is_content_addressed_and_head_bound: true
+  correction_plan_freezes_exact_ordered_event_inventory: true
+  correction_resume_accepts_only_an_exact_committed_plan_prefix: true
+  correction_event_execution:
+    normal_apply_clock_observation: just_in_time_single_use
+    recovery_recorded_timestamp_role: exact_byte_replay_only
+    external_wall_clock_authority_from_recovery: false
+    one_shot_full_canonical_event_preappend_expectation_required: true
+    preappend_comparison_precedes_segment_rotation_file_open_and_write: true
+    mismatch_or_unconsumed_expectation_leaves_journal_unchanged: true
+    same_writer_shadow_replay_is_independent_semantic_authority: false
+    independently_derived_full_semantic_row_mapping_is_core_bound: true
+    independently_derived_full_operation_result_mapping_is_core_bound: true
+    independently_derived_full_event_control_mapping_is_required: true
+    event_one_control_delta_is_exact_authority_manifest_replacement_only: true
+    events_two_and_three_control_delta_is_zero: true
+    events_four_through_six_control_delta_is_exact_typed_scheduler_constraints_only: true
+    event_seven_control_delta_is_zero: true
+    independent_index_record_count_and_projection_digest_chain_is_required: true
+    independent_sequence_predecessor_global_offset_and_event_id_chain_is_required: true
+    subset_identity_payload_status_fingerprint_or_result_comparison_allowed: false
+    dynamic_cursor_bound_rows_require_pure_projection_and_frozen_execution_closure: true
+    apply_boundary_is_verified_before_any_durable_evidence_mutation: true
+    apply_boundary_binds_supplied_control_and_journal_snapshot_to_exact_worktree_bytes: true
+    apply_boundary_independently_assembles_full_control_from_the_verified_prefix: true
+    apply_boundary_is_reverified_after_evidence_readback_before_recovery_or_append: true
+    recovery_materializes_and_reads_back_every_exact_durable_evidence_input: true
+    recovery_without_a_verified_correction_suffix_allowed: false
+    recovery_requires_exact_trailing_event_and_full_predecessor_projection_audit: true
+    recovery_of_corrupt_foreign_or_nonpredecessor_projection_allowed: false
+    recovery_admission_and_mutation_share_one_writer_lock: true
+    recovery_rechecks_the_exact_tail_after_storage_repair_before_control_or_index_mutation: true
+    canonical_correction_may_call_generic_recover: false
+  replay_priority_escalation:
+    single_writer_route: record_historical_scientific_adjudications
+    event: historical_scientific_adjudications_recorded
+    immutable_obligation_is_reused: true
+    permitted_transition: p1_to_p0_only
+    current_completion_invalidation_and_accepted_satisfaction_required: true
+    same_event_adjudication_and_overlay_required: true
+    scheduler_uses_effective_priority: true
+    control_authority_and_credit_delta: 0
+  historical_cost_semantics_latch:
+    single_writer_route: record_historical_cost_semantics_latch
+    event: historical_cost_semantics_latch_recorded
+    requires_active_stable_portfolio_boundary: true
+    stream_starts_once_at_sequence_one: true
+    later_or_parallel_head_allowed: false
+    current_authenticated_index_exact_rederivation_required: true
+    same_event_keyed_completion_projection_required: true
+    routine_consumption_is_completion_or_negative_memory_keyed: true
+    routine_frozen_inventory_scan_allowed: false
+    malformed_activated_projection_fails_closed: true
+    preactivation_absence_is_compatible: true
+    actual_or_native_cost_negative_role: unresolved_diagnostic_only
+    affected_pruned_axis_state: deferred_requires_reopen
+    affected_axis_terminal_eligible_before_reopen: false
+    frozen_upper_authority_cursor_excludes_later_completions: true
+    control_and_next_action_change: false
+    scientific_economic_candidate_terminal_trial_and_holdout_delta: 0
+    same_event_result_allows_additional_fields: false
+    same_event_result_fields:
+      - audit_manifest_hash
+      - authority_delta
+      - latch_record_id
 job_result_semantics:
   operational_success_requires_declared_outputs_and_validation: true
   scientific_verdict_is_independent: true
@@ -692,11 +777,18 @@ project_goal_audit_v2_operations:
     fixture_scientific_authority: false
   audit_correction:
     historical_evidence_scope_overlay_is_additive: true
+    historical_completion_validity_invalidation_is_additive: true
+    completion_validity_requires_exact_writer_event_and_zero_delta_inventory: true
+    completion_validity_requires_exact_ascii_audit_finding_slice: true
+    completion_validity_stream_starts_at_sequence_one_only: true
     effective_axis_projection_applies_invalid_source_and_replay_overlays: true
     pruned_axis_reopen:
+      authority_schema: axis_reopen_authority.v2
       additive_typed_authority_required: true
       exact_deferred_requires_reopen_projection_required: true
-      exact_prior_snapshot_decision_axis_replay_and_scope_evidence_bound: true
+      exact_prior_snapshot_decision_axis_and_typed_evidence_bound: true
+      replay_route_requires_resolution_and_scope_ids: true
+      historical_cost_route_requires_completion_latch_and_negative_memory_ids: true
       authorized_transition: pruned_to_preserved
       original_snapshot_rewrite_allowed: false
       arbitrary_or_cross_axis_reuse_allowed: false
@@ -713,15 +805,23 @@ project_goal_audit_v2_operations:
       exact_new_executable_match_required: true
       first_trial_fallback_allowed: false
       one_new_executable_matches_at_most_one_original: true
+      superseding_adjudication_reuses_exact_original_completion_obligation: true
+      supersession_lineage_to_obligation_origin_required: true
+      duplicate_obligation_for_same_original_completion_allowed: false
       satisfaction_is_single_writer_only: true
       defer_requires_exact_resume_condition: true
       satisfaction_invalidation:
         plan_is_read_only_and_state_derived: true
         canonical_audit_manifest_hash_required_at_commit: true
+        defect_manifest_is_a_sorted_typed_union: true
         permitted_exact_E01_batch_family_revalidation_failures:
           - selection_family_size_mismatch
           - selection_family_disagreement
           - selection_family_membership_mismatch
+        permitted_exact_completion_validity_failure:
+          - evidence_completion_validity_invalid
+        any_invalid_concurrent_family_completion_revokes_scientific_satisfaction: true
+        audit_only_satisfaction_completion_validity_revocation_allowed: false
         historical_membership_defect_requires_member_set_mismatch: true
         same_member_set_order_only_difference_returns_obligation_to_pending: false
         prospective_resolution_exact_canonical_order_required: true

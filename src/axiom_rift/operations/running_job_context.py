@@ -9,14 +9,16 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any, Protocol
 
-import axiom_rift.operations.scientific_history as scientific_history_module
 import axiom_rift.operations.recorded_transition_authority as recorded_transition_authority_module
+import axiom_rift.operations.scientific_history as scientific_history_module
+from axiom_rift.operations import completion_validity_projection
 import axiom_rift.research.historical_family_binding as historical_family_binding_module
 import axiom_rift.research.replay_exposure as replay_exposure_module
 import axiom_rift.research.replay_obligation as replay_obligation_module
 import axiom_rift.research.replay_satisfaction_invalidation as replay_satisfaction_invalidation_module
 import axiom_rift.research.trials as trials_module
 import axiom_rift.storage.evidence as evidence_module
+from axiom_rift.research import historical_scientific_validity
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.running_job import (
@@ -35,6 +37,11 @@ from axiom_rift.operations.recorded_transition_authority import (
     RecordedTransitionAuthorityError,
     authority_key,
     require_recorded_transition_authority,
+    require_same_event_operation_result,
+)
+from axiom_rift.operations.completion_validity_projection import (
+    CompletionValidityProjectionError,
+    current_completion_validity_invalidation,
 )
 from axiom_rift.research.replay_exposure import FrozenFamilyExposureContext
 from axiom_rift.research.historical_family_binding import (
@@ -45,10 +52,16 @@ from axiom_rift.research.historical_family_binding import (
 from axiom_rift.research.replay_obligation import (
     ReplayExecutionBinding,
     ReplayObligationError,
+    ReplayResolutionScope,
+    ReplaySatisfaction,
     historical_replay_obligation_from_identity_payload,
 )
 from axiom_rift.research.replay_satisfaction_invalidation import (
+    ReplayCompletionValidityDefect,
     ReplaySatisfactionInvalidationAuditManifest,
+    ReplaySatisfactionInvalidationAuditManifestV2,
+    ReplaySatisfactionInvalidationManifest,
+    replay_satisfaction_invalidation_manifest_from_mapping,
 )
 from axiom_rift.research.trials import TrialAccountant
 from axiom_rift.storage.evidence import (
@@ -132,6 +145,196 @@ class RunningJobFixedHoldReplayContext:
     target_prospective_executable_id: str
 
 
+def _require_prior_family_authority(
+    index: Any,
+    *,
+    obligation: Any,
+    family_record: Any,
+    invalidation_authority: tuple[int, str, int],
+) -> None:
+    """Authenticate one previously accepted family without recreating it."""
+
+    try:
+        family_authority = authority_key(family_record)
+        _event_kind, family_result = require_same_event_operation_result(
+            index,
+            record=family_record,
+            expected_event_kinds=frozenset(
+                {"historical_replay_satisfaction_invalidated"}
+            ),
+        )
+    except RecordedTransitionAuthorityError as exc:
+        raise RunningJobAuthorityError(
+            "fixed-hold prior family authority lacks Writer authentication"
+        ) from exc
+    pending_ids = family_result.get("pending_replay_obligation_ids")
+    if (
+        family_authority[0] >= invalidation_authority[0]
+        or family_result.get("historical_family_authority_id")
+        != family_record.record_id
+        or family_result.get("replay_obligation_id") != obligation.identity
+        or not isinstance(pending_ids, list)
+        or any(type(item) is not str for item in pending_ids)
+        or pending_ids != sorted(set(pending_ids))
+        or obligation.identity not in pending_ids
+        or any(
+            family_result.get(field) != 0
+            for field in (
+                "candidate_delta",
+                "holdout_reveal_delta",
+                "scientific_claim_delta",
+                "scientific_satisfaction_delta",
+                "scientific_trial_delta",
+            )
+        )
+    ):
+        raise RunningJobAuthorityError(
+            "fixed-hold prior family authority does not predate the v2 correction"
+        )
+
+
+def _require_v2_scientific_satisfaction(
+    index: Any,
+    *,
+    obligation: Any,
+    predecessor: Any,
+    manifest: ReplaySatisfactionInvalidationAuditManifestV2,
+    invalidation_authority: tuple[int, str, int],
+) -> ReplaySatisfaction:
+    """Rebuild and authenticate the scientific satisfaction named by v2."""
+
+    raw = predecessor.payload.get("resolution")
+    try:
+        if not isinstance(raw, Mapping):
+            raise ReplayObligationError("replay satisfaction payload is absent")
+        satisfaction = ReplaySatisfaction(
+            obligation_id=raw["obligation_id"],
+            resolution_scope=ReplayResolutionScope(raw["resolution_scope"]),
+            portfolio_decision_id=raw["portfolio_decision_id"],
+            replay_study_id=raw["replay_study_id"],
+            replay_executable_id=raw["replay_executable_id"],
+            replay_study_close_record_id=raw[
+                "replay_study_close_record_id"
+            ],
+            study_diagnosis_id=raw["study_diagnosis_id"],
+            satisfied_criterion_ids=tuple(raw["satisfied_criterion_ids"]),
+            evidence_record_ids=tuple(raw["evidence_record_ids"]),
+            remaining_scientific_condition=raw.get(
+                "remaining_scientific_condition"
+            ),
+        )
+    except (KeyError, TypeError, ValueError, ReplayObligationError) as exc:
+        raise RunningJobAuthorityError(
+            "fixed-hold v2 correction satisfaction is malformed"
+        ) from exc
+    completion_ids = {
+        evidence_id
+        for evidence_id in satisfaction.evidence_record_ids
+        if index.get("job-completed", evidence_id) is not None
+    }
+    try:
+        satisfaction_authority = authority_key(predecessor)
+        _event_kind, result = require_same_event_operation_result(
+            index,
+            record=predecessor,
+            expected_event_kinds=frozenset(
+                {
+                    "historical_replay_correction_recorded",
+                    "historical_replay_obligations_resolved",
+                }
+            ),
+        )
+    except RecordedTransitionAuthorityError as exc:
+        raise RunningJobAuthorityError(
+            "fixed-hold v2 correction satisfaction lacks Writer authentication"
+        ) from exc
+    satisfied_ids = result.get("satisfied_replay_obligation_ids")
+    if (
+        satisfaction.resolution_scope is not ReplayResolutionScope.SCIENTIFIC
+        or satisfaction_authority[0] >= invalidation_authority[0]
+        or not isinstance(satisfied_ids, list)
+        or any(type(item) is not str for item in satisfied_ids)
+        or satisfied_ids != sorted(set(satisfied_ids))
+        or obligation.identity not in satisfied_ids
+        or predecessor.payload
+        != {
+            "obligation_id": obligation.identity,
+            "prior_status": predecessor.payload.get("prior_status"),
+            "resolution": satisfaction.to_identity_payload(),
+        }
+        or predecessor.payload.get("prior_status") not in {"pending", "in_progress"}
+        or satisfaction.identity != manifest.satisfaction_record_id
+        or satisfaction.obligation_id != obligation.identity
+        or satisfaction.portfolio_decision_id != manifest.portfolio_decision_id
+        or satisfaction.replay_study_id != manifest.replay_study_id
+        or satisfaction.replay_executable_id != manifest.replay_executable_id
+        or satisfaction.replay_study_close_record_id
+        != manifest.replay_study_close_record_id
+        or satisfaction.study_diagnosis_id != manifest.study_diagnosis_id
+        or completion_ids != set(manifest.completion_record_ids)
+    ):
+        raise RunningJobAuthorityError(
+            "fixed-hold v2 correction lost its exact scientific satisfaction"
+        )
+    return satisfaction
+
+
+def _require_v2_completion_validity_heads(
+    index: Any,
+    *,
+    manifest: ReplaySatisfactionInvalidationAuditManifestV2,
+    defect: ReplayCompletionValidityDefect,
+    satisfaction: ReplaySatisfaction,
+    invalidation_authority: tuple[int, str, int],
+) -> None:
+    """Rejoin every v2 observation to its exact current validity head."""
+
+    observations = {
+        observation.completion_record_id: observation
+        for observation in defect.observations
+    }
+    current_heads: dict[str, Any] = {}
+    for completion_id in manifest.completion_record_ids:
+        try:
+            current = current_completion_validity_invalidation(
+                index,
+                completion_id,
+            )
+        except CompletionValidityProjectionError as exc:
+            raise RunningJobAuthorityError(
+                "fixed-hold completion-validity head is malformed"
+            ) from exc
+        if current is not None:
+            current_heads[completion_id] = current
+    if set(current_heads) != set(observations):
+        raise RunningJobAuthorityError(
+            "fixed-hold completion-validity observations are not current and exact"
+        )
+    for completion_id, observation in observations.items():
+        current = current_heads[completion_id]
+        if (
+            current.completion_record_id != observation.completion_record_id
+            or current.executable_id != observation.executable_id
+            or current.invalidation_record_id
+            != observation.invalidation_record_id
+            or current.reason != observation.reason
+            or current.affected_criterion_ids
+            != observation.affected_criterion_ids
+            or current.validity_stream_sequence
+            != observation.validity_stream_sequence
+            or current.authority_event_id != observation.authority_event_id
+            or current.authority_sequence != observation.authority_sequence
+            or current.authority_offset != observation.authority_offset
+            or current.authority_sequence >= invalidation_authority[0]
+            or not set(observation.affected_criterion_ids).intersection(
+                satisfaction.satisfied_criterion_ids
+            )
+        ):
+            raise RunningJobAuthorityError(
+                "fixed-hold completion-validity observation is stale or unrelated"
+            )
+
+
 def _require_correction_pending_invalidation(
     index: Any,
     *,
@@ -139,13 +342,13 @@ def _require_correction_pending_invalidation(
     record: Any,
     family_record: Any,
     require_current_head: bool,
-) -> ReplaySatisfactionInvalidationAuditManifest:
-    """Authenticate the exact correction event that admitted family authority."""
+) -> ReplaySatisfactionInvalidationManifest:
+    """Authenticate the correction and its exact family-authority route."""
 
     raw_manifest = record.payload.get("audit_manifest")
     audit_hash = record.payload.get("audit_manifest_hash")
     try:
-        manifest = ReplaySatisfactionInvalidationAuditManifest.from_mapping(
+        manifest = replay_satisfaction_invalidation_manifest_from_mapping(
             raw_manifest
         )
     except (TypeError, ValueError) as exc:
@@ -204,19 +407,17 @@ def _require_correction_pending_invalidation(
             ),
             require_current_head=require_current_head,
         )
-        same_event = authority_key(record) == authority_key(family_record)
+        invalidation_authority = authority_key(record)
     except RecordedTransitionAuthorityError as exc:
         raise RunningJobAuthorityError(str(exc)) from exc
     pending_ids = result.get("pending_replay_obligation_ids")
     if (
-        not same_event
-        or result.get("audit_manifest_hash") != audit_hash
+        result.get("audit_manifest_hash") != audit_hash
         or result.get("invalidated_satisfaction_record_id")
         != manifest.satisfaction_record_id
         or result.get("replay_obligation_id") != obligation.identity
-        or result.get("historical_family_authority_id")
-        != family_record.record_id
         or not isinstance(pending_ids, list)
+        or any(type(item) is not str for item in pending_ids)
         or pending_ids != sorted(set(pending_ids))
         or obligation.identity not in pending_ids
         or any(
@@ -231,8 +432,62 @@ def _require_correction_pending_invalidation(
         )
     ):
         raise RunningJobAuthorityError(
-            "fixed-hold correction lacks same-event Writer authority"
+            "fixed-hold correction lacks exact zero-delta Writer authority"
         )
+    if isinstance(manifest, ReplaySatisfactionInvalidationAuditManifest):
+        try:
+            same_event = invalidation_authority == authority_key(family_record)
+        except RecordedTransitionAuthorityError as exc:
+            raise RunningJobAuthorityError(str(exc)) from exc
+        if (
+            not same_event
+            or result.get("historical_family_authority_id")
+            != family_record.record_id
+        ):
+            raise RunningJobAuthorityError(
+                "fixed-hold correction lacks same-event Writer authority"
+            )
+        return manifest
+
+    if not isinstance(manifest, ReplaySatisfactionInvalidationAuditManifestV2):
+        raise RunningJobAuthorityError(
+            "fixed-hold correction invalidation schema is unsupported"
+        )
+    completion_defects = tuple(
+        defect
+        for defect in manifest.defects
+        if isinstance(defect, ReplayCompletionValidityDefect)
+    )
+    if len(completion_defects) != 1:
+        raise RunningJobAuthorityError(
+            "fixed-hold v2 correction lacks one completion-validity defect"
+        )
+    if "historical_family_authority_id" in result:
+        raise RunningJobAuthorityError(
+            "fixed-hold v2 correction duplicated prior family authority"
+        )
+    _require_prior_family_authority(
+        index,
+        obligation=obligation,
+        family_record=family_record,
+        invalidation_authority=invalidation_authority,
+    )
+
+    satisfaction = _require_v2_scientific_satisfaction(
+        index,
+        obligation=obligation,
+        predecessor=predecessor,
+        manifest=manifest,
+        invalidation_authority=invalidation_authority,
+    )
+
+    _require_v2_completion_validity_heads(
+        index,
+        manifest=manifest,
+        defect=completion_defects[0],
+        satisfaction=satisfaction,
+        invalidation_authority=invalidation_authority,
+    )
     return manifest
 
 
@@ -986,8 +1241,10 @@ def running_job_execution_context_dependency_paths() -> tuple[Path, ...]:
         sorted(
             {
                 _THIS_FILE,
+                Path(completion_validity_projection.__file__).resolve(),
                 Path(evidence_module.__file__).resolve(),
                 Path(historical_family_binding_module.__file__).resolve(),
+                Path(historical_scientific_validity.__file__).resolve(),
                 Path(replay_exposure_module.__file__).resolve(),
                 Path(replay_obligation_module.__file__).resolve(),
                 Path(replay_satisfaction_invalidation_module.__file__).resolve(),

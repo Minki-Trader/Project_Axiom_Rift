@@ -14,6 +14,7 @@ from axiom_rift.research.replay_obligation import (
     ReplayDeferralBasisKind,
     ReplayDeferralExecutionBinding,
     ReplayObligationError,
+    ReplayPriorityEscalation,
     ReplayResolutionScope,
     ReplayResumeCondition,
     ReplayResumeConditionKind,
@@ -22,6 +23,7 @@ from axiom_rift.research.replay_obligation import (
     derive_historical_replay_obligation,
     historical_replay_obligation_from_identity_payload,
     highest_pending_priority,
+    replay_priority_escalation_from_identity_payload,
     replay_deferral_from_identity_payload,
 )
 
@@ -63,6 +65,37 @@ class ReplayObligationTests(unittest.TestCase):
         )
         self.assertEqual(rebuilt, expected)
         self.assertEqual(rebuilt.identity, expected.identity)
+
+    def test_priority_escalation_is_exact_one_way_additive_authority(self) -> None:
+        target = obligation(token=1, priority=ReplayPriority.P1)
+        escalation = ReplayPriorityEscalation(
+            governing_mission_id=target.governing_mission_id,
+            obligation_id=target.identity,
+            superseding_historical_adjudication_id=(
+                "historical-adjudication:" + "a" * 64
+            ),
+            completion_validity_invalidation_id=(
+                "historical-scientific-validity-invalidation:" + "b" * 64
+            ),
+            accepted_satisfaction_record_id=(
+                "historical-replay-satisfaction:" + "c" * 64
+            ),
+            audit_artifact_hash="d" * 64,
+            reason_codes=(
+                "accepted_replay_satisfaction_revocation_pending",
+                "decision_input_point_in_time_unproven",
+            ),
+        )
+        rebuilt = replay_priority_escalation_from_identity_payload(
+            escalation.to_identity_payload()
+        )
+        self.assertEqual(rebuilt, escalation)
+        self.assertIs(rebuilt.prior_priority, ReplayPriority.P1)
+        self.assertIs(rebuilt.effective_priority, ReplayPriority.P0)
+        forged = dict(escalation.to_identity_payload())
+        forged["effective_priority"] = "p1"
+        with self.assertRaisesRegex(ReplayObligationError, "malformed"):
+            replay_priority_escalation_from_identity_payload(forged)
 
     def test_p0_is_the_only_schedulable_priority_while_present(self) -> None:
         pending = (

@@ -23,7 +23,7 @@ from axiom_rift.research.discovery import (
     _paired_control_pvalue, _selection_adjusted_pvalues, _selection_method,
     _time_ns, _validate_engine_environment, _validate_fold_payloads,
     _validate_production_data, causal_effective_spread,
-    discovery_implementation_sha256,
+    completed_bar_spread_proxy_indices, discovery_implementation_sha256,
 )
 from axiom_rift.research.event_label_discovery import (
     HORIZON, RIDGE_PENALTY_MILLI, _labels, _raw_features, _score,
@@ -134,8 +134,8 @@ def cost_utility_objective_components() -> tuple[ComponentSpec, ...]:
             spec={"lot": 1, "same_across_profiles": True},
         ),
         ComponentSpec(
-            display_name="FPMarkets bid-bar spread execution",
-            protocol="execution.fpmarkets_bid_bar_spread.v7",
+            display_name="FPMarkets completed-period spread proxy execution",
+            protocol="execution.fpmarkets_completed_bar_spread_proxy.v7",
             implementation=_shared("execution_pnl"),
             spec={"point": "0.01", "stress": "half_effective_spread_each_side"},
         ),
@@ -149,7 +149,7 @@ def cost_utility_objective_executable(configuration: CostUtilityObjectiveConfigu
         data_contract=f"data:{OBSERVED_MATERIAL_ID}",
         split_contract=f"split:{ROLLING_SPLIT_SHA256}:rolling_windows_9_observed_development",
         clock_contract="clock:fpmarkets_m5_bar_open_completed_plus_5m_v7",
-        cost_contract="cost:bid_bar_spread_point_0_01_causal_zero_repair_half_spread_stress_v7",
+        cost_contract="cost:fpmarkets_completed_bar_spread_proxy_point_0_01_causal_zero_repair_half_spread_stress_v7",
         engine_contract=(
             f"engine:cost_utility_objective_v1:python{'.'.join(str(value) for value in sys.version_info[:3])}:"
             f"numpy{np.__version__}:pandas{pd.__version__}:scipy{scipy.__version__}:"
@@ -176,21 +176,35 @@ def _future_native_utility(
     indices = np.arange(last)
     entry_index = indices + 1
     exit_index = indices + HORIZON + 1
+    entry_proxy_index = completed_bar_spread_proxy_indices(
+        entry_index,
+        spread_count=len(effective_spread),
+    )
+    exit_proxy_index = completed_bar_spread_proxy_indices(
+        exit_index,
+        spread_count=len(effective_spread),
+    )
+    assert isinstance(entry_proxy_index, np.ndarray)
+    assert isinstance(exit_proxy_index, np.ndarray)
     opens = frame["open"].to_numpy(float)
     direction = label[indices]
     continuous = run[exit_index] >= HORIZON + 2
     valid = (
-        continuous & np.isfinite(direction) & np.isfinite(effective_spread[entry_index])
-        & np.isfinite(effective_spread[exit_index])
+        continuous
+        & np.isfinite(direction)
+        & np.isfinite(effective_spread[entry_proxy_index])
+        & np.isfinite(effective_spread[exit_proxy_index])
     )
     native = np.zeros(last, dtype=float)
     long_mask = direction == 1
     short_mask = direction == -1
     native[long_mask] = opens[exit_index[long_mask]] - (
-        opens[entry_index[long_mask]] + effective_spread[entry_index[long_mask]] * POINT
+        opens[entry_index[long_mask]]
+        + effective_spread[entry_proxy_index[long_mask]] * POINT
     )
     native[short_mask] = opens[entry_index[short_mask]] - (
-        opens[exit_index[short_mask]] + effective_spread[exit_index[short_mask]] * POINT
+        opens[exit_index[short_mask]]
+        + effective_spread[exit_proxy_index[short_mask]] * POINT
     )
     utility = np.where(direction == 0, 0.0, np.maximum(native, 0.0))
     result[indices[valid]] = utility[valid]

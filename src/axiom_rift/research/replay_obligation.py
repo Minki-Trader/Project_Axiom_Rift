@@ -279,6 +279,147 @@ def historical_replay_obligation_from_identity_payload(
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
+class ReplayPriorityEscalation:
+    """Additive P1-to-P0 authority over one immutable replay obligation.
+
+    The original obligation and its identity never change.  This record is
+    intentionally one-way: an audit may escalate urgent corrected work, but
+    it cannot demote an existing P0 duty or rewrite historical lineage.
+    """
+
+    governing_mission_id: str
+    obligation_id: str
+    superseding_historical_adjudication_id: str
+    completion_validity_invalidation_id: str
+    accepted_satisfaction_record_id: str
+    audit_artifact_hash: str
+    reason_codes: tuple[str, ...]
+    identity: str = field(init=False)
+
+    def __post_init__(self) -> None:
+        _ascii("governing Mission id", self.governing_mission_id)
+        _identity(
+            "replay obligation id",
+            self.obligation_id,
+            "historical-replay-obligation:",
+        )
+        _identity(
+            "superseding historical adjudication id",
+            self.superseding_historical_adjudication_id,
+            "historical-adjudication:",
+        )
+        _identity(
+            "completion validity invalidation id",
+            self.completion_validity_invalidation_id,
+            "historical-scientific-validity-invalidation:",
+        )
+        _identity(
+            "accepted replay satisfaction id",
+            self.accepted_satisfaction_record_id,
+            "historical-replay-satisfaction:",
+        )
+        _digest("priority escalation audit artifact", self.audit_artifact_hash)
+        reasons = _sorted_unique_ascii(
+            "priority escalation reason codes",
+            self.reason_codes,
+            nonempty=True,
+        )
+        object.__setattr__(self, "reason_codes", reasons)
+        object.__setattr__(
+            self,
+            "identity",
+            "historical-replay-priority-escalation:"
+            + canonical_digest(
+                domain="historical-replay-priority-escalation",
+                payload=self.to_identity_payload(),
+            ),
+        )
+
+    @property
+    def prior_priority(self) -> ReplayPriority:
+        return ReplayPriority.P1
+
+    @property
+    def effective_priority(self) -> ReplayPriority:
+        return ReplayPriority.P0
+
+    def to_identity_payload(self) -> dict[str, Any]:
+        return {
+            "accepted_satisfaction_record_id": (
+                self.accepted_satisfaction_record_id
+            ),
+            "audit_artifact_hash": self.audit_artifact_hash,
+            "completion_validity_invalidation_id": (
+                self.completion_validity_invalidation_id
+            ),
+            "effective_priority": ReplayPriority.P0.value,
+            "governing_mission_id": self.governing_mission_id,
+            "obligation_id": self.obligation_id,
+            "prior_priority": ReplayPriority.P1.value,
+            "reason_codes": list(self.reason_codes),
+            "schema": "historical_replay_priority_escalation.v1",
+            "superseding_historical_adjudication_id": (
+                self.superseding_historical_adjudication_id
+            ),
+        }
+
+
+def replay_priority_escalation_from_identity_payload(
+    value: Mapping[str, Any],
+) -> ReplayPriorityEscalation:
+    """Rehydrate an exact one-way replay priority escalation."""
+
+    expected = {
+        "accepted_satisfaction_record_id",
+        "audit_artifact_hash",
+        "completion_validity_invalidation_id",
+        "effective_priority",
+        "governing_mission_id",
+        "obligation_id",
+        "prior_priority",
+        "reason_codes",
+        "schema",
+        "superseding_historical_adjudication_id",
+    }
+    if (
+        not isinstance(value, Mapping)
+        or set(value) != expected
+        or value.get("schema")
+        != "historical_replay_priority_escalation.v1"
+        or value.get("prior_priority") != ReplayPriority.P1.value
+        or value.get("effective_priority") != ReplayPriority.P0.value
+    ):
+        raise ReplayObligationError(
+            "historical replay priority escalation payload is malformed"
+        )
+    try:
+        escalation = ReplayPriorityEscalation(
+            governing_mission_id=value["governing_mission_id"],
+            obligation_id=value["obligation_id"],
+            superseding_historical_adjudication_id=value[
+                "superseding_historical_adjudication_id"
+            ],
+            completion_validity_invalidation_id=value[
+                "completion_validity_invalidation_id"
+            ],
+            accepted_satisfaction_record_id=value[
+                "accepted_satisfaction_record_id"
+            ],
+            audit_artifact_hash=value["audit_artifact_hash"],
+            reason_codes=tuple(value["reason_codes"]),
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ReplayObligationError(
+            "historical replay priority escalation cannot be rebuilt"
+        ) from exc
+    if escalation.to_identity_payload() != dict(value):
+        raise ReplayObligationError(
+            "historical replay priority escalation changed on rebuild"
+        )
+    return escalation
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
 class ReplayExecutionBinding:
     """Exact prospective Decision and Study selected to execute obligations."""
 
@@ -850,6 +991,7 @@ __all__ = [
     "ReplayExecutionBinding",
     "ReplayObligationError",
     "ReplayObligationStatus",
+    "ReplayPriorityEscalation",
     "ReplayRepairBasisKind",
     "ReplayResolutionScope",
     "ReplayRepairProvenance",
@@ -860,5 +1002,6 @@ __all__ = [
     "derive_historical_replay_obligation",
     "historical_replay_obligation_from_identity_payload",
     "highest_pending_priority",
+    "replay_priority_escalation_from_identity_payload",
     "replay_deferral_from_identity_payload",
 ]

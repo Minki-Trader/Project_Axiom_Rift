@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from hashlib import sha256
@@ -108,6 +109,32 @@ from axiom_rift.research.historical_adjudication import (
     HistoricalValidityOverride,
     HistoricalValidityReason,
     ReplayPriority,
+)
+from axiom_rift.research.historical_scientific_validity import (
+    DecisionPredicateActivationState,
+    HistoricalScientificValidityInvalidation,
+    JobBindingKind,
+)
+from axiom_rift.operations.completion_validity_projection import (
+    current_completion_validity_invalidation,
+)
+from axiom_rift.operations.historical_cost_semantics_projection import (
+    LATCH_EVENT_KIND,
+    LATCH_RECORD_KIND,
+    LATCH_STREAM,
+    current_historical_cost_semantics_latch,
+    historical_cost_semantics_latch_record,
+)
+from axiom_rift.research.historical_cost_semantics import (
+    AUTHORITY_DELTA_ZERO as HISTORICAL_COST_AUTHORITY_DELTA_ZERO,
+    CAUSAL_INVALID_COMPLETION_IDS,
+    CAUSAL_INVALID_STUDY_CONTEXT_IDS,
+    EXCEPTIONAL_STUDY_CLASSES,
+    GOLDEN_CLASS_COMPLETION_SEALS,
+    GOLDEN_INVENTORY_SEALS,
+    HistoricalCostSemanticsLatch,
+    HistoricalSpreadSemanticsAuditManifest,
+    PRODUCTION_UPPER_CURSOR,
 )
 from axiom_rift.research.adjudication import (
     AdjudicationProfile,
@@ -221,6 +248,63 @@ def source_audit_report_bytes(
         f"  {source_contract_id},\n"
         f"  audited head {source_state_record_id};\n"
     ).encode("ascii")
+
+
+def historical_cost_semantics_report_bytes() -> bytes:
+    return (
+        "## Bound Findings\n\n"
+        "- AX-SPREAD-COST-001:\n"
+        "  spread cost Study operation count 104\n"
+        "  causal invalid A Study context count 11\n"
+        "  proxy-only B Study operation count 93\n"
+        "  proxy-only B completion count 501\n"
+        "  proxy-only B scientific completion count 488\n"
+        "  proxy-only B engineering completion count 13\n"
+        "  proxy-only B negative memory count 438\n"
+        "  proxy-only B historical adjudication count 444\n"
+        "  authority Journal sequence 5385\n"
+        "  authority Journal event "
+        "6b47964a60a8490e76ce921945071f282be61334e27706093bd51469ae519f65\n"
+        "  Study operation inventory digest "
+        "03309a5846e1df2d353247d2d1030e52a6c3fbc9f4298e74d31924850d359394\n"
+        "  completion inventory digest "
+        "6da1d79ad925b596f18d5ef2f42ecdeaa8c83fa4c0baf032968bcdc64b0b9a33\n"
+        "  scientific completion inventory digest "
+        "f406cd94f82581367a7f52851e63e5799c9e81c8f7343b0e307051447fb501f9\n"
+        "  scientific Executable inventory digest "
+        "68cebe34170a1a185c5ff2acd787f343c0d85c1fbcfb6e442bb183c4328b8162\n"
+        "  adjudication inventory digest "
+        "12fd4a6947abd880cca8f81e1ff46bea9b64b47fc93cdbb72e7be0779527c6af\n"
+        "  negative memory inventory digest "
+        "4e8965d5a2e1b76f16b3520d6812d8bff5b712f9fafb4d02c3cb127e811b1de4\n"
+        "  execution_cost_measurement_only scientific completion count 437\n"
+        "  completed_period_proxy_feature scientific completion count 8\n"
+        "  native_cost_outcome_label_only scientific completion count 36\n"
+        "  decision_surface_cost_dependent scientific completion count 6\n"
+        "  causal_policy_cost_state_dependent scientific completion count 1\n"
+        "  permitted historical interpretation completed_period_bar_spread_proxy\n"
+        "  forbidden historical interpretation actual_point_in_time_native_quote\n"
+    ).encode("ascii")
+
+
+def historical_cost_semantics_manifest(
+    audit_artifact_hash: str,
+) -> HistoricalSpreadSemanticsAuditManifest:
+    return HistoricalSpreadSemanticsAuditManifest(
+        audit_artifact_hash=audit_artifact_hash,
+        upper_authority_cursor=PRODUCTION_UPPER_CURSOR,
+        causal_invalid_completion_ids=CAUSAL_INVALID_COMPLETION_IDS,
+        causal_invalid_study_context_ids=CAUSAL_INVALID_STUDY_CONTEXT_IDS,
+        audited_cost_contracts=("cost:completed_bar_spread_proxy_v1",),
+        exceptional_study_classes=tuple(
+            sorted(
+                EXCEPTIONAL_STUDY_CLASSES.items(),
+                key=lambda item: item[0].value,
+            )
+        ),
+        inventory_seals=GOLDEN_INVENTORY_SEALS,
+        class_completion_seals=GOLDEN_CLASS_COMPLETION_SEALS,
+    )
 
 
 def architecture_chassis(tag: str) -> ArchitectureChassisSpec:
@@ -4446,13 +4530,271 @@ class WriterTests(unittest.TestCase):
                 operation_id="reject-context-only-source-reregistration",
             )
 
+    def _seed_historical_cost_semantics_portfolio_boundary(
+        self,
+        *,
+        extra_records: tuple[IndexRecord, ...] = (),
+    ) -> str:
+        self.open_mission_and_initiative()
+        snapshot_id = "portfolio:" + "9" * 64
+
+        def seed(current, _index):
+            assert current is not None
+            body = self.writer._body(current)
+            body["next_action"] = {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": snapshot_id,
+            }
+            return body, [
+                *extra_records,
+                IndexRecord(
+                    kind="portfolio-snapshot",
+                    record_id=snapshot_id,
+                    subject="Mission:MIS-FIXTURE",
+                    status="open",
+                    fingerprint="9" * 64,
+                    payload={"mission_id": "MIS-FIXTURE"},
+                )
+            ], {"seeded": True}
+
+        self.writer._commit(
+            event_kind="historical_cost_semantics_fixture_seeded",
+            operation_id="historical-cost-semantics-seed",
+            subject="Portfolio:fixture",
+            payload={"snapshot_id": snapshot_id},
+            prepare=seed,
+        )
+        return snapshot_id
+
+    def test_historical_cost_semantics_latch_is_one_exact_zero_credit_event(
+        self,
+    ) -> None:
+        snapshot_id = self._seed_historical_cost_semantics_portfolio_boundary()
+        report = self.writer.evidence.finalize(
+            historical_cost_semantics_report_bytes()
+        )
+        manifest = historical_cost_semantics_manifest(report.sha256)
+        manifest_artifact = self.writer.evidence.finalize(
+            canonical_bytes(manifest.to_payload())
+        )
+        self.assertEqual(manifest_artifact.sha256, manifest.artifact_hash)
+
+        drifted_manifest = replace(
+            manifest,
+            audited_cost_contracts=("cost:another_spread_proxy_v1",),
+        )
+        revision_before_rejection = self.writer.read_control()["revision"]
+        with patch(
+            "axiom_rift.operations.historical_cost_semantics_projection."
+            "build_historical_spread_semantics_audit_manifest",
+            return_value=drifted_manifest,
+        ), patch(
+            "axiom_rift.operations.historical_cost_semantics_projection."
+            "validate_historical_cost_semantics_latch_binding"
+        ), self.assertRaisesRegex(TransitionError, "rederived exactly"):
+            self.writer.record_historical_cost_semantics_latch(
+                manifest_artifact_hash=manifest_artifact.sha256,
+                operation_id="reject-drifted-historical-cost-semantics",
+            )
+        self.assertEqual(
+            self.writer.read_control()["revision"],
+            revision_before_rejection,
+        )
+
+        def exact_builder(index, *, audit_artifact_hash):
+            self.assertIsNotNone(
+                index.get("operation", "historical-cost-semantics-seed")
+            )
+            self.assertEqual(audit_artifact_hash, report.sha256)
+            return manifest
+
+        def exact_latch_binding(index, latch, bound_manifest):
+            self.assertIsNotNone(
+                index.get("portfolio-snapshot", snapshot_id)
+            )
+            self.assertEqual(latch.audit_manifest_hash, manifest.artifact_hash)
+            self.assertEqual(bound_manifest, manifest)
+            return SimpleNamespace(members=())
+
+        before = self.writer.read_control()
+        with patch(
+            "axiom_rift.operations.historical_cost_semantics_projection."
+            "build_historical_spread_semantics_audit_manifest",
+            side_effect=exact_builder,
+        ) as builder, patch(
+            "axiom_rift.operations.historical_cost_semantics_projection."
+            "validate_historical_cost_semantics_latch_binding",
+            side_effect=exact_latch_binding,
+        ) as validator, patch(
+            "axiom_rift.operations.historical_cost_semantics_projection."
+            "historical_cost_semantics_activation_records",
+            side_effect=lambda latch, _audit_slice: (
+                historical_cost_semantics_latch_record(latch),
+            ),
+        ) as activation_projector:
+            recorded = self.writer.record_historical_cost_semantics_latch(
+                manifest_artifact_hash=manifest_artifact.sha256,
+                operation_id="record-historical-cost-semantics",
+            )
+            reused = self.writer.record_historical_cost_semantics_latch(
+                manifest_artifact_hash=manifest_artifact.sha256,
+                operation_id="record-historical-cost-semantics",
+            )
+            self.assertTrue(reused.reused)
+            self.assertEqual(reused.result, recorded.result)
+            self.assertEqual(builder.call_count, 1)
+            self.assertEqual(validator.call_count, 1)
+            self.assertEqual(activation_projector.call_count, 1)
+
+            with LocalIndex(self.writer.index_path) as index, patch(
+                "axiom_rift.operations.historical_cost_semantics_projection."
+                "PRODUCTION_UPPER_CURSOR",
+                replace(PRODUCTION_UPPER_CURSOR, sequence=1),
+            ), patch(
+                "axiom_rift.operations.historical_cost_semantics_reader."
+                "PRODUCTION_UPPER_CURSOR",
+                replace(PRODUCTION_UPPER_CURSOR, sequence=1),
+            ):
+                latch = current_historical_cost_semantics_latch(index, manifest)
+                latch_record = index.get(
+                    LATCH_RECORD_KIND,
+                    recorded.result["latch_record_id"],
+                )
+                operation = index.get(
+                    "operation",
+                    "record-historical-cost-semantics",
+                )
+        after = self.writer.read_control()
+        assert before is not None and after is not None
+        assert latch is not None
+        assert latch_record is not None
+        assert operation is not None
+        self.assertEqual(self.writer._body(after), self.writer._body(before))
+        self.assertEqual(after["scientific"], before["scientific"])
+        self.assertEqual(after["next_action"], before["next_action"])
+        self.assertEqual(
+            set(recorded.result),
+            {"audit_manifest_hash", "authority_delta", "latch_record_id"},
+        )
+        self.assertEqual(
+            recorded.result,
+            {
+                "audit_manifest_hash": manifest.artifact_hash,
+                "authority_delta": dict(HISTORICAL_COST_AUTHORITY_DELTA_ZERO),
+                "latch_record_id": HistoricalCostSemanticsLatch.from_audit_manifest(
+                    manifest
+                ).identity,
+            },
+        )
+        self.assertEqual(operation.payload["event_kind"], LATCH_EVENT_KIND)
+        self.assertEqual(operation.payload["result"], recorded.result)
+        self.assertEqual(
+            latch_record.authority_sequence,
+            operation.authority_sequence,
+        )
+        self.assertEqual(
+            latch_record.authority_event_id,
+            operation.authority_event_id,
+        )
+        self.assertEqual(
+            latch,
+            HistoricalCostSemanticsLatch.from_audit_manifest(manifest),
+        )
+
+        with patch(
+            "axiom_rift.operations.historical_cost_semantics_projection."
+            "build_historical_spread_semantics_audit_manifest",
+            side_effect=exact_builder,
+        ), patch(
+            "axiom_rift.operations.historical_cost_semantics_projection."
+            "validate_historical_cost_semantics_latch_binding",
+            side_effect=exact_latch_binding,
+        ), self.assertRaisesRegex(TransitionError, "already has a frozen head"):
+            self.writer.record_historical_cost_semantics_latch(
+                manifest_artifact_hash=manifest_artifact.sha256,
+                operation_id="reject-second-historical-cost-semantics",
+            )
+
+    def test_historical_cost_semantics_latch_rejects_foreign_stream_orphan(
+        self,
+    ) -> None:
+        self._seed_historical_cost_semantics_portfolio_boundary(
+            extra_records=(
+                IndexRecord(
+                    kind=LATCH_RECORD_KIND,
+                    record_id="historical-cost-semantics-latch:" + "1" * 64,
+                    subject="HistoricalCostSemantics:foreign",
+                    status="active",
+                    fingerprint="1" * 64,
+                    payload={"schema": "foreign_fixture.v1"},
+                    event_stream="historical-cost-semantics:foreign",
+                    event_sequence=1,
+                ),
+            )
+        )
+        report = self.writer.evidence.finalize(
+            historical_cost_semantics_report_bytes()
+        )
+        manifest = historical_cost_semantics_manifest(report.sha256)
+        manifest_artifact = self.writer.evidence.finalize(
+            canonical_bytes(manifest.to_payload())
+        )
+
+        with self.assertRaisesRegex(TransitionError, "already has a frozen head"):
+            self.writer.record_historical_cost_semantics_latch(
+                manifest_artifact_hash=manifest_artifact.sha256,
+                operation_id="reject-foreign-stream-latch-orphan",
+            )
+
+    def test_historical_cost_semantics_latch_rejects_wrong_kind_stream_occupant(
+        self,
+    ) -> None:
+        self._seed_historical_cost_semantics_portfolio_boundary(
+            extra_records=(
+                IndexRecord(
+                    kind="foreign-latch-stream-occupant",
+                    record_id="foreign-latch-stream-occupant",
+                    subject="HistoricalCostSemantics:foreign",
+                    status="active",
+                    fingerprint="2" * 64,
+                    payload={"schema": "foreign_fixture.v1"},
+                    event_stream=LATCH_STREAM,
+                    event_sequence=1,
+                ),
+            )
+        )
+        report = self.writer.evidence.finalize(
+            historical_cost_semantics_report_bytes()
+        )
+        manifest = historical_cost_semantics_manifest(report.sha256)
+        manifest_artifact = self.writer.evidence.finalize(
+            canonical_bytes(manifest.to_payload())
+        )
+
+        with self.assertRaisesRegex(TransitionError, "already has a frozen head"):
+            self.writer.record_historical_cost_semantics_latch(
+                manifest_artifact_hash=manifest_artifact.sha256,
+                operation_id="reject-wrong-kind-latch-stream-occupant",
+            )
+
     def test_historical_adjudication_is_additive_and_replay_scoped(self) -> None:
         self.open_mission_and_initiative()
         study_id = "STU-HISTORICAL-ADJUDICATION"
         source_id = "source:" + "e" * 64
+        implementation_hash = "a" * 64
         trial_executable = {
             "schema": "historical_trial_fixture.v1",
             "source_contracts": [source_id],
+            "clock_contract": "clock:completed_m5_v1",
+            "cost_contract": "cost:bar_spread_proxy_v1",
+            "component_manifests": [
+                {
+                    "implementation": (
+                        "axiom_rift.research.historical_fixture@sha256:"
+                        + implementation_hash
+                    )
+                }
+            ],
         }
         executable_id = "executable:" + canonical_digest(
             domain="executable", payload=trial_executable
@@ -4589,6 +4931,15 @@ class WriterTests(unittest.TestCase):
                 }
             )
         )
+        result_manifest = self.writer.evidence.finalize(
+            canonical_bytes(
+                {
+                    "completion_record_id": completion_id,
+                    "executable_id": executable_id,
+                    "schema": "historical_result_fixture.v1",
+                }
+            )
+        )
 
         def seed(current, _index):
             assert current is not None
@@ -4643,10 +4994,14 @@ class WriterTests(unittest.TestCase):
                         "outputs": {
                             "validation-plan.json": plan.sha256,
                             "measurement.json": measurement.sha256,
+                            "result.json": result_manifest.sha256,
                         },
                         "scientific": {
+                            "claims": list(PLANNED_CLAIMS),
+                            "executed_evidence_modes": evidence_modes,
                             "executable_id": executable_id,
                             "measurement_artifact_hashes": [measurement.sha256],
+                            "result_manifest_hash": result_manifest.sha256,
                             "validation_plan_hash": plan.sha256,
                             "verdict": "failed",
                         },
@@ -4666,7 +5021,10 @@ class WriterTests(unittest.TestCase):
                     subject="Batch:BAT-HISTORICAL",
                     status="evaluated",
                     fingerprint=executable_id.removeprefix("executable:"),
-                    payload={"executable": trial_executable},
+                    payload={
+                        "executable": trial_executable,
+                        "mission_id": "MIS-FIXTURE",
+                    },
                 ),
                 IndexRecord(
                     kind="source-state",
@@ -4736,7 +5094,7 @@ class WriterTests(unittest.TestCase):
                 HistoricalAdjudicationRequest(
                     completion_record_id=completion_id,
                     disposition=HistoricalDisposition.REPLAY_REQUIRED,
-                    replay_priority=ReplayPriority.P0,
+                    replay_priority=ReplayPriority.P1,
                     reason_codes=(
                         "global_multiplicity_not_a_concurrent_family",
                         "raw_uncertainty_replay_required",
@@ -4749,6 +5107,8 @@ class WriterTests(unittest.TestCase):
         )
         after = self.writer.read_control()
         assert before is not None and after is not None
+        mission_id = before["scientific"]["active_mission"]
+        assert isinstance(mission_id, str)
         self.assertEqual(
             after["next_action"]["kind"], before["next_action"]["kind"]
         )
@@ -4756,7 +5116,7 @@ class WriterTests(unittest.TestCase):
             after["next_action"]["portfolio_snapshot_id"],
             before["next_action"]["portfolio_snapshot_id"],
         )
-        self.assertEqual(after["next_action"]["required_replay_priority"], "p0")
+        self.assertEqual(after["next_action"]["required_replay_priority"], "p1")
         self.assertEqual(
             after["next_action"]["pending_replay_obligation_ids"],
             recorded.result["replay_obligation_ids"],
@@ -4780,6 +5140,72 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(original.status, "failed")
         self.assertEqual(memory.status, "durable")
 
+        validity_audit = self.writer.evidence.finalize(
+            (
+                "## Bound Findings\n\n"
+                "- AX-SPREAD-TIME-001:\n"
+                "  reason decision_input_point_in_time_unproven\n"
+                f"  {study_id} {executable_id} completion {completion_id}\n"
+            ).encode("ascii")
+        )
+        invalidation = HistoricalScientificValidityInvalidation(
+            study_id=study_id,
+            study_close_record_id=close_id,
+            job_id=job_id,
+            job_binding_kind=JobBindingKind.DECLARATION,
+            job_binding_record_id=job_id,
+            completion_record_id=completion_id,
+            executable_id=executable_id,
+            validation_plan_hash=plan.sha256,
+            measurement_artifact_hash=measurement.sha256,
+            result_manifest_hash=result_manifest.sha256,
+            component_implementation_hashes=(implementation_hash,),
+            clock_contract="clock:completed_m5_v1",
+            cost_contract="cost:bar_spread_proxy_v1",
+            predicate_evaluated=True,
+            activation_state=(
+                DecisionPredicateActivationState.EVALUATED_NOT_ACTIVATED
+            ),
+            predicate_activation_count=0,
+            affected_claim_ids=tuple(PLANNED_CLAIMS),
+            affected_evidence_modes=tuple(evidence_modes),
+            affected_criterion_ids=tuple(
+                item["criterion_id"] for item in criteria
+            ),
+            audit_finding_id="AX-SPREAD-TIME-001",
+            audit_artifact_hash=validity_audit.sha256,
+        )
+        validity_result = (
+            self.writer.record_historical_scientific_validity_invalidations(
+                invalidations=(invalidation,),
+                operation_id="record-historical-completion-validity",
+            )
+        )
+        self.assertEqual(
+            validity_result.result["authority_delta"],
+            {
+                "candidate": 0,
+                "economic": 0,
+                "holdout": 0,
+                "scientific": 0,
+                "terminal": 0,
+                "trial": 0,
+            },
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            validity_head = current_completion_validity_invalidation(
+                index, completion_id
+            )
+        assert validity_head is not None
+        self.assertEqual(validity_head.invalidation_record_id, invalidation.identity)
+        completion_override = HistoricalValidityOverride(
+            reason=(
+                HistoricalValidityReason.DECISION_INPUT_POINT_IN_TIME_UNPROVEN
+            ),
+            subject_id=completion_id,
+            evidence_record_id=invalidation.identity,
+        )
+
         source_qualified = self.writer.record_historical_scientific_adjudications(
             requests=(
                 HistoricalAdjudicationRequest(
@@ -4789,7 +5215,7 @@ class WriterTests(unittest.TestCase):
                     ),
                     replay_priority=ReplayPriority.NONE,
                     reason_codes=("source_authority_invalidated",),
-                    validity_overrides=(source_override,),
+                    validity_overrides=(source_override, completion_override),
                 ),
             ),
             audit_artifact_hash=audit.sha256,
@@ -4809,11 +5235,16 @@ class WriterTests(unittest.TestCase):
         )
         self.assertEqual(
             source_overlay.payload["validity_override_authority"],
-            "writer_derived_durable_source_latches",
+            "writer_derived_durable_invalidity_heads",
         )
         self.assertEqual(
             source_overlay.payload["validity_overrides"],
             [
+                {
+                    "evidence_record_id": invalidation.identity,
+                    "reason": "decision_input_point_in_time_unproven",
+                    "subject_id": completion_id,
+                },
                 {
                     "evidence_record_id": source_invalidation.identity,
                     "reason": "source_authority_invalidated",
@@ -4822,8 +5253,147 @@ class WriterTests(unittest.TestCase):
             ],
         )
 
+        original_obligation_id = recorded.result["replay_obligation_ids"][0]
+        satisfaction_id = "historical-replay-satisfaction:" + ("a" * 64)
+
+        def seed_satisfied_head(current, _index):
+            assert current is not None
+            body = self.writer._body(current)
+            next_action = dict(body["next_action"])
+            next_action.pop("pending_replay_obligation_ids", None)
+            next_action.pop("required_replay_priority", None)
+            body["next_action"] = next_action
+            return body, [
+                IndexRecord(
+                    kind="historical-replay-obligation-resolution",
+                    record_id=satisfaction_id,
+                    subject=f"Mission:{mission_id}",
+                    status="satisfied",
+                    fingerprint=satisfaction_id.removeprefix(
+                        "historical-replay-satisfaction:"
+                    ),
+                    payload={"obligation_id": original_obligation_id},
+                    event_stream=(
+                        "historical-replay-obligation:"
+                        f"{original_obligation_id}"
+                    ),
+                    event_sequence=2,
+                )
+            ], {"seeded": True}
+
+        self.writer._commit(
+            event_kind="historical_replay_satisfaction_fixture_seeded",
+            operation_id="historical-replay-satisfaction-fixture-seed",
+            subject=f"Mission:{mission_id}",
+            payload={"obligation_id": original_obligation_id},
+            prepare=seed_satisfied_head,
+        )
+        invalidation_plan = {
+            "audit_manifest": {
+                "governing_mission_id": mission_id,
+                "obligation_id": original_obligation_id,
+                "satisfaction_record_id": satisfaction_id,
+            },
+            "audit_manifest_sha256": "b" * 64,
+            "operation": "invalidate_historical_replay_satisfaction",
+            "schema": "replay_satisfaction_invalidation_plan.v1",
+        }
+        with patch(
+            "axiom_rift.operations.replay_projection."
+            "build_satisfaction_invalidation_plan",
+            return_value=invalidation_plan,
+        ):
+            replay_again = self.writer.record_historical_scientific_adjudications(
+                requests=(
+                    HistoricalAdjudicationRequest(
+                        completion_record_id=completion_id,
+                        disposition=HistoricalDisposition.REPLAY_REQUIRED,
+                        replay_priority=ReplayPriority.P0,
+                        reason_codes=(
+                            "accepted_replay_satisfaction_revocation_pending",
+                            "completion_time_semantics_invalid",
+                            "corrected_replay_required",
+                        ),
+                        validity_overrides=(
+                            source_override,
+                            completion_override,
+                        ),
+                    ),
+                ),
+                audit_artifact_hash=audit.sha256,
+                operation_id="reuse-historical-replay-obligation",
+            )
+        self.assertEqual(replay_again.result["replay_obligation_ids"], [])
+        self.assertEqual(
+            replay_again.result["reused_replay_obligation_ids"],
+            [original_obligation_id],
+        )
+        self.assertEqual(
+            len(replay_again.result["replay_priority_escalation_ids"]), 1
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            replay_overlay = index.get(
+                "historical-scientific-adjudication",
+                replay_again.result["adjudication_record_ids"][0],
+            )
+            completion_obligations = [
+                record
+                for record in index.records_by_kind(
+                    "historical-replay-obligation"
+                )
+                if record.payload.get("obligation", {}).get(
+                    "original_completion_record_id"
+                )
+                == completion_id
+            ]
+            escalation = index.get(
+                "historical-replay-priority-escalation",
+                replay_again.result["replay_priority_escalation_ids"][0],
+            )
+        assert replay_overlay is not None
+        assert escalation is not None
+        self.assertEqual(len(completion_obligations), 1)
+        self.assertEqual(
+            replay_overlay.payload["replay_obligation_id"],
+            original_obligation_id,
+        )
+        self.assertEqual(
+            replay_overlay.payload["replay_obligation_authority"],
+            "reused_existing_lineage",
+        )
+        self.assertEqual(
+            escalation.payload["escalation"]["obligation_id"],
+            original_obligation_id,
+        )
+        self.assertEqual(
+            escalation.payload["escalation"]["prior_priority"], "p1"
+        )
+        self.assertEqual(
+            escalation.payload["escalation"]["effective_priority"], "p0"
+        )
+
         with self.assertRaisesRegex(
-            TransitionError, "Writer-derived durable source-authority latches"
+            TransitionError, "cannot be demoted or otherwise rewritten"
+        ):
+            self.writer.record_historical_scientific_adjudications(
+                requests=(
+                    HistoricalAdjudicationRequest(
+                        completion_record_id=completion_id,
+                        disposition=HistoricalDisposition.REPLAY_REQUIRED,
+                        replay_priority=ReplayPriority.P1,
+                        reason_codes=("forbidden_priority_demotion",),
+                        validity_overrides=(
+                            source_override,
+                            completion_override,
+                        ),
+                    ),
+                ),
+                audit_artifact_hash=audit.sha256,
+                operation_id="reject-historical-replay-priority-demotion",
+            )
+
+        with self.assertRaisesRegex(
+            TransitionError, "Writer-derived durable invalidity heads"
         ):
             self.writer.record_historical_scientific_adjudications(
                 requests=(
@@ -4852,7 +5422,7 @@ class WriterTests(unittest.TestCase):
             )
 
         with self.assertRaisesRegex(
-            TransitionError, "Writer-derived durable source-authority latches"
+            TransitionError, "Writer-derived durable invalidity heads"
         ):
             self.writer.record_historical_scientific_adjudications(
                 requests=(
@@ -5011,7 +5581,7 @@ class WriterTests(unittest.TestCase):
             )
 
         with self.assertRaisesRegex(
-            TransitionError, "Writer-derived durable source-authority latches"
+            TransitionError, "Writer-derived durable invalidity heads"
         ):
             self.writer.record_historical_scientific_adjudications(
                 requests=(

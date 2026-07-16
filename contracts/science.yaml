@@ -340,6 +340,13 @@ data:
   external_available_by_decision_required: true
   scheduled_entry_time_is_derived_from_decision_clock_not_future_row: true
   actual_entry_requires_exact_expected_timestamp: true
+  mqlrates_spread_available_at_completed_period_bar_close_only: true
+  same_scheduled_or_deferred_entry_bar_spread_is_decision_input: false
+  completed_decision_or_strict_prior_bar_spread_may_be_decision_input: true
+  delayed_entry_bar_may_redecide_original_order: false
+  point_in_time_quote_requires_timestamped_bid_ask_tick_or_execution_receipt: true
+  completed_bar_spread_cost_scope: historical_period_proxy_only
+  cost_proxy_source_index_and_availability_time_required: true
   fold_isolation_required: true
   sequential_decisions_required: true
   observed_development_manifest: foundation/data_exposure.yaml
@@ -484,6 +491,24 @@ historical_scientific_correction:
   candidate_authority: false
   trial_or_holdout_delta: 0
   missing_uncertainty_evidence_opens_bounded_replay: true
+  replay_obligation_priority_is_immutable: true
+  later_urgency_increase_uses_additive_p1_to_p0_overlay: true
+  priority_demotion_or_duplicate_obligation_allowed: false
+  scheduler_uses_effective_replay_priority: true
+historical_cost_semantics:
+  completed_period_bar_spread_proxy_is_preservable_only_as_exact_proxy: true
+  completed_period_proxy_proves_actual_point_in_time_native_quote: false
+  actual_cost_dependent_claims_without_timestamped_quote_or_execution_are_unresolved: true
+  gross_mechanism_and_feature_causality_may_remain_independently_scoped: true
+  engineering_completions_receive_no_scientific_qualification: true
+  timing_or_source_invalidity_cannot_be_restored_by_cost_qualification: true
+  historical_records_and_negative_memory_are_not_rewritten: true
+  new_scientific_economic_candidate_exhaustion_or_terminal_credit: false
+  proxy_dependent_negative_memory_role: diagnostic_only
+  proxy_dependent_negative_memory_prune_exhaustion_and_terminal_credit: 0
+  affected_historical_prune_state: deferred_requires_reopen
+  routine_consumers_use_exact_completion_and_negative_memory_keys: true
+  routine_complete_history_rescan_allowed: false
 job_science_separation:
   operational_outcomes:
     - success
@@ -637,8 +662,11 @@ project_goal_audit_v2_protocol:
     applies_replay_obligations: true
     applies_effective_evidence_scope_overlays: true
     audit_deferred_pruned_axis_reopen:
+      authority_schema: axis_reopen_authority.v2
       exact_additive_authority_required: true
       exact_structural_preserve_decision_required: true
+      replay_route_binds_resolution_and_scope_ids: true
+      historical_cost_route_binds_completion_latch_and_negative_memory_ids: true
       resulting_snapshot_status: preserved
       arbitrary_pruned_axis_reopen_allowed: false
     invalidated_source_axis_scheduler_eligible: false

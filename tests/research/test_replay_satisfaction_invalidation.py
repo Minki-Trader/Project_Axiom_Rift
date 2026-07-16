@@ -4,10 +4,15 @@ import pytest
 
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.research.replay_satisfaction_invalidation import (
+    ReplayCompletionValidityDefect,
+    ReplayCompletionValidityDefectCode,
+    ReplayCompletionValidityObservation,
     ReplayMultiplicityBindingDefect,
     ReplayMultiplicityDefectCode,
+    ReplaySatisfactionInvalidationAuditManifestV2,
     ReplaySelectionFamilyObservation,
     SELECTION_CRITERION_ID,
+    replay_satisfaction_invalidation_manifest_from_mapping,
 )
 
 
@@ -129,4 +134,83 @@ def test_registration_hash_binds_member_order() -> None:
             registered_member_id=EXPECTED_MEMBER_IDS[0],
             ordered_member_ids=reversed_order,
             family_registration_hash=_registration_hash(EXPECTED_MEMBER_IDS),
+        )
+
+
+def _validity_observation(
+    completion_record_id: str = "4" * 64,
+) -> ReplayCompletionValidityObservation:
+    return ReplayCompletionValidityObservation(
+        completion_record_id=completion_record_id,
+        executable_id=EXPECTED_MEMBER_IDS[0],
+        invalidation_record_id=(
+            "historical-scientific-validity-invalidation:" + "d" * 64
+        ),
+        reason="decision_input_point_in_time_unproven",
+        affected_criterion_ids=("C03-decision-time-causality", "A01-alpha"),
+        validity_stream_sequence=1,
+        authority_event_id="e" * 64,
+        authority_sequence=42,
+        authority_offset=420,
+    )
+
+
+def _validity_manifest() -> ReplaySatisfactionInvalidationAuditManifestV2:
+    defect = ReplayCompletionValidityDefect(
+        code=(
+            ReplayCompletionValidityDefectCode.EVIDENCE_COMPLETION_VALIDITY_INVALID
+        ),
+        observations=(_validity_observation(),),
+    )
+    return ReplaySatisfactionInvalidationAuditManifestV2(
+        governing_mission_id="MIS-0001",
+        obligation_id="historical-replay-obligation:" + "5" * 64,
+        satisfaction_record_id="historical-replay-satisfaction:" + "6" * 64,
+        satisfaction_event_sequence=2,
+        portfolio_decision_id="decision:" + "7" * 64,
+        replay_study_id="STU-0001",
+        replay_executable_id=EXPECTED_MEMBER_IDS[0],
+        replay_study_close_record_id="8" * 64,
+        study_diagnosis_id="diagnosis:" + "9" * 64,
+        completion_record_ids=("4" * 64, "a" * 64),
+        defects=(defect,),
+    )
+
+
+def test_completion_validity_v2_round_trip_is_sorted_and_generic() -> None:
+    manifest = _validity_manifest()
+    rebuilt = replay_satisfaction_invalidation_manifest_from_mapping(
+        manifest.to_identity_payload()
+    )
+    assert rebuilt == manifest
+    observation = manifest.defects[0].observations[0]
+    assert observation.affected_criterion_ids == (
+        "A01-alpha",
+        "C03-decision-time-causality",
+    )
+    assert manifest.completion_record_ids == ("4" * 64, "a" * 64)
+
+
+def test_completion_validity_defect_must_belong_to_satisfaction_evidence() -> None:
+    manifest = _validity_manifest()
+    with pytest.raises(ValueError, match="outside satisfaction evidence"):
+        ReplaySatisfactionInvalidationAuditManifestV2(
+            governing_mission_id=manifest.governing_mission_id,
+            obligation_id=manifest.obligation_id,
+            satisfaction_record_id=manifest.satisfaction_record_id,
+            satisfaction_event_sequence=manifest.satisfaction_event_sequence,
+            portfolio_decision_id=manifest.portfolio_decision_id,
+            replay_study_id=manifest.replay_study_id,
+            replay_executable_id=manifest.replay_executable_id,
+            replay_study_close_record_id=manifest.replay_study_close_record_id,
+            study_diagnosis_id=manifest.study_diagnosis_id,
+            completion_record_ids=manifest.completion_record_ids,
+            defects=(
+                ReplayCompletionValidityDefect(
+                    code=(
+                        ReplayCompletionValidityDefectCode.EVIDENCE_COMPLETION_VALIDITY_INVALID
+                    ),
+                    observations=(_validity_observation("b" * 64),),
+                ),
+            ),
         )

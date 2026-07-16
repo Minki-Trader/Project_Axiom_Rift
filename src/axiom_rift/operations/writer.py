@@ -1772,6 +1772,109 @@ class StateWriter:
                     "projection_digest": projection_digest,
                 }
 
+    def require_exact_trailing_event_recovery_boundary(
+        self,
+        *,
+        expected_sequence: int,
+        expected_event_id: str,
+        expected_operation_id: str,
+        expected_previous_event_id: str,
+    ) -> dict[str, Any]:
+        """Admit recovery only from the exact projection before one event.
+
+        This intentionally performs a full Journal-derived projection audit.
+        It is an exceptional recovery boundary, never a routine stable read.
+        """
+
+        with WriterLock(self.lock_path):
+            return self._require_exact_trailing_event_recovery_locked(
+                expected_sequence=expected_sequence,
+                expected_event_id=expected_event_id,
+                expected_operation_id=expected_operation_id,
+                expected_previous_event_id=expected_previous_event_id,
+            )
+
+    def _require_exact_trailing_event_recovery_locked(
+        self,
+        *,
+        expected_sequence: int,
+        expected_event_id: str,
+        expected_operation_id: str,
+        expected_previous_event_id: str,
+    ) -> dict[str, Any]:
+        if (
+            type(expected_sequence) is not int
+            or expected_sequence < 2
+            or type(expected_event_id) is not str
+            or not expected_event_id
+            or type(expected_operation_id) is not str
+            or not expected_operation_id
+            or type(expected_previous_event_id) is not str
+            or not expected_previous_event_id
+        ):
+            raise RecoveryRequired(
+                "exact trailing-event recovery identity is malformed"
+            )
+        events = self.journal.read_all()
+        if len(events) < 2:
+            raise RecoveryRequired(
+                "exact trailing-event recovery lacks a predecessor"
+            )
+        trailing = events[-1]
+        previous = events[-2]
+        if (
+            trailing.get("sequence") != expected_sequence
+            or trailing.get("event_id") != expected_event_id
+            or trailing.get("operation_id") != expected_operation_id
+            or trailing.get("previous_event_id") != expected_previous_event_id
+            or previous.get("sequence") != expected_sequence - 1
+            or previous.get("event_id") != expected_previous_event_id
+        ):
+            raise RecoveryRequired(
+                "Journal tail is not the exact admitted recovery event"
+            )
+        current = self.control.read()
+        if current is None:
+            raise RecoveryRequired(
+                "exact trailing-event recovery requires predecessor control"
+            )
+        predecessor_control = seal_control(self._assemble(previous))
+        trailing_control = seal_control(self._assemble(trailing))
+        if current == predecessor_control:
+            control_position = "predecessor"
+        elif current == trailing_control:
+            control_position = "trailing_event"
+        else:
+            raise RecoveryRequired(
+                "control is outside the exact trailing-event recovery pair"
+            )
+        expected_records: list[IndexRecord] = []
+        for event in events[:-1]:
+            expected_records.extend(self._event_records(event))
+        with self._open_authoritative_index() as index:
+            head = index.event_head("control")
+            projection_digest, projection_valid = index.projection_guard()
+            if (
+                head is None
+                or head.sequence != previous["sequence"]
+                or head.fingerprint != previous["event_id"]
+                or index.record_count() != previous["index_record_count"]
+                or not projection_valid
+                or projection_digest != previous["index_projection_digest"]
+                or not index.full_maintenance_exactly_matches(expected_records)
+            ):
+                raise RecoveryRequired(
+                    "local index is not the exact predecessor projection"
+                )
+        return {
+            "control_position": control_position,
+            "expected_event_id": expected_event_id,
+            "expected_previous_event_id": expected_previous_event_id,
+            "expected_sequence": expected_sequence,
+            "full_projection_record_count": len(expected_records),
+            "schema": "exact_trailing_event_recovery_boundary.v1",
+        }
+
     @staticmethod
     def _effective_running_job_implementation(
         index: LocalIndex,
@@ -2495,101 +2598,148 @@ class StateWriter:
         """Explicitly reconcile control and index projections from authority."""
 
         with WriterLock(self.lock_path):
-            journal_storage_repaired = self.journal.recover_storage()
-            events = self.journal.read_all()
-            control = self.control.read()
-            if control is not None:
-                sequence = control["heads"]["journal"]["sequence"]
-                event_id = control["heads"]["journal"]["event_id"]
-                if sequence > len(events):
-                    raise JournalIntegrityError("control claims a future journal head")
-                if sequence and events[sequence - 1]["event_id"] != event_id:
-                    raise JournalIntegrityError("control claims a foreign journal head")
-            if not events:
-                if control is not None:
-                    raise JournalIntegrityError("control exists without journal authority")
-                return {
-                    "journal_sequence": 0,
-                    "journal_storage_repaired": journal_storage_repaired,
-                    "control_repaired": False,
-                    "index_rebuilt": False,
-                }
-            last = events[-1]
-            desired = self._assemble(last)
-            try:
-                sealed_desired = seal_control(desired)
-            except ControlStateError as exc:
-                raise JournalIntegrityError(
-                    "latest Journal control body is invalid"
-                ) from exc
-            applied_sequence = (
-                0 if control is None else control["heads"]["journal"]["sequence"]
+            return self._recover_locked()
+
+    def recover_exact_trailing_event(
+        self,
+        *,
+        expected_sequence: int,
+        expected_event_id: str,
+        expected_operation_id: str,
+        expected_previous_event_id: str,
+    ) -> dict[str, Any]:
+        """Atomically prove and recover one exact trailing Journal event."""
+
+        with WriterLock(self.lock_path):
+            boundary = self._require_exact_trailing_event_recovery_locked(
+                expected_sequence=expected_sequence,
+                expected_event_id=expected_event_id,
+                expected_operation_id=expected_operation_id,
+                expected_previous_event_id=expected_previous_event_id,
             )
-            with self._open_mutable_recovery_index() as index:
-                projection_corrupt = False
-                try:
-                    head = index.event_head("control")
-                    index.check_integrity()
-                except IndexIntegrityError:
-                    head = None
-                    projection_corrupt = True
-                if head is not None:
-                    if head.sequence > len(events):
-                        raise JournalIntegrityError("index claims a future journal head")
-                    if events[head.sequence - 1]["event_id"] != head.fingerprint:
-                        raise JournalIntegrityError("index claims a foreign journal head")
-                self._apply_pending_authority_migrations(
-                    events=events,
-                    applied_sequence=applied_sequence,
-                    final_authority=desired["authority"],
+            report = self._recover_locked(
+                expected_tail=(
+                    expected_sequence,
+                    expected_event_id,
+                    expected_operation_id,
+                    expected_previous_event_id,
                 )
-                if (
-                    self._authority_manifest_digest(desired["authority"])
-                    != desired["authority"]["manifest_digest"]
-                ):
-                    raise RecoveryRequired(
-                        "journal authority manifest is not materialized"
-                    )
-                control_repaired = control is None or control != sealed_desired
-                if control_repaired:
-                    self.control.replace(desired)
-                records: list[IndexRecord] = []
-                for event in events:
-                    records.extend(self._event_records(event))
-                needs_rebuild = (
-                    projection_corrupt
-                    or head is None
-                    or head.sequence != last["sequence"]
-                    or head.fingerprint != last["event_id"]
-                    or index.record_count() != last["index_record_count"]
+            )
+        return {"recovery_boundary": boundary, **report}
+
+    def _recover_locked(
+        self,
+        *,
+        expected_tail: tuple[int, str, str, str] | None = None,
+    ) -> dict[str, Any]:
+        journal_storage_repaired = self.journal.recover_storage()
+        events = self.journal.read_all()
+        if expected_tail is not None:
+            sequence, event_id, operation_id, previous_event_id = expected_tail
+            if (
+                not events
+                or events[-1].get("sequence") != sequence
+                or events[-1].get("event_id") != event_id
+                or events[-1].get("operation_id") != operation_id
+                or events[-1].get("previous_event_id") != previous_event_id
+            ):
+                raise RecoveryRequired(
+                    "Journal tail changed after exact recovery admission"
                 )
-                if not projection_corrupt and not index.exactly_matches(records):
-                    needs_rebuild = True
-                if needs_rebuild:
-                    index.rebuild(records)
-                index.check_integrity()
-                if not index.exactly_matches(records):
-                    raise JournalIntegrityError(
-                        "local index record set differs from Journal authority"
-                    )
-                if index.record_count() != last["index_record_count"]:
-                    raise JournalIntegrityError(
-                        "rebuilt index count differs from journal authority"
-                    )
-                projection_digest, projection_valid = index.projection_guard()
-                if (
-                    not projection_valid
-                    or projection_digest != last["index_projection_digest"]
-                ):
-                    raise JournalIntegrityError(
-                        "rebuilt index digest differs from journal authority"
-                    )
-            report = {
-                "journal_sequence": last["sequence"],
+        control = self.control.read()
+        if control is not None:
+            sequence = control["heads"]["journal"]["sequence"]
+            event_id = control["heads"]["journal"]["event_id"]
+            if sequence > len(events):
+                raise JournalIntegrityError("control claims a future journal head")
+            if sequence and events[sequence - 1]["event_id"] != event_id:
+                raise JournalIntegrityError("control claims a foreign journal head")
+        if not events:
+            if control is not None:
+                raise JournalIntegrityError("control exists without journal authority")
+            return {
+                "journal_sequence": 0,
                 "journal_storage_repaired": journal_storage_repaired,
-                "control_repaired": control_repaired,
-                "index_rebuilt": needs_rebuild,
+                "control_repaired": False,
+                "index_rebuilt": False,
+                "study_kpi_projection_changed": False,
             }
+        last = events[-1]
+        desired = self._assemble(last)
+        try:
+            sealed_desired = seal_control(desired)
+        except ControlStateError as exc:
+            raise JournalIntegrityError(
+                "latest Journal control body is invalid"
+            ) from exc
+        applied_sequence = (
+            0 if control is None else control["heads"]["journal"]["sequence"]
+        )
+        with self._open_mutable_recovery_index() as index:
+            projection_corrupt = False
+            try:
+                head = index.event_head("control")
+                index.check_integrity()
+            except IndexIntegrityError:
+                head = None
+                projection_corrupt = True
+            if head is not None:
+                if head.sequence > len(events):
+                    raise JournalIntegrityError("index claims a future journal head")
+                if events[head.sequence - 1]["event_id"] != head.fingerprint:
+                    raise JournalIntegrityError("index claims a foreign journal head")
+            self._apply_pending_authority_migrations(
+                events=events,
+                applied_sequence=applied_sequence,
+                final_authority=desired["authority"],
+            )
+            if (
+                self._authority_manifest_digest(desired["authority"])
+                != desired["authority"]["manifest_digest"]
+            ):
+                raise RecoveryRequired(
+                    "journal authority manifest is not materialized"
+                )
+            control_repaired = control is None or control != sealed_desired
+            if control_repaired:
+                self.control.replace(desired)
+            records: list[IndexRecord] = []
+            for event in events:
+                records.extend(self._event_records(event))
+            needs_rebuild = (
+                projection_corrupt
+                or head is None
+                or head.sequence != last["sequence"]
+                or head.fingerprint != last["event_id"]
+                or index.record_count() != last["index_record_count"]
+            )
+            if not projection_corrupt and not index.exactly_matches(records):
+                needs_rebuild = True
+            if needs_rebuild:
+                index.rebuild(records)
+            index.check_integrity()
+            if not index.exactly_matches(records):
+                raise JournalIntegrityError(
+                    "local index record set differs from Journal authority"
+                )
+            if index.record_count() != last["index_record_count"]:
+                raise JournalIntegrityError(
+                    "rebuilt index count differs from journal authority"
+                )
+            projection_digest, projection_valid = index.projection_guard()
+            if (
+                not projection_valid
+                or projection_digest != last["index_projection_digest"]
+            ):
+                raise JournalIntegrityError(
+                    "rebuilt index digest differs from journal authority"
+                )
+        report = {
+            "journal_sequence": last["sequence"],
+            "journal_storage_repaired": journal_storage_repaired,
+            "control_repaired": control_repaired,
+            "index_rebuilt": needs_rebuild,
+        }
         # Recovery restores authority (Journal, control, and the reconstructible
         # SQLite projection).  The Markdown KPI ledger is lag-tolerant
         # navigation and is materialized only by explicit maintenance; making
@@ -4756,66 +4906,6 @@ class StateWriter:
             )
         except EffectiveAxisProjectionError as exc:
             raise RecoveryRequired(str(exc)) from exc
-
-    @staticmethod
-    def _audit_deferred_axis_reopen_evidence(
-        resolution: Any,
-    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
-        """Return the exact audit-only authority that made a prune reopenable."""
-
-        from axiom_rift.research.effective_axis import EffectiveAxisStatus
-        from axiom_rift.research.replay_obligation import (
-            ReplayObligationStatus,
-            ReplayResolutionScope,
-        )
-
-        if (
-            resolution.effective_status
-            is not EffectiveAxisStatus.DEFERRED_REQUIRES_REOPEN
-            or resolution.snapshot_status != "pruned"
-        ):
-            raise TransitionError(
-                "axis reopen authority requires one audit-deferred historical prune"
-            )
-        audit_bindings = tuple(
-            binding
-            for binding in resolution.replay_bindings
-            if binding.status is ReplayObligationStatus.SATISFIED
-            and binding.resolution_scope is ReplayResolutionScope.AUDIT_ONLY
-        )
-        replay_resolution_ids = tuple(
-            sorted(
-                {
-                    binding.state_record_id for binding in audit_bindings
-                }.union(
-                    resolution_id
-                    for binding in resolution.evidence_scope_bindings
-                    for resolution_id in binding.replay_resolution_ids
-                )
-            )
-        )
-        binding_overlay_ids = {
-            binding.evidence_scope_overlay_id
-            for binding in audit_bindings
-            if binding.evidence_scope_overlay_id is not None
-        }
-        evidence_scope_overlay_ids = tuple(
-            sorted(
-                binding_overlay_ids.union(
-                    binding.overlay_record_id
-                    for binding in resolution.evidence_scope_bindings
-                )
-            )
-        )
-        if (
-            not replay_resolution_ids
-            or len(replay_resolution_ids) != len(set(replay_resolution_ids))
-            or not evidence_scope_overlay_ids
-        ):
-            raise RecoveryRequired(
-                "audit-deferred axis lacks exact replay and scope authority"
-            )
-        return replay_resolution_ids, evidence_scope_overlay_ids
 
     @staticmethod
     def _mission_effective_axis_blockers(
@@ -14084,6 +14174,7 @@ class StateWriter:
                 if pruned_reopen_axis_ids:
                     from axiom_rift.research.effective_axis import (
                         AxisReopenAuthority,
+                        axis_reopen_evidence,
                     )
 
                     if (
@@ -14097,17 +14188,28 @@ class StateWriter:
                     resolution = self._effective_axis_resolution(
                         index, old_axes[target_id]
                     )
-                    replay_resolution_ids, scope_overlay_ids = (
-                        self._audit_deferred_axis_reopen_evidence(resolution)
-                    )
+                    reopen_evidence = axis_reopen_evidence(resolution)
                     expected_authority = AxisReopenAuthority(
                         mission_id=snapshot.mission_id,
                         portfolio_snapshot_id=prior.record_id,
                         portfolio_decision_id=decision.record_id,
                         axis_id=target_id,
                         axis_identity=old_axes[target_id]["axis_identity"],
-                        replay_resolution_record_ids=replay_resolution_ids,
-                        evidence_scope_overlay_ids=scope_overlay_ids,
+                        replay_resolution_record_ids=(
+                            reopen_evidence.replay_resolution_record_ids
+                        ),
+                        evidence_scope_overlay_ids=(
+                            reopen_evidence.evidence_scope_overlay_ids
+                        ),
+                        historical_cost_completion_ids=(
+                            reopen_evidence.historical_cost_completion_ids
+                        ),
+                        historical_cost_latch_ids=(
+                            reopen_evidence.historical_cost_latch_ids
+                        ),
+                        historical_cost_negative_memory_ids=(
+                            reopen_evidence.historical_cost_negative_memory_ids
+                        ),
                     )
                     authority_id = next_action.get(
                         "axis_reopen_authority_id"
@@ -14318,7 +14420,10 @@ class StateWriter:
     ) -> TransitionResult:
         """Authorize exactly one audit-deferred historical prune to be preserved."""
 
-        from axiom_rift.research.effective_axis import AxisReopenAuthority
+        from axiom_rift.research.effective_axis import (
+            AxisReopenAuthority,
+            axis_reopen_evidence,
+        )
 
         self._require_study_close_delivery_guard()
 
@@ -14402,9 +14507,7 @@ class StateWriter:
                     "axis reopen authority lost its exact Decision and snapshot"
                 )
             resolution = self._effective_axis_resolution(index, axis)
-            replay_resolution_ids, scope_overlay_ids = (
-                self._audit_deferred_axis_reopen_evidence(resolution)
-            )
+            reopen_evidence = axis_reopen_evidence(resolution)
             if decision.payload.get("effective_axis") != (
                 resolution.to_projection_payload()
             ):
@@ -14414,15 +14517,12 @@ class StateWriter:
             expected_action: dict[str, Any] = {
                 "action": "preserve",
                 "decision_id": decision.record_id,
-                "evidence_scope_overlay_ids": list(scope_overlay_ids),
                 "kind": "record_axis_reopen_authority",
                 "portfolio_snapshot_id": snapshot.record_id,
-                "replay_resolution_record_ids": list(
-                    replay_resolution_ids
-                ),
                 "target_axis_identity": target_identity,
                 "target_id": target_id,
             }
+            expected_action.update(reopen_evidence.to_action_fields())
             decision_obligations = decision.payload.get(
                 "replay_obligation_ids"
             )
@@ -14447,8 +14547,21 @@ class StateWriter:
                 portfolio_decision_id=decision.record_id,
                 axis_id=target_id,
                 axis_identity=target_identity,
-                replay_resolution_record_ids=replay_resolution_ids,
-                evidence_scope_overlay_ids=scope_overlay_ids,
+                replay_resolution_record_ids=(
+                    reopen_evidence.replay_resolution_record_ids
+                ),
+                evidence_scope_overlay_ids=(
+                    reopen_evidence.evidence_scope_overlay_ids
+                ),
+                historical_cost_completion_ids=(
+                    reopen_evidence.historical_cost_completion_ids
+                ),
+                historical_cost_latch_ids=(
+                    reopen_evidence.historical_cost_latch_ids
+                ),
+                historical_cost_negative_memory_ids=(
+                    reopen_evidence.historical_cost_negative_memory_ids
+                ),
             )
             stream = f"axis-reopen:{mission_id}:{target_identity}"
             stream_head = index.event_head(stream)
@@ -14478,8 +14591,8 @@ class StateWriter:
             snapshot_action = dict(next_action)
             snapshot_action["kind"] = "record_portfolio_snapshot"
             snapshot_action["axis_reopen_authority_id"] = authority.identity
-            snapshot_action.pop("evidence_scope_overlay_ids")
-            snapshot_action.pop("replay_resolution_record_ids")
+            for field in reopen_evidence.to_action_fields():
+                snapshot_action.pop(field)
             body["next_action"] = snapshot_action
             return body, [record], {
                 "axis_id": target_id,
@@ -15143,20 +15256,14 @@ class StateWriter:
                     decision.replay_obligation_ids
                 )
             if audit_deferred_prune_reopen:
-                replay_resolution_ids, scope_overlay_ids = (
-                    self._audit_deferred_axis_reopen_evidence(
-                        chosen_effective_axis
-                    )
+                from axiom_rift.research.effective_axis import (
+                    axis_reopen_evidence,
                 )
+
                 body["next_action"].update(
-                    {
-                        "evidence_scope_overlay_ids": list(
-                            scope_overlay_ids
-                        ),
-                        "replay_resolution_record_ids": list(
-                            replay_resolution_ids
-                        ),
-                    }
+                    axis_reopen_evidence(
+                        chosen_effective_axis
+                    ).to_action_fields()
                 )
             if next_kind == "execute_portfolio_decision" and not self.engineering_fixture:
                 assert baseline is not None and architecture is not None
@@ -15624,6 +15731,7 @@ class StateWriter:
         index: LocalIndex,
         *,
         override: Any,
+        completion_record_id: str,
         executable_id: str,
         declaration: IndexRecord,
     ) -> None:
@@ -15640,11 +15748,46 @@ class StateWriter:
             SourceAuthorityLatch,
         )
 
+        if not isinstance(override, HistoricalValidityOverride):
+            raise TransitionError("historical validity override is unsupported")
+
         if (
-            not isinstance(override, HistoricalValidityOverride)
-            or override.reason
-            is not HistoricalValidityReason.SOURCE_AUTHORITY_INVALIDATED
+            override.reason
+            is HistoricalValidityReason.DECISION_INPUT_POINT_IN_TIME_UNPROVEN
         ):
+            from axiom_rift.operations.completion_validity_projection import (
+                CompletionValidityProjectionError,
+                current_completion_validity_invalidation,
+            )
+
+            if override.subject_id != completion_record_id:
+                raise TransitionError(
+                    "historical validity override targets another completion"
+                )
+            try:
+                head = current_completion_validity_invalidation(
+                    index, completion_record_id
+                )
+            except CompletionValidityProjectionError as exc:
+                raise TransitionError(
+                    "historical completion validity head is malformed"
+                ) from exc
+            if (
+                head is None
+                or head.invalidation_record_id != override.evidence_record_id
+                or head.completion_record_id != completion_record_id
+                or head.executable_id != executable_id
+                or head.invalidation.job_id != declaration.record_id
+                or head.invalidation.study_id
+                != declaration.payload.get("study_id")
+            ):
+                raise TransitionError(
+                    "historical validity override does not bind the canonical "
+                    "completion correction"
+                )
+            return
+
+        if override.reason is not HistoricalValidityReason.SOURCE_AUTHORITY_INVALIDATED:
             raise TransitionError("historical validity override is unsupported")
 
         source_id = override.subject_id
@@ -15829,10 +15972,384 @@ class StateWriter:
                 "historical validity override is not bound to the completed trial"
             )
 
+    def record_historical_scientific_validity_invalidations(
+        self,
+        *,
+        invalidations: Sequence[Any],
+        operation_id: str,
+    ) -> TransitionResult:
+        """Remove authority from exact historical completions additively.
+
+        The completion, Study close, trial, adjudication, and negative-memory
+        records remain immutable.  Each new stream head is backed by one exact
+        ASCII audit finding row and receives no scientific or lifecycle credit.
+        """
+
+        from axiom_rift.operations.completion_validity_projection import (
+            CompletionValidityProjectionError,
+            completion_validity_invalidation_record,
+            completion_validity_stream,
+            validate_completion_validity_invalidation_binding,
+        )
+        from axiom_rift.research.historical_scientific_validity import (
+            AUTHORITY_DELTA_ZERO,
+            HistoricalScientificValidityInvalidation,
+        )
+
+        normalized = tuple(invalidations)
+        if (
+            not normalized
+            or any(
+                not isinstance(item, HistoricalScientificValidityInvalidation)
+                for item in normalized
+            )
+            or len({item.completion_record_id for item in normalized})
+            != len(normalized)
+            or len({item.identity for item in normalized}) != len(normalized)
+        ):
+            raise TransitionError(
+                "historical scientific validity correction requires unique "
+                "typed completion invalidations"
+            )
+        normalized = tuple(
+            sorted(normalized, key=lambda item: item.completion_record_id)
+        )
+
+        def require_audit_finding(
+            invalidation: HistoricalScientificValidityInvalidation,
+            document: bytes,
+        ) -> None:
+            try:
+                lines = document.decode("ascii").splitlines()
+            except UnicodeDecodeError as exc:
+                raise TransitionError(
+                    "historical scientific validity audit must be ASCII"
+                ) from exc
+            heading = f"- {invalidation.audit_finding_id}:"
+            starts = [position for position, line in enumerate(lines) if line == heading]
+            if len(starts) != 1:
+                raise TransitionError(
+                    "historical scientific validity audit finding is not unique"
+                )
+            start = starts[0]
+            end = len(lines)
+            for position in range(start + 1, len(lines)):
+                if lines[position].startswith("- AX-") and lines[position].endswith(":"):
+                    end = position
+                    break
+            finding = lines[start:end]
+            required = (
+                f"  reason {invalidation.reason.value}",
+                (
+                    f"  {invalidation.study_id} {invalidation.executable_id} "
+                    f"completion {invalidation.completion_record_id}"
+                ),
+            )
+            if any(finding.count(line) != 1 for line in required):
+                raise TransitionError(
+                    "historical scientific validity audit lacks the exact "
+                    "completion finding slice"
+                )
+
+        audit_documents: dict[str, bytes] = {}
+        for invalidation in normalized:
+            try:
+                document = self.evidence.read_verified(
+                    invalidation.audit_artifact_hash
+                )
+            except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+                raise TransitionError(
+                    "historical scientific validity audit evidence is unavailable"
+                ) from exc
+            require_audit_finding(invalidation, document)
+            prior_document = audit_documents.setdefault(
+                invalidation.audit_artifact_hash, document
+            )
+            if prior_document != document:
+                raise TransitionError(
+                    "historical scientific validity audit evidence is inconsistent"
+                )
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError(
+                    "historical scientific validity correction requires control"
+                )
+            science = current["scientific"]
+            if (
+                not isinstance(science.get("active_mission"), str)
+                or not isinstance(science.get("active_initiative"), str)
+                or current.get("next_action", {}).get("kind")
+                != "portfolio_decision"
+                or any(
+                    science.get(name) is not None
+                    for name in (
+                        "active_batch",
+                        "active_executable",
+                        "active_holdout_evaluation",
+                        "active_job",
+                        "active_lineage",
+                        "active_release",
+                        "active_repair",
+                        "active_study",
+                    )
+                )
+            ):
+                raise TransitionError(
+                    "historical scientific validity correction requires the "
+                    "active stable Portfolio boundary"
+                )
+
+            records: list[IndexRecord] = []
+            inventory: list[dict[str, str]] = []
+            for invalidation in normalized:
+                try:
+                    durable_document = self.evidence.read_verified(
+                        invalidation.audit_artifact_hash
+                    )
+                except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
+                    raise RecoveryRequired(
+                        "historical scientific validity audit evidence changed "
+                        "before commit"
+                    ) from exc
+                if durable_document != audit_documents[invalidation.audit_artifact_hash]:
+                    raise RecoveryRequired(
+                        "historical scientific validity audit evidence changed "
+                        "before commit"
+                    )
+                require_audit_finding(invalidation, durable_document)
+                stream = completion_validity_stream(
+                    invalidation.completion_record_id
+                )
+                if index.event_head(stream) is not None:
+                    raise TransitionError(
+                        "historical scientific validity completion already has a head"
+                    )
+                try:
+                    validate_completion_validity_invalidation_binding(
+                        index, invalidation
+                    )
+                    record = completion_validity_invalidation_record(
+                        invalidation,
+                        sequence=1,
+                    )
+                except (CompletionValidityProjectionError, TypeError, ValueError) as exc:
+                    raise TransitionError(
+                        "historical scientific validity binding is invalid"
+                    ) from exc
+                records.append(record)
+                inventory.append(
+                    {
+                        "completion_record_id": invalidation.completion_record_id,
+                        "invalidation_record_id": invalidation.identity,
+                    }
+                )
+            return self._body(current), records, {
+                "authority_delta": dict(AUTHORITY_DELTA_ZERO),
+                "invalidations": inventory,
+            }
+
+        return self._commit(
+            event_kind="historical_scientific_validity_invalidations_recorded",
+            operation_id=operation_id,
+            subject="ProjectGoal:OPERATING_DIRECTION.md",
+            payload={
+                "invalidations": [
+                    item.to_identity_payload() for item in normalized
+                ],
+            },
+            prepare=prepare,
+        )
+
+    def record_historical_cost_semantics_latch(
+        self,
+        *,
+        manifest_artifact_hash: str,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Activate the one frozen completed-period spread-cost qualification.
+
+        The canonical manifest and its exact ASCII report are content-addressed
+        evidence.  The Writer independently rederives the complete bounded
+        inventory from the authenticated index before recording a zero-credit,
+        sequence-one latch without changing control or scientific state.
+        """
+
+        from axiom_rift.operations.historical_cost_semantics_projection import (
+            LATCH_EVENT_KIND,
+            LATCH_RECORD_KIND,
+            LATCH_STREAM,
+            HistoricalCostSemanticsProjectionError,
+            build_historical_spread_semantics_audit_manifest,
+            historical_cost_semantics_activation_records,
+            validate_historical_cost_semantics_latch_binding,
+        )
+        from axiom_rift.research.historical_cost_semantics import (
+            AUTHORITY_DELTA_ZERO,
+            HistoricalCostSemanticsError,
+            HistoricalCostSemanticsLatch,
+            HistoricalSpreadSemanticsAuditManifest,
+        )
+
+        _require_digest(
+            "historical spread semantics audit manifest",
+            manifest_artifact_hash,
+        )
+        try:
+            manifest_bytes = self.evidence.read_verified(manifest_artifact_hash)
+            manifest = HistoricalSpreadSemanticsAuditManifest.from_bytes(
+                manifest_bytes
+            )
+            if manifest.artifact_hash != manifest_artifact_hash:
+                raise HistoricalCostSemanticsError(
+                    "canonical manifest hash differs from its evidence identity"
+                )
+            report_bytes = self.evidence.read_verified(
+                manifest.audit_artifact_hash
+            )
+            manifest.require_report(report_bytes)
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise TransitionError(
+                "historical cost semantics latch lacks its exact canonical evidence"
+            ) from exc
+
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError(
+                    "historical cost semantics latch requires control"
+                )
+            science = current["scientific"]
+            mission_id = science.get("active_mission")
+            initiative_id = science.get("active_initiative")
+            next_action = current.get("next_action")
+            snapshot_id = (
+                next_action.get("portfolio_snapshot_id")
+                if isinstance(next_action, Mapping)
+                else None
+            )
+            snapshot = (
+                index.get("portfolio-snapshot", snapshot_id)
+                if type(snapshot_id) is str
+                else None
+            )
+            if (
+                type(mission_id) is not str
+                or type(initiative_id) is not str
+                or not isinstance(next_action, Mapping)
+                or next_action.get("kind") != "portfolio_decision"
+                or type(snapshot_id) is not str
+                or snapshot is None
+                or snapshot.subject != f"Mission:{mission_id}"
+                or any(
+                    science.get(name) is not None
+                    for name in (
+                        "active_batch",
+                        "active_executable",
+                        "active_holdout_evaluation",
+                        "active_job",
+                        "active_lineage",
+                        "active_release",
+                        "active_repair",
+                        "active_study",
+                    )
+                )
+            ):
+                raise TransitionError(
+                    "historical cost semantics latch requires the active stable "
+                    "Portfolio boundary"
+                )
+            if index.event_head(LATCH_STREAM) is not None or index.count_by_kind(
+                LATCH_RECORD_KIND
+            ):
+                raise TransitionError(
+                    "historical cost semantics latch already has a frozen head"
+                )
+
+            try:
+                durable_manifest_bytes = self.evidence.read_verified(
+                    manifest_artifact_hash
+                )
+                durable_report_bytes = self.evidence.read_verified(
+                    manifest.audit_artifact_hash
+                )
+                durable_manifest = HistoricalSpreadSemanticsAuditManifest.from_bytes(
+                    durable_manifest_bytes
+                )
+                durable_manifest.require_report(durable_report_bytes)
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                raise RecoveryRequired(
+                    "historical cost semantics evidence changed before commit"
+                ) from exc
+            if (
+                durable_manifest_bytes != manifest_bytes
+                or durable_report_bytes != report_bytes
+                or durable_manifest != manifest
+            ):
+                raise RecoveryRequired(
+                    "historical cost semantics evidence changed before commit"
+                )
+
+            try:
+                expected_manifest = (
+                    build_historical_spread_semantics_audit_manifest(
+                        index,
+                        audit_artifact_hash=manifest.audit_artifact_hash,
+                    )
+                )
+                if (
+                    expected_manifest != manifest
+                    or canonical_bytes(expected_manifest.to_payload())
+                    != manifest_bytes
+                ):
+                    raise HistoricalCostSemanticsProjectionError(
+                        "current inventory differs from the canonical audit manifest"
+                )
+                latch = HistoricalCostSemanticsLatch.from_audit_manifest(manifest)
+                audit_slice = validate_historical_cost_semantics_latch_binding(
+                    index,
+                    latch,
+                    manifest,
+                )
+                records = historical_cost_semantics_activation_records(
+                    latch,
+                    audit_slice,
+                )
+            except (
+                HistoricalCostSemanticsError,
+                HistoricalCostSemanticsProjectionError,
+                TypeError,
+                ValueError,
+            ) as exc:
+                raise TransitionError(
+                    "historical cost semantics manifest cannot be rederived exactly"
+                ) from exc
+
+            return self._body(current), list(records), {
+                "audit_manifest_hash": manifest.artifact_hash,
+                "authority_delta": dict(AUTHORITY_DELTA_ZERO),
+                "latch_record_id": latch.identity,
+            }
+
+        return self._commit(
+            event_kind=LATCH_EVENT_KIND,
+            operation_id=operation_id,
+            subject="ProjectGoal:OPERATING_DIRECTION.md",
+            payload={
+                "audit_manifest_hash": manifest.artifact_hash,
+                "audit_manifest_identity": manifest.identity,
+                "audit_report_hash": manifest.audit_artifact_hash,
+            },
+            prepare=prepare,
+        )
+
     def _writer_derived_historical_validity_overrides(
         self,
         index: LocalIndex,
         *,
+        completion_record_id: str,
         executable_id: str,
         declaration: IndexRecord,
         prior: IndexRecord | None,
@@ -15840,8 +16357,8 @@ class StateWriter:
         """Derive the monotone validity facts for one legacy completion.
 
         A request may describe these facts, but it cannot create, omit, or
-        withdraw them.  The durable source-authority streams and any prior
-        additive overlay are the only inputs to this projection.
+        withdraw them.  Durable source-authority and completion-validity heads,
+        plus any prior additive overlay, are the only inputs to this projection.
         """
 
         from axiom_rift.research.historical_adjudication import (
@@ -15902,6 +16419,7 @@ class StateWriter:
                 self._require_historical_validity_override(
                     index,
                     override=override,
+                    completion_record_id=completion_record_id,
                     executable_id=executable_id,
                     declaration=declaration,
                 )
@@ -15936,6 +16454,7 @@ class StateWriter:
             self._require_historical_validity_override(
                 index,
                 override=override,
+                completion_record_id=completion_record_id,
                 executable_id=executable_id,
                 declaration=declaration,
             )
@@ -15943,6 +16462,47 @@ class StateWriter:
             if previous != override:
                 raise RecoveryRequired(
                     "historical validity correction cannot be replaced"
+                )
+
+        from axiom_rift.operations.completion_validity_projection import (
+            CompletionValidityProjectionError,
+            current_completion_validity_invalidation,
+        )
+
+        try:
+            completion_head = current_completion_validity_invalidation(
+                index, completion_record_id
+            )
+        except CompletionValidityProjectionError as exc:
+            raise RecoveryRequired(
+                "completion validity correction head is malformed"
+            ) from exc
+        if completion_head is not None:
+            try:
+                override = HistoricalValidityOverride(
+                    reason=(
+                        HistoricalValidityReason.DECISION_INPUT_POINT_IN_TIME_UNPROVEN
+                    ),
+                    subject_id=completion_record_id,
+                    evidence_record_id=completion_head.invalidation_record_id,
+                )
+            except (TypeError, ValueError) as exc:
+                raise RecoveryRequired(
+                    "completion validity correction identity is malformed"
+                ) from exc
+            self._require_historical_validity_override(
+                index,
+                override=override,
+                completion_record_id=completion_record_id,
+                executable_id=executable_id,
+                declaration=declaration,
+            )
+            previous = overrides_by_subject.setdefault(
+                completion_record_id, override
+            )
+            if previous != override:
+                raise RecoveryRequired(
+                    "historical completion validity correction cannot be replaced"
                 )
 
         return tuple(
@@ -16136,7 +16696,7 @@ class StateWriter:
         operation_id: str,
         historical_family_authority: HistoricalFamilyAuthority | None = None,
     ) -> TransitionResult:
-        """Revoke only a reproducibly invalid E01 satisfaction and requeue it."""
+        """Revoke one reproducibly invalid satisfaction and requeue it."""
 
         from axiom_rift.operations.replay_projection import (
             ReplayProjectionError,
@@ -16145,7 +16705,7 @@ class StateWriter:
             scheduler_constraints,
         )
         from axiom_rift.research.replay_satisfaction_invalidation import (
-            ReplaySatisfactionInvalidationAuditManifest,
+            replay_satisfaction_invalidation_manifest_from_bytes,
         )
         from axiom_rift.research.historical_study_registry import (
             HISTORICAL_FAMILY_IDENTITY_BY_MODULE,
@@ -16168,7 +16728,7 @@ class StateWriter:
         )
         try:
             manifest_bytes = self.evidence.read_verified(audit_manifest_hash)
-            manifest = ReplaySatisfactionInvalidationAuditManifest.from_bytes(
+            manifest = replay_satisfaction_invalidation_manifest_from_bytes(
                 manifest_bytes
             )
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
@@ -16428,7 +16988,7 @@ class StateWriter:
             try:
                 durable_bytes = self.evidence.read_verified(audit_manifest_hash)
                 durable_manifest = (
-                    ReplaySatisfactionInvalidationAuditManifest.from_bytes(
+                    replay_satisfaction_invalidation_manifest_from_bytes(
                         durable_bytes
                     )
                 )
@@ -17041,16 +17601,29 @@ class StateWriter:
         from axiom_rift.research.historical_adjudication import (
             HistoricalAdjudicationRequest,
             HistoricalScientificAdjudication,
+            ReplayPriority,
             derive_historical_adjudication,
             profile_manifest,
         )
         from axiom_rift.research.adjudication import AdjudicationProfile
         from axiom_rift.research.replay_obligation import (
+            ReplayObligationStatus,
+            ReplayPriorityEscalation,
             derive_historical_replay_obligation,
         )
+        from axiom_rift.operations.completion_validity_projection import (
+            CompletionValidityProjectionError,
+            current_completion_validity_invalidation,
+        )
         from axiom_rift.operations.replay_projection import (
+            ReplayProjectionError,
+            ReplayTransitionError,
+            build_satisfaction_invalidation_plan,
             constraints_for_pending,
+            effective_replay_priority,
             initial_obligation_record,
+            replay_priority_escalation_record,
+            replay_priority_stream,
         )
 
         _require_digest("historical audit artifact", audit_artifact_hash)
@@ -17122,10 +17695,28 @@ class StateWriter:
                         (study_id, executable_id), []
                     ).append(memory.record_id)
 
+            obligation_heads = self._historical_replay_obligation_heads(
+                index,
+                mission_id=science["active_mission"],
+            )
+            obligation_by_completion: dict[str, tuple[Any, IndexRecord]] = {}
+            for obligation, obligation_head in obligation_heads:
+                previous = obligation_by_completion.setdefault(
+                    obligation.original_completion_record_id,
+                    (obligation, obligation_head),
+                )
+                if previous != (obligation, obligation_head):
+                    raise RecoveryRequired(
+                        "historical completion has duplicate replay obligations"
+                    )
+
             records: list[IndexRecord] = []
             derived: list[HistoricalScientificAdjudication] = []
             new_replay_obligations: list[Any] = []
+            reused_replay_obligation_ids: list[str] = []
+            priority_escalations: list[ReplayPriorityEscalation] = []
             for request in normalized:
+                new_priority_escalation: ReplayPriorityEscalation | None = None
                 completion = index.get(
                     "job-completed", request.completion_record_id
                 )
@@ -17249,6 +17840,7 @@ class StateWriter:
                 derived_overrides = (
                     self._writer_derived_historical_validity_overrides(
                         index,
+                        completion_record_id=completion.record_id,
                         executable_id=executable_id,
                         declaration=declaration,
                         prior=prior,
@@ -17257,7 +17849,7 @@ class StateWriter:
                 if request.validity_overrides != derived_overrides:
                     raise TransitionError(
                         "historical validity overrides differ from "
-                        "Writer-derived durable source-authority latches"
+                        "Writer-derived durable invalidity heads"
                     )
                 study = index.get("study-open", study_id)
                 close_records = tuple(
@@ -17312,9 +17904,208 @@ class StateWriter:
                     "claim_authority": "additive_qualification_only",
                     "profile_authority": "writer_derived_fixed_legacy_v1",
                     "validity_override_authority": (
-                        "writer_derived_durable_source_latches"
+                        "writer_derived_durable_invalidity_heads"
                     ),
                 }
+                new_obligation_record: IndexRecord | None = None
+                if item.disposition.value == "replay_required":
+                    existing = obligation_by_completion.get(
+                        completion.record_id
+                    )
+                    if existing is not None:
+                        obligation, obligation_head = existing
+                        cursor = prior
+                        found_origin = False
+                        seen_adjudications: set[str] = set()
+                        while cursor is not None:
+                            if cursor.record_id in seen_adjudications:
+                                raise RecoveryRequired(
+                                    "historical adjudication supersession is cyclic"
+                                )
+                            seen_adjudications.add(cursor.record_id)
+                            if (
+                                cursor.record_id
+                                == obligation.historical_adjudication_id
+                            ):
+                                found_origin = True
+                                break
+                            superseded_id = cursor.payload.get(
+                                "supersedes_record_id"
+                            )
+                            if superseded_id is None:
+                                cursor = None
+                            elif not isinstance(superseded_id, str):
+                                raise RecoveryRequired(
+                                    "historical adjudication supersession is malformed"
+                                )
+                            else:
+                                cursor = index.get(
+                                    "historical-scientific-adjudication",
+                                    superseded_id,
+                                )
+                        if (
+                            not found_origin
+                            or obligation.original_executable_id != executable_id
+                            or obligation.original_study_id != study_id
+                            or obligation.original_study_close_record_id
+                            != close.record_id
+                            or obligation.governing_mission_id
+                            != science["active_mission"]
+                        ):
+                            raise RecoveryRequired(
+                                "historical replay obligation is outside the "
+                                "adjudication supersession lineage"
+                            )
+                        payload["replay_obligation_id"] = obligation.identity
+                        payload["replay_obligation_origin_adjudication_id"] = (
+                            obligation.historical_adjudication_id
+                        )
+                        payload["replay_obligation_authority"] = (
+                            "reused_existing_lineage"
+                        )
+                        reused_replay_obligation_ids.append(obligation.identity)
+                        try:
+                            current_effective_priority = effective_replay_priority(
+                                index, obligation
+                            )
+                        except ReplayProjectionError as exc:
+                            raise RecoveryRequired(str(exc)) from exc
+                        if item.replay_priority is current_effective_priority:
+                            pass
+                        elif (
+                            obligation.replay_priority is ReplayPriority.P1
+                            and current_effective_priority is ReplayPriority.P1
+                            and item.replay_priority is ReplayPriority.P0
+                        ):
+                            if (
+                                "accepted_replay_satisfaction_revocation_pending"
+                                not in item.reason_codes
+                                or obligation_head.status
+                                != ReplayObligationStatus.SATISFIED.value
+                                or obligation_head.kind
+                                != "historical-replay-obligation-resolution"
+                                or not obligation_head.record_id.startswith(
+                                    "historical-replay-satisfaction:"
+                                )
+                                or obligation_head.payload.get("obligation_id")
+                                != obligation.identity
+                            ):
+                                raise TransitionError(
+                                    "replay priority escalation requires the exact "
+                                    "accepted satisfaction pending revocation"
+                                )
+                            try:
+                                invalidation = (
+                                    current_completion_validity_invalidation(
+                                        index,
+                                        completion.record_id,
+                                    )
+                                )
+                            except CompletionValidityProjectionError as exc:
+                                raise RecoveryRequired(
+                                    "replay priority escalation completion "
+                                    "validity is malformed"
+                                ) from exc
+                            if invalidation is None:
+                                raise TransitionError(
+                                    "replay priority escalation requires the "
+                                    "current completion invalidation"
+                                )
+                            try:
+                                invalidation_plan = (
+                                    build_satisfaction_invalidation_plan(
+                                        index,
+                                        mission_id=science["active_mission"],
+                                        obligation_id=obligation.identity,
+                                    )
+                                )
+                            except ReplayProjectionError as exc:
+                                raise RecoveryRequired(str(exc)) from exc
+                            except ReplayTransitionError as exc:
+                                raise TransitionError(str(exc)) from exc
+                            audit_manifest = invalidation_plan.get(
+                                "audit_manifest"
+                            )
+                            if (
+                                invalidation_plan.get("schema")
+                                != "replay_satisfaction_invalidation_plan.v1"
+                                or invalidation_plan.get("operation")
+                                != "invalidate_historical_replay_satisfaction"
+                                or not isinstance(audit_manifest, dict)
+                                or audit_manifest.get("obligation_id")
+                                != obligation.identity
+                                or audit_manifest.get("satisfaction_record_id")
+                                != obligation_head.record_id
+                                or audit_manifest.get("governing_mission_id")
+                                != science["active_mission"]
+                            ):
+                                raise RecoveryRequired(
+                                    "replay priority escalation invalidation "
+                                    "plan is not exact"
+                                )
+                            if index.event_head(
+                                replay_priority_stream(obligation.identity)
+                            ) is not None:
+                                raise RecoveryRequired(
+                                    "replay priority escalation already exists"
+                                )
+                            try:
+                                escalation = ReplayPriorityEscalation(
+                                    governing_mission_id=science["active_mission"],
+                                    obligation_id=obligation.identity,
+                                    superseding_historical_adjudication_id=(
+                                        item.identity
+                                    ),
+                                    completion_validity_invalidation_id=(
+                                        invalidation.invalidation_record_id
+                                    ),
+                                    accepted_satisfaction_record_id=(
+                                        obligation_head.record_id
+                                    ),
+                                    audit_artifact_hash=audit_artifact_hash,
+                                    reason_codes=item.reason_codes,
+                                )
+                            except ValueError as exc:
+                                raise RecoveryRequired(
+                                    "replay priority escalation derivation failed"
+                                ) from exc
+                            new_priority_escalation = escalation
+                            priority_escalations.append(escalation)
+                        else:
+                            raise TransitionError(
+                                "an immutable replay obligation priority cannot "
+                                "be demoted or otherwise rewritten"
+                            )
+                    else:
+                        if prior is not None and prior.status == "replay_required":
+                            raise RecoveryRequired(
+                                "prior replay adjudication lost its obligation"
+                            )
+                        try:
+                            obligation = derive_historical_replay_obligation(
+                                governing_mission_id=science["active_mission"],
+                                historical_adjudication_id=item.identity,
+                                adjudication_payload=item.to_identity_payload(),
+                            )
+                        except ValueError as exc:
+                            raise RecoveryRequired(
+                                "derived historical replay obligation is malformed"
+                            ) from exc
+                        if index.get(
+                            "historical-replay-obligation", obligation.identity
+                        ) is not None:
+                            raise RecoveryRequired(
+                                "historical replay obligation identity already exists"
+                            )
+                        payload["replay_obligation_id"] = obligation.identity
+                        payload["replay_obligation_origin_adjudication_id"] = (
+                            item.identity
+                        )
+                        payload["replay_obligation_authority"] = "derived_new"
+                        new_obligation_record = initial_obligation_record(
+                            obligation
+                        )
+                        new_replay_obligations.append(obligation)
                 records.append(
                     _record(
                         kind="historical-scientific-adjudication",
@@ -17329,37 +18120,41 @@ class StateWriter:
                         event_sequence=sequence,
                     )
                 )
-                if item.disposition.value == "replay_required":
-                    try:
-                        obligation = derive_historical_replay_obligation(
-                            governing_mission_id=science["active_mission"],
-                            historical_adjudication_id=item.identity,
-                            adjudication_payload=item.to_identity_payload(),
+                if new_obligation_record is not None:
+                    records.append(new_obligation_record)
+                if new_priority_escalation is not None:
+                    records.append(
+                        replay_priority_escalation_record(
+                            new_priority_escalation
                         )
-                    except ValueError as exc:
-                        raise RecoveryRequired(
-                            "derived historical replay obligation is malformed"
-                        ) from exc
-                    if index.get(
-                        "historical-replay-obligation", obligation.identity
-                    ) is not None:
-                        raise RecoveryRequired(
-                            "historical replay obligation identity already exists"
-                        )
-                    records.append(initial_obligation_record(obligation))
-                    new_replay_obligations.append(obligation)
+                    )
                 derived.append(item)
             body = self._body(current)
             existing_pending = [
                 obligation
-                for obligation, head in self._historical_replay_obligation_heads(
-                    index,
-                    mission_id=science["active_mission"],
-                )
+                for obligation, head in obligation_heads
                 if head.status == "pending"
             ]
             combined_pending = [*existing_pending, *new_replay_obligations]
-            replay_constraints = constraints_for_pending(combined_pending)
+            try:
+                effective_priorities = {
+                    obligation.identity: effective_replay_priority(
+                        index, obligation
+                    )
+                    for obligation in existing_pending
+                }
+            except ReplayProjectionError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            effective_priorities.update(
+                {
+                    obligation.identity: obligation.replay_priority
+                    for obligation in new_replay_obligations
+                }
+            )
+            replay_constraints = constraints_for_pending(
+                combined_pending,
+                effective_priorities=effective_priorities,
+            )
             if replay_constraints is not None:
                 body["next_action"] = self._with_replay_scheduler_constraints(
                     body["next_action"],
@@ -17370,6 +18165,12 @@ class StateWriter:
                 "replay_obligation_ids": [
                     item.identity for item in new_replay_obligations
                 ],
+                "reused_replay_obligation_ids": sorted(
+                    reused_replay_obligation_ids
+                ),
+                "replay_priority_escalation_ids": sorted(
+                    item.identity for item in priority_escalations
+                ),
                 "audit_artifact_hash": audit_artifact_hash,
                 "candidate_delta": 0,
                 "holdout_delta": 0,

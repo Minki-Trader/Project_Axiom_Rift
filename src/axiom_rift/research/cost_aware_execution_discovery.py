@@ -35,6 +35,8 @@ from axiom_rift.research.discovery import (
     _validate_fold_payloads,
     _validate_production_data,
     causal_effective_spread,
+    completed_bar_execution_spreads,
+    completed_bar_spread_proxy_indices,
     discovery_implementation_sha256,
     execution_pnl,
 )
@@ -214,10 +216,18 @@ def cost_aware_execution_components() -> tuple[ComponentSpec, ...]:
             protocol="execution.causal_spread_abstention.v1",
             implementation=_local("simulate_cost_aware_execution"),
             spec={
-                "entry_spread_available_at": "entry_time_before_order",
+                "entry_spread_available_at": (
+                    "completed_decision_bar_close_before_next_open"
+                ),
+                "execution_cost_proxies": {
+                    "entry": "entry_index_minus_1",
+                    "exit": "exit_index_minus_1",
+                },
                 "parameter_fields": ["execution_policy"],
                 "policies": list(_POLICIES),
-                "reference": "gap_reset_prior_288_bar_median",
+                "reference": (
+                    "gap_reset_strictly_prior_288_completed_bar_median"
+                ),
                 "spread_limit_milli": SPREAD_LIMIT_MILLI,
                 "stress": "half_effective_spread_each_side",
             },
@@ -282,10 +292,12 @@ def _cost_aware_execution_executable(
         split_contract=(
             f"split:{ROLLING_SPLIT_SHA256}:rolling_windows_9_observed_development"
         ),
-        clock_contract="clock:fpmarkets_m5_entry_quote_observed_before_order_v1",
+        clock_contract=(
+            "clock:fpmarkets_m5_completed_decision_bar_spread_proxy_v1"
+        ),
         cost_contract=(
-            "cost:bid_bar_spread_point_0_01_causal_zero_repair_"
-            "entry_quote_gate_half_spread_stress_v1"
+            "cost:fpmarkets_completed_bar_spread_proxy_point_0_01_"
+            "causal_zero_repair_decision_bar_gate_half_spread_stress_v1"
         ),
         engine_contract=(
             f"engine:cost_aware_execution_v1:python{'.'.join(str(v) for v in sys.version_info[:3])}:"
@@ -390,17 +402,29 @@ def simulate_cost_aware_execution(
             causality_violations += 1
             intents.append((decision_time, entry_time, exit_time, direction, "causality_violation"))
             continue
-        entry_cost_known = np.isfinite(spreads[entry_index])
+        entry_proxy_index = completed_bar_spread_proxy_indices(
+            int(entry_index),
+            spread_count=len(spreads),
+        )
+        assert isinstance(entry_proxy_index, int)
+        entry_cost_known = np.isfinite(spreads[entry_proxy_index])
         if configuration.policy == "causal_spread_abstention":
-            reference_known = np.isfinite(reference[entry_index])
+            gate_spread = spreads[decision_index]
+            gate_reference = reference[decision_index]
+            reference_known = np.isfinite(gate_reference)
             if not (entry_cost_known and reference_known):
                 intents.append((decision_time, entry_time, exit_time, direction, "entry_cancelled_unknown_gate"))
                 continue
-            if spreads[entry_index] * 1000 > reference[entry_index] * SPREAD_LIMIT_MILLI:
+            if gate_spread * 1000 > gate_reference * SPREAD_LIMIT_MILLI:
                 intents.append((decision_time, entry_time, exit_time, direction, "spread_abstained"))
                 continue
         next_decision_index = exit_index
-        if not (entry_cost_known and np.isfinite(spreads[exit_index])):
+        execution_spreads = completed_bar_execution_spreads(
+            spreads,
+            entry_index=entry_index,
+            exit_index=exit_index,
+        )
+        if not execution_spreads.costs_known:
             unresolved += 1
             intents.append((decision_time, entry_time, exit_time, direction, "unknown_cost"))
             continue
@@ -408,8 +432,8 @@ def simulate_cost_aware_execution(
             direction=direction,
             entry_bid=float(opens[entry_index]),
             exit_bid=float(opens[exit_index]),
-            entry_spread_points=float(spreads[entry_index]),
-            exit_spread_points=float(spreads[exit_index]),
+            entry_spread_points=execution_spreads.entry_spread_points,
+            exit_spread_points=execution_spreads.exit_spread_points,
         )
         entry_volatility = float(volatility[decision_index])
         regime = (
@@ -570,7 +594,7 @@ def compute_registered_cost_aware_execution_surface(
         "claim_limits": _claim_limits()
         + [
             "execution_is_the_only_primary_changed_research_layer",
-            "entry_spread_gate_is_observed_before_order",
+            "entry_spread_gate_uses_completed_decision_bar_proxy",
             "fixed_first_passage_signal_selector_direction_lifecycle_and_risk",
             "two_trial_surface",
         ],

@@ -169,6 +169,45 @@ class JournalSegmentationTests(unittest.TestCase):
             payload=payload,
         )
 
+    def test_exact_preappend_expectation_is_consumed_before_write(self) -> None:
+        preview = DurableJournal(
+            self.root / "preview" / "records" / "journal.jsonl"
+        )
+        expected = self.append(preview, payload={"value": 1})
+
+        with self.journal.expect_next_event(expected) as expectation:
+            actual = self.append(payload={"value": 1})
+
+        self.assertTrue(expectation.consumed)
+        self.assertEqual(actual, expected)
+        self.assertEqual(self.journal.read_all(), (expected,))
+
+    def test_preappend_mismatch_and_missing_append_leave_journal_untouched(
+        self,
+    ) -> None:
+        preview = DurableJournal(
+            self.root / "preview" / "records" / "journal.jsonl"
+        )
+        expected = self.append(preview, payload={"value": 1})
+
+        with self.assertRaisesRegex(
+            JournalIntegrityError,
+            "differs from the preappend expectation",
+        ):
+            with self.journal.expect_next_event(expected):
+                self.append(payload={"value": 2})
+        self.assertEqual(self.journal.tail(), (JournalHead(0, None), None))
+        self.assertFalse(self.path.exists())
+
+        with self.assertRaisesRegex(
+            JournalIntegrityError,
+            "was not consumed",
+        ):
+            with self.journal.expect_next_event(expected):
+                pass
+        self.assertEqual(self.journal.tail(), (JournalHead(0, None), None))
+        self.assertFalse(self.path.exists())
+
     def migrate(self, journal: DurableJournal | None = None) -> dict[str, object]:
         target = self.journal if journal is None else journal
         event = self.migration_event(target)

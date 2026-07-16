@@ -546,8 +546,11 @@ class ScientificValidationV2Tests(unittest.TestCase):
                 "analog_state_replay_v2.py",
                 "analog_state_scoped_job.py",
                 "analog_state_trace.py",
+                "completed_period_atomic_trace.py",
                 "fixed_hold_family_trace.py",
+                "fixed_hold_historical_projection.py",
                 "historical_family_binding.py",
+                "historical_semantic_transition.py",
             },
         )
         self.assertTrue(

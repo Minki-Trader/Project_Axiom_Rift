@@ -22,6 +22,7 @@ from axiom_rift.research.discovery import (
     SimulationResult,
     _time_ns,
     causal_effective_spread,
+    completed_bar_execution_spreads,
     discovery_implementation_sha256,
     execution_pnl,
 )
@@ -188,10 +189,15 @@ def shadow_slot_lifecycle_components() -> tuple[ComponentSpec, ...]:
         semantic_dependencies=(lifecycle.identity,),
     )
     execution = ComponentSpec(
-        display_name="fixed FPMarkets bid-open spread execution",
-        protocol="execution.fpmarkets_bid_open_spread.v1",
+        display_name="fixed FPMarkets completed-period spread proxy execution",
+        protocol="execution.fpmarkets_completed_bar_spread_proxy.v1",
         implementation=_local("simulate_shadow_slot_lifecycle"),
-        spec={"point": "0.01", "stress": "half_effective_spread_each_side"},
+        spec={
+            "entry_proxy": "entry_index_minus_1",
+            "exit_proxy": "exit_index_minus_1",
+            "point": "0.01",
+            "stress": "half_effective_spread_each_side",
+        },
         semantic_dependencies=(risk.identity,),
     )
     return feature, label, model, selector, trade, lifecycle, risk, execution
@@ -207,7 +213,10 @@ def shadow_slot_lifecycle_executable(
         data_contract=f"data:{OBSERVED_MATERIAL_ID}",
         split_contract=f"split:{ROLLING_SPLIT_SHA256}:rolling_windows_9_observed_development",
         clock_contract="clock:fpmarkets_m5_bar_open_completed_plus_5m_v3",
-        cost_contract="cost:bid_bar_spread_point_0_01_causal_zero_repair_half_spread_stress_v3",
+        cost_contract=(
+            "cost:fpmarkets_completed_bar_spread_proxy_point_0_01_"
+            "causal_zero_repair_half_spread_stress_v1"
+        ),
         engine_contract=(
             f"engine:shadow_slot_lifecycle_v1:python{'.'.join(str(v) for v in sys.version_info[:3])}:"
             f"numpy{np.__version__}:pandas{pd.__version__}:scipy{scipy.__version__}:"
@@ -290,15 +299,20 @@ def simulate_shadow_slot_lifecycle(
             if configuration.lifecycle_policy == "immediate_reuse_control"
             else maximum_exit
         )
-        if not (np.isfinite(spreads[entry_index]) and np.isfinite(spreads[exit_index])):
+        execution_spreads = completed_bar_execution_spreads(
+            spreads,
+            entry_index=entry_index,
+            exit_index=exit_index,
+        )
+        if not execution_spreads.costs_known:
             unresolved += 1
             intents.append((decision_time, entry_time, time.iloc[exit_index], direction, "unknown_cost"))
             continue
         native, stress = execution_pnl(
             direction=direction, entry_bid=float(opens[entry_index]),
             exit_bid=float(opens[exit_index]),
-            entry_spread_points=float(spreads[entry_index]),
-            exit_spread_points=float(spreads[exit_index]),
+            entry_spread_points=execution_spreads.entry_spread_points,
+            exit_spread_points=execution_spreads.exit_spread_points,
         )
         entry_volatility = float(volatility[decision_index])
         regime = (

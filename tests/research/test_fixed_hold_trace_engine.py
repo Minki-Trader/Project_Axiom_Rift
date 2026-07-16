@@ -25,9 +25,11 @@ class FixedHoldTraceEngineTests(unittest.TestCase):
                     "2025-01-01T00:00:00Z",
                     periods=3,
                     freq="5min",
-                )
+                ),
+                "open": (100.0, 100.0, 103.0),
             }
         )
+        self.spreads = np.array([5.0, 7.0, 11.0])
         self.configuration = SimpleNamespace(
             configuration_id="synthetic-follow-h1",
             historical_reference_executable_id="executable:" + "1" * 64,
@@ -39,10 +41,12 @@ class FixedHoldTraceEngineTests(unittest.TestCase):
             "direction": 1,
             "entry_time": self.frame.loc[1, "time"],
             "exit_time": self.frame.loc[2, "time"],
-            "gross_pnl": 2.5,
-            "native_cost": 0.25,
+            "gross_pnl": 3.0,
+            "native_cost": 0.05,
+            "pnl": 2.95,
             "regime": "middle",
-            "stress_cost": 0.5,
+            "stress_cost": 0.11,
+            "stress_pnl": 2.89,
         }
         self.simulation = SimpleNamespace(
             trades=pd.DataFrame((trade,)),
@@ -67,19 +71,31 @@ class FixedHoldTraceEngineTests(unittest.TestCase):
             executable_id="executable:" + "2" * 64,
             simulations=captures,
             frame=self.frame,
+            effective_spread=self.spreads,
         )
         intents = _intent_rows(
             configuration=self.configuration,
             executable_id="executable:" + "2" * 64,
             simulations=captures,
             frame=self.frame,
+            effective_spread=self.spreads,
         )
         self.assertEqual(len(trades), 1)
         self.assertEqual(len(intents), 2)
         self.assertEqual(trades[0]["decision_bar_index"], 0)
         self.assertEqual(trades[0]["entry_bar_index"], 1)
         self.assertEqual(trades[0]["exit_bar_index"], 2)
-        self.assertEqual(trades[0]["native_net_pnl_micropoints"], 2_250_000)
+        self.assertEqual(trades[0]["native_net_pnl_micropoints"], 2_950_000)
+        self.assertEqual(trades[0]["entry_spread_source_bar_index"], 0)
+        self.assertEqual(trades[0]["exit_spread_source_bar_index"], 1)
+        self.assertEqual(
+            trades[0]["entry_spread_information_complete_at"],
+            trades[0]["entry_time"],
+        )
+        self.assertEqual(
+            trades[0]["exit_spread_information_complete_at"],
+            trades[0]["exit_time"],
+        )
         self.assertEqual(
             {value["scope"] for value in intents},
             {"full", "prefix"},
@@ -92,6 +108,32 @@ class FixedHoldTraceEngineTests(unittest.TestCase):
                 for value in trades + intents
             )
         )
+
+    def test_trade_rows_recompute_cost_from_bound_proxy_indices(self) -> None:
+        wrong_trade = dict(self.simulation.trades.iloc[0])
+        wrong_trade.update(
+            {
+                "native_cost": 0.07,
+                "pnl": 2.93,
+                "stress_cost": 0.16,
+                "stress_pnl": 2.84,
+            }
+        )
+        wrong = SimpleNamespace(
+            trades=pd.DataFrame((wrong_trade,)),
+            intent_rows=self.simulation.intent_rows,
+        )
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "completed-bar spread sources",
+        ):
+            _trade_rows(
+                configuration=self.configuration,
+                executable_id="executable:" + "2" * 64,
+                simulations={("fold-01", "full"): wrong},
+                frame=self.frame,
+                effective_spread=self.spreads,
+            )
 
     def test_engine_identity_is_exact_source_digest(self) -> None:
         identity = fixed_hold_trace_engine_implementation_sha256()

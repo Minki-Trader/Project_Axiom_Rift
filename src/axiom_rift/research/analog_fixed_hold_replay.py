@@ -557,6 +557,18 @@ def _convert_trade(
             value=row["decision_bar_open_time"],
         ),
         "decision_bar_open_time": row["decision_bar_open_time"],
+        "decision_spread_source_bar_index": _time_row_index(
+            time_index,
+            name="trade decision spread source",
+            value=row["decision_spread_source_bar_open_time"],
+        ),
+        "decision_spread_source_bar_open_time": row[
+            "decision_spread_source_bar_open_time"
+        ],
+        "decision_spread_information_complete_at": row[
+            "decision_spread_information_complete_at"
+        ],
+        "decision_spread_known": row["decision_spread_known"],
         "decision_time": row["decision_time"],
         "direction": row["direction"],
         "entry_bar_index": _time_row_index(
@@ -564,6 +576,18 @@ def _convert_trade(
             name="trade entry",
             value=row["entry_time"],
         ),
+        "entry_spread_source_bar_index": _time_row_index(
+            time_index,
+            name="trade entry spread source",
+            value=row["entry_spread_source_bar_open_time"],
+        ),
+        "entry_spread_source_bar_open_time": row[
+            "entry_spread_source_bar_open_time"
+        ],
+        "entry_spread_information_complete_at": row[
+            "entry_spread_information_complete_at"
+        ],
+        "entry_spread_known": row["entry_spread_known"],
         "entry_time": row["entry_time"],
         "executable_id": member["executable_id"],
         "exit_bar_index": _time_row_index(
@@ -571,6 +595,18 @@ def _convert_trade(
             name="trade exit",
             value=row["exit_time"],
         ),
+        "exit_spread_source_bar_index": _time_row_index(
+            time_index,
+            name="trade exit spread source",
+            value=row["exit_spread_source_bar_open_time"],
+        ),
+        "exit_spread_source_bar_open_time": row[
+            "exit_spread_source_bar_open_time"
+        ],
+        "exit_spread_information_complete_at": row[
+            "exit_spread_information_complete_at"
+        ],
+        "exit_spread_known": row["exit_spread_known"],
         "exit_time": row["exit_time"],
         "fold_id": row["fold_id"],
         "gross_pnl_micropoints": row["gross_pnl_micropoints"],
@@ -588,6 +624,7 @@ def _convert_trade(
         "stress_net_pnl_micropoints": row[
             "stress_net_pnl_micropoints"
         ],
+        "spread_semantics": row["spread_semantics"],
     }
     value["observation_id"] = fixed_hold_observation_id("trade", value)
     return value
@@ -599,8 +636,7 @@ def _convert_intent(
     member: Mapping[str, Any],
     time_index: Mapping[str, int],
 ) -> dict[str, object]:
-    availability = datetime.fromisoformat(str(row["availability_time"]))
-    decision_bar_open = (availability - timedelta(minutes=5)).isoformat()
+    decision_bar_open = str(row["decision_bar_open_time"])
     holding_bars = int(member["parameters"]["holding_bars"])
     value = {
         "availability_time": row["availability_time"],
@@ -611,6 +647,18 @@ def _convert_intent(
             value=decision_bar_open,
         ),
         "decision_bar_open_time": decision_bar_open,
+        "decision_spread_source_bar_index": _time_row_index(
+            time_index,
+            name="intent decision spread source",
+            value=row["decision_spread_source_bar_open_time"],
+        ),
+        "decision_spread_source_bar_open_time": row[
+            "decision_spread_source_bar_open_time"
+        ],
+        "decision_spread_information_complete_at": row[
+            "decision_spread_information_complete_at"
+        ],
+        "decision_spread_known": row["decision_spread_known"],
         "decision_time": row["decision_time"],
         "direction": row["direction"],
         "entry_bar_index": _time_row_index(
@@ -618,6 +666,18 @@ def _convert_intent(
             name="intent entry",
             value=row["entry_time"],
         ),
+        "entry_spread_source_bar_index": _time_row_index(
+            time_index,
+            name="intent entry spread source",
+            value=row["entry_spread_source_bar_open_time"],
+        ),
+        "entry_spread_source_bar_open_time": row[
+            "entry_spread_source_bar_open_time"
+        ],
+        "entry_spread_information_complete_at": row[
+            "entry_spread_information_complete_at"
+        ],
+        "entry_spread_known": row["entry_spread_known"],
         "entry_time": row["entry_time"],
         "executable_id": member["executable_id"],
         "exit_bar_index": _time_row_index(
@@ -625,6 +685,18 @@ def _convert_intent(
             name="intent exit",
             value=row["exit_time"],
         ),
+        "exit_spread_source_bar_index": _time_row_index(
+            time_index,
+            name="intent exit spread source",
+            value=row["exit_spread_source_bar_open_time"],
+        ),
+        "exit_spread_source_bar_open_time": row[
+            "exit_spread_source_bar_open_time"
+        ],
+        "exit_spread_information_complete_at": row[
+            "exit_spread_information_complete_at"
+        ],
+        "exit_spread_known": row["exit_spread_known"],
         "exit_time": row["exit_time"],
         "fold_id": row["fold_id"],
         "historical_reference_executable_id": member[
@@ -634,6 +706,7 @@ def _convert_intent(
         "observation_id": "pending",
         "ordinal": row["ordinal"],
         "scope": row["scope"],
+        "spread_semantics": row["spread_semantics"],
         "status": row["status"],
     }
     value["observation_id"] = fixed_hold_observation_id("intent", value)

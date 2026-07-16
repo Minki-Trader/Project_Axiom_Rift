@@ -22,6 +22,13 @@ from axiom_rift.operations.evidence_scope_projection import (
     EvidenceScopeProjectionError,
     effective_completion_evidence_scope,
 )
+from axiom_rift.operations.historical_cost_semantics_common import (
+    COMPLETION_SCOPE_RECORD_KIND,
+)
+from axiom_rift.operations.historical_cost_semantics_reader import (
+    HistoricalCostSemanticsProjectionError,
+    effective_historical_completion_cost_authority,
+)
 from axiom_rift.operations.replay_projection import (
     ReplayAuthorityError,
     ReplayProjectionError,
@@ -32,6 +39,7 @@ from axiom_rift.operations.replay_projection import (
 from axiom_rift.research.effective_axis import (
     EffectiveAxisResolution,
     EvidenceScopeAxisBinding,
+    HistoricalCostAxisBinding,
     ReplayAxisBinding,
     SourceInvalidationBinding,
     SourceReplacementBinding,
@@ -1223,9 +1231,62 @@ class _EffectiveAuthorityIndex:
     source_replacements_by_axis: Mapping[
         str, tuple[SourceReplacementBinding, ...]
     ]
+    historical_cost_by_axis: Mapping[
+        str, tuple[HistoricalCostAxisBinding, ...]
+    ]
     replay_bindings: tuple[ReplayAxisBinding, ...]
     scope_bindings: tuple[EvidenceScopeAxisBinding, ...]
     source_replacement_bindings: tuple[SourceReplacementBinding, ...]
+    historical_cost_bindings: tuple[HistoricalCostAxisBinding, ...]
+
+
+def _historical_cost_axis_bindings(
+    index: LocalIndex | LocalIndexView,
+    completion_ids: Sequence[str],
+) -> tuple[HistoricalCostAxisBinding, ...]:
+    """Resolve only the named completion keys through current latch authority."""
+
+    resolved: list[HistoricalCostAxisBinding] = []
+    for completion_id in sorted(set(completion_ids)):
+        try:
+            authority = effective_historical_completion_cost_authority(
+                index,
+                completion_id,
+            )
+        except HistoricalCostSemanticsProjectionError as exc:
+            raise EffectiveAxisProjectionError(str(exc)) from exc
+        if authority is None or not authority.scientific:
+            continue
+        completion = index.get("job-completed", completion_id)
+        if completion is None:
+            raise EffectiveAxisProjectionError(
+                "historical cost authority lost its completion"
+            )
+        lineage = _completion_axis_lineage(index, completion)
+        if lineage.executable_id != authority.executable_id:
+            raise EffectiveAxisProjectionError(
+                "historical cost authority differs from axis lineage"
+            )
+        try:
+            resolved.append(
+                HistoricalCostAxisBinding(
+                    axis_id=lineage.axis_id,
+                    axis_identity=lineage.axis_identity,
+                    completion_record_id=authority.completion_record_id,
+                    executable_id=authority.executable_id,
+                    latch_record_id=authority.latch_record_id,
+                    semantic_class=authority.semantic_class.value,
+                    negative_memory_ids=authority.negative_memory_ids,
+                    preserved_independent_scopes=(
+                        authority.preserved_independent_scopes
+                    ),
+                )
+            )
+        except ValueError as exc:
+            raise EffectiveAxisProjectionError(
+                "historical cost axis binding is malformed"
+            ) from exc
+    return tuple(sorted(resolved, key=lambda item: item.completion_record_id))
 
 
 def _source_replacement_bindings(
@@ -1416,6 +1477,10 @@ def _effective_authority_index(
         index,
         axis_identities=source_replacement_axis_identities,
     )
+    historical_cost_bindings = _historical_cost_axis_bindings(
+        index,
+        scope_completion_ids,
+    )
     replay_by_axis: dict[str, list[ReplayAxisBinding]] = {}
     for binding in replay_bindings:
         replay_by_axis.setdefault(binding.axis_identity, []).append(binding)
@@ -1427,6 +1492,11 @@ def _effective_authority_index(
         source_replacements_by_axis.setdefault(
             binding.original_axis_identity, []
         ).append(binding)
+    historical_cost_by_axis: dict[str, list[HistoricalCostAxisBinding]] = {}
+    for binding in historical_cost_bindings:
+        historical_cost_by_axis.setdefault(binding.axis_identity, []).append(
+            binding
+        )
     authority_index = _EffectiveAuthorityIndex(
         replay_by_axis={
             axis_identity: tuple(
@@ -1449,9 +1519,16 @@ def _effective_authority_index(
             )
             for axis_identity, values in source_replacements_by_axis.items()
         },
+        historical_cost_by_axis={
+            axis_identity: tuple(
+                sorted(values, key=lambda item: item.completion_record_id)
+            )
+            for axis_identity, values in historical_cost_by_axis.items()
+        },
         replay_bindings=replay_bindings,
         scope_bindings=scope_bindings,
         source_replacement_bindings=source_replacement_bindings,
+        historical_cost_bindings=historical_cost_bindings,
     )
     return authority_index
 
@@ -1597,6 +1674,9 @@ def _effective_axis_resolution_from_projection(
             ),
             replay_bindings=authority.replay_by_axis.get(axis_identity, ()),
             evidence_scope_bindings=authority.scope_by_axis.get(
+                axis_identity, ()
+            ),
+            historical_cost_bindings=authority.historical_cost_by_axis.get(
                 axis_identity, ()
             ),
         )
@@ -1799,10 +1879,16 @@ def audit_effective_axis_projection(
                 "historical evidence-scope overlay is malformed"
             ) from exc
         overlay_completion_ids.append(overlay.completion_record_id)
+    cost_records = index.records_by_kind(COMPLETION_SCOPE_RECORD_KIND)
+    cost_completion_ids = tuple(
+        sorted(record.record_id for record in cost_records)
+    )
     authority = _effective_authority_index(
         index,
         heads=_all_obligation_heads(index),
-        scope_completion_ids=tuple(overlay_completion_ids),
+        scope_completion_ids=tuple(
+            sorted(set(overlay_completion_ids).union(cost_completion_ids))
+        ),
         source_replacement_axis_identities=None,
     )
     if {
@@ -1811,12 +1897,27 @@ def audit_effective_axis_projection(
         raise EffectiveAxisProjectionError(
             "complete evidence-scope overlay inventory is not authoritative"
         )
+    projected_scientific_cost_ids = {
+        record.record_id
+        for record in cost_records
+        if record.status == "qualified"
+    }
+    if {
+        binding.completion_record_id
+        for binding in authority.historical_cost_bindings
+    } != projected_scientific_cost_ids:
+        raise EffectiveAxisProjectionError(
+            "complete historical cost axis inventory is not authoritative"
+        )
     return {
         "axis_count": len(lineage.source_ids_by_axis),
         "replay_binding_count": len(authority.replay_bindings),
         "scope_binding_count": len(authority.scope_bindings),
         "source_replacement_binding_count": len(
             authority.source_replacement_bindings
+        ),
+        "historical_cost_binding_count": len(
+            authority.historical_cost_bindings
         ),
     }
 

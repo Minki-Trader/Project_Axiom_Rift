@@ -675,6 +675,8 @@ def _compute_analog_family_trace_v2(
                     configuration=configuration,
                     executable_id=subject,
                     simulations=captures,
+                    frame=frame,
+                    effective_spread=spread,
                 )
             )
             all_intents.extend(
@@ -682,6 +684,8 @@ def _compute_analog_family_trace_v2(
                     configuration=configuration,
                     executable_id=subject,
                     simulations=captures,
+                    frame=frame,
+                    effective_spread=spread,
                 )
             )
         del (

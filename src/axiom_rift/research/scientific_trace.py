@@ -72,8 +72,11 @@ _SCIENTIFIC_TRACE_VALIDATION_DEPENDENCY_NAMES = (
     "analog_state_replay_v2.py",
     "analog_state_scoped_job.py",
     "analog_state_trace.py",
+    "completed_period_atomic_trace.py",
     "fixed_hold_family_trace.py",
+    "fixed_hold_historical_projection.py",
     "historical_family_binding.py",
+    "historical_semantic_transition.py",
 )
 
 
@@ -204,13 +207,19 @@ def validate_trace_calculation_pair(
 ) -> tuple[str, ...]:
     """Dispatch one atomic trace to its fixed pure recalculation protocol."""
 
+    is_fixed_hold = trace.get("protocol_id") in FIXED_HOLD_TRACE_PROTOCOL_IDS
+    expected_trace_fields = (
+        _TRACE_FIELDS | {"semantic_transition_evidence"}
+        if is_fixed_hold
+        else _TRACE_FIELDS
+    )
     expected_calculation_fields = (
         _CALCULATION_FIELDS | {"protocol_definition"}
-        if trace.get("protocol_id") in FIXED_HOLD_TRACE_PROTOCOL_IDS
+        if is_fixed_hold
         else _CALCULATION_FIELDS
     )
     if (
-        set(trace) != _TRACE_FIELDS
+        set(trace) != expected_trace_fields
         or trace.get("schema") != SCIENTIFIC_EVALUATION_TRACE_SCHEMA
         or set(calculation) != expected_calculation_fields
         or calculation.get("schema") != SCIENTIFIC_CALCULATION_PROOF_SCHEMA

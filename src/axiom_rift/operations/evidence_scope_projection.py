@@ -2,15 +2,24 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Mapping
 
+from axiom_rift.operations.completion_validity_projection import (
+    CompletionValidityProjectionError,
+    current_completion_validity_invalidation,
+)
+from axiom_rift.operations.historical_cost_semantics_reader import (
+    HistoricalCompletionCostAuthority,
+    HistoricalCostSemanticsProjectionError,
+    effective_historical_completion_cost_authority,
+)
 from axiom_rift.research.effective_evidence_scope import (
     EvidenceScopeError,
     HistoricalEvidenceScopeOverlay,
     historical_evidence_scope_from_payload,
 )
-from axiom_rift.storage.index import IndexRecord, LocalIndex
+from axiom_rift.storage.index import IndexRecord, LocalIndex, LocalIndexView
 
 
 class EvidenceScopeProjectionError(RuntimeError):
@@ -25,8 +34,15 @@ class EffectiveCompletionEvidenceScope:
     candidate_eligible: bool
     scientific_credit: int
     economic_credit: int
+    candidate_credit: int
     terminal_credit: int
+    negative_memory_authoritative: bool
+    negative_memory_role: str
     overlay_record_id: str | None = None
+    invalidation_record_id: str | None = None
+    cost_semantics_latch_id: str | None = None
+    cost_semantics_proxy_only: bool = False
+    preserved_independent_scopes: tuple[str, ...] = ()
 
 
 def evidence_scope_stream(completion_record_id: str) -> str:
@@ -73,21 +89,81 @@ def _raw_scope(completion: IndexRecord) -> EffectiveCompletionEvidenceScope:
         candidate_eligible=scientific["candidate_eligible"],
         scientific_credit=int(eligible),
         economic_credit=int(eligible and "cost_and_execution" in modes),
+        candidate_credit=int(eligible and scientific["candidate_eligible"]),
         terminal_credit=int(eligible),
+        negative_memory_authoritative=eligible,
+        negative_memory_role="scientific" if eligible else "diagnostic_only",
+    )
+
+
+def _apply_cost_authority(
+    raw: EffectiveCompletionEvidenceScope,
+    authority: HistoricalCompletionCostAuthority | None,
+) -> EffectiveCompletionEvidenceScope:
+    if authority is None or not authority.scientific:
+        return raw
+    modes = tuple(
+        mode for mode in raw.evidence_modes if mode != "cost_and_execution"
+    )
+    if "cost_and_execution" in raw.evidence_modes:
+        modes = tuple(sorted((*modes, "completed_period_proxy_cost")))
+    return replace(
+        raw,
+        evidence_modes=modes,
+        candidate_eligible=False,
+        economic_credit=0,
+        candidate_credit=0,
+        terminal_credit=(
+            0 if authority.requires_axis_reopen else raw.terminal_credit
+        ),
+        negative_memory_authoritative=False,
+        negative_memory_role="diagnostic_only",
+        cost_semantics_latch_id=authority.latch_record_id,
+        cost_semantics_proxy_only=True,
+        preserved_independent_scopes=authority.preserved_independent_scopes,
     )
 
 
 def effective_completion_evidence_scope(
-    index: LocalIndex,
+    index: LocalIndex | LocalIndexView,
     completion: IndexRecord,
 ) -> EffectiveCompletionEvidenceScope:
     """Resolve raw completion facts through the current additive overlay."""
 
     raw = _raw_scope(completion)
+    try:
+        cost_authority = effective_historical_completion_cost_authority(
+            index,
+            completion,
+        )
+    except HistoricalCostSemanticsProjectionError as exc:
+        raise EvidenceScopeProjectionError(str(exc)) from exc
+    raw = _apply_cost_authority(raw, cost_authority)
+    try:
+        validity = current_completion_validity_invalidation(
+            index,
+            completion.record_id,
+        )
+    except CompletionValidityProjectionError as exc:
+        raise EvidenceScopeProjectionError(str(exc)) from exc
     stream = evidence_scope_stream(completion.record_id)
     head = index.event_head(stream)
     if head is None:
-        return raw
+        if validity is None:
+            return raw
+        return EffectiveCompletionEvidenceScope(
+            completion_record_id=completion.record_id,
+            evidence_modes=("audit_integrity",),
+            scientific_eligible=False,
+            candidate_eligible=False,
+            scientific_credit=0,
+            economic_credit=0,
+            candidate_credit=0,
+            terminal_credit=0,
+            negative_memory_authoritative=False,
+            negative_memory_role="diagnostic_only",
+            invalidation_record_id=validity.invalidation_record_id,
+        )
     record = index.get(head.record_kind, head.record_id)
     try:
         overlay = historical_evidence_scope_from_payload(
@@ -161,8 +237,14 @@ def effective_completion_evidence_scope(
         candidate_eligible=False,
         scientific_credit=0,
         economic_credit=0,
+        candidate_credit=0,
         terminal_credit=0,
+        negative_memory_authoritative=False,
+        negative_memory_role="diagnostic_only",
         overlay_record_id=overlay.identity,
+        invalidation_record_id=(
+            None if validity is None else validity.invalidation_record_id
+        ),
     )
 
 

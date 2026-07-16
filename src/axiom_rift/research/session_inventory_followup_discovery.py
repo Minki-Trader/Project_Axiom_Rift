@@ -244,8 +244,8 @@ def session_inventory_followup_components() -> tuple[ComponentSpec, ...]:
             },
         ),
         ComponentSpec(
-            display_name="FPMarkets bid-bar spread execution",
-            protocol="execution.fpmarkets_bid_bar_spread.v2",
+            display_name="FPMarkets completed-period spread proxy execution",
+            protocol="execution.fpmarkets_completed_bar_spread_proxy.v2",
             implementation=_dependency_implementation("execution_pnl"),
             spec={
                 "bar_quote_basis": "bid_ohlc_with_spread_points",
@@ -277,7 +277,7 @@ def session_inventory_followup_executable(configuration: SessionInventoryFollowu
             "no_dst_or_cash_session_claim_v1"
         ),
         cost_contract=(
-            "cost:bid_bar_spread_point_0_01_zero_lag1_positive_median_"
+            "cost:fpmarkets_completed_bar_spread_proxy_point_0_01_zero_lag1_positive_median_"
             "window288_min24_gap_reset_half_spread_stress_v2"
         ),
         engine_contract=(

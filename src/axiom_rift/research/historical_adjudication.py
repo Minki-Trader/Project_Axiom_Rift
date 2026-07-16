@@ -44,6 +44,9 @@ class HistoricalDisposition(str, Enum):
 class HistoricalValidityReason(str, Enum):
     """External audit facts that remove historical claim evaluability."""
 
+    DECISION_INPUT_POINT_IN_TIME_UNPROVEN = (
+        "decision_input_point_in_time_unproven"
+    )
     SOURCE_AUTHORITY_INVALIDATED = "source_authority_invalidated"
 
 
@@ -135,6 +138,20 @@ class HistoricalValidityOverride:
                 "validity override evidence_record_id",
                 self.evidence_record_id,
                 "source-authority-invalidation:",
+            )
+        elif (
+            self.reason
+            is HistoricalValidityReason.DECISION_INPUT_POINT_IN_TIME_UNPROVEN
+        ):
+            _digest("validity override subject_id", self.subject_id)
+            _identity(
+                "validity override evidence_record_id",
+                self.evidence_record_id,
+                "historical-scientific-validity-invalidation:",
+            )
+        else:  # pragma: no cover - defensive against future unhandled reasons.
+            raise HistoricalAdjudicationError(
+                "validity override reason has no subject binding"
             )
 
     def manifest(self) -> dict[str, str]:

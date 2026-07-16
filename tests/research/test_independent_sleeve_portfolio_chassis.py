@@ -26,7 +26,7 @@ class IndependentSleevePortfolioChassisTests(unittest.TestCase):
         subject = independent_sleeve_portfolio_executable(values[2])
         self.assertEqual(
             baseline.identity,
-            "executable:9f139925c399a49c3472ef148906467684b6ad95d58b41b183b5a9183452cbd5",
+            "executable:d21f632de63a9f54edc1e31b5302f316949aef6b4538062bebc0b47e6eedaef1",
         )
         self.assertNotEqual(baseline.identity, subject.identity)
 

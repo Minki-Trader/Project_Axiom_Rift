@@ -161,6 +161,7 @@ class DefaultTestAuthorityBoundaryTests(unittest.TestCase):
             "test_completed_validation_does_not_require_reproducible_cache_presence",
             "test_read_only_design_retains_every_axis_and_binds_frozen_report",
             "test_job_spec_closes_the_exact_component_implementation_bundle",
+            "test_spread_time_read_only_plan_rederives_all_seven_events_without_mutation",
         ):
             with self.subTest(test_name=test_name):
                 self.assertIn(test_name, functions)

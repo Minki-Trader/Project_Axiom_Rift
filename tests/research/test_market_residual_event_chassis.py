@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 import numpy as np
 
+from axiom_rift.research import discovery as discovery_module
 from axiom_rift.research.chassis import (
     ArchitectureChassisSpec,
     ControlledStudyChassis,
@@ -144,6 +145,28 @@ class MarketResidualEventChassisTests(unittest.TestCase):
         self.assertNotEqual(
             left_executable.engine_contract,
             right_executable.engine_contract,
+        )
+
+    def test_execution_identity_tracks_shared_simulator_bytes(self) -> None:
+        configuration = market_residual_event_configurations()[1]
+        with TemporaryDirectory() as temporary:
+            candidate = Path(temporary) / "discovery.py"
+            candidate.write_bytes(b"completed-period-simulator-a")
+            with patch.object(discovery_module, "_DISCOVERY_FILE", candidate):
+                left = market_residual_event_executable(configuration)
+                candidate.write_bytes(b"completed-period-simulator-b")
+                right = market_residual_event_executable(configuration)
+        self.assertNotEqual(left.identity, right.identity)
+        self.assertNotEqual(left.engine_contract, right.engine_contract)
+        execution = next(
+            component
+            for component in right.components
+            if component.protocol
+            == "execution.fpmarkets_completed_bar_spread_proxy.v1"
+        )
+        self.assertIn(
+            "discovery.simulate_fixed_hold@sha256:",
+            execution.implementation,
         )
 
     def test_scientific_validator_profile_is_registered(self) -> None:

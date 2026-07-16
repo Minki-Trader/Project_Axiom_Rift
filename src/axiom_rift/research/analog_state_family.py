@@ -522,8 +522,8 @@ def analog_family_components(family: AnalogFamilySpec) -> tuple[ComponentSpec, .
         semantic_dependencies=(lifecycle.identity,),
     )
     execution = ComponentSpec(
-        display_name="FPMarkets bid-bar spread execution",
-        protocol="execution.fpmarkets_bid_bar_spread.v2",
+        display_name="FPMarkets completed-period spread proxy execution",
+        protocol="execution.fpmarkets_completed_bar_spread_proxy.v2",
         implementation=shared.format("execution_pnl"),
         spec={"point": "0.01", "stress": "half_effective_spread_each_side"},
         semantic_dependencies=(risk.identity,),
@@ -625,7 +625,7 @@ def _analog_family_executable(
         ),
         clock_contract="clock:fpmarkets_m5_bar_open_completed_plus_5m_v2",
         cost_contract=(
-            "cost:bid_bar_spread_point_0_01_causal_zero_repair_"
+            "cost:fpmarkets_completed_bar_spread_proxy_point_0_01_causal_zero_repair_"
             "half_spread_stress_v2"
         ),
         engine_contract=(

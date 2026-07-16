@@ -318,9 +318,9 @@ def compute_registered_residual_quote_deferral_surface(
         + [
             "exact_stu0098_residual_continuation_control",
             "one_fixed_prior_288_bar_median_quote_reference",
-            "one_fixed_above_median_scheduled_quote_condition",
+            "one_fixed_above_median_completed_decision_bar_spread_condition",
             "one_fixed_five_minute_deferral_then_unconditional_entry",
-            "unknown_quote_reference_retains_immediate_entry",
+            "unknown_completed_period_spread_reference_retains_immediate_entry",
             "same_direction_selector_session_six_bar_hold_and_one_lot",
             "no_spread_threshold_delay_window_direction_hold_or_session_grid",
             "activity_is_an_observation_not_a_quota",

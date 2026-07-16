@@ -17,6 +17,7 @@ from axiom_rift.operations.running_job import (
 )
 from axiom_rift.research.drawdown_state_replay import (
     DRAWDOWN_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT,
+    STU0048_HISTORICAL_EVALUATION_HASHES,
     causal_drawdown_replay_spread,
     compute_drawdown_replay_score,
     compute_stu0048_drawdown_family_trace,
@@ -24,6 +25,10 @@ from axiom_rift.research.drawdown_state_replay import (
     drawdown_replay_controlled_chassis,
     drawdown_replay_executable_map,
     drawdown_replay_protocol_definition,
+)
+from axiom_rift.research.fixed_hold_historical_projection import (
+    HISTORICAL_DRAWDOWN_EVALUATION_SCHEMA,
+    project_historical_drawdown_evaluation,
 )
 from axiom_rift.research.drawdown_state_replay_job import (
     CALLABLE_IDENTITY,
@@ -54,12 +59,17 @@ from axiom_rift.research.fixed_hold_family_trace import (
     FIXED_HOLD_TRACE_VALIDATOR,
     bind_fixed_hold_family_trace,
     build_fixed_hold_trace_calculation,
+    validate_fixed_hold_family_trace,
 )
 from axiom_rift.research.fixed_hold_replay_runtime import (
     fixed_hold_replay_runtime_dependency_paths,
 )
 from axiom_rift.research.historical_family_replay import (
     STU0048_HISTORICAL_FAMILY,
+)
+from axiom_rift.research.historical_semantic_transition import (
+    build_historical_cost_timing_transition,
+    validate_historical_cost_timing_transition,
 )
 from axiom_rift.research.scientific_trace import (
     DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID,
@@ -68,12 +78,57 @@ from axiom_rift.research.scientific_trace import (
     validate_trace_calculation_pair,
 )
 from axiom_rift.research.validation_v2 import adjudicate_validation_measurement_v2
+from axiom_rift.storage.evidence import EvidenceStore
 
 
 HISTORICAL_CONTEXT_COUNT = 578
 
 
 class DrawdownReplayBoundaryTests(unittest.TestCase):
+    def test_unchanged_economic_relation_is_typed_instead_of_rejected(
+        self,
+    ) -> None:
+        configuration_id, artifact_sha256 = next(
+            iter(STU0048_HISTORICAL_EVALUATION_HASHES.items())
+        )
+        artifact = parse_canonical(
+            EvidenceStore(Path("local/evidence")).read_verified(artifact_sha256)
+        )
+        assert isinstance(artifact, dict)
+        historical_executable_id = str(artifact["subject_executable_id"])
+        surfaces = project_historical_drawdown_evaluation(
+            artifact,
+            expected_configuration_id=configuration_id,
+            expected_historical_executable_id=historical_executable_id,
+        )
+        transition = build_historical_cost_timing_transition(
+            configuration_id=configuration_id,
+            corrected_executable_id="executable:" + "1" * 64,
+            historical_reference_executable_id=historical_executable_id,
+            historical_artifact_sha256=artifact_sha256,
+            historical_artifact_schema=HISTORICAL_DRAWDOWN_EVALUATION_SCHEMA,
+            historical_evaluation_artifact=artifact,
+            corrected_structural_surfaces=surfaces["structural"],
+            corrected_economic_surfaces=surfaces["economic"],
+        )
+        self.assertEqual(transition["changed_economic_surfaces"], [])
+        self.assertTrue(transition["unchanged_numeric_relation"])
+        self.assertEqual(
+            validate_historical_cost_timing_transition(
+                transition,
+                expected_configuration_id=configuration_id,
+                expected_corrected_executable_id="executable:" + "1" * 64,
+                expected_historical_reference_executable_id=historical_executable_id,
+                expected_historical_artifact_sha256=artifact_sha256,
+                expected_historical_artifact_schema=(
+                    HISTORICAL_DRAWDOWN_EVALUATION_SCHEMA
+                ),
+                expected_corrected_structural_surfaces=surfaces["structural"],
+                expected_corrected_economic_surfaces=surfaces["economic"],
+            ),
+            transition,
+        )
+
     def test_runtime_closure_uses_the_narrow_running_job_authority(self) -> None:
         dependencies = set(
             fixed_hold_replay_runtime_dependency_paths(RUNTIME_ADAPTER)
@@ -252,6 +307,96 @@ class DrawdownReplayBoundaryTests(unittest.TestCase):
         self.assertEqual(repaired[4], 6.0)
 
 
+class DrawdownSemanticTransitionIntegrityTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.definition = drawdown_replay_protocol_definition(
+            historical_context_prior_global_exposure_count=(
+                HISTORICAL_CONTEXT_COUNT
+            )
+        )
+        cls.neutral, cls.raw = compute_stu0048_drawdown_family_trace(
+            ".",
+            historical_context_prior_global_exposure_count=(
+                HISTORICAL_CONTEXT_COUNT
+            ),
+        )
+
+    def test_atomic_projection_matches_independent_producer_aggregates(self) -> None:
+        names = (
+            "median_fold_profit_factor_milli",
+            "monthly_realized_exit_drawdown_micropoints",
+            "monthly_realized_exit_drawdown_share_of_gross_profit_ppm",
+            "net_profit_micropoints",
+            "stress_net_profit_micropoints",
+            "trade_count",
+        )
+        for transition in self.neutral["semantic_transition_evidence"]:
+            corrected = transition["corrected_economic_surfaces"]["metrics"]
+            producer = self.raw[transition["corrected_executable_id"]]
+            self.assertEqual(
+                {name: corrected[name] for name in names},
+                {name: producer[name] for name in names},
+            )
+
+    def test_transition_rejects_readdressed_historical_artifact(self) -> None:
+        tampered = deepcopy(self.neutral)
+        transition = tampered["semantic_transition_evidence"][0]
+        artifact = transition["historical_evaluation_artifact"]
+        artifact["metrics"]["net_profit_micropoints"] += 1
+        transition["historical_artifact_sha256"] = sha256(
+            canonical_bytes(artifact)
+        ).hexdigest()
+        with self.assertRaisesRegex(
+            ScientificTraceError,
+            "authority binding",
+        ):
+            validate_fixed_hold_family_trace(
+                tampered,
+                definition=self.definition,
+                validator=FIXED_HOLD_TRACE_VALIDATOR,
+            )
+
+    def test_transition_rejects_self_consistent_corrected_surface_forgery(
+        self,
+    ) -> None:
+        tampered = deepcopy(self.neutral)
+        original = tampered["semantic_transition_evidence"][0]
+        corrected_economic = deepcopy(original["corrected_economic_surfaces"])
+        corrected_economic["metrics"]["net_profit_micropoints"] += 1
+        tampered["semantic_transition_evidence"][0] = (
+            build_historical_cost_timing_transition(
+                configuration_id=original["configuration_id"],
+                corrected_executable_id=original["corrected_executable_id"],
+                historical_reference_executable_id=(
+                    original["historical_reference_executable_id"]
+                ),
+                historical_artifact_sha256=original[
+                    "historical_artifact_sha256"
+                ],
+                historical_artifact_schema=original[
+                    "historical_artifact_schema"
+                ],
+                historical_evaluation_artifact=original[
+                    "historical_evaluation_artifact"
+                ],
+                corrected_structural_surfaces=original[
+                    "corrected_structural_surfaces"
+                ],
+                corrected_economic_surfaces=corrected_economic,
+            )
+        )
+        with self.assertRaisesRegex(
+            ScientificTraceError,
+            "atomic-row projection",
+        ):
+            validate_fixed_hold_family_trace(
+                tampered,
+                definition=self.definition,
+                validator=FIXED_HOLD_TRACE_VALIDATOR,
+            )
+
+
 class DrawdownReplayIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -315,11 +460,13 @@ class DrawdownReplayIntegrationTests(unittest.TestCase):
             ),
         )
 
-    def test_full_atomic_replay_matches_all_historical_raw_surfaces(self) -> None:
+    def test_full_atomic_replay_preserves_structure_and_corrects_cost_timing(
+        self,
+    ) -> None:
         self.assertEqual(len(self.neutral["ordered_family"]), 4)
         self.assertEqual(len(self.neutral["windows"]), 9)
-        self.assertEqual(len(self.neutral["trade_observations"]), 7_876)
-        self.assertEqual(len(self.neutral["intent_observations"]), 29_696)
+        self.assertEqual(len(self.neutral["trade_observations"]), 7_874)
+        self.assertEqual(len(self.neutral["intent_observations"]), 29_724)
         self.assertEqual(
             len(self.neutral["eligible_day_observations"]),
             2_320,
@@ -327,10 +474,65 @@ class DrawdownReplayIntegrationTests(unittest.TestCase):
         self.assertEqual(len(self.neutral["invariance_comparisons"]), 18)
         self.assertEqual(
             self.raw[self.target_id]["net_profit_micropoints"],
-            7_010_130_000,
+            7_314_010_000,
         )
-        self.assertEqual(self.raw[self.target_id]["trade_count"], 1_916)
+        self.assertEqual(self.raw[self.target_id]["trade_count"], 1_915)
         self.assertEqual(self.raw[self.target_id]["winning_fold_count"], 7)
+        trade = self.neutral["trade_observations"][0]
+        self.assertEqual(trade["spread_semantics"], "completed_period_proxy")
+        self.assertEqual(
+            trade["decision_spread_source_bar_index"],
+            trade["decision_bar_index"],
+        )
+        self.assertEqual(
+            trade["entry_spread_source_bar_index"],
+            trade["entry_bar_index"] - 1,
+        )
+        self.assertEqual(
+            trade["exit_spread_source_bar_index"],
+            trade["exit_bar_index"] - 1,
+        )
+        self.assertEqual(
+            trade["entry_spread_information_complete_at"],
+            trade["entry_time"],
+        )
+        self.assertEqual(
+            trade["exit_spread_information_complete_at"],
+            trade["exit_time"],
+        )
+        transitions = self.neutral["semantic_transition_evidence"]
+        self.assertEqual(len(transitions), 4)
+        self.assertEqual(
+            [item["configuration_id"] for item in transitions],
+            [
+                item["configuration_id"]
+                for item in self.neutral["ordered_family"]
+            ],
+        )
+        for transition in transitions:
+            self.assertIn("metrics", transition["changed_economic_surfaces"])
+            self.assertFalse(transition["unchanged_numeric_relation"])
+            self.assertEqual(len(transition["structural_digest"]), 64)
+            self.assertEqual(
+                len(transition["historical_economic_digest"]), 64
+            )
+            self.assertEqual(
+                len(transition["corrected_economic_digest"]), 64
+            )
+
+        tampered = deepcopy(self.neutral)
+        tampered["semantic_transition_evidence"][0][
+            "changed_economic_surfaces"
+        ] = []
+        with self.assertRaisesRegex(
+            ScientificTraceError,
+            "relation or digest",
+        ):
+            validate_fixed_hold_family_trace(
+                tampered,
+                definition=self.definition,
+                validator=FIXED_HOLD_TRACE_VALIDATOR,
+            )
 
     def test_exact_family_and_control_inference_replaces_global_440x(self) -> None:
         metrics = self.calculation["metrics"]
@@ -338,19 +540,19 @@ class DrawdownReplayIntegrationTests(unittest.TestCase):
             metrics["registered_control_contrast"],
             {
                 "feature_control_worst_delta_net_profit_micropoints": (
-                    858_270_000
+                    1_079_000_000
                 ),
-                "feature_control_worst_pvalue_upper_ppm": 562_207,
-                "opposite_sign_pvalue_upper_ppm": 11_993,
+                "feature_control_worst_pvalue_upper_ppm": 534_688,
+                "opposite_sign_pvalue_upper_ppm": 9_653,
                 "opposite_sign_worst_delta_net_profit_micropoints": (
-                    18_424_560_000
+                    19_029_310_000
                 ),
             },
         )
         self.assertEqual(
             metrics["selection_aware_signal_evidence"]
             ["selection_aware_pvalue_ppm"],
-            102_322,
+            86_742,
         )
         exposure = self.calculation["statistics"]["exposure_semantics"]
         self.assertEqual(

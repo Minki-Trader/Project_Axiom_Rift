@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -44,6 +45,7 @@ from axiom_rift.research.replay_obligation import (
 )
 from axiom_rift.research.replay_satisfaction_invalidation import (
     ReplaySatisfactionInvalidationAuditManifest,
+    ReplaySatisfactionInvalidationAuditManifestV2,
 )
 from axiom_rift.research.validation_v2 import (
     multiplicity_family_registration_hash,
@@ -1803,6 +1805,61 @@ class MultiplicityReplaySatisfactionTests(unittest.TestCase):
                 mission_id=MISSION_ID,
                 obligation_id=obligation.identity,
             )
+
+    def test_reordered_history_does_not_mask_independent_validity_defect(
+        self,
+    ) -> None:
+        obligation, satisfaction = self._seed_satisfied(
+            reverse_registration_order=True
+        )
+        completion_ids = tuple(
+            sorted(
+                identity
+                for identity in satisfaction.evidence_record_ids
+                if self.index.get("job-completed", identity) is not None
+            )
+        )
+        invalid_completion_id = completion_ids[0]
+        completion = self.index.get("job-completed", invalid_completion_id)
+        self.assertIsNotNone(completion)
+        scientific = completion.payload["scientific"]
+        validity = SimpleNamespace(
+            affected_criterion_ids=tuple(obligation.criterion_ids),
+            authority_event_id="f" * 64,
+            authority_offset=1234,
+            authority_sequence=9999,
+            completion_record_id=invalid_completion_id,
+            executable_id=scientific["executable_id"],
+            invalidation_record_id=(
+                "historical-scientific-validity-invalidation:" + "e" * 64
+            ),
+            reason="decision_input_point_in_time_unproven",
+            validity_stream_sequence=1,
+        )
+        with patch(
+            "axiom_rift.operations.replay_projection."
+            "current_completion_validity_invalidation",
+            side_effect=lambda _index, completion_id: (
+                validity if completion_id == invalid_completion_id else None
+            ),
+        ):
+            plan = build_satisfaction_invalidation_plan(
+                self.index,
+                mission_id=MISSION_ID,
+                obligation_id=obligation.identity,
+            )
+        manifest = ReplaySatisfactionInvalidationAuditManifestV2.from_mapping(
+            plan["audit_manifest"]
+        )
+        self.assertEqual(len(manifest.defects), 1)
+        self.assertEqual(
+            manifest.defects[0].code.value,
+            "evidence_completion_validity_invalid",
+        )
+        self.assertEqual(
+            manifest.completion_record_ids,
+            completion_ids,
+        )
 
     def test_forged_or_unrelated_registration_is_not_typed_invalidation(
         self,

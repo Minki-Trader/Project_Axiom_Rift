@@ -159,18 +159,34 @@ historical_adjudication:
   interpretation_recomputed_by_writer: true
   profile_is_writer_derived_fixed_legacy_v1: true
   caller_multiplicity_or_risk_profile_authority: false
-  validity_overrides_are_writer_derived_from_durable_source_latches: true
+  validity_overrides_are_writer_derived_from_durable_invalidity_heads: true
+  source_and_completion_validity_overrides_are_union_monotone: true
   validity_override_supersession_is_union_monotone: true
+  replay_required_supersession_reuses_exact_existing_obligation: true
+  replay_obligation_origin_must_be_in_supersession_lineage: true
+  duplicate_replay_duty_for_same_original_completion: false
+  replay_priority_escalation:
+    permitted_transition: p1_to_p0_only
+    exact_current_completion_invalidation_required: true
+    exact_accepted_satisfaction_pending_revocation_required: true
+    superseding_adjudication_reuses_original_obligation: true
+    same_event_writer_authority_required: true
+    content_addressed_additive_overlay_required: true
+    original_obligation_or_satisfaction_rewrite_allowed: false
+    priority_demotion_allowed: false
+    scheduler_reads_authenticated_effective_priority: true
+    scientific_trial_holdout_candidate_and_terminal_delta: 0
   additive_qualification_only: true
   candidate_trial_and_holdout_delta: 0
 replay_satisfaction_invalidation:
   canonical_content_addressed_audit_manifest_required: true
   exact_obligation_satisfaction_study_batch_completions_and_diagnosis_bound: true
-  explicit_defect_audit_is_writer_derived_from_current_protocol: true
+  explicit_defect_audit_is_writer_derived_from_current_protocol_or_exact_validity_heads: true
   permitted_defects:
     - selection_family_size_mismatch
     - selection_family_disagreement
     - selection_family_membership_mismatch
+    - evidence_completion_validity_invalid
   exact_registration_ordered_members_and_hash_bound_into_observations: true
   historical_membership_defect_requires_member_set_mismatch: true
   same_member_set_order_only_difference_is_revocation_authority: false
@@ -182,6 +198,36 @@ replay_satisfaction_invalidation:
   caller_defect_prose_is_authority: false
   original_satisfaction_and_scientific_records_rewritten: false
   scientific_trial_holdout_candidate_and_terminal_delta: 0
+historical_scientific_validity_invalidation:
+  exact_completion_study_close_job_executable_and_artifacts_required: true
+  current_head_is_completion_scoped_and_additive: true
+  point_in_time_decision_input_defect_is_fail_closed: true
+  predicate_evaluated_without_observed_branch_activation_is_still_invalid: true
+  audit_finding_and_completion_semantic_slice_are_recomputed: true
+  same_event_writer_result_has_sorted_exact_zero_delta_inventory: true
+  source_and_completion_overrides_union_without_withdrawal: true
+  scientific_economic_candidate_and_terminal_credit: 0
+  negative_memory_is_preserved_as_diagnostic_only: true
+  replay_recovery_duty_is_preserved: true
+historical_cost_semantics_latch:
+  canonical_manifest_is_content_addressed: true
+  audit_report_bytes_sha256_and_ascii_required: true
+  unique_AX_SPREAD_COST_001_finding_required: true
+  report_counts_digests_classes_and_interpretations_match_manifest: true
+  aggregate_and_class_inventories_are_golden_and_exact: true
+  completion_membership_joins_completion_job_declaration_trial: true
+  future_completion_outside_upper_cursor_is_excluded: true
+  same_event_writer_operation_and_exact_zero_delta_result_required: true
+  same_event_keyed_completion_projection_required: true
+  keyed_completion_projection_has_no_independent_stream: true
+  routine_reader_uses_latch_head_completion_and_evidence_keys: true
+  routine_reader_depends_on_full_audit_module: false
+  full_audit_and_activation_module_is_explicit_maintenance_only: true
+  routine_full_inventory_scan_allowed: false
+  explicit_complete_audit_rederives_and_compares_every_keyed_member: true
+  activated_missing_extra_malformed_or_cross_event_member_fails_closed: true
+  preactivation_absence_is_compatible: true
+  caller_created_or_unrecorded_latch_is_authority: false
 recorded_replay_satisfaction_projection:
   exact_satisfaction_stream_predecessor_and_writer_operation_required: true
   exact_decision_study_trial_close_diagnosis_and_evidence_lineage_required: true
@@ -247,6 +293,11 @@ project_goal_audit_v2_evidence:
       - decision_time
       - entry_time
       - exit_time
+      - decision_input_source_index
+      - entry_cost_source_index
+      - exit_cost_source_index
+      - source_availability_time
+      - predicate_evaluated
       - fold
       - regime
       - intent
@@ -258,6 +309,8 @@ project_goal_audit_v2_evidence:
       - result_attribution
     recomputation_must_match_declared_result: true
     decision_day_and_exit_day_attribution_explicit: true
+    same_entry_or_exit_bar_cost_presented_as_pre_order_input_allowed: false
+    completed_period_cost_proxy_is_distinct_from_point_in_time_quote: true
   adjudication:
     comparison_state_and_scientific_state_are_distinct: true
     terminal_and_scheduler_use_scientific_state_only: true

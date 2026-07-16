@@ -268,6 +268,25 @@ freshness, closure, latency, and mapping checks. Fail stale, missing, late,
 nonfinite, unsynchronized, or invalid mappings closed for the dependent sleeve
 without stopping independent sleeves.
 
+Treat `MqlRates.spread` as a completed-period observation, never as a point-in-
+time quote at that bar's open or at a scheduled order. A decision may use the
+completed decision bar and strictly earlier completed bars, but the scheduled
+or deferred entry bar cannot provide spread, quote quality, cost-known,
+abstention, cancellation, or further-deferral input to the order that enters on
+it. A delayed-entry policy remains frozen at its declared decision time unless
+a new causally available decision and new Executable semantics explicitly
+replace it. Bind every historical entry and exit proxy to its exact completed-
+bar source index and availability time; actual-quote claims require timestamped
+bid-ask, tick, order, deal, or execution evidence.
+
+A historical completed-bar cost qualification is an exact proxy-only scope.
+Preserve independently supported gross mechanism or feature evidence, but make
+actual/native-cost claims unresolved when point-in-time evidence is absent.
+Proxy-dependent negative memory becomes diagnostic only and cannot prune,
+exhaust, terminate, economically validate, or candidate-qualify an axis. An
+affected historical prune projects as `deferred_requires_reopen` and needs the
+typed additive reopen route before it is scheduled as preserved.
+
 Current broker history is reconstruction, not proof of historical first
 availability or vintage. If official MT5 time documentation and the observed
 provider epoch coordinate disagree, preserve both facts and leave absolute
@@ -332,10 +351,12 @@ its frozen Batch set, route the canonical plan and artifact. Bind the exact
 registered membership and family hash. The same member set in a different
 historical order is a noncredit audit diagnostic and cannot return the
 obligation to pending; new prospective resolution still requires exact
-canonical Batch-family order. Only the typed set, size, or family disagreement
-may revoke satisfaction. Malformed, missing, hash-forged, or unrelated
-registration, caller prose, a generic validator error, and unrelated evidence
-defects fail closed.
+canonical Batch-family order. Only the typed set, size, or family disagreement,
+or the Writer-verified exact `evidence_completion_validity_invalid` defect
+permitted by the current typed plan, may revoke satisfaction. The completion-
+validity route cannot revoke an audit-only satisfaction. Malformed, missing,
+hash-forged, or unrelated registration, caller prose, a generic validator
+error, and unrelated evidence defects fail closed.
 
 An audit-only satisfaction removes scientific, economic, candidate, exhaustion,
 and terminal credit only from its exact completion. It never excludes the whole
@@ -344,8 +365,11 @@ whose corrected completion may have mattered as `deferred_requires_reopen`, so
 the Portfolio must explicitly preserve, reopen, or re-establish a valid prune.
 When an exact preserve Decision targets that historical pruned state, consume
 `record_axis_reopen_authority` before writing the preserved snapshot. The
-authority must bind the current snapshot, Decision, axis, audit-only replay
-resolutions, and evidence-scope overlays; never use it for an ordinary prune.
+v2 authority must bind the current snapshot, Decision, and axis plus exactly
+one mutually exclusive typed route: the replay route binds the exact audit-only
+replay resolution and evidence-scope overlay IDs; the historical-cost route
+binds the exact completion, cost-semantics latch, and negative-memory IDs.
+Never mix the route fields or use this authority for an ordinary prune.
 
 The writer derives allowed local actions and research-layer branches from the
 typed evidence state. The next Decision must either follow that branch,

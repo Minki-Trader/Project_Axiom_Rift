@@ -232,11 +232,26 @@ def _source_trace() -> tuple[dict[str, object], tuple[datetime, ...]]:
     trade = {
         "availability_time": executed_times[1].isoformat(),
         "configuration_id": first["configuration_id"],
+        "decision_bar_index": 0,
         "decision_bar_open_time": executed_times[0].isoformat(),
+        "decision_spread_source_bar_index": 0,
+        "decision_spread_source_bar_open_time": executed_times[0].isoformat(),
+        "decision_spread_information_complete_at": executed_times[1].isoformat(),
+        "decision_spread_known": True,
         "decision_time": executed_times[1].isoformat(),
         "direction": 1,
+        "entry_bar_index": 1,
+        "entry_spread_source_bar_index": 0,
+        "entry_spread_source_bar_open_time": executed_times[0].isoformat(),
+        "entry_spread_information_complete_at": executed_times[1].isoformat(),
+        "entry_spread_known": True,
         "entry_time": executed_times[1].isoformat(),
         "executable_id": first["executable_id"],
+        "exit_bar_index": 25,
+        "exit_spread_source_bar_index": 24,
+        "exit_spread_source_bar_open_time": executed_times[24].isoformat(),
+        "exit_spread_information_complete_at": executed_times[25].isoformat(),
+        "exit_spread_known": True,
         "exit_time": executed_times[25].isoformat(),
         "fold_id": EXPECTED_FOLD_IDS[0],
         "gross_pnl_micropoints": 1_000,
@@ -249,6 +264,7 @@ def _source_trace() -> tuple[dict[str, object], tuple[datetime, ...]]:
         "regime": "low",
         "stress_cost_micropoints": 200,
         "stress_net_pnl_micropoints": 800,
+        "spread_semantics": "completed_period_proxy",
     }
     trade["observation_id"] = analog_observation_id("trade", trade)
 
@@ -258,18 +274,41 @@ def _source_trace() -> tuple[dict[str, object], tuple[datetime, ...]]:
             (1, "executed", executed_times),
             (2, "gap_excluded", tuple(gap_values)),
         ):
+            decision_index = 0 if status == "executed" else 26
+            entry_index = decision_index + 1
+            exit_index = entry_index + 24
             intent = {
                 "availability_time": times[1].isoformat(),
                 "configuration_id": first["configuration_id"],
+                "decision_bar_index": decision_index,
+                "decision_bar_open_time": times[0].isoformat(),
+                "decision_spread_source_bar_index": decision_index,
+                "decision_spread_source_bar_open_time": times[0].isoformat(),
+                "decision_spread_information_complete_at": times[1].isoformat(),
+                "decision_spread_known": True,
                 "decision_time": times[1].isoformat(),
                 "direction": 1,
+                "entry_bar_index": entry_index,
+                "entry_spread_source_bar_index": decision_index,
+                "entry_spread_source_bar_open_time": times[0].isoformat(),
+                "entry_spread_information_complete_at": times[1].isoformat(),
+                "entry_spread_known": True,
                 "entry_time": times[1].isoformat(),
                 "executable_id": first["executable_id"],
+                "exit_bar_index": exit_index,
+                "exit_spread_source_bar_index": exit_index - 1,
+                "exit_spread_source_bar_open_time": times[24].isoformat(),
+                "exit_spread_information_complete_at": times[25].isoformat(),
+                "exit_spread_known": True if status == "executed" else None,
                 "exit_time": times[25].isoformat(),
                 "fold_id": EXPECTED_FOLD_IDS[0],
+                "historical_reference_executable_id": first[
+                    "historical_reference_executable_id"
+                ],
                 "observation_id": "pending",
                 "ordinal": ordinal,
                 "scope": scope,
+                "spread_semantics": "completed_period_proxy",
                 "status": status,
             }
             intent["observation_id"] = analog_observation_id("intent", intent)

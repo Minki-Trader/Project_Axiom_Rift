@@ -42,10 +42,12 @@ State triggers take precedence over prompt wording:
   route through the Mission skill, then the research skill, then back to the
   writer.
 - Accepted-decision withdrawal, prospective-protocol activation, historical
-  scientific adjudication, replay-satisfaction invalidation, and source-
-  authority invalidation route through the Mission skill, then the affected
-  research or runtime skill, then the single writer. They are additive
-  corrections and never direct state edits.
+  scientific adjudication, completion-scientific-validity invalidation,
+  replay-priority escalation, replay-satisfaction invalidation,
+  historical-cost-semantics latch activation, and source-authority invalidation
+  route through the Mission skill, then the affected research or runtime skill,
+  then the single writer. They are additive corrections and never direct state
+  edits.
 - A real `study_closed` event routes first to the Mission skill for its exact
   local-main checkpoint and push attempt. Only then route to the research skill
   for the pending `diagnose_study` action.

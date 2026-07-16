@@ -143,9 +143,14 @@ def independent_sleeve_portfolio_components(
     )
     target_execution = ComponentSpec(
         display_name="fixed FPMarkets target-downside spread execution",
-        protocol="execution.fpmarkets_bid_open_spread.v2",
+        protocol="execution.fpmarkets_completed_bar_spread_proxy.v2",
         implementation=_local("simulate_independent_sleeve_portfolio"),
-        spec={"point": "0.01", "stress": "half_effective_spread_each_side"},
+        spec={
+            "entry_proxy": "entry_index_minus_1",
+            "exit_proxy": "exit_index_minus_1",
+            "point": "0.01",
+            "stress": "half_effective_spread_each_side",
+        },
         semantic_dependencies=(target_risk.identity,),
     )
     portfolio_dependencies = (router_execution.identity, target_execution.identity)
@@ -189,7 +194,10 @@ def independent_sleeve_portfolio_executable(configuration: IndependentSleevePort
         data_contract=f"data:{OBSERVED_MATERIAL_ID}",
         split_contract=f"split:{ROLLING_SPLIT_SHA256}:rolling_windows_9_observed_development",
         clock_contract="clock:fpmarkets_m5_bar_open_completed_plus_5m_v4",
-        cost_contract="cost:bid_bar_spread_point_0_01_causal_zero_repair_half_spread_stress_v4",
+        cost_contract=(
+            "cost:fpmarkets_completed_bar_spread_proxy_point_0_01_"
+            "causal_zero_repair_half_spread_stress_v2"
+        ),
         engine_contract=(
             f"engine:independent_sleeve_portfolio_v1:python{'.'.join(str(v) for v in sys.version_info[:3])}:"
             f"numpy{np.__version__}:pandas{pd.__version__}:scipy{scipy.__version__}:"

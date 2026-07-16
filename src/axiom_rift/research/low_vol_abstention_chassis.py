@@ -95,7 +95,7 @@ def low_vol_abstention_executable(configuration: LowVolAbstentionConfiguration) 
         data_contract=f"data:{OBSERVED_MATERIAL_ID}",
         split_contract=f"split:{ROLLING_SPLIT_SHA256}:rolling_windows_9_observed_development",
         clock_contract="clock:fpmarkets_m5_bar_open_completed_plus_5m_v6",
-        cost_contract="cost:bid_bar_spread_point_0_01_causal_zero_repair_half_spread_stress_v6",
+        cost_contract=low_vol_abstention_baseline().cost_contract,
         engine_contract=low_vol_abstention_baseline().engine_contract,
     )
 

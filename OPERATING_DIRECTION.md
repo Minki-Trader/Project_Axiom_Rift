@@ -301,6 +301,25 @@ The durable work vocabulary is:
   holdout data without exposing values. Any scientific read of values, returns,
   distribution, or performance requires a permit and consumes reveal
   accounting.
+- [MUST] OD-DAT-016 The MqlRates spread field is a completed-period bar
+  observation. It becomes decision-eligible only when that bar is complete and
+  has no authority as the bid-ask quote at the bar open, at a scheduled order,
+  or before an order decision.
+- [MUST] OD-DAT-017 A scheduled or deferred entry bar cannot supply spread,
+  cost-known, quote-quality, abstention, cancellation, or further-deferral input
+  to the decision that enters on that bar. Such a policy may use the completed
+  decision bar and strictly earlier completed bars only.
+- [MUST] OD-DAT-018 A delayed-entry decision is frozen at its declared decision
+  time. The delayed bar cannot silently become a second decision surface unless
+  a new causally available decision and a new Executable semantics explicitly
+  replace the original policy.
+- [MUST] OD-DAT-019 A point-in-time quote claim requires timestamped bid-ask,
+  tick, order, deal, or execution-receipt evidence available at the claimed
+  time. Reconstructed current broker history and completed-bar spread do not
+  establish historical point-in-time authority.
+- [MUST] OD-DAT-020 Entry and exit cost proxies bind the exact completed-bar
+  source index and source-availability time used by every trade. A validator
+  rejects a same-entry-bar or same-exit-bar value presented as pre-order input.
 
 ## 10. Preserved Data And Environment Snapshot
 
@@ -497,6 +516,22 @@ runtime_eligible; semantic change requires a new source contract.
 - [MUST] OD-EVL-009 Aggregate profit is not robustness evidence, development is
   not final OOS, compile success is not runtime evidence, and an ONNX file is
   not ONNX readiness.
+- [MUST] OD-EVL-010 Completed-period bar spread may support a declared discovery
+  cost proxy, but it is never labeled native point-in-time execution cost. Gross
+  mechanism evidence, proxy-cost economics, actual-quote economics, and native
+  runtime execution remain distinct claim scopes.
+- [MUST] OD-EVL-011 A historical cost-proxy qualification changes only the
+  claims that depend on actual point-in-time cost. It does not erase independent
+  causal evidence, and it does not let proxy-dependent negative memory prune,
+  exhaust, terminate, economically validate, or candidate-qualify an axis as if
+  actual execution economics had been measured. A historical prune touched by
+  that negative authority is deferred and requires explicit reopen authority.
+- [MUST] OD-EVL-012 The historical cost-semantics latch materializes its exact
+  completion membership in the same Writer event. Routine claim, criterion,
+  negative-memory, evidence-scope, Portfolio, architecture, exhaustion, and
+  terminal reads use authenticated keyed projections rather than re-scanning
+  the frozen history. Absence before activation is compatible; an activated
+  missing, extra, malformed, or cross-event projection fails closed.
 
 ## 13. Evidence Depth, Materialization, And Release
 
@@ -1035,6 +1070,12 @@ runtime_eligible; semantic change requires a new source contract.
   metadata nor the ambient host environment to collected tests. The executable
   sandbox is a standalone snapshot with minimum explicit environment inputs and
   sandbox-confined home and temporary paths.
+- [MUST] OD-AUD-044 A ReplayObligation keeps its immutable original priority.
+  If a later completion-validity audit invalidates an already accepted replay
+  satisfaction, urgency may rise only through a same-event additive P1-to-P0
+  priority overlay bound to that exact invalidity, satisfaction, adjudication,
+  and audit. The scheduler uses the effective priority; no demotion, duplicate
+  obligation, rewritten lineage, or scientific credit is allowed.
 
 ## 23. Governing Principle
 

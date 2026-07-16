@@ -28,10 +28,17 @@ MODEL_MIN_SAMPLES_LEAF = 128
 MODEL_RANDOM_SEED = 612337279
 _PROFILES = ("stu0092_fixed_direction_control", "event_direction_tree_subject")
 _THIS_FILE = Path(__file__).resolve()
+_DISCOVERY_FILE = _THIS_FILE.with_name("event_direction_meta_discovery.py")
 
 
 def event_direction_meta_chassis_implementation_sha256() -> str:
     return sha256(_THIS_FILE.read_bytes()).hexdigest()
+
+
+def event_direction_meta_discovery_source_sha256() -> str:
+    """Bind the file that implements the subject label and fitted model."""
+
+    return sha256(_DISCOVERY_FILE.read_bytes()).hexdigest()
 
 
 def event_direction_meta_baseline() -> ExecutableSpec:
@@ -108,6 +115,13 @@ def _local(name: str) -> str:
     )
 
 
+def _discovery_local(name: str) -> str:
+    return (
+        f"axiom_rift.research.event_direction_meta_discovery.{name}@sha256:"
+        f"{event_direction_meta_discovery_source_sha256()}"
+    )
+
+
 def _domain_identities(executable: ExecutableSpec, domain: str) -> tuple[str, ...]:
     return tuple(
         component.identity
@@ -122,10 +136,13 @@ def event_direction_meta_components() -> tuple[ComponentSpec, ...]:
     label = ComponentSpec(
         display_name="fold-train slot-horizon native direction-action label",
         protocol="label.event_native_follow_or_reverse_by_slot_horizon.v1",
-        implementation=_local("fit_event_direction_model"),
+        implementation=_discovery_local("fit_event_direction_model"),
         spec={
             "actions": ["follow_baseline", "reverse_baseline"],
-            "cost_basis": "native_fpmarkets_spread",
+            "cost_basis": (
+                "completed_period_spread_proxy_with_native_directional_"
+                "cost_formula"
+            ),
             "fit_role": "train_is_only",
             "parameter_fields": ["event_direction_label_profile"],
             "router_holding_bars": 12,
@@ -140,7 +157,7 @@ def event_direction_meta_components() -> tuple[ComponentSpec, ...]:
     model = ComponentSpec(
         display_name="fold-train shallow joint-sleeve event direction tree",
         protocol="model.fold_train_shallow_event_direction_tree.v1",
-        implementation=_local("fit_event_direction_model"),
+        implementation=_discovery_local("fit_event_direction_model"),
         spec={
             "criterion": "log_loss",
             "feature_state": [
@@ -287,6 +304,7 @@ __all__ = [
     "apply_event_direction_actions",
     "event_direction_meta_baseline",
     "event_direction_meta_chassis_implementation_sha256",
+    "event_direction_meta_discovery_source_sha256",
     "event_direction_meta_components",
     "event_direction_meta_configurations",
     "event_direction_meta_executable",

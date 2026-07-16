@@ -20,6 +20,11 @@ from axiom_rift.research.discovery import (
     _validate_production_data,
     simulate_fixed_hold,
 )
+from axiom_rift.research.completed_period_atomic_trace import (
+    AtomicFixedHoldMember,
+    materialize_fixed_hold_intent_rows,
+    materialize_fixed_hold_trade_rows,
+)
 from axiom_rift.research.fixed_hold_family_trace import (
     FIXED_HOLD_TRACE_VALIDATOR,
     FixedHoldProtocolDefinition,
@@ -47,10 +52,6 @@ def fixed_hold_trace_engine_implementation_sha256() -> str:
 
 def _iso(value: object) -> str:
     return pd.Timestamp(value).isoformat()
-
-
-def _micropoints(value: object) -> int:
-    return int(round(float(value) * 1_000_000))
 
 
 def _causal_surface_digest(
@@ -88,14 +89,6 @@ def _causal_surface_digest(
     return digest.hexdigest()
 
 
-def _time_position_map(frame: pd.DataFrame) -> dict[int, int]:
-    values = _time_ns(frame)
-    positions = {int(value): index for index, value in enumerate(values)}
-    if len(positions) != len(values):
-        raise ValueError("fixed-hold replay time index is not unique")
-    return positions
-
-
 def _configuration_value(configuration: object, name: str) -> object:
     try:
         return getattr(configuration, name)
@@ -109,62 +102,31 @@ def _trade_rows(
     executable_id: str,
     simulations: Mapping[tuple[str, str], Any],
     frame: pd.DataFrame,
+    effective_spread: np.ndarray,
 ) -> list[dict[str, object]]:
-    positions = _time_position_map(frame)
-    configuration_id = str(
-        _configuration_value(configuration, "configuration_id")
+    member = AtomicFixedHoldMember(
+        configuration_id=str(
+            _configuration_value(configuration, "configuration_id")
+        ),
+        executable_id=executable_id,
+        historical_reference_executable_id=str(
+            _configuration_value(
+                configuration,
+                "historical_reference_executable_id",
+            )
+        ),
+        holding_bars=int(
+            _configuration_value(configuration, "holding_bars")
+        ),
     )
-    historical_id = str(
-        _configuration_value(
-            configuration,
-            "historical_reference_executable_id",
-        )
+    rows = materialize_fixed_hold_trade_rows(
+        member=member,
+        simulations=simulations,
+        frame=frame,
+        effective_spread=effective_spread,
+        observation_id=fixed_hold_observation_id,
+        include_holding_bars=True,
     )
-    holding_bars = int(_configuration_value(configuration, "holding_bars"))
-    rows: list[dict[str, object]] = []
-    for (fold_id, scope), simulation in simulations.items():
-        if scope != "full":
-            continue
-        for raw in simulation.trades.to_dict(orient="records"):
-            decision_bar = pd.Timestamp(raw["decision_bar_open_time"])
-            entry = pd.Timestamp(raw["entry_time"])
-            exit_time = pd.Timestamp(raw["exit_time"])
-            decision_index = positions[int(decision_bar.value)]
-            entry_index = positions[int(entry.value)]
-            exit_index = positions[int(exit_time.value)]
-            gross = _micropoints(raw["gross_pnl"])
-            native_cost = _micropoints(raw["native_cost"])
-            stress_cost = _micropoints(raw["stress_cost"])
-            row: dict[str, object] = {
-                "availability_time": _iso(raw["decision_time"]),
-                "configuration_id": configuration_id,
-                "decision_bar_index": decision_index,
-                "decision_bar_open_time": _iso(decision_bar),
-                "decision_time": _iso(raw["decision_time"]),
-                "direction": int(raw["direction"]),
-                "entry_bar_index": entry_index,
-                "entry_time": _iso(entry),
-                "executable_id": executable_id,
-                "exit_bar_index": exit_index,
-                "exit_time": _iso(exit_time),
-                "fold_id": fold_id,
-                "gross_pnl_micropoints": gross,
-                "historical_reference_executable_id": historical_id,
-                "holding_bars": holding_bars,
-                "native_cost_micropoints": native_cost,
-                "native_net_pnl_micropoints": gross - native_cost,
-                "observation_id": "pending",
-                "regime": str(raw["regime"]),
-                "stress_cost_micropoints": stress_cost,
-                "stress_net_pnl_micropoints": gross - stress_cost,
-            }
-            if not (
-                entry_index == decision_index + 1
-                and exit_index - entry_index == holding_bars
-            ):
-                raise RuntimeError("fixed-hold trade indices drifted")
-            row["observation_id"] = fixed_hold_observation_id("trade", row)
-            rows.append(row)
     return rows
 
 
@@ -174,58 +136,31 @@ def _intent_rows(
     executable_id: str,
     simulations: Mapping[tuple[str, str], Any],
     frame: pd.DataFrame,
+    effective_spread: np.ndarray,
 ) -> list[dict[str, object]]:
-    positions = _time_position_map(frame)
-    configuration_id = str(
-        _configuration_value(configuration, "configuration_id")
-    )
-    historical_id = str(
-        _configuration_value(
-            configuration,
-            "historical_reference_executable_id",
-        )
-    )
-    holding_bars = int(_configuration_value(configuration, "holding_bars"))
-    rows: list[dict[str, object]] = []
-    for (fold_id, scope), simulation in simulations.items():
-        for ordinal, raw in enumerate(simulation.intent_rows, start=1):
-            decision, entry, exit_time, direction, status = raw
-            decision_timestamp = pd.Timestamp(decision)
-            entry_timestamp = pd.Timestamp(entry)
-            exit_timestamp = pd.Timestamp(exit_time)
-            decision_bar_timestamp = decision_timestamp - pd.Timedelta(
-                minutes=5
+    member = AtomicFixedHoldMember(
+        configuration_id=str(
+            _configuration_value(configuration, "configuration_id")
+        ),
+        executable_id=executable_id,
+        historical_reference_executable_id=str(
+            _configuration_value(
+                configuration,
+                "historical_reference_executable_id",
             )
-            decision_index = positions[int(decision_bar_timestamp.value)]
-            entry_index = positions[int(entry_timestamp.value)]
-            exit_index = positions[int(exit_timestamp.value)]
-            row: dict[str, object] = {
-                "availability_time": _iso(decision_timestamp),
-                "configuration_id": configuration_id,
-                "decision_bar_index": decision_index,
-                "decision_bar_open_time": _iso(decision_bar_timestamp),
-                "decision_time": _iso(decision_timestamp),
-                "direction": int(direction),
-                "entry_bar_index": entry_index,
-                "entry_time": _iso(entry_timestamp),
-                "executable_id": executable_id,
-                "exit_bar_index": exit_index,
-                "exit_time": _iso(exit_timestamp),
-                "fold_id": fold_id,
-                "historical_reference_executable_id": historical_id,
-                "holding_bars": holding_bars,
-                "observation_id": "pending",
-                "ordinal": ordinal,
-                "scope": scope,
-                "status": str(status),
-            }
-            if not (
-                entry_index == decision_index + 1
-                and exit_index - entry_index == holding_bars
-            ):
-                raise RuntimeError("fixed-hold intent indices drifted")
-            row["observation_id"] = fixed_hold_observation_id("intent", row)
-            rows.append(row)
+        ),
+        holding_bars=int(
+            _configuration_value(configuration, "holding_bars")
+        ),
+    )
+    rows = materialize_fixed_hold_intent_rows(
+        member=member,
+        simulations=simulations,
+        frame=frame,
+        effective_spread=effective_spread,
+        observation_id=fixed_hold_observation_id,
+        include_holding_bars=True,
+    )
     return rows
 
 
@@ -467,6 +402,7 @@ def compute_fixed_hold_family_trace(
                 executable_id=executable_id,
                 simulations=captures,
                 frame=frame,
+                effective_spread=spread,
             )
         )
         all_intents.extend(
@@ -475,6 +411,7 @@ def compute_fixed_hold_family_trace(
                 executable_id=executable_id,
                 simulations=captures,
                 frame=frame,
+                effective_spread=spread,
             )
         )
     all_trades.sort(

@@ -46,6 +46,7 @@ from axiom_rift.research.analog_state_trace import (
     validate_analog_family_trace_cache_manifest,
 )
 from axiom_rift.research.analog_state_trace_rows import (
+    analog_trace_rows_implementation_sha256,
     digest_causal_surfaces as _shared_digest_causal_surfaces,
     intent_rows as _shared_intent_rows,
     iso_timestamp as _shared_iso_timestamp,
@@ -243,6 +244,7 @@ def analog_replay_implementation_sha256() -> str:
     return sha256(
         _THIS_FILE.read_bytes()
         + bytes.fromhex(reproducible_cache_implementation_sha256())
+        + bytes.fromhex(analog_trace_rows_implementation_sha256())
     ).hexdigest()
 
 
@@ -769,11 +771,15 @@ def _trade_rows(
     configuration: AnalogFamilyConfiguration,
     executable_id: str,
     simulations: Mapping[tuple[str, str], Any],
+    frame: pd.DataFrame,
+    effective_spread: np.ndarray,
 ) -> list[dict[str, object]]:
     return _shared_trade_rows(
         configuration=configuration,
         executable_id=executable_id,
         simulations=simulations,
+        frame=frame,
+        effective_spread=effective_spread,
     )
 
 
@@ -782,11 +788,15 @@ def _intent_rows(
     configuration: AnalogFamilyConfiguration,
     executable_id: str,
     simulations: Mapping[tuple[str, str], Any],
+    frame: pd.DataFrame,
+    effective_spread: np.ndarray,
 ) -> list[dict[str, object]]:
     return _shared_intent_rows(
         configuration=configuration,
         executable_id=executable_id,
         simulations=simulations,
+        frame=frame,
+        effective_spread=effective_spread,
     )
 
 
@@ -971,6 +981,8 @@ def compute_analog_family_trace(
                 configuration=configuration,
                 executable_id=subject_executable,
                 simulations=captures,
+                frame=frame,
+                effective_spread=spread,
             )
         )
         all_intents.extend(
@@ -978,6 +990,8 @@ def compute_analog_family_trace(
                 configuration=configuration,
                 executable_id=subject_executable,
                 simulations=captures,
+                frame=frame,
+                effective_spread=spread,
             )
         )
     all_trades.sort(

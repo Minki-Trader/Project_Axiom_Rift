@@ -14,6 +14,7 @@ from axiom_rift.core.identity import ComponentSpec, ExecutableSpec
 from axiom_rift.research.discovery import (
     SimulationResult,
     _time_ns,
+    completed_bar_execution_spreads,
     execution_pnl,
     simulate_fixed_hold,
 )
@@ -424,7 +425,12 @@ def _target_carry_exit_slot(
         carry_early_exit = exit_index < scheduled_exit_index
         carry_state_fail_closed = trigger_reason == "missing_or_stale_state_safe_exit"
         next_decision_index = scheduled_exit_index
-        if not (np.isfinite(spreads[entry_index]) and np.isfinite(spreads[exit_index])):
+        execution_spreads = completed_bar_execution_spreads(
+            spreads,
+            entry_index=entry_index,
+            exit_index=exit_index,
+        )
+        if not execution_spreads.costs_known:
             unresolved += 1
             intents.append(
                 (
@@ -441,8 +447,8 @@ def _target_carry_exit_slot(
             direction=direction,
             entry_bid=float(opens[entry_index]),
             exit_bid=float(opens[exit_index]),
-            entry_spread_points=float(spreads[entry_index]),
-            exit_spread_points=float(spreads[exit_index]),
+            entry_spread_points=execution_spreads.entry_spread_points,
+            exit_spread_points=execution_spreads.exit_spread_points,
         )
         entry_volatility = float(volatility[decision_index])
         regime = (

@@ -182,8 +182,8 @@ def event_label_components() -> tuple[ComponentSpec, ...]:
             },
         ),
         ComponentSpec(
-            display_name="FPMarkets bid-bar spread execution",
-            protocol="execution.fpmarkets_bid_bar_spread.v3",
+            display_name="FPMarkets completed-period spread proxy execution",
+            protocol="execution.fpmarkets_completed_bar_spread_proxy.v3",
             implementation=_shared("execution_pnl"),
             spec={"point": "0.01", "stress": "half_effective_spread_each_side"},
         ),
@@ -207,7 +207,7 @@ def event_label_executable(configuration: EventLabelConfiguration) -> Executable
         ),
         clock_contract="clock:fpmarkets_m5_bar_open_completed_plus_5m_v3",
         cost_contract=(
-            "cost:bid_bar_spread_point_0_01_causal_zero_repair_"
+            "cost:fpmarkets_completed_bar_spread_proxy_point_0_01_causal_zero_repair_"
             "half_spread_stress_v3"
         ),
         engine_contract=(

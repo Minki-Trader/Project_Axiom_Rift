@@ -10,6 +10,7 @@ from typing import Any
 import numpy as np
 
 from axiom_rift.core.identity import ComponentSpec, ExecutableSpec
+from axiom_rift.research.discovery import discovery_implementation_sha256
 from axiom_rift.research.us500_market_coherence_chassis import (
     SELECTION_TOTAL_EXPOSURES as PRIOR_TOTAL_EXPOSURES,
     US500_RAW_SHA256,
@@ -105,6 +106,13 @@ def _local(name: str) -> str:
     return (
         f"axiom_rift.research.market_residual_event_chassis.{name}@sha256:"
         f"{market_residual_event_chassis_implementation_sha256()}"
+    )
+
+
+def _shared(name: str) -> str:
+    return (
+        f"axiom_rift.research.discovery.{name}@sha256:"
+        f"{discovery_implementation_sha256()}"
     )
 
 
@@ -252,7 +260,7 @@ def market_residual_event_components(
     trade = ComponentSpec(
         display_name="residual event continuation or mean-reversion entry",
         protocol="trade.market_residual_event_direction.v1",
-        implementation=_local("project_market_residual_score"),
+        implementation=_shared("simulate_fixed_hold"),
         spec={
             "decision_time": "bar_open_plus_5m",
             "entry_time": "next_exact_bar_open",
@@ -268,7 +276,7 @@ def market_residual_event_components(
     lifecycle = ComponentSpec(
         display_name="fixed six-bar nonoverlap residual event lifecycle",
         protocol="lifecycle.fixed_hold_no_overlap.v9",
-        implementation=_local("project_market_residual_score"),
+        implementation=_shared("simulate_fixed_hold"),
         spec={
             "entry_overlap": "reject_while_position_slot_is_occupied",
             "exit_surface": "exact_bar_open_after_6_bars",
@@ -280,7 +288,7 @@ def market_residual_event_components(
     risk = ComponentSpec(
         display_name="fixed one-lot residual event risk",
         protocol="risk.fixed_one_lot.v2",
-        implementation=_local("project_market_residual_score"),
+        implementation=_shared("simulate_fixed_hold"),
         spec={
             "dynamic_sizing": False,
             "lot": 1,
@@ -290,11 +298,15 @@ def market_residual_event_components(
         semantic_dependencies=(lifecycle.identity,),
     )
     execution = ComponentSpec(
-        display_name="FPMarkets next-open bid execution with native and stress costs",
-        protocol="execution.fpmarkets_bid_open_spread.v1",
-        implementation=_local("project_market_residual_score"),
+        display_name=(
+            "FPMarkets next-open completed-period spread proxy execution"
+        ),
+        protocol="execution.fpmarkets_completed_bar_spread_proxy.v1",
+        implementation=_shared("simulate_fixed_hold"),
         spec={
             "point": "0.01",
+            "entry_proxy": "entry_index_minus_1",
+            "exit_proxy": "exit_index_minus_1",
             "stress": "half_effective_spread_each_side",
             "unknown_cost_action": "not_evaluable",
         },
@@ -338,6 +350,7 @@ def market_residual_event_executable(
 ) -> ExecutableSpec:
     boundary = frontier_executable()
     implementation = market_residual_event_chassis_implementation_sha256()
+    shared_implementation = discovery_implementation_sha256()
     return ExecutableSpec(
         display_name=f"market residual event {configuration.profile}",
         components=market_residual_event_components(configuration),
@@ -348,7 +361,8 @@ def market_residual_event_executable(
         cost_contract=boundary.cost_contract,
         engine_contract=(
             "engine:market_residual_event_v1:python3.13.9:"
-            f"chassis_{implementation}:selection_{SELECTION_TOTAL_EXPOSURES}"
+            f"chassis_{implementation}:shared_{shared_implementation}:"
+            f"selection_{SELECTION_TOTAL_EXPOSURES}"
         ),
         source_contracts=(us500_source_contract().source_contract_id,),
     )

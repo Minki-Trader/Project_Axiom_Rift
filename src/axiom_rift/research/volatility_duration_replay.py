@@ -25,6 +25,9 @@ from axiom_rift.research.chassis import (
     ControlledStudyChassis,
     validate_controlled_executable,
 )
+from axiom_rift.research.completed_period_atomic_trace import (
+    completed_period_proxy_execution_spec,
+)
 from axiom_rift.research.discovery import (
     DATASET_SHA256,
     EXPECTED_FOLD_IDS,
@@ -82,7 +85,7 @@ VOLATILITY_DURATION_REPLAY_CLOCK_CONTRACT = (
     "clock:fpmarkets_m5_bar_open_completed_plus_5m_v2"
 )
 VOLATILITY_DURATION_REPLAY_COST_CONTRACT = (
-    "cost:bid_bar_segment_positive_median_min_1_unknown_entry_cancel_"
+    "cost:fpmarkets_completed_bar_spread_proxy_segment_positive_median_min_1_unknown_entry_cancel_"
     "half_spread_stress_v1"
 )
 _THIS_FILE = Path(__file__).resolve()
@@ -298,14 +301,15 @@ def volatility_duration_replay_components() -> tuple[ComponentSpec, ...]:
         semantic_dependencies=(trade.identity,),
     )
     execution = ComponentSpec(
-        display_name="causal segment spread replay execution",
-        protocol="execution.fpmarkets_segment_spread.replay.v2",
+        display_name="completed-period spread-proxy replay execution",
+        protocol="execution.fpmarkets_completed_period_spread_proxy.v2",
         implementation=_local("causal_volatility_duration_replay_spread"),
-        spec={
-            "point": "0.01",
-            "stress": "half_effective_spread_each_side",
-            "zero_spread": "lagged_positive_segment_median_min_1_else_unknown",
-        },
+        spec=completed_period_proxy_execution_spec(
+            repair_policy=(
+                "same_contiguous_segment_strict_prior_positive_288_bar_"
+                "median_min_1_else_unknown"
+            )
+        ),
         semantic_dependencies=(lifecycle.identity,),
     )
     risk = ComponentSpec(

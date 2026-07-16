@@ -12,7 +12,7 @@ from collections import defaultdict
 from collections.abc import Mapping, Sequence
 from copy import deepcopy
 from dataclasses import dataclass, field
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from hashlib import sha256
 from math import ceil
 from pathlib import Path
@@ -21,10 +21,24 @@ from typing import Any
 
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.core.identity import canonical_digest
+from axiom_rift.research.completed_period_atomic_trace import (
+    completed_period_atomic_trace_implementation_sha256,
+    validate_completed_period_fixed_hold_sources,
+)
+from axiom_rift.research.fixed_hold_historical_projection import (
+    derive_fixed_hold_semantic_surfaces,
+    fixed_hold_historical_projection_implementation_sha256,
+)
 from axiom_rift.research.historical_family_binding import (
     HistoricalFamilyBindingError,
     HistoricalFamilyLike,
     historical_family_from_manifest,
+)
+from axiom_rift.research.historical_semantic_transition import (
+    HISTORICAL_COST_TIMING_TRANSITION_POLICY,
+    NO_SEMANTIC_TRANSITION_POLICY,
+    historical_semantic_transition_implementation_sha256,
+    validate_historical_semantic_transition_inventory,
 )
 from axiom_rift.research.scientific_trace import (
     SCIENTIFIC_CALCULATION_PROOF_SCHEMA,
@@ -40,9 +54,9 @@ from axiom_rift.research.selection_inference import (
 )
 
 
-FIXED_HOLD_FAMILY_TRACE_SCHEMA = "fixed_hold_family_trace.v1"
-FIXED_HOLD_PROTOCOL_DEFINITION_SCHEMA = "fixed_hold_protocol_definition.v1"
-FIXED_HOLD_TRACE_VALIDATOR_SCHEMA = "fixed_hold_trace_validator.v1"
+FIXED_HOLD_FAMILY_TRACE_SCHEMA = "fixed_hold_family_trace.v4"
+FIXED_HOLD_PROTOCOL_DEFINITION_SCHEMA = "fixed_hold_protocol_definition.v3"
+FIXED_HOLD_TRACE_VALIDATOR_SCHEMA = "fixed_hold_trace_validator.v3"
 FIXED_HOLD_MEMBER_SCHEMA = "fixed_hold_family_member.v1"
 FIXED_HOLD_CONTROL_SCHEMA = "fixed_hold_control_binding.v1"
 
@@ -79,6 +93,7 @@ _FAMILY_TRACE_FIELDS = {
     "original_family_provenance",
     "protocol_id",
     "schema",
+    "semantic_transition_evidence",
     "split_artifact_sha256",
     "trade_observations",
     "windows",
@@ -99,6 +114,7 @@ _SUBJECT_TRACE_FIELDS = {
     "ordered_family",
     "protocol_id",
     "schema",
+    "semantic_transition_evidence",
     "split_artifact_sha256",
     "subject_executable_id",
     "trade_observations",
@@ -126,6 +142,7 @@ _PROTOCOL_DEFINITION_FIELDS = {
     "family_id",
     "fold_ids",
     "historical_context_id",
+    "historical_evaluation_artifacts",
     "historical_family",
     "historical_prior_global_exposure_count",
     "inference",
@@ -137,6 +154,7 @@ _PROTOCOL_DEFINITION_FIELDS = {
     "prospective_executable_ids",
     "protocol_id",
     "schema",
+    "semantic_transition_policy",
     "split_artifact_sha256",
 }
 _PROTOCOL_INFERENCE_FIELDS = {
@@ -145,6 +163,11 @@ _PROTOCOL_INFERENCE_FIELDS = {
     "block_lengths",
     "bootstrap_samples",
     "monte_carlo_confidence_ppm",
+}
+_HISTORICAL_EVALUATION_ARTIFACT_FIELDS = {
+    "artifact_sha256",
+    "configuration_id",
+    "schema",
 }
 _FAMILY_MEMBER_FIELDS = {
     "configuration_id",
@@ -183,12 +206,24 @@ _TRADE_FIELDS = {
     "configuration_id",
     "decision_bar_index",
     "decision_bar_open_time",
+    "decision_spread_source_bar_index",
+    "decision_spread_source_bar_open_time",
+    "decision_spread_information_complete_at",
+    "decision_spread_known",
     "decision_time",
     "direction",
     "entry_bar_index",
+    "entry_spread_source_bar_index",
+    "entry_spread_source_bar_open_time",
+    "entry_spread_information_complete_at",
+    "entry_spread_known",
     "entry_time",
     "executable_id",
     "exit_bar_index",
+    "exit_spread_source_bar_index",
+    "exit_spread_source_bar_open_time",
+    "exit_spread_information_complete_at",
+    "exit_spread_known",
     "exit_time",
     "fold_id",
     "gross_pnl_micropoints",
@@ -200,18 +235,31 @@ _TRADE_FIELDS = {
     "regime",
     "stress_cost_micropoints",
     "stress_net_pnl_micropoints",
+    "spread_semantics",
 }
 _INTENT_FIELDS = {
     "availability_time",
     "configuration_id",
     "decision_bar_index",
     "decision_bar_open_time",
+    "decision_spread_source_bar_index",
+    "decision_spread_source_bar_open_time",
+    "decision_spread_information_complete_at",
+    "decision_spread_known",
     "decision_time",
     "direction",
     "entry_bar_index",
+    "entry_spread_source_bar_index",
+    "entry_spread_source_bar_open_time",
+    "entry_spread_information_complete_at",
+    "entry_spread_known",
     "entry_time",
     "executable_id",
     "exit_bar_index",
+    "exit_spread_source_bar_index",
+    "exit_spread_source_bar_open_time",
+    "exit_spread_information_complete_at",
+    "exit_spread_known",
     "exit_time",
     "fold_id",
     "historical_reference_executable_id",
@@ -219,6 +267,7 @@ _INTENT_FIELDS = {
     "observation_id",
     "ordinal",
     "scope",
+    "spread_semantics",
     "status",
 }
 _ELIGIBLE_FIELDS = {
@@ -261,7 +310,13 @@ _ALLOWED_INTENT_STATUSES = frozenset(
     }
 )
 _RESERVED_IMPLEMENTATION_KEYS = frozenset(
-    {"fixed_hold_trace_sha256", "selection_inference_sha256"}
+    {
+        "completed_period_atomic_trace_sha256",
+        "fixed_hold_trace_sha256",
+        "fixed_hold_historical_projection_sha256",
+        "historical_semantic_transition_sha256",
+        "selection_inference_sha256",
+    }
 )
 
 
@@ -395,6 +450,27 @@ def fixed_hold_trace_implementation_sha256() -> str:
     return sha256(_THIS_FILE.read_bytes()).hexdigest()
 
 
+def _historical_evaluation_artifact_entry(
+    value: object,
+) -> tuple[str, str, str]:
+    artifact = _mapping("historical evaluation artifact", value)
+    if set(artifact) != _HISTORICAL_EVALUATION_ARTIFACT_FIELDS:
+        raise ScientificTraceError(
+            "historical evaluation artifact schema is invalid"
+        )
+    return (
+        _ascii(
+            "historical artifact configuration_id",
+            artifact.get("configuration_id"),
+        ),
+        _digest(
+            "historical artifact sha256",
+            artifact.get("artifact_sha256"),
+        ),
+        _ascii("historical artifact schema", artifact.get("schema")),
+    )
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class FixedHoldProtocolDefinition:
     """Code-owned immutable family and inference boundary."""
@@ -419,6 +495,8 @@ class FixedHoldProtocolDefinition:
     block_lengths: tuple[int, ...]
     monte_carlo_confidence_ppm: int
     base_seed: int
+    historical_evaluation_artifacts: tuple[tuple[str, str, str], ...] = ()
+    semantic_transition_policy: str = NO_SEMANTIC_TRANSITION_POLICY
     family_id: str = field(init=False)
     inference_family_id: str = field(init=False)
     identity: str = field(init=False)
@@ -461,6 +539,47 @@ class FixedHoldProtocolDefinition:
         _digest("split_artifact_sha256", self.split_artifact_sha256)
         _ascii("clock_contract", self.clock_contract)
         _ascii("cost_contract", self.cost_contract)
+        if self.semantic_transition_policy not in {
+            NO_SEMANTIC_TRANSITION_POLICY,
+            HISTORICAL_COST_TIMING_TRANSITION_POLICY,
+        }:
+            raise ScientificTraceError(
+                "fixed-hold semantic transition policy is invalid"
+            )
+        if type(self.historical_evaluation_artifacts) is not tuple:
+            raise ScientificTraceError(
+                "historical evaluation artifacts must be a tuple"
+            )
+        artifacts: list[tuple[str, str, str]] = []
+        for item in self.historical_evaluation_artifacts:
+            if type(item) is not tuple or len(item) != 3:
+                raise ScientificTraceError(
+                    "historical evaluation artifact entries are invalid"
+                )
+            artifacts.append(
+                (
+                    _ascii("historical artifact configuration_id", item[0]),
+                    _digest("historical artifact sha256", item[1]),
+                    _ascii("historical artifact schema", item[2]),
+                )
+            )
+        if tuple(artifacts) != tuple(sorted(set(artifacts))):
+            raise ScientificTraceError(
+                "historical evaluation artifacts must be sorted and unique"
+            )
+        artifact_configurations = tuple(item[0] for item in artifacts)
+        family_configurations = tuple(
+            member.configuration_id for member in self.family.members
+        )
+        if self.semantic_transition_policy == NO_SEMANTIC_TRANSITION_POLICY:
+            if artifacts:
+                raise ScientificTraceError(
+                    "historical evaluation artifacts require a transition policy"
+                )
+        elif artifact_configurations != tuple(sorted(family_configurations)):
+            raise ScientificTraceError(
+                "historical evaluation artifacts must exactly cover the family"
+            )
         if (
             type(self.producer_implementation_identities) is not tuple
             or not self.producer_implementation_identities
@@ -610,6 +729,16 @@ class FixedHoldProtocolDefinition:
             "family_id": self.family_id,
             "fold_ids": list(self.fold_ids),
             "historical_context_id": self.historical_context_id,
+            "historical_evaluation_artifacts": [
+                {
+                    "artifact_sha256": artifact_sha256,
+                    "configuration_id": configuration_id,
+                    "schema": schema,
+                }
+                for configuration_id, artifact_sha256, schema in (
+                    self.historical_evaluation_artifacts
+                )
+            ],
             "historical_family": self.family.manifest(),
             "historical_prior_global_exposure_count": (
                 self.historical_prior_global_exposure_count
@@ -637,7 +766,21 @@ class FixedHoldProtocolDefinition:
             ),
             "protocol_id": self.protocol_id,
             "schema": FIXED_HOLD_PROTOCOL_DEFINITION_SCHEMA,
+            "semantic_transition_policy": self.semantic_transition_policy,
             "split_artifact_sha256": self.split_artifact_sha256,
+        }
+
+    def historical_artifacts_by_configuration(
+        self,
+    ) -> dict[str, dict[str, str]]:
+        return {
+            configuration_id: {
+                "artifact_sha256": artifact_sha256,
+                "schema": schema,
+            }
+            for configuration_id, artifact_sha256, schema in (
+                self.historical_evaluation_artifacts
+            )
         }
 
 
@@ -666,11 +809,13 @@ def fixed_hold_protocol_definition_from_manifest(
         )
     inference = normalized.get("inference")
     implementations = normalized.get("producer_implementation_identities")
+    historical_artifacts = normalized.get("historical_evaluation_artifacts")
     if (
         type(inference) is not dict
         or set(inference) != _PROTOCOL_INFERENCE_FIELDS
         or type(implementations) is not dict
         or not implementations
+        or type(historical_artifacts) is not list
     ):
         raise ScientificTraceError(
             "fixed-hold protocol definition internals are invalid"
@@ -732,6 +877,10 @@ def fixed_hold_protocol_definition_from_manifest(
                 "historical_context_id",
                 normalized.get("historical_context_id"),
             ),
+            historical_evaluation_artifacts=tuple(
+                _historical_evaluation_artifact_entry(item)
+                for item in historical_artifacts
+            ),
             historical_prior_global_exposure_count=_integer(
                 "historical_prior_global_exposure_count",
                 normalized.get("historical_prior_global_exposure_count"),
@@ -765,6 +914,10 @@ def fixed_hold_protocol_definition_from_manifest(
             base_seed=_integer(
                 "base_seed", inference.get("base_seed"), minimum=0
             ),
+            semantic_transition_policy=_ascii(
+                "semantic_transition_policy",
+                normalized.get("semantic_transition_policy"),
+            ),
         )
     except HistoricalFamilyBindingError as exc:
         raise ScientificTraceError(
@@ -796,9 +949,15 @@ class FixedHoldTraceValidator:
 
     def manifest(self) -> dict[str, object]:
         return {
+            "completed_period_atomic_trace_sha256": (
+                completed_period_atomic_trace_implementation_sha256()
+            ),
             "decision_availability": "completed_m5_bar_plus_5_minutes",
             "entry_index_rule": "entry_bar_index_equals_decision_bar_index_plus_1",
             "fixed_hold_rule": "exit_bar_index_minus_entry_bar_index_equals_holding_bars",
+            "historical_semantic_transition_sha256": (
+                historical_semantic_transition_implementation_sha256()
+            ),
             "implementation_sha256": fixed_hold_trace_implementation_sha256(),
             "schema": FIXED_HOLD_TRACE_VALIDATOR_SCHEMA,
         }
@@ -1144,7 +1303,16 @@ def fixed_hold_trace_implementation_identities(
         )
     return {
         **dict(definition.producer_implementation_identities),
+        "completed_period_atomic_trace_sha256": (
+            completed_period_atomic_trace_implementation_sha256()
+        ),
+        "fixed_hold_historical_projection_sha256": (
+            fixed_hold_historical_projection_implementation_sha256()
+        ),
         "fixed_hold_trace_sha256": fixed_hold_trace_implementation_sha256(),
+        "historical_semantic_transition_sha256": (
+            historical_semantic_transition_implementation_sha256()
+        ),
         "selection_inference_sha256": (
             selection_inference_implementation_sha256()
         ),
@@ -1446,37 +1614,6 @@ def _validate_fixed_hold_clock(
     prefix: str,
     intent_status: str | None = None,
 ) -> tuple[datetime, datetime, datetime]:
-    bar_open = _timestamp(
-        f"{prefix} decision_bar_open_time",
-        row.get("decision_bar_open_time"),
-    )
-    availability = _timestamp(
-        f"{prefix} availability_time",
-        row.get("availability_time"),
-    )
-    decision = _timestamp(f"{prefix} decision_time", row.get("decision_time"))
-    entry = _timestamp(f"{prefix} entry_time", row.get("entry_time"))
-    exit_time = _timestamp(f"{prefix} exit_time", row.get("exit_time"))
-    if not (
-        bar_open + timedelta(minutes=5) == availability
-        and bar_open <= decision <= entry < exit_time
-    ):
-        raise ScientificTraceError(f"{prefix} causal clock is invalid")
-    decision_index = _integer(
-        f"{prefix} decision_bar_index",
-        row.get("decision_bar_index"),
-        minimum=0,
-    )
-    entry_index = _integer(
-        f"{prefix} entry_bar_index",
-        row.get("entry_bar_index"),
-        minimum=1,
-    )
-    exit_index = _integer(
-        f"{prefix} exit_bar_index",
-        row.get("exit_bar_index"),
-        minimum=1,
-    )
     holding_bars = _integer(
         f"{prefix} holding_bars",
         row.get("holding_bars"),
@@ -1484,36 +1621,12 @@ def _validate_fixed_hold_clock(
     )
     if holding_bars != _member_holding_bars(member):
         raise ScientificTraceError(f"{prefix} holding parameter drifted")
-    if entry_index != decision_index + 1:
-        raise ScientificTraceError(f"{prefix} decision/entry index is invalid")
-    if exit_index - entry_index != holding_bars:
-        raise ScientificTraceError(f"{prefix} fixed holding interval is invalid")
-    contiguous_fixed_hold = (
-        decision == availability == entry
-        and exit_time == entry + timedelta(minutes=5 * holding_bars)
+    return validate_completed_period_fixed_hold_sources(
+        row,
+        holding_bars=holding_bars,
+        prefix=prefix,
+        intent_status=intent_status,
     )
-    if intent_status is None or intent_status in {
-        "entry_cancelled_unknown_cost",
-        "executed",
-        "unknown_cost",
-    }:
-        if not contiguous_fixed_hold:
-            raise ScientificTraceError(
-                f"{prefix} executable fixed-hold clock is invalid"
-            )
-    elif intent_status == "gap_excluded":
-        if decision != availability or contiguous_fixed_hold:
-            raise ScientificTraceError(
-                f"{prefix} gap exclusion clock is inconsistent"
-            )
-    elif intent_status == "causality_violation":
-        if decision == availability:
-            raise ScientificTraceError(
-                f"{prefix} causality violation has no observed violation"
-            )
-    else:
-        raise ScientificTraceError(f"{prefix} intent status is invalid")
-    return decision, entry, exit_time
 
 
 def _validate_trades(
@@ -1630,14 +1743,27 @@ def _intent_comparison_tuple(intent: Mapping[str, Any]) -> tuple[object, ...]:
             "availability_time",
             "decision_bar_index",
             "decision_bar_open_time",
+            "decision_spread_source_bar_index",
+            "decision_spread_source_bar_open_time",
+            "decision_spread_information_complete_at",
+            "decision_spread_known",
             "decision_time",
             "direction",
             "entry_bar_index",
+            "entry_spread_source_bar_index",
+            "entry_spread_source_bar_open_time",
+            "entry_spread_information_complete_at",
+            "entry_spread_known",
             "entry_time",
             "exit_bar_index",
+            "exit_spread_source_bar_index",
+            "exit_spread_source_bar_open_time",
+            "exit_spread_information_complete_at",
+            "exit_spread_known",
             "exit_time",
             "historical_reference_executable_id",
             "holding_bars",
+            "spread_semantics",
             "status",
         )
     )
@@ -1650,13 +1776,26 @@ def _execution_identity(row: Mapping[str, Any]) -> tuple[object, ...]:
             "configuration_id",
             "fold_id",
             "decision_bar_index",
+            "decision_spread_source_bar_index",
+            "decision_spread_source_bar_open_time",
+            "decision_spread_information_complete_at",
+            "decision_spread_known",
             "decision_time",
             "entry_bar_index",
+            "entry_spread_source_bar_index",
+            "entry_spread_source_bar_open_time",
+            "entry_spread_information_complete_at",
+            "entry_spread_known",
             "entry_time",
             "exit_bar_index",
+            "exit_spread_source_bar_index",
+            "exit_spread_source_bar_open_time",
+            "exit_spread_information_complete_at",
+            "exit_spread_known",
             "exit_time",
             "direction",
             "holding_bars",
+            "spread_semantics",
         )
     )
 
@@ -1977,7 +2116,7 @@ def _validated_family_trace_parts(
         family=family,
         windows=windows,
     )
-    _, intent_counts = _validate_intents(
+    intents, intent_counts = _validate_intents(
         normalized,
         family=family,
         windows=windows,
@@ -1989,6 +2128,28 @@ def _validated_family_trace_parts(
         windows=windows,
         trades=trades,
     )
+    corrected_surfaces = (
+        {}
+        if definition.semantic_transition_policy
+        == NO_SEMANTIC_TRANSITION_POLICY
+        else derive_fixed_hold_semantic_surfaces(
+            ordered_family=expected_fixed_hold_family_inventory(definition),
+            control_bindings=expected_fixed_hold_control_inventory(definition),
+            windows=windows,
+            trades=trades,
+            intents=intents,
+            prefix_invariance_mismatch_count=prefix_mismatches,
+        )
+    )
+    semantic_transitions = validate_historical_semantic_transition_inventory(
+        normalized.get("semantic_transition_evidence"),
+        policy=definition.semantic_transition_policy,
+        ordered_family=expected_fixed_hold_family_inventory(definition),
+        historical_artifacts_by_configuration=(
+            definition.historical_artifacts_by_configuration()
+        ),
+        corrected_surfaces_by_configuration=corrected_surfaces,
+    )
     return {
         "content": content,
         "daily": daily,
@@ -1996,6 +2157,7 @@ def _validated_family_trace_parts(
         "intent_counts": intent_counts,
         "normalized": normalized,
         "prefix_mismatches": prefix_mismatches,
+        "semantic_transitions": semantic_transitions,
         "trades": trades,
         "windows": windows,
     }
@@ -2074,6 +2236,7 @@ def build_fixed_hold_family_trace(
     trade_observations: Sequence[Mapping[str, Any]],
     intent_observations: Sequence[Mapping[str, Any]],
     eligible_day_observations: Sequence[Mapping[str, Any]],
+    semantic_transition_evidence: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, object]:
     """Build and immediately validate one family-neutral atomic trace."""
 
@@ -2101,6 +2264,9 @@ def build_fixed_hold_family_trace(
         ),
         "protocol_id": definition.protocol_id,
         "schema": FIXED_HOLD_FAMILY_TRACE_SCHEMA,
+        "semantic_transition_evidence": [
+            dict(item) for item in semantic_transition_evidence
+        ],
         "split_artifact_sha256": definition.split_artifact_sha256,
         "trade_observations": [dict(item) for item in trade_observations],
         "windows": [dict(item) for item in windows],

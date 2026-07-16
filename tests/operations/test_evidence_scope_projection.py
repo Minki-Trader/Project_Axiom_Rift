@@ -112,7 +112,10 @@ class EffectiveEvidenceScopeProjectionTests(unittest.TestCase):
                 self.assertTrue(raw.scientific_eligible)
                 self.assertEqual(raw.scientific_credit, 1)
                 self.assertEqual(raw.economic_credit, 1)
+                self.assertEqual(raw.candidate_credit, 0)
                 self.assertEqual(raw.terminal_credit, 1)
+                self.assertTrue(raw.negative_memory_authoritative)
+                self.assertIsNone(raw.invalidation_record_id)
                 reference = AxisEvidenceReference(
                     kind=AxisEvidenceKind.JOB_COMPLETION,
                     record_id=completion_id,
@@ -185,8 +188,12 @@ class EffectiveEvidenceScopeProjectionTests(unittest.TestCase):
                 self.assertFalse(effective.candidate_eligible)
                 self.assertEqual(effective.scientific_credit, 0)
                 self.assertEqual(effective.economic_credit, 0)
+                self.assertEqual(effective.candidate_credit, 0)
                 self.assertEqual(effective.terminal_credit, 0)
+                self.assertFalse(effective.negative_memory_authoritative)
+                self.assertEqual(effective.negative_memory_role, "diagnostic_only")
                 self.assertEqual(effective.overlay_record_id, overlay.record_id)
+                self.assertIsNone(effective.invalidation_record_id)
                 with self.assertRaisesRegex(
                     AxisDispositionEvidenceError,
                     "lacks current rich scientific authority",

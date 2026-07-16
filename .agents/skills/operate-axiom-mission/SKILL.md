@@ -192,11 +192,37 @@ unbound scientific work.
   authority replacement bytes at `HEAD`. Apply the typed correction, make its
   state and Journal suffix a second local commit, then deliver both commits with
   one non-force fast-forward push. For a segmented Journal, subtract the exact
-  correction suffix already present after local `HEAD`, then prove that every
-  remaining event in the two-event upper bound fits the current active segment
-  even at the Journal event-size limit. Fail before correction mutation if it
-  does not. This one-off delivery does not authorize segment rotation. Never
-  publish the code checkpoint alone.
+  correction suffix already present after local `HEAD`, require it to be an
+  exact prefix of one content-addressed reviewed correction plan, then prove
+  that every remaining event in that plan's frozen ordered inventory fits the
+  current active segment even at the Journal event-size limit. A caller cannot
+  choose or expand the numeric bound. Fail before correction mutation if the
+  exact remaining inventory does not fit. This one-off delivery does not
+  authorize segment rotation. Start the canonical apply directly under an
+  isolated, no-site, no-user-site, environment-ignoring, safe-path Python
+  process; a self-reexec from an unsafe parent is not authority. Bind and
+  revalidate the exact resolved project import bytes plus the Python executable,
+  implementation, version, and admitted PyYAML distribution RECORD provenance;
+  use an empty private bytecode-cache prefix with bytecode writes disabled, and
+  reject automatic startup modules, sourceless bytecode, native shadows, or
+  import drift from the actual filesystem before mutation. Git ignore state is
+  not execution authority.
+  For every remaining event independently derive and core-bind the full
+  semantic row and operation-result mappings. Independently derive the complete
+  event control mapping and advance the projection record count and digest
+  chain from the prior reviewed boundary. Independently advance the Journal
+  sequence, predecessor, global offset from exact framed bytes, and event-ID
+  chain as one pure envelope; the Writer and Journal shadows are not authority
+  for those fields. Supply that exact canonical event to the Journal as a
+  single-use preappend expectation before rotation, file open, or write; a
+  mismatch or unused expectation leaves the Journal unchanged. Recovery may
+  reuse a recorded timestamp only for exact byte replay after every durable
+  input is materialized and read back. Never recover an unrelated baseline or
+  arbitrary damaged projection: require the exact verified trailing correction
+  event and a full authenticated match to its predecessor projection first,
+  then admit and perform that recovery atomically under one Writer lock rather
+  than calling generic recovery.
+  Never publish the code checkpoint alone.
 - Treat Git as recovery and delivery observation, never as state-transition authority.
 - Route audit-created ReplayObligations through the writer as additive P0 or P1
   records with pending, in_progress, satisfied, or deferred state. Preserve the

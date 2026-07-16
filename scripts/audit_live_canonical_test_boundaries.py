@@ -9,7 +9,9 @@ invariants.  Importing this module performs no check and no mutation.
 from __future__ import annotations
 
 from hashlib import sha256
+import importlib.util
 from pathlib import Path
+import subprocess
 import sys
 from tempfile import TemporaryDirectory
 import unittest
@@ -38,6 +40,7 @@ from scripts.run_project_goal_audit_v1_forest_study import (
 from axiom_rift.core.canonical import parse_canonical
 from axiom_rift.operations.validation import EvidenceValidatorRegistry
 from axiom_rift.operations.writer import StateWriter
+from axiom_rift.storage.evidence import EvidenceStore
 from axiom_rift.research.forest_replay import (
     forest_replay_dependency_paths,
     forest_replay_implementation_artifact,
@@ -50,6 +53,125 @@ from axiom_rift.research.implementation_closure import (
     require_job_implementation_closure,
 )
 from axiom_rift.research.validation_v2 import ScientificAdjudicationValidatorV2
+
+
+def _load_spread_time_correction():
+    path = ROOT / "scripts" / "apply_spread_time_semantics_correction.py"
+    name = "apply_spread_time_semantics_correction_for_maintenance"
+    spec = importlib.util.spec_from_file_location(name, path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("spread/time correction maintenance entry is unavailable")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _live_authority_snapshot() -> tuple[tuple[tuple[str, str], ...], bytes]:
+    paths = [ROOT / "state" / "control.json"]
+    legacy_journal = ROOT / "records" / "journal.jsonl"
+    if legacy_journal.is_file():
+        paths.append(legacy_journal)
+    segmented = ROOT / "records" / "journal"
+    if segmented.is_dir():
+        paths.extend(path for path in segmented.rglob("*") if path.is_file())
+    local_root = ROOT / "local"
+    if local_root.is_dir():
+        paths.extend(path for path in local_root.glob("index.sqlite*") if path.is_file())
+    identity_rows = [
+        (
+            path.relative_to(ROOT).as_posix(),
+            sha256(path.read_bytes()).hexdigest(),
+        )
+        for path in paths
+    ]
+    evidence_root = ROOT / "local" / "evidence"
+    if evidence_root.is_dir():
+        for path in evidence_root.rglob("*"):
+            if not path.is_file():
+                continue
+            metadata = path.stat()
+            identity_rows.append(
+                (
+                    path.relative_to(ROOT).as_posix(),
+                    ":".join(
+                        str(value)
+                        for value in (
+                            metadata.st_dev,
+                            metadata.st_ino,
+                            metadata.st_size,
+                            metadata.st_mtime_ns,
+                            metadata.st_nlink,
+                        )
+                    ),
+                )
+            )
+    identity = tuple(sorted(identity_rows))
+    status = subprocess.run(
+        ("git", "status", "--porcelain=v1", "--untracked-files=all"),
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+    ).stdout
+    return identity, status
+
+
+class SpreadTimeCorrectionCanonicalMaintenanceTests(unittest.TestCase):
+    def test_spread_time_read_only_plan_rederives_all_seven_events_without_mutation(
+        self,
+    ) -> None:
+        module = _load_spread_time_correction()
+        before = _live_authority_snapshot()
+
+        original_finalize = EvidenceStore.finalize
+
+        def reject_live_finalize(store: EvidenceStore, content: bytes):
+            if store._root.resolve() == (ROOT / "local" / "evidence").resolve():
+                raise AssertionError("read-only plan attempted live evidence write")
+            return original_finalize(store, content)
+
+        with patch.object(EvidenceStore, "finalize", reject_live_finalize):
+            result = module.read_only_plan()
+
+        self.assertEqual(_live_authority_snapshot(), before)
+        self.assertFalse(result["apply_mutation_performed"])
+        self.assertEqual(result["historical_invalidation_count"], 34)
+        self.assertEqual(result["historical_readjudication_count"], 26)
+        self.assertEqual(
+            len(set(result["expected_replay_priority_escalation_ids"])),
+            2,
+        )
+        self.assertEqual(result["replay_satisfaction_invalidation_count"], 2)
+        self.assertEqual(result["historical_cost_completion_count"], 501)
+        self.assertEqual(
+            result["schema"],
+            "spread_time_semantics_correction_read_only_core.v2",
+        )
+        self.assertEqual(result["plan_core"]["event_count"], 7)
+        self.assertIsNone(result["final_envelope_artifact_hash"])
+        self.assertFalse(result["final_envelope_exists"])
+        self.assertEqual(
+            [item["action"] for item in result["event_inventory"]],
+            [
+                "authority-migration",
+                "prospective-protocol-rebind",
+                "completion-validity-invalidations",
+                "historical-readjudication",
+                "invalidate-c537-replay-satisfaction",
+                "invalidate-a8da-replay-satisfaction",
+                "historical-cost-semantics-latch",
+            ],
+        )
+        operation_ids = {
+            item["operation_id"] for item in result["event_inventory"]
+        }
+        self.assertEqual(len(operation_ids), 7)
+        self.assertTrue(
+            all(
+                result["plan_core_hash"] in operation_id
+                for operation_id in operation_ids
+            )
+        )
 
 
 def _forest_design():

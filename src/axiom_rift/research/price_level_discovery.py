@@ -158,8 +158,8 @@ def price_level_components() -> tuple[ComponentSpec, ...]:
             },
         ),
         ComponentSpec(
-            display_name="FPMarkets bid-bar spread execution",
-            protocol="execution.fpmarkets_bid_bar_spread.v2",
+            display_name="FPMarkets completed-period spread proxy execution",
+            protocol="execution.fpmarkets_completed_bar_spread_proxy.v2",
             implementation=_shared_implementation("execution_pnl"),
             spec={
                 "bar_quote_basis": "bid_ohlc_with_spread_points",
@@ -185,7 +185,7 @@ def price_level_executable(configuration: PriceLevelConfiguration) -> Executable
         data_contract=f"data:{OBSERVED_MATERIAL_ID}",
         split_contract=f"split:{ROLLING_SPLIT_SHA256}:rolling_windows_9_observed_development",
         clock_contract="clock:fpmarkets_m5_bar_open_completed_plus_5m_v2",
-        cost_contract="cost:bid_bar_spread_point_0_01_causal_zero_repair_half_spread_stress_v2",
+        cost_contract="cost:fpmarkets_completed_bar_spread_proxy_point_0_01_causal_zero_repair_half_spread_stress_v2",
         engine_contract=(
             "engine:price_level_discovery_v1:python3_13_9:"
             f"numpy{np.__version__}:pandas{pd.__version__}:scipy{scipy.__version__}:"

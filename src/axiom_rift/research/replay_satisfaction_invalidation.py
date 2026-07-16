@@ -1,9 +1,9 @@
 """Typed audit authority for revoking one invalid replay satisfaction.
 
-The original satisfaction and every scientific record remain immutable.  This
-module only describes a canonical, state-derived finding that the E01
-selection family recorded by a scientific replay does not match the exact
-concurrent family frozen into its Batch.
+The original satisfaction and every scientific record remain immutable.  The
+legacy v1 manifest records an exact E01 family defect.  The additive v2
+manifest can also bind completion-scoped scientific-validity heads, so an
+otherwise well-formed replay cannot preserve authority from invalid evidence.
 """
 
 from __future__ import annotations
@@ -17,7 +17,10 @@ from axiom_rift.core.identity import canonical_digest
 
 
 AUDIT_MANIFEST_SCHEMA = "replay_satisfaction_invalidation_audit_manifest.v1"
+AUDIT_MANIFEST_V2_SCHEMA = "replay_satisfaction_invalidation_audit_manifest.v2"
 SELECTION_CRITERION_ID = "E01-familywise-selection"
+COMPLETION_VALIDITY_DEFECT_KIND = "completion_validity"
+MULTIPLICITY_DEFECT_KIND = "multiplicity_binding"
 
 
 class ReplayMultiplicityDefectCode(str, Enum):
@@ -27,6 +30,14 @@ class ReplayMultiplicityDefectCode(str, Enum):
     SELECTION_FAMILY_DISAGREEMENT = "selection_family_disagreement"
     SELECTION_FAMILY_MEMBERSHIP_MISMATCH = (
         "selection_family_membership_mismatch"
+    )
+
+
+class ReplayCompletionValidityDefectCode(str, Enum):
+    """Completion defects that revoke family-wide satisfaction authority."""
+
+    EVIDENCE_COMPLETION_VALIDITY_INVALID = (
+        "evidence_completion_validity_invalid"
     )
 
 
@@ -436,11 +447,394 @@ class ReplaySatisfactionInvalidationAuditManifest:
         return cls.from_mapping(parse_canonical(document))
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ReplayCompletionValidityObservation:
+    """One current completion-validity head used by a replay satisfaction."""
+
+    completion_record_id: str
+    executable_id: str
+    invalidation_record_id: str
+    reason: str
+    affected_criterion_ids: tuple[str, ...]
+    validity_stream_sequence: int
+    authority_event_id: str
+    authority_sequence: int
+    authority_offset: int
+
+    def __post_init__(self) -> None:
+        _digest("completion validity completion", self.completion_record_id)
+        _identity(
+            "completion validity Executable",
+            self.executable_id,
+            prefix="executable:",
+        )
+        _identity(
+            "completion validity invalidation",
+            self.invalidation_record_id,
+            prefix="historical-scientific-validity-invalidation:",
+        )
+        _ascii("completion validity reason", self.reason)
+        criteria = tuple(sorted(self.affected_criterion_ids))
+        if (
+            not criteria
+            or len(criteria) != len(set(criteria))
+            or any(_ascii("completion validity criterion", item) != item for item in criteria)
+        ):
+            raise ValueError("completion validity criteria must be unique ASCII")
+        if (
+            type(self.validity_stream_sequence) is not int
+            or self.validity_stream_sequence < 1
+        ):
+            raise ValueError("completion validity stream sequence must be positive")
+        _digest("completion validity authority event", self.authority_event_id)
+        if type(self.authority_sequence) is not int or self.authority_sequence < 1:
+            raise ValueError("completion validity authority sequence must be positive")
+        if type(self.authority_offset) is not int or self.authority_offset < 0:
+            raise ValueError("completion validity authority offset must be nonnegative")
+        object.__setattr__(self, "affected_criterion_ids", criteria)
+
+    def to_identity_payload(self) -> dict[str, object]:
+        return {
+            "affected_criterion_ids": list(self.affected_criterion_ids),
+            "authority_event_id": self.authority_event_id,
+            "authority_offset": self.authority_offset,
+            "authority_sequence": self.authority_sequence,
+            "completion_record_id": self.completion_record_id,
+            "executable_id": self.executable_id,
+            "invalidation_record_id": self.invalidation_record_id,
+            "reason": self.reason,
+            "validity_stream_sequence": self.validity_stream_sequence,
+        }
+
+    @classmethod
+    def from_mapping(cls, value: object) -> ReplayCompletionValidityObservation:
+        fields = {
+            "affected_criterion_ids",
+            "authority_event_id",
+            "authority_offset",
+            "authority_sequence",
+            "completion_record_id",
+            "executable_id",
+            "invalidation_record_id",
+            "reason",
+            "validity_stream_sequence",
+        }
+        if (
+            not isinstance(value, Mapping)
+            or set(value) != fields
+            or not isinstance(value.get("affected_criterion_ids"), list)
+        ):
+            raise ValueError("completion validity observation is malformed")
+        return cls(
+            completion_record_id=value["completion_record_id"],  # type: ignore[arg-type]
+            executable_id=value["executable_id"],  # type: ignore[arg-type]
+            invalidation_record_id=value["invalidation_record_id"],  # type: ignore[arg-type]
+            reason=value["reason"],  # type: ignore[arg-type]
+            affected_criterion_ids=tuple(value["affected_criterion_ids"]),  # type: ignore[arg-type]
+            validity_stream_sequence=value["validity_stream_sequence"],  # type: ignore[arg-type]
+            authority_event_id=value["authority_event_id"],  # type: ignore[arg-type]
+            authority_sequence=value["authority_sequence"],  # type: ignore[arg-type]
+            authority_offset=value["authority_offset"],  # type: ignore[arg-type]
+        )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ReplayCompletionValidityDefect:
+    """Exact invalid completion heads in one satisfaction evidence family."""
+
+    code: ReplayCompletionValidityDefectCode
+    observations: tuple[ReplayCompletionValidityObservation, ...]
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.code, ReplayCompletionValidityDefectCode):
+            raise TypeError("completion validity defect code is invalid")
+        observations = tuple(
+            sorted(self.observations, key=lambda item: item.completion_record_id)
+        )
+        if (
+            not observations
+            or any(
+                not isinstance(item, ReplayCompletionValidityObservation)
+                for item in observations
+            )
+            or len({item.completion_record_id for item in observations})
+            != len(observations)
+            or len({item.invalidation_record_id for item in observations})
+            != len(observations)
+        ):
+            raise ValueError("completion validity observations are not exact")
+        object.__setattr__(self, "observations", observations)
+
+    def to_identity_payload(self) -> dict[str, object]:
+        return {
+            "code": self.code.value,
+            "observations": [
+                item.to_identity_payload() for item in self.observations
+            ],
+        }
+
+    @classmethod
+    def from_mapping(cls, value: object) -> ReplayCompletionValidityDefect:
+        if (
+            not isinstance(value, Mapping)
+            or set(value) != {"code", "observations"}
+            or not isinstance(value.get("observations"), list)
+        ):
+            raise ValueError("replay completion validity defect is malformed")
+        return cls(
+            code=ReplayCompletionValidityDefectCode(value["code"]),
+            observations=tuple(
+                ReplayCompletionValidityObservation.from_mapping(item)
+                for item in value["observations"]
+            ),
+        )
+
+
+ReplaySatisfactionDefect = (
+    ReplayMultiplicityBindingDefect | ReplayCompletionValidityDefect
+)
+
+
+def _defect_kind(defect: ReplaySatisfactionDefect) -> str:
+    if isinstance(defect, ReplayMultiplicityBindingDefect):
+        return MULTIPLICITY_DEFECT_KIND
+    if isinstance(defect, ReplayCompletionValidityDefect):
+        return COMPLETION_VALIDITY_DEFECT_KIND
+    raise TypeError("replay satisfaction defect is unsupported")
+
+
+def _defect_payload(defect: ReplaySatisfactionDefect) -> dict[str, object]:
+    return {
+        "kind": _defect_kind(defect),
+        "value": defect.to_identity_payload(),
+    }
+
+
+def _defect_from_mapping(value: object) -> ReplaySatisfactionDefect:
+    if not isinstance(value, Mapping) or set(value) != {"kind", "value"}:
+        raise ValueError("replay satisfaction defect wrapper is malformed")
+    if value["kind"] == MULTIPLICITY_DEFECT_KIND:
+        return ReplayMultiplicityBindingDefect.from_mapping(value["value"])
+    if value["kind"] == COMPLETION_VALIDITY_DEFECT_KIND:
+        return ReplayCompletionValidityDefect.from_mapping(value["value"])
+    raise ValueError("replay satisfaction defect kind is unsupported")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ReplaySatisfactionInvalidationAuditManifestV2:
+    """Additive manifest supporting a sorted union of exact defect classes."""
+
+    governing_mission_id: str
+    obligation_id: str
+    satisfaction_record_id: str
+    satisfaction_event_sequence: int
+    portfolio_decision_id: str
+    replay_study_id: str
+    replay_executable_id: str
+    replay_study_close_record_id: str
+    study_diagnosis_id: str
+    completion_record_ids: tuple[str, ...]
+    defects: tuple[ReplaySatisfactionDefect, ...]
+
+    def __post_init__(self) -> None:
+        _ascii("replay invalidation Mission", self.governing_mission_id)
+        _identity(
+            "replay invalidation obligation",
+            self.obligation_id,
+            prefix="historical-replay-obligation:",
+        )
+        _identity(
+            "replay invalidation satisfaction",
+            self.satisfaction_record_id,
+            prefix="historical-replay-satisfaction:",
+        )
+        if (
+            type(self.satisfaction_event_sequence) is not int
+            or self.satisfaction_event_sequence < 2
+        ):
+            raise ValueError(
+                "satisfaction event sequence must follow obligation creation"
+            )
+        _identity(
+            "replay invalidation Decision",
+            self.portfolio_decision_id,
+            prefix="decision:",
+        )
+        _ascii("replay invalidation Study", self.replay_study_id)
+        _identity(
+            "replay invalidation Executable",
+            self.replay_executable_id,
+            prefix="executable:",
+        )
+        _digest(
+            "replay invalidation Study close",
+            self.replay_study_close_record_id,
+        )
+        _identity(
+            "replay invalidation diagnosis",
+            self.study_diagnosis_id,
+            prefix="diagnosis:",
+        )
+        completions = tuple(sorted(self.completion_record_ids))
+        if (
+            not completions
+            or len(completions) != len(set(completions))
+            or any(
+                _digest("replay invalidation completion", item) != item
+                for item in completions
+            )
+        ):
+            raise ValueError("replay invalidation completion inventory is not exact")
+        defects = tuple(sorted(self.defects, key=_defect_kind))
+        if (
+            not defects
+            or any(
+                not isinstance(
+                    item,
+                    (
+                        ReplayMultiplicityBindingDefect,
+                        ReplayCompletionValidityDefect,
+                    ),
+                )
+                for item in defects
+            )
+            or len({_defect_kind(item) for item in defects}) != len(defects)
+        ):
+            raise ValueError("replay satisfaction defects must be a typed union")
+        completion_set = set(completions)
+        for defect in defects:
+            observed_ids = {
+                item.completion_record_id for item in defect.observations
+            }
+            if not observed_ids.issubset(completion_set):
+                raise ValueError("replay defect is outside satisfaction evidence")
+            if isinstance(defect, ReplayMultiplicityBindingDefect):
+                if (
+                    observed_ids != completion_set
+                    or self.replay_executable_id
+                    not in defect.expected_executable_ids
+                ):
+                    raise ValueError(
+                        "multiplicity defect does not cover the exact replay family"
+                    )
+        object.__setattr__(self, "completion_record_ids", completions)
+        object.__setattr__(self, "defects", defects)
+
+    @property
+    def identity(self) -> str:
+        return "historical-replay-satisfaction-invalidation:" + canonical_digest(
+            domain="historical-replay-satisfaction-invalidation-v2",
+            payload=self.to_identity_payload(),
+        )
+
+    def to_identity_payload(self) -> dict[str, object]:
+        return {
+            "completion_record_ids": list(self.completion_record_ids),
+            "defects": [_defect_payload(item) for item in self.defects],
+            "governing_mission_id": self.governing_mission_id,
+            "obligation_id": self.obligation_id,
+            "portfolio_decision_id": self.portfolio_decision_id,
+            "replay_executable_id": self.replay_executable_id,
+            "replay_study_close_record_id": self.replay_study_close_record_id,
+            "replay_study_id": self.replay_study_id,
+            "satisfaction_event_sequence": self.satisfaction_event_sequence,
+            "satisfaction_record_id": self.satisfaction_record_id,
+            "schema": AUDIT_MANIFEST_V2_SCHEMA,
+            "study_diagnosis_id": self.study_diagnosis_id,
+        }
+
+    @classmethod
+    def from_mapping(
+        cls,
+        value: object,
+    ) -> ReplaySatisfactionInvalidationAuditManifestV2:
+        fields = {
+            "completion_record_ids",
+            "defects",
+            "governing_mission_id",
+            "obligation_id",
+            "portfolio_decision_id",
+            "replay_executable_id",
+            "replay_study_close_record_id",
+            "replay_study_id",
+            "satisfaction_event_sequence",
+            "satisfaction_record_id",
+            "schema",
+            "study_diagnosis_id",
+        }
+        if (
+            not isinstance(value, Mapping)
+            or set(value) != fields
+            or value.get("schema") != AUDIT_MANIFEST_V2_SCHEMA
+            or not isinstance(value.get("completion_record_ids"), list)
+            or not isinstance(value.get("defects"), list)
+        ):
+            raise ValueError(
+                "replay satisfaction invalidation v2 manifest is malformed"
+            )
+        return cls(
+            governing_mission_id=value["governing_mission_id"],  # type: ignore[arg-type]
+            obligation_id=value["obligation_id"],  # type: ignore[arg-type]
+            satisfaction_record_id=value["satisfaction_record_id"],  # type: ignore[arg-type]
+            satisfaction_event_sequence=value["satisfaction_event_sequence"],  # type: ignore[arg-type]
+            portfolio_decision_id=value["portfolio_decision_id"],  # type: ignore[arg-type]
+            replay_study_id=value["replay_study_id"],  # type: ignore[arg-type]
+            replay_executable_id=value["replay_executable_id"],  # type: ignore[arg-type]
+            replay_study_close_record_id=value["replay_study_close_record_id"],  # type: ignore[arg-type]
+            study_diagnosis_id=value["study_diagnosis_id"],  # type: ignore[arg-type]
+            completion_record_ids=tuple(value["completion_record_ids"]),  # type: ignore[arg-type]
+            defects=tuple(_defect_from_mapping(item) for item in value["defects"]),  # type: ignore[arg-type]
+        )
+
+    @classmethod
+    def from_bytes(
+        cls,
+        document: bytes,
+    ) -> ReplaySatisfactionInvalidationAuditManifestV2:
+        return cls.from_mapping(parse_canonical(document))
+
+
+ReplaySatisfactionInvalidationManifest = (
+    ReplaySatisfactionInvalidationAuditManifest
+    | ReplaySatisfactionInvalidationAuditManifestV2
+)
+
+
+def replay_satisfaction_invalidation_manifest_from_mapping(
+    value: object,
+) -> ReplaySatisfactionInvalidationManifest:
+    if not isinstance(value, Mapping):
+        raise ValueError("replay satisfaction invalidation manifest is malformed")
+    if value.get("schema") == AUDIT_MANIFEST_SCHEMA:
+        return ReplaySatisfactionInvalidationAuditManifest.from_mapping(value)
+    if value.get("schema") == AUDIT_MANIFEST_V2_SCHEMA:
+        return ReplaySatisfactionInvalidationAuditManifestV2.from_mapping(value)
+    raise ValueError("replay satisfaction invalidation schema is unsupported")
+
+
+def replay_satisfaction_invalidation_manifest_from_bytes(
+    document: bytes,
+) -> ReplaySatisfactionInvalidationManifest:
+    return replay_satisfaction_invalidation_manifest_from_mapping(
+        parse_canonical(document)
+    )
+
+
 __all__ = [
     "AUDIT_MANIFEST_SCHEMA",
+    "AUDIT_MANIFEST_V2_SCHEMA",
+    "COMPLETION_VALIDITY_DEFECT_KIND",
+    "MULTIPLICITY_DEFECT_KIND",
+    "ReplayCompletionValidityDefect",
+    "ReplayCompletionValidityDefectCode",
+    "ReplayCompletionValidityObservation",
     "ReplayMultiplicityBindingDefect",
     "ReplayMultiplicityDefectCode",
     "ReplaySatisfactionInvalidationAuditManifest",
+    "ReplaySatisfactionInvalidationAuditManifestV2",
+    "ReplaySatisfactionInvalidationManifest",
     "ReplaySelectionFamilyObservation",
     "SELECTION_CRITERION_ID",
+    "replay_satisfaction_invalidation_manifest_from_bytes",
+    "replay_satisfaction_invalidation_manifest_from_mapping",
 ]

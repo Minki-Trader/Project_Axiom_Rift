@@ -719,7 +719,7 @@ def build_fixed_hold_replay_design(
                 action=PortfolioAction.NEW_MECHANISM,
                 target_id=source_axis.axis_id,
                 expected_information_value=(
-                    "high because one exact family resolves a bounded P1 duty"
+                    "high because one exact family resolves a bounded replay duty"
                 ),
                 opportunity_cost=(
                     f"one bounded {len(members)}-Job concurrent family"
@@ -732,9 +732,9 @@ def build_fixed_hold_replay_design(
                 expected_information_value=(
                     "valid unrelated forest work remains available"
                 ),
-                opportunity_cost="leave the selected P1 obligation pending",
+                opportunity_cost="leave the selected replay obligation pending",
                 omission_reason=(
-                    "the typed P1 queue grants this replay its current opportunity"
+                    "the typed replay queue grants this work its current opportunity"
                 ),
             ),
         )
@@ -813,7 +813,7 @@ def build_fixed_hold_replay_design(
         chosen_option_id="run-exact-concurrent-family",
         options=work_options,
         rationale=(
-            "select only the exact typed P1 obligation while peers remain schedulable"
+            "select only the exact typed replay obligation while peers remain schedulable"
         ),
         commitment_batches=1,
         quant_team_review=None if replay_review_mode is False else _quant_team_review(
@@ -910,7 +910,7 @@ def build_fixed_hold_replay_design(
             "replay_obligation_id": spec.target_obligation_id,
         },
         adaptive_basis={
-            "uncertainty": "one historical P1 criterion family is unresolved",
+            "uncertainty": "one historical replay criterion family is unresolved",
             "causal_complexity": (
                 f"one exact registered family with {len(members)} members"
             ),
@@ -920,7 +920,7 @@ def build_fixed_hold_replay_design(
                 f"resolve or exactly defer {spec.original_study_id}"
             ),
             "portfolio_opportunity_cost": (
-                "other P1 duties and open forest axes remain schedulable"
+                "other replay duties and open forest axes remain schedulable"
             ),
         },
     )
@@ -2291,7 +2291,7 @@ def _initiative_objective(
     budget = fixed_hold_replay_batch_budget(design.members)
     return {
         "objective": (
-            f"execute one exact {design.spec.original_study_id} P1 replay family"
+            f"execute one exact {design.spec.original_study_id} replay family"
         ),
         "bounds": {
             "batch_count": 1,
@@ -3292,18 +3292,17 @@ def verify_diagnose_postconditions(
         raise RuntimeError("replay diagnosis chain is incomplete")
     expected_snapshot = _disposition_snapshot(writer, design)
     with writer.open_stable_index() as (control, index):
-        p1 = {
+        obligations = {
             obligation.identity: head
             for obligation, head in obligation_heads(
                 index,
                 mission_id=design.spec.mission_id,
             )
-            if obligation.replay_priority.value == "p1"
         }
-        target = p1.get(design.spec.target_obligation_id)
+        target = obligations.get(design.spec.target_obligation_id)
         pending = sorted(
             obligation_id
-            for obligation_id, head in p1.items()
+            for obligation_id, head in obligations.items()
             if head.status == "pending"
         )
         constraints = scheduler_constraints(
@@ -3348,7 +3347,7 @@ def verify_diagnose_postconditions(
             is PortfolioAction.PRESERVE
             else "pruned"
         ),
-        "pending_p1_obligation_ids": pending,
+        "pending_replay_obligation_ids": pending,
         "replay_obligation_status": target.status,
     }
 

@@ -31,7 +31,9 @@ class CostAwareExecutionDiscoveryTests(unittest.TestCase):
             ArchitectureChassisSpec.from_executable(abstention).identity,
         )
 
-    def test_abstention_uses_entry_spread_against_prior_reference(self) -> None:
+    def test_abstention_uses_completed_decision_spread_against_prior_reference(
+        self,
+    ) -> None:
         count = 100
         time = pd.date_range("2024-01-02 10:00", periods=count, freq="5min")
         frame = pd.DataFrame(
@@ -41,7 +43,7 @@ class CostAwareExecutionDiscoveryTests(unittest.TestCase):
                 "spread": np.full(count, 10.0),
             }
         )
-        frame.loc[31, "spread"] = 20.0
+        frame.loc[30, "spread"] = 20.0
         score = np.full(count, np.nan)
         score[30] = 1.0
         volatility = np.full(count, 0.01)
@@ -73,6 +75,58 @@ class CostAwareExecutionDiscoveryTests(unittest.TestCase):
         self.assertEqual(len(control.trades), 1)
         self.assertEqual(len(abstention.trades), 0)
         self.assertEqual(abstention.intent_rows[0][-1], "spread_abstained")
+
+        entry_bar_perturbed = frame.copy()
+        entry_bar_perturbed.loc[30, "spread"] = 10.0
+        entry_bar_perturbed.loc[31, "spread"] = 1_000.0
+        entry_common = {
+            **common,
+            "frame": entry_bar_perturbed,
+            "effective_spread": entry_bar_perturbed["spread"].to_numpy(float),
+        }
+        allowed = simulate_cost_aware_execution(
+            **entry_common,
+            configuration=CostAwareExecutionConfiguration(
+                policy="causal_spread_abstention", signal_sign=1
+            ),
+        )
+        self.assertEqual(len(allowed.trades), 1)
+        self.assertEqual(allowed.intent_rows[0][-1], "executed")
+
+    def test_spread_reference_resets_at_gap_and_excludes_decision_bar(self) -> None:
+        count = 120
+        time = pd.date_range("2024-01-02 10:00", periods=count, freq="5min")
+        time = time.to_series(index=np.arange(count))
+        time.loc[40:] += pd.Timedelta(hours=2)
+        frame = pd.DataFrame(
+            {
+                "time": time.to_numpy(),
+                "open": np.linspace(100.0, 110.0, count),
+                "spread": np.full(count, 10.0),
+            }
+        )
+        score = np.full(count, np.nan)
+        score[40] = 1.0
+        result = simulate_cost_aware_execution(
+            frame=frame,
+            score=score,
+            volatility=np.full(count, 0.01),
+            run=np.arange(1, count + 1),
+            threshold=0.5,
+            configuration=CostAwareExecutionConfiguration(
+                policy="causal_spread_abstention", signal_sign=1
+            ),
+            test_start=pd.Timestamp(frame.loc[40, "time"]),
+            test_end=pd.Timestamp(frame.loc[110, "time"]),
+            fold_id="fold-one",
+            regime_cutoffs=(0.005, 0.02),
+            effective_spread=frame["spread"].to_numpy(float),
+        )
+        self.assertEqual(len(result.trades), 0)
+        self.assertEqual(
+            result.intent_rows[0][-1],
+            "entry_cancelled_unknown_gate",
+        )
 
 
 if __name__ == "__main__":

@@ -189,8 +189,8 @@ def trend_components() -> tuple[ComponentSpec, ...]:
             },
         ),
         ComponentSpec(
-            display_name="FPMarkets bid-bar spread execution",
-            protocol="execution.fpmarkets_bid_bar_spread.v2",
+            display_name="FPMarkets completed-period spread proxy execution",
+            protocol="execution.fpmarkets_completed_bar_spread_proxy.v2",
             implementation=_implementation("execution_pnl"),
             spec={
                 "bar_quote_basis": "bid_ohlc_with_spread_points",
@@ -233,7 +233,7 @@ def trend_executable(configuration: TrendConfiguration) -> ExecutableSpec:
         ),
         clock_contract="clock:fpmarkets_m5_bar_open_completed_plus_5m_v2",
         cost_contract=(
-            "cost:bid_bar_spread_point_0_01_zero_lag1_positive_median_"
+            "cost:fpmarkets_completed_bar_spread_proxy_point_0_01_zero_lag1_positive_median_"
             "window288_min24_gap_reset_half_spread_stress_v2"
         ),
         engine_contract=(
@@ -440,6 +440,93 @@ def execution_pnl(
     return breakdown.native_net_pnl, breakdown.stress_net_pnl
 
 
+def completed_bar_spread_proxy_indices(
+    execution_indices: int | np.ndarray,
+    *,
+    spread_count: int,
+) -> int | np.ndarray:
+    """Map execution-open indices to the last fully completed spread bars."""
+
+    if type(spread_count) is not int or spread_count <= 0:
+        raise ValueError("spread_count must be a positive integer")
+    indices = np.asarray(execution_indices)
+    if not np.issubdtype(indices.dtype, np.integer):
+        raise ValueError("execution indices must be integers")
+    if np.any(indices < 1) or np.any(indices >= spread_count):
+        raise ValueError(
+            "execution spread proxy requires one prior completed bar"
+        )
+    proxies = indices.astype(np.int64, copy=False) - 1
+    if proxies.ndim == 0:
+        return int(proxies)
+    return proxies
+
+
+@dataclass(frozen=True, slots=True)
+class CompletedBarExecutionSpreads:
+    """Completed-period spread proxies for one entry/exit open pair."""
+
+    entry_proxy_index: int
+    exit_proxy_index: int
+    entry_spread_points: float
+    exit_spread_points: float
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.entry_proxy_index) is not int
+            or type(self.exit_proxy_index) is not int
+            or self.entry_proxy_index < 0
+            or self.exit_proxy_index <= self.entry_proxy_index
+        ):
+            raise ValueError("completed spread proxy indices are invalid")
+        for value in (self.entry_spread_points, self.exit_spread_points):
+            if np.isfinite(value) and value < 0:
+                raise ValueError("completed spread proxy cannot be negative")
+
+    @property
+    def costs_known(self) -> bool:
+        return bool(
+            np.isfinite(self.entry_spread_points)
+            and np.isfinite(self.exit_spread_points)
+        )
+
+
+def completed_bar_execution_spreads(
+    spreads: np.ndarray,
+    *,
+    entry_index: int,
+    exit_index: int,
+) -> CompletedBarExecutionSpreads:
+    """Read entry/exit cost proxies without observing either execution bar."""
+
+    values = np.asarray(spreads, dtype=float)
+    if values.ndim != 1:
+        raise ValueError("execution spreads must be one-dimensional")
+    if (
+        isinstance(entry_index, (bool, np.bool_))
+        or isinstance(exit_index, (bool, np.bool_))
+        or not isinstance(entry_index, (int, np.integer))
+        or not isinstance(exit_index, (int, np.integer))
+    ):
+        raise ValueError("execution indices must be integers")
+    entry_index = int(entry_index)
+    exit_index = int(exit_index)
+    if exit_index <= entry_index:
+        raise ValueError("exit index must follow entry index")
+    proxies = completed_bar_spread_proxy_indices(
+        np.asarray((entry_index, exit_index), dtype=np.int64),
+        spread_count=len(values),
+    )
+    assert isinstance(proxies, np.ndarray)
+    entry_proxy_index, exit_proxy_index = (int(value) for value in proxies)
+    return CompletedBarExecutionSpreads(
+        entry_proxy_index=entry_proxy_index,
+        exit_proxy_index=exit_proxy_index,
+        entry_spread_points=float(values[entry_proxy_index]),
+        exit_spread_points=float(values[exit_proxy_index]),
+    )
+
+
 @dataclass(slots=True)
 class SimulationResult:
     trades: pd.DataFrame
@@ -525,7 +612,12 @@ def simulate_fixed_hold(
                 )
             )
             continue
-        entry_cost_known = np.isfinite(spreads[entry_index])
+        entry_proxy_index = completed_bar_spread_proxy_indices(
+            int(entry_index),
+            spread_count=len(spreads),
+        )
+        assert isinstance(entry_proxy_index, int)
+        entry_cost_known = np.isfinite(spreads[entry_proxy_index])
         if (
             not entry_cost_known
             and getattr(configuration, "unknown_entry_action", None)
@@ -542,7 +634,12 @@ def simulate_fixed_hold(
             )
             continue
         next_decision_index = exit_index
-        if not (entry_cost_known and np.isfinite(spreads[exit_index])):
+        execution_spreads = completed_bar_execution_spreads(
+            spreads,
+            entry_index=entry_index,
+            exit_index=exit_index,
+        )
+        if not execution_spreads.costs_known:
             unresolved += 1
             intents.append(
                 (decision_time, entry_time, exit_time, direction, "unknown_cost")
@@ -552,8 +649,8 @@ def simulate_fixed_hold(
             direction=direction,
             entry_bid=float(opens[entry_index]),
             exit_bid=float(opens[exit_index]),
-            entry_spread_points=float(spreads[entry_index]),
-            exit_spread_points=float(spreads[exit_index]),
+            entry_spread_points=execution_spreads.entry_spread_points,
+            exit_spread_points=execution_spreads.exit_spread_points,
         )
         entry_volatility = float(volatility[decision_index])
         regime = (
@@ -1782,10 +1879,13 @@ __all__ = [
     "SELECTION_SEED",
     "SELECTION_TOTAL_EXPOSURES",
     "SELECTOR_QUANTILE_BP",
+    "CompletedBarExecutionSpreads",
     "SimulationResult",
     "TrendConfiguration",
     "calibrate_selector",
     "causal_effective_spread",
+    "completed_bar_execution_spreads",
+    "completed_bar_spread_proxy_indices",
     "compute_trend_score",
     "discovery_implementation_sha256",
     "executable_configuration_map",

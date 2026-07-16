@@ -49,6 +49,7 @@ TRACE_FIELDS = {
     "ordered_family",
     "protocol_id",
     "schema",
+    "semantic_transition_evidence",
     "split_artifact_sha256",
     "subject_executable_id",
     "trade_observations",
@@ -234,12 +235,26 @@ def atomic_rows(
                 "configuration_id": configuration_id,
                 "decision_bar_index": decision_index,
                 "decision_bar_open_time": bar_open.isoformat(),
+                "decision_spread_source_bar_index": decision_index,
+                "decision_spread_source_bar_open_time": bar_open.isoformat(),
+                "decision_spread_information_complete_at": decision.isoformat(),
+                "decision_spread_known": True,
                 "decision_time": decision.isoformat(),
                 "direction": 1,
                 "entry_bar_index": decision_index + 1,
+                "entry_spread_source_bar_index": decision_index,
+                "entry_spread_source_bar_open_time": bar_open.isoformat(),
+                "entry_spread_information_complete_at": decision.isoformat(),
+                "entry_spread_known": True,
                 "entry_time": decision.isoformat(),
                 "executable_id": executable_id,
                 "exit_bar_index": decision_index + 3,
+                "exit_spread_source_bar_index": decision_index + 2,
+                "exit_spread_source_bar_open_time": (
+                    exit_time - timedelta(minutes=5)
+                ).isoformat(),
+                "exit_spread_information_complete_at": exit_time.isoformat(),
+                "exit_spread_known": True,
                 "exit_time": exit_time.isoformat(),
                 "fold_id": "rw_001",
                 "gross_pnl_micropoints": native + 2,
@@ -251,6 +266,7 @@ def atomic_rows(
                 "regime": ("high", "low", "middle")[(ordinal - 1) % 3],
                 "stress_cost_micropoints": 3,
                 "stress_net_pnl_micropoints": stress,
+                "spread_semantics": "completed_period_proxy",
             }
             trade["observation_id"] = fixed_hold_observation_id("trade", trade)
             trades.append(trade)
@@ -260,12 +276,34 @@ def atomic_rows(
                     "configuration_id": configuration_id,
                     "decision_bar_index": decision_index,
                     "decision_bar_open_time": bar_open.isoformat(),
+                    "decision_spread_source_bar_index": decision_index,
+                    "decision_spread_source_bar_open_time": (
+                        bar_open.isoformat()
+                    ),
+                    "decision_spread_information_complete_at": (
+                        decision.isoformat()
+                    ),
+                    "decision_spread_known": True,
                     "decision_time": decision.isoformat(),
                     "direction": 1,
                     "entry_bar_index": decision_index + 1,
+                    "entry_spread_source_bar_index": decision_index,
+                    "entry_spread_source_bar_open_time": bar_open.isoformat(),
+                    "entry_spread_information_complete_at": (
+                        decision.isoformat()
+                    ),
+                    "entry_spread_known": True,
                     "entry_time": decision.isoformat(),
                     "executable_id": executable_id,
                     "exit_bar_index": decision_index + 3,
+                    "exit_spread_source_bar_index": decision_index + 2,
+                    "exit_spread_source_bar_open_time": (
+                        exit_time - timedelta(minutes=5)
+                    ).isoformat(),
+                    "exit_spread_information_complete_at": (
+                        exit_time.isoformat()
+                    ),
+                    "exit_spread_known": True,
                     "exit_time": exit_time.isoformat(),
                     "fold_id": "rw_001",
                     "historical_reference_executable_id": historical_id,
@@ -273,6 +311,7 @@ def atomic_rows(
                     "observation_id": "pending",
                     "ordinal": ordinal,
                     "scope": scope,
+                    "spread_semantics": "completed_period_proxy",
                     "status": "executed",
                 }
                 intent["observation_id"] = fixed_hold_observation_id(
@@ -469,6 +508,30 @@ class FixedHoldFamilyTraceTests(unittest.TestCase):
                 validator=FIXED_HOLD_TRACE_VALIDATOR,
             )
 
+        for kind, field, value in (
+            ("trade", "entry_spread_source_bar_index", 999_999),
+            (
+                "trade",
+                "exit_spread_source_bar_open_time",
+                "2024-01-01T00:00:00",
+            ),
+            ("intent", "decision_spread_source_bar_index", 999_999),
+        ):
+            with self.subTest(kind=kind, field=field):
+                source_drift = deepcopy(self.neutral)
+                row = source_drift[f"{kind}_observations"][0]
+                row[field] = value
+                row["observation_id"] = fixed_hold_observation_id(kind, row)
+                with self.assertRaisesRegex(
+                    ScientificTraceError,
+                    "spread source",
+                ):
+                    validate_fixed_hold_family_trace(
+                        source_drift,
+                        definition=self.definition,
+                        validator=FIXED_HOLD_TRACE_VALIDATOR,
+                    )
+
     def test_negative_execution_observations_survive_as_scientific_evidence(
         self,
     ) -> None:
@@ -487,12 +550,41 @@ class FixedHoldFamilyTraceTests(unittest.TestCase):
                     "configuration_id": member["configuration_id"],
                     "decision_bar_index": 2_000,
                     "decision_bar_open_time": "2024-01-30T09:00:00",
+                    "decision_spread_source_bar_index": 2_000,
+                    "decision_spread_source_bar_open_time": (
+                        "2024-01-30T09:00:00"
+                    ),
+                    "decision_spread_information_complete_at": (
+                        "2024-01-30T09:05:00"
+                    ),
+                    "decision_spread_known": (
+                        status != "entry_cancelled_unknown_cost"
+                    ),
                     "decision_time": decision_time,
                     "direction": 1,
                     "entry_bar_index": 2_001,
+                    "entry_spread_source_bar_index": 2_000,
+                    "entry_spread_source_bar_open_time": (
+                        "2024-01-30T09:00:00"
+                    ),
+                    "entry_spread_information_complete_at": (
+                        "2024-01-30T09:05:00"
+                    ),
+                    "entry_spread_known": (
+                        status != "entry_cancelled_unknown_cost"
+                    ),
                     "entry_time": entry_time,
                     "executable_id": member["executable_id"],
                     "exit_bar_index": 2_003,
+                    "exit_spread_source_bar_index": 2_002,
+                    "exit_spread_source_bar_open_time": (
+                        datetime.fromisoformat(exit_time)
+                        - timedelta(minutes=5)
+                    ).isoformat(),
+                    "exit_spread_information_complete_at": exit_time,
+                    "exit_spread_known": (
+                        True if status in {"executed", "unknown_cost"} else None
+                    ),
                     "exit_time": exit_time,
                     "fold_id": "rw_001",
                     "historical_reference_executable_id": member[
@@ -502,6 +594,7 @@ class FixedHoldFamilyTraceTests(unittest.TestCase):
                     "observation_id": "pending",
                     "ordinal": 30,
                     "scope": scope,
+                    "spread_semantics": "completed_period_proxy",
                     "status": status,
                 }
                 intent["observation_id"] = fixed_hold_observation_id(
@@ -546,6 +639,38 @@ class FixedHoldFamilyTraceTests(unittest.TestCase):
         ):
             validate_fixed_hold_family_trace(
                 forged_gap,
+                definition=self.definition,
+                validator=FIXED_HOLD_TRACE_VALIDATOR,
+            )
+
+        cancelled = deepcopy(self.neutral)
+        append_status_intents(
+            cancelled,
+            status="entry_cancelled_unknown_cost",
+            decision_time="2024-01-30T09:05:00",
+            entry_time="2024-01-30T09:05:00",
+            exit_time="2024-01-30T09:15:00",
+        )
+        validate_fixed_hold_family_trace(
+            cancelled,
+            definition=self.definition,
+            validator=FIXED_HOLD_TRACE_VALIDATOR,
+        )
+        forged_cancel = deepcopy(cancelled)
+        for intent in forged_cancel["intent_observations"]:
+            if intent["ordinal"] == 30:
+                intent["entry_spread_known"] = True
+                intent["decision_spread_known"] = True
+                intent["observation_id"] = fixed_hold_observation_id(
+                    "intent",
+                    intent,
+                )
+        with self.assertRaisesRegex(
+            ScientificTraceError,
+            "unknown-entry cancellation source",
+        ):
+            validate_fixed_hold_family_trace(
+                forged_cancel,
                 definition=self.definition,
                 validator=FIXED_HOLD_TRACE_VALIDATOR,
             )

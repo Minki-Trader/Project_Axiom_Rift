@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 from hashlib import sha256
 from hmac import new as new_hmac
 from pathlib import Path, PurePosixPath
 from threading import RLock
-from typing import Any, Callable, Iterable, Mapping
+from typing import Any, Callable, Iterable, Iterator, Mapping
 import json
 import os
 import stat as stat_module
@@ -70,6 +71,77 @@ def _issue_journal_write_capability() -> _JournalWriteCapability:
 class JournalHead:
     sequence: int
     event_id: str | None
+
+
+class JournalPreappendExpectation:
+    """One-shot exact event constraint checked before any Journal mutation.
+
+    The expectation grants no write authority.  It only narrows the existing
+    StateWriter capability by requiring the next fully assembled event to be
+    byte-identical to an independently prepared event.
+    """
+
+    __slots__ = (
+        "_canonical_event",
+        "_consumed",
+        "event_id",
+        "operation_id",
+        "sequence",
+    )
+
+    def __init__(self, event: Mapping[str, Any]) -> None:
+        if not isinstance(event, Mapping):
+            raise JournalIntegrityError("preappend expectation must be an event")
+        sequence = event.get("sequence")
+        previous = event.get("previous_event_id")
+        if type(sequence) is not int or sequence < 1:
+            raise JournalIntegrityError(
+                "preappend expectation sequence is invalid"
+            )
+        if previous is not None and not isinstance(previous, str):
+            raise JournalIntegrityError(
+                "preappend expectation predecessor is invalid"
+            )
+        normalized = _validate_event(
+            event,
+            expected_sequence=sequence,
+            expected_previous=previous,
+            expected_offset=event.get("journal_offset"),
+        )
+        operation_id = normalized.get("operation_id")
+        if type(operation_id) is not str or not operation_id:
+            raise JournalIntegrityError(
+                "preappend expectation operation is invalid"
+            )
+        canonical_event = canonical_bytes(normalized)
+        if not canonical_event or len(canonical_event) + 1 > _MAX_EVENT_BYTES:
+            raise JournalIntegrityError(
+                "preappend expectation exceeds the event bound"
+            )
+        self._canonical_event = canonical_event
+        self._consumed = False
+        self.event_id = normalized["event_id"]
+        self.operation_id = operation_id
+        self.sequence = sequence
+
+    @property
+    def canonical_event_sha256(self) -> str:
+        return sha256(self._canonical_event).hexdigest()
+
+    @property
+    def consumed(self) -> bool:
+        return self._consumed
+
+    def _consume(self, event: Mapping[str, Any]) -> None:
+        if self._consumed:
+            raise JournalIntegrityError(
+                "preappend expectation was already consumed"
+            )
+        self._consumed = True
+        if canonical_bytes(dict(event)) != self._canonical_event:
+            raise JournalIntegrityError(
+                "assembled Journal event differs from the preappend expectation"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -677,6 +749,8 @@ class DurableJournal:
         self._sealed_cache_secret = os.urandom(32)
         self._sealed_segment_cache: dict[str, _SealedSegmentCacheEntry] = {}
         self._sealed_cache_lock = RLock()
+        self._preappend_expectation: JournalPreappendExpectation | None = None
+        self._preappend_lock = RLock()
 
     @staticmethod
     def _base(event: Mapping[str, Any]) -> dict[str, Any]:
@@ -697,6 +771,37 @@ class DurableJournal:
             expected_previous=expected_previous,
             expected_offset=expected_offset,
         )
+
+    @contextmanager
+    def expect_next_event(
+        self,
+        event: Mapping[str, Any],
+    ) -> Iterator[JournalPreappendExpectation]:
+        """Constrain one authorized append to an exact precomputed event.
+
+        The constraint is checked after full event assembly but before segment
+        rotation, file open, or write.  A mismatch, nested expectation, reused
+        expectation, or context that performs no append fails closed.
+        """
+
+        expectation = JournalPreappendExpectation(event)
+        with self._preappend_lock:
+            if self._preappend_expectation is not None:
+                raise JournalIntegrityError(
+                    "a preappend expectation is already active"
+                )
+            self._preappend_expectation = expectation
+            try:
+                yield expectation
+            except BaseException:
+                self._preappend_expectation = None
+                raise
+            else:
+                self._preappend_expectation = None
+                if not expectation.consumed:
+                    raise JournalIntegrityError(
+                        "preappend expectation was not consumed"
+                    )
 
     def _absolute(self, relative: str) -> Path:
         return self.repository_root / PurePosixPath(relative)
@@ -1717,6 +1822,10 @@ class DurableJournal:
         framed = canonical_bytes(event) + b"\n"
         if len(framed) > self.MAX_EVENT_BYTES:
             raise JournalError("journal event exceeds the bounded record size")
+        with self._preappend_lock:
+            expectation = self._preappend_expectation
+            if expectation is not None:
+                expectation._consume(event)
         if segmented and active_count > 0 and (
             active_count >= self.MAX_SEGMENT_EVENTS
             or active_size + len(framed) > self.MAX_SEGMENT_BYTES
@@ -1759,6 +1868,7 @@ __all__ = [
     "JournalError",
     "JournalHead",
     "JournalIntegrityError",
+    "JournalPreappendExpectation",
     "JournalSnapshot",
     "LEGACY_JOURNAL_RELATIVE_PATH",
     "TornJournalError",

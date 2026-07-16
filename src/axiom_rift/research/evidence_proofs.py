@@ -45,7 +45,7 @@ TERMINAL_EVIDENCE_MODES = frozenset(
 NON_TERMINAL_EVIDENCE_MODES = frozenset({AUDIT_INTEGRITY_MODE})
 
 SCIENTIFIC_MODE_PROOF_SCHEMA = "scientific_evidence_mode_proof.v1"
-FIXED_HOLD_FAMILY_TRACE_SCHEMA = "fixed_hold_family_trace.v1"
+FIXED_HOLD_FAMILY_TRACE_SCHEMA = "fixed_hold_family_trace.v4"
 FIXED_HOLD_FAMILY_TRACE_PROOF_KIND = "atomic_fixed_hold_family_trace.v1"
 PAIRED_CONTROL_PROOF_KIND = "paired_control_contrast.v1"
 COST_EXECUTION_PROOF_KIND = "cost_execution_observation.v1"

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 from contextlib import contextmanager
+from dataclasses import replace
 from hashlib import sha256
 import json
 import os
@@ -46,11 +47,17 @@ from axiom_rift.research.portfolio import (
 from axiom_rift.research.replay_obligation import (
     HistoricalReplayObligation,
     ReplayExecutionBinding,
+    ReplayResolutionScope,
+    ReplaySatisfaction,
 )
 from axiom_rift.research.replay_satisfaction_invalidation import (
+    ReplayCompletionValidityDefect,
+    ReplayCompletionValidityDefectCode,
+    ReplayCompletionValidityObservation,
     ReplayMultiplicityBindingDefect,
     ReplayMultiplicityDefectCode,
     ReplaySatisfactionInvalidationAuditManifest,
+    ReplaySatisfactionInvalidationAuditManifestV2,
     ReplaySelectionFamilyObservation,
     SELECTION_CRITERION_ID,
 )
@@ -66,6 +73,18 @@ CONTEXT_PATH = (
 ).resolve()
 RUNNING_JOB_PATH = (
     SOURCE_ROOT / "axiom_rift" / "operations" / "running_job.py"
+).resolve()
+COMPLETION_VALIDITY_PATH = (
+    SOURCE_ROOT
+    / "axiom_rift"
+    / "operations"
+    / "completion_validity_projection.py"
+).resolve()
+HISTORICAL_SCIENTIFIC_VALIDITY_PATH = (
+    SOURCE_ROOT
+    / "axiom_rift"
+    / "research"
+    / "historical_scientific_validity.py"
 ).resolve()
 WRITER_PATH = (
     SOURCE_ROOT / "axiom_rift" / "operations" / "writer.py"
@@ -178,6 +197,8 @@ def _invalidation_manifest(
         member.historical_reference_executable_id
         for member in family.members
     )
+
+
     observations = []
     for ordinal, reference in enumerate(references, start=1):
         ordered_member_ids = (reference,)
@@ -267,7 +288,10 @@ def _build_fixed_hold_replay_projection(
         validation_plan_hash="e" * 64,
         measurement_artifact_hash="f" * 64,
         claim_ids=("claim-fixture",),
-        criterion_ids=(SELECTION_CRITERION_ID,),
+        criterion_ids=(
+            "C03-decision-time-causality",
+            SELECTION_CRITERION_ID,
+        ),
         reason_codes=("selection-family-mismatch",),
     )
     family_authority = HistoricalFamilyAuthority(
@@ -763,11 +787,419 @@ def _build_fixed_hold_replay_projection(
         control=control,
         execution=execution,
         family=family,
+        family_authority=family_authority,
         index_path=index_path,
+        obligation=obligation,
+        portfolio_decision_id=portfolio_decision_id,
         prospective_ids=prospective_ids,
         study_id=study_id,
         subject_executable_id=subject_executable_id,
     )
+
+
+def _build_v2_fixed_hold_replay_projection(
+    root: Path,
+    *,
+    prefix_length: int,
+    tamper: str | None = None,
+) -> SimpleNamespace:
+    fixture = _build_fixed_hold_replay_projection(
+        root,
+        prefix_length=prefix_length,
+    )
+    obligation = fixture.obligation
+    family_record_id = fixture.family_authority.identity
+    obligation_stream = (
+        f"historical-replay-obligation:{obligation.identity}"
+    )
+    retained: list[IndexRecord] = []
+    kinds = (
+        "batch-budget-reservation",
+        "batch-open",
+        "historical-family-authority",
+        "historical-replay-obligation",
+        "historical-replay-obligation-progress",
+        "historical-replay-obligation-resolution",
+        "historical-replay-satisfaction-invalidation",
+        "job-completed",
+        "job-declared",
+        "job-evidence-decision",
+        "journal-event",
+        "operation",
+        "study-open",
+        "trial",
+    )
+    with LocalIndex(fixture.index_path) as index:
+        for kind in kinds:
+            retained.extend(index.records_by_kind(kind))
+    retained = [
+        record
+        for record in retained
+        if not (
+            record.kind == "historical-replay-obligation-progress"
+            or (
+                record.kind == "operation"
+                and record.record_id
+                == "fixture-target-trial-registration"
+            )
+            or (
+                record.kind == "journal-event"
+                and record.status == "trial_registered"
+            )
+        )
+    ]
+
+    family_sequence = 16 if tamper == "v2_family_not_prior" else 3
+    family_event_id = (
+        "6" * 64 if tamper == "v2_family_not_prior" else "3" * 64
+    )
+    family_offset = family_sequence * 100
+    rewritten: list[IndexRecord] = []
+    for record in retained:
+        if record.kind == "historical-family-authority":
+            record = replace(
+                record,
+                authority_sequence=family_sequence,
+                authority_event_id=family_event_id,
+                authority_offset=family_offset,
+            )
+        elif (
+            record.kind == "operation"
+            and record.record_id == "fixture-invalidation-operation"
+        ):
+            result = dict(record.payload["result"])
+            if tamper == "v2_family_writer":
+                result["historical_family_authority_id"] = (
+                    "historical-family-authority:" + "0" * 64
+                )
+            record = replace(
+                record,
+                payload={
+                    "event_kind": (
+                        "historical_replay_satisfaction_invalidated"
+                    ),
+                    "result": result,
+                },
+                authority_sequence=family_sequence,
+                authority_event_id=family_event_id,
+                authority_offset=family_offset,
+            )
+        elif (
+            record.kind == "journal-event"
+            and record.status
+            == "historical_replay_satisfaction_invalidated"
+        ):
+            record = replace(
+                record,
+                record_id=family_event_id,
+                fingerprint=family_event_id,
+                event_sequence=family_sequence,
+                authority_sequence=family_sequence,
+                authority_event_id=family_event_id,
+                authority_offset=family_offset,
+            )
+        rewritten.append(record)
+    retained = rewritten
+
+    validity_completion_id = "a" * 64
+    validity_executable_id = "executable:" + "c" * 64
+    validity_invalidation_id = (
+        "historical-scientific-validity-invalidation:" + "d" * 64
+    )
+    validity_reason = "decision_input_point_in_time_unproven"
+    validity_criterion_ids = ("C03-decision-time-causality",)
+    validity_completion = IndexRecord(
+        kind="job-completed",
+        record_id=validity_completion_id,
+        subject="Job:fixture-invalidated-replay-member",
+        status="success",
+        fingerprint="e" * 64,
+        payload={"fixture": "completion-validity evidence member"},
+    )
+    observation = ReplayCompletionValidityObservation(
+        completion_record_id=validity_completion_id,
+        executable_id=validity_executable_id,
+        invalidation_record_id=validity_invalidation_id,
+        reason=validity_reason,
+        affected_criterion_ids=validity_criterion_ids,
+        validity_stream_sequence=1,
+        authority_event_id="8" * 64,
+        authority_sequence=10,
+        authority_offset=(
+            1_001 if tamper == "v2_observation" else 1_000
+        ),
+    )
+    satisfaction = ReplaySatisfaction(
+        obligation_id=obligation.identity,
+        resolution_scope=ReplayResolutionScope.SCIENTIFIC,
+        portfolio_decision_id=fixture.portfolio_decision_id,
+        replay_study_id="STU-CORRECTED-SATISFACTION",
+        replay_executable_id=(
+            fixture.family.target_historical_executable_id
+        ),
+        replay_study_close_record_id="4" * 64,
+        study_diagnosis_id="diagnosis:" + "5" * 64,
+        satisfied_criterion_ids=obligation.criterion_ids,
+        evidence_record_ids=(validity_completion_id,),
+    )
+    manifest = ReplaySatisfactionInvalidationAuditManifestV2(
+        governing_mission_id=obligation.governing_mission_id,
+        obligation_id=obligation.identity,
+        satisfaction_record_id=satisfaction.identity,
+        satisfaction_event_sequence=5,
+        portfolio_decision_id=satisfaction.portfolio_decision_id,
+        replay_study_id=satisfaction.replay_study_id,
+        replay_executable_id=satisfaction.replay_executable_id,
+        replay_study_close_record_id=(
+            satisfaction.replay_study_close_record_id
+        ),
+        study_diagnosis_id=satisfaction.study_diagnosis_id,
+        completion_record_ids=(validity_completion_id,),
+        defects=(
+            ReplayCompletionValidityDefect(
+                code=(
+                    ReplayCompletionValidityDefectCode
+                    .EVIDENCE_COMPLETION_VALIDITY_INVALID
+                ),
+                observations=(observation,),
+            ),
+        ),
+    )
+    old_progress = IndexRecord(
+        kind="historical-replay-obligation-progress",
+        record_id="historical-replay-progress:" + "4" * 64,
+        subject=f"Mission:{obligation.governing_mission_id}",
+        status="in_progress",
+        fingerprint="4" * 64,
+        payload={
+            "legacy_fixture": True,
+            "obligation_id": obligation.identity,
+            "prior_status": "pending",
+        },
+        event_stream=obligation_stream,
+        event_sequence=4,
+    )
+    satisfaction_authority_sequence = 9
+    satisfaction_event_id = "c" * 64
+    satisfaction_offset = 900
+    satisfaction_record = IndexRecord(
+        kind="historical-replay-obligation-resolution",
+        record_id=satisfaction.identity,
+        subject=f"Mission:{obligation.governing_mission_id}",
+        status="satisfied",
+        fingerprint=satisfaction.identity.removeprefix(
+            "historical-replay-satisfaction:"
+        ),
+        payload={
+            "obligation_id": obligation.identity,
+            "prior_status": "in_progress",
+            "resolution": satisfaction.to_identity_payload(),
+        },
+        event_stream=obligation_stream,
+        event_sequence=5,
+        authority_sequence=satisfaction_authority_sequence,
+        authority_event_id=satisfaction_event_id,
+        authority_offset=satisfaction_offset,
+    )
+    satisfaction_operation_id = "fixture-v2-satisfaction-operation"
+    satisfaction_operation = IndexRecord(
+        kind="operation",
+        record_id=satisfaction_operation_id,
+        subject=f"Mission:{obligation.governing_mission_id}",
+        status="success",
+        fingerprint="d" * 64,
+        payload={
+            "event_kind": "historical_replay_obligations_resolved",
+            "result": {
+                "satisfied_replay_obligation_ids": (
+                    []
+                    if tamper == "v2_satisfaction_writer"
+                    else [obligation.identity]
+                )
+            },
+        },
+        authority_sequence=satisfaction_authority_sequence,
+        authority_event_id=satisfaction_event_id,
+        authority_offset=satisfaction_offset,
+    )
+    satisfaction_journal = IndexRecord(
+        kind="journal-event",
+        record_id=satisfaction_event_id,
+        subject=f"Mission:{obligation.governing_mission_id}",
+        status="historical_replay_obligations_resolved",
+        fingerprint=satisfaction_event_id,
+        payload={"operation_id": satisfaction_operation_id},
+        event_stream="control",
+        event_sequence=satisfaction_authority_sequence,
+        authority_sequence=satisfaction_authority_sequence,
+        authority_event_id=satisfaction_event_id,
+        authority_offset=satisfaction_offset,
+    )
+    audit_manifest_hash = sha256(
+        canonical_bytes(manifest.to_identity_payload())
+    ).hexdigest()
+    invalidation_payload = {
+        "audit_manifest": manifest.to_identity_payload(),
+        "audit_manifest_hash": audit_manifest_hash,
+        "candidate_delta": 0,
+        "holdout_reveal_delta": 0,
+        "obligation_id": obligation.identity,
+        "prior_satisfaction_record_id": satisfaction.identity,
+        "prior_status": "satisfied",
+        "scientific_claim_delta": 0,
+        "scientific_satisfaction_delta": 0,
+        "scientific_trial_delta": 0,
+        "terminal_credit_delta": 0,
+    }
+    invalidation_sequence = 15
+    invalidation_event_id = "f" * 64
+    invalidation_offset = 1_500
+    invalidation = IndexRecord(
+        kind="historical-replay-satisfaction-invalidation",
+        record_id=manifest.identity,
+        subject=f"Mission:{obligation.governing_mission_id}",
+        status="pending",
+        fingerprint=manifest.identity.removeprefix(
+            "historical-replay-satisfaction-invalidation:"
+        ),
+        payload=invalidation_payload,
+        event_stream=obligation_stream,
+        event_sequence=6,
+        authority_sequence=invalidation_sequence,
+        authority_event_id=invalidation_event_id,
+        authority_offset=invalidation_offset,
+    )
+    invalidation_result = {
+        "audit_manifest_hash": audit_manifest_hash,
+        "candidate_delta": 0,
+        "holdout_reveal_delta": 0,
+        "invalidated_satisfaction_record_id": satisfaction.identity,
+        "pending_replay_obligation_ids": [obligation.identity],
+        "replay_obligation_id": obligation.identity,
+        "scientific_claim_delta": 0,
+        "scientific_satisfaction_delta": 0,
+        "scientific_trial_delta": 0,
+    }
+    if tamper == "v2_duplicate_family":
+        invalidation_result["historical_family_authority_id"] = (
+            family_record_id
+        )
+    invalidation_operation_id = "fixture-v2-invalidation-operation"
+    invalidation_operation = IndexRecord(
+        kind="operation",
+        record_id=invalidation_operation_id,
+        subject=f"Mission:{obligation.governing_mission_id}",
+        status="success",
+        fingerprint="a" * 64,
+        payload={
+            "event_kind": "historical_replay_satisfaction_invalidated",
+            "result": invalidation_result,
+        },
+        authority_sequence=invalidation_sequence,
+        authority_event_id=invalidation_event_id,
+        authority_offset=invalidation_offset,
+    )
+    invalidation_journal = IndexRecord(
+        kind="journal-event",
+        record_id=invalidation_event_id,
+        subject=f"Mission:{obligation.governing_mission_id}",
+        status="historical_replay_satisfaction_invalidated",
+        fingerprint=invalidation_event_id,
+        payload={"operation_id": invalidation_operation_id},
+        event_stream="control",
+        event_sequence=invalidation_sequence,
+        authority_sequence=invalidation_sequence,
+        authority_event_id=invalidation_event_id,
+        authority_offset=invalidation_offset,
+    )
+
+    binding = ReplayExecutionBinding(
+        obligation_ids=(obligation.identity,),
+        portfolio_decision_id=fixture.portfolio_decision_id,
+        replay_study_id=fixture.study_id,
+        replay_executable_id=fixture.prospective_ids[-1],
+    )
+    progress_payload = {
+        "binding": binding.to_identity_payload(),
+        "obligation_id": obligation.identity,
+        "prior_status": "pending",
+    }
+    progress_sequence = 20
+    progress_event_id = f"{progress_sequence:064x}"
+    progress_offset = 2_000
+    progress = IndexRecord(
+        kind="historical-replay-obligation-progress",
+        record_id="historical-replay-progress:"
+        + canonical_digest(
+            domain="historical-replay-obligation-progress",
+            payload=progress_payload,
+        ),
+        subject=f"Mission:{obligation.governing_mission_id}",
+        status="in_progress",
+        fingerprint=binding.identity,
+        payload=progress_payload,
+        event_stream=obligation_stream,
+        event_sequence=7,
+        authority_sequence=progress_sequence,
+        authority_event_id=progress_event_id,
+        authority_offset=progress_offset,
+    )
+    progress_operation_id = "fixture-v2-target-trial-registration"
+    progress_operation = IndexRecord(
+        kind="operation",
+        record_id=progress_operation_id,
+        subject=f"Executable:{fixture.prospective_ids[-1]}",
+        status="success",
+        fingerprint="b" * 64,
+        payload={"event_kind": "trial_registered", "result": {}},
+        authority_sequence=progress_sequence,
+        authority_event_id=progress_event_id,
+        authority_offset=progress_offset,
+    )
+    progress_journal = IndexRecord(
+        kind="journal-event",
+        record_id=progress_event_id,
+        subject=f"Executable:{fixture.prospective_ids[-1]}",
+        status="trial_registered",
+        fingerprint=progress_event_id,
+        payload={"operation_id": progress_operation_id},
+        event_stream="control",
+        event_sequence=progress_sequence,
+        authority_sequence=progress_sequence,
+        authority_event_id=progress_event_id,
+        authority_offset=progress_offset,
+    )
+    with LocalIndex(fixture.index_path) as index:
+        index.rebuild(
+            (
+                *retained,
+                validity_completion,
+                old_progress,
+                satisfaction_record,
+                satisfaction_operation,
+                satisfaction_journal,
+                invalidation,
+                invalidation_operation,
+                invalidation_journal,
+                progress,
+                progress_operation,
+                progress_journal,
+            )
+        )
+    fixture.validity_head = SimpleNamespace(
+        affected_criterion_ids=validity_criterion_ids,
+        authority_event_id="8" * 64,
+        authority_offset=(
+            1_001 if tamper == "v2_validity_head" else 1_000
+        ),
+        authority_sequence=10,
+        completion_record_id=validity_completion_id,
+        executable_id=validity_executable_id,
+        invalidation_record_id=validity_invalidation_id,
+        reason=validity_reason,
+        validity_stream_sequence=1,
+    )
+    return fixture
 
 
 def _verified_replay_context(
@@ -792,6 +1224,17 @@ def _verified_replay_context(
             raise AssertionError("unused")
 
     monkeypatch.setattr(context_module, "RunningJobAuthority", FakeAuthority)
+    validity_head = getattr(fixture, "validity_head", None)
+    if validity_head is not None:
+        def current_validity(_index, completion_record_id):
+            assert completion_record_id == validity_head.completion_record_id
+            return validity_head
+
+        monkeypatch.setattr(
+            context_module,
+            "current_completion_validity_invalidation",
+            current_validity,
+        )
     context = RunningJobExecutionContext(root)
     context.verify_running_job_execution(fixture.execution)
     return context
@@ -1314,6 +1757,66 @@ def test_fixed_hold_replay_target_job_requires_exact_in_progress_binding(
     )
 
 
+def test_fixed_hold_replay_v2_uses_prior_family_and_current_validity_head(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _build_v2_fixed_hold_replay_projection(
+        tmp_path,
+        prefix_length=4,
+    )
+    context = _verified_replay_context(tmp_path, monkeypatch, fixture)
+
+    projection = context.project_bound_fixed_hold_replay_context(
+        study_id=fixture.study_id,
+        batch_id=fixture.batch_id,
+        subject_executable_id=fixture.subject_executable_id,
+        expected_family_size=4,
+        parameter_name=None,
+    )
+
+    assert projection.family_authority_id == fixture.family_authority.identity
+    assert projection.replay_obligation_id == fixture.obligation.identity
+    assert projection.execution_prefix_executable_ids == fixture.prospective_ids
+    assert projection.completed_member_executable_ids == (
+        fixture.prospective_ids[:-1]
+    )
+
+
+@pytest.mark.parametrize(
+    ("tamper", "message"),
+    (
+        ("v2_family_not_prior", "does not predate"),
+        ("v2_family_writer", "does not predate"),
+        ("v2_duplicate_family", "duplicated prior family"),
+        ("v2_satisfaction_writer", "exact scientific satisfaction"),
+        ("v2_observation", "stale or unrelated"),
+        ("v2_validity_head", "stale or unrelated"),
+    ),
+)
+def test_fixed_hold_replay_v2_rejects_family_and_validity_tampering(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tamper: str,
+    message: str,
+) -> None:
+    fixture = _build_v2_fixed_hold_replay_projection(
+        tmp_path,
+        prefix_length=4,
+        tamper=tamper,
+    )
+    context = _verified_replay_context(tmp_path, monkeypatch, fixture)
+
+    with pytest.raises(RunningJobAuthorityError, match=message):
+        context.project_bound_fixed_hold_replay_context(
+            study_id=fixture.study_id,
+            batch_id=fixture.batch_id,
+            subject_executable_id=fixture.subject_executable_id,
+            expected_family_size=4,
+            parameter_name=None,
+        )
+
+
 @pytest.mark.parametrize(
     ("prefix_length", "tamper", "message"),
     (
@@ -1532,6 +2035,8 @@ def test_context_digest_binds_only_its_exact_project_local_closure(
     assert paths == tuple(sorted(set(paths), key=lambda path: path.as_posix()))
     assert CONTEXT_PATH in paths
     assert RUNNING_JOB_PATH in paths
+    assert COMPLETION_VALIDITY_PATH in paths
+    assert HISTORICAL_SCIENTIFIC_VALIDITY_PATH in paths
     assert WRITER_PATH not in paths
     assert all(path.is_file() and path.is_relative_to(SOURCE_ROOT) for path in paths)
 

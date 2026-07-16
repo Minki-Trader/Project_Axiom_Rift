@@ -18,6 +18,9 @@ from axiom_rift.research.chassis import (
     ControlledStudyChassis,
     validate_controlled_executable,
 )
+from axiom_rift.research.completed_period_atomic_trace import (
+    completed_period_proxy_execution_spec,
+)
 from axiom_rift.research.discovery import (
     DATASET_SHA256,
     EXPECTED_FOLD_IDS,
@@ -59,7 +62,7 @@ ROUTED_REPLAY_CLOCK_CONTRACT = (
     "clock:fpmarkets_m5_bar_open_completed_plus_5m_v2"
 )
 ROUTED_REPLAY_COST_CONTRACT = (
-    "cost:bid_bar_spread_point_0_01_causal_zero_repair_"
+    "cost:fpmarkets_completed_bar_spread_proxy_point_0_01_causal_zero_repair_"
     "half_spread_stress_v2"
 )
 _THIS_FILE = Path(__file__).resolve()
@@ -377,16 +380,15 @@ def routed_replay_components(
         semantic_dependencies=(trade.identity,),
     )
     execution = ComponentSpec(
-        display_name="causal lagged-spread routed execution",
-        protocol="execution.fpmarkets_lagged_spread.replay.v1",
+        display_name="completed-period spread-proxy routed execution",
+        protocol="execution.fpmarkets_completed_period_spread_proxy.v2",
         implementation=_shared_implementation("causal_effective_spread"),
-        spec={
-            "point": "0.01",
-            "stress": "half_effective_spread_each_side",
-            "zero_spread": (
-                "gap_reset_lagged_positive_288_bar_median_min_24_else_unknown"
-            ),
-        },
+        spec=completed_period_proxy_execution_spec(
+            repair_policy=(
+                "same_contiguous_segment_strict_prior_positive_288_bar_"
+                "median_min_24_else_unknown"
+            )
+        ),
         semantic_dependencies=(lifecycle.identity,),
     )
     risk = ComponentSpec(

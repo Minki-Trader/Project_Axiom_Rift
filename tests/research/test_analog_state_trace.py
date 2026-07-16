@@ -11,6 +11,7 @@ import unittest
 from unittest.mock import patch
 
 import numpy as np
+import pandas as pd
 
 from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.operations.validation import (
@@ -69,6 +70,10 @@ from axiom_rift.research.analog_state_trace import (
     extract_analog_family_trace_cache_material,
     extract_analog_family_trace_from_subject,
     validate_analog_family_trace,
+)
+from axiom_rift.research.analog_state_trace_rows import (
+    intent_rows as materialize_analog_intent_rows,
+    trade_rows as materialize_analog_trade_rows,
 )
 from axiom_rift.research.discovery import (
     DATASET_SHA256,
@@ -179,14 +184,40 @@ def _synthetic_family_trace() -> dict[str, object]:
                 native_cost = 100
                 stress_cost = 150
                 gross = native_net + native_cost
+                decision_index = 1_000 + fold_index * 1_000 + day_index * 100
+                entry_index = decision_index + 1
+                exit_index = entry_index + 24
                 row: dict[str, object] = {
                     "availability_time": entry.isoformat(),
                     "configuration_id": configuration_id,
+                    "decision_bar_index": decision_index,
                     "decision_bar_open_time": bar_open.isoformat(),
+                    "decision_spread_source_bar_index": decision_index,
+                    "decision_spread_source_bar_open_time": (
+                        bar_open.isoformat()
+                    ),
+                    "decision_spread_information_complete_at": (
+                        entry.isoformat()
+                    ),
+                    "decision_spread_known": True,
                     "decision_time": entry.isoformat(),
                     "direction": 1 if day_index % 2 == 0 else -1,
+                    "entry_bar_index": entry_index,
+                    "entry_spread_source_bar_index": decision_index,
+                    "entry_spread_source_bar_open_time": bar_open.isoformat(),
+                    "entry_spread_information_complete_at": entry.isoformat(),
+                    "entry_spread_known": True,
                     "entry_time": entry.isoformat(),
                     "executable_id": member["executable_id"],
+                    "exit_bar_index": exit_index,
+                    "exit_spread_source_bar_index": exit_index - 1,
+                    "exit_spread_source_bar_open_time": (
+                        exit_time - timedelta(minutes=5)
+                    ).isoformat(),
+                    "exit_spread_information_complete_at": (
+                        exit_time.isoformat()
+                    ),
+                    "exit_spread_known": True,
                     "exit_time": exit_time.isoformat(),
                     "fold_id": fold_id,
                     "gross_pnl_micropoints": gross,
@@ -199,6 +230,7 @@ def _synthetic_family_trace() -> dict[str, object]:
                     "regime": ("low", "middle", "high")[day_index % 3],
                     "stress_cost_micropoints": stress_cost,
                     "stress_net_pnl_micropoints": gross - stress_cost,
+                    "spread_semantics": "completed_period_proxy",
                 }
                 row["observation_id"] = analog_observation_id("trade", row)
                 fold_trade_rows.append(row)
@@ -207,15 +239,47 @@ def _synthetic_family_trace() -> dict[str, object]:
                     intent: dict[str, object] = {
                         "availability_time": entry.isoformat(),
                         "configuration_id": configuration_id,
+                        "decision_bar_index": decision_index,
+                        "decision_bar_open_time": bar_open.isoformat(),
+                        "decision_spread_source_bar_index": decision_index,
+                        "decision_spread_source_bar_open_time": (
+                            bar_open.isoformat()
+                        ),
+                        "decision_spread_information_complete_at": (
+                            entry.isoformat()
+                        ),
+                        "decision_spread_known": True,
                         "decision_time": entry.isoformat(),
                         "direction": row["direction"],
+                        "entry_bar_index": entry_index,
+                        "entry_spread_source_bar_index": decision_index,
+                        "entry_spread_source_bar_open_time": (
+                            bar_open.isoformat()
+                        ),
+                        "entry_spread_information_complete_at": (
+                            entry.isoformat()
+                        ),
+                        "entry_spread_known": True,
                         "entry_time": entry.isoformat(),
                         "executable_id": member["executable_id"],
+                        "exit_bar_index": exit_index,
+                        "exit_spread_source_bar_index": exit_index - 1,
+                        "exit_spread_source_bar_open_time": (
+                            exit_time - timedelta(minutes=5)
+                        ).isoformat(),
+                        "exit_spread_information_complete_at": (
+                            exit_time.isoformat()
+                        ),
+                        "exit_spread_known": True,
                         "exit_time": exit_time.isoformat(),
                         "fold_id": fold_id,
+                        "historical_reference_executable_id": member[
+                            "historical_reference_executable_id"
+                        ],
                         "observation_id": "pending",
                         "ordinal": day_index + 1,
                         "scope": scope,
+                        "spread_semantics": "completed_period_proxy",
                         "status": "executed",
                     }
                     intent["observation_id"] = analog_observation_id(
@@ -317,6 +381,313 @@ def _synthetic_trace(executable_id: str) -> dict[str, object]:
 
 
 class AnalogStateTraceTests(unittest.TestCase):
+    def test_exact_window_binds_decision_calendar_without_overbinding_exit_day(
+        self,
+    ) -> None:
+        window = {
+            "eligible_dates": ["2025-01-01"],
+            "test_end": "2025-01-02T00:05:00",
+            "test_start": "2025-01-01T00:00:00",
+        }
+        row = {
+            "decision_bar_open_time": "2025-01-01T23:55:00",
+            "exit_time": "2025-01-02T00:05:00",
+        }
+        analog_trace_module._validate_exact_test_window(
+            row,
+            window=window,
+            prefix="analog test row",
+        )
+        row["exit_time"] = "2025-01-02T00:10:00"
+        with self.assertRaisesRegex(
+            ValueError,
+            "outside its exact test calendar",
+        ):
+            analog_trace_module._validate_exact_test_window(
+                row,
+                window=window,
+                prefix="analog test row",
+            )
+
+    def test_v1_replay_identity_binds_shared_trace_row_materializer(self) -> None:
+        current = analog_replay_module.analog_replay_implementation_sha256()
+        with patch.object(
+            analog_replay_module,
+            "analog_trace_rows_implementation_sha256",
+            return_value="0" * 64,
+        ):
+            changed = analog_replay_module.analog_replay_implementation_sha256()
+            identities = analog_family_trace_implementation_identities()
+        self.assertNotEqual(current, changed)
+        self.assertEqual(identities["analog_replay_sha256"], changed)
+
+    def test_trade_row_materializer_recomputes_completed_bar_proxy_cost(self) -> None:
+        frame = pd.DataFrame(
+            {
+                "time": pd.date_range(
+                    "2025-01-01T00:00:00",
+                    periods=26,
+                    freq="5min",
+                ),
+                "open": np.r_[100.0, np.full(24, 100.0), 103.0],
+            }
+        )
+        spreads = np.full(26, 5.0)
+        spreads[1] = 9.0
+        spreads[24] = 7.0
+        spreads[25] = 11.0
+        trade = {
+            "decision_bar_open_time": frame.loc[0, "time"],
+            "decision_time": frame.loc[1, "time"],
+            "direction": 1,
+            "entry_time": frame.loc[1, "time"],
+            "exit_time": frame.loc[25, "time"],
+            "gross_pnl": 3.0,
+            "native_cost": 0.05,
+            "pnl": 2.95,
+            "regime": "middle",
+            "stress_cost": 0.11,
+            "stress_pnl": 2.89,
+        }
+        configuration = P1_STU0061_ANALOG_FAMILY.configurations()[0]
+        executable_id = expected_analog_family_inventory()[0]["executable_id"]
+        simulation = SimpleNamespace(trades=pd.DataFrame((trade,)))
+        rows = materialize_analog_trade_rows(
+            configuration=configuration,
+            executable_id=str(executable_id),
+            simulations={("rw_001", "full"): simulation},
+            frame=frame,
+            effective_spread=spreads,
+        )
+        self.assertEqual(rows[0]["entry_spread_source_bar_index"], 0)
+        self.assertEqual(rows[0]["exit_spread_source_bar_index"], 24)
+
+        wrong = dict(trade)
+        wrong.update(
+            {
+                "native_cost": 0.09,
+                "pnl": 2.91,
+                "stress_cost": 0.19,
+                "stress_pnl": 2.81,
+            }
+        )
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "completed-bar spread sources",
+        ):
+            materialize_analog_trade_rows(
+                configuration=configuration,
+                executable_id=str(executable_id),
+                simulations={
+                    ("rw_001", "full"): SimpleNamespace(
+                        trades=pd.DataFrame((wrong,))
+                    )
+                },
+                frame=frame,
+                effective_spread=spreads,
+            )
+
+    def test_actual_intent_rows_cross_validator_and_bind_historical_member(
+        self,
+    ) -> None:
+        frame = pd.DataFrame(
+            {
+                "time": pd.date_range(
+                    "2025-01-01T00:00:00",
+                    periods=26,
+                    freq="5min",
+                ),
+                "open": np.r_[100.0, np.full(24, 100.0), 103.0],
+            }
+        )
+        spreads = np.full(26, 5.0)
+        spreads[24] = 7.0
+        trade = {
+            "decision_bar_open_time": frame.loc[0, "time"],
+            "decision_time": frame.loc[1, "time"],
+            "direction": 1,
+            "entry_time": frame.loc[1, "time"],
+            "exit_time": frame.loc[25, "time"],
+            "gross_pnl": 3.0,
+            "native_cost": 0.05,
+            "pnl": 2.95,
+            "regime": "middle",
+            "stress_cost": 0.11,
+            "stress_pnl": 2.89,
+        }
+        intent = (
+            frame.loc[1, "time"],
+            frame.loc[1, "time"],
+            frame.loc[25, "time"],
+            1,
+            "executed",
+        )
+        fold_id = EXPECTED_FOLD_IDS[0]
+        simulations = {
+            (fold_id, "full"): SimpleNamespace(
+                trades=pd.DataFrame((trade,)),
+                intent_rows=(intent,),
+            ),
+            (fold_id, "prefix"): SimpleNamespace(intent_rows=(intent,)),
+        }
+        configuration = P1_STU0061_ANALOG_FAMILY.configurations()[0]
+        member = next(
+            item
+            for item in expected_analog_family_inventory()
+            if item["configuration_id"] == configuration.configuration_id
+        )
+        family = {configuration.configuration_id: member}
+        windows = (
+            {
+                "eligible_dates": ["2025-01-01"],
+                "fold_id": fold_id,
+                "test_end": frame.loc[25, "time"].isoformat(),
+                "test_start": frame.loc[0, "time"].isoformat(),
+                "train_end": "2024-12-30T23:55:00",
+                "train_start": "2024-12-01T00:00:00",
+            },
+        )
+        trades = materialize_analog_trade_rows(
+            configuration=configuration,
+            executable_id=str(member["executable_id"]),
+            simulations=simulations,
+            frame=frame,
+            effective_spread=spreads,
+        )
+        intents = materialize_analog_intent_rows(
+            configuration=configuration,
+            executable_id=str(member["executable_id"]),
+            simulations=simulations,
+            frame=frame,
+            effective_spread=spreads,
+        )
+        validated_trades = analog_trace_module._validate_trades(
+            {"trade_observations": trades},
+            family=family,
+            windows=windows,
+            horizon=configuration.holding_bars,
+        )
+        validated_intents, _ = analog_trace_module._validate_intents(
+            {"intent_observations": intents},
+            family=family,
+            windows=windows,
+            trades=validated_trades,
+            horizon=configuration.holding_bars,
+        )
+        self.assertEqual(len(validated_intents), 2)
+        self.assertEqual(
+            {
+                item["historical_reference_executable_id"]
+                for item in validated_intents
+            },
+            {member["historical_reference_executable_id"]},
+        )
+
+        tampered = deepcopy(intents)
+        tampered[0]["historical_reference_executable_id"] = (
+            "executable:" + "f" * 64
+        )
+        tampered[0]["observation_id"] = analog_observation_id(
+            "intent", tampered[0]
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "belongs to another family member",
+        ):
+            analog_trace_module._validate_intents(
+                {"intent_observations": tampered},
+                family=family,
+                windows=windows,
+                trades=validated_trades,
+                horizon=configuration.holding_bars,
+            )
+
+    def test_duplicate_economic_execution_cannot_inflate_trade_evidence(
+        self,
+    ) -> None:
+        trace = _synthetic_family_trace()
+        family = {
+            str(item["configuration_id"]): item
+            for item in trace["ordered_family"]
+        }
+        windows = tuple(trace["windows"])
+        original_trade = trace["trade_observations"][0]
+        duplicate_trade = deepcopy(original_trade)
+        duplicate_trade["gross_pnl_micropoints"] += 1_000_000
+        duplicate_trade["native_net_pnl_micropoints"] += 1_000_000
+        duplicate_trade["stress_net_pnl_micropoints"] += 1_000_000
+        duplicate_trade["regime"] = "high"
+        duplicate_trade["observation_id"] = analog_observation_id(
+            "trade", duplicate_trade
+        )
+        duplicated_trades = [
+            *trace["trade_observations"],
+            duplicate_trade,
+        ]
+        duplicated_trades.sort(
+            key=lambda item: (
+                item["configuration_id"],
+                item["fold_id"],
+                item["decision_time"],
+                item["observation_id"],
+            )
+        )
+
+        duplicated_intents = deepcopy(trace["intent_observations"])
+        configuration_id = str(original_trade["configuration_id"])
+        fold_id = str(original_trade["fold_id"])
+        for scope in ("full", "prefix"):
+            original_intent = next(
+                item
+                for item in duplicated_intents
+                if item["configuration_id"] == configuration_id
+                and item["fold_id"] == fold_id
+                and item["scope"] == scope
+                and item["ordinal"] == 1
+            )
+            cloned_intent = deepcopy(original_intent)
+            cloned_intent["ordinal"] = 5
+            cloned_intent["observation_id"] = analog_observation_id(
+                "intent", cloned_intent
+            )
+            duplicated_intents.append(cloned_intent)
+        duplicated_intents.sort(
+            key=lambda item: (
+                item["configuration_id"],
+                item["fold_id"],
+                item["scope"],
+                item["ordinal"],
+                item["observation_id"],
+            )
+        )
+        validated_trades = analog_trace_module._validate_trades(
+            {"trade_observations": duplicated_trades},
+            family=family,
+            windows=windows,
+            horizon=24,
+        )
+        original_native = int(original_trade["native_net_pnl_micropoints"])
+        self.assertEqual(
+            sum(
+                int(item["native_net_pnl_micropoints"])
+                for item in validated_trades
+                if analog_trace_module._execution_identity(item)
+                == analog_trace_module._execution_identity(original_trade)
+            ),
+            original_native * 2 + 1_000_000,
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "executed intents differ from trade rows",
+        ):
+            analog_trace_module._validate_intents(
+                {"intent_observations": duplicated_intents},
+                family=family,
+                windows=windows,
+                trades=validated_trades,
+                horizon=24,
+            )
+
     def test_causal_surface_digest_covers_every_simulation_input(self) -> None:
         names = ("score", "volatility", "run", "effective_spread")
         baseline = tuple(
@@ -492,6 +863,134 @@ class AnalogStateTraceTests(unittest.TestCase):
                 executable_id=self.executable_id,
                 job_id=JOB_ID,
                 job_hash=JOB_HASH,
+            )
+
+    def test_trade_and_intent_clocks_bind_exact_fold_test_window(self) -> None:
+        timestamp_fields = (
+            "availability_time",
+            "decision_bar_open_time",
+            "decision_spread_source_bar_open_time",
+            "decision_spread_information_complete_at",
+            "decision_time",
+            "entry_spread_source_bar_open_time",
+            "entry_spread_information_complete_at",
+            "entry_time",
+            "exit_spread_source_bar_open_time",
+            "exit_spread_information_complete_at",
+            "exit_time",
+        )
+
+        def shift_clocks(row: dict[str, object]) -> None:
+            for name in timestamp_fields:
+                row[name] = (
+                    datetime.fromisoformat(str(row[name]))
+                    + timedelta(days=400)
+                ).isoformat()
+
+        trace = _synthetic_family_trace()
+        original_trade = trace["trade_observations"][0]
+        forged_trade = deepcopy(original_trade)
+        shift_clocks(forged_trade)
+        forged_trade["observation_id"] = analog_observation_id(
+            "trade", forged_trade
+        )
+        trace["trade_observations"].append(forged_trade)
+        trace["trade_observations"].sort(
+            key=lambda item: (
+                item["configuration_id"],
+                item["fold_id"],
+                item["decision_time"],
+                item["observation_id"],
+            )
+        )
+        for scope in ("full", "prefix"):
+            source = next(
+                item
+                for item in trace["intent_observations"]
+                if item["configuration_id"]
+                == original_trade["configuration_id"]
+                and item["fold_id"] == original_trade["fold_id"]
+                and item["scope"] == scope
+                and analog_trace_module._execution_identity(item)
+                == analog_trace_module._execution_identity(original_trade)
+            )
+            forged_intent = deepcopy(source)
+            forged_intent["ordinal"] = 5
+            shift_clocks(forged_intent)
+            forged_intent["observation_id"] = analog_observation_id(
+                "intent", forged_intent
+            )
+            trace["intent_observations"].append(forged_intent)
+        trace["intent_observations"].sort(
+            key=lambda item: (
+                item["configuration_id"],
+                item["fold_id"],
+                item["scope"],
+                item["ordinal"],
+                item["observation_id"],
+            )
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "trade is outside its exact test calendar",
+        ):
+            bind_analog_family_trace(
+                family_trace=trace,
+                mission_id=MISSION_ID,
+                executable_id=self.executable_id,
+                job_id=JOB_ID,
+                job_hash=JOB_HASH,
+            )
+
+        intent_trace = _synthetic_family_trace()
+        family = {
+            str(item["configuration_id"]): item
+            for item in intent_trace["ordered_family"]
+        }
+        windows = tuple(intent_trace["windows"])
+        validated_trades = analog_trace_module._validate_trades(
+            intent_trace,
+            family=family,
+            windows=windows,
+            horizon=24,
+        )
+        for scope in ("full", "prefix"):
+            source = next(
+                item
+                for item in intent_trace["intent_observations"]
+                if item["configuration_id"]
+                == original_trade["configuration_id"]
+                and item["fold_id"] == original_trade["fold_id"]
+                and item["scope"] == scope
+                and item["ordinal"] == 1
+            )
+            forged_intent = deepcopy(source)
+            forged_intent["ordinal"] = 5
+            forged_intent["status"] = "gap_excluded"
+            shift_clocks(forged_intent)
+            forged_intent["observation_id"] = analog_observation_id(
+                "intent", forged_intent
+            )
+            intent_trace["intent_observations"].append(forged_intent)
+        intent_trace["intent_observations"].sort(
+            key=lambda item: (
+                item["configuration_id"],
+                item["fold_id"],
+                item["scope"],
+                item["ordinal"],
+                item["observation_id"],
+            )
+        )
+        with self.assertRaisesRegex(
+            ValueError,
+            "intent is outside its exact test calendar",
+        ):
+            analog_trace_module._validate_intents(
+                intent_trace,
+                family=family,
+                windows=windows,
+                trades=validated_trades,
+                horizon=24,
             )
 
     def test_574_context_is_descriptive_and_492_is_original_provenance(self) -> None:
@@ -1403,6 +1902,30 @@ class AnalogStateTraceTests(unittest.TestCase):
             request = replace(request, artifacts=tuple(artifacts))
             with self.assertRaises(EvidenceValidationError):
                 ScientificAdjudicationValidatorV2().validate(request)
+
+    def test_trade_and_intent_spread_source_mismatch_is_rejected(self) -> None:
+        for kind, field, value in (
+            ("trade", "entry_spread_source_bar_index", 999_999),
+            (
+                "trade",
+                "exit_spread_information_complete_at",
+                "2025-01-01T00:00:00",
+            ),
+            ("intent", "decision_spread_source_bar_index", 999_999),
+        ):
+            with self.subTest(kind=kind, field=field):
+                trace = _synthetic_family_trace()
+                row = trace[f"{kind}_observations"][0]
+                row[field] = value
+                row["observation_id"] = analog_observation_id(kind, row)
+                with self.assertRaisesRegex(ValueError, "spread source"):
+                    bind_analog_family_trace(
+                        family_trace=trace,
+                        mission_id=MISSION_ID,
+                        executable_id=self.executable_id,
+                        job_id=JOB_ID,
+                        job_hash=JOB_HASH,
+                    )
 
     def test_missing_zero_day_and_historical_reference_drift_are_rejected(self) -> None:
         trace = _synthetic_family_trace()

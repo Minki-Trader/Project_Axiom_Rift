@@ -89,7 +89,7 @@ class ResidualQuoteDeferralChassisTests(unittest.TestCase):
         decision_index = 30
         score[decision_index] = 1.0
         spreads = np.ones(len(frame))
-        spreads[decision_index + 1] = 2.0
+        spreads[decision_index] = 2.0
         result = simulate_residual_quote_deferral(
             frame=frame,
             score=score,
@@ -111,6 +111,80 @@ class ResidualQuoteDeferralChassisTests(unittest.TestCase):
             frame.loc[decision_index + 2, "time"],
         )
         self.assertEqual(result.intent_rows[0][-1], "executed_deferred")
+
+    def test_entry_bar_spreads_never_change_deferral_or_trade_sample(self) -> None:
+        frame = self._frame(64)
+        score = np.full(len(frame), np.nan)
+        decision_index = 30
+        score[decision_index] = 1.0
+        base_spreads = np.ones(len(frame))
+        base_spreads[decision_index] = 2.0
+
+        def simulate(spreads: np.ndarray):
+            return simulate_residual_quote_deferral(
+                frame=frame,
+                score=score,
+                volatility=np.ones(len(frame)),
+                run=np.arange(1, len(frame) + 1),
+                threshold=0.5,
+                configuration=residual_quote_deferral_configurations()[1],
+                test_start=frame.loc[decision_index, "time"],
+                test_end=frame.loc[len(frame) - 1, "time"],
+                fold_id="fold-01",
+                regime_cutoffs=(0.5, 1.5),
+                effective_spread=spreads,
+            )
+
+        baseline = simulate(base_spreads)
+        scheduled_entry_bar = base_spreads.copy()
+        scheduled_entry_bar[decision_index + 1] = 50.0
+        scheduled_perturbed = simulate(scheduled_entry_bar)
+        actual_entry_bar = base_spreads.copy()
+        actual_entry_bar[decision_index + 2] = 500.0
+        actual_perturbed = simulate(actual_entry_bar)
+
+        self.assertEqual(baseline.intent_rows, scheduled_perturbed.intent_rows)
+        self.assertEqual(baseline.intent_rows, actual_perturbed.intent_rows)
+        self.assertEqual(len(baseline.trades), len(scheduled_perturbed.trades))
+        self.assertEqual(len(baseline.trades), len(actual_perturbed.trades))
+        self.assertNotEqual(
+            float(baseline.trades.iloc[0]["pnl"]),
+            float(scheduled_perturbed.trades.iloc[0]["pnl"]),
+        )
+        pd.testing.assert_frame_equal(
+            baseline.trades,
+            actual_perturbed.trades,
+        )
+
+    def test_gap_intent_decision_time_is_derived_without_future_row(self) -> None:
+        frame = self._frame(64)
+        decision_index = 30
+        frame.loc[decision_index + 1 :, "time"] += pd.Timedelta(minutes=5)
+        score = np.full(len(frame), np.nan)
+        score[decision_index] = 1.0
+        result = simulate_residual_quote_deferral(
+            frame=frame,
+            score=score,
+            volatility=np.ones(len(frame)),
+            run=np.arange(1, len(frame) + 1),
+            threshold=0.5,
+            configuration=residual_quote_deferral_configurations()[1],
+            test_start=frame.loc[decision_index, "time"],
+            test_end=frame.loc[len(frame) - 1, "time"],
+            fold_id="fold-01",
+            regime_cutoffs=(0.5, 1.5),
+            effective_spread=np.ones(len(frame)),
+        )
+        self.assertEqual(len(result.trades), 0)
+        self.assertEqual(result.intent_rows[0][-1], "gap_excluded")
+        self.assertEqual(
+            result.intent_rows[0][0],
+            frame.loc[decision_index, "time"] + pd.Timedelta(minutes=5),
+        )
+        self.assertNotEqual(
+            result.intent_rows[0][0],
+            frame.loc[decision_index + 1, "time"],
+        )
 
     def test_unknown_reference_retains_immediate_entry(self) -> None:
         frame = self._frame()

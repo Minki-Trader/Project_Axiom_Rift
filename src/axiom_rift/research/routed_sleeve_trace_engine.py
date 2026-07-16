@@ -610,6 +610,7 @@ def compute_routed_sleeve_family_trace(
                 executable_id=executable_id,
                 simulations=captures,
                 frame=frame,
+                effective_spread=spread,
             )
         )
         all_intents.extend(
@@ -618,6 +619,7 @@ def compute_routed_sleeve_family_trace(
                 executable_id=executable_id,
                 simulations=captures,
                 frame=frame,
+                effective_spread=spread,
             )
         )
     all_trades.sort(

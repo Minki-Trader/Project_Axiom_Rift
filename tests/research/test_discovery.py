@@ -22,6 +22,8 @@ from axiom_rift.research.discovery import (
     _monthly_realized_exit_drawdown,
     _validate_fold_payloads,
     causal_effective_spread,
+    completed_bar_execution_spreads,
+    completed_bar_spread_proxy_indices,
     compute_trend_score,
     discovery_implementation_sha256,
     execution_pnl,
@@ -182,6 +184,83 @@ class TrendDiscoveryTests(unittest.TestCase):
         self.assertAlmostEqual(long_breakdown.stress_cost, 0.045)
         self.assertAlmostEqual(short_breakdown.native_cost, 0.03)
         self.assertAlmostEqual(short_breakdown.stress_cost, 0.055)
+
+    def test_execution_spread_proxy_uses_only_completed_bars(self) -> None:
+        self.assertEqual(
+            completed_bar_spread_proxy_indices(
+                np.int64(11), spread_count=20
+            ),
+            10,
+        )
+        np.testing.assert_array_equal(
+            completed_bar_spread_proxy_indices(
+                np.array([1, 7, 19], dtype=np.int64),
+                spread_count=20,
+            ),
+            np.array([0, 6, 18]),
+        )
+        spreads = np.arange(20, dtype=float)
+        execution = completed_bar_execution_spreads(
+            spreads,
+            entry_index=np.int64(7),
+            exit_index=np.int64(12),
+        )
+        self.assertEqual(execution.entry_proxy_index, 6)
+        self.assertEqual(execution.exit_proxy_index, 11)
+        self.assertEqual(execution.entry_spread_points, 6.0)
+        self.assertEqual(execution.exit_spread_points, 11.0)
+        for invalid in (0, 20):
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                completed_bar_spread_proxy_indices(
+                    invalid,
+                    spread_count=20,
+                )
+
+    def test_execution_bar_spread_cannot_change_trade_sample_or_pnl(self) -> None:
+        frame = synthetic_frame(200)
+        score = np.zeros(200)
+        decision_index = 100
+        score[decision_index] = 2.0
+        volatility = np.ones(200)
+        run = np.arange(1, 201, dtype=np.int32)
+        configuration = TrendConfiguration(
+            profile="single_12", signal_sign=1, holding_bars=3
+        )
+
+        def simulate(spreads: np.ndarray):
+            return simulate_fixed_hold(
+                frame=frame,
+                score=score,
+                volatility=volatility,
+                run=run,
+                threshold=1.0,
+                configuration=configuration,
+                test_start=frame.time.iloc[80],
+                test_end=frame.time.iloc[150],
+                fold_id="fixture",
+                regime_cutoffs=(0.5, 1.5),
+                effective_spread=spreads,
+            )
+
+        baseline_spreads = np.full(len(frame), 2.0)
+        baseline = simulate(baseline_spreads)
+        execution_bar_perturbed = baseline_spreads.copy()
+        execution_bar_perturbed[decision_index + 1] = 999.0
+        execution_bar_perturbed[decision_index + 4] = 999.0
+        perturbed = simulate(execution_bar_perturbed)
+        self.assertEqual(baseline.intent_rows, perturbed.intent_rows)
+        pd.testing.assert_frame_equal(baseline.trades, perturbed.trades)
+
+        decision_bar_perturbed = baseline_spreads.copy()
+        decision_bar_perturbed[decision_index] = 4.0
+        repriced = simulate(decision_bar_perturbed)
+        self.assertEqual(len(repriced.trades), len(baseline.trades))
+        self.assertEqual(repriced.intent_rows, baseline.intent_rows)
+        self.assertAlmostEqual(
+            float(baseline.trades.iloc[0]["pnl"])
+            - float(repriced.trades.iloc[0]["pnl"]),
+            0.02,
+        )
 
     def test_decision_time_is_bar_close_and_equals_next_open(self) -> None:
         frame = synthetic_frame(200)

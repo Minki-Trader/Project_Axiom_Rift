@@ -17,6 +17,7 @@ from axiom_rift.research.discovery import (
     SimulationResult,
     _time_ns,
     causal_effective_spread,
+    completed_bar_execution_spreads,
     discovery_implementation_sha256,
     execution_pnl,
 )
@@ -128,11 +129,17 @@ def _timing_overlay() -> ComponentSpec:
         protocol="execution.causal_one_bar_quote_deferral_overlay.v1",
         implementation=_local("simulate_residual_quote_deferral"),
         spec={
-            "decision_quote": "scheduled_next_open_before_order",
+            "decision_quote": "completed_decision_bar_spread_proxy",
             "deferral_bars": DEFERRAL_BARS,
             "deferred_entry_action": "enter_unconditionally_at_next_exact_bar_open",
+            "execution_cost_proxies": {
+                "entry": "entry_index_minus_1",
+                "exit": "exit_index_minus_1",
+            },
             "parameter_fields": ["execution_timing_policy"],
-            "quote_reference": "gap_reset_prior_288_bar_median",
+            "quote_reference": (
+                "gap_reset_strictly_prior_288_completed_bar_median"
+            ),
             "reference_unknown_action": "retain_immediate_entry",
             "spread_limit_milli": SPREAD_LIMIT_MILLI,
         },
@@ -152,10 +159,12 @@ def residual_quote_deferral_executable(
         parameters=configuration.semantic_parameters(),
         data_contract=baseline.data_contract,
         split_contract=baseline.split_contract,
-        clock_contract="clock:fpmarkets_m5_causal_one_bar_quote_deferral_v1",
+        clock_contract=(
+            "clock:fpmarkets_m5_completed_decision_bar_one_bar_deferral_v1"
+        ),
         cost_contract=(
-            "cost:bid_bar_spread_point_0_01_causal_zero_repair_"
-            "one_bar_quote_deferral_half_spread_stress_v1"
+            "cost:fpmarkets_completed_bar_spread_proxy_point_0_01_"
+            "causal_zero_repair_one_bar_deferral_half_spread_stress_v1"
         ),
         engine_contract=(
             f"engine:residual_quote_deferral_v1:python{'.'.join(str(v) for v in sys.version_info[:3])}:"
@@ -241,13 +250,13 @@ def simulate_residual_quote_deferral(
         scheduled_entry_index = decision_index + 1
         if scheduled_entry_index >= len(frame):
             continue
-        scheduled_spread = spreads[scheduled_entry_index]
-        scheduled_reference = reference[scheduled_entry_index]
+        decision_spread = spreads[decision_index]
+        decision_reference = reference[decision_index]
         defer = bool(
-            np.isfinite(scheduled_spread)
-            and np.isfinite(scheduled_reference)
-            and scheduled_spread * 1000
-            > scheduled_reference * SPREAD_LIMIT_MILLI
+            np.isfinite(decision_spread)
+            and np.isfinite(decision_reference)
+            and decision_spread * 1000
+            > decision_reference * SPREAD_LIMIT_MILLI
         )
         entry_delay_bars = DEFERRAL_BARS if defer else 0
         entry_index = scheduled_entry_index + entry_delay_bars
@@ -255,16 +264,16 @@ def simulate_residual_quote_deferral(
         if exit_index >= len(frame) or time.iloc[exit_index] > test_end:
             continue
         decision_bar_open_time = time.iloc[decision_index]
-        decision_time = time.iloc[scheduled_entry_index]
+        decision_time = decision_bar_open_time + pd.Timedelta(minutes=5)
+        scheduled_entry_time = time.iloc[scheduled_entry_index]
         entry_time = time.iloc[entry_index]
         exit_time = time.iloc[exit_index]
         continuous = (
-            time_ns[scheduled_entry_index] - time_ns[decision_index]
-            == _FIVE_MINUTES_NS
+            scheduled_entry_time == decision_time
             and (
                 not defer
-                or time_ns[entry_index] - time_ns[scheduled_entry_index]
-                == _FIVE_MINUTES_NS
+                or entry_time
+                == scheduled_entry_time + pd.Timedelta(minutes=5)
             )
             and run[exit_index]
             >= configuration.holding_bars + 2 + entry_delay_bars
@@ -278,10 +287,7 @@ def simulate_residual_quote_deferral(
         expected_entry_time = decision_time + pd.Timedelta(
             minutes=5 * entry_delay_bars
         )
-        if (
-            decision_time != decision_bar_open_time + pd.Timedelta(minutes=5)
-            or entry_time != expected_entry_time
-        ):
+        if entry_time != expected_entry_time:
             causality_violations += 1
             intents.append(
                 (
@@ -294,7 +300,12 @@ def simulate_residual_quote_deferral(
             )
             continue
         next_decision_index = exit_index
-        if not (np.isfinite(spreads[entry_index]) and np.isfinite(spreads[exit_index])):
+        execution_spreads = completed_bar_execution_spreads(
+            spreads,
+            entry_index=entry_index,
+            exit_index=exit_index,
+        )
+        if not execution_spreads.costs_known:
             unresolved += 1
             intents.append(
                 (decision_time, entry_time, exit_time, direction, "unknown_cost")
@@ -304,8 +315,8 @@ def simulate_residual_quote_deferral(
             direction=direction,
             entry_bid=float(opens[entry_index]),
             exit_bid=float(opens[exit_index]),
-            entry_spread_points=float(spreads[entry_index]),
-            exit_spread_points=float(spreads[exit_index]),
+            entry_spread_points=execution_spreads.entry_spread_points,
+            exit_spread_points=execution_spreads.exit_spread_points,
         )
         entry_volatility = float(volatility[decision_index])
         regime = (
@@ -333,7 +344,7 @@ def simulate_residual_quote_deferral(
             "executed_deferred"
             if defer
             else "executed_immediate_reference_unknown"
-            if not np.isfinite(scheduled_reference)
+            if not np.isfinite(decision_reference)
             else "executed_immediate"
         )
         intents.append((decision_time, entry_time, exit_time, direction, status))

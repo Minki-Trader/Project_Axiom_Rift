@@ -2,10 +2,12 @@
 
 The historical source and evidence remain immutable.  This module restates the
 registered causal drawdown depth/duration mechanism under new Component and
-Executable identities, captures atomic fixed-hold rows, and proves raw parity
-against all four historical evaluation artifacts.  Concurrent-family and
-paired-control uncertainty are intentionally left to the atomic trace
-recomputer; the obsolete project-history Bonferroni values are never copied.
+Executable identities and captures atomic fixed-hold rows.  Historical intent
+and trade structure must remain exact, while the corrected completed-period
+cost timing is required to create a typed economic transition instead of
+silently claiming raw parity. Concurrent-family and paired-control uncertainty
+are intentionally left to the atomic trace recomputer; the obsolete project-
+history Bonferroni values are never copied.
 """
 
 from __future__ import annotations
@@ -22,7 +24,11 @@ import pandas as pd
 import scipy
 
 from axiom_rift.core.canonical import parse_canonical
-from axiom_rift.core.identity import ComponentSpec, ExecutableSpec
+from axiom_rift.core.identity import (
+    ComponentSpec,
+    ExecutableSpec,
+    canonical_digest,
+)
 from axiom_rift.research import data as data_module
 from axiom_rift.research.chassis import (
     ArchitectureChassisSpec,
@@ -50,18 +56,33 @@ from axiom_rift.research.discovery import (
     discovery_implementation_sha256,
     simulate_fixed_hold,
 )
+from axiom_rift.research.completed_period_atomic_trace import (
+    AtomicFixedHoldMember,
+    completed_period_proxy_execution_spec,
+    materialize_fixed_hold_intent_rows,
+    materialize_fixed_hold_trade_rows,
+)
 from axiom_rift.research.fixed_hold_family_trace import (
     FIXED_HOLD_TRACE_VALIDATOR,
     FixedHoldProtocolDefinition,
     build_fixed_hold_family_trace,
+    expected_fixed_hold_control_inventory,
     expected_fixed_hold_family_inventory,
     fixed_hold_observation_id,
     fixed_hold_trace_implementation_sha256,
+)
+from axiom_rift.research.fixed_hold_historical_projection import (
+    HISTORICAL_DRAWDOWN_EVALUATION_SCHEMA,
+    derive_fixed_hold_semantic_surfaces,
 )
 from axiom_rift.research.historical_family_replay import (
     P1_HISTORICAL_FAMILY_CATALOG_DIGEST,
     STU0048_HISTORICAL_FAMILY,
     HistoricalMemberSpec,
+)
+from axiom_rift.research.historical_semantic_transition import (
+    HISTORICAL_COST_TIMING_TRANSITION_POLICY,
+    build_historical_cost_timing_transition,
 )
 from axiom_rift.research.governance import ResearchLayer
 from axiom_rift.research.selection_inference import (
@@ -91,7 +112,7 @@ DRAWDOWN_REPLAY_CLOCK_CONTRACT = (
     "clock:fpmarkets_m5_bar_open_completed_plus_5m_v2"
 )
 DRAWDOWN_REPLAY_COST_CONTRACT = (
-    "cost:bid_bar_segment_positive_median_min_1_unknown_entry_cancel_"
+    "cost:fpmarkets_completed_bar_spread_proxy_segment_positive_median_min_1_unknown_entry_cancel_"
     "half_spread_stress_v1"
 )
 _THIS_FILE = Path(__file__).resolve()
@@ -110,15 +131,6 @@ STU0048_HISTORICAL_EVALUATION_HASHES = {
         "bda62dbf52f937dc7723199d10adaefd52994a241056d6542cd56883b2fbe02d"
     ),
 }
-
-_LEGACY_INFERENCE_METRICS = frozenset(
-    {
-        "feature_control_worst_pvalue_upper_ppm",
-        "opposite_sign_pvalue_upper_ppm",
-        "selection_aware_pvalue_ppm",
-    }
-)
-
 
 def drawdown_replay_implementation_sha256() -> str:
     return sha256(_THIS_FILE.read_bytes()).hexdigest()
@@ -302,14 +314,15 @@ def drawdown_replay_components() -> tuple[ComponentSpec, ...]:
         semantic_dependencies=(trade.identity,),
     )
     execution = ComponentSpec(
-        display_name="causal segment spread replay execution",
-        protocol="execution.fpmarkets_segment_spread.replay.v2",
+        display_name="completed-period spread-proxy replay execution",
+        protocol="execution.fpmarkets_completed_period_spread_proxy.v2",
         implementation=_local("causal_drawdown_replay_spread"),
-        spec={
-            "point": "0.01",
-            "stress": "half_effective_spread_each_side",
-            "zero_spread": "lagged_positive_segment_median_min_1_else_unknown",
-        },
+        spec=completed_period_proxy_execution_spec(
+            repair_policy=(
+                "same_contiguous_segment_strict_prior_positive_288_bar_"
+                "median_min_1_else_unknown"
+            )
+        ),
         semantic_dependencies=(lifecycle.identity,),
     )
     risk = ComponentSpec(
@@ -590,6 +603,19 @@ def drawdown_replay_protocol_definition(
         block_lengths=SELECTION_BLOCK_LENGTHS,
         monte_carlo_confidence_ppm=SELECTION_MONTE_CARLO_CONFIDENCE_PPM,
         base_seed=SELECTION_SEED,
+        historical_evaluation_artifacts=tuple(
+            (
+                configuration_id,
+                artifact_sha256,
+                HISTORICAL_DRAWDOWN_EVALUATION_SCHEMA,
+            )
+            for configuration_id, artifact_sha256 in sorted(
+                STU0048_HISTORICAL_EVALUATION_HASHES.items()
+            )
+        ),
+        semantic_transition_policy=(
+            HISTORICAL_COST_TIMING_TRANSITION_POLICY
+        ),
     )
 
 
@@ -684,10 +710,6 @@ def _iso(value: object) -> str:
     return pd.Timestamp(value).isoformat()
 
 
-def _micropoints(value: object) -> int:
-    return int(round(float(value) * 1_000_000))
-
-
 def _drawdown_causal_surface_digest(
     surfaces: tuple[tuple[str, np.ndarray], ...],
 ) -> str:
@@ -723,67 +745,30 @@ def _drawdown_causal_surface_digest(
     return digest.hexdigest()
 
 
-def _time_position_map(frame: pd.DataFrame) -> dict[int, int]:
-    values = _time_ns(frame)
-    if len(values) != len(set(int(value) for value in values)):
-        raise ValueError("drawdown replay time index is not unique")
-    return {int(value): index for index, value in enumerate(values)}
-
-
 def _trade_rows(
     *,
     configuration: DrawdownReplayConfiguration,
     executable_id: str,
     simulations: Mapping[tuple[str, str], Any],
     frame: pd.DataFrame,
+    effective_spread: np.ndarray,
 ) -> list[dict[str, object]]:
-    positions = _time_position_map(frame)
-    rows: list[dict[str, object]] = []
-    for (fold_id, scope), simulation in simulations.items():
-        if scope != "full":
-            continue
-        for raw in simulation.trades.to_dict(orient="records"):
-            decision_bar = pd.Timestamp(raw["decision_bar_open_time"])
-            entry = pd.Timestamp(raw["entry_time"])
-            exit_time = pd.Timestamp(raw["exit_time"])
-            decision_index = positions[int(decision_bar.value)]
-            entry_index = positions[int(entry.value)]
-            exit_index = positions[int(exit_time.value)]
-            gross = _micropoints(raw["gross_pnl"])
-            native_cost = _micropoints(raw["native_cost"])
-            stress_cost = _micropoints(raw["stress_cost"])
-            row: dict[str, object] = {
-                "availability_time": _iso(raw["decision_time"]),
-                "configuration_id": configuration.configuration_id,
-                "decision_bar_index": decision_index,
-                "decision_bar_open_time": _iso(decision_bar),
-                "decision_time": _iso(raw["decision_time"]),
-                "direction": int(raw["direction"]),
-                "entry_bar_index": entry_index,
-                "entry_time": _iso(entry),
-                "executable_id": executable_id,
-                "exit_bar_index": exit_index,
-                "exit_time": _iso(exit_time),
-                "fold_id": fold_id,
-                "gross_pnl_micropoints": gross,
-                "historical_reference_executable_id": (
-                    configuration.historical_reference_executable_id
-                ),
-                "holding_bars": configuration.holding_bars,
-                "native_cost_micropoints": native_cost,
-                "native_net_pnl_micropoints": gross - native_cost,
-                "observation_id": "pending",
-                "regime": str(raw["regime"]),
-                "stress_cost_micropoints": stress_cost,
-                "stress_net_pnl_micropoints": gross - stress_cost,
-            }
-            if not (
-                entry_index == decision_index + 1
-                and exit_index - entry_index == configuration.holding_bars
-            ):
-                raise RuntimeError("captured fixed-hold trade indices drifted")
-            row["observation_id"] = fixed_hold_observation_id("trade", row)
-            rows.append(row)
+    member = AtomicFixedHoldMember(
+        configuration_id=configuration.configuration_id,
+        executable_id=executable_id,
+        historical_reference_executable_id=(
+            configuration.historical_reference_executable_id
+        ),
+        holding_bars=configuration.holding_bars,
+    )
+    rows = materialize_fixed_hold_trade_rows(
+        member=member,
+        simulations=simulations,
+        frame=frame,
+        effective_spread=effective_spread,
+        observation_id=fixed_hold_observation_id,
+        include_holding_bars=True,
+    )
     return rows
 
 
@@ -793,50 +778,24 @@ def _intent_rows(
     executable_id: str,
     simulations: Mapping[tuple[str, str], Any],
     frame: pd.DataFrame,
+    effective_spread: np.ndarray,
 ) -> list[dict[str, object]]:
-    positions = _time_position_map(frame)
-    rows: list[dict[str, object]] = []
-    for (fold_id, scope), simulation in simulations.items():
-        for ordinal, raw in enumerate(simulation.intent_rows, start=1):
-            decision, entry, exit_time, direction, status = raw
-            decision_timestamp = pd.Timestamp(decision)
-            entry_timestamp = pd.Timestamp(entry)
-            exit_timestamp = pd.Timestamp(exit_time)
-            decision_bar_timestamp = decision_timestamp - pd.Timedelta(
-                minutes=5
-            )
-            decision_index = positions[int(decision_bar_timestamp.value)]
-            entry_index = positions[int(entry_timestamp.value)]
-            row: dict[str, object] = {
-                "availability_time": _iso(decision_timestamp),
-                "configuration_id": configuration.configuration_id,
-                "decision_bar_index": decision_index,
-                "decision_bar_open_time": _iso(decision_bar_timestamp),
-                "decision_time": _iso(decision_timestamp),
-                "direction": int(direction),
-                "entry_bar_index": entry_index,
-                "entry_time": _iso(entry_timestamp),
-                "executable_id": executable_id,
-                "exit_bar_index": positions[int(exit_timestamp.value)],
-                "exit_time": _iso(exit_timestamp),
-                "fold_id": fold_id,
-                "historical_reference_executable_id": (
-                    configuration.historical_reference_executable_id
-                ),
-                "holding_bars": configuration.holding_bars,
-                "observation_id": "pending",
-                "ordinal": ordinal,
-                "scope": scope,
-                "status": str(status),
-            }
-            if not (
-                entry_index == decision_index + 1
-                and row["exit_bar_index"] - entry_index
-                == configuration.holding_bars
-            ):
-                raise RuntimeError("captured fixed-hold intent indices drifted")
-            row["observation_id"] = fixed_hold_observation_id("intent", row)
-            rows.append(row)
+    member = AtomicFixedHoldMember(
+        configuration_id=configuration.configuration_id,
+        executable_id=executable_id,
+        historical_reference_executable_id=(
+            configuration.historical_reference_executable_id
+        ),
+        holding_bars=configuration.holding_bars,
+    )
+    rows = materialize_fixed_hold_intent_rows(
+        member=member,
+        simulations=simulations,
+        frame=frame,
+        effective_spread=effective_spread,
+        observation_id=fixed_hold_observation_id,
+        include_holding_bars=True,
+    )
     return rows
 
 
@@ -864,7 +823,7 @@ def _load_historical_evaluations(
         value = parse_canonical(store.read_verified(identity))
         if (
             not isinstance(value, dict)
-            or value.get("schema") != "drawdown_state_evaluation.v1"
+            or value.get("schema") != HISTORICAL_DRAWDOWN_EVALUATION_SCHEMA
             or value.get("subject_configuration_id") != configuration_id
         ):
             raise RuntimeError(
@@ -876,82 +835,48 @@ def _load_historical_evaluations(
     return evaluations
 
 
-def _assert_historical_raw_parity(
+def validate_stu0048_historical_semantic_transition(
     *,
     repository_root: Path,
-    results: Mapping[str, Any],
-) -> None:
+    definition: FixedHoldProtocolDefinition,
+    windows: tuple[dict[str, object], ...],
+    trade_observations: tuple[dict[str, object], ...],
+    intent_observations: tuple[dict[str, object], ...],
+) -> tuple[dict[str, object], ...]:
+    """Bind immutable old artifacts to an atomic-row-derived new surface."""
+
+    inventory = expected_fixed_hold_family_inventory(definition)
+    controls = expected_fixed_hold_control_inventory(definition)
+    corrected = derive_fixed_hold_semantic_surfaces(
+        ordered_family=inventory,
+        control_bindings=controls,
+        windows=windows,
+        trades=trade_observations,
+        intents=intent_observations,
+        prefix_invariance_mismatch_count=0,
+    )
     historical = _load_historical_evaluations(repository_root)
-    by_reference = {
-        configuration.historical_reference_executable_id: results[
-            configuration.configuration_id
-        ]
-        for configuration in drawdown_replay_configurations()
-    }
-    for configuration in drawdown_replay_configurations():
-        result = results[configuration.configuration_id]
-        control = STU0048_HISTORICAL_FAMILY.control_for_historical_executable(
-            configuration.historical_reference_executable_id
-        )
-        opposite = by_reference[control.opposite_historical_executable_id]
-        features = tuple(
-            by_reference[value]
-            for value in control.feature_historical_executable_ids
-        )
-        observed_metrics = {
-            **{
-                name: value
-                for name, value in result.metrics.items()
-                if name not in _LEGACY_INFERENCE_METRICS
-            },
-            "feature_control_worst_delta_net_profit_micropoints": min(
-                result.metrics["net_profit_micropoints"]
-                - value.metrics["net_profit_micropoints"]
-                for value in features
-            ),
-            "opposite_sign_worst_delta_net_profit_micropoints": (
-                result.metrics["net_profit_micropoints"]
-                - opposite.metrics["net_profit_micropoints"]
-            ),
-        }
-        expected = historical[configuration.configuration_id]
-        expected_metrics = {
-            name: value
-            for name, value in expected["metrics"].items()
-            if name not in _LEGACY_INFERENCE_METRICS
-        }
-        surfaces = {
-            "metrics": (observed_metrics, expected_metrics),
-            "fold_metrics": (result.fold_metrics, expected["fold_metrics"]),
-            "regime_metrics": (
-                result.regime_metrics,
-                expected["regime_metrics"],
-            ),
-            "session_metrics": (
-                result.session_metrics,
-                expected["session_metrics"],
-            ),
-            "direction_metrics": (
-                result.direction_metrics,
-                expected["direction_metrics"],
-            ),
-        }
-        mismatches = {
-            name: {
-                "expected": expected_value,
-                "observed": observed_value,
-            }
-            for name, (observed_value, expected_value) in surfaces.items()
-            if observed_value != expected_value
-        }
-        if mismatches:
-            raise RuntimeError(
-                "prospective "
-                f"{STU0048_HISTORICAL_FAMILY.original_study_id} raw results "
-                "differ from historical "
-                f"evidence for {configuration.configuration_id}: "
-                f"{mismatches}"
+    transitions: list[dict[str, object]] = []
+    artifacts = definition.historical_artifacts_by_configuration()
+    for member in inventory:
+        configuration_id = str(member["configuration_id"])
+        artifact = artifacts[configuration_id]
+        projection = corrected[configuration_id]
+        transitions.append(
+            build_historical_cost_timing_transition(
+                configuration_id=configuration_id,
+                corrected_executable_id=str(member["executable_id"]),
+                historical_reference_executable_id=(
+                    str(member["historical_reference_executable_id"])
+                ),
+                historical_artifact_sha256=artifact["artifact_sha256"],
+                historical_artifact_schema=artifact["schema"],
+                historical_evaluation_artifact=historical[configuration_id],
+                corrected_structural_surfaces=projection["structural"],
+                corrected_economic_surfaces=projection["economic"],
             )
+        )
+    return tuple(transitions)
 
 
 def compute_stu0048_drawdown_family_trace(
@@ -959,7 +884,7 @@ def compute_stu0048_drawdown_family_trace(
     *,
     historical_context_prior_global_exposure_count: int,
 ) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
-    """Compute one exact four-member neutral trace and prove raw parity."""
+    """Compute a corrected four-member trace with structural continuity."""
 
     root = Path(repository_root).resolve()
     definition = drawdown_replay_protocol_definition(
@@ -1091,7 +1016,6 @@ def compute_stu0048_drawdown_family_trace(
         )
     )
 
-    results: dict[str, Any] = {}
     captures_by_configuration: dict[
         str, dict[tuple[str, str], Any]
     ] = {}
@@ -1132,11 +1056,8 @@ def compute_stu0048_drawdown_family_trace(
         }
         if set(captures) != expected_capture_keys:
             raise RuntimeError("drawdown replay simulation capture is incomplete")
-        results[configuration.configuration_id] = result
         captures_by_configuration[configuration.configuration_id] = captures
         raw_metrics[executable_id] = dict(result.metrics)
-
-    _assert_historical_raw_parity(repository_root=root, results=results)
 
     all_trades: list[dict[str, object]] = []
     all_intents: list[dict[str, object]] = []
@@ -1151,6 +1072,7 @@ def compute_stu0048_drawdown_family_trace(
                 executable_id=executable_id,
                 simulations=captures,
                 frame=frame,
+                effective_spread=spread,
             )
         )
         all_intents.extend(
@@ -1159,6 +1081,7 @@ def compute_stu0048_drawdown_family_trace(
                 executable_id=executable_id,
                 simulations=captures,
                 frame=frame,
+                effective_spread=spread,
             )
         )
     all_trades.sort(
@@ -1177,6 +1100,13 @@ def compute_stu0048_drawdown_family_trace(
             int(item["ordinal"]),
             str(item["observation_id"]),
         )
+    )
+    semantic_transitions = validate_stu0048_historical_semantic_transition(
+        repository_root=root,
+        definition=definition,
+        windows=tuple(windows),
+        trade_observations=tuple(all_trades),
+        intent_observations=tuple(all_intents),
     )
     aggregates: dict[tuple[str, str, str], list[int]] = {}
     for trade in all_trades:
@@ -1220,6 +1150,7 @@ def compute_stu0048_drawdown_family_trace(
         trade_observations=all_trades,
         intent_observations=all_intents,
         eligible_day_observations=eligible_rows,
+        semantic_transition_evidence=semantic_transitions,
     )
     return normalized, raw_metrics
 
@@ -1244,4 +1175,5 @@ __all__ = [
     "drawdown_replay_producer_implementation_identities",
     "drawdown_replay_protocol_definition",
     "expected_drawdown_replay_inventory",
+    "validate_stu0048_historical_semantic_transition",
 ]

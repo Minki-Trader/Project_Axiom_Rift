@@ -47,6 +47,7 @@ from axiom_rift.research.discovery import (
     _validate_fold_payloads,
     _validate_production_data,
     causal_effective_spread,
+    completed_bar_execution_spreads,
     discovery_implementation_sha256,
     execution_pnl,
 )
@@ -362,8 +363,8 @@ def us30_downside_spillover_components(raw_sha256: str) -> tuple[ComponentSpec, 
             spec={"dynamic_sizing": False, "lot": 1, "positions_per_sleeve": 1},
         )
     execution = ComponentSpec(
-            display_name="US100 native bid-bar spread execution",
-            protocol="execution.fpmarkets_US100_bid_bar_spread.v2",
+            display_name="US100 completed-period spread proxy execution",
+            protocol="execution.fpmarkets_US100_completed_bar_spread_proxy.v2",
             implementation=_dependency_implementation("execution_pnl"),
             semantic_dependencies=(risk.identity,),
             spec={
@@ -407,7 +408,7 @@ def us30_downside_spillover_executable(
             "exact_timestamp_no_offset_inference_v1"
         ),
         cost_contract=(
-            "cost:US100_bid_bar_spread_point_0_01_zero_lag1_positive_median_"
+            "cost:US100_completed_bar_spread_proxy_point_0_01_zero_lag1_positive_median_"
             "window288_min24_target_gap_reset_half_spread_stress_v2"
         ),
         engine_contract=(
@@ -722,7 +723,12 @@ def simulate_cross_asset_fixed_hold(
             intents.append((decision_time, entry_time, exit_time, direction, "causality_violation"))
             continue
         next_decision_target_index = exit_index
-        if not (np.isfinite(spreads[entry_index]) and np.isfinite(spreads[exit_index])):
+        execution_spreads = completed_bar_execution_spreads(
+            spreads,
+            entry_index=entry_index,
+            exit_index=exit_index,
+        )
+        if not execution_spreads.costs_known:
             unresolved += 1
             intents.append((decision_time, entry_time, exit_time, direction, "unknown_cost"))
             continue
@@ -730,8 +736,8 @@ def simulate_cross_asset_fixed_hold(
             direction=direction,
             entry_bid=float(opens[entry_index]),
             exit_bid=float(opens[exit_index]),
-            entry_spread_points=float(spreads[entry_index]),
-            exit_spread_points=float(spreads[exit_index]),
+            entry_spread_points=execution_spreads.entry_spread_points,
+            exit_spread_points=execution_spreads.exit_spread_points,
         )
         entry_volatility = float(volatility[joined_index])
         regime = (

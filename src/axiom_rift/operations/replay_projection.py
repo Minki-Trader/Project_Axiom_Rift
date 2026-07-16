@@ -18,10 +18,15 @@ from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.recorded_transition_authority import (
     RecordedTransitionAuthorityError,
     require_recorded_transition_authority,
+    require_same_event_operation_result,
 )
 from axiom_rift.operations.evidence_scope_projection import (
     evidence_scope_overlay_record,
     evidence_scope_stream,
+)
+from axiom_rift.operations.completion_validity_projection import (
+    CompletionValidityProjectionError,
+    current_completion_validity_invalidation,
 )
 from axiom_rift.operations.scientific_multiplicity_authority import (
     MULTIPLICITY_BATCH_BINDING_FIELDS,
@@ -37,6 +42,7 @@ from axiom_rift.research.replay_obligation import (
     ReplayDeferralBasisKind,
     ReplayExecutionBinding,
     ReplayObligationStatus,
+    ReplayPriorityEscalation,
     ReplayRepairBasisKind,
     ReplayRepairProvenance,
     ReplayResolutionScope,
@@ -46,14 +52,21 @@ from axiom_rift.research.replay_obligation import (
     ReplaySatisfaction,
     derive_historical_replay_obligation,
     historical_replay_obligation_from_identity_payload,
+    replay_priority_escalation_from_identity_payload,
     replay_deferral_from_identity_payload,
 )
 from axiom_rift.research.replay_satisfaction_invalidation import (
+    ReplayCompletionValidityDefect,
+    ReplayCompletionValidityDefectCode,
+    ReplayCompletionValidityObservation,
     ReplayMultiplicityBindingDefect,
     ReplayMultiplicityDefectCode,
     ReplaySatisfactionInvalidationAuditManifest,
+    ReplaySatisfactionInvalidationAuditManifestV2,
+    ReplaySatisfactionInvalidationManifest,
     ReplaySelectionFamilyObservation,
     SELECTION_CRITERION_ID,
+    replay_satisfaction_invalidation_manifest_from_mapping,
 )
 from axiom_rift.storage.index import IndexRecord, LocalIndex, LocalIndexView
 from axiom_rift.storage.evidence import EvidenceStore
@@ -92,6 +105,23 @@ class ReplayMultiplicityBindingError(ReplayTransitionError):
         self.defect = defect
 
 
+class _HistoricalRegistrationOrderDiagnostic(ReplayTransitionError):
+    """A same-member legacy order mismatch with no revocation authority."""
+
+    def __init__(
+        self,
+        *,
+        expected_ordered_member_ids: tuple[str, ...],
+        observations: tuple[ReplaySelectionFamilyObservation, ...],
+    ) -> None:
+        super().__init__(
+            "scientific replay selection registration order differs from the "
+            "exact prospective Batch order"
+        )
+        self.expected_ordered_member_ids = expected_ordered_member_ids
+        self.observations = observations
+
+
 @dataclass(frozen=True, slots=True)
 class _DiagnosedReplayExecution:
     progress: IndexRecord
@@ -128,6 +158,233 @@ def _record(
 
 def obligation_stream(obligation_id: str) -> str:
     return f"historical-replay-obligation:{obligation_id}"
+
+
+def replay_priority_stream(obligation_id: str) -> str:
+    return f"historical-replay-priority:{obligation_id}"
+
+
+def replay_priority_escalation_record(
+    escalation: ReplayPriorityEscalation,
+) -> IndexRecord:
+    """Prepare one independent, append-only P1-to-P0 priority overlay."""
+
+    if not isinstance(escalation, ReplayPriorityEscalation):
+        raise ReplayTransitionError("replay priority escalation is not typed")
+    return _record(
+        kind="historical-replay-priority-escalation",
+        record_id=escalation.identity,
+        subject=f"Mission:{escalation.governing_mission_id}",
+        status=ReplayPriority.P0.value,
+        fingerprint=escalation.identity.removeprefix(
+            "historical-replay-priority-escalation:"
+        ),
+        payload={"escalation": escalation.to_identity_payload()},
+        event_stream=replay_priority_stream(escalation.obligation_id),
+        event_sequence=1,
+    )
+
+
+def current_replay_priority_escalation(
+    index: LocalIndex | LocalIndexView,
+    obligation: HistoricalReplayObligation,
+) -> ReplayPriorityEscalation | None:
+    """Open and authenticate the one possible effective-priority overlay."""
+
+    if not isinstance(obligation, HistoricalReplayObligation):
+        raise ReplayProjectionError("replay priority subject is not typed")
+    stream = replay_priority_stream(obligation.identity)
+    head = index.event_head(stream)
+    if head is None:
+        return None
+    record = index.get(head.record_kind, head.record_id)
+    raw = None if record is None else record.payload.get("escalation")
+    try:
+        escalation = replay_priority_escalation_from_identity_payload(raw)
+    except (TypeError, ValueError) as exc:
+        raise ReplayProjectionError(
+            "replay priority escalation payload is malformed"
+        ) from exc
+    if (
+        record is None
+        or head.sequence != 1
+        or record.kind != "historical-replay-priority-escalation"
+        or record.record_id != escalation.identity
+        or record.status != ReplayPriority.P0.value
+        or record.subject != f"Mission:{obligation.governing_mission_id}"
+        or record.fingerprint
+        != escalation.identity.removeprefix(
+            "historical-replay-priority-escalation:"
+        )
+        or record.event_stream != stream
+        or record.event_sequence != head.sequence
+        or set(record.payload) != {"escalation"}
+        or obligation.replay_priority is not ReplayPriority.P1
+        or escalation.obligation_id != obligation.identity
+        or escalation.governing_mission_id != obligation.governing_mission_id
+    ):
+        raise ReplayProjectionError(
+            "replay priority escalation stream is malformed"
+        )
+    try:
+        validity = current_completion_validity_invalidation(
+            index,
+            obligation.original_completion_record_id,
+        )
+    except CompletionValidityProjectionError as exc:
+        raise ReplayProjectionError(
+            "replay priority escalation completion validity is malformed"
+        ) from exc
+    adjudication = index.get(
+        "historical-scientific-adjudication",
+        escalation.superseding_historical_adjudication_id,
+    )
+    adjudication_stream = (
+        f"historical-adjudication:{obligation.original_completion_record_id}"
+    )
+    adjudication_head = index.event_head(adjudication_stream)
+    current_adjudication = (
+        None
+        if adjudication_head is None
+        else index.get(
+            adjudication_head.record_kind,
+            adjudication_head.record_id,
+        )
+    )
+    escalation_adjudication_is_in_lineage = False
+    seen_adjudication_ids: set[str] = set()
+    while current_adjudication is not None:
+        if (
+            current_adjudication.record_id in seen_adjudication_ids
+            or current_adjudication.kind
+            != "historical-scientific-adjudication"
+            or current_adjudication.event_stream != adjudication_stream
+            or type(current_adjudication.event_sequence) is not int
+            or current_adjudication.event_sequence < 1
+        ):
+            raise ReplayProjectionError(
+                "replay priority escalation adjudication lineage is malformed"
+            )
+        seen_adjudication_ids.add(current_adjudication.record_id)
+        if (
+            current_adjudication.record_id
+            == escalation.superseding_historical_adjudication_id
+        ):
+            escalation_adjudication_is_in_lineage = True
+            break
+        prior_adjudication_id = current_adjudication.payload.get(
+            "supersedes_record_id"
+        )
+        if prior_adjudication_id is None:
+            current_adjudication = None
+        elif not isinstance(prior_adjudication_id, str):
+            raise ReplayProjectionError(
+                "replay priority escalation adjudication lineage is malformed"
+            )
+        else:
+            current_adjudication = index.get(
+                "historical-scientific-adjudication",
+                prior_adjudication_id,
+            )
+    satisfaction = index.get(
+        "historical-replay-obligation-resolution",
+        escalation.accepted_satisfaction_record_id,
+    )
+    if (
+        validity is None
+        or validity.invalidation_record_id
+        != escalation.completion_validity_invalidation_id
+        or adjudication is None
+        or adjudication_head is None
+        or current_adjudication is None
+        or not escalation_adjudication_is_in_lineage
+        or adjudication.status != "replay_required"
+        or adjudication.payload.get("completion_record_id")
+        != obligation.original_completion_record_id
+        or adjudication.payload.get("audit_artifact_hash")
+        != escalation.audit_artifact_hash
+        or adjudication.payload.get("replay_priority")
+        != ReplayPriority.P0.value
+        or adjudication.payload.get("replay_obligation_id")
+        != obligation.identity
+        or adjudication.payload.get("replay_obligation_authority")
+        != "reused_existing_lineage"
+        or satisfaction is None
+        or satisfaction.status != ReplayObligationStatus.SATISFIED.value
+        or satisfaction.event_stream != obligation_stream(obligation.identity)
+        or satisfaction.payload.get("obligation_id") != obligation.identity
+    ):
+        raise ReplayProjectionError(
+            "replay priority escalation lost its exact additive authority"
+        )
+    try:
+        event_kind, result = require_same_event_operation_result(
+            index,
+            record=record,
+            expected_event_kinds=frozenset(
+                {"historical_scientific_adjudications_recorded"}
+            ),
+        )
+    except RecordedTransitionAuthorityError as exc:
+        raise ReplayProjectionError(
+            "replay priority escalation lacks same-event Writer authority"
+        ) from exc
+    escalation_ids = result.get("replay_priority_escalation_ids")
+    adjudication_ids = result.get("adjudication_record_ids")
+    new_obligation_ids = result.get("replay_obligation_ids")
+    reused_obligation_ids = result.get("reused_replay_obligation_ids")
+    if (
+        event_kind != "historical_scientific_adjudications_recorded"
+        or set(result)
+        != {
+            "adjudication_record_ids",
+            "audit_artifact_hash",
+            "candidate_delta",
+            "holdout_delta",
+            "replay_obligation_ids",
+            "replay_priority_escalation_ids",
+            "reused_replay_obligation_ids",
+            "trial_delta",
+        }
+        or result.get("audit_artifact_hash") != escalation.audit_artifact_hash
+        or not isinstance(escalation_ids, list)
+        or any(type(item) is not str for item in escalation_ids)
+        or escalation_ids != sorted(set(escalation_ids))
+        or escalation.identity not in escalation_ids
+        or not isinstance(adjudication_ids, list)
+        or any(type(item) is not str for item in adjudication_ids)
+        or len(adjudication_ids) != len(set(adjudication_ids))
+        or escalation.superseding_historical_adjudication_id
+        not in adjudication_ids
+        or not isinstance(new_obligation_ids, list)
+        or any(type(item) is not str for item in new_obligation_ids)
+        or len(new_obligation_ids) != len(set(new_obligation_ids))
+        or obligation.identity in new_obligation_ids
+        or not isinstance(reused_obligation_ids, list)
+        or any(type(item) is not str for item in reused_obligation_ids)
+        or reused_obligation_ids != sorted(set(reused_obligation_ids))
+        or obligation.identity not in reused_obligation_ids
+        or any(
+            result.get(name) != 0
+            for name in ("candidate_delta", "holdout_delta", "trial_delta")
+        )
+    ):
+        raise ReplayProjectionError(
+            "replay priority escalation Writer result is not exact"
+        )
+    return escalation
+
+
+def effective_replay_priority(
+    index: LocalIndex | LocalIndexView,
+    obligation: HistoricalReplayObligation,
+) -> ReplayPriority:
+    escalation = current_replay_priority_escalation(index, obligation)
+    return (
+        obligation.replay_priority
+        if escalation is None
+        else escalation.effective_priority
+    )
 
 
 def initial_obligation_record(
@@ -306,32 +563,72 @@ def obligation_heads(
 
 def constraints_for_pending(
     obligations: Sequence[HistoricalReplayObligation],
+    *,
+    effective_priorities: Mapping[str, ReplayPriority] | None = None,
 ) -> dict[str, Any] | None:
     pending = tuple(obligations)
     if not pending:
         return None
+    priorities = {} if effective_priorities is None else dict(effective_priorities)
+    identities = {item.identity for item in pending}
+    if (
+        set(priorities) - identities
+        or any(not isinstance(value, ReplayPriority) for value in priorities.values())
+        or any(
+            priorities.get(item.identity, item.replay_priority)
+            not in {item.replay_priority, ReplayPriority.P0}
+            or (
+                priorities.get(item.identity, item.replay_priority)
+                is ReplayPriority.P0
+                and item.replay_priority not in {ReplayPriority.P0, ReplayPriority.P1}
+            )
+            for item in pending
+        )
+    ):
+        raise ReplayProjectionError("effective replay priority inventory is invalid")
+    by_id = {
+        item.identity: priorities.get(item.identity, item.replay_priority)
+        for item in pending
+    }
     priority = (
         ReplayPriority.P0
-        if any(item.replay_priority is ReplayPriority.P0 for item in pending)
+        if ReplayPriority.P0 in by_id.values()
         else ReplayPriority.P1
     )
     return {
         "pending_replay_obligation_ids": sorted(
-            item.identity for item in pending if item.replay_priority is priority
+            item.identity for item in pending if by_id[item.identity] is priority
         ),
         "required_replay_priority": priority.value,
     }
 
 
+def constraints_for_pending_from_index(
+    index: LocalIndex | LocalIndexView,
+    obligations: Sequence[HistoricalReplayObligation],
+) -> dict[str, Any] | None:
+    pending = tuple(obligations)
+    return constraints_for_pending(
+        pending,
+        effective_priorities={
+            item.identity: effective_replay_priority(index, item)
+            for item in pending
+        },
+    )
+
+
 def scheduler_constraints(
-    index: LocalIndex,
+    index: LocalIndex | LocalIndexView,
     *,
     mission_id: str,
 ) -> dict[str, Any] | None:
-    return constraints_for_pending(
+    return constraints_for_pending_from_index(
+        index,
+        tuple(
         obligation
         for obligation, head in obligation_heads(index, mission_id=mission_id)
         if head.status == ReplayObligationStatus.PENDING.value
+        ),
     )
 
 
@@ -531,8 +828,9 @@ def validate_decision_selection(
         for obligation, head in current_heads
         if head.status == ReplayObligationStatus.PENDING.value
     )
-    constraints = constraints_for_pending(
-        obligation for obligation, _head in pending_pairs
+    constraints = constraints_for_pending_from_index(
+        index,
+        tuple(obligation for obligation, _head in pending_pairs),
     )
     projected = {
         name: next_action.get(name)
@@ -629,7 +927,7 @@ def validate_replay_review_basis(
     selected_obligation_ids: Sequence[str],
     review_basis: Collection[tuple[str, str]],
 ) -> None:
-    """Require bounded queue consideration without forcing a P1 allocation.
+    """Require bounded review of the authenticated highest-priority queue.
 
     A selected replay must be cited exactly.  When the highest-priority queue
     is deliberately not selected, a real quant-team review must still cite at
@@ -1591,9 +1889,9 @@ def _require_multiplicity_batch_binding(
         item.ordered_member_ids != expected_ordered_member_ids
         for item in observations
     ):
-        raise ReplayTransitionError(
-            "scientific replay selection registration order differs from the "
-            "exact prospective Batch order"
+        raise _HistoricalRegistrationOrderDiagnostic(
+            expected_ordered_member_ids=expected_ordered_member_ids,
+            observations=tuple(observations),
         )
 
 
@@ -2169,13 +2467,72 @@ def _require_recorded_transition_authority(
         raise ReplayProjectionError(str(exc)) from exc
 
 
+def _completion_validity_defect(
+    index: LocalIndex,
+    *,
+    satisfaction: ReplaySatisfaction,
+) -> tuple[tuple[str, ...], ReplayCompletionValidityDefect | None]:
+    """Derive invalid family members only from authenticated current heads."""
+
+    completion_ids = tuple(
+        sorted(
+            record_id
+            for record_id in satisfaction.evidence_record_ids
+            if index.get("job-completed", record_id) is not None
+        )
+    )
+    if not completion_ids:
+        raise ReplayProjectionError(
+            "scientific replay satisfaction lacks its completion family"
+        )
+    observations: list[ReplayCompletionValidityObservation] = []
+    for completion_id in completion_ids:
+        try:
+            current = current_completion_validity_invalidation(
+                index,
+                completion_id,
+            )
+        except CompletionValidityProjectionError as exc:
+            raise ReplayProjectionError(
+                "replay completion validity authority is malformed"
+            ) from exc
+        if current is None:
+            continue
+        observations.append(
+            ReplayCompletionValidityObservation(
+                completion_record_id=current.completion_record_id,
+                executable_id=current.executable_id,
+                invalidation_record_id=current.invalidation_record_id,
+                reason=current.reason,
+                affected_criterion_ids=current.affected_criterion_ids,
+                validity_stream_sequence=current.validity_stream_sequence,
+                authority_event_id=current.authority_event_id,
+                authority_sequence=current.authority_sequence,
+                authority_offset=current.authority_offset,
+            )
+        )
+    if not observations:
+        return completion_ids, None
+    try:
+        return completion_ids, ReplayCompletionValidityDefect(
+            code=(
+                ReplayCompletionValidityDefectCode.EVIDENCE_COMPLETION_VALIDITY_INVALID
+            ),
+            observations=tuple(observations),
+        )
+    except (TypeError, ValueError) as exc:
+        raise ReplayProjectionError(
+            "replay completion validity defect cannot be derived"
+        ) from exc
+
+
 def derive_satisfaction_invalidation_manifest(
     index: LocalIndex,
     *,
     obligation: HistoricalReplayObligation,
     satisfaction_head: IndexRecord,
-) -> ReplaySatisfactionInvalidationAuditManifest:
-    """Revalidate one satisfied head and derive only an exact E01 defect."""
+) -> ReplaySatisfactionInvalidationManifest:
+    """Revalidate one satisfied head and derive every exact typed defect."""
 
     satisfaction = _satisfaction_from_head(
         obligation=obligation,
@@ -2183,8 +2540,13 @@ def derive_satisfaction_invalidation_manifest(
     )
     if satisfaction.resolution_scope is not ReplayResolutionScope.SCIENTIFIC:
         raise ReplayTransitionError(
-            "only scientific replay satisfaction can be multiplicity-invalidated"
+            "only scientific replay satisfaction can be validity-invalidated"
         )
+    completion_ids, validity_defect = _completion_validity_defect(
+        index,
+        satisfaction=satisfaction,
+    )
+    multiplicity_defect: ReplayMultiplicityBindingDefect | None = None
     try:
         require_satisfaction(
             index,
@@ -2193,14 +2555,45 @@ def derive_satisfaction_invalidation_manifest(
             allow_legacy_decision_binding=False,
         )
     except ReplayMultiplicityBindingError as exc:
-        defect = exc.defect
+        multiplicity_defect = exc.defect
+    except _HistoricalRegistrationOrderDiagnostic:
+        # The immutable history preserves both the frozen Batch member order
+        # and each registration's same-member order.  Their order-only
+        # difference is diagnostic for old accepted satisfactions, never a
+        # revocation capability.  A separately authenticated completion-
+        # validity head may still revoke the satisfaction; prospective
+        # satisfaction admission continues to reject this diagnostic above.
+        if validity_defect is None:
+            raise
     except ReplayAuthorityError:
         raise
-    else:
+    if multiplicity_defect is None and validity_defect is None:
         raise ReplayTransitionError(
             "historical replay satisfaction remains valid under the current protocol"
         )
-    return ReplaySatisfactionInvalidationAuditManifest(
+    if multiplicity_defect is None:
+        defects = (validity_defect,)
+    elif validity_defect is None:
+        defect = multiplicity_defect
+        return ReplaySatisfactionInvalidationAuditManifest(
+            governing_mission_id=obligation.governing_mission_id,
+            obligation_id=obligation.identity,
+            satisfaction_record_id=satisfaction.identity,
+            satisfaction_event_sequence=satisfaction_head.event_sequence,
+            portfolio_decision_id=satisfaction.portfolio_decision_id,
+            replay_study_id=satisfaction.replay_study_id,
+            replay_executable_id=satisfaction.replay_executable_id,
+            replay_study_close_record_id=satisfaction.replay_study_close_record_id,
+            study_diagnosis_id=satisfaction.study_diagnosis_id,
+            completion_record_ids=tuple(
+                item.completion_record_id for item in defect.observations
+            ),
+            defect=defect,
+        )
+    else:
+        defects = (multiplicity_defect, validity_defect)
+    assert all(defect is not None for defect in defects)
+    return ReplaySatisfactionInvalidationAuditManifestV2(
         governing_mission_id=obligation.governing_mission_id,
         obligation_id=obligation.identity,
         satisfaction_record_id=satisfaction.identity,
@@ -2210,10 +2603,8 @@ def derive_satisfaction_invalidation_manifest(
         replay_executable_id=satisfaction.replay_executable_id,
         replay_study_close_record_id=satisfaction.replay_study_close_record_id,
         study_diagnosis_id=satisfaction.study_diagnosis_id,
-        completion_record_ids=tuple(
-            item.completion_record_id for item in defect.observations
-        ),
-        defect=defect,
+        completion_record_ids=completion_ids,
+        defects=defects,  # type: ignore[arg-type]
     )
 
 
@@ -2256,7 +2647,7 @@ def build_satisfaction_invalidation_plan(
 def satisfaction_invalidation_record(
     *,
     obligation: HistoricalReplayObligation,
-    manifest: ReplaySatisfactionInvalidationAuditManifest,
+    manifest: ReplaySatisfactionInvalidationManifest,
     audit_manifest_hash: str,
     sequence: int,
 ) -> IndexRecord:
@@ -2292,13 +2683,13 @@ def require_satisfaction_invalidation_record(
     *,
     obligation: HistoricalReplayObligation,
     record: IndexRecord,
-) -> ReplaySatisfactionInvalidationAuditManifest:
+) -> ReplaySatisfactionInvalidationManifest:
     """Rebuild a pending invalidation head from its exact prior satisfaction."""
 
     raw_manifest = record.payload.get("audit_manifest")
     audit_manifest_hash = record.payload.get("audit_manifest_hash")
     try:
-        manifest = ReplaySatisfactionInvalidationAuditManifest.from_mapping(
+        manifest = replay_satisfaction_invalidation_manifest_from_mapping(
             raw_manifest
         )
     except (TypeError, ValueError) as exc:
@@ -2409,21 +2800,68 @@ def require_satisfaction_invalidation_record(
             "replay satisfaction invalidation lost its exact prior satisfaction"
         )
     stored_evidence_ids = set(satisfaction.evidence_record_ids)
-    defect = manifest.defect
-    if (
-        defect.batch_open_record_id not in stored_evidence_ids
-        or defect.batch_close_record_id not in stored_evidence_ids
-        or not set(manifest.completion_record_ids).issubset(stored_evidence_ids)
-        or index.get("batch-open", defect.batch_open_record_id) is None
-        or index.get("batch-close", defect.batch_close_record_id) is None
-        or any(
-            index.get("job-completed", record_id) is None
-            for record_id in manifest.completion_record_ids
-        )
-    ):
+    stored_completion_ids = {
+        record_id
+        for record_id in stored_evidence_ids
+        if index.get("job-completed", record_id) is not None
+    }
+    if set(manifest.completion_record_ids) != stored_completion_ids:
         raise ReplayProjectionError(
             "replay satisfaction invalidation manifest left its stored evidence lineage"
         )
+    defects = (
+        (manifest.defect,)
+        if isinstance(manifest, ReplaySatisfactionInvalidationAuditManifest)
+        else manifest.defects
+    )
+    for defect in defects:
+        if isinstance(defect, ReplayMultiplicityBindingDefect):
+            if (
+                defect.batch_open_record_id not in stored_evidence_ids
+                or defect.batch_close_record_id not in stored_evidence_ids
+                or index.get("batch-open", defect.batch_open_record_id) is None
+                or index.get("batch-close", defect.batch_close_record_id) is None
+            ):
+                raise ReplayProjectionError(
+                    "replay multiplicity defect left its stored Batch lineage"
+                )
+            continue
+        if not isinstance(defect, ReplayCompletionValidityDefect):
+            raise ReplayProjectionError(
+                "replay satisfaction invalidation defect is unsupported"
+            )
+        for observation in defect.observations:
+            try:
+                current = current_completion_validity_invalidation(
+                    index,
+                    observation.completion_record_id,
+                )
+            except CompletionValidityProjectionError as exc:
+                raise ReplayProjectionError(
+                    "replay completion validity head is malformed"
+                ) from exc
+            if (
+                current is None
+                or current.completion_record_id
+                != observation.completion_record_id
+                or current.executable_id != observation.executable_id
+                or current.invalidation_record_id
+                != observation.invalidation_record_id
+                or current.reason != observation.reason
+                or current.affected_criterion_ids
+                != observation.affected_criterion_ids
+                or current.validity_stream_sequence
+                != observation.validity_stream_sequence
+                or current.authority_event_id != observation.authority_event_id
+                or current.authority_sequence != observation.authority_sequence
+                or current.authority_offset != observation.authority_offset
+                or not set(observation.affected_criterion_ids).intersection(
+                    satisfaction.satisfied_criterion_ids
+                )
+            ):
+                raise ReplayProjectionError(
+                    "replay completion validity defect is stale or unrelated"
+                )
     return manifest
 
 
@@ -2432,7 +2870,7 @@ def prepare_satisfaction_invalidation(
     *,
     mission_id: str,
     obligation_id: str,
-    manifest: ReplaySatisfactionInvalidationAuditManifest,
+    manifest: ReplaySatisfactionInvalidationManifest,
     audit_manifest_hash: str,
 ) -> tuple[list[IndexRecord], dict[str, Any], dict[str, Any]]:
     """Prepare satisfied-to-pending revocation and restore its scheduler duty."""
@@ -2442,7 +2880,7 @@ def prepare_satisfaction_invalidation(
         mission_id=mission_id,
         obligation_id=obligation_id,
     )
-    expected = ReplaySatisfactionInvalidationAuditManifest.from_mapping(
+    expected = replay_satisfaction_invalidation_manifest_from_mapping(
         plan["audit_manifest"]
     )
     if (
@@ -2464,11 +2902,14 @@ def prepare_satisfaction_invalidation(
         audit_manifest_hash=audit_manifest_hash,
         sequence=(head.event_sequence or 0) + 1,
     )
-    constraints = constraints_for_pending(
+    constraints = constraints_for_pending_from_index(
+        index,
+        tuple(
         item
         for item, current_head in pairs.values()
         if current_head.status == ReplayObligationStatus.PENDING.value
         or item.identity == obligation_id
+        ),
     )
     if constraints is None:
         raise ReplayProjectionError(
@@ -2763,10 +3204,13 @@ def prepare_resolution(
         )
         records.extend(overlay_records)
         overlay_ids.extend(item.record_id for item in overlay_records)
-    constraints = constraints_for_pending(
+    constraints = constraints_for_pending_from_index(
+        index,
+        tuple(
         obligation
         for obligation, head in heads.values()
         if head.status == ReplayObligationStatus.PENDING.value
+        ),
     )
     return records, constraints, {
         "effective_scope_overlay_ids": overlay_ids,
@@ -3148,11 +3592,14 @@ def prepare_deferral(
                 sequence=(head.event_sequence or 0) + 1,
             )
         )
-    constraints = constraints_for_pending(
+    constraints = constraints_for_pending_from_index(
+        index,
+        tuple(
         obligation
         for obligation, head in heads.values()
         if head.status == ReplayObligationStatus.PENDING.value
         and obligation.identity not in deferred_ids
+        ),
     )
     return records, constraints, {
         "deferred_replay_obligation_ids": sorted(deferred_ids)
@@ -3686,11 +4133,14 @@ def prepare_resume(
                 sequence=(head.event_sequence or 0) + 1,
             )
         )
-    constraints = constraints_for_pending(
+    constraints = constraints_for_pending_from_index(
+        index,
+        tuple(
         obligation
         for obligation, head in heads.values()
         if head.status == ReplayObligationStatus.PENDING.value
         or obligation.identity in resumed_ids
+        ),
     )
     return records, constraints, {
         "resume_condition_ids": sorted(
@@ -3715,7 +4165,10 @@ __all__ = [
     "build_explicit_historical_replay_correction_audit_plan",
     "build_satisfaction_invalidation_plan",
     "constraints_for_pending",
+    "constraints_for_pending_from_index",
+    "current_replay_priority_escalation",
     "derive_obligation_from_record",
+    "effective_replay_priority",
     "initial_obligation_record",
     "obligation_heads",
     "prepare_correction",
@@ -3727,6 +4180,8 @@ __all__ = [
     "prepare_resolution",
     "prepare_satisfaction_invalidation",
     "replay_obligation_capability_id",
+    "replay_priority_escalation_record",
+    "replay_priority_stream",
     "require_diagnosed_replay",
     "require_recorded_satisfaction",
     "require_satisfaction_invalidation_record",

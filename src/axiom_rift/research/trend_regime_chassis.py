@@ -112,10 +112,15 @@ def trend_regime_components() -> tuple[ComponentSpec, ...]:
         semantic_dependencies=(lifecycle.identity,),
     )
     execution = ComponentSpec(
-        display_name="fixed FPMarkets bid-open spread execution",
-        protocol="execution.fpmarkets_bid_open_spread.v1",
+        display_name="fixed FPMarkets completed-period spread proxy execution",
+        protocol="execution.fpmarkets_completed_bar_spread_proxy.v1",
         implementation=_local("simulate_trend_regime"),
-        spec={"point": "0.01", "stress": "half_effective_spread_each_side"},
+        spec={
+            "entry_proxy": "entry_index_minus_1",
+            "exit_proxy": "exit_index_minus_1",
+            "point": "0.01",
+            "stress": "half_effective_spread_each_side",
+        },
         semantic_dependencies=(risk.identity,),
     )
     return feature, label, model, selector, regime, trade, lifecycle, risk, execution
@@ -128,7 +133,10 @@ def trend_regime_executable(configuration: TrendRegimeConfiguration) -> Executab
         data_contract=f"data:{OBSERVED_MATERIAL_ID}",
         split_contract=f"split:{ROLLING_SPLIT_SHA256}:rolling_windows_9_observed_development",
         clock_contract="clock:fpmarkets_m5_bar_open_completed_plus_5m_v3",
-        cost_contract="cost:bid_bar_spread_point_0_01_causal_zero_repair_half_spread_stress_v3",
+        cost_contract=(
+            "cost:fpmarkets_completed_bar_spread_proxy_point_0_01_"
+            "causal_zero_repair_half_spread_stress_v1"
+        ),
         engine_contract=(
             f"engine:trend_regime_v1:python{'.'.join(str(v) for v in sys.version_info[:3])}:"
             f"numpy{np.__version__}:pandas{pd.__version__}:scipy{scipy.__version__}:"

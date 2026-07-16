@@ -9,6 +9,10 @@ from axiom_rift.operations.evidence_scope_projection import (
     EvidenceScopeProjectionError,
     effective_completion_evidence_scope,
 )
+from axiom_rift.operations.historical_cost_semantics_reader import (
+    HistoricalCostSemanticsProjectionError,
+    effective_historical_negative_memory_cost_authority,
+)
 from axiom_rift.research.axis_disposition import (
     AxisEvidenceKind,
     AxisEvidenceReference,
@@ -174,8 +178,14 @@ def _job_completion_binding(
         raise AxisDispositionEvidenceError(
             "axis Job completion subject is not bound to its trial"
         )
+    state = _state_from_adjudication(adjudication)
+    if (
+        scope.cost_semantics_latch_id is not None
+        and state is AxisEvidenceState.LOW_INFORMATION
+    ):
+        state = AxisEvidenceState.UNRESOLVED
     return AxisEvidenceBinding(
-        state=_state_from_adjudication(adjudication),
+        state=state,
         candidate_eligible=scope.candidate_eligible,
         study_ids=(study_id,),
         executable_ids=(executable_id,),
@@ -227,7 +237,8 @@ def _historical_adjudication_binding(
         scope.overlay_record_id is not None
         or scope.scientific_eligible is not True
         or scope.scientific_credit != 1
-        or scope.terminal_credit != 1
+        or scope.terminal_credit
+        != (0 if scope.cost_semantics_latch_id is not None else 1)
     ):
         raise AxisDispositionEvidenceError(
             "historical axis adjudication binds a zero-credit completion"
@@ -270,6 +281,11 @@ def _historical_adjudication_binding(
         raise AxisDispositionEvidenceError(
             "historical axis adjudication effective state is invalid"
         )
+    if (
+        scope.cost_semantics_latch_id is not None
+        and state is AxisEvidenceState.LOW_INFORMATION
+    ):
+        state = AxisEvidenceState.UNRESOLVED
     return AxisEvidenceBinding(
         state=state,
         candidate_eligible=False,
@@ -287,6 +303,13 @@ def _negative_memory_binding(
     axis_id: str,
     axis_identity: str,
 ) -> AxisEvidenceBinding:
+    try:
+        cost_authority = effective_historical_negative_memory_cost_authority(
+            index,
+            record.record_id,
+        )
+    except HistoricalCostSemanticsProjectionError as exc:
+        raise AxisDispositionEvidenceError(str(exc)) from exc
     executable_id = record.subject.removeprefix("Executable:")
     _, study_id = _require_trial_binding(
         index,
@@ -313,6 +336,11 @@ def _negative_memory_binding(
             "negative memory is stale or belongs to another axis"
         )
     completion_modes: set[str] = set()
+    cost_affected_ids = (
+        frozenset()
+        if cost_authority is None
+        else frozenset(cost_authority.affected_completion_ids)
+    )
     for completion_id in evidence_references:
         completion = (
             None
@@ -336,22 +364,40 @@ def _negative_memory_binding(
             raise AxisDispositionEvidenceError(
                 "negative memory lacks exact candidate-ineligible falsification"
             )
+        if completion_id in cost_affected_ids and (
+            scope.negative_memory_authoritative is not False
+            or scope.negative_memory_role != "diagnostic_only"
+            or scope.cost_semantics_latch_id != cost_authority.latch_record_id
+            or scope.terminal_credit != 0
+        ):
+            raise AxisDispositionEvidenceError(
+                "historical cost negative memory retained scientific authority"
+            )
         completion_modes.update(
             _ascii_list(
                 "negative-memory completion evidence modes",
                 list(scope.evidence_modes),
             )
         )
-    if set(modes) != completion_modes:
+    expected_memory_modes = set(modes)
+    if cost_authority is not None:
+        if "cost_and_execution" in expected_memory_modes:
+            expected_memory_modes.remove("cost_and_execution")
+            expected_memory_modes.add("completed_period_proxy_cost")
+    if expected_memory_modes != completion_modes:
         raise AxisDispositionEvidenceError(
             "negative-memory evidence modes differ from its completions"
         )
     return AxisEvidenceBinding(
-        state=AxisEvidenceState.LOW_INFORMATION,
+        state=(
+            AxisEvidenceState.UNRESOLVED
+            if cost_authority is not None
+            else AxisEvidenceState.LOW_INFORMATION
+        ),
         candidate_eligible=False,
         study_ids=(study_id,),
         executable_ids=(executable_id,),
-        evidence_modes=modes,
+        evidence_modes=tuple(sorted(expected_memory_modes)),
         negative_memory_ids=(record.record_id,),
     )
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 from hashlib import sha256
 from math import ceil
 from pathlib import Path
@@ -36,6 +36,10 @@ from axiom_rift.research.discovery import (
     ROLLING_SPLIT_SHA256,
     discovery_implementation_sha256,
     loader_implementation_sha256,
+)
+from axiom_rift.research.completed_period_atomic_trace import (
+    completed_period_atomic_trace_implementation_sha256,
+    validate_completed_period_fixed_hold_sources,
 )
 from axiom_rift.research.scientific_trace import (
     ANALOG_STATE_TRACE_PROTOCOL_ID,
@@ -66,7 +70,7 @@ ANALOG_REPLAY_CLAIMS = (
     "selection_aware_signal_evidence",
     "temporal_and_regime_stability",
 )
-ANALOG_FAMILY_TRACE_SCHEMA = "analog_family_trace.v1"
+ANALOG_FAMILY_TRACE_SCHEMA = "analog_family_trace.v3"
 ANALOG_FAMILY_TRACE_CACHE_MANIFEST_SCHEMA = (
     "analog_family_trace_cache_manifest.v1"
 )
@@ -99,11 +103,26 @@ _THIS_FILE = Path(__file__).resolve()
 _TRADE_FIELDS = {
     "availability_time",
     "configuration_id",
+    "decision_bar_index",
     "decision_bar_open_time",
+    "decision_spread_source_bar_index",
+    "decision_spread_source_bar_open_time",
+    "decision_spread_information_complete_at",
+    "decision_spread_known",
     "decision_time",
     "direction",
+    "entry_bar_index",
+    "entry_spread_source_bar_index",
+    "entry_spread_source_bar_open_time",
+    "entry_spread_information_complete_at",
+    "entry_spread_known",
     "entry_time",
     "executable_id",
+    "exit_bar_index",
+    "exit_spread_source_bar_index",
+    "exit_spread_source_bar_open_time",
+    "exit_spread_information_complete_at",
+    "exit_spread_known",
     "exit_time",
     "fold_id",
     "gross_pnl_micropoints",
@@ -114,19 +133,38 @@ _TRADE_FIELDS = {
     "regime",
     "stress_cost_micropoints",
     "stress_net_pnl_micropoints",
+    "spread_semantics",
 }
 _INTENT_FIELDS = {
     "availability_time",
     "configuration_id",
+    "decision_bar_index",
+    "decision_bar_open_time",
+    "decision_spread_source_bar_index",
+    "decision_spread_source_bar_open_time",
+    "decision_spread_information_complete_at",
+    "decision_spread_known",
     "decision_time",
     "direction",
+    "entry_bar_index",
+    "entry_spread_source_bar_index",
+    "entry_spread_source_bar_open_time",
+    "entry_spread_information_complete_at",
+    "entry_spread_known",
     "entry_time",
     "executable_id",
+    "exit_bar_index",
+    "exit_spread_source_bar_index",
+    "exit_spread_source_bar_open_time",
+    "exit_spread_information_complete_at",
+    "exit_spread_known",
     "exit_time",
     "fold_id",
+    "historical_reference_executable_id",
     "observation_id",
     "ordinal",
     "scope",
+    "spread_semantics",
     "status",
 }
 _ELIGIBLE_FIELDS = {
@@ -244,6 +282,7 @@ _IMPLEMENTATION_IDENTITY_FIELDS = {
     "analog_family_sha256",
     "analog_replay_sha256",
     "analog_trace_sha256",
+    "completed_period_atomic_trace_sha256",
     "discovery_sha256",
     "loader_sha256",
     "selection_inference_sha256",
@@ -322,6 +361,9 @@ def analog_family_trace_implementation_identities(
         "analog_family_sha256": analog_family_implementation_sha256(),
         "analog_replay_sha256": replay_identity,
         "analog_trace_sha256": analog_trace_implementation_sha256(),
+        "completed_period_atomic_trace_sha256": (
+            completed_period_atomic_trace_implementation_sha256()
+        ),
         "discovery_sha256": discovery_implementation_sha256(),
         "loader_sha256": loader_implementation_sha256(),
         "selection_inference_sha256": (
@@ -643,13 +685,57 @@ def _validate_invariance(
     return 0
 
 
+def _validate_execution_clock_sources(
+    row: Mapping[str, Any],
+    *,
+    horizon: int,
+    prefix: str,
+    intent_status: str | None = None,
+) -> tuple[datetime, datetime, datetime]:
+    return validate_completed_period_fixed_hold_sources(
+        row,
+        holding_bars=horizon,
+        prefix=prefix,
+        intent_status=intent_status,
+    )
+
+
+def _validate_exact_test_window(
+    row: Mapping[str, Any],
+    *,
+    window: Mapping[str, Any],
+    prefix: str,
+) -> None:
+    test_start = _timestamp(f"{prefix} test_start", window.get("test_start"))
+    test_end = _timestamp(f"{prefix} test_end", window.get("test_end"))
+    eligible_dates = set(
+        _sequence(f"{prefix} eligible_dates", window.get("eligible_dates"))
+    )
+    decision_bar_open = _timestamp(
+        f"{prefix} decision_bar_open_time",
+        row.get("decision_bar_open_time"),
+    )
+    exit_time = _timestamp(f"{prefix} exit_time", row.get("exit_time"))
+    if (
+        decision_bar_open < test_start
+        or decision_bar_open > test_end
+        or decision_bar_open.date().isoformat() not in eligible_dates
+        or exit_time > test_end
+    ):
+        raise ScientificTraceError(
+            f"{prefix} is outside its exact test calendar"
+        )
+
+
 def _validate_trades(
     trace: Mapping[str, Any],
     *,
     family: Mapping[str, Mapping[str, Any]],
-    fold_ids: set[str],
+    windows: tuple[dict[str, Any], ...],
+    horizon: int,
 ) -> tuple[dict[str, Any], ...]:
     raw = _sequence("analog trades", trace.get("trade_observations"), allow_empty=True)
+    window_by_fold = {str(item["fold_id"]): item for item in windows}
     trades: list[dict[str, Any]] = []
     sort_keys: list[tuple[object, ...]] = []
     seen: set[str] = set()
@@ -668,21 +754,19 @@ def _validate_trades(
         ):
             raise ScientificTraceError("analog trade belongs to another family member")
         fold_id = _ascii("trade fold_id", trade.get("fold_id"))
-        if fold_id not in fold_ids:
+        window = window_by_fold.get(fold_id)
+        if window is None:
             raise ScientificTraceError("analog trade fold is unknown")
-        bar_open = _timestamp("trade decision_bar_open_time", trade.get("decision_bar_open_time"))
-        availability = _timestamp("trade availability_time", trade.get("availability_time"))
-        decision = _timestamp("trade decision_time", trade.get("decision_time"))
-        entry = _timestamp("trade entry_time", trade.get("entry_time"))
-        exit_time = _timestamp("trade exit_time", trade.get("exit_time"))
-        if not (
-            bar_open + timedelta(minutes=5)
-            == availability
-            == decision
-            == entry
-            < exit_time
-        ):
-            raise ScientificTraceError("analog trade causal clock is invalid")
+        _validate_exact_test_window(
+            trade,
+            window=window,
+            prefix="analog trade",
+        )
+        decision, _, _ = _validate_execution_clock_sources(
+            trade,
+            horizon=horizon,
+            prefix="analog trade",
+        )
         direction = _integer("trade direction", trade.get("direction"))
         if direction not in {-1, 1}:
             raise ScientificTraceError("analog trade direction is invalid")
@@ -711,11 +795,62 @@ def _intent_comparison_tuple(intent: Mapping[str, Any]) -> tuple[object, ...]:
         intent[name]
         for name in (
             "availability_time",
+            "decision_bar_index",
+            "decision_bar_open_time",
+            "decision_spread_source_bar_index",
+            "decision_spread_source_bar_open_time",
+            "decision_spread_information_complete_at",
+            "decision_spread_known",
             "decision_time",
             "direction",
+            "entry_bar_index",
+            "entry_spread_source_bar_index",
+            "entry_spread_source_bar_open_time",
+            "entry_spread_information_complete_at",
+            "entry_spread_known",
             "entry_time",
+            "executable_id",
+            "exit_bar_index",
+            "exit_spread_source_bar_index",
+            "exit_spread_source_bar_open_time",
+            "exit_spread_information_complete_at",
+            "exit_spread_known",
             "exit_time",
+            "historical_reference_executable_id",
+            "spread_semantics",
             "status",
+        )
+    )
+
+
+def _execution_identity(row: Mapping[str, Any]) -> tuple[object, ...]:
+    return tuple(
+        row[name]
+        for name in (
+            "configuration_id",
+            "executable_id",
+            "historical_reference_executable_id",
+            "fold_id",
+            "decision_bar_index",
+            "decision_spread_source_bar_index",
+            "decision_spread_source_bar_open_time",
+            "decision_spread_information_complete_at",
+            "decision_spread_known",
+            "decision_time",
+            "entry_bar_index",
+            "entry_spread_source_bar_index",
+            "entry_spread_source_bar_open_time",
+            "entry_spread_information_complete_at",
+            "entry_spread_known",
+            "entry_time",
+            "exit_bar_index",
+            "exit_spread_source_bar_index",
+            "exit_spread_source_bar_open_time",
+            "exit_spread_information_complete_at",
+            "exit_spread_known",
+            "exit_time",
+            "direction",
+            "spread_semantics",
         )
     )
 
@@ -724,13 +859,15 @@ def _validate_intents(
     trace: Mapping[str, Any],
     *,
     family: Mapping[str, Mapping[str, Any]],
-    fold_ids: set[str],
+    windows: tuple[dict[str, Any], ...],
     trades: tuple[dict[str, Any], ...],
+    horizon: int,
 ) -> tuple[
     tuple[dict[str, Any], ...],
     dict[str, tuple[int, int, int]],
 ]:
     raw = _sequence("analog intents", trace.get("intent_observations"), allow_empty=True)
+    window_by_fold = {str(item["fold_id"]): item for item in windows}
     intents: list[dict[str, Any]] = []
     seen: set[str] = set()
     sort_keys: list[tuple[object, ...]] = []
@@ -740,25 +877,38 @@ def _validate_intents(
             raise ScientificTraceError("analog intent schema is invalid")
         configuration_id = _ascii("intent configuration_id", intent.get("configuration_id"))
         member = family.get(configuration_id)
-        if member is None or intent.get("executable_id") != member["executable_id"]:
+        if member is None or any(
+            intent.get(name) != member[name]
+            for name in (
+                "executable_id",
+                "historical_reference_executable_id",
+            )
+        ):
             raise ScientificTraceError("analog intent belongs to another family member")
         fold_id = _ascii("intent fold_id", intent.get("fold_id"))
-        if fold_id not in fold_ids:
+        window = window_by_fold.get(fold_id)
+        if window is None:
             raise ScientificTraceError("analog intent fold is unknown")
         scope = intent.get("scope")
         if scope not in {"full", "prefix"}:
             raise ScientificTraceError("analog intent scope is invalid")
         ordinal = _integer("intent ordinal", intent.get("ordinal"), minimum=1)
-        availability = _timestamp("intent availability", intent.get("availability_time"))
-        decision = _timestamp("intent decision", intent.get("decision_time"))
-        entry = _timestamp("intent entry", intent.get("entry_time"))
-        exit_time = _timestamp("intent exit", intent.get("exit_time"))
-        if availability != decision or entry < decision or exit_time <= entry:
-            raise ScientificTraceError("analog intent clock is invalid")
+        status = intent.get("status")
+        if status not in _ALLOWED_INTENT_STATUSES:
+            raise ScientificTraceError("analog intent status is invalid")
+        _validate_exact_test_window(
+            intent,
+            window=window,
+            prefix="analog intent",
+        )
+        _validate_execution_clock_sources(
+            intent,
+            horizon=horizon,
+            prefix="analog intent",
+            intent_status=str(status),
+        )
         if _integer("intent direction", intent.get("direction")) not in {-1, 1}:
             raise ScientificTraceError("analog intent direction is invalid")
-        if intent.get("status") not in _ALLOWED_INTENT_STATUSES:
-            raise ScientificTraceError("analog intent status is invalid")
         observation_id = _ascii("intent observation_id", intent.get("observation_id"))
         if observation_id != analog_observation_id("intent", intent) or observation_id in seen:
             raise ScientificTraceError("analog intent observation identity is invalid")
@@ -774,7 +924,7 @@ def _validate_intents(
         configuration_id: 0 for configuration_id in family
     }
     for configuration_id in family:
-        for fold_id in EXPECTED_FOLD_IDS:
+        for fold_id in window_by_fold:
             full = by_scope.get((configuration_id, fold_id, "full"), [])
             prefix = by_scope.get((configuration_id, fold_id, "prefix"), [])
             if tuple(item["ordinal"] for item in full) != tuple(range(1, len(full) + 1)) or tuple(item["ordinal"] for item in prefix) != tuple(range(1, len(prefix) + 1)):
@@ -783,30 +933,17 @@ def _validate_intents(
                 _intent_comparison_tuple(left) != _intent_comparison_tuple(right)
                 for left, right in zip(full, prefix, strict=False)
             )
-    full_executed = {
-        (
-            item["configuration_id"],
-            item["fold_id"],
-            item["decision_time"],
-            item["entry_time"],
-            item["exit_time"],
-            item["direction"],
-        )
+    full_executed = tuple(
+        _execution_identity(item)
         for item in intents
         if item["scope"] == "full" and item["status"] == "executed"
-    }
-    trade_identities = {
-        (
-            item["configuration_id"],
-            item["fold_id"],
-            item["decision_time"],
-            item["entry_time"],
-            item["exit_time"],
-            item["direction"],
-        )
-        for item in trades
-    }
-    if full_executed != trade_identities:
+    )
+    trade_identities = tuple(_execution_identity(item) for item in trades)
+    if (
+        len(full_executed) != len(set(full_executed))
+        or len(trade_identities) != len(set(trade_identities))
+        or set(full_executed) != set(trade_identities)
+    ):
         raise ScientificTraceError("analog executed intents differ from trade rows")
     counts = {
         configuration_id: (
@@ -959,13 +1096,15 @@ def _validated_family_trace_parts(
     trades = _validate_trades(
         normalized,
         family=family,
-        fold_ids=set(EXPECTED_FOLD_IDS),
+        windows=windows,
+        horizon=family_spec.horizon,
     )
     _, intent_counts = _validate_intents(
         normalized,
         family=family,
-        fold_ids=set(EXPECTED_FOLD_IDS),
+        windows=windows,
         trades=trades,
+        horizon=family_spec.horizon,
     )
     daily = _validate_eligible_days(
         normalized,

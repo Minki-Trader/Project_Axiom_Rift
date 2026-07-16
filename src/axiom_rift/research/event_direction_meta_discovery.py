@@ -35,6 +35,7 @@ from axiom_rift.research.discovery import (
     _validate_fold_payloads,
     _validate_production_data,
     causal_effective_spread,
+    completed_bar_execution_spreads,
     execution_pnl,
 )
 from axiom_rift.research.event_direction_meta_chassis import (
@@ -215,12 +216,21 @@ def fit_event_direction_model(
         follow_direction = int(trade["direction"])
         if exit_index >= len(frame) or follow_direction not in (-1, 1):
             raise DiscoveryBoundaryError("event direction training lifecycle differs")
+        execution_spreads = completed_bar_execution_spreads(
+            spread,
+            entry_index=entry_index,
+            exit_index=exit_index,
+        )
+        if not execution_spreads.costs_known:
+            raise DiscoveryBoundaryError(
+                "event direction training execution cost is unresolved"
+            )
         reverse_native, _ = execution_pnl(
             direction=-follow_direction,
             entry_bid=float(opens[entry_index]),
             exit_bid=float(opens[exit_index]),
-            entry_spread_points=float(spread[entry_index]),
-            exit_spread_points=float(spread[exit_index]),
+            entry_spread_points=execution_spreads.entry_spread_points,
+            exit_spread_points=execution_spreads.exit_spread_points,
         )
         follow_native = float(trade["pnl"])
         labels.append(1 if follow_native >= reverse_native else -1)

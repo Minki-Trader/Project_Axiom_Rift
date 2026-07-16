@@ -171,8 +171,8 @@ def probability_calibration_components() -> tuple[ComponentSpec, ...]:
             spec={"lot": 1, "same_across_profiles": True},
         ),
         ComponentSpec(
-            display_name="FPMarkets bid-bar spread execution",
-            protocol="execution.fpmarkets_bid_bar_spread.v5",
+            display_name="FPMarkets completed-period spread proxy execution",
+            protocol="execution.fpmarkets_completed_bar_spread_proxy.v5",
             implementation=_shared("execution_pnl"),
             spec={"point": "0.01", "stress": "half_effective_spread_each_side"},
         ),
@@ -192,7 +192,7 @@ def probability_calibration_executable(
         ),
         clock_contract="clock:fpmarkets_m5_bar_open_completed_plus_5m_v5",
         cost_contract=(
-            "cost:bid_bar_spread_point_0_01_causal_zero_repair_"
+            "cost:fpmarkets_completed_bar_spread_proxy_point_0_01_causal_zero_repair_"
             "half_spread_stress_v5"
         ),
         engine_contract=(

@@ -155,8 +155,8 @@ def transition_mixture_components() -> tuple[ComponentSpec, ...]:
             },
         ),
         ComponentSpec(
-            display_name="FPMarkets bid-bar spread execution",
-            protocol="execution.fpmarkets_bid_bar_spread.v2",
+            display_name="FPMarkets completed-period spread proxy execution",
+            protocol="execution.fpmarkets_completed_bar_spread_proxy.v2",
             implementation=_shared("execution_pnl"),
             spec={"point": "0.01", "stress": "half_effective_spread_each_side"},
         ),
@@ -182,7 +182,7 @@ def transition_mixture_executable(
         ),
         clock_contract="clock:fpmarkets_m5_bar_open_completed_plus_5m_v2",
         cost_contract=(
-            "cost:bid_bar_spread_point_0_01_causal_zero_repair_half_spread_stress_v2"
+            "cost:fpmarkets_completed_bar_spread_proxy_point_0_01_causal_zero_repair_half_spread_stress_v2"
         ),
         engine_contract=(
             f"engine:transition_mixture_v3:python"
