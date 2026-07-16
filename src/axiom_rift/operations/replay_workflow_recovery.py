@@ -24,6 +24,7 @@ class ReplayLifecycleSpec(Protocol):
     operation_prefix: str
     target_obligation_id: str
     initiative_lifecycle: ReplayInitiativeLifecycle
+    axis_admission: Any
 
 
 def _successful_operation(
@@ -338,9 +339,15 @@ def require_borrowed_replay_admission(
         is not ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE
     ):
         return
+    admission = getattr(spec.axis_admission, "value", spec.axis_admission)
+    first_suffix = (
+        "replay-decision"
+        if admission == "reuse_exact_axis"
+        else "bridge-decision"
+    )
     bridge = index.get(
         "operation",
-        spec.operation_prefix + "bridge-decision",
+        spec.operation_prefix + first_suffix,
     )
     if bridge is not None:
         if (

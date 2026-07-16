@@ -81,6 +81,17 @@ exact Study diagnosis, replay obligation, or architecture review when one
 constrains the action. A challenge or uncertainty needs an explicit resolution
 and claim boundary. This is a compact decision record, not seven role reports.
 
+Before admitting replay work, classify its structural effect exactly once.
+`reuse_exact_axis` requires the same axis identity, semantic core, mechanism,
+and chassis and creates no Portfolio Decision or snapshot. `revise_protocol`
+keeps the logical axis ID, mechanism, and semantic core, but replaces its exact
+chassis and identity under a typed current invalidation while preserving the
+axis count and every unrelated axis. `add_new_mechanism` is reserved for a
+genuinely absent mechanism family and adds one axis. Never relabel a mechanism
+to evade the duplicate-family guard. An accepted but unstarted structural
+misclassification is withdrawn only by its evidence-bound additive Writer
+transition before the corrected classification is admitted.
+
 Every axis declares one immutable primary `ResearchLayer`, one stable
 `system_architecture_family`, typed changed and controlled domains, `why_now`,
 and a stop or reopen condition. A non-synthesis axis changes exactly its one

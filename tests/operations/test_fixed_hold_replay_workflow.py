@@ -14,6 +14,7 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
     STUDY_CLOSE_STAGE,
     FixedHoldReplayDesign,
     FixedHoldReplayMissionSpec,
+    ReplayAxisAdmission,
     ReplayAuthorityBoundary,
     ReplayInitiativeLifecycle,
     ReplayInterpretation,
@@ -590,6 +591,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
 
     def _spec(self) -> FixedHoldReplayMissionSpec:
         return FixedHoldReplayMissionSpec(
+            axis_admission=ReplayAxisAdmission.ADD_NEW_MECHANISM,
             initiative_lifecycle=(
                 ReplayInitiativeLifecycle.OWN_BOUNDED_INITIATIVE
             ),
@@ -623,6 +625,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         )
         return SimpleNamespace(
             spec=self._spec(),
+            bridge_decision=SimpleNamespace(),
             members=members,
             target_member=members[-1],
             criterion_ids=("criterion-a",),
@@ -897,6 +900,52 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         "axiom_rift.operations.fixed_hold_replay_workflow._member_completion",
         return_value=None,
     )
+    def test_exact_axis_reuse_skips_structural_bridge(self, _completion) -> None:
+        original = self._design()
+        spec = replace(
+            original.spec,
+            axis_admission=ReplayAxisAdmission.REUSE_EXACT_AXIS,
+            axis_id=original.spec.bridge_axis_id,
+        )
+        design = SimpleNamespace(
+            **{
+                **vars(original),
+                "spec": spec,
+                "bridge_decision": None,
+            }
+        )
+        operation_ids = tuple(
+            step.operation_id
+            for step in operation_steps(_empty_workflow_writer(), design)
+        )
+        self.assertNotIn(spec.operation_prefix + "bridge-decision", operation_ids)
+        self.assertNotIn(spec.operation_prefix + "expanded-snapshot", operation_ids)
+        self.assertIn(spec.operation_prefix + "replay-decision", operation_ids)
+
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow._member_completion",
+        return_value=None,
+    )
+    def test_protocol_revision_keeps_structural_bridge(self, _completion) -> None:
+        original = self._design()
+        spec = replace(
+            original.spec,
+            axis_admission=ReplayAxisAdmission.REVISE_PROTOCOL,
+            axis_id=original.spec.bridge_axis_id,
+        )
+        design = SimpleNamespace(**{**vars(original), "spec": spec})
+        operation_ids = tuple(
+            step.operation_id
+            for step in operation_steps(_empty_workflow_writer(), design)
+        )
+        self.assertIn(spec.operation_prefix + "bridge-decision", operation_ids)
+        self.assertIn(spec.operation_prefix + "expanded-snapshot", operation_ids)
+        self.assertIn(spec.operation_prefix + "replay-decision", operation_ids)
+
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow._member_completion",
+        return_value=None,
+    )
     def test_borrowed_operation_plan_preserves_owner_and_router_handoff(
         self,
         _completion,
@@ -1045,7 +1094,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             "base_snapshot_id": "portfolio:fixture",
             "prior_axes": (),
             "replay_axis": None,
-            "bridge_decision": None,
+            "bridge_decision": SimpleNamespace(),
             "expanded_snapshot": None,
             "work_decision": None,
             "members": members,

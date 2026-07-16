@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from axiom_rift.operations.fixed_hold_replay_workflow import (
     FixedHoldReplayDesign,
+    ReplayAxisAdmission,
     ReplayInitiativeLifecycle,
     fixed_hold_replay_study_input_hash,
     operation_steps,
@@ -46,6 +47,45 @@ def require_borrowed_production_profile(
     study_hash = fixed_hold_replay_study_input_hash(writer, design)
     if design.batch_spec.study_hash != study_hash:
         raise RuntimeError("production replay Study, Batch, and permit hashes differ")
+    admission = design.spec.axis_admission
+    axis_count_before = len(design.prior_axes)
+    axis_count_after = len(design.expanded_snapshot.axes)
+    if admission is ReplayAxisAdmission.ADD_NEW_MECHANISM:
+        if (
+            design.bridge_decision is None
+            or design.bridge_decision.chosen.action.value != "new_mechanism"
+            or design.protocol_revision is not None
+            or axis_count_after != axis_count_before + 1
+        ):
+            raise RuntimeError("new-mechanism replay admission is malformed")
+    elif admission is ReplayAxisAdmission.REVISE_PROTOCOL:
+        if (
+            design.bridge_decision is None
+            or design.bridge_decision.chosen.action.value != "revise_protocol"
+            or design.bridge_decision.protocol_revision
+            != design.protocol_revision
+            or axis_count_after != axis_count_before
+            or design.replay_axis.axis_id
+            != design.spec.bridge_axis_id
+        ):
+            raise RuntimeError("protocol-revision replay admission is malformed")
+    elif admission is ReplayAxisAdmission.REUSE_EXACT_AXIS:
+        matches = tuple(
+            axis
+            for axis in design.prior_axes
+            if axis.axis_id == design.replay_axis.axis_id
+        )
+        if (
+            design.bridge_decision is not None
+            or design.protocol_revision is not None
+            or axis_count_after != axis_count_before
+            or len(matches) != 1
+            or matches[0] != design.replay_axis
+            or design.expanded_snapshot.identity != design.base_snapshot_id
+        ):
+            raise RuntimeError("exact-axis replay admission is malformed")
+    else:
+        raise RuntimeError("production replay axis admission is untyped")
     steps = operation_steps(writer, design)
     if (
         any(step.event_kind in _FORBIDDEN_BORROWED_EVENTS for step in steps)

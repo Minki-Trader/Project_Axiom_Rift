@@ -37,6 +37,9 @@ from axiom_rift.research.portfolio import (
     PortfolioDecision,
     QuantTeamDecisionReview,
 )
+from axiom_rift.research.axis_protocol_revision import (
+    AxisProtocolRevisionProposal,
+)
 
 
 class PortfolioProjectionError(ValueError):
@@ -179,6 +182,19 @@ def portfolio_decision_from_projection(
         base_fields | {"replay_obligation_ids"},
         base_fields | {"quant_team_review"},
         base_fields | {"quant_team_review", "replay_obligation_ids"},
+        base_fields
+        | {
+            "protocol_revision",
+            "protocol_revision_id",
+            "replay_obligation_ids",
+        },
+        base_fields
+        | {
+            "protocol_revision",
+            "protocol_revision_id",
+            "quant_team_review",
+            "replay_obligation_ids",
+        },
     )
     if (
         not isinstance(normalized, dict)
@@ -187,9 +203,21 @@ def portfolio_decision_from_projection(
             "portfolio_decision.v1",
             "portfolio_decision.v2",
             "portfolio_decision.v3",
+            "portfolio_decision.v4",
         }
-        or (normalized.get("schema") == "portfolio_decision.v3")
-        != ("quant_team_review" in normalized)
+        or (
+            normalized.get("schema") == "portfolio_decision.v3"
+            and "quant_team_review" not in normalized
+        )
+        or (
+            normalized.get("schema")
+            in {"portfolio_decision.v1", "portfolio_decision.v2"}
+            and "quant_team_review" in normalized
+        )
+        or (
+            normalized.get("schema") == "portfolio_decision.v4"
+        )
+        != ("protocol_revision" in normalized)
         or not isinstance(normalized.get("options"), list)
     ):
         raise PortfolioProjectionError("Portfolio Decision fields are malformed")
@@ -279,6 +307,20 @@ def portfolio_decision_from_projection(
                 ],
             )
         )
+        revision_payload = normalized.get("protocol_revision")
+        protocol_revision = (
+            None
+            if revision_payload is None
+            else AxisProtocolRevisionProposal.from_mapping(revision_payload)
+        )
+        if (
+            protocol_revision is not None
+            and normalized.get("protocol_revision_id")
+            != protocol_revision.identity
+        ):
+            raise PortfolioProjectionError(
+                "axis protocol revision identity drifted"
+            )
         decision = PortfolioDecision(
             decision_id=normalized["decision_id"],
             chosen_option_id=normalized["chosen_option_id"],
@@ -290,6 +332,7 @@ def portfolio_decision_from_projection(
             replay_obligation_ids=tuple(
                 normalized.get("replay_obligation_ids", ())
             ),
+            protocol_revision=protocol_revision,
             recent_positive_lineage_id=normalized["recent_positive_lineage_id"],
             locks_future_portfolio=normalized["locks_future_portfolio"],
         )

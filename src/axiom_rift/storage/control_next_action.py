@@ -38,7 +38,7 @@ _RESEARCH_LAYERS = frozenset(
     }
 )
 _PORTFOLIO_SNAPSHOT_ACTIONS = frozenset(
-    {"new_mechanism", "preserve", "prune"}
+    {"new_mechanism", "preserve", "prune", "revise_protocol"}
 )
 _PORTFOLIO_EXECUTION_ACTIONS = frozenset(
     {
@@ -482,6 +482,7 @@ def _validate_record_portfolio_snapshot(
         "excluded_architecture_family",
         "excluded_research_layers",
         "pending_replay_obligation_ids",
+        "protocol_revision_id",
         "replay_obligation_ids",
         "required_followup_layers",
         "required_replay_priority",
@@ -500,6 +501,16 @@ def _validate_record_portfolio_snapshot(
         _fail("Portfolio snapshot cannot carry an existing-axis continuation")
     if action["action"] not in _PORTFOLIO_SNAPSHOT_ACTIONS:
         _fail("Portfolio snapshot action is not a snapshot mutation")
+    if "protocol_revision_id" in action:
+        _prefixed(
+            "axis protocol revision",
+            action["protocol_revision_id"],
+            "axis-protocol-revision:",
+        )
+        if action["action"] != "revise_protocol":
+            _fail("axis protocol revision requires its exact action")
+    elif action["action"] == "revise_protocol":
+        _fail("protocol revision action lacks typed authority")
     if type(scientific.get("active_initiative")) is not str:
         _fail("Portfolio snapshot action requires an active Initiative")
     if "axis_reopen_authority_id" in action:

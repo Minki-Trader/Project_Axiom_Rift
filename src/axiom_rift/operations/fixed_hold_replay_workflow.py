@@ -10,6 +10,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import nullcontext
 from dataclasses import dataclass, replace
+from enum import Enum
 from pathlib import Path
 from typing import Any
 
@@ -29,8 +30,10 @@ from axiom_rift.operations.effective_axis_projection import (
     effective_axis_resolutions,
 )
 from axiom_rift.operations.replay_projection import (
+    ReplayProjectionError,
     obligation_heads,
     replay_evidence_record_ids,
+    require_satisfaction_invalidation_record,
     scheduler_constraints,
     with_scheduler_constraints,
 )
@@ -95,6 +98,10 @@ from axiom_rift.research.portfolio import (
     PortfolioDecision,
     PortfolioSnapshot,
     QuantTeamDecisionReview,
+)
+from axiom_rift.research.axis_protocol_revision import (
+    AxisProtocolRevisionProposal,
+    AxisProtocolRevisionReason,
 )
 from axiom_rift.research.portfolio_projection import (
     architecture_surfaces_from_axis_projection,
@@ -210,6 +217,14 @@ class ReplayAuthorityBoundary:
         _digest("replay predecessor event", self.event_id)
 
 
+class ReplayAxisAdmission(str, Enum):
+    """How one replay axis enters the current Portfolio."""
+
+    ADD_NEW_MECHANISM = "add_new_mechanism"
+    REVISE_PROTOCOL = "revise_protocol"
+    REUSE_EXACT_AXIS = "reuse_exact_axis"
+
+
 @dataclass(frozen=True, slots=True)
 class FixedHoldReplayMissionSpec:
     mission_id: str
@@ -229,6 +244,7 @@ class FixedHoldReplayMissionSpec:
     boundary: ReplayAuthorityBoundary
     display_name: str
     initiative_lifecycle: ReplayInitiativeLifecycle
+    axis_admission: ReplayAxisAdmission
 
     def __post_init__(self) -> None:
         for name in (
@@ -254,6 +270,23 @@ class FixedHoldReplayMissionSpec:
             ReplayInitiativeLifecycle,
         ):
             raise ValueError("replay Initiative lifecycle is not typed")
+        if not isinstance(self.axis_admission, ReplayAxisAdmission):
+            raise ValueError("replay axis admission is not typed")
+        same_logical_axis = self.axis_id == self.bridge_axis_id
+        if (
+            self.axis_admission is ReplayAxisAdmission.ADD_NEW_MECHANISM
+            and same_logical_axis
+        ) or (
+            self.axis_admission
+            in {
+                ReplayAxisAdmission.REVISE_PROTOCOL,
+                ReplayAxisAdmission.REUSE_EXACT_AXIS,
+            }
+            and not same_logical_axis
+        ):
+            raise ValueError(
+                "replay axis admission and logical axis identity disagree"
+            )
         if not self.target_obligation_id.startswith(
             "historical-replay-obligation:"
         ):
@@ -340,7 +373,7 @@ class FixedHoldReplayDesign:
     base_snapshot_id: str
     prior_axes: tuple[PortfolioAxis, ...]
     replay_axis: PortfolioAxis
-    bridge_decision: PortfolioDecision
+    bridge_decision: PortfolioDecision | None
     expanded_snapshot: PortfolioSnapshot
     work_decision: PortfolioDecision
     members: tuple[FixedHoldReplayMember, ...]
@@ -351,6 +384,7 @@ class FixedHoldReplayDesign:
     controlled_chassis: ControlledStudyChassis
     criterion_ids: tuple[str, ...]
     semantic_question_lineage: SemanticQuestionLineageProposal | None = None
+    protocol_revision: AxisProtocolRevisionProposal | None = None
 
     def __post_init__(self) -> None:
         if self.semantic_question_lineage is not None and (
@@ -362,6 +396,24 @@ class FixedHoldReplayDesign:
             != self.spec.study_id
         ):
             raise ValueError("replay semantic question lineage is not exact")
+        if self.spec.axis_admission is ReplayAxisAdmission.REVISE_PROTOCOL:
+            if (
+                not isinstance(
+                    self.protocol_revision,
+                    AxisProtocolRevisionProposal,
+                )
+                or self.bridge_decision is None
+                or self.bridge_decision.protocol_revision
+                != self.protocol_revision
+            ):
+                raise ValueError("replay protocol revision authority is absent")
+        elif self.protocol_revision is not None:
+            raise ValueError("protocol revision authority has the wrong admission")
+        if (
+            self.spec.axis_admission
+            is ReplayAxisAdmission.REUSE_EXACT_AXIS
+        ) != (self.bridge_decision is None):
+            raise ValueError("replay bridge presence differs from its admission")
         if not self.members or tuple(
             member.ordinal for member in self.members
         ) != tuple(range(1, len(self.members) + 1)):
@@ -453,6 +505,14 @@ def _base_snapshot_id(
         "operation",
         spec.operation_prefix + "bridge-decision",
     )
+    if (
+        bridge is None
+        and spec.axis_admission is ReplayAxisAdmission.REUSE_EXACT_AXIS
+    ):
+        bridge = index.get(
+            "operation",
+            spec.operation_prefix + "replay-decision",
+        )
     if bridge is None:
         head = index.event_head(f"portfolio:{spec.mission_id}")
         snapshot_id = None if head is None else head.record_id
@@ -635,8 +695,84 @@ def build_fixed_hold_replay_design(
             index,
             spec.operation_prefix + "replay-decision",
         )
+        accepted_protocol_revision = None
+        initial_revision_invalidation_id = None
+        accepted_bridge_operation = index.get(
+            "operation",
+            spec.operation_prefix + "bridge-decision",
+        )
+        if accepted_bridge_operation is not None:
+            bridge_result = accepted_bridge_operation.payload.get("result")
+            accepted_bridge_id = (
+                None
+                if not isinstance(bridge_result, Mapping)
+                else bridge_result.get("decision_id")
+            )
+            accepted_bridge = (
+                None
+                if not isinstance(accepted_bridge_id, str)
+                else index.get("portfolio-decision", accepted_bridge_id)
+            )
+            if (
+                spec.axis_admission
+                is ReplayAxisAdmission.REVISE_PROTOCOL
+            ):
+                try:
+                    accepted_protocol_revision = (
+                        AxisProtocolRevisionProposal.from_mapping(
+                            None
+                            if accepted_bridge is None
+                            else accepted_bridge.payload.get(
+                                "protocol_revision"
+                            )
+                        )
+                    )
+                except (TypeError, ValueError) as exc:
+                    raise RuntimeError(
+                        "accepted replay protocol revision is malformed"
+                    ) from exc
+        if (
+            spec.axis_admission is ReplayAxisAdmission.REVISE_PROTOCOL
+            and accepted_protocol_revision is None
+            and target is not None
+        ):
+            target_obligation, target_head = target
+            if (
+                target_head.kind
+                != "historical-replay-satisfaction-invalidation"
+                or target_head.status != "pending"
+            ):
+                raise RuntimeError(
+                    "protocol revision lacks a pending satisfaction invalidation"
+                )
+            try:
+                require_satisfaction_invalidation_record(
+                    index,
+                    obligation=target_obligation,
+                    record=target_head,
+                )
+            except ReplayProjectionError as exc:
+                raise RuntimeError(
+                    "protocol revision invalidation authority is malformed"
+                ) from exc
+            initial_revision_invalidation_id = target_head.record_id
+    axis_already_exists = any(
+        axis.axis_id == spec.axis_id for axis in prior_axes
+    )
     if (
-        any(axis.axis_id == spec.axis_id for axis in prior_axes)
+        (
+            spec.axis_admission
+            is ReplayAxisAdmission.ADD_NEW_MECHANISM
+            and axis_already_exists
+        )
+        or (
+            spec.axis_admission
+            in {
+                ReplayAxisAdmission.REVISE_PROTOCOL,
+                ReplayAxisAdmission.REUSE_EXACT_AXIS,
+            }
+            and not axis_already_exists
+        )
         or not selectable
         or target is None
         or (
@@ -730,10 +866,137 @@ def build_fixed_hold_replay_design(
         ),
         architecture_chassis=controlled_chassis.architecture,
     )
+    protocol_revision: AxisProtocolRevisionProposal | None = None
+    if spec.axis_admission is ReplayAxisAdmission.ADD_NEW_MECHANISM:
+        if replay_axis.mechanism_family in {
+            axis.mechanism_family for axis in prior_axes
+        }:
+            raise RuntimeError(
+                "new replay mechanism duplicates an existing Portfolio family"
+            )
+        expanded_axes = (*prior_axes, replay_axis)
+        bridge_option_id = "add-bounded-replay-bridge"
+        bridge_action = PortfolioAction.NEW_MECHANISM
+        bridge_rationale = (
+            "add one genuinely distinct replay bridge without mutating prior axes"
+        )
+        bridge_alternative = DecisionOption(
+            option_id="continue-unrelated-forest",
+            action=PortfolioAction.PRESERVE,
+            target_id=source_axis.axis_id,
+            expected_information_value=(
+                "valid unrelated forest work remains available"
+            ),
+            opportunity_cost="leave the selected replay obligation pending",
+            omission_reason=(
+                "the typed replay queue grants this work its current opportunity"
+            ),
+        )
+        expanded_basis = (
+            "retain the complete forest and add one distinct replay mechanism"
+        )
+    elif spec.axis_admission is ReplayAxisAdmission.REUSE_EXACT_AXIS:
+        replay_axis = replace(replay_axis, status=source_axis.status)
+        if replay_axis != source_axis:
+            raise RuntimeError(
+                "exact-axis replay differs from the current axis chassis or meaning"
+            )
+        expanded_axes = prior_axes
+        bridge_option_id = ""
+        bridge_action = PortfolioAction.PRESERVE
+        bridge_rationale = ""
+        bridge_alternative = None
+        expanded_basis = snapshot_record.payload.get(
+            "opportunity_cost_basis"
+        )
+        if not isinstance(expanded_basis, str):
+            raise RuntimeError("replay base Portfolio basis is malformed")
+    else:
+        replay_axis = replace(replay_axis, status=source_axis.status)
+        lineage = semantic_question_lineage
+        if (
+            lineage is None
+            or lineage.predecessor_core_id != lineage.successor_core_id
+            or source_axis.causal_question != replay_axis.causal_question
+            or source_axis.mechanism_family != replay_axis.mechanism_family
+            or source_axis.primary_research_layer
+            != replay_axis.primary_research_layer
+            or source_axis.changed_domains != replay_axis.changed_domains
+            or source_axis.controlled_domains != replay_axis.controlled_domains
+            or source_axis.stop_or_reopen_condition
+            != replay_axis.stop_or_reopen_condition
+            or source_axis.architecture_chassis is None
+            or source_axis.architecture_chassis.identity
+            == replay_axis.architecture_chassis.identity
+        ):
+            raise RuntimeError(
+                "protocol revision must retain one mechanism and change one chassis"
+            )
+        if accepted_protocol_revision is None:
+            if not isinstance(initial_revision_invalidation_id, str):
+                raise RuntimeError(
+                    "protocol revision invalidation authority is absent"
+                )
+            invalidation_id = initial_revision_invalidation_id
+        else:
+            invalidation_id = (
+                accepted_protocol_revision.satisfaction_invalidation_record_id
+            )
+        expected_revision = AxisProtocolRevisionProposal(
+            mission_id=spec.mission_id,
+            axis_id=source_axis.axis_id,
+            predecessor_axis_identity=source_axis.identity,
+            successor_axis_identity=replay_axis.identity,
+            mechanism_family=source_axis.mechanism_family,
+            predecessor_architecture_family=(
+                source_axis.architecture_chassis.identity
+            ),
+            successor_architecture_family=(
+                replay_axis.architecture_chassis.identity
+            ),
+            replay_obligation_id=spec.target_obligation_id,
+            satisfaction_invalidation_record_id=invalidation_id,
+            semantic_question_lineage=lineage,
+            reason_code=(
+                AxisProtocolRevisionReason.COMPLETION_VALIDITY_INVALIDATED
+            ),
+            reason=(
+                "the prior completion evidence was invalidated and requires "
+                "the same question under the corrected prospective chassis"
+            ),
+        )
+        if (
+            accepted_protocol_revision is not None
+            and accepted_protocol_revision != expected_revision
+        ):
+            raise RuntimeError(
+                "accepted replay protocol revision differs from reconstruction"
+            )
+        protocol_revision = expected_revision
+        expanded_axes = tuple(
+            replay_axis if axis.axis_id == source_axis.axis_id else axis
+            for axis in prior_axes
+        )
+        bridge_option_id = "revise-bounded-replay-protocol"
+        bridge_action = PortfolioAction.REVISE_PROTOCOL
+        bridge_rationale = (
+            "replace one invalidated protocol without inventing a mechanism"
+        )
+        bridge_alternative = DecisionOption(
+            option_id="open-genuinely-new-mechanism",
+            action=PortfolioAction.NEW_MECHANISM,
+            target_id=source_axis.axis_id,
+            expected_information_value="independent mechanism search remains valid",
+            opportunity_cost="leave the exact invalidated protocol unresolved",
+            omission_reason="the bounded same-question correction is executable now",
+        )
+        expanded_basis = (
+            "retain every unrelated axis and replace one invalidated protocol"
+        )
     bridge_options = (
             DecisionOption(
-                option_id="add-bounded-replay-bridge",
-                action=PortfolioAction.NEW_MECHANISM,
+                option_id=bridge_option_id,
+                action=bridge_action,
                 target_id=source_axis.axis_id,
                 expected_information_value=(
                     "high because one exact family resolves a bounded replay duty"
@@ -742,68 +1005,87 @@ def build_fixed_hold_replay_design(
                     f"one bounded {len(members)}-Job concurrent family"
                 ),
             ),
-            DecisionOption(
-                option_id="continue-unrelated-forest",
-                action=PortfolioAction.PRESERVE,
-                target_id=source_axis.axis_id,
-                expected_information_value=(
-                    "valid unrelated forest work remains available"
-                ),
-                opportunity_cost="leave the selected replay obligation pending",
-                omission_reason=(
-                    "the typed replay queue grants this work its current opportunity"
-                ),
-            ),
+            bridge_alternative,
         )
-    bridge_decision = PortfolioDecision(
-        decision_id=spec.decision_prefix + "-BRIDGE",
-        chosen_option_id="add-bounded-replay-bridge",
-        options=bridge_options,
-        rationale=(
-            "add one replay bridge without mutating or reinterpreting prior axes"
+    bridge_options = tuple(
+        option for option in bridge_options if option is not None
+    )
+    bridge_basis = [
+        DecisionBasisRecord(
+            kind="historical-replay-obligation",
+            record_id=spec.target_obligation_id,
         ),
-        commitment_batches=1,
-        quant_team_review=None if bridge_review_mode is False else _quant_team_review(
-            option_ids=tuple(option.option_id for option in bridge_options),
-            chosen_option_id="add-bounded-replay-bridge",
-            basis_records=(
-                DecisionBasisRecord(
-                    kind="historical-replay-obligation",
-                    record_id=spec.target_obligation_id,
-                ),
-                DecisionBasisRecord(
-                    kind="portfolio-snapshot",
-                    record_id=snapshot_record.record_id,
-                ),
-            ),
-            primary_lens=DecisionLens.CAUSALITY,
-            primary_finding=(
-                "the exact obligation isolates one historical criterion defect"
-            ),
-            reservation_lens=DecisionLens.RISK,
-            reservation_finding=(
-                "one bounded replay Batch delays unrelated forest allocation"
-            ),
-            claim_boundary=(
-                "bridge admission only; no scientific or candidate authority"
-            ),
-            resolution_basis=(
-                "the exact locally executable obligation has bounded high information"
-            ),
-            disagreement_resolution=(
-                "retain every unrelated eligible axis independently selectable"
-            ),
+        DecisionBasisRecord(
+            kind="portfolio-snapshot",
+            record_id=snapshot_record.record_id,
         ),
+    ]
+    if protocol_revision is not None:
+        bridge_basis.append(
+            DecisionBasisRecord(
+                kind="historical-replay-satisfaction-invalidation",
+                record_id=(
+                    protocol_revision.satisfaction_invalidation_record_id
+                ),
+            )
+        )
+    bridge_decision = (
+        None
+        if spec.axis_admission is ReplayAxisAdmission.REUSE_EXACT_AXIS
+        else PortfolioDecision(
+            decision_id=spec.decision_prefix + "-BRIDGE",
+            chosen_option_id=bridge_option_id,
+            options=bridge_options,
+            rationale=bridge_rationale,
+            commitment_batches=1,
+            quant_team_review=(
+                None
+                if bridge_review_mode is False
+                else _quant_team_review(
+                    option_ids=tuple(
+                        option.option_id for option in bridge_options
+                    ),
+                    chosen_option_id=bridge_option_id,
+                    basis_records=tuple(bridge_basis),
+                    primary_lens=DecisionLens.CAUSALITY,
+                    primary_finding=(
+                        "the exact obligation isolates one historical criterion defect"
+                    ),
+                    reservation_lens=DecisionLens.RISK,
+                    reservation_finding=(
+                        "one bounded replay Batch delays unrelated forest allocation"
+                    ),
+                    claim_boundary=(
+                        "structural admission only; no scientific or candidate authority"
+                    ),
+                    resolution_basis=(
+                        "the exact locally executable obligation has bounded high information"
+                    ),
+                    disagreement_resolution=(
+                        "retain every unrelated eligible axis independently selectable"
+                    ),
+                )
+            ),
+            replay_obligation_ids=(
+                ()
+                if protocol_revision is None
+                else (spec.target_obligation_id,)
+            ),
+            protocol_revision=protocol_revision,
+        )
     )
     expanded_snapshot = PortfolioSnapshot(
         mission_id=spec.mission_id,
-        axes=(*prior_axes, replay_axis),
-        opportunity_cost_basis=(
-            "retain the complete forest and spend one Batch on exact replay"
-        ),
+        axes=expanded_axes,
+        opportunity_cost_basis=expanded_basis,
         research_intake_id=snapshot_record.payload.get("research_intake_id"),
         exhaustion_standard=snapshot_record.payload.get("exhaustion_standard"),
     )
+    if (
+        spec.axis_admission is ReplayAxisAdmission.REUSE_EXACT_AXIS
+        and expanded_snapshot.identity != snapshot_record.record_id
+    ):
+        raise RuntimeError("exact-axis replay changed its base Portfolio snapshot")
     work_options = (
             DecisionOption(
                 option_id="run-exact-concurrent-family",
@@ -955,6 +1237,7 @@ def build_fixed_hold_replay_design(
         question=question,
         proposal=proposal,
         semantic_question_lineage=semantic_question_lineage,
+        protocol_revision=protocol_revision,
         batch_spec=batch_spec,
         controlled_chassis=controlled_chassis,
         criterion_ids=criterion_ids,
@@ -2003,9 +2286,22 @@ def operation_steps(
                 STUDY_CLOSE_STAGE,
             )
         )
+    if design.bridge_decision is not None:
+        steps.extend(
+            (
+                OperationStep(
+                    prefix + "bridge-decision",
+                    "portfolio_decision_recorded",
+                    STUDY_CLOSE_STAGE,
+                ),
+                OperationStep(
+                    prefix + "expanded-snapshot",
+                    "portfolio_snapshot_recorded",
+                    STUDY_CLOSE_STAGE,
+                ),
+            )
+        )
     steps.extend([
-        OperationStep(prefix + "bridge-decision", "portfolio_decision_recorded", STUDY_CLOSE_STAGE),
-        OperationStep(prefix + "expanded-snapshot", "portfolio_snapshot_recorded", STUDY_CLOSE_STAGE),
         OperationStep(prefix + "replay-decision", "portfolio_decision_recorded", STUDY_CLOSE_STAGE),
         OperationStep(prefix + "study-permit", "permit_issued", STUDY_CLOSE_STAGE),
         OperationStep(prefix + "open-study", "study_opened", STUDY_CLOSE_STAGE),
@@ -2440,6 +2736,8 @@ def _apply_study_close_step(
             operation_id=operation_id,
         )
     if operation_id == prefix + "bridge-decision":
+        if design.bridge_decision is None:
+            raise RuntimeError("exact-axis replay has no structural bridge")
         return writer.record_portfolio_decision(
             decision=design.bridge_decision,
             operation_id=operation_id,
@@ -3604,6 +3902,7 @@ def read_only_summary(
     return {
         "axis_count_after": len(design.expanded_snapshot.axes),
         "axis_count_before": len(design.prior_axes),
+        "axis_admission": design.spec.axis_admission.value,
         "base_snapshot_id": design.base_snapshot_id,
         "candidate_eligible": False,
         "current_prefix": completed,
@@ -3619,7 +3918,13 @@ def read_only_summary(
         "initiative_id": design.spec.initiative_id,
         "initiative_lifecycle": design.spec.initiative_lifecycle.value,
         "mode": "read_only_plan",
-        "new_axis_id": design.replay_axis.axis_id,
+        "new_axis_id": (
+            design.replay_axis.axis_id
+            if design.spec.axis_admission
+            is ReplayAxisAdmission.ADD_NEW_MECHANISM
+            else None
+        ),
+        "replay_axis_id": design.replay_axis.axis_id,
         "replay_obligation_ids": list(
             design.work_decision.replay_obligation_ids
         ),
@@ -3642,6 +3947,7 @@ __all__ = [
     "FixedHoldReplayMember",
     "FixedHoldReplayMissionSpec",
     "ReplayAuthorityBoundary",
+    "ReplayAxisAdmission",
     "ReplayInitiativeLifecycle",
     "ReplayInterpretation",
     "build_fixed_hold_replay_design",

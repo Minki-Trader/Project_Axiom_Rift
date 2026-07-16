@@ -16,6 +16,7 @@ from axiom_rift.operations.fixed_hold_replay_cli import (  # noqa: E402
 from axiom_rift.operations.fixed_hold_replay_workflow import (  # noqa: E402
     FixedHoldReplayMember,
     FixedHoldReplayMissionSpec,
+    ReplayAxisAdmission,
     ReplayAuthorityBoundary,
     ReplayInitiativeLifecycle,
     build_fixed_hold_replay_design,
@@ -61,6 +62,7 @@ PREDECESSOR_EVENT_ID = (
 
 def mission_spec() -> FixedHoldReplayMissionSpec:
     return FixedHoldReplayMissionSpec(
+        axis_admission=ReplayAxisAdmission.ADD_NEW_MECHANISM,
         initiative_lifecycle=(
             ReplayInitiativeLifecycle.OWN_BOUNDED_INITIATIVE
         ),

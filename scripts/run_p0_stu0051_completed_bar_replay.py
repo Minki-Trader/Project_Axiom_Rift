@@ -20,6 +20,7 @@ from axiom_rift.operations.fixed_hold_replay_profile import (  # noqa: E402
 )
 from axiom_rift.operations.fixed_hold_replay_workflow import (  # noqa: E402
     FixedHoldReplayMissionSpec,
+    ReplayAxisAdmission,
     ReplayAuthorityBoundary,
     ReplayInitiativeLifecycle,
 )
@@ -74,6 +75,7 @@ PERMIT_EXPIRY_UTC = "2027-12-31T23:59:59Z"
 
 def mission_spec() -> FixedHoldReplayMissionSpec:
     return FixedHoldReplayMissionSpec(
+        axis_admission=ReplayAxisAdmission.REVISE_PROTOCOL,
         initiative_lifecycle=(
             ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE
         ),
@@ -81,7 +83,7 @@ def mission_spec() -> FixedHoldReplayMissionSpec:
         initiative_id=INITIATIVE_ID,
         study_id=STUDY_ID,
         batch_display_id=BATCH_DISPLAY_ID,
-        axis_id="axis-stu0051-completed-bar-replay-correction-v1",
+        axis_id="axis-stu0051-volatility-duration-replay-bridge",
         bridge_axis_id="axis-stu0051-volatility-duration-replay-bridge",
         operation_prefix="p0-stu0051-completed-bar-replay-v1-",
         decision_prefix="DEC-P0-STU0051-COMPLETED-BAR-V1",

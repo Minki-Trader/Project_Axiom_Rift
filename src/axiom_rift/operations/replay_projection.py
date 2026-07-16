@@ -845,7 +845,7 @@ def validate_decision_selection(
         priority = ReplayPriority(constraints["required_replay_priority"])
         if diagnosis_cleanup:
             pass
-        elif selected and action in work_actions:
+        elif selected and action in {*work_actions, "revise_protocol"}:
             pass
         elif selected:
             raise ReplayTransitionError(

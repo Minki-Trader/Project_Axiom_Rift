@@ -3,6 +3,10 @@ from __future__ import annotations
 import unittest
 
 from axiom_rift.research.chassis import ArchitectureChassisSpec
+from axiom_rift.research.axis_protocol_revision import (
+    AxisProtocolRevisionProposal,
+    AxisProtocolRevisionReason,
+)
 from axiom_rift.research.forest_replay import build_p0_composite_validation_plan
 from axiom_rift.research.governance import ResearchLayer
 from axiom_rift.research.portfolio import (
@@ -25,6 +29,10 @@ from axiom_rift.research.portfolio_projection import (
     portfolio_decision_from_projection,
 )
 from axiom_rift.research.selection_inference import HistoricalSearchContext
+from axiom_rift.research.semantic_question import (
+    SemanticQuestionLineageProposal,
+    SemanticQuestionRelation,
+)
 
 
 class PortfolioProjectionTests(unittest.TestCase):
@@ -268,6 +276,67 @@ class PortfolioProjectionTests(unittest.TestCase):
                 claim_boundary="allocation only",
                 resolution_basis="one opinion is not a team review",
             )
+
+    def test_protocol_revision_decision_round_trips_typed_authority(self) -> None:
+        obligation_id = "historical-replay-obligation:" + "1" * 64
+        lineage = SemanticQuestionLineageProposal(
+            predecessor_study_id="STU-PROJECTION-PREDECESSOR",
+            successor_study_id="STU-PROJECTION-SUCCESSOR",
+            predecessor_core_id="semantic-question-core:" + "2" * 64,
+            successor_core_id="semantic-question-core:" + "2" * 64,
+            relation=SemanticQuestionRelation.CONTINUATION,
+            rationale="retain the exact question under one corrected protocol",
+            basis_record_ids=("study-open:STU-PROJECTION-PREDECESSOR",),
+        )
+        revision = AxisProtocolRevisionProposal(
+            mission_id="MIS-PORTFOLIO-PROJECTION",
+            axis_id=self.axis.axis_id,
+            predecessor_axis_identity=self.axis.identity,
+            successor_axis_identity="axis:" + "3" * 64,
+            mechanism_family=self.axis.mechanism_family,
+            predecessor_architecture_family=self.architecture.identity,
+            successor_architecture_family="architecture-family:" + "4" * 64,
+            replay_obligation_id=obligation_id,
+            satisfaction_invalidation_record_id=(
+                "historical-replay-satisfaction-invalidation:" + "5" * 64
+            ),
+            semantic_question_lineage=lineage,
+            reason_code=(
+                AxisProtocolRevisionReason.COMPLETION_VALIDITY_INVALIDATED
+            ),
+            reason="the accepted completion protocol is invalidated",
+        )
+        decision = PortfolioDecision(
+            decision_id="DEC-PROTOCOL-REVISION-PROJECTION",
+            chosen_option_id="revise-protocol",
+            options=(
+                DecisionOption(
+                    option_id="revise-protocol",
+                    action=PortfolioAction.REVISE_PROTOCOL,
+                    target_id=self.axis.axis_id,
+                    expected_information_value="recover exact causal evidence",
+                    opportunity_cost="one structural snapshot",
+                ),
+                DecisionOption(
+                    option_id="new-mechanism",
+                    action=PortfolioAction.NEW_MECHANISM,
+                    target_id=self.axis.axis_id,
+                    expected_information_value="independent search value",
+                    opportunity_cost="leave the invalidated protocol unresolved",
+                    omission_reason="the exact correction is currently bounded",
+                ),
+            ),
+            rationale="revise one protocol without manufacturing a mechanism",
+            commitment_batches=1,
+            replay_obligation_ids=(obligation_id,),
+            protocol_revision=revision,
+        )
+        payload = decision.to_identity_payload()
+        self.assertEqual(payload["schema"], "portfolio_decision.v4")
+        rebuilt = portfolio_decision_from_projection(payload)
+        self.assertEqual(rebuilt.identity, decision.identity)
+        self.assertEqual(rebuilt.protocol_revision, revision)
+        self.assertEqual(rebuilt.to_identity_payload(), payload)
 
 
 if __name__ == "__main__":

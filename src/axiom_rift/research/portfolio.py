@@ -17,6 +17,9 @@ from axiom_rift.research.governance import (
     ResearchLayer,
     require_architecture_family,
 )
+from axiom_rift.research.axis_protocol_revision import (
+    AxisProtocolRevisionProposal,
+)
 
 
 class BatchSpecError(ValueError):
@@ -577,6 +580,7 @@ class PortfolioAction(str, Enum):
     CONTRAST = "contrast"
     ROTATE = "rotate"
     NEW_MECHANISM = "new_mechanism"
+    REVISE_PROTOCOL = "revise_protocol"
     COMPLEMENTARY_SLEEVE = "complementary_sleeve"
     RECOMBINE = "recombine"
     SYNTHESIZE = "synthesize"
@@ -769,6 +773,7 @@ class PortfolioDecision:
     quant_team_review: QuantTeamDecisionReview | None = None
     baseline_executable: ExecutableSpec | None = field(default=None, repr=False)
     replay_obligation_ids: tuple[str, ...] = ()
+    protocol_revision: AxisProtocolRevisionProposal | None = None
     recent_positive_lineage_id: str | None = None
     locks_future_portfolio: bool = False
     architecture_chassis: ArchitectureChassisSpec | None = field(init=False, repr=False)
@@ -850,6 +855,26 @@ class PortfolioDecision:
         object.__setattr__(
             self, "replay_obligation_ids", replay_obligation_ids
         )
+        if self.chosen.action is PortfolioAction.REVISE_PROTOCOL:
+            if not isinstance(
+                self.protocol_revision,
+                AxisProtocolRevisionProposal,
+            ):
+                raise PortfolioDecisionError(
+                    "protocol revision action requires typed authority"
+                )
+            if (
+                self.protocol_revision.axis_id != self.chosen.target_id
+                or self.replay_obligation_ids
+                != (self.protocol_revision.replay_obligation_id,)
+            ):
+                raise PortfolioDecisionError(
+                    "protocol revision Decision binding is not exact"
+                )
+        elif self.protocol_revision is not None:
+            raise PortfolioDecisionError(
+                "protocol revision authority requires its exact action"
+            )
         architecture = (
             None
             if self.baseline_executable is None
@@ -920,7 +945,9 @@ class PortfolioDecision:
             "rationale": self.rationale,
             "recent_positive_lineage_id": self.recent_positive_lineage_id,
             "schema": (
-                "portfolio_decision.v3"
+                "portfolio_decision.v4"
+                if self.protocol_revision is not None
+                else "portfolio_decision.v3"
                 if self.quant_team_review is not None
                 else (
                     "portfolio_decision.v1"
@@ -937,6 +964,11 @@ class PortfolioDecision:
         # binds typed historical replay work.
         if self.replay_obligation_ids:
             payload["replay_obligation_ids"] = list(self.replay_obligation_ids)
+        if self.protocol_revision is not None:
+            payload["protocol_revision"] = (
+                self.protocol_revision.to_identity_payload()
+            )
+            payload["protocol_revision_id"] = self.protocol_revision.identity
         return payload
 
 

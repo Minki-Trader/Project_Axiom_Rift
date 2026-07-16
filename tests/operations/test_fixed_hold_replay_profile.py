@@ -8,6 +8,7 @@ from axiom_rift.operations.fixed_hold_replay_profile import (
     require_borrowed_production_profile,
 )
 from axiom_rift.operations.fixed_hold_replay_workflow import (
+    ReplayAxisAdmission,
     ReplayInitiativeLifecycle,
 )
 from axiom_rift.operations.strict_operation_chain import OperationStep
@@ -29,6 +30,7 @@ def _design(*, lifecycle=ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE):
     return SimpleNamespace(
         spec=SimpleNamespace(
             initiative_lifecycle=lifecycle,
+            axis_admission=ReplayAxisAdmission.ADD_NEW_MECHANISM,
             operation_prefix=PREFIX,
             study_id="STU-9002",
         ),
@@ -38,6 +40,15 @@ def _design(*, lifecycle=ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE):
         ),
         question=QUESTION,
         batch_spec=SimpleNamespace(study_hash="a" * 64),
+        base_snapshot_id="portfolio:" + "a" * 64,
+        prior_axes=(SimpleNamespace(axis_id="axis-source"),),
+        replay_axis=SimpleNamespace(axis_id="axis-replay"),
+        bridge_decision=SimpleNamespace(
+            chosen=SimpleNamespace(action=SimpleNamespace(value="new_mechanism")),
+            protocol_revision=None,
+        ),
+        expanded_snapshot=SimpleNamespace(axes=(1, 2)),
+        protocol_revision=None,
     )
 
 

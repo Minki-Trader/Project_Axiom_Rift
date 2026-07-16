@@ -9,6 +9,7 @@ import axiom_rift.operations.fixed_hold_replay_workflow as workflow
 from axiom_rift.operations.fixed_hold_replay_workflow import (
     DIAGNOSE_STAGE,
     STUDY_CLOSE_STAGE,
+    ReplayAxisAdmission,
     ReplayInitiativeLifecycle,
 )
 from axiom_rift.operations.replay_workflow_recovery import (
@@ -48,6 +49,7 @@ def _spec(*, lifecycle=ReplayInitiativeLifecycle.OWN_BOUNDED_INITIATIVE):
         boundary=SimpleNamespace(sequence=100, event_id="0" * 64),
         initiative_id=INITIATIVE_ID,
         initiative_lifecycle=lifecycle,
+        axis_admission=ReplayAxisAdmission.ADD_NEW_MECHANISM,
         mission_id=MISSION_ID,
         operation_prefix=PREFIX,
         study_id=STUDY_ID,

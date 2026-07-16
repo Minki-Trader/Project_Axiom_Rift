@@ -150,6 +150,15 @@ from axiom_rift.research.source_authority import (
 from axiom_rift.research.decision_withdrawal import (
     PortfolioDecisionWithdrawalManifest,
     PortfolioDecisionWithdrawalReason,
+    PortfolioStructuralDecisionWithdrawalManifest,
+)
+from axiom_rift.research.axis_protocol_revision import (
+    AxisProtocolRevisionProposal,
+    AxisProtocolRevisionReason,
+)
+from axiom_rift.research.semantic_question import (
+    SemanticQuestionLineageProposal,
+    SemanticQuestionRelation,
 )
 from axiom_rift.research.protocol import (
     ResearchProtocol,
@@ -4338,6 +4347,341 @@ class WriterTests(unittest.TestCase):
                 spec=legacy_spec,
                 operation_id="reject-legacy-scientific-validator-after-activation",
             )
+
+    def test_structural_decision_withdrawal_recovers_duplicate_new_mechanism(
+        self,
+    ) -> None:
+        self.open_mission_and_initiative()
+        source_axis = PortfolioAxis(
+            axis_id="axis-replay-source",
+            causal_question="Does the exact replay retain causal evidence?",
+            mechanism_family="existing-replay-family",
+        )
+        peer_axis = PortfolioAxis(
+            axis_id="axis-replay-peer",
+            causal_question="Does an unrelated peer add evidence?",
+            mechanism_family="unrelated-peer-family",
+        )
+        snapshot = PortfolioSnapshot(
+            mission_id="MIS-FIXTURE",
+            axes=(source_axis, peer_axis),
+            opportunity_cost_basis="retain two unrelated fixture mechanisms",
+        )
+        self.writer.record_portfolio_snapshot(
+            snapshot=snapshot,
+            operation_id="structural-withdrawal-base-snapshot",
+        )
+        bridge = PortfolioDecision(
+            decision_id="DEC-STRUCTURAL-WITHDRAWAL-BRIDGE",
+            chosen_option_id="add-replay-axis",
+            options=(
+                DecisionOption(
+                    option_id="add-replay-axis",
+                    action=PortfolioAction.NEW_MECHANISM,
+                    target_id=source_axis.axis_id,
+                    expected_information_value="high if structurally distinct",
+                    opportunity_cost="one bounded fixture Batch",
+                ),
+                DecisionOption(
+                    option_id="retain-peer",
+                    action=PortfolioAction.CONTRAST,
+                    target_id=peer_axis.axis_id,
+                    expected_information_value="bounded peer information",
+                    opportunity_cost="defer the replay",
+                    omission_reason="the replay was nominally selected",
+                ),
+            ),
+            rationale="exercise exact structural Decision correction",
+            commitment_batches=1,
+        )
+        bridge_result = self.writer.record_portfolio_decision(
+            decision=bridge,
+            operation_id="record-invalid-structural-bridge",
+        )
+        duplicate_axis = PortfolioAxis(
+            axis_id="axis-duplicate-replay",
+            causal_question=source_axis.causal_question,
+            mechanism_family=source_axis.mechanism_family,
+        )
+        proposed = PortfolioSnapshot(
+            mission_id="MIS-FIXTURE",
+            axes=(source_axis, peer_axis, duplicate_axis),
+            opportunity_cost_basis="attempt the exact duplicate replay bridge",
+        )
+        with self.assertRaisesRegex(TransitionError, "genuinely distinct"):
+            self.writer.record_portfolio_snapshot(
+                snapshot=proposed,
+                operation_id="reject-duplicate-replay-axis",
+            )
+        proposed_artifact = self.writer.evidence.finalize(
+            canonical_bytes(proposed.to_identity_payload())
+        )
+        lineage = SemanticQuestionLineageProposal(
+            predecessor_study_id="STU-STRUCTURAL-PREDECESSOR",
+            successor_study_id="STU-STRUCTURAL-SUCCESSOR",
+            predecessor_core_id="semantic-question-core:" + "b" * 64,
+            successor_core_id="semantic-question-core:" + "b" * 64,
+            relation=SemanticQuestionRelation.CONTINUATION,
+            rationale="the corrected protocol retains the exact causal question",
+            basis_record_ids=(
+                "study-open:STU-STRUCTURAL-PREDECESSOR",
+                "study-close:" + "c" * 64,
+            ),
+        )
+        report_finding_id = "STRUCTURAL-DECISION-001"
+        report = self.writer.evidence.finalize(
+            (
+                "# Structural Decision Audit\n\n"
+                f"- {report_finding_id}:\n"
+                f"  decision {bridge.identity}\n"
+                "  operation record-invalid-structural-bridge\n"
+                f"  authority event {bridge_result.event_id}\n"
+                f"  proposed snapshot {proposed.identity}\n"
+                f"  proposed axis {duplicate_axis.identity}\n"
+                f"  duplicate family {source_axis.mechanism_family}\n"
+                f"  conflicting axis {source_axis.identity}\n"
+                f"  semantic lineage {lineage.identity}\n"
+                f"  semantic core {lineage.successor_core_id}\n"
+            ).encode("ascii")
+        )
+        manifest = PortfolioStructuralDecisionWithdrawalManifest(
+            report_artifact_hash=report.sha256,
+            report_finding_id=report_finding_id,
+            decision_id=bridge.identity,
+            decision_operation_id="record-invalid-structural-bridge",
+            decision_authority_revision=bridge_result.revision,
+            decision_authority_event_id=bridge_result.event_id,
+            portfolio_snapshot_id=snapshot.identity,
+            target_axis_id=source_axis.axis_id,
+            target_axis_identity=source_axis.identity,
+            proposed_snapshot_artifact_hash=proposed_artifact.sha256,
+            proposed_snapshot_id=proposed.identity,
+            proposed_axis_id=duplicate_axis.axis_id,
+            proposed_axis_identity=duplicate_axis.identity,
+            duplicate_mechanism_family=source_axis.mechanism_family,
+            conflicting_axis_id=source_axis.axis_id,
+            conflicting_axis_identity=source_axis.identity,
+            semantic_question_lineage=lineage,
+            reason_code=(
+                PortfolioDecisionWithdrawalReason
+                .NEW_MECHANISM_DUPLICATES_EXISTING_FAMILY
+            ),
+            reason="the exact replay belongs to its existing selectable axis",
+        )
+        forged = replace(
+            manifest,
+            conflicting_axis_id=peer_axis.axis_id,
+            conflicting_axis_identity=peer_axis.identity,
+        )
+        forged_artifact = self.writer.evidence.finalize(
+            canonical_bytes(forged.to_identity_payload())
+        )
+        with self.assertRaisesRegex(TransitionError, "exact evidence"):
+            self.writer.withdraw_structurally_invalid_portfolio_decision(
+                manifest_artifact_hash=forged_artifact.sha256,
+                operation_id="reject-forged-structural-withdrawal",
+            )
+        manifest_artifact = self.writer.evidence.finalize(
+            canonical_bytes(manifest.to_identity_payload())
+        )
+        withdrawn = (
+            self.writer.withdraw_structurally_invalid_portfolio_decision(
+                manifest_artifact_hash=manifest_artifact.sha256,
+                operation_id="withdraw-duplicate-structural-bridge",
+            )
+        )
+        self.assertEqual(withdrawn.result["decision_id"], bridge.identity)
+        self.assertEqual(
+            self.writer.read_control()["next_action"],  # type: ignore[index]
+            {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": snapshot.identity,
+            },
+        )
+        corrected = PortfolioDecision(
+            decision_id="DEC-STRUCTURAL-WITHDRAWAL-CORRECTED",
+            chosen_option_id="reuse-replay-axis",
+            options=(
+                DecisionOption(
+                    option_id="reuse-replay-axis",
+                    action=PortfolioAction.SYNTHESIZE,
+                    target_id=source_axis.axis_id,
+                    expected_information_value="high exact replay information",
+                    opportunity_cost="one bounded fixture Batch",
+                ),
+                DecisionOption(
+                    option_id="retain-peer",
+                    action=PortfolioAction.CONTRAST,
+                    target_id=peer_axis.axis_id,
+                    expected_information_value="bounded peer information",
+                    opportunity_cost="defer the replay",
+                    omission_reason="the exact replay has current priority",
+                ),
+            ),
+            rationale="reuse the exact selectable scientific axis",
+            commitment_batches=1,
+        )
+        self.writer.record_portfolio_decision(
+            decision=corrected,
+            operation_id="record-corrected-existing-axis-decision",
+        )
+        self.assertEqual(
+            self.writer.read_control()["next_action"]["kind"],  # type: ignore[index]
+            "execute_portfolio_decision",
+        )
+
+    def test_protocol_revision_replaces_one_exact_axis_chassis(self) -> None:
+        self.open_mission_and_initiative()
+        source_axis = PortfolioAxis(
+            axis_id="axis-protocol-source",
+            causal_question="Does one exact protocol retain its causal evidence?",
+            mechanism_family="protocol-revision-family",
+        )
+        peer_axis = PortfolioAxis(
+            axis_id="axis-protocol-peer",
+            causal_question="Does an unrelated peer remain independently useful?",
+            mechanism_family="protocol-revision-peer-family",
+        )
+        snapshot = PortfolioSnapshot(
+            mission_id="MIS-FIXTURE",
+            axes=(source_axis, peer_axis),
+            opportunity_cost_basis="retain one source and one unrelated peer",
+        )
+        self.writer.record_portfolio_snapshot(
+            snapshot=snapshot,
+            operation_id="protocol-revision-base-snapshot",
+        )
+        successor_chassis = architecture_chassis("fixture-alternate")
+        successor_axis = replace(
+            source_axis,
+            system_architecture_family=successor_chassis.identity,
+            architecture_chassis=successor_chassis,
+            why_now="repair the invalidated completion protocol exactly once",
+        )
+        obligation_id = "historical-replay-obligation:" + "e" * 64
+        invalidation_id = (
+            "historical-replay-satisfaction-invalidation:" + "d" * 64
+        )
+        lineage = SemanticQuestionLineageProposal(
+            predecessor_study_id="STU-PROTOCOL-PREDECESSOR",
+            successor_study_id="STU-PROTOCOL-SUCCESSOR",
+            predecessor_core_id="semantic-question-core:" + "a" * 64,
+            successor_core_id="semantic-question-core:" + "a" * 64,
+            relation=SemanticQuestionRelation.CONTINUATION,
+            rationale="retain the same question while correcting execution semantics",
+            basis_record_ids=(
+                f"portfolio-snapshot:{snapshot.identity}",
+            ),
+        )
+        revision = AxisProtocolRevisionProposal(
+            mission_id="MIS-FIXTURE",
+            axis_id=source_axis.axis_id,
+            predecessor_axis_identity=source_axis.identity,
+            successor_axis_identity=successor_axis.identity,
+            mechanism_family=source_axis.mechanism_family,
+            predecessor_architecture_family=(
+                source_axis.architecture_chassis.identity
+            ),
+            successor_architecture_family=successor_chassis.identity,
+            replay_obligation_id=obligation_id,
+            satisfaction_invalidation_record_id=invalidation_id,
+            semantic_question_lineage=lineage,
+            reason_code=(
+                AxisProtocolRevisionReason.COMPLETION_VALIDITY_INVALIDATED
+            ),
+            reason="the prior completion protocol is not scientifically valid",
+        )
+        decision = PortfolioDecision(
+            decision_id="DEC-PROTOCOL-REVISION",
+            chosen_option_id="revise-exact-protocol",
+            options=(
+                DecisionOption(
+                    option_id="revise-exact-protocol",
+                    action=PortfolioAction.REVISE_PROTOCOL,
+                    target_id=source_axis.axis_id,
+                    expected_information_value="high exact correction value",
+                    opportunity_cost="one structural snapshot",
+                ),
+                DecisionOption(
+                    option_id="open-unrelated-mechanism",
+                    action=PortfolioAction.NEW_MECHANISM,
+                    target_id=peer_axis.axis_id,
+                    expected_information_value="bounded unrelated value",
+                    opportunity_cost="defer the exact correction",
+                    omission_reason="the invalidated protocol has exact priority",
+                ),
+            ),
+            rationale="replace the protocol without inventing a new mechanism",
+            commitment_batches=1,
+            replay_obligation_ids=(obligation_id,),
+            protocol_revision=revision,
+        )
+        fake_obligation = SimpleNamespace(identity=obligation_id)
+        fake_head = SimpleNamespace(
+            status="pending",
+            kind="historical-replay-satisfaction-invalidation",
+            record_id=invalidation_id,
+        )
+        with (
+            patch(
+                "axiom_rift.operations.replay_projection."
+                "validate_decision_selection",
+                return_value=None,
+            ),
+            patch(
+                "axiom_rift.operations.replay_projection.obligation_heads",
+                return_value=((fake_obligation, fake_head),),
+            ),
+            patch(
+                "axiom_rift.operations.replay_projection."
+                "require_satisfaction_invalidation_record"
+            ),
+            patch(
+                "axiom_rift.operations.semantic_question_registry."
+                "require_semantic_question_study_binding"
+            ),
+        ):
+            self.writer.record_portfolio_decision(
+                decision=decision,
+                operation_id="record-protocol-revision",
+            )
+        next_action = self.writer.read_control()["next_action"]  # type: ignore[index]
+        self.assertEqual(next_action["kind"], "record_portfolio_snapshot")
+        self.assertEqual(next_action["action"], "revise_protocol")
+        self.assertEqual(
+            next_action["protocol_revision_id"],
+            revision.identity,
+        )
+        forged_axis = replace(
+            successor_axis,
+            why_now="forge another unbound successor meaning",
+        )
+        with self.assertRaisesRegex(TransitionError, "one exact axis chassis"):
+            self.writer.record_portfolio_snapshot(
+                snapshot=PortfolioSnapshot(
+                    mission_id="MIS-FIXTURE",
+                    axes=(forged_axis, peer_axis),
+                    opportunity_cost_basis="attempt one unbound revision",
+                ),
+                operation_id="reject-forged-protocol-revision",
+            )
+        revised_snapshot = PortfolioSnapshot(
+            mission_id="MIS-FIXTURE",
+            axes=(successor_axis, peer_axis),
+            opportunity_cost_basis="replace one invalidated protocol exactly",
+        )
+        self.writer.record_portfolio_snapshot(
+            snapshot=revised_snapshot,
+            operation_id="record-protocol-revision-snapshot",
+        )
+        self.assertEqual(len(revised_snapshot.axes), len(snapshot.axes))
+        self.assertEqual(
+            self.writer.read_control()["next_action"],  # type: ignore[index]
+            {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": revised_snapshot.identity,
+            },
+        )
 
     def test_v2_authority_fails_closed_without_protocol_activation(self) -> None:
         self.open_mission_and_initiative()

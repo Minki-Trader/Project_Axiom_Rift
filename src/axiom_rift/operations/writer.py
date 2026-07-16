@@ -14159,6 +14159,33 @@ class StateWriter:
                 if not set(old_axes).issubset(new_axes):
                     raise TransitionError("Portfolio axes cannot be silently removed")
                 added_axis_ids = set(new_axes) - set(old_axes)
+                action = next_action.get("action")
+                target_id = next_action.get("target_id")
+                protocol_revision = None
+                if action == "revise_protocol":
+                    from axiom_rift.research.axis_protocol_revision import (
+                        AxisProtocolRevisionProposal,
+                    )
+
+                    try:
+                        protocol_revision = (
+                            AxisProtocolRevisionProposal.from_mapping(
+                                decision.payload.get("protocol_revision")
+                            )
+                        )
+                    except (TypeError, ValueError) as exc:
+                        raise RecoveryRequired(
+                            "accepted protocol revision authority is malformed"
+                        ) from exc
+                    if (
+                        decision.payload.get("protocol_revision_id")
+                        != protocol_revision.identity
+                        or next_action.get("protocol_revision_id")
+                        != protocol_revision.identity
+                    ):
+                        raise RecoveryRequired(
+                            "protocol revision identity is not exact"
+                        )
                 if not self.engineering_fixture and any(
                     new_axes[axis_id].get("architecture_chassis_identity") is None
                     for axis_id in added_axis_ids
@@ -14168,14 +14195,19 @@ class StateWriter:
                     )
                 pruned_reopen_axis_ids: list[str] = []
                 for axis_id, old_axis in old_axes.items():
-                    if new_axes[axis_id]["axis_identity"] != old_axis["axis_identity"]:
+                    if (
+                        not (
+                            protocol_revision is not None
+                            and axis_id == target_id
+                        )
+                        and new_axes[axis_id]["axis_identity"]
+                        != old_axis["axis_identity"]
+                    ):
                         raise TransitionError(
                             "Portfolio axis meaning is immutable within a Mission"
                         )
                     if old_axis["status"] == "pruned" and new_axes[axis_id]["status"] != "pruned":
                         pruned_reopen_axis_ids.append(axis_id)
-                action = next_action.get("action")
-                target_id = next_action.get("target_id")
                 if pruned_reopen_axis_ids:
                     from axiom_rift.research.effective_axis import (
                         AxisReopenAuthority,
@@ -14274,6 +14306,58 @@ class StateWriter:
                             raise TransitionError(
                                 "Portfolio snapshot differs from its structural Decision"
                             )
+                elif action == "revise_protocol":
+                    assert protocol_revision is not None
+                    old_target = old_axes.get(target_id)
+                    new_target = new_axes.get(target_id)
+                    immutable_fields = set(old_target or {}).difference(
+                        {
+                            "architecture_chassis",
+                            "architecture_chassis_identity",
+                            "axis_identity",
+                            "system_architecture_family",
+                            "why_now",
+                        }
+                    )
+                    if (
+                        continuation is not None
+                        or set(new_axes) != set(old_axes)
+                        or target_id != protocol_revision.axis_id
+                        or not isinstance(old_target, Mapping)
+                        or not isinstance(new_target, Mapping)
+                        or any(
+                            new_axes[axis_id] != old_axis
+                            for axis_id, old_axis in old_axes.items()
+                            if axis_id != target_id
+                        )
+                        or any(
+                            new_target.get(field) != old_target.get(field)
+                            for field in immutable_fields
+                        )
+                        or old_target.get("axis_identity")
+                        != protocol_revision.predecessor_axis_identity
+                        or new_target.get("axis_identity")
+                        != protocol_revision.successor_axis_identity
+                        or old_target.get("mechanism_family")
+                        != protocol_revision.mechanism_family
+                        or new_target.get("mechanism_family")
+                        != protocol_revision.mechanism_family
+                        or old_target.get("architecture_chassis_identity")
+                        != protocol_revision.predecessor_architecture_family
+                        or old_target.get("system_architecture_family")
+                        != protocol_revision.predecessor_architecture_family
+                        or new_target.get("architecture_chassis_identity")
+                        != protocol_revision.successor_architecture_family
+                        or new_target.get("system_architecture_family")
+                        != protocol_revision.successor_architecture_family
+                        or not isinstance(
+                            new_target.get("architecture_chassis"),
+                            Mapping,
+                        )
+                    ):
+                        raise TransitionError(
+                            "protocol revision must replace one exact axis chassis only"
+                        )
                 elif action == "new_mechanism":
                     added = set(new_axes) - set(old_axes)
                     old_families = {
@@ -14844,6 +14928,104 @@ class StateWriter:
             ):
                 raise TransitionError("recent-positive reference is not durable")
             target_axis = axes_by_id[decision.chosen.target_id]
+            protocol_revision = decision.protocol_revision
+            if protocol_revision is not None:
+                from axiom_rift.operations.replay_projection import (
+                    obligation_heads,
+                    require_satisfaction_invalidation_record,
+                )
+                from axiom_rift.operations.semantic_question_registry import (
+                    SemanticQuestionRegistryError,
+                    SemanticQuestionRegistryIntegrityError,
+                    require_semantic_question_study_binding,
+                )
+                from axiom_rift.operations.replay_projection import (
+                    ReplayObligationStatus,
+                )
+
+                lineage = protocol_revision.semantic_question_lineage
+                matching_obligations = tuple(
+                    (obligation, head)
+                    for obligation, head in obligation_heads(
+                        _index,
+                        mission_id=science["active_mission"],
+                    )
+                    if obligation.identity
+                    == protocol_revision.replay_obligation_id
+                )
+                if (
+                    decision.chosen.action
+                    is not PortfolioAction.REVISE_PROTOCOL
+                    or protocol_revision.mission_id
+                    != science["active_mission"]
+                    or protocol_revision.axis_id
+                    != decision.chosen.target_id
+                    or protocol_revision.predecessor_axis_identity
+                    != target_axis.get("axis_identity")
+                    or protocol_revision.mechanism_family
+                    != target_axis.get("mechanism_family")
+                    or protocol_revision.predecessor_architecture_family
+                    != target_axis.get("architecture_chassis_identity")
+                    or protocol_revision.predecessor_architecture_family
+                    != target_axis.get("system_architecture_family")
+                    or lineage.successor_study_id
+                    == lineage.predecessor_study_id
+                    or _index.get("study-open", lineage.successor_study_id)
+                    is not None
+                    or len(matching_obligations) != 1
+                ):
+                    raise TransitionError(
+                        "protocol revision authority differs from its current axis"
+                    )
+                obligation, obligation_head = matching_obligations[0]
+                if (
+                    obligation_head.status
+                    != ReplayObligationStatus.PENDING.value
+                    or obligation_head.kind
+                    != "historical-replay-satisfaction-invalidation"
+                    or obligation_head.record_id
+                    != protocol_revision.satisfaction_invalidation_record_id
+                ):
+                    raise TransitionError(
+                        "protocol revision lacks its current replay invalidation"
+                    )
+                try:
+                    require_satisfaction_invalidation_record(
+                        _index,
+                        obligation=obligation,
+                        record=obligation_head,
+                    )
+                    require_semantic_question_study_binding(
+                        _index,
+                        study_id=lineage.predecessor_study_id,
+                        core_id=lineage.predecessor_core_id,
+                    )
+                except (
+                    ReplayProjectionError,
+                    SemanticQuestionRegistryIntegrityError,
+                ) as exc:
+                    raise RecoveryRequired(str(exc)) from exc
+                except SemanticQuestionRegistryError as exc:
+                    raise TransitionError(str(exc)) from exc
+                if any(
+                    ":" not in reference
+                    or _index.get(*reference.split(":", 1)) is None
+                    for reference in lineage.basis_record_ids
+                ):
+                    raise TransitionError(
+                        "protocol revision lineage cites unavailable evidence"
+                    )
+                if (
+                    review is not None
+                    and (
+                        "historical-replay-satisfaction-invalidation",
+                        obligation_head.record_id,
+                    )
+                    not in review_basis
+                ):
+                    raise TransitionError(
+                        "quant-team review omits the protocol invalidation basis"
+                    )
             baseline = decision.baseline_executable
             architecture = decision.architecture_chassis
             component_records: list[IndexRecord] = []
@@ -15242,6 +15424,7 @@ class StateWriter:
                     if decision.chosen.action
                     in {
                         PortfolioAction.NEW_MECHANISM,
+                        PortfolioAction.REVISE_PROTOCOL,
                         PortfolioAction.PRESERVE,
                         PortfolioAction.PRUNE,
                     }
@@ -15259,6 +15442,10 @@ class StateWriter:
             if decision.replay_obligation_ids:
                 body["next_action"]["replay_obligation_ids"] = list(
                     decision.replay_obligation_ids
+                )
+            if protocol_revision is not None:
+                body["next_action"]["protocol_revision_id"] = (
+                    protocol_revision.identity
                 )
             if audit_deferred_prune_reopen:
                 from axiom_rift.research.effective_axis import (
@@ -15727,6 +15914,328 @@ class StateWriter:
             payload={
                 "manifest": manifest.to_identity_payload(),
                 "manifest_artifact_hash": manifest_artifact_hash,
+            },
+            prepare=prepare,
+        )
+
+    def withdraw_structurally_invalid_portfolio_decision(
+        self,
+        *,
+        manifest_artifact_hash: str,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Withdraw one unstarted structural Decision proved impossible as stated."""
+
+        from axiom_rift.research.decision_withdrawal import (
+            PortfolioDecisionWithdrawalReason,
+            PortfolioStructuralDecisionWithdrawalManifest,
+        )
+
+        _require_digest(
+            "structural Portfolio Decision withdrawal manifest",
+            manifest_artifact_hash,
+        )
+        try:
+            manifest_bytes = self.evidence.read_verified(manifest_artifact_hash)
+            manifest = PortfolioStructuralDecisionWithdrawalManifest.from_bytes(
+                manifest_bytes
+            )
+            report_bytes = self.evidence.read_verified(
+                manifest.report_artifact_hash
+            )
+            proposed_bytes = self.evidence.read_verified(
+                manifest.proposed_snapshot_artifact_hash
+            )
+            proposed = parse_canonical(proposed_bytes)
+            manifest.require_report(report_bytes)
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise TransitionError(
+                "structural Portfolio Decision withdrawal lacks exact evidence"
+            ) from exc
+        if (
+            manifest.reason_code
+            is not PortfolioDecisionWithdrawalReason.NEW_MECHANISM_DUPLICATES_EXISTING_FAMILY
+            or not isinstance(proposed, Mapping)
+            or canonical_digest(
+                domain="portfolio-snapshot",
+                payload=dict(proposed),
+            )
+            != manifest.proposed_snapshot_id.removeprefix("portfolio:")
+        ):
+            raise TransitionError(
+                "structural Portfolio Decision withdrawal proposal is malformed"
+            )
+
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError(
+                    "structural Portfolio Decision withdrawal requires control"
+                )
+            science = current["scientific"]
+            mission_id = science.get("active_mission")
+            initiative_id = science.get("active_initiative")
+            if type(mission_id) is not str or type(initiative_id) is not str:
+                raise TransitionError(
+                    "structural Portfolio Decision withdrawal requires active Mission work"
+                )
+            if any(
+                science.get(name) is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_job",
+                    "active_lineage",
+                    "active_release",
+                    "active_repair",
+                    "active_study",
+                    "active_holdout_evaluation",
+                )
+            ):
+                raise TransitionError(
+                    "structural Portfolio Decision withdrawal cannot bypass started work"
+                )
+            next_action = current.get("next_action")
+            decision = index.get("portfolio-decision", manifest.decision_id)
+            decision_operation = index.get(
+                "operation",
+                manifest.decision_operation_id,
+            )
+            decision_operation_result = (
+                None
+                if decision_operation is None
+                else decision_operation.payload.get("result")
+            )
+            snapshot = index.get(
+                "portfolio-snapshot",
+                manifest.portfolio_snapshot_id,
+            )
+            if (
+                self._portfolio_decision_withdrawal(
+                    index,
+                    manifest.decision_id,
+                )
+                is not None
+            ):
+                raise TransitionError("Portfolio Decision is already withdrawn")
+            chosen_options = (
+                ()
+                if decision is None
+                else tuple(
+                    option
+                    for option in decision.payload.get("options", ())
+                    if isinstance(option, Mapping)
+                    and option.get("option_id")
+                    == decision.payload.get("chosen_option_id")
+                )
+            )
+            old_axes_value = (
+                None if snapshot is None else snapshot.payload.get("axes")
+            )
+            proposed_axes_value = proposed.get("axes")
+            if (
+                type(old_axes_value) is not list
+                or type(proposed_axes_value) is not list
+                or any(not isinstance(axis, Mapping) for axis in old_axes_value)
+                or any(
+                    not isinstance(axis, Mapping) for axis in proposed_axes_value
+                )
+            ):
+                raise TransitionError(
+                    "structural Portfolio Decision withdrawal axes are malformed"
+                )
+            old_axes = {axis.get("axis_id"): dict(axis) for axis in old_axes_value}
+            proposed_axes = {
+                axis.get("axis_id"): dict(axis) for axis in proposed_axes_value
+            }
+            if (
+                None in old_axes
+                or None in proposed_axes
+                or len(old_axes) != len(old_axes_value)
+                or len(proposed_axes) != len(proposed_axes_value)
+            ):
+                raise TransitionError(
+                    "structural Portfolio Decision withdrawal axes are ambiguous"
+                )
+            added = set(proposed_axes) - set(old_axes)
+            chosen = chosen_options[0] if len(chosen_options) == 1 else None
+            target_axis = old_axes.get(manifest.target_axis_id)
+            proposed_axis = proposed_axes.get(manifest.proposed_axis_id)
+            conflicting_axis = old_axes.get(manifest.conflicting_axis_id)
+            scheduler_constraints = (
+                None
+                if decision is None
+                else decision.payload.get("scheduler_constraints")
+            )
+            replay_constraints = self._replay_scheduler_constraints(
+                index,
+                mission_id=mission_id,
+            )
+            if (
+                not isinstance(next_action, Mapping)
+                or next_action.get("kind") != "record_portfolio_snapshot"
+                or next_action.get("decision_id") != manifest.decision_id
+                or next_action.get("action") != "new_mechanism"
+                or next_action.get("portfolio_snapshot_id")
+                != manifest.portfolio_snapshot_id
+                or next_action.get("target_id") != manifest.target_axis_id
+                or next_action.get("target_axis_identity")
+                != manifest.target_axis_identity
+                or current.get("revision")
+                != manifest.decision_authority_revision
+                or current.get("heads", {}).get("journal", {}).get("event_id")
+                != manifest.decision_authority_event_id
+                or decision_operation is None
+                or decision_operation.status != "success"
+                or decision_operation.payload.get("event_kind")
+                != "portfolio_decision_recorded"
+                or not isinstance(decision_operation_result, Mapping)
+                or decision_operation_result.get("decision_id")
+                != manifest.decision_id
+                or decision_operation.authority_sequence
+                != manifest.decision_authority_revision
+                or decision_operation.authority_event_id
+                != manifest.decision_authority_event_id
+                or decision is None
+                or decision.subject != f"Mission:{mission_id}"
+                or decision.payload.get("portfolio_snapshot_id")
+                != manifest.portfolio_snapshot_id
+                or snapshot is None
+                or snapshot.record_id != manifest.portfolio_snapshot_id
+                or chosen is None
+                or chosen.get("action") != "new_mechanism"
+                or chosen.get("target_id") != manifest.target_axis_id
+                or decision.payload.get("target_axis_identity")
+                != manifest.target_axis_identity
+                or not isinstance(target_axis, Mapping)
+                or target_axis.get("axis_identity")
+                != manifest.target_axis_identity
+                or proposed.get("schema") != "portfolio_snapshot.v3"
+                or proposed.get("mission_id") != mission_id
+                or added != {manifest.proposed_axis_id}
+                or set(old_axes) - set(proposed_axes)
+                or any(proposed_axes[axis_id] != axis for axis_id, axis in old_axes.items())
+                or not isinstance(proposed_axis, Mapping)
+                or proposed_axis.get("axis_identity")
+                != manifest.proposed_axis_identity
+                or proposed_axis.get("mechanism_family")
+                != manifest.duplicate_mechanism_family
+                or not isinstance(conflicting_axis, Mapping)
+                or conflicting_axis.get("axis_identity")
+                != manifest.conflicting_axis_identity
+                or conflicting_axis.get("mechanism_family")
+                != manifest.duplicate_mechanism_family
+                or proposed_axis.get("causal_question")
+                != conflicting_axis.get("causal_question")
+                or scheduler_constraints != replay_constraints
+            ):
+                raise TransitionError(
+                    "structural Portfolio Decision withdrawal does not bind its exact failure"
+                )
+            if not self.engineering_fixture:
+                from axiom_rift.operations.semantic_question_registry import (
+                    SemanticQuestionRegistryError,
+                    SemanticQuestionRegistryIntegrityError,
+                    require_semantic_question_study_binding,
+                )
+
+                lineage = manifest.semantic_question_lineage
+                try:
+                    require_semantic_question_study_binding(
+                        index,
+                        study_id=lineage.predecessor_study_id,
+                        core_id=lineage.predecessor_core_id,
+                    )
+                except SemanticQuestionRegistryIntegrityError as exc:
+                    raise RecoveryRequired(str(exc)) from exc
+                except SemanticQuestionRegistryError as exc:
+                    raise TransitionError(str(exc)) from exc
+                if (
+                    index.get("study-open", lineage.successor_study_id)
+                    is not None
+                    or any(
+                        ":" not in reference
+                        or index.get(*reference.split(":", 1)) is None
+                        for reference in lineage.basis_record_ids
+                    )
+                ):
+                    raise TransitionError(
+                        "structural withdrawal semantic lineage is stale"
+                    )
+            replacement_action: dict[str, Any] = {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": manifest.portfolio_snapshot_id,
+            }
+            if replay_constraints is not None:
+                replacement_action.update(replay_constraints)
+            try:
+                durable_manifest_bytes = self.evidence.read_verified(
+                    manifest_artifact_hash
+                )
+                durable_report_bytes = self.evidence.read_verified(
+                    manifest.report_artifact_hash
+                )
+                durable_proposed_bytes = self.evidence.read_verified(
+                    manifest.proposed_snapshot_artifact_hash
+                )
+                durable_manifest = (
+                    PortfolioStructuralDecisionWithdrawalManifest.from_bytes(
+                        durable_manifest_bytes
+                    )
+                )
+                durable_manifest.require_report(durable_report_bytes)
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                raise RecoveryRequired(
+                    "structural Portfolio Decision withdrawal evidence changed"
+                ) from exc
+            if (
+                durable_manifest_bytes != manifest_bytes
+                or durable_report_bytes != report_bytes
+                or durable_proposed_bytes != proposed_bytes
+                or durable_manifest != manifest
+            ):
+                raise RecoveryRequired(
+                    "structural Portfolio Decision withdrawal evidence changed"
+                )
+            body = self._body(current)
+            body["next_action"] = replacement_action
+            record_id = canonical_digest(
+                domain="portfolio-decision-withdrawal",
+                payload={
+                    "manifest": manifest.to_identity_payload(),
+                    "manifest_artifact_hash": manifest_artifact_hash,
+                },
+            )
+            record = _record(
+                kind="portfolio-decision-withdrawal",
+                record_id=record_id,
+                subject=f"Mission:{mission_id}",
+                status="withdrawn_pre_execution",
+                fingerprint=decision.fingerprint,
+                payload={
+                    "decision_id": manifest.decision_id,
+                    "manifest": manifest.to_identity_payload(),
+                    "manifest_artifact_hash": manifest_artifact_hash,
+                    "replacement_next_action": replacement_action,
+                },
+                event_stream=(
+                    f"portfolio-decision-status:{manifest.decision_id}"
+                ),
+                event_sequence=1,
+            )
+            return body, [record], {
+                "decision_id": manifest.decision_id,
+                "withdrawal_record_id": record_id,
+            }
+
+        return self._commit(
+            event_kind="portfolio_decision_withdrawn",
+            operation_id=operation_id,
+            subject="Portfolio:active",
+            payload={
+                "manifest_artifact_hash": manifest_artifact_hash,
+                "manifest": manifest.to_identity_payload(),
             },
             prepare=prepare,
         )
