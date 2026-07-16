@@ -8,7 +8,11 @@ import yaml
 
 from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.core.identity import canonical_digest
-from axiom_rift.operations.writer import StateWriter, TransitionError
+from axiom_rift.operations.writer import (
+    StateWriter,
+    TransitionError,
+    _TYPED_STARTED_BATCH_EXIT_ACTIVATION_OPERATION_ID,
+)
 from axiom_rift.storage.index import IndexRecord, LocalIndex
 from axiom_rift.storage.study_kpi import (
     LEDGER_RELATIVE_PATH,
@@ -459,6 +463,317 @@ class StudyKpiWriterTests(unittest.TestCase):
             all(value is None for value in payload["metrics"].values())
         )
 
+    def test_started_batch_failure_exit_is_strict_but_legacy_kpi_is_readable(
+        self,
+    ) -> None:
+        legacy_job_id = "job:" + "c" * 64
+        legacy_job_hash = "d" * 64
+        legacy_completion_id = digest(
+            "completion", {"legacy_started_engineering": True}
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            index.put_many(
+                (
+                    IndexRecord(
+                        kind="job-declared",
+                        record_id=legacy_job_id,
+                        subject=f"Job:{legacy_job_id}",
+                        status="declared",
+                        fingerprint=legacy_job_hash,
+                        payload={
+                            "batch_id": self.batch_id,
+                            "study_id": self.study_id,
+                        },
+                    ),
+                    IndexRecord(
+                        kind="job-completed",
+                        record_id=legacy_completion_id,
+                        subject=f"Job:{legacy_job_id}",
+                        status="failed",
+                        fingerprint=legacy_job_hash,
+                        payload={
+                            "engineering_disposition": {
+                                "schema": "engineering_failure_disposition.v1"
+                            },
+                            "failure": {"failure_kind": "engineering"},
+                            "job_id": legacy_job_id,
+                        },
+                    ),
+                    IndexRecord(
+                        kind="job-evidence-decision",
+                        record_id=digest(
+                            "decision", {"legacy_started_engineering": True}
+                        ),
+                        subject=f"Job:{legacy_job_id}",
+                        status="continue_batch",
+                        fingerprint=legacy_job_hash,
+                        payload={
+                            "completion_record_id": legacy_completion_id
+                        },
+                    ),
+                )
+            )
+            for outcome in (
+                "engineering_failure",
+                "not_evaluable",
+                "stopped_early",
+            ):
+                with self.subTest(outcome=outcome), self.assertRaisesRegex(
+                    TransitionError,
+                    "disposition-driving stop_batch completion",
+                ):
+                    self.writer._batch_unavailable_reason(
+                        index,
+                        self.batch_id,
+                        outcome,
+                    )
+            self.assertEqual(
+                self.writer._batch_unavailable_reason(
+                    index,
+                    self.batch_id,
+                    "engineering_failure",
+                    allow_legacy_started_failure=True,
+                ),
+                "started_batch_engineering_failure_without_final_validator_completion",
+            )
+            self.assertEqual(
+                self.writer._batch_unavailable_reason(
+                    index,
+                    self.batch_id,
+                    "stopped_early",
+                    allow_legacy_started_failure=True,
+                ),
+                "started_batch_stopped_early_without_final_validator_completion",
+            )
+            with self.assertRaisesRegex(TransitionError, "must be bool"):
+                self.writer._batch_unavailable_reason(
+                    index,
+                    self.batch_id,
+                    "engineering_failure",
+                    allow_legacy_started_failure=1,  # type: ignore[arg-type]
+                )
+
+        close = self._put_historical_close(
+            outcome="evidence_gap",
+            batch_outcome="engineering_failure",
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            payload = self.writer._historical_study_kpi_payload(
+                index=index,
+                close_record=close,
+                sequence=1,
+                reserved_display_owners={},
+            )
+        self.assertEqual(payload["source"], "writer_derived_unavailable")
+        self.assertEqual(
+            payload["unavailable_reason"],
+            "started_batch_engineering_failure_without_final_validator_completion",
+        )
+
+    def test_legacy_started_batch_failure_ends_at_activation_sequence(
+        self,
+    ) -> None:
+        def kpi_record(
+            *,
+            authority_sequence: int,
+            historical_close_revision: int | None = None,
+        ) -> IndexRecord:
+            payload: dict[str, object] = {
+                "provenance": (
+                    "historical_backfill"
+                    if historical_close_revision is not None
+                    else "prospective"
+                )
+            }
+            if historical_close_revision is not None:
+                payload["historical_study_close_revision"] = (
+                    historical_close_revision
+                )
+            return IndexRecord(
+                kind="study-kpi",
+                record_id=f"STU-KPI-{authority_sequence}",
+                subject=f"Study:STU-KPI-{authority_sequence}",
+                status="evidence_gap",
+                fingerprint=f"{authority_sequence:064x}",
+                payload=payload,
+                authority_sequence=authority_sequence,
+                authority_event_id=f"{authority_sequence:064x}",
+                authority_offset=0,
+            )
+
+        pre_activation = kpi_record(authority_sequence=19)
+        at_activation = kpi_record(authority_sequence=20)
+        historical_pre_activation = kpi_record(
+            authority_sequence=30,
+            historical_close_revision=19,
+        )
+        historical_at_activation = kpi_record(
+            authority_sequence=31,
+            historical_close_revision=20,
+        )
+        with LocalIndex(self.writer.index_path) as index:
+            self.assertTrue(
+                self.writer._legacy_started_batch_failure_allowed(
+                    index=index,
+                    kpi_record=at_activation,
+                )
+            )
+            index.put(
+                IndexRecord(
+                    kind="operation",
+                    record_id=(
+                        _TYPED_STARTED_BATCH_EXIT_ACTIVATION_OPERATION_ID
+                    ),
+                    subject="Project:axiom-rift",
+                    status="success",
+                    fingerprint="a" * 64,
+                    payload={"event_kind": "authority_migrated"},
+                    authority_sequence=20,
+                    authority_event_id="b" * 64,
+                    authority_offset=0,
+                )
+            )
+            self.assertTrue(
+                self.writer._legacy_started_batch_failure_allowed(
+                    index=index,
+                    kpi_record=pre_activation,
+                )
+            )
+            self.assertFalse(
+                self.writer._legacy_started_batch_failure_allowed(
+                    index=index,
+                    kpi_record=at_activation,
+                )
+            )
+            self.assertTrue(
+                self.writer._legacy_started_batch_failure_allowed(
+                    index=index,
+                    kpi_record=historical_pre_activation,
+                )
+            )
+            self.assertFalse(
+                self.writer._legacy_started_batch_failure_allowed(
+                    index=index,
+                    kpi_record=historical_at_activation,
+                )
+            )
+
+        invalid_index_path = self.root / "invalid-activation.sqlite"
+        with LocalIndex(invalid_index_path) as index:
+            index.put(
+                IndexRecord(
+                    kind="operation",
+                    record_id=(
+                        _TYPED_STARTED_BATCH_EXIT_ACTIVATION_OPERATION_ID
+                    ),
+                    subject="Project:axiom-rift",
+                    status="failed",
+                    fingerprint="c" * 64,
+                    payload={"event_kind": "authority_migrated"},
+                    authority_sequence=20,
+                    authority_event_id="d" * 64,
+                    authority_offset=0,
+                )
+            )
+            with self.assertRaisesRegex(
+                TransitionError,
+                "activation boundary is invalid",
+            ):
+                self.writer._legacy_started_batch_failure_allowed(
+                    index=index,
+                    kpi_record=pre_activation,
+                )
+
+    def test_stop_batch_outcome_matches_typed_engineering_completion(self) -> None:
+        self._put_decision("stop_batch")
+        with LocalIndex(self.writer.index_path) as index:
+            self.assertEqual(
+                self.writer._require_stop_batch_outcome(
+                    index,
+                    self.batch_id,
+                    "completed",
+                ),
+                self.completion_id,
+            )
+            with self.assertRaisesRegex(
+                TransitionError,
+                "typed unrecovered completion",
+            ):
+                self.writer._require_stop_batch_outcome(
+                    index,
+                    self.batch_id,
+                    "engineering_failure",
+                )
+
+        batch_id = "batch:" + "e" * 64
+        job_id = "job:" + "f" * 64
+        job_hash = "a" * 64
+        completion_id = digest("completion", {"typed_engineering": True})
+        with LocalIndex(self.writer.index_path) as index:
+            index.put_many(
+                (
+                    IndexRecord(
+                        kind="batch-open",
+                        record_id=batch_id,
+                        subject=f"Study:{self.study_id}",
+                        status="open",
+                        fingerprint="e" * 64,
+                        payload={},
+                        event_stream=f"study-batches:{self.study_id}-typed",
+                        event_sequence=1,
+                    ),
+                    IndexRecord(
+                        kind="job-declared",
+                        record_id=job_id,
+                        subject=f"Job:{job_id}",
+                        status="declared",
+                        fingerprint=job_hash,
+                        payload={"batch_id": batch_id},
+                    ),
+                    IndexRecord(
+                        kind="job-completed",
+                        record_id=completion_id,
+                        subject=f"Job:{job_id}",
+                        status="failed",
+                        fingerprint=job_hash,
+                        payload={
+                            "engineering_disposition": {
+                                "schema": "engineering_failure_disposition.v1"
+                            },
+                            "failure": {"failure_kind": "engineering"},
+                            "job_id": job_id,
+                        },
+                    ),
+                    IndexRecord(
+                        kind="job-evidence-decision",
+                        record_id=digest(
+                            "decision", {"typed_engineering": True}
+                        ),
+                        subject=f"Job:{job_id}",
+                        status="stop_batch",
+                        fingerprint=job_hash,
+                        payload={"completion_record_id": completion_id},
+                    ),
+                )
+            )
+            self.assertEqual(
+                self.writer._require_stop_batch_outcome(
+                    index,
+                    batch_id,
+                    "engineering_failure",
+                ),
+                completion_id,
+            )
+            with self.assertRaisesRegex(
+                TransitionError,
+                "engineering_failure Batch outcome",
+            ):
+                self.writer._require_stop_batch_outcome(
+                    index,
+                    batch_id,
+                    "completed",
+                )
+
     def test_prospective_sequence_continues_after_historical_backfill(self) -> None:
         self._put_decision("stop_batch")
         with LocalIndex(self.writer.index_path) as index:
@@ -644,15 +959,30 @@ class StudyKpiWriterTests(unittest.TestCase):
         self.assertEqual(payload["outcome"], "evidence_gap")
 
     def test_writer_derived_unavailable_study_cannot_be_pruned(self) -> None:
+        unstarted_batch_id = "batch:" + "6" * 64
         with LocalIndex(self.writer.index_path) as index:
-            index.put(
-                IndexRecord(
-                    kind="batch-close",
-                    record_id=digest("batch-close", {"stopped_early": True}),
-                    subject=f"Batch:{self.batch_id}",
-                    status="stopped_early",
-                    fingerprint=self.job_hash,
-                    payload={"outcome": "stopped_early"},
+            index.put_many(
+                (
+                    IndexRecord(
+                        kind="batch-open",
+                        record_id=unstarted_batch_id,
+                        subject=f"Study:{self.study_id}",
+                        status="open",
+                        fingerprint="6" * 64,
+                        payload={},
+                        event_stream=f"study-batches:{self.study_id}",
+                        event_sequence=2,
+                    ),
+                    IndexRecord(
+                        kind="batch-close",
+                        record_id=digest(
+                            "batch-close", {"stopped_early": True}
+                        ),
+                        subject=f"Batch:{unstarted_batch_id}",
+                        status="stopped_early",
+                        fingerprint=self.job_hash,
+                        payload={"outcome": "stopped_early"},
+                    ),
                 )
             )
             with self.assertRaisesRegex(

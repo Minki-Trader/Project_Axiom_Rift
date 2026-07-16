@@ -8615,11 +8615,24 @@ class ScientificLifecycleTests(unittest.TestCase):
                 outcome="budget_exhausted",
                 operation_id="holdout-life-reject-false-budget-end",
             )
-        with self.assertRaisesRegex(TransitionError, "failure basis"):
-            writer.dispose_batch(
-                outcome="engineering_failure",
-                operation_id="holdout-life-reject-false-engineering-failure",
-            )
+        for unavailable_outcome in (
+            "engineering_failure",
+            "not_evaluable",
+            "stopped_early",
+        ):
+            with self.subTest(
+                unavailable_outcome=unavailable_outcome
+            ), self.assertRaisesRegex(
+                TransitionError,
+                "disposition-driving stop_batch completion",
+            ):
+                writer.dispose_batch(
+                    outcome=unavailable_outcome,
+                    operation_id=(
+                        "holdout-life-reject-unbound-"
+                        f"{unavailable_outcome}"
+                    ),
+                )
         assert decision.baseline_executable is not None
         executable = changed_domain_executable(
             decision.baseline_executable,

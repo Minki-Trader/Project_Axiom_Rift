@@ -359,6 +359,14 @@ than one attempt. Then complete the Job as `failed` with the same
 operations `<member-stem>-repair-attempt-<ordinal>` and an unrecovered terminal
 `<member-stem>-conclude-repair` so replay closeout preserves every attempt.
 
+After the typed unrecovered completion, a started Batch can end for engineering
+failure only through that exact completion's `stop_batch` Decision. Pass the
+same completion to Study close. A `continue_batch` Decision keeps the Batch
+open for another bounded Job or Repair path; it is never authority for
+`engineering_failure`, `not_evaluable`, or `stopped_early` disposal. Preserve
+pre-activation rows as read-only history rather than weakening this prospective
+boundary.
+
 ## Terminal
 
 - `completed_pre_live_handoff` requires a frozen candidate-bound Release and

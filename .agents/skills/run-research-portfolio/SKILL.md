@@ -402,8 +402,11 @@ evidence.
 
 Pass `StateWriter.close_study` only the final disposition-driving validator
 `stop_batch` completion when one exists. Otherwise pass no completion and let
-the writer derive the typed unavailable basis. Never pass caller-authored KPI,
-unavailable prose, or a retrospective best result.
+the writer derive the typed unavailable basis. For a started Batch, that
+no-completion path is limited to exact frozen-budget exhaustion; engineering,
+not-evaluable, and early-stop exits require a disposition-driving `stop_batch`
+completion. Never turn `continue_batch` into close authority, and never pass
+caller-authored KPI, unavailable prose, or a retrospective best result.
 
 The writer creates one immutable `study-kpi` Journal record at close. The
 lag-tolerant `records/STUDY_KPI.md` navigation view is reconstructed only during

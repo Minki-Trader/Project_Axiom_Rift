@@ -255,6 +255,9 @@ _STUDY_KPI_ACTIVATION_OPERATION_ID = (
     "study-close-kpi-main-delivery-authority-v1"
 )
 _STUDY_KPI_BACKFILL_OPERATION_ID = "study-kpi-historical-backfill-v1"
+_TYPED_STARTED_BATCH_EXIT_ACTIVATION_OPERATION_ID = (
+    "project-goal-audit-v2-typed-started-batch-exit-v1"
+)
 _BATCH_OUTCOMES = frozenset(
     {"completed", "budget_exhausted", "stopped_early", "not_evaluable", "engineering_failure"}
 )
@@ -8045,7 +8048,13 @@ class StateWriter:
                         batch["id"],
                         outcome,
                     )
-                elif next_action != exact_dispose:
+                elif next_action == exact_dispose:
+                    self._require_stop_batch_outcome(
+                        _index,
+                        batch["id"],
+                        outcome,
+                    )
+                else:
                     raise TransitionError(
                         "Batch disposition is not the exact next action"
                     )
@@ -8716,13 +8725,69 @@ class StateWriter:
             completion_ids.add(completion_id)
         return tuple(sorted(completion_ids))
 
+    @classmethod
+    def _require_stop_batch_outcome(
+        cls,
+        index: LocalIndex,
+        batch_id: str,
+        outcome: str,
+        inventory: _BatchJobDecisionInventory | None = None,
+    ) -> str:
+        """Bind a final stop decision to the matching operational Batch outcome."""
+
+        resolved_inventory = (
+            inventory
+            if inventory is not None
+            else _batch_job_decision_inventory(index, batch_id=batch_id)
+        )
+        completion_ids = cls._batch_stop_completion_ids(
+            index,
+            batch_id,
+            resolved_inventory,
+        )
+        if len(completion_ids) != 1:
+            raise TransitionError(
+                "Batch disposition requires exactly one final stop_batch completion"
+            )
+        completion_id = completion_ids[0]
+        completion = index.get("job-completed", completion_id)
+        if completion is None:
+            raise TransitionError("Batch stop completion is unavailable")
+        engineering = completion.payload.get("engineering_disposition")
+        failure = completion.payload.get("failure")
+        typed_engineering = (
+            completion.status == "failed"
+            and isinstance(engineering, Mapping)
+            and engineering.get("schema")
+            == "engineering_failure_disposition.v1"
+            and isinstance(failure, Mapping)
+            and failure.get("failure_kind") == "engineering"
+        )
+        if typed_engineering and outcome != "engineering_failure":
+            raise TransitionError(
+                "Typed unrecovered engineering completion requires the "
+                "engineering_failure Batch outcome"
+            )
+        if not typed_engineering and outcome == "engineering_failure":
+            raise TransitionError(
+                "Engineering-failure Batch outcome requires its typed unrecovered "
+                "completion"
+            )
+        return completion_id
+
     @staticmethod
     def _batch_unavailable_reason(
         index: LocalIndex,
         batch_id: str,
         outcome: str,
         inventory: _BatchJobDecisionInventory | None = None,
+        *,
+        allow_legacy_started_failure: bool = False,
     ) -> str:
+        if type(allow_legacy_started_failure) is not bool:
+            raise TransitionError(
+                "legacy started-Batch failure compatibility flag must be bool"
+            )
         if inventory is not None and inventory.batch_id != batch_id:
             raise TransitionError("Batch evidence inventory belongs to another Batch")
         budget_head = index.event_head(f"batch-budget:{batch_id}")
@@ -8758,7 +8823,22 @@ class StateWriter:
                 )
             ):
                 raise TransitionError("Batch budget is not exhausted")
-        elif outcome in {"engineering_failure", "not_evaluable"}:
+        elif outcome in {
+            "engineering_failure",
+            "not_evaluable",
+            "stopped_early",
+        }:
+            if not allow_legacy_started_failure:
+                raise TransitionError(
+                    "Started Batch without final validator evidence requires a "
+                    "disposition-driving stop_batch completion; continue_batch "
+                    "keeps Repair or bounded work open"
+                )
+            if outcome == "stopped_early":
+                return (
+                    "started_batch_stopped_early_"
+                    "without_final_validator_completion"
+                )
             resolved_inventory = (
                 inventory
                 if inventory is not None
@@ -8806,7 +8886,7 @@ class StateWriter:
                 raise TransitionError(
                     f"Batch {outcome} lacks its final non-scientific failure basis"
                 )
-        elif outcome != "stopped_early":
+        else:
             raise TransitionError(
                 "Started Batch without a final stop completion requires a typed "
                 "unavailable disposition"
@@ -8815,6 +8895,54 @@ class StateWriter:
             f"{'started' if started else 'unstarted'}_batch_{outcome}_"
             "without_final_validator_completion"
         )
+
+    @staticmethod
+    def _legacy_started_batch_failure_allowed(
+        *,
+        index: LocalIndex,
+        kpi_record: IndexRecord,
+    ) -> bool:
+        """Limit read compatibility to KPI sources predating typed Batch exit."""
+
+        activation = index.get(
+            "operation",
+            _TYPED_STARTED_BATCH_EXIT_ACTIVATION_OPERATION_ID,
+        )
+        if activation is None:
+            # Before the additive activation exists, old immutable KPI rows
+            # must remain readable so the migration itself can recover safely.
+            return True
+        activation_sequence = activation.authority_sequence
+        if (
+            activation.kind != "operation"
+            or activation.status != "success"
+            or activation.payload.get("event_kind") != "authority_migrated"
+            or type(activation_sequence) is not int
+        ):
+            raise TransitionError(
+                "typed started-Batch exit activation boundary is invalid"
+            )
+        payload = kpi_record.payload
+        provenance = payload.get("provenance")
+        if provenance == "historical_backfill":
+            source_sequence = payload.get("historical_study_close_revision")
+        else:
+            source_sequence = kpi_record.authority_sequence
+            if type(source_sequence) is not int:
+                event_id = kpi_record.authority_event_id
+                event = (
+                    None
+                    if type(event_id) is not str
+                    else index.get("journal-event", event_id)
+                )
+                source_sequence = (
+                    None if event is None else event.authority_sequence
+                )
+        if type(source_sequence) is not int:
+            raise TransitionError(
+                "legacy started-Batch KPI lacks its authority sequence"
+            )
+        return source_sequence < activation_sequence
 
     @staticmethod
     def _require_scientific_study_outcome(
@@ -9162,6 +9290,7 @@ class StateWriter:
                 batch_id,
                 batch_close.status,
                 job_inventory,
+                allow_legacy_started_failure=True,
             )
             source = {
                 "completion_record_id": None,
@@ -9552,6 +9681,12 @@ class StateWriter:
                                 batch_head.record_id,
                                 reason_status,
                                 job_inventory,
+                                allow_legacy_started_failure=(
+                                    self._legacy_started_batch_failure_allowed(
+                                        index=index,
+                                        kpi_record=record,
+                                    )
+                                ),
                             )
                         )
                         if (
