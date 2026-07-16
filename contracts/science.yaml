@@ -201,6 +201,10 @@ study_kpi_projection:
   source_record_kind: study-kpi
   source_event: study_closed
   scientific_authority: false
+  materialization: explicit_stable_boundary_maintenance
+  may_lag_journal_authority: true
+  freshness_blocks_research: false
+  current_decision_source: authenticated_query_projection
   prospective_from_activation: true
   retroactive_kpi_inference_allowed: false
   historical_backfill:
@@ -221,7 +225,8 @@ study_kpi_projection:
     holdout_delta: 0
     next_action_change_allowed: false
     future_sequence_continues_after_backfill: true
-  one_row_per_real_study_close: true
+  eventual_one_row_per_real_study_close: true
+  routine_close_row_materialization_required: false
   sequence:
     source: global_study_kpi_event_stream
     format: zero_padded_decimal_6

@@ -1031,7 +1031,7 @@ class StudyKpiWriterTests(unittest.TestCase):
         )
         self.assertTrue(
             checkpoint["boot_delivery_audit"][
-                "commit_snapshot_journal_tail_matches_event"
+                "commit_snapshot_bounded_journal_suffix_matches_event"
             ]
         )
         self.assertTrue(

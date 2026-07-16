@@ -427,12 +427,15 @@ git:
     applies_to_engineering_fixture: false
     classification: coherent_milestone
     kpi_record_kind: study-kpi
+    kpi_authority: immutable_journal_record
     kpi_projection: records/STUDY_KPI.md
+    kpi_projection_role: lag_tolerant_navigation_only
+    routine_kpi_projection_materialization_required: false
     local_commit_and_initial_push_attempt_required_before_later_scientific_work: true
     remote_equality_required_before_later_scientific_work: false
     required_same_commit_paths:
       - state/control.json
-      - records/STUDY_KPI.md
+      - records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json
     required_journal_path:
       legacy: records/journal.jsonl
       segmented: manifest_active_segment
@@ -443,7 +446,8 @@ git:
     local_ref: main
     remote_ref: origin/main
     one_commit_per_study_close: true
-    separate_batch_job_fold_or_kpi_commit_allowed: false
+    separate_batch_job_or_fold_commit_allowed: false
+    separate_kpi_navigation_maintenance_allowed: true
     exact_path_staging_required: true
     unrelated_staging_allowed: false
     commit_trailers:
@@ -454,8 +458,10 @@ git:
       required_core_hooks_path: .githooks
       validator: scripts/validate_study_close_commit.py
       full_audit: scripts/audit_all_study_close_deliveries.py
-      staged_state_journal_and_kpi_required_together: true
-      deterministic_staged_kpi_rerender_required: true
+      staged_control_journal_and_checkpoint_required_together: true
+      routine_kpi_markdown_change_forbidden: true
+      exact_new_kpi_record_semantic_validation_required: true
+      complete_kpi_rerender: explicit_maintenance_only
       exact_contiguous_final_trailer_block_required: true
       hook_bypass_allowed: false
       next_portfolio_decision_writer_guard_required: true
@@ -464,9 +470,10 @@ git:
       basis: prospective_study_kpi_records_and_exact_commit_trailers
       exact_unique_trailer_commit_reachable_from_local_ref: true
       commit_changes_all_required_same_commit_paths: true
-      commit_snapshot_journal_tail_matches_event: true
-      commit_snapshot_control_head_matches_event_and_revision: true
-      commit_snapshot_kpi_projection_equals_deterministic_journal_render: true
+      commit_snapshot_bounded_journal_suffix_matches_event: true
+      commit_snapshot_control_and_index_heads_match_event: true
+      commit_snapshot_new_kpi_record_and_checkpoint_transition_valid: true
+      complete_kpi_projection_scan_required: false
       local_commit_absence_requires_resume_before_state_or_science_action: true
       refresh_remote_tracking_ref_before_observation: true
       remote_relation: closeout_commit_ancestor_of_remote_ref
@@ -610,6 +617,8 @@ validation_economics:
 study_close_delivery_checkpoint:
   tracked_checkpoint: records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json
   schema: study_close_delivery_checkpoint.v2
+  validator_version: study_close_delivery_checkpoint.v3
+  legacy_v2_transition: explicit_maintenance_activation
   git_authenticated_high_water: true
   ignored_local_cache_role: non_authoritative_hint_only
   routine_validation_reads: checkpoint_boundary_and_bounded_suffix
@@ -622,11 +631,17 @@ study_close_delivery_checkpoint:
   prospective_close_advances_checkpoint_in_same_commit: true
   prospective_required_same_commit_paths:
     - state/control.json
-    - records/STUDY_KPI.md
     - resolved_journal_paths
     - records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json
   omitted_modified_or_malformed_checkpoint_blocks_later_science: true
   no_op_guard_rewrites_local_projection: false
+  kpi_navigation_maintenance:
+    complete_history_scan_required: true
+    writes_markdown_projection: true
+    checkpoint_kpi_digest_update_required: true
+    may_share_with_no_close_cursor_advance: true
+    no_op_commit_allowed: false
+    later_science_freshness_gate: false
 project_goal_audit_v2_operations:
   implementation_closure:
     component_to_executable_to_job_required: true
