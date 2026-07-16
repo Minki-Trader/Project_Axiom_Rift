@@ -21,7 +21,7 @@ import os
 
 import axiom_rift.core.canonical as canonical_module
 import axiom_rift.core.identity as identity_module
-import axiom_rift.operations.evidence_scope_projection as evidence_scope_module
+import axiom_rift.operations.completion_evidence_scope as completion_scope_module
 import axiom_rift.operations.permits as permits_module
 import axiom_rift.operations.repair_semantic_equivalence as repair_semantic_module
 import axiom_rift.research.effective_evidence_scope as effective_scope_module
@@ -31,9 +31,9 @@ import axiom_rift.storage.path_boundary as path_boundary_module
 import axiom_rift.storage.state as state_module
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.core.identity import canonical_digest
-from axiom_rift.operations.evidence_scope_projection import (
-    EvidenceScopeProjectionError,
-    effective_completion_evidence_scope,
+from axiom_rift.operations.completion_evidence_scope import (
+    CompletionEvidenceScopeError,
+    current_study_cache_evidence_scope,
 )
 from axiom_rift.operations.permits import (
     Permit,
@@ -166,8 +166,8 @@ def running_job_authority_dependency_paths() -> tuple[Path, ...]:
             {
                 _THIS_FILE,
                 Path(canonical_module.__file__).resolve(),
+                Path(completion_scope_module.__file__).resolve(),
                 Path(identity_module.__file__).resolve(),
-                Path(evidence_scope_module.__file__).resolve(),
                 Path(permits_module.__file__).resolve(),
                 Path(repair_semantic_module.__file__).resolve(),
                 Path(effective_scope_module.__file__).resolve(),
@@ -1000,12 +1000,12 @@ class RunningJobAuthority:
                         None
                         if completion is None
                         or not isinstance(scientific, dict)
-                        else effective_completion_evidence_scope(
+                        else current_study_cache_evidence_scope(
                             index,
                             completion,
                         )
                     )
-                except EvidenceScopeProjectionError as exc:
+                except CompletionEvidenceScopeError as exc:
                     raise RunningJobAuthorityIntegrityError(str(exc)) from exc
                 if (
                     completion is None

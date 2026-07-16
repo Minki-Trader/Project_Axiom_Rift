@@ -66,6 +66,10 @@ from axiom_rift.operations.job_implementation_authority import (
     require_job_implementation_evidence,
     requires_current_source_authority,
 )
+from axiom_rift.operations.historical_replay_implementation_authority import (
+    HistoricalReplayImplementationAuthorityError,
+    authenticated_historical_implementation_sources,
+)
 from axiom_rift.operations.job_retry_admission import (
     JobRetryAdmissionIntegrityError,
     JobRetryAdmissionRejected,
@@ -10844,14 +10848,35 @@ class StateWriter:
     def _require_job_implementation_evidence(
         self,
         spec: Mapping[str, Any],
+        *,
+        _index: LocalIndex | LocalIndexView | None = None,
     ) -> Mapping[str, Any]:
-        try:
-            return require_job_implementation_evidence(
-                spec,
-                artifact_reader=self.evidence.read_verified,
-            )
-        except JobImplementationAuthorityError as exc:
-            raise TransitionError(str(exc)) from exc
+        def require(
+            index: LocalIndex | LocalIndexView,
+        ) -> Mapping[str, Any]:
+            try:
+                historical_sources = (
+                    authenticated_historical_implementation_sources(
+                        spec,
+                        index=index,
+                        artifact_reader=self.evidence.read_verified,
+                    )
+                )
+                return require_job_implementation_evidence(
+                    spec,
+                    artifact_reader=self.evidence.read_verified,
+                    historical_source_authorities=historical_sources,
+                )
+            except (
+                HistoricalReplayImplementationAuthorityError,
+                JobImplementationAuthorityError,
+            ) as exc:
+                raise TransitionError(str(exc)) from exc
+
+        if _index is not None:
+            return require(_index)
+        with self.open_stable_index() as (_control, index):
+            return require(index)
 
     def _require_reusable_success_outputs(
         self, *, completion: IndexRecord, spec: Mapping[str, Any]
@@ -11054,7 +11079,10 @@ class StateWriter:
                     "scientific Job lineage material",
                     lineage_study.payload.get("material_identity"),
                 )
-            implementation_manifest = self._require_job_implementation_evidence(spec)
+            implementation_manifest = self._require_job_implementation_evidence(
+                spec,
+                _index=_index,
+            )
             component_implementation_hashes: tuple[str, ...] = ()
             source_closure_authority: dict[str, Any] | None = None
             external_observed_development_binding_payload: (
@@ -17714,6 +17742,7 @@ class StateWriter:
         self._require_study_close_delivery_guard()
 
         def repair_provenance(
+            index: LocalIndex,
             previous_completion: IndexRecord,
             previous_declaration: IndexRecord,
             declaration: IndexRecord,
@@ -17727,9 +17756,13 @@ class StateWriter:
                     "replay repair Job provenance is malformed"
                 )
             previous_manifest = self._require_job_implementation_evidence(
-                previous_spec
+                previous_spec,
+                _index=index,
             )
-            repaired_manifest = self._require_job_implementation_evidence(spec)
+            repaired_manifest = self._require_job_implementation_evidence(
+                spec,
+                _index=index,
+            )
             changed_proof = spec.get("changed_cause_proof_hash")
             if not isinstance(changed_proof, str):
                 raise TransitionError(
@@ -18082,7 +18115,9 @@ class StateWriter:
                     index,
                     mission_id=mission_id,
                     resumes=normalized,
-                    repair_provenance=repair_provenance,
+                    repair_provenance=(
+                        lambda *items: repair_provenance(index, *items)
+                    ),
                 )
             except ReplayProjectionError as exc:
                 raise RecoveryRequired(str(exc)) from exc
@@ -19198,7 +19233,8 @@ class StateWriter:
 
                 implementation_manifest = (
                     self._require_job_implementation_evidence(
-                        declared_spec
+                        declared_spec,
+                        _index=index,
                     )
                 )
                 executable_manifest: dict[str, Any] | None = None
@@ -22360,13 +22396,15 @@ class StateWriter:
             )
         )
         old_manifest = self._require_job_implementation_evidence(
-            {**dict(spec), "implementation_identity": old_identity}
+            {**dict(spec), "implementation_identity": old_identity},
+            _index=index,
         )
         new_manifest = self._require_job_implementation_evidence(
             {
                 **dict(spec),
                 "implementation_identity": new_implementation_identity,
-            }
+            },
+            _index=index,
         )
         try:
             from axiom_rift.research.implementation_closure import (
@@ -22744,14 +22782,16 @@ class StateWriter:
                     {
                         **dict(spec),
                         "implementation_identity": prior_effective,
-                    }
+                    },
+                    _index=_index,
                 )
                 repaired_spec = {
                     **dict(spec),
                     "implementation_identity": new_identity,
                 }
                 repaired_manifest = self._require_job_implementation_evidence(
-                    repaired_spec
+                    repaired_spec,
+                    _index=_index,
                 )
                 if (
                     previous_manifest.get("protocol")

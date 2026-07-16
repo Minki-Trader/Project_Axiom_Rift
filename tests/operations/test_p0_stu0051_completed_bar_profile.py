@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import MagicMock, Mock, patch
 
-import axiom_rift.research.volatility_duration_replay_profile as profile_module
+import axiom_rift.operations.volatility_duration_replay_profile as profile_module
 from axiom_rift.operations.fixed_hold_replay_workflow import (
     ReplayAxisAdmission,
     ReplayInitiativeLifecycle,

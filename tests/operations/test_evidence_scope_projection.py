@@ -15,6 +15,7 @@ from axiom_rift.operations.axis_disposition import (
 from axiom_rift.operations.replay_projection import (
     prepare_audit_only_scope_overlay,
 )
+from axiom_rift.core.identity import ComponentSpec, ExecutableSpec
 from axiom_rift.research.replay_obligation import (
     ReplayResolutionScope,
     ReplaySatisfaction,
@@ -34,7 +35,23 @@ class EffectiveEvidenceScopeProjectionTests(unittest.TestCase):
                 study_id = "STU-EFFECTIVE-SCOPE"
                 completion_id = "1" * 64
                 job_id = "job:" + "2" * 64
-                executable_id = "executable:" + "9" * 64
+                component = ComponentSpec(
+                    display_name="effective scope fixture",
+                    protocol="fixture.effective_scope.v1",
+                    implementation="fixture.effective_scope.run.v1",
+                    spec={"surface": "fixture"},
+                )
+                executable = ExecutableSpec(
+                    display_name="effective scope executable",
+                    components=(component,),
+                    parameters={"profile": "fixture"},
+                    data_contract="data:effective_scope_fixture",
+                    split_contract="split:effective_scope_fixture",
+                    clock_contract="clock:effective_scope_fixture",
+                    cost_contract="cost:effective_scope_fixture",
+                    engine_contract="engine:effective_scope_fixture",
+                )
+                executable_id = executable.identity
                 axis_id = "axis-effective-scope"
                 axis_identity = "axis:" + "a" * 64
                 raw_scientific = {
@@ -83,7 +100,7 @@ class EffectiveEvidenceScopeProjectionTests(unittest.TestCase):
                         IndexRecord(
                             kind="study-open",
                             record_id=study_id,
-                            subject=f"Mission:{mission_id}",
+                            subject=f"Study:{study_id}",
                             status="open",
                             fingerprint="4" * 64,
                             payload={
@@ -99,6 +116,7 @@ class EffectiveEvidenceScopeProjectionTests(unittest.TestCase):
                             status="evaluated",
                             fingerprint=executable_id.removeprefix("executable:"),
                             payload={
+                                "executable": executable.to_identity_payload(),
                                 "mission_id": mission_id,
                                 "portfolio_axis_id": axis_id,
                                 "portfolio_axis_identity": axis_identity,

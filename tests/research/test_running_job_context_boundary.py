@@ -103,7 +103,7 @@ HISTORICAL_RESEARCH_FILES = frozenset(
 
 
 def _tracked_research_paths() -> tuple[Path, ...]:
-    """Enumerate the exact Git-indexed research surface, never user files."""
+    """Enumerate existing Git-indexed research files, never user files."""
 
     completed = subprocess.run(
         [
@@ -120,7 +120,7 @@ def _tracked_research_paths() -> tuple[Path, ...]:
     return tuple(
         REPOSITORY_ROOT / raw.decode("ascii")
         for raw in completed.stdout.split(b"\0")
-        if raw
+        if raw and (REPOSITORY_ROOT / raw.decode("ascii")).is_file()
     )
 
 

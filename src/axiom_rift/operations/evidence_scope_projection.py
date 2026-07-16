@@ -2,9 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from typing import Any, Mapping
 
+from axiom_rift.operations.completion_evidence_scope import (
+    CompletionEvidenceScopeError,
+    EffectiveCompletionEvidenceScope,
+    raw_completion_evidence_scope,
+)
 from axiom_rift.operations.completion_validity_projection import (
     CompletionValidityProjectionError,
     current_completion_validity_invalidation,
@@ -24,25 +29,6 @@ from axiom_rift.storage.index import IndexRecord, LocalIndex, LocalIndexView
 
 class EvidenceScopeProjectionError(RuntimeError):
     """The effective completion scope projection is malformed."""
-
-
-@dataclass(frozen=True, slots=True)
-class EffectiveCompletionEvidenceScope:
-    completion_record_id: str
-    evidence_modes: tuple[str, ...]
-    scientific_eligible: bool
-    candidate_eligible: bool
-    scientific_credit: int
-    economic_credit: int
-    candidate_credit: int
-    terminal_credit: int
-    negative_memory_authoritative: bool
-    negative_memory_role: str
-    overlay_record_id: str | None = None
-    invalidation_record_id: str | None = None
-    cost_semantics_latch_id: str | None = None
-    cost_semantics_proxy_only: bool = False
-    preserved_independent_scopes: tuple[str, ...] = ()
 
 
 def evidence_scope_stream(completion_record_id: str) -> str:
@@ -65,35 +51,10 @@ def evidence_scope_overlay_record(
 
 
 def _raw_scope(completion: IndexRecord) -> EffectiveCompletionEvidenceScope:
-    scientific = completion.payload.get("scientific")
-    modes = None if not isinstance(scientific, Mapping) else scientific.get(
-        "executed_evidence_modes"
-    )
-    if (
-        not isinstance(scientific, Mapping)
-        or not isinstance(modes, list)
-        or not modes
-        or modes != sorted(set(modes))
-        or any(type(item) is not str or not item.isascii() for item in modes)
-        or type(scientific.get("scientific_eligible")) is not bool
-        or type(scientific.get("candidate_eligible")) is not bool
-    ):
-        raise EvidenceScopeProjectionError(
-            "scientific completion evidence scope is malformed"
-        )
-    eligible = scientific["scientific_eligible"]
-    return EffectiveCompletionEvidenceScope(
-        completion_record_id=completion.record_id,
-        evidence_modes=tuple(modes),
-        scientific_eligible=eligible,
-        candidate_eligible=scientific["candidate_eligible"],
-        scientific_credit=int(eligible),
-        economic_credit=int(eligible and "cost_and_execution" in modes),
-        candidate_credit=int(eligible and scientific["candidate_eligible"]),
-        terminal_credit=int(eligible),
-        negative_memory_authoritative=eligible,
-        negative_memory_role="scientific" if eligible else "diagnostic_only",
-    )
+    try:
+        return raw_completion_evidence_scope(completion)
+    except CompletionEvidenceScopeError as exc:
+        raise EvidenceScopeProjectionError(str(exc)) from exc
 
 
 def _apply_cost_authority(

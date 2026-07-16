@@ -249,8 +249,14 @@ unbound scientific work.
 - Require Component -> Executable -> Job implementation closure before a real
   Job declaration. Every participating Component binds current bytes and
   semantic dependencies, the Executable contains those identities, and Job
-  artifacts cover their full recursive implementations. Reject historical modules with
-  embedded Mission or Study identities as prospective implementations.
+  artifacts cover their full recursive implementations. Reject historical
+  modules with embedded Mission or Study identities as prospective mechanism
+  implementations. One exact reconstruction source is lineage data, not an
+  exception, only when the active Writer-authenticated
+  `HistoricalFamilyAuthority` already seals its path and SHA-256, the Job's
+  registered validation plan binds the identical family and replay obligation,
+  and the source contains only that original Study identity. Never infer this
+  role from a filename, caller declaration, display text, or error message.
 
 ## Mandatory Study Close Delivery
 

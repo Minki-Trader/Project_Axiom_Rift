@@ -36,7 +36,7 @@ from axiom_rift.research.volatility_duration_replay_job import (  # noqa: E402
     materialize_volatility_duration_replay_job_implementation,
     volatility_duration_replay_job_implementation_sha256,
 )
-from axiom_rift.research.volatility_duration_replay_profile import (  # noqa: E402
+from axiom_rift.operations.volatility_duration_replay_profile import (  # noqa: E402
     build_volatility_duration_replay_profile_design,
 )
 

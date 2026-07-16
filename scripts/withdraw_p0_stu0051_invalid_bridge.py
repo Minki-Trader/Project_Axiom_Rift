@@ -39,7 +39,7 @@ from axiom_rift.research.portfolio_projection import (  # noqa: E402
 from axiom_rift.research.volatility_duration_replay import (  # noqa: E402
     volatility_duration_replay_controlled_chassis,
 )
-from axiom_rift.research.volatility_duration_replay_profile import (  # noqa: E402
+from axiom_rift.operations.volatility_duration_replay_profile import (  # noqa: E402
     STU0051_CAUSAL_QUESTION,
     require_volatility_duration_family_authority,
     require_volatility_duration_historical_context,

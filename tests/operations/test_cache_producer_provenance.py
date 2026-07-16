@@ -3,7 +3,6 @@ from __future__ import annotations
 from contextlib import nullcontext
 from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -17,6 +16,7 @@ from axiom_rift.operations.permits import (
 from axiom_rift.operations.running_job import (
     RunningJobAuthority,
     RunningJobAuthorityError,
+    RunningJobAuthorityIntegrityError,
     RunningJobExecution,
 )
 from axiom_rift.storage.index import EventHead, IndexRecord
@@ -53,9 +53,9 @@ class _Index:
     def event_record(self, stream: str, sequence: int) -> IndexRecord | None:
         return self._events.get((stream, sequence))
 
-    def event_head(self, stream: str) -> EventHead:
+    def event_head(self, stream: str) -> EventHead | None:
         self.event_head_calls.append(stream)
-        return self._retry_head
+        return self._retry_head if stream == self._retry_head.stream else None
 
     def records_by_fingerprint(self, fingerprint: str) -> tuple[IndexRecord, ...]:
         self.fingerprint_calls.append(fingerprint)
@@ -221,7 +221,12 @@ class CacheProducerProvenanceTests(unittest.TestCase):
                     cache_name: cache_hash,
                     manifest_name: manifest_hash,
                 },
-                "scientific": {"verdict": "passed"},
+                "scientific": {
+                    "candidate_eligible": False,
+                    "executed_evidence_modes": ["causal_contrast"],
+                    "scientific_eligible": True,
+                    "verdict": "passed",
+                },
                 "start_record_id": start_id,
             },
             event_stream=f"job-attempt:{work_fingerprint}",
@@ -294,13 +299,6 @@ class CacheProducerProvenanceTests(unittest.TestCase):
                 "axiom_rift.operations.running_job.WriterLock",
                 side_effect=lambda _path, **_kwargs: nullcontext(),
             ),
-            patch(
-                (
-                    "axiom_rift.operations.running_job."
-                    "effective_completion_evidence_scope"
-                ),
-                return_value=SimpleNamespace(scientific_eligible=True),
-            ),
         ):
             writer.verify_reproducible_cache_producer(
                 execution,
@@ -312,8 +310,32 @@ class CacheProducerProvenanceTests(unittest.TestCase):
 
         self._verify(writer, execution, arguments)
 
-        self.assertEqual(index.event_head_calls, [])
+        self.assertEqual(
+            index.event_head_calls,
+            [
+                "historical-evidence-scope:" + "8" * 64,
+                "completion-scientific-validity:" + "8" * 64,
+            ],
+        )
         self.assertEqual(index.fingerprint_calls, [execution.job_hash])
+
+    def test_same_study_cache_rejects_a_historical_projection(self) -> None:
+        writer, index, execution, arguments, completion = self._fixture()
+        index.replace(
+            IndexRecord(
+                kind="historical-cost-semantics-completion",
+                record_id=completion.record_id,
+                subject=f"JobCompletion:{completion.record_id}",
+                status="qualified",
+                fingerprint="a" * 64,
+                payload={},
+            )
+        )
+        with self.assertRaisesRegex(
+            RunningJobAuthorityIntegrityError,
+            "historical evidence correction",
+        ):
+            self._verify(writer, execution, arguments)
 
     def test_forged_start_or_mismatched_completion_binding_fails_closed(self) -> None:
         writer, index, execution, arguments, completion = self._fixture()

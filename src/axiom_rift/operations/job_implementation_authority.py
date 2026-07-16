@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 import re
 from typing import Any
 
@@ -12,6 +13,38 @@ from axiom_rift.core.canonical import parse_canonical
 
 class JobImplementationAuthorityError(RuntimeError):
     """Current implementation evidence is absent or internally inconsistent."""
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class HistoricalImplementationSourceAuthority:
+    """One Writer-authenticated historical reconstruction source."""
+
+    path: str
+    source_sha256: str
+    original_study_id: str
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.path) is not str
+            or not self.path
+            or not self.path.isascii()
+            or self.path.startswith("/")
+            or ":" in self.path
+            or "\\" in self.path
+            or any(part in {"", ".", ".."} for part in self.path.split("/"))
+        ):
+            raise JobImplementationAuthorityError(
+                "historical implementation source path is invalid"
+            )
+        _require_digest("historical implementation source", self.source_sha256)
+        if (
+            type(self.original_study_id) is not str
+            or _CONTROL_ID_PATTERN.fullmatch(self.original_study_id) is None
+            or not self.original_study_id.startswith("STU-")
+        ):
+            raise JobImplementationAuthorityError(
+                "historical implementation source Study identity is invalid"
+            )
 
 
 _CONTROL_ID_PATTERN = re.compile(r"\b(?:MIS|STU)-[0-9]{4}\b")
@@ -45,6 +78,38 @@ def _static_string(node: ast.AST) -> str | None:
     return None
 
 
+def _passive_static_string(
+    node: ast.AST,
+    *,
+    parents: Mapping[ast.AST, ast.AST],
+) -> bool:
+    """Return whether one static string is display or exception prose only."""
+
+    current = node
+    while current in parents:
+        parent = parents[current]
+        if isinstance(parent, ast.keyword) and parent.arg == "display_name":
+            return True
+        if isinstance(parent, ast.Call):
+            call_parent = parents.get(parent)
+            if (
+                isinstance(call_parent, ast.Raise)
+                and call_parent.exc is parent
+                and parent.args
+            ):
+                first = parent.args[0]
+                probe = node
+                while probe in parents and probe is not first:
+                    probe = parents[probe]
+                if probe is first and isinstance(
+                    first,
+                    (ast.BinOp, ast.Constant, ast.JoinedStr),
+                ):
+                    return True
+        current = parent
+    return False
+
+
 def hardcoded_control_ids(source: bytes) -> tuple[str, ...]:
     """Find static Mission/Study IDs in Python or conservatively in other code."""
 
@@ -76,8 +141,16 @@ def hardcoded_control_ids(source: bytes) -> tuple[str, ...]:
         ):
             docstrings.add(id(body[0].value))
     found: set[str] = set()
+    parents = {
+        child: owner
+        for owner in ast.walk(tree)
+        for child in ast.iter_child_nodes(owner)
+    }
     for node in ast.walk(tree):
-        if id(node) in docstrings:
+        if id(node) in docstrings or _passive_static_string(
+            node,
+            parents=parents,
+        ):
             continue
         value = _static_string(node)
         if value is not None:
@@ -141,6 +214,9 @@ def require_job_implementation_evidence(
     spec: Mapping[str, Any],
     *,
     artifact_reader: Callable[[str], bytes],
+    historical_source_authorities: tuple[
+        HistoricalImplementationSourceAuthority, ...
+    ] = (),
 ) -> Mapping[str, Any]:
     """Open one implementation manifest and every exact artifact byte."""
 
@@ -178,27 +254,102 @@ def require_job_implementation_evidence(
         raise JobImplementationAuthorityError(
             "Job implementation evidence manifest is invalid"
         )
+    if (
+        type(historical_source_authorities) is not tuple
+        or any(
+            not isinstance(item, HistoricalImplementationSourceAuthority)
+            for item in historical_source_authorities
+        )
+        or len(
+            {item.source_sha256 for item in historical_source_authorities}
+        )
+        != len(historical_source_authorities)
+    ):
+        raise JobImplementationAuthorityError(
+            "historical implementation source authority is invalid"
+        )
+    source_authority = {
+        item.source_sha256: item for item in historical_source_authorities
+    }
+    artifact_bytes: dict[str, bytes] = {}
+    closure_paths: dict[str, set[str]] = {}
+    closure_artifacts: set[str] = set()
     for source_hash in implementation_manifest["artifact_hashes"]:
         try:
             _require_digest("implementation artifact", source_hash)
             source_bytes = artifact_reader(source_hash)
-            if hardcoded_control_ids(source_bytes):
-                raise JobImplementationAuthorityError(
-                    "Job implementation hardcodes a Mission or Study identity "
-                    "outside declared historical replay lineage; use a reusable "
-                    "mechanism with declarative runtime binding"
-                )
+            artifact_bytes[source_hash] = source_bytes
+            try:
+                value = parse_canonical(source_bytes)
+            except ValueError:
+                value = None
+            if (
+                isinstance(value, Mapping)
+                and value.get("schema")
+                == "job_implementation_source_closure.v1"
+            ):
+                dependencies = value.get("dependencies")
+                if not isinstance(dependencies, list):
+                    raise JobImplementationAuthorityError(
+                        "Job implementation source closure is invalid"
+                    )
+                closure_artifacts.add(source_hash)
+                for dependency in dependencies:
+                    if (
+                        not isinstance(dependency, Mapping)
+                        or set(dependency) != {"path", "sha256"}
+                        or type(dependency.get("path")) is not str
+                        or type(dependency.get("sha256")) is not str
+                    ):
+                        raise JobImplementationAuthorityError(
+                            "Job implementation source closure is invalid"
+                        )
+                    path = dependency["path"]
+                    digest = dependency["sha256"]
+                    _require_digest("implementation closure source", digest)
+                    if (
+                        not path
+                        or not path.isascii()
+                        or path.startswith("/")
+                        or ":" in path
+                        or "\\" in path
+                        or any(
+                            part in {"", ".", ".."}
+                            for part in path.split("/")
+                        )
+                    ):
+                        raise JobImplementationAuthorityError(
+                            "Job implementation source closure path is invalid"
+                        )
+                    closure_paths.setdefault(digest, set()).add(path)
         except JobImplementationAuthorityError:
             raise
         except (FileNotFoundError, OSError, RuntimeError, ValueError) as exc:
             raise JobImplementationAuthorityError(
                 "Job implementation artifact bytes are unavailable"
             ) from exc
+    for source_hash, source_bytes in artifact_bytes.items():
+        if source_hash in closure_artifacts:
+            continue
+        control_ids = hardcoded_control_ids(source_bytes)
+        if control_ids:
+            authority = source_authority.get(source_hash)
+            if (
+                authority is None
+                or control_ids != (authority.original_study_id,)
+                or closure_paths.get(source_hash) != {authority.path}
+            ):
+                raise JobImplementationAuthorityError(
+                    "Job implementation hardcodes a Mission or Study identity "
+                    "outside declared historical replay lineage; use a reusable "
+                    "mechanism with declarative runtime binding"
+                )
     return implementation_manifest
 
 
 __all__ = [
     "JobImplementationAuthorityError",
+    "HistoricalImplementationSourceAuthority",
     "hardcoded_control_ids",
     "implementation_source_closure_hashes",
     "require_job_implementation_evidence",
