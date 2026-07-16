@@ -452,7 +452,6 @@ class StudyCloseGitTests(unittest.TestCase):
             f"Axiom-State-Revision: {checkpoint.cursor.sequence}\n",
             encoding="ascii",
         )
-        validate_commit_message(self.root, message)
         run(
             self.root,
             "git",
@@ -780,6 +779,104 @@ class StudyCloseGitTests(unittest.TestCase):
             str(message),
         )
         require_all_study_close_deliveries(self.root)
+
+    def test_full_audit_preserves_legacy_v1_checkpoint_close(self) -> None:
+        previous = self.install_legacy_checkpoint()
+        parent = subprocess.run(
+            ("git", "rev-parse", "HEAD"),
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        journal = self.root / "records" / "journal.jsonl"
+        content = journal.read_bytes()
+        prior_event = self.events[-1]
+        event = close_event(
+            sequence=2,
+            previous_event_id=str(prior_event["event_id"]),
+            journal_offset=len(content),
+            study_id="STU-0002",
+            kpi_sequence=2,
+        )
+        journal.write_bytes(content + canonical_bytes(event) + b"\n")
+        self.events.append(event)
+        self.write_control(event)
+        kpi_content = render_projection(self.events)
+        (self.root / "records" / "STUDY_KPI.md").write_bytes(kpi_content)
+        control_content = (self.root / "state" / "control.json").read_bytes()
+        checkpoint = StudyCloseDeliveryCheckpoint(
+            basis="study_close",
+            parent_main=parent,
+            previous_checkpoint_commit=parent,
+            previous_checkpoint_digest=previous.checkpoint_digest,
+            cursor=JournalDeliveryCursor.from_events(
+                self.events,
+                journal_path="records/journal.jsonl",
+            ),
+            prospective_close_count=previous.prospective_close_count + 1,
+            prospective_close_chain_digest=advance_close_chain(
+                previous.prospective_close_chain_digest,
+                str(event["event_id"]),
+                2,
+            ),
+            repair_manifest_digest=None,
+            control_sha256=sha256(control_content).hexdigest(),
+            kpi_sha256=sha256(kpi_content).hexdigest(),
+            last_study_close_event_id=str(event["event_id"]),
+            last_study_close_revision=2,
+            schema=LEGACY_CHECKPOINT_SCHEMA,
+        )
+        (self.root / CHECKPOINT_PATH).write_bytes(checkpoint.render())
+        run(self.root, "git", "add", "state", "records")
+        message = self.root / "legacy-v1-close.txt"
+        message.write_text(
+            "Close Study with legacy v1 checkpoint\n\n"
+            f"Axiom-Study-Close: {event['event_id']}\n"
+            "Axiom-State-Revision: 2\n",
+            encoding="ascii",
+        )
+        run(
+            self.root,
+            "git",
+            "-c",
+            "core.hooksPath=.git/hooks",
+            "commit",
+            "-F",
+            str(message),
+        )
+        audit_all_study_close_deliveries(self.root)
+
+    def test_new_close_cannot_extend_legacy_v1_checkpoint(self) -> None:
+        self.install_legacy_checkpoint()
+        journal = self.root / "records" / "journal.jsonl"
+        content = journal.read_bytes()
+        event = close_event(
+            sequence=2,
+            previous_event_id=str(self.events[-1]["event_id"]),
+            journal_offset=len(content),
+            study_id="STU-0002",
+            kpi_sequence=2,
+        )
+        journal.write_bytes(content + canonical_bytes(event) + b"\n")
+        self.events.append(event)
+        self.write_control(event)
+        (self.root / "records" / "STUDY_KPI.md").write_bytes(
+            render_projection(self.events)
+        )
+        run(self.root, "git", "add", "state", "records")
+        message = self.root / "reject-legacy-v1-close.txt"
+        message.write_text(
+            "Reject legacy v1 close\n\n"
+            f"Axiom-Study-Close: {event['event_id']}\n"
+            "Axiom-State-Revision: 2\n",
+            encoding="ascii",
+        )
+        with self.assertRaisesRegex(
+            StudyCloseDeliveryError,
+            "explicit checkpoint v2/v3 upgrade",
+        ):
+            validate_commit_message(self.root, message)
 
     def test_routine_close_never_reads_or_renders_kpi_history(self) -> None:
         self.initialize_checkpoint()

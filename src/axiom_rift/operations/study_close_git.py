@@ -2616,6 +2616,14 @@ def validate_commit_message(repository_root: str | Path, message_path: str | Pat
     checkpoint_unstaged = CHECKPOINT_PATH in unstaged
     if pending_close or checkpoint_staged or checkpoint_unstaged:
         require_local_main(root)
+    if (
+        pending_close
+        and head_checkpoint is not None
+        and head_checkpoint.schema == LEGACY_CHECKPOINT_SCHEMA
+    ):
+        raise StudyCloseDeliveryError(
+            "new Study close requires the explicit checkpoint v2/v3 upgrade"
+        )
     if head_checkpoint is None and checkpoint_staged:
         if pending_close or checkpoint_unstaged:
             raise StudyCloseDeliveryError(
@@ -2805,26 +2813,6 @@ def validate_commit_message(repository_root: str | Path, message_path: str | Pat
     if staged_kpi != render_projection(staged_events):
         raise StudyCloseDeliveryError("staged Study KPI projection differs")
     _validate_trailers(message, event_id, revision)
-    if head_checkpoint is not None:
-        expected_checkpoint = _checkpoint_from_staged_close(
-            root,
-            journal=staged_snapshot,
-            control_content=staged_control,
-            kpi_content=staged_kpi,
-        )
-        try:
-            staged_checkpoint = _git(
-                root, "show", f":{CHECKPOINT_PATH}", binary=True
-            )
-        except subprocess.CalledProcessError as exc:
-            raise StudyCloseDeliveryError(
-                "Study close omitted the staged tracked checkpoint"
-            ) from exc
-        assert isinstance(staged_checkpoint, bytes)
-        if staged_checkpoint != expected_checkpoint.render():
-            raise StudyCloseDeliveryError(
-                "staged Study-close checkpoint projection differs"
-            )
 
 
 def _prospective_closes(events: Sequence[Mapping[str, Any]]) -> list[tuple[str, int]]:
@@ -2906,6 +2894,12 @@ def _validate_snapshot(root: Path, commit: str, event_id: str, revision: int) ->
             checkpoint.cursor.journal_path,
             *_manifest_transition_paths(previous, journal),
         }
+        if (
+            checkpoint.schema == LEGACY_CHECKPOINT_SCHEMA
+            or checkpoint.validator_version
+            == LEGACY_V2_CHECKPOINT_VALIDATOR_VERSION
+        ):
+            required.add(KPI_PATH)
     else:
         checkpoint = None
         required = _required_paths(journal) | _manifest_transition_paths(
@@ -2929,17 +2923,19 @@ def _validate_snapshot(root: Path, commit: str, event_id: str, revision: int) ->
         if _snapshot(root, commit, KPI_PATH) != render_projection(events):
             raise StudyCloseDeliveryError("Study-close commit KPI differs")
         return
-    if (
-        checkpoint.validator_version
+    legacy_projection = (
+        checkpoint.schema == LEGACY_CHECKPOINT_SCHEMA
+        or checkpoint.validator_version
         == LEGACY_V2_CHECKPOINT_VALIDATOR_VERSION
-    ):
+    )
+    if legacy_projection:
         legacy_kpi = _snapshot(root, commit, KPI_PATH)
         if (
             legacy_kpi != render_projection(events)
             or sha256(legacy_kpi).hexdigest() != checkpoint.kpi_sha256
         ):
             raise StudyCloseDeliveryError(
-                "legacy v2 Study-close commit KPI differs"
+                "legacy Study-close commit KPI differs"
             )
     if (
         checkpoint.basis != "study_close"
@@ -2954,6 +2950,8 @@ def _validate_snapshot(root: Path, commit: str, event_id: str, revision: int) ->
         raise StudyCloseDeliveryError(
             "Study-close commit checkpoint boundary differs"
         )
+    if checkpoint.schema == LEGACY_CHECKPOINT_SCHEMA:
+        return
     previous_commit = checkpoint.previous_checkpoint_commit
     previous_digest = checkpoint.previous_checkpoint_digest
     if previous_commit is None or previous_digest is None:
@@ -2981,7 +2979,8 @@ def _validate_snapshot(root: Path, commit: str, event_id: str, revision: int) ->
         )
     except StudyCloseCheckpointError as exc:
         raise StudyCloseDeliveryError(
-            "Study-close commit checkpoint transition differs"
+            "Study-close commit checkpoint transition differs for "
+            f"{commit} event {event_id}: {exc}"
         ) from exc
     _validate_prospective_study_kpi(events[-1], previous=prior)
 
