@@ -2507,9 +2507,6 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             "scripts/run_stu0032_distribution_asymmetry_replay.py": (
                 "require_historical_context"
             ),
-            "scripts/run_stu0048_drawdown_replay.py": (
-                "require_historical_context"
-            ),
             "scripts/run_stu0051_volatility_duration_replay.py": (
                 "require_historical_context"
             ),

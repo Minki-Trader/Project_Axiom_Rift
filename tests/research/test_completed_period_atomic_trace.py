@@ -19,9 +19,21 @@ from axiom_rift.research.gap_recovery_discovery import gap_components
 from axiom_rift.research.volatility_duration_discovery import (
     volatility_duration_components,
 )
-from axiom_rift.research.volatility_duration_replay import (
-    volatility_duration_replay_components,
+from axiom_rift.research.historical_family_binding import (
+    historical_family_from_manifest,
 )
+from axiom_rift.research.historical_family_replay import (
+    STU0051_HISTORICAL_FAMILY,
+)
+from axiom_rift.research.volatility_duration_fixed_hold import (
+    volatility_duration_fixed_hold_components,
+)
+
+
+def current_volatility_duration_components():
+    return volatility_duration_fixed_hold_components(
+        historical_family_from_manifest(STU0051_HISTORICAL_FAMILY.manifest())
+    )
 
 
 class CompletedPeriodAtomicTraceTests(unittest.TestCase):
@@ -33,7 +45,7 @@ class CompletedPeriodAtomicTraceTests(unittest.TestCase):
             gap_components,
             volatility_duration_components,
             drawdown_replay_components,
-            volatility_duration_replay_components,
+            current_volatility_duration_components,
             distribution_asymmetry_replay_components,
             composite_router_replay_components,
         )

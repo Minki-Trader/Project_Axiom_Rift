@@ -108,6 +108,31 @@ class FixedHoldReplayCliTests(unittest.TestCase):
         self.assertEqual(result["next_action"], control["next_action"])
         self.assertEqual(result["state_revision"], 5452)
 
+    def test_closed_study_rejects_another_execution_stage_without_design(
+        self,
+    ) -> None:
+        design_builder = Mock(name="design_builder")
+        with (
+            patch.object(cli, "EvidenceValidatorRegistry"),
+            patch.object(cli, "StateWriter", return_value=Mock()),
+            patch.object(cli, "require_stable_head"),
+            patch.object(
+                cli,
+                "_completed_study_handoff",
+                return_value={"mode": "completed_study_handoff"},
+            ),
+            self.assertRaisesRegex(RuntimeError, "rejects another execution"),
+        ):
+            cli.run_fixed_hold_replay_command(
+                repository_root=Path.cwd(),
+                design_builder=design_builder,
+                job_runner=Mock(name="job_runner"),
+                job_implementation_materializer=Mock(name="materializer"),
+                study_id="STU-0114",
+                argv=["--stage", "study-close"],
+            )
+        design_builder.assert_not_called()
+
     def test_diagnose_uses_no_validator_or_permit_key(self) -> None:
         registry_instance = object()
         writer_instance = object()

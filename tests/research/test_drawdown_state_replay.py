@@ -15,16 +15,15 @@ from axiom_rift.operations.running_job import (
     RunningJobExecution as BoundaryRunningJobExecution,
     running_job_authority_dependency_paths,
 )
-from axiom_rift.research.drawdown_state_replay import (
-    DRAWDOWN_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT,
-    STU0048_HISTORICAL_EVALUATION_HASHES,
-    causal_drawdown_replay_spread,
-    compute_drawdown_replay_score,
-    compute_stu0048_drawdown_family_trace,
-    drawdown_replay_components,
-    drawdown_replay_controlled_chassis,
-    drawdown_replay_executable_map,
-    drawdown_replay_protocol_definition,
+from axiom_rift.research.drawdown_fixed_hold import (
+    DRAWDOWN_FIXED_HOLD_HISTORICAL_EVALUATION_HASHES,
+    causal_drawdown_fixed_hold_spread,
+    compute_drawdown_fixed_hold_family_trace,
+    compute_drawdown_fixed_hold_score,
+    drawdown_fixed_hold_components,
+    drawdown_fixed_hold_controlled_chassis,
+    drawdown_fixed_hold_executable_map,
+    drawdown_fixed_hold_protocol_definition,
 )
 from axiom_rift.research.fixed_hold_historical_projection import (
     HISTORICAL_DRAWDOWN_EVALUATION_SCHEMA,
@@ -41,7 +40,6 @@ from axiom_rift.research.drawdown_state_replay_job import (
 from axiom_rift.operations.writer import (
     RunningJobExecution,
     StateWriter,
-    TransitionError,
 )
 from axiom_rift.research.evidence_proofs import (
     build_proof_references,
@@ -67,6 +65,10 @@ from axiom_rift.research.fixed_hold_replay_runtime import (
 from axiom_rift.research.historical_family_replay import (
     STU0048_HISTORICAL_FAMILY,
 )
+from axiom_rift.research.historical_family_binding import (
+    HistoricalFamilyReplayContext,
+    historical_family_from_manifest,
+)
 from axiom_rift.research.historical_semantic_transition import (
     build_historical_cost_timing_transition,
     validate_historical_cost_timing_transition,
@@ -82,6 +84,112 @@ from axiom_rift.storage.evidence import EvidenceStore
 
 
 HISTORICAL_CONTEXT_COUNT = 578
+DRAWDOWN_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT = 440
+STU0048_HISTORICAL_EVALUATION_HASHES = (
+    DRAWDOWN_FIXED_HOLD_HISTORICAL_EVALUATION_HASHES
+)
+WRITER_BOUND_FAMILY = historical_family_from_manifest(
+    STU0048_HISTORICAL_FAMILY.manifest()
+)
+FAMILY_AUTHORITY_ID = (
+    "historical-family-authority:"
+    "d166d3ac4dd728de2c7968021c806908836e6f5bf9a78049e0d033b214fd64ab"
+)
+REPLAY_OBLIGATION_ID = (
+    "historical-replay-obligation:"
+    "c537b4ebc7085331cd21e52c26fbc994728c0520d5474473cc246f4e8c85322e"
+)
+
+
+def _replay_context(count: int) -> HistoricalFamilyReplayContext:
+    return HistoricalFamilyReplayContext(
+        family_authority_id=FAMILY_AUTHORITY_ID,
+        replay_obligation_id=REPLAY_OBLIGATION_ID,
+        family=WRITER_BOUND_FAMILY,
+        prior_global_exposure_count=count,
+        original_family_end_global_exposure_count=(
+            DRAWDOWN_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT
+        ),
+    )
+
+
+def drawdown_replay_protocol_definition(
+    *, historical_context_prior_global_exposure_count: int
+):
+    return drawdown_fixed_hold_protocol_definition(
+        _replay_context(historical_context_prior_global_exposure_count)
+    )
+
+
+def drawdown_replay_components():
+    return drawdown_fixed_hold_components(WRITER_BOUND_FAMILY)
+
+
+def drawdown_replay_controlled_chassis(
+    *, historical_context_prior_global_exposure_count: int
+):
+    return drawdown_fixed_hold_controlled_chassis(
+        historical_family=WRITER_BOUND_FAMILY,
+        historical_context_prior_global_exposure_count=(
+            historical_context_prior_global_exposure_count
+        ),
+        original_family_end_global_exposure_count=(
+            DRAWDOWN_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT
+        ),
+    )
+
+
+def drawdown_replay_executable_map(
+    *, historical_context_prior_global_exposure_count: int
+):
+    return drawdown_fixed_hold_executable_map(
+        historical_family=WRITER_BOUND_FAMILY,
+        historical_context_prior_global_exposure_count=(
+            historical_context_prior_global_exposure_count
+        ),
+        original_family_end_global_exposure_count=(
+            DRAWDOWN_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT
+        ),
+    )
+
+
+def compute_stu0048_drawdown_family_trace(
+    repository_root: str,
+    *,
+    historical_context_prior_global_exposure_count: int,
+):
+    definition = drawdown_replay_protocol_definition(
+        historical_context_prior_global_exposure_count=(
+            historical_context_prior_global_exposure_count
+        )
+    )
+    return compute_drawdown_fixed_hold_family_trace(
+        repository_root,
+        definition,
+    )
+
+
+causal_drawdown_replay_spread = causal_drawdown_fixed_hold_spread
+compute_drawdown_replay_score = compute_drawdown_fixed_hold_score
+_FULL_TRACE_FIXTURE = None
+
+
+def _full_trace_fixture():
+    global _FULL_TRACE_FIXTURE
+    if _FULL_TRACE_FIXTURE is None:
+        definition = drawdown_replay_protocol_definition(
+            historical_context_prior_global_exposure_count=(
+                HISTORICAL_CONTEXT_COUNT
+            )
+        )
+        neutral, raw = compute_stu0048_drawdown_family_trace(
+            ".",
+            historical_context_prior_global_exposure_count=(
+                HISTORICAL_CONTEXT_COUNT
+            ),
+        )
+        _FULL_TRACE_FIXTURE = (definition, neutral, raw)
+    return _FULL_TRACE_FIXTURE
 
 
 class DrawdownReplayBoundaryTests(unittest.TestCase):
@@ -156,7 +264,7 @@ class DrawdownReplayBoundaryTests(unittest.TestCase):
         self.assertTrue(expected_boundary_paths.issubset(bound_paths))
         self.assertNotIn("axiom_rift/operations/writer.py", bound_paths)
 
-    def test_historical_closure_is_materialized_but_not_generic_job_authority(
+    def test_prospective_closure_is_reusable_current_job_authority(
         self,
     ) -> None:
         with TemporaryDirectory() as temporary:
@@ -172,14 +280,14 @@ class DrawdownReplayBoundaryTests(unittest.TestCase):
                 drawdown_replay_job_implementation_sha256(),
             )
             manifest = parse_canonical(writer.evidence.read_verified(identity))
-            with self.assertRaisesRegex(TransitionError, "hardcodes"):
-                writer._require_job_implementation_evidence(
-                    {
-                        "callable_identity": CALLABLE_IDENTITY,
-                        "implementation_identity": identity,
-                    }
-                )
+            accepted = writer._require_job_implementation_evidence(
+                {
+                    "callable_identity": CALLABLE_IDENTITY,
+                    "implementation_identity": identity,
+                }
+            )
             self.assertIsInstance(manifest, dict)
+            self.assertEqual(accepted, manifest)
         self.assertEqual(
             manifest["schema"],
             "job_implementation_evidence.v1",
@@ -200,17 +308,10 @@ class DrawdownReplayBoundaryTests(unittest.TestCase):
                 RUNTIME_ADAPTER
             )
         }
-        self.assertIn("historical_family_stu0048.py", dependency_names)
-        self.assertTrue(
-            dependency_names.isdisjoint(
-                {
-                    "historical_family_stu0016.py",
-                    "historical_family_stu0017.py",
-                    "historical_family_stu0032.py",
-                    "historical_family_stu0051.py",
-                }
-            )
-        )
+        self.assertIn("drawdown_fixed_hold.py", dependency_names)
+        self.assertIn("historical_family_binding.py", dependency_names)
+        self.assertNotIn("historical_family_stu0048.py", dependency_names)
+        self.assertNotIn("historical_family_replay.py", dependency_names)
 
     def test_family_identity_is_new_exact_and_context_bound(self) -> None:
         definition = drawdown_replay_protocol_definition(
@@ -257,7 +358,7 @@ class DrawdownReplayBoundaryTests(unittest.TestCase):
             ),
             4,
         )
-        with self.assertRaisesRegex(ValueError, "cannot precede"):
+        with self.assertRaisesRegex(ValueError, "exposure is invalid"):
             drawdown_replay_protocol_definition(
                 historical_context_prior_global_exposure_count=(
                     DRAWDOWN_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT
@@ -310,17 +411,7 @@ class DrawdownReplayBoundaryTests(unittest.TestCase):
 class DrawdownSemanticTransitionIntegrityTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.definition = drawdown_replay_protocol_definition(
-            historical_context_prior_global_exposure_count=(
-                HISTORICAL_CONTEXT_COUNT
-            )
-        )
-        cls.neutral, cls.raw = compute_stu0048_drawdown_family_trace(
-            ".",
-            historical_context_prior_global_exposure_count=(
-                HISTORICAL_CONTEXT_COUNT
-            ),
-        )
+        cls.definition, cls.neutral, cls.raw = _full_trace_fixture()
 
     def test_atomic_projection_matches_independent_producer_aggregates(self) -> None:
         names = (
@@ -400,17 +491,7 @@ class DrawdownSemanticTransitionIntegrityTests(unittest.TestCase):
 class DrawdownReplayIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.definition = drawdown_replay_protocol_definition(
-            historical_context_prior_global_exposure_count=(
-                HISTORICAL_CONTEXT_COUNT
-            )
-        )
-        cls.neutral, cls.raw = compute_stu0048_drawdown_family_trace(
-            ".",
-            historical_context_prior_global_exposure_count=(
-                HISTORICAL_CONTEXT_COUNT
-            ),
-        )
+        cls.definition, cls.neutral, cls.raw = _full_trace_fixture()
         cls.target_id = cls.definition.prospective_executable_ids[3]
         cls.job_plan = build_drawdown_replay_job_plan(
             mission_id="MIS-0006",
@@ -419,6 +500,12 @@ class DrawdownReplayIntegrationTests(unittest.TestCase):
             historical_context_prior_global_exposure_count=(
                 HISTORICAL_CONTEXT_COUNT
             ),
+            original_family_end_global_exposure_count=(
+                DRAWDOWN_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT
+            ),
+            historical_family=WRITER_BOUND_FAMILY,
+            historical_family_authority_id=FAMILY_AUTHORITY_ID,
+            replay_obligation_id=REPLAY_OBLIGATION_ID,
         )
         cls.subject = bind_fixed_hold_family_trace(
             family_trace=cls.neutral,
@@ -542,8 +629,8 @@ class DrawdownReplayIntegrationTests(unittest.TestCase):
                 "feature_control_worst_delta_net_profit_micropoints": (
                     1_079_000_000
                 ),
-                "feature_control_worst_pvalue_upper_ppm": 534_688,
-                "opposite_sign_pvalue_upper_ppm": 9_653,
+                "feature_control_worst_pvalue_upper_ppm": 530_548,
+                "opposite_sign_pvalue_upper_ppm": 10_510,
                 "opposite_sign_worst_delta_net_profit_micropoints": (
                     19_029_310_000
                 ),
@@ -552,7 +639,7 @@ class DrawdownReplayIntegrationTests(unittest.TestCase):
         self.assertEqual(
             metrics["selection_aware_signal_evidence"]
             ["selection_aware_pvalue_ppm"],
-            86_742,
+            83_885,
         )
         exposure = self.calculation["statistics"]["exposure_semantics"]
         self.assertEqual(

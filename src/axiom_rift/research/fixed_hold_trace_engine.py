@@ -41,6 +41,16 @@ FeatureBuilder = Callable[
 SelectorCalibrator = Callable[[np.ndarray, np.ndarray], float]
 SpreadBuilder = Callable[[np.ndarray, np.ndarray], np.ndarray]
 RawParityValidator = Callable[[Path, Mapping[str, Any]], None]
+SemanticTransitionBuilder = Callable[
+    [
+        Path,
+        FixedHoldProtocolDefinition,
+        tuple[dict[str, object], ...],
+        tuple[dict[str, object], ...],
+        tuple[dict[str, object], ...],
+    ],
+    tuple[dict[str, object], ...],
+]
 _THIS_FILE = Path(__file__).resolve()
 
 
@@ -173,6 +183,7 @@ def compute_fixed_hold_family_trace(
     selector_calibrator: SelectorCalibrator,
     spread_builder: SpreadBuilder,
     raw_parity_validator: RawParityValidator | None = None,
+    semantic_transition_builder: SemanticTransitionBuilder | None = None,
 ) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
     """Evaluate one preregistered family and emit its neutral atomic trace."""
 
@@ -185,6 +196,10 @@ def compute_fixed_hold_family_trace(
             raise TypeError("fixed-hold engine callback is not callable")
     if raw_parity_validator is not None and not callable(raw_parity_validator):
         raise TypeError("fixed-hold parity validator is not callable")
+    if semantic_transition_builder is not None and not callable(
+        semantic_transition_builder
+    ):
+        raise TypeError("fixed-hold semantic transition builder is not callable")
 
     root = Path(repository_root).resolve()
     inventory = expected_fixed_hold_family_inventory(definition)
@@ -465,6 +480,17 @@ def compute_fixed_hold_family_trace(
                         "stress_net_pnl_micropoints": values[2],
                     }
                 )
+    semantic_transitions = (
+        ()
+        if semantic_transition_builder is None
+        else semantic_transition_builder(
+            root,
+            definition,
+            tuple(windows),
+            tuple(all_trades),
+            tuple(all_intents),
+        )
+    )
     neutral = build_fixed_hold_family_trace(
         definition=definition,
         validator=FIXED_HOLD_TRACE_VALIDATOR,
@@ -473,6 +499,7 @@ def compute_fixed_hold_family_trace(
         trade_observations=all_trades,
         intent_observations=all_intents,
         eligible_day_observations=eligible_rows,
+        semantic_transition_evidence=semantic_transitions,
     )
     return neutral, raw_metrics
 
@@ -480,6 +507,7 @@ def compute_fixed_hold_family_trace(
 __all__ = [
     "FeatureBuilder",
     "RawParityValidator",
+    "SemanticTransitionBuilder",
     "SelectorCalibrator",
     "SpreadBuilder",
     "compute_fixed_hold_family_trace",

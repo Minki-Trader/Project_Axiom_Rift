@@ -146,10 +146,11 @@ def run_fixed_hold_replay_command(
         writer,
         explicit_recovery=bool(arguments.stage and arguments.recover),
     )
-    if arguments.stage is None:
-        handoff = _completed_study_handoff(writer, study_id=study_id)
-        if handoff is not None:
+    handoff = _completed_study_handoff(writer, study_id=study_id)
+    if handoff is not None:
+        if arguments.stage is None:
             return handoff
+        raise RuntimeError("closed replay Study rejects another execution stage")
     design = design_builder(writer)
     if arguments.stage is None:
         return dict(read_only_summary(writer, design))

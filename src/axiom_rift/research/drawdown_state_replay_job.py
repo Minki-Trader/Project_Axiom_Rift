@@ -1,4 +1,4 @@
-"""Thin Writer-gated Job entry point for the STU-0048 replay adapter."""
+"""Thin running-Job adapter for Writer-bound drawdown fixed-hold research."""
 
 from __future__ import annotations
 
@@ -6,20 +6,24 @@ from pathlib import Path
 
 import axiom_rift.core.identity as identity_module
 import axiom_rift.research.chassis as chassis_module
+import axiom_rift.research.completed_period_atomic_trace as atomic_trace_module
 import axiom_rift.research.data as data_module
 import axiom_rift.research.discovery as discovery_module
-import axiom_rift.research.drawdown_state_replay as replay_module
+import axiom_rift.research.drawdown_fixed_hold as replay_module
 import axiom_rift.research.fixed_hold_family_trace as fixed_hold_trace_module
+import axiom_rift.research.fixed_hold_historical_projection as historical_projection_module
+import axiom_rift.research.fixed_hold_trace_engine as trace_engine_module
 import axiom_rift.research.governance as governance_module
-import axiom_rift.research.historical_family_replay as historical_family_module
-import axiom_rift.research.historical_family_stu0048 as historical_binding_module
+import axiom_rift.research.historical_family_binding as family_binding_module
+import axiom_rift.research.historical_semantic_transition as transition_module
 import axiom_rift.research.scientific_trace as scientific_trace_module
 import axiom_rift.research.selection_inference as selection_inference_module
 import axiom_rift.storage.evidence as evidence_module
 from axiom_rift.operations.running_job import RunningJobExecution
-from axiom_rift.research.drawdown_state_replay import (
-    compute_stu0048_drawdown_family_trace,
-    drawdown_replay_protocol_definition,
+from axiom_rift.research.drawdown_fixed_hold import (
+    DRAWDOWN_FIXED_HOLD_CONTEXT_PARAMETER,
+    compute_drawdown_fixed_hold_family_trace,
+    drawdown_fixed_hold_protocol_definition,
 )
 from axiom_rift.research.fixed_hold_family_job import (
     FixedHoldFamilyJobPacket,
@@ -39,34 +43,34 @@ from axiom_rift.research.fixed_hold_replay_runtime import (
     materialize_fixed_hold_replay_job_implementation,
     materialize_running_job_implementation_repair_proof,
 )
+from axiom_rift.research.historical_family_binding import (
+    HistoricalFamilyReplayContext,
+    HistoricalFamilySpec,
+)
 
 
 CALLABLE_IDENTITY = (
     "axiom_rift.research.drawdown_state_replay_job."
-    "execute_drawdown_state_replay_job.v1"
+    "execute_drawdown_state_replay_job.v2"
 )
-JOB_IMPLEMENTATION_PROTOCOL = "python.source.drawdown_state_replay.v2"
-ARTIFACT_NAMESPACE = "stu0048-drawdown-replay-v2"
+JOB_IMPLEMENTATION_PROTOCOL = "python.source.drawdown_fixed_hold.v3"
+ARTIFACT_NAMESPACE = "drawdown-fixed-hold-v3"
 _THIS_FILE = Path(__file__).resolve()
 
 
-def _definition(prior_global_exposure_count: int) -> FixedHoldProtocolDefinition:
-    return drawdown_replay_protocol_definition(
-        historical_context_prior_global_exposure_count=(
-            prior_global_exposure_count
-        )
-    )
+def _definition(
+    context: HistoricalFamilyReplayContext,
+) -> FixedHoldProtocolDefinition:
+    return drawdown_fixed_hold_protocol_definition(context)
 
 
 def _trace(
     repository_root: Path,
-    prior_global_exposure_count: int,
+    definition: FixedHoldProtocolDefinition,
 ) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
-    return compute_stu0048_drawdown_family_trace(
+    return compute_drawdown_fixed_hold_family_trace(
         repository_root,
-        historical_context_prior_global_exposure_count=(
-            prior_global_exposure_count
-        ),
+        definition,
     )
 
 
@@ -80,17 +84,20 @@ RUNTIME_ADAPTER = FixedHoldReplayRuntimeAdapter(
             {
                 _THIS_FILE,
                 Path(identity_module.__file__).resolve(),
+                Path(atomic_trace_module.__file__).resolve(),
                 Path(chassis_module.__file__).resolve(),
                 Path(data_module.__file__).resolve(),
                 Path(discovery_module.__file__).resolve(),
                 Path(evidence_module.__file__).resolve(),
                 Path(fixed_hold_trace_module.__file__).resolve(),
+                Path(historical_projection_module.__file__).resolve(),
+                Path(trace_engine_module.__file__).resolve(),
                 Path(governance_module.__file__).resolve(),
-                Path(historical_family_module.__file__).resolve(),
-                Path(historical_binding_module.__file__).resolve(),
+                Path(family_binding_module.__file__).resolve(),
                 Path(replay_module.__file__).resolve(),
                 Path(scientific_trace_module.__file__).resolve(),
                 Path(selection_inference_module.__file__).resolve(),
+                Path(transition_module.__file__).resolve(),
             },
             key=lambda value: value.as_posix(),
         )
@@ -98,19 +105,21 @@ RUNTIME_ADAPTER = FixedHoldReplayRuntimeAdapter(
     component_source_paths=tuple(
         sorted(
             {
+                Path(atomic_trace_module.__file__).resolve(),
                 Path(discovery_module.__file__).resolve(),
                 Path(fixed_hold_trace_module.__file__).resolve(),
+                Path(historical_projection_module.__file__).resolve(),
                 Path(replay_module.__file__).resolve(),
+                Path(trace_engine_module.__file__).resolve(),
+                Path(transition_module.__file__).resolve(),
             },
             key=lambda value: value.as_posix(),
         )
     ),
     expected_family_size=4,
-    context_parameter_name=(
-        "historical_context_prior_global_exposure_count"
-    ),
-    definition_builder=_definition,
-    trace_builder=_trace,
+    context_parameter_name=DRAWDOWN_FIXED_HOLD_CONTEXT_PARAMETER,
+    bound_definition_builder=_definition,
+    bound_trace_builder=_trace,
 )
 
 
@@ -151,6 +160,10 @@ def build_drawdown_replay_job_plan(
     study_id: str,
     executable_id: str,
     historical_context_prior_global_exposure_count: int,
+    original_family_end_global_exposure_count: int,
+    historical_family: HistoricalFamilySpec,
+    historical_family_authority_id: str,
+    replay_obligation_id: str,
 ) -> FixedHoldFamilyJobPlan:
     return build_fixed_hold_replay_job_plan(
         adapter=RUNTIME_ADAPTER,
@@ -160,6 +173,12 @@ def build_drawdown_replay_job_plan(
         historical_context_prior_global_exposure_count=(
             historical_context_prior_global_exposure_count
         ),
+        original_family_end_global_exposure_count=(
+            original_family_end_global_exposure_count
+        ),
+        historical_family=historical_family,
+        historical_family_authority_id=historical_family_authority_id,
+        replay_obligation_id=replay_obligation_id,
     )
 
 
