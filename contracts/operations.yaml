@@ -786,6 +786,17 @@ replay_implementation_admission:
     satisfactions_and_deferrals_are_disjoint_and_cover_exact_diagnosed_action: true
     valid_completed_members_are_not_discarded_by_later_engineering_failure: true
     next_action_advances_once_atomically: true
+  study_scientific_change_return:
+    single_writer_event: historical_replay_obligations_returned_for_scientific_change
+    exact_study_scoped_requires_scientific_change_disposition_required: true
+    same_protocol_repair_or_retry_allowed: false
+    selected_family_returns_in_progress_to_pending_atomically: true
+    every_return_head_binds_trial_study_close_diagnosis_completion_and_disposition: true
+    successor_protocol_revision_binds_current_typed_return_authority: true
+    successor_study_uses_distinct_executables_and_no_predecessor_evidence: true
+    feasibility_change_uses_pre_outcome_train_only_availability_counts: true
+    scientific_trial_claim_failure_satisfaction_candidate_holdout_and_terminal_delta: 0
+    unrelated_pending_forest_and_scheduler_priority_preserved: true
   replacement_required_terminal:
     same_identity_repair_or_protocol_rebind_is_terminal_authority: false
     nonrestorable_semantic_or_implementation_replacement_evidence_required: true

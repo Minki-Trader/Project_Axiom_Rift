@@ -17410,6 +17410,7 @@ class StateWriter:
             if protocol_revision is not None:
                 from axiom_rift.operations.replay_projection import (
                     obligation_heads,
+                    require_scientific_change_return_record,
                     require_satisfaction_invalidation_record,
                 )
                 from axiom_rift.operations.semantic_question_registry import (
@@ -17459,20 +17460,29 @@ class StateWriter:
                 if (
                     obligation_head.status
                     != ReplayObligationStatus.PENDING.value
-                    or obligation_head.kind
-                    != "historical-replay-satisfaction-invalidation"
+                    or obligation_head.kind != protocol_revision.authority_kind
                     or obligation_head.record_id
-                    != protocol_revision.satisfaction_invalidation_record_id
+                    != protocol_revision.authority_record_id
                 ):
                     raise TransitionError(
-                        "protocol revision lacks its current replay invalidation"
+                        "protocol revision lacks its current replay authority"
                     )
                 try:
-                    require_satisfaction_invalidation_record(
-                        _index,
-                        obligation=obligation,
-                        record=obligation_head,
-                    )
+                    if (
+                        protocol_revision.authority_kind
+                        == "historical-replay-satisfaction-invalidation"
+                    ):
+                        require_satisfaction_invalidation_record(
+                            _index,
+                            obligation=obligation,
+                            record=obligation_head,
+                        )
+                    else:
+                        require_scientific_change_return_record(
+                            _index,
+                            obligation=obligation,
+                            record=obligation_head,
+                        )
                     require_semantic_question_study_binding(
                         _index,
                         study_id=lineage.predecessor_study_id,
@@ -17496,13 +17506,13 @@ class StateWriter:
                 if (
                     review is not None
                     and (
-                        "historical-replay-satisfaction-invalidation",
-                        obligation_head.record_id,
+                        protocol_revision.authority_kind,
+                        protocol_revision.authority_record_id,
                     )
                     not in review_basis
                 ):
                     raise TransitionError(
-                        "quant-team review omits the protocol invalidation basis"
+                        "quant-team review omits the protocol revision basis"
                     )
             baseline = decision.baseline_executable
             architecture = decision.architecture_chassis

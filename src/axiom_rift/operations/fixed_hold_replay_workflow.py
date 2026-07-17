@@ -43,6 +43,7 @@ from axiom_rift.operations.replay_projection import (
     ReplayProjectionError,
     obligation_heads,
     replay_evidence_record_ids,
+    require_scientific_change_return_record,
     require_satisfaction_invalidation_record,
     scheduler_constraints,
     with_scheduler_constraints,
@@ -1212,7 +1213,8 @@ def build_fixed_hold_replay_design(
             spec.operation_prefix + "replay-decision",
         )
         accepted_protocol_revision = None
-        initial_revision_invalidation_id = None
+        initial_revision_authority_kind = None
+        initial_revision_authority_id = None
         accepted_bridge_operation = index.get(
             "operation",
             spec.operation_prefix + "bridge-decision",
@@ -1253,25 +1255,39 @@ def build_fixed_hold_replay_design(
             and target is not None
         ):
             target_obligation, target_head = target
-            if (
-                target_head.kind
-                != "historical-replay-satisfaction-invalidation"
-                or target_head.status != "pending"
-            ):
+            if target_head.status != "pending":
                 raise RuntimeError(
-                    "protocol revision lacks a pending satisfaction invalidation"
+                    "protocol revision lacks pending replay authority"
                 )
             try:
-                require_satisfaction_invalidation_record(
-                    index,
-                    obligation=target_obligation,
-                    record=target_head,
-                )
+                if (
+                    target_head.kind
+                    == "historical-replay-satisfaction-invalidation"
+                ):
+                    require_satisfaction_invalidation_record(
+                        index,
+                        obligation=target_obligation,
+                        record=target_head,
+                    )
+                elif (
+                    target_head.kind
+                    == "historical-replay-scientific-change-return"
+                ):
+                    require_scientific_change_return_record(
+                        index,
+                        obligation=target_obligation,
+                        record=target_head,
+                    )
+                else:
+                    raise ReplayProjectionError(
+                        "protocol revision replay authority is unsupported"
+                    )
             except ReplayProjectionError as exc:
                 raise RuntimeError(
-                    "protocol revision invalidation authority is malformed"
+                    "protocol revision replay authority is malformed"
                 ) from exc
-            initial_revision_invalidation_id = target_head.record_id
+            initial_revision_authority_kind = target_head.kind
+            initial_revision_authority_id = target_head.record_id
     axis_already_exists = any(
         axis.axis_id == spec.axis_id for axis in prior_axes
     )
@@ -1565,38 +1581,68 @@ def build_fixed_hold_replay_design(
                 "protocol revision must retain one mechanism and change one chassis"
             )
         if accepted_protocol_revision is None:
-            if not isinstance(initial_revision_invalidation_id, str):
+            if (
+                not isinstance(initial_revision_authority_kind, str)
+                or not isinstance(initial_revision_authority_id, str)
+            ):
                 raise RuntimeError(
-                    "protocol revision invalidation authority is absent"
+                    "protocol revision replay authority is absent"
                 )
-            invalidation_id = initial_revision_invalidation_id
+            revision_authority_kind = initial_revision_authority_kind
+            revision_authority_id = initial_revision_authority_id
         else:
-            invalidation_id = (
-                accepted_protocol_revision.satisfaction_invalidation_record_id
+            revision_authority_kind = accepted_protocol_revision.authority_kind
+            revision_authority_id = (
+                accepted_protocol_revision.authority_record_id
             )
-        expected_revision = AxisProtocolRevisionProposal(
-            mission_id=spec.mission_id,
-            axis_id=source_axis.axis_id,
-            predecessor_axis_identity=source_axis.identity,
-            successor_axis_identity=replay_axis.identity,
-            mechanism_family=source_axis.mechanism_family,
-            predecessor_architecture_family=(
+        common_revision = {
+            "mission_id": spec.mission_id,
+            "axis_id": source_axis.axis_id,
+            "predecessor_axis_identity": source_axis.identity,
+            "successor_axis_identity": replay_axis.identity,
+            "mechanism_family": source_axis.mechanism_family,
+            "predecessor_architecture_family": (
                 source_axis.architecture_chassis.identity
             ),
-            successor_architecture_family=(
+            "successor_architecture_family": (
                 replay_axis.architecture_chassis.identity
             ),
-            replay_obligation_id=spec.target_obligation_id,
-            satisfaction_invalidation_record_id=invalidation_id,
-            semantic_question_lineage=lineage,
-            reason_code=(
-                AxisProtocolRevisionReason.COMPLETION_VALIDITY_INVALIDATED
-            ),
-            reason=(
-                "the prior completion evidence was invalidated and requires "
-                "the same question under the corrected prospective chassis"
-            ),
-        )
+            "replay_obligation_id": spec.target_obligation_id,
+            "semantic_question_lineage": lineage,
+        }
+        if (
+            revision_authority_kind
+            == "historical-replay-satisfaction-invalidation"
+        ):
+            expected_revision = AxisProtocolRevisionProposal(
+                **common_revision,
+                satisfaction_invalidation_record_id=revision_authority_id,
+                reason_code=(
+                    AxisProtocolRevisionReason.COMPLETION_VALIDITY_INVALIDATED
+                ),
+                reason=(
+                    "the prior completion evidence was invalidated and requires "
+                    "the same question under the corrected prospective chassis"
+                ),
+            )
+        elif (
+            revision_authority_kind
+            == "historical-replay-scientific-change-return"
+        ):
+            expected_revision = AxisProtocolRevisionProposal(
+                **common_revision,
+                satisfaction_invalidation_record_id=None,
+                scientific_change_return_record_id=revision_authority_id,
+                reason_code=(
+                    AxisProtocolRevisionReason.ENGINEERING_REQUIRES_SCIENTIFIC_CHANGE
+                ),
+                reason=(
+                    "the prior Study requires a distinct scientific protocol "
+                    "with a feasible train-only event floor"
+                ),
+            )
+        else:
+            raise RuntimeError("protocol revision replay authority is unsupported")
         if (
             accepted_protocol_revision is not None
             and accepted_protocol_revision != expected_revision
@@ -1613,6 +1659,9 @@ def build_fixed_hold_replay_design(
         bridge_action = PortfolioAction.REVISE_PROTOCOL
         bridge_rationale = (
             "replace one invalidated protocol without inventing a mechanism"
+            if revision_authority_kind
+            == "historical-replay-satisfaction-invalidation"
+            else "admit one typed scientific correction without inventing a mechanism"
         )
         bridge_alternative = DecisionOption(
             option_id="open-genuinely-new-mechanism",
@@ -1620,10 +1669,18 @@ def build_fixed_hold_replay_design(
             target_id=source_axis.axis_id,
             expected_information_value="independent mechanism search remains valid",
             opportunity_cost="leave the exact invalidated protocol unresolved",
-            omission_reason="the bounded same-question correction is executable now",
+            omission_reason=(
+                "the bounded same-question correction is executable now"
+                if revision_authority_kind
+                == "historical-replay-satisfaction-invalidation"
+                else "the diagnosed same-question scientific correction is executable now"
+            ),
         )
         expanded_basis = (
             "retain every unrelated axis and replace one invalidated protocol"
+            if revision_authority_kind
+            == "historical-replay-satisfaction-invalidation"
+            else "retain every unrelated axis and admit one diagnosed protocol correction"
         )
     bridge_options = () if not bridge_option_id else (
             DecisionOption(
@@ -1659,10 +1716,8 @@ def build_fixed_hold_replay_design(
     if protocol_revision is not None:
         bridge_basis.append(
             DecisionBasisRecord(
-                kind="historical-replay-satisfaction-invalidation",
-                record_id=(
-                    protocol_revision.satisfaction_invalidation_record_id
-                ),
+                kind=protocol_revision.authority_kind,
+                record_id=protocol_revision.authority_record_id,
             )
         )
     bridge_decision = (

@@ -24,6 +24,13 @@ from axiom_rift.research.gap_fixed_hold import (
     gap_fixed_hold_controlled_chassis,
     gap_fixed_hold_executable,
 )
+from axiom_rift.research.gap_event_fixed_hold_v3 import (
+    gap_event_fixed_hold_v3_controlled_chassis,
+    gap_event_fixed_hold_v3_executable,
+)
+from axiom_rift.research.gap_event_fixed_hold_v3_job import (
+    build_gap_event_fixed_hold_v3_job_plan,
+)
 from axiom_rift.research.gap_fixed_hold_job import (
     build_gap_fixed_hold_job_plan,
 )
@@ -161,6 +168,66 @@ def gap_fixed_hold_members(
     return members
 
 
+def gap_event_fixed_hold_v3_members(
+    spec: FixedHoldReplayMissionSpec,
+    *,
+    exposure_context: GapFixedHoldExposureContext,
+    historical_family: HistoricalFamilySpec,
+    historical_family_authority_id: str,
+) -> tuple[FixedHoldReplayMember, ...]:
+    values: list[FixedHoldReplayMember] = []
+    for configuration in gap_fixed_hold_configurations(historical_family):
+        executable = gap_event_fixed_hold_v3_executable(
+            configuration,
+            historical_family=historical_family,
+            historical_context_prior_global_exposure_count=(
+                exposure_context.prior_global_exposure_count
+            ),
+            original_family_end_global_exposure_count=(
+                exposure_context.original_family_end_global_exposure_count
+            ),
+        )
+        values.append(
+            FixedHoldReplayMember(
+                ordinal=configuration.ordinal,
+                configuration_id=configuration.configuration_id,
+                historical_reference_executable_id=(
+                    configuration.historical_reference_executable_id
+                ),
+                executable=executable,
+                job_plan=build_gap_event_fixed_hold_v3_job_plan(
+                    mission_id=spec.mission_id,
+                    study_id=spec.study_id,
+                    executable_id=executable.identity,
+                    historical_context_prior_global_exposure_count=(
+                        exposure_context.prior_global_exposure_count
+                    ),
+                    original_family_end_global_exposure_count=(
+                        exposure_context.original_family_end_global_exposure_count
+                    ),
+                    historical_family=historical_family,
+                    historical_family_authority_id=(
+                        historical_family_authority_id
+                    ),
+                    replay_obligation_id=spec.target_obligation_id,
+                ),
+            )
+        )
+    members = tuple(values)
+    if (
+        len(members) != historical_family.family_size
+        or tuple(
+            member.historical_reference_executable_id for member in members
+        )
+        != tuple(
+            member.historical_reference_executable_id
+            for member in historical_family.members
+        )
+    ):
+        raise RuntimeError("gap-event v3 family membership drifted")
+    return members
+
+
 def require_gap_fixed_hold_registration_prefix(
     writer: StateWriter,
     *,
@@ -176,13 +243,15 @@ def require_gap_fixed_hold_registration_prefix(
     )
 
 
-def build_gap_fixed_hold_profile_design(
+def _build_gap_fixed_hold_profile_design(
     writer: StateWriter,
     *,
     spec: FixedHoldReplayMissionSpec,
     historical_family_authority_id: str,
     additional_historical_family_authority_ids: tuple[str, ...] = (),
     semantic_question_lineage: SemanticQuestionLineageProposal | None = None,
+    members_builder=gap_fixed_hold_members,
+    chassis_builder=gap_fixed_hold_controlled_chassis,
 ) -> FixedHoldReplayDesign:
     family_authorities = require_bound_fixed_hold_family_authorities(
         writer,
@@ -201,7 +270,7 @@ def build_gap_fixed_hold_profile_design(
         spec=spec,
         historical_family=family_authority.family,
     )
-    members = gap_fixed_hold_members(
+    members = members_builder(
         spec,
         exposure_context=exposure,
         historical_family=family_authority.family,
@@ -229,7 +298,7 @@ def build_gap_fixed_hold_profile_design(
         spec=spec,
         members=members,
         target_executable_id=targets[0].executable.identity,
-        controlled_chassis=gap_fixed_hold_controlled_chassis(
+        controlled_chassis=chassis_builder(
             historical_family=family_authority.family,
             historical_context_prior_global_exposure_count=(
                 exposure.prior_global_exposure_count
@@ -255,11 +324,53 @@ def build_gap_fixed_hold_profile_design(
     )
 
 
+def build_gap_fixed_hold_profile_design(
+    writer: StateWriter,
+    *,
+    spec: FixedHoldReplayMissionSpec,
+    historical_family_authority_id: str,
+    additional_historical_family_authority_ids: tuple[str, ...] = (),
+    semantic_question_lineage: SemanticQuestionLineageProposal | None = None,
+) -> FixedHoldReplayDesign:
+    return _build_gap_fixed_hold_profile_design(
+        writer,
+        spec=spec,
+        historical_family_authority_id=historical_family_authority_id,
+        additional_historical_family_authority_ids=(
+            additional_historical_family_authority_ids
+        ),
+        semantic_question_lineage=semantic_question_lineage,
+    )
+
+
+def build_gap_event_fixed_hold_v3_profile_design(
+    writer: StateWriter,
+    *,
+    spec: FixedHoldReplayMissionSpec,
+    historical_family_authority_id: str,
+    additional_historical_family_authority_ids: tuple[str, ...] = (),
+    semantic_question_lineage: SemanticQuestionLineageProposal | None = None,
+) -> FixedHoldReplayDesign:
+    return _build_gap_fixed_hold_profile_design(
+        writer,
+        spec=spec,
+        historical_family_authority_id=historical_family_authority_id,
+        additional_historical_family_authority_ids=(
+            additional_historical_family_authority_ids
+        ),
+        semantic_question_lineage=semantic_question_lineage,
+        members_builder=gap_event_fixed_hold_v3_members,
+        chassis_builder=gap_event_fixed_hold_v3_controlled_chassis,
+    )
+
+
 __all__ = [
     "GAP_EVENT_FIXED_HOLD_CAUSAL_QUESTION",
     "GAP_PATH_FIXED_HOLD_CAUSAL_QUESTION",
     "GapFixedHoldExposureContext",
+    "build_gap_event_fixed_hold_v3_profile_design",
     "build_gap_fixed_hold_profile_design",
+    "gap_event_fixed_hold_v3_members",
     "gap_fixed_hold_members",
     "project_gap_fixed_hold_exposure_context",
     "require_gap_fixed_hold_family_authority",

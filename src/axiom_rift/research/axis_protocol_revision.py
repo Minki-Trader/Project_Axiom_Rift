@@ -16,10 +16,14 @@ from axiom_rift.research.semantic_question import (
 
 
 AXIS_PROTOCOL_REVISION_SCHEMA = "axis_protocol_revision_proposal.v1"
+AXIS_PROTOCOL_REVISION_SCHEMA_V2 = "axis_protocol_revision_proposal.v2"
 
 
 class AxisProtocolRevisionReason(str, Enum):
     COMPLETION_VALIDITY_INVALIDATED = "completion_validity_invalidated"
+    ENGINEERING_REQUIRES_SCIENTIFIC_CHANGE = (
+        "engineering_requires_scientific_change"
+    )
 
 
 def _ascii(name: str, value: object) -> str:
@@ -48,10 +52,11 @@ class AxisProtocolRevisionProposal:
     predecessor_architecture_family: str
     successor_architecture_family: str
     replay_obligation_id: str
-    satisfaction_invalidation_record_id: str
+    satisfaction_invalidation_record_id: str | None
     semantic_question_lineage: SemanticQuestionLineageProposal
     reason_code: AxisProtocolRevisionReason
     reason: str
+    scientific_change_return_record_id: str | None = None
     identity: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -79,11 +84,34 @@ class AxisProtocolRevisionProposal:
             self.replay_obligation_id,
             prefix="historical-replay-obligation:",
         )
-        _identity(
-            "satisfaction_invalidation_record_id",
-            self.satisfaction_invalidation_record_id,
-            prefix="historical-replay-satisfaction-invalidation:",
-        )
+        if (
+            self.reason_code
+            is AxisProtocolRevisionReason.COMPLETION_VALIDITY_INVALIDATED
+        ):
+            _identity(
+                "satisfaction_invalidation_record_id",
+                self.satisfaction_invalidation_record_id,
+                prefix="historical-replay-satisfaction-invalidation:",
+            )
+            if self.scientific_change_return_record_id is not None:
+                raise ValueError(
+                    "completion invalidation revision cannot bind a science return"
+                )
+        elif (
+            self.reason_code
+            is AxisProtocolRevisionReason.ENGINEERING_REQUIRES_SCIENTIFIC_CHANGE
+        ):
+            if self.satisfaction_invalidation_record_id is not None:
+                raise ValueError(
+                    "scientific-change revision cannot bind a satisfaction invalidation"
+                )
+            _identity(
+                "scientific_change_return_record_id",
+                self.scientific_change_return_record_id,
+                prefix="historical-replay-scientific-change-return:",
+            )
+        else:
+            raise ValueError("protocol revision reason is unsupported")
         if (
             not isinstance(
                 self.semantic_question_lineage,
@@ -97,11 +125,6 @@ class AxisProtocolRevisionProposal:
             raise ValueError(
                 "protocol revision requires exact same-core continuation lineage"
             )
-        if (
-            self.reason_code
-            is not AxisProtocolRevisionReason.COMPLETION_VALIDITY_INVALIDATED
-        ):
-            raise ValueError("protocol revision reason is unsupported")
         _ascii("protocol revision reason", self.reason)
         object.__setattr__(
             self,
@@ -114,7 +137,7 @@ class AxisProtocolRevisionProposal:
         )
 
     def to_identity_payload(self) -> dict[str, CanonicalValue]:
-        return {
+        payload: dict[str, CanonicalValue] = {
             "axis_id": self.axis_id,
             "mechanism_family": self.mechanism_family,
             "mission_id": self.mission_id,
@@ -125,10 +148,6 @@ class AxisProtocolRevisionProposal:
             "reason": self.reason,
             "reason_code": self.reason_code.value,
             "replay_obligation_id": self.replay_obligation_id,
-            "satisfaction_invalidation_record_id": (
-                self.satisfaction_invalidation_record_id
-            ),
-            "schema": AXIS_PROTOCOL_REVISION_SCHEMA,
             "semantic_question_lineage": (
                 self.semantic_question_lineage.to_identity_payload()
             ),
@@ -138,10 +157,44 @@ class AxisProtocolRevisionProposal:
             "successor_architecture_family": self.successor_architecture_family,
             "successor_axis_identity": self.successor_axis_identity,
         }
+        if (
+            self.reason_code
+            is AxisProtocolRevisionReason.COMPLETION_VALIDITY_INVALIDATED
+        ):
+            payload["satisfaction_invalidation_record_id"] = (
+                self.satisfaction_invalidation_record_id
+            )
+            payload["schema"] = AXIS_PROTOCOL_REVISION_SCHEMA
+        else:
+            payload["scientific_change_return_record_id"] = (
+                self.scientific_change_return_record_id
+            )
+            payload["schema"] = AXIS_PROTOCOL_REVISION_SCHEMA_V2
+        return payload
+
+    @property
+    def authority_kind(self) -> str:
+        if (
+            self.reason_code
+            is AxisProtocolRevisionReason.COMPLETION_VALIDITY_INVALIDATED
+        ):
+            return "historical-replay-satisfaction-invalidation"
+        return "historical-replay-scientific-change-return"
+
+    @property
+    def authority_record_id(self) -> str:
+        value = (
+            self.satisfaction_invalidation_record_id
+            if self.reason_code
+            is AxisProtocolRevisionReason.COMPLETION_VALIDITY_INVALIDATED
+            else self.scientific_change_return_record_id
+        )
+        assert isinstance(value, str)
+        return value
 
     @classmethod
     def from_mapping(cls, value: object) -> AxisProtocolRevisionProposal:
-        fields = {
+        common_fields = {
             "axis_id",
             "mechanism_family",
             "mission_id",
@@ -150,17 +203,23 @@ class AxisProtocolRevisionProposal:
             "reason",
             "reason_code",
             "replay_obligation_id",
-            "satisfaction_invalidation_record_id",
             "schema",
             "semantic_question_lineage",
             "semantic_question_lineage_id",
             "successor_architecture_family",
             "successor_axis_identity",
         }
-        if not isinstance(value, Mapping) or set(value) != fields:
+        if not isinstance(value, Mapping):
             raise ValueError("axis protocol revision payload is malformed")
-        if value.get("schema") != AXIS_PROTOCOL_REVISION_SCHEMA:
+        schema = value.get("schema")
+        if schema == AXIS_PROTOCOL_REVISION_SCHEMA:
+            fields = common_fields | {"satisfaction_invalidation_record_id"}
+        elif schema == AXIS_PROTOCOL_REVISION_SCHEMA_V2:
+            fields = common_fields | {"scientific_change_return_record_id"}
+        else:
             raise ValueError("axis protocol revision schema is unsupported")
+        if set(value) != fields:
+            raise ValueError("axis protocol revision payload is malformed")
         lineage_value = value.get("semantic_question_lineage")
         if not isinstance(lineage_value, Mapping):
             raise ValueError("axis protocol revision lineage is absent")
@@ -178,10 +237,19 @@ class AxisProtocolRevisionProposal:
             predecessor_architecture_family=value["predecessor_architecture_family"],  # type: ignore[arg-type]
             successor_architecture_family=value["successor_architecture_family"],  # type: ignore[arg-type]
             replay_obligation_id=value["replay_obligation_id"],  # type: ignore[arg-type]
-            satisfaction_invalidation_record_id=value["satisfaction_invalidation_record_id"],  # type: ignore[arg-type]
+            satisfaction_invalidation_record_id=(
+                value["satisfaction_invalidation_record_id"]
+                if schema == AXIS_PROTOCOL_REVISION_SCHEMA
+                else None
+            ),  # type: ignore[arg-type]
             semantic_question_lineage=lineage,
             reason_code=AxisProtocolRevisionReason(value["reason_code"]),
             reason=value["reason"],  # type: ignore[arg-type]
+            scientific_change_return_record_id=(
+                value["scientific_change_return_record_id"]
+                if schema == AXIS_PROTOCOL_REVISION_SCHEMA_V2
+                else None
+            ),  # type: ignore[arg-type]
         )
         if proposal.to_identity_payload() != dict(value):
             raise ValueError("axis protocol revision payload is not canonical")
@@ -190,6 +258,7 @@ class AxisProtocolRevisionProposal:
 
 __all__ = [
     "AXIS_PROTOCOL_REVISION_SCHEMA",
+    "AXIS_PROTOCOL_REVISION_SCHEMA_V2",
     "AxisProtocolRevisionProposal",
     "AxisProtocolRevisionReason",
 ]

@@ -191,6 +191,7 @@ portfolio:
     - complementary_sleeve
     - recombine
     - synthesize
+    - revise_protocol
 batch:
   operator_selects_adaptive_bound: true
   frozen_before_evidence: true
@@ -643,6 +644,16 @@ project_goal_audit_v2_protocol:
     partial_family_engineering_failure_preserves_valid_member_science: true
     unresolved_selected_members_are_deferred_individually: true
     defer_requires_typed_exact_resume_condition: true
+    study_scoped_scientific_change:
+      engineering_unavailability_is_not_scientific_failure: true
+      exact_selected_family_returns_to_pending_without_credit: true
+      same_protocol_repair_is_forbidden: true
+      same_question_successor_requires_typed_continuation_lineage: true
+      successor_study_and_executable_identities_are_distinct: true
+      predecessor_trial_evidence_claim_kpi_and_negative_memory_inheritance: false
+      feasibility_parameters_may_use_train_only_availability_counts: true
+      scientific_outcome_values_may_select_feasibility_parameters: false
+      corrected_protocol_is_preregistered_before_successor_outcomes: true
     satisfied_authority_reaudit:
       additive_original_records_preserved: true
       current_scientific_satisfied_head_required: true
