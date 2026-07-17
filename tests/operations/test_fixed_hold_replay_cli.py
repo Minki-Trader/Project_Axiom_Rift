@@ -133,6 +133,77 @@ class FixedHoldReplayCliTests(unittest.TestCase):
             )
         design_builder.assert_not_called()
 
+    def test_closed_study_pending_diagnosis_runs_only_diagnose_stage(
+        self,
+    ) -> None:
+        writer_instance = Mock()
+        design = object()
+        design_builder = Mock(return_value=design)
+        with (
+            patch.object(cli, "EvidenceValidatorRegistry"),
+            patch.object(cli, "StateWriter", return_value=writer_instance),
+            patch.object(cli, "require_stable_head"),
+            patch.object(
+                cli,
+                "_completed_study_handoff",
+                return_value={"mode": "study_close_pending_diagnosis"},
+            ),
+            patch.object(
+                cli,
+                "run_diagnose_stage",
+                return_value={"mode": "diagnose"},
+            ) as diagnose,
+        ):
+            result = cli.run_fixed_hold_replay_command(
+                repository_root=Path.cwd(),
+                design_builder=design_builder,
+                job_runner=Mock(name="job_runner"),
+                job_implementation_materializer=Mock(name="materializer"),
+                study_id="STU-0115",
+                argv=[
+                    "--stage",
+                    "diagnose",
+                    "--study-close-event-id",
+                    "a" * 64,
+                    "--study-close-revision",
+                    "5486",
+                ],
+            )
+        design_builder.assert_called_once_with(writer_instance)
+        diagnose.assert_called_once()
+        self.assertIs(diagnose.call_args.kwargs["design"], design)
+        self.assertEqual(result, {"mode": "diagnose"})
+
+    def test_diagnosed_closed_study_rejects_duplicate_diagnosis(self) -> None:
+        design_builder = Mock(name="design_builder")
+        with (
+            patch.object(cli, "EvidenceValidatorRegistry"),
+            patch.object(cli, "StateWriter", return_value=Mock()),
+            patch.object(cli, "require_stable_head"),
+            patch.object(
+                cli,
+                "_completed_study_handoff",
+                return_value={"mode": "completed_study_handoff"},
+            ),
+            self.assertRaisesRegex(RuntimeError, "no pending diagnosis"),
+        ):
+            cli.run_fixed_hold_replay_command(
+                repository_root=Path.cwd(),
+                design_builder=design_builder,
+                job_runner=Mock(name="job_runner"),
+                job_implementation_materializer=Mock(name="materializer"),
+                study_id="STU-0115",
+                argv=[
+                    "--stage",
+                    "diagnose",
+                    "--study-close-event-id",
+                    "a" * 64,
+                    "--study-close-revision",
+                    "5486",
+                ],
+            )
+        design_builder.assert_not_called()
+
     def test_diagnose_uses_no_validator_or_permit_key(self) -> None:
         registry_instance = object()
         writer_instance = object()

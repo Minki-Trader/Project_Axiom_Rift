@@ -150,7 +150,12 @@ def run_fixed_hold_replay_command(
     if handoff is not None:
         if arguments.stage is None:
             return handoff
-        raise RuntimeError("closed replay Study rejects another execution stage")
+        if arguments.stage == "study-close":
+            raise RuntimeError(
+                "closed replay Study rejects another execution stage"
+            )
+        if handoff.get("mode") != "study_close_pending_diagnosis":
+            raise RuntimeError("closed replay Study has no pending diagnosis")
     design = design_builder(writer)
     if arguments.stage is None:
         return dict(read_only_summary(writer, design))
