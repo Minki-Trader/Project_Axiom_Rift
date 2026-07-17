@@ -41,7 +41,37 @@ DRAWDOWN_FIXED_HOLD_CAUSAL_QUESTION = (
     "drawdown depth-duration family preserve a causal, after-cost signal after "
     "registered controls and familywise inference?"
 )
+DRAWDOWN_PHASE_FIXED_HOLD_CAUSAL_QUESTION = (
+    "Does an exact prospective reconstruction of the four-member STU-0049 "
+    "drawdown phase-interaction family preserve causal, after-cost evidence "
+    "under registered controls and concurrent-family inference?"
+)
 DrawdownFixedHoldExposureContext = BoundFixedHoldExposureContext
+
+
+def _drawdown_research_intent(
+    historical_family: HistoricalFamilySpec,
+) -> tuple[str, str, str]:
+    if historical_family.original_study_id == "STU-0048":
+        return (
+            DRAWDOWN_FIXED_HOLD_CAUSAL_QUESTION,
+            "prospective-stu0048-drawdown-state-family-replay",
+            (
+                "the P0 correction queue requires a completed-bar replay "
+                "after the prior satisfaction lost decision-time validity "
+                "authority"
+            ),
+        )
+    if historical_family.original_study_id == "STU-0049":
+        return (
+            DRAWDOWN_PHASE_FIXED_HOLD_CAUSAL_QUESTION,
+            "prospective-stu0049-drawdown-phase-family-replay",
+            (
+                "the P1 audit queue requires prospective point-in-time proof "
+                "for every member of the unresolved STU-0049 family"
+            ),
+        )
+    raise RuntimeError("drawdown fixed-hold Study intent is unregistered")
 
 
 def require_drawdown_fixed_hold_family_authority(
@@ -150,7 +180,7 @@ def build_drawdown_fixed_hold_profile_design(
     *,
     spec: FixedHoldReplayMissionSpec,
     historical_family_authority_id: str,
-    semantic_question_lineage: SemanticQuestionLineageProposal,
+    semantic_question_lineage: SemanticQuestionLineageProposal | None = None,
     additional_historical_family_authority_ids: tuple[str, ...] = (),
 ) -> FixedHoldReplayDesign:
     family_authorities = require_bound_fixed_hold_family_authorities(
@@ -162,6 +192,9 @@ def build_drawdown_fixed_hold_profile_design(
         ),
     )
     family_authority = family_authorities[0]
+    causal_question, mechanism_family, why_now = _drawdown_research_intent(
+        family_authority.family
+    )
     exposure = project_drawdown_fixed_hold_exposure_context(
         writer,
         spec=spec,
@@ -213,12 +246,9 @@ def build_drawdown_fixed_hold_profile_design(
             )
         ),
         criterion_ids=criterion_ids,
-        causal_question=DRAWDOWN_FIXED_HOLD_CAUSAL_QUESTION,
-        mechanism_family="prospective-stu0048-drawdown-state-family-replay",
-        why_now=(
-            "the P0 correction queue requires a completed-bar replay after the "
-            "prior satisfaction lost decision-time validity authority"
-        ),
+        causal_question=causal_question,
+        mechanism_family=mechanism_family,
+        why_now=why_now,
         stop_or_reopen_condition=(
             "stop after all four members; reopen only under a typed replay "
             "resume condition or registered development material"
@@ -229,6 +259,7 @@ def build_drawdown_fixed_hold_profile_design(
 
 __all__ = [
     "DRAWDOWN_FIXED_HOLD_CAUSAL_QUESTION",
+    "DRAWDOWN_PHASE_FIXED_HOLD_CAUSAL_QUESTION",
     "DrawdownFixedHoldExposureContext",
     "build_drawdown_fixed_hold_profile_design",
     "drawdown_fixed_hold_members",

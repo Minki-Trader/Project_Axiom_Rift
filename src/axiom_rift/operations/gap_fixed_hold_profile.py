@@ -1,4 +1,4 @@
-"""Writer-owned profile for prospective volatility-duration fixed-hold work."""
+"""Writer-owned profile for prospective gap fixed-hold work."""
 
 from __future__ import annotations
 
@@ -19,6 +19,14 @@ from axiom_rift.operations.writer import StateWriter
 from axiom_rift.research.fixed_hold_family_trace import (
     FIXED_HOLD_REPLAY_CRITERIA,
 )
+from axiom_rift.research.gap_fixed_hold import (
+    gap_fixed_hold_configurations,
+    gap_fixed_hold_controlled_chassis,
+    gap_fixed_hold_executable,
+)
+from axiom_rift.research.gap_fixed_hold_job import (
+    build_gap_fixed_hold_job_plan,
+)
 from axiom_rift.research.historical_family_binding import (
     HistoricalFamilyAuthority,
     HistoricalFamilySpec,
@@ -26,57 +34,48 @@ from axiom_rift.research.historical_family_binding import (
 from axiom_rift.research.semantic_question import (
     SemanticQuestionLineageProposal,
 )
-from axiom_rift.research.volatility_duration_fixed_hold import (
-    volatility_duration_fixed_hold_configurations,
-    volatility_duration_fixed_hold_controlled_chassis,
-    volatility_duration_fixed_hold_executable,
-)
-from axiom_rift.research.volatility_duration_fixed_hold_job import (
-    build_volatility_duration_fixed_hold_job_plan,
-)
 
 
-VOLATILITY_DURATION_FIXED_HOLD_CAUSAL_QUESTION = (
-    "Does an exact prospective reconstruction of the four-member STU-0051 "
-    "volatility state-age family preserve causal, after-cost evidence under "
-    "exact controls and concurrent-family inference?"
+GAP_EVENT_FIXED_HOLD_CAUSAL_QUESTION = (
+    "Does an exact prospective reconstruction of the four-member STU-0046 "
+    "gap-event family preserve causal, after-cost evidence under registered "
+    "controls and concurrent-family inference?"
 )
-VOLATILITY_LEVEL_DURATION_FIXED_HOLD_CAUSAL_QUESTION = (
-    "Does an exact prospective reconstruction of the four-member STU-0050 "
-    "volatility level-duration family preserve causal, after-cost evidence "
-    "under exact controls and concurrent-family inference?"
+GAP_PATH_FIXED_HOLD_CAUSAL_QUESTION = (
+    "Does an exact prospective reconstruction of the four-member STU-0047 "
+    "post-gap-path family preserve causal, after-cost evidence under "
+    "registered controls and concurrent-family inference?"
 )
 
 
-VolatilityDurationFixedHoldExposureContext = BoundFixedHoldExposureContext
+GapFixedHoldExposureContext = BoundFixedHoldExposureContext
 
 
-def _volatility_research_intent(
+def _gap_research_intent(
     historical_family: HistoricalFamilySpec,
 ) -> tuple[str, str, str]:
-    if historical_family.original_study_id == "STU-0050":
+    if historical_family.original_study_id == "STU-0046":
         return (
-            VOLATILITY_LEVEL_DURATION_FIXED_HOLD_CAUSAL_QUESTION,
-            "prospective-stu0050-volatility-level-duration-family-replay",
+            GAP_EVENT_FIXED_HOLD_CAUSAL_QUESTION,
+            "prospective-stu0046-gap-event-family-replay",
             (
                 "the P1 audit queue requires prospective point-in-time proof "
-                "for every member of the unresolved STU-0050 family"
+                "for every member of the unresolved STU-0046 family"
             ),
         )
-    if historical_family.original_study_id == "STU-0051":
+    if historical_family.original_study_id == "STU-0047":
         return (
-            VOLATILITY_DURATION_FIXED_HOLD_CAUSAL_QUESTION,
-            "prospective-stu0051-volatility-duration-family-replay",
+            GAP_PATH_FIXED_HOLD_CAUSAL_QUESTION,
+            "prospective-stu0047-post-gap-path-family-replay",
             (
-                "the P0 correction queue requires a completed-bar replay of "
-                "the locally executable family after its prior satisfaction "
-                "was invalidated"
+                "the P1 audit queue requires prospective point-in-time proof "
+                "for every member of the unresolved STU-0047 family"
             ),
         )
-    raise RuntimeError("volatility fixed-hold Study intent is unregistered")
+    raise RuntimeError("gap fixed-hold Study intent is unregistered")
 
 
-def require_volatility_duration_fixed_hold_family_authority(
+def require_gap_fixed_hold_family_authority(
     writer: StateWriter,
     *,
     spec: FixedHoldReplayMissionSpec,
@@ -89,13 +88,12 @@ def require_volatility_duration_fixed_hold_family_authority(
     )
 
 
-def project_volatility_duration_fixed_hold_exposure_context(
+def project_gap_fixed_hold_exposure_context(
     writer: StateWriter,
     *,
     spec: FixedHoldReplayMissionSpec,
     historical_family: HistoricalFamilySpec,
-) -> VolatilityDurationFixedHoldExposureContext:
-    """Derive both prospective and original exposure counts from authority."""
+) -> GapFixedHoldExposureContext:
     return project_bound_fixed_hold_exposure_context(
         writer,
         spec=spec,
@@ -103,18 +101,16 @@ def project_volatility_duration_fixed_hold_exposure_context(
     )
 
 
-def volatility_duration_fixed_hold_members(
+def gap_fixed_hold_members(
     spec: FixedHoldReplayMissionSpec,
     *,
-    exposure_context: VolatilityDurationFixedHoldExposureContext,
+    exposure_context: GapFixedHoldExposureContext,
     historical_family: HistoricalFamilySpec,
     historical_family_authority_id: str,
 ) -> tuple[FixedHoldReplayMember, ...]:
     values: list[FixedHoldReplayMember] = []
-    for configuration in volatility_duration_fixed_hold_configurations(
-        historical_family
-    ):
-        executable = volatility_duration_fixed_hold_executable(
+    for configuration in gap_fixed_hold_configurations(historical_family):
+        executable = gap_fixed_hold_executable(
             configuration,
             historical_family=historical_family,
             historical_context_prior_global_exposure_count=(
@@ -132,7 +128,7 @@ def volatility_duration_fixed_hold_members(
                     configuration.historical_reference_executable_id
                 ),
                 executable=executable,
-                job_plan=build_volatility_duration_fixed_hold_job_plan(
+                job_plan=build_gap_fixed_hold_job_plan(
                     mission_id=spec.mission_id,
                     study_id=spec.study_id,
                     executable_id=executable.identity,
@@ -161,16 +157,16 @@ def volatility_duration_fixed_hold_members(
             for member in historical_family.members
         )
     ):
-        raise RuntimeError("volatility-duration family membership drifted")
+        raise RuntimeError("gap fixed-hold family membership drifted")
     return members
 
 
-def require_volatility_duration_fixed_hold_registration_prefix(
+def require_gap_fixed_hold_registration_prefix(
     writer: StateWriter,
     *,
     spec: FixedHoldReplayMissionSpec,
     members: tuple[FixedHoldReplayMember, ...],
-    exposure_context: VolatilityDurationFixedHoldExposureContext,
+    exposure_context: GapFixedHoldExposureContext,
 ) -> None:
     require_bound_fixed_hold_registration_prefix(
         writer,
@@ -180,13 +176,13 @@ def require_volatility_duration_fixed_hold_registration_prefix(
     )
 
 
-def build_volatility_duration_fixed_hold_profile_design(
+def build_gap_fixed_hold_profile_design(
     writer: StateWriter,
     *,
     spec: FixedHoldReplayMissionSpec,
     historical_family_authority_id: str,
-    semantic_question_lineage: SemanticQuestionLineageProposal | None = None,
     additional_historical_family_authority_ids: tuple[str, ...] = (),
+    semantic_question_lineage: SemanticQuestionLineageProposal | None = None,
 ) -> FixedHoldReplayDesign:
     family_authorities = require_bound_fixed_hold_family_authorities(
         writer,
@@ -197,36 +193,34 @@ def build_volatility_duration_fixed_hold_profile_design(
         ),
     )
     family_authority = family_authorities[0]
-    causal_question, mechanism_family, why_now = _volatility_research_intent(
+    causal_question, mechanism_family, why_now = _gap_research_intent(
         family_authority.family
     )
-    exposure = project_volatility_duration_fixed_hold_exposure_context(
+    exposure = project_gap_fixed_hold_exposure_context(
         writer,
         spec=spec,
         historical_family=family_authority.family,
     )
-    members = volatility_duration_fixed_hold_members(
+    members = gap_fixed_hold_members(
         spec,
         exposure_context=exposure,
         historical_family=family_authority.family,
         historical_family_authority_id=family_authority.identity,
     )
-    require_volatility_duration_fixed_hold_registration_prefix(
+    require_gap_fixed_hold_registration_prefix(
         writer,
         spec=spec,
         members=members,
         exposure_context=exposure,
     )
-    target_historical_id = (
-        family_authority.family.target_historical_executable_id
-    )
     targets = tuple(
         member
         for member in members
-        if member.historical_reference_executable_id == target_historical_id
+        if member.historical_reference_executable_id
+        == family_authority.family.target_historical_executable_id
     )
     if len(targets) != 1:
-        raise RuntimeError("volatility-duration target member is ambiguous")
+        raise RuntimeError("gap fixed-hold target member is ambiguous")
     criterion_ids = tuple(
         sorted(str(item["criterion_id"]) for item in FIXED_HOLD_REPLAY_CRITERIA)
     )
@@ -235,7 +229,7 @@ def build_volatility_duration_fixed_hold_profile_design(
         spec=spec,
         members=members,
         target_executable_id=targets[0].executable.identity,
-        controlled_chassis=volatility_duration_fixed_hold_controlled_chassis(
+        controlled_chassis=gap_fixed_hold_controlled_chassis(
             historical_family=family_authority.family,
             historical_context_prior_global_exposure_count=(
                 exposure.prior_global_exposure_count
@@ -247,10 +241,7 @@ def build_volatility_duration_fixed_hold_profile_design(
         historical_family_manifest=family_authority.family.manifest(),
         historical_family_authority_id=family_authority.identity,
         additional_historical_family_authority_ids=tuple(
-            sorted(
-                authority.identity
-                for authority in family_authorities[1:]
-            )
+            sorted(authority.identity for authority in family_authorities[1:])
         ),
         criterion_ids=criterion_ids,
         causal_question=causal_question,
@@ -265,12 +256,12 @@ def build_volatility_duration_fixed_hold_profile_design(
 
 
 __all__ = [
-    "VOLATILITY_DURATION_FIXED_HOLD_CAUSAL_QUESTION",
-    "VOLATILITY_LEVEL_DURATION_FIXED_HOLD_CAUSAL_QUESTION",
-    "VolatilityDurationFixedHoldExposureContext",
-    "build_volatility_duration_fixed_hold_profile_design",
-    "project_volatility_duration_fixed_hold_exposure_context",
-    "require_volatility_duration_fixed_hold_family_authority",
-    "require_volatility_duration_fixed_hold_registration_prefix",
-    "volatility_duration_fixed_hold_members",
+    "GAP_EVENT_FIXED_HOLD_CAUSAL_QUESTION",
+    "GAP_PATH_FIXED_HOLD_CAUSAL_QUESTION",
+    "GapFixedHoldExposureContext",
+    "build_gap_fixed_hold_profile_design",
+    "gap_fixed_hold_members",
+    "project_gap_fixed_hold_exposure_context",
+    "require_gap_fixed_hold_family_authority",
+    "require_gap_fixed_hold_registration_prefix",
 ]

@@ -536,7 +536,7 @@ class ScientificValidationV2Tests(unittest.TestCase):
         dependency_paths = set(SCIENTIFIC_VALIDATION_V2_DEPENDENCIES)
         trace_paths = set(scientific_trace_validation_dependency_paths())
         self.assertTrue(trace_paths.issubset(dependency_paths))
-        self.assertEqual(len(SCIENTIFIC_TRACE_PROTOCOL_IDS), 8)
+        self.assertEqual(len(SCIENTIFIC_TRACE_PROTOCOL_IDS), 9)
         trace_names = {path.name for path in trace_paths}
         self.assertEqual(
             trace_names,

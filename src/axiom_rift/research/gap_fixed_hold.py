@@ -1,9 +1,8 @@
-"""Prospective fixed-hold implementation for a Writer-bound volatility family.
+"""Writer-bound prospective fixed-hold research for historical gap families.
 
-Historical modules reconstruct old authority only.  This module receives the
-exact family and exposure context as typed data, constructs new Executables,
-and computes current completed-period evidence without reading historical raw
-evidence or requiring equality with an old evaluation artifact.
+The same mechanism supports the two exact historical gap surfaces without
+hard-coding a Study identity.  Family members, controls, holding period, and
+selector calibration arrive through authenticated historical-family authority.
 """
 
 from __future__ import annotations
@@ -55,118 +54,101 @@ from axiom_rift.research.historical_family_binding import (
     HistoricalFamilySpec,
     HistoricalMemberSpec,
 )
-from axiom_rift.research.scientific_trace import (
-    VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID,
-)
+from axiom_rift.research.scientific_trace import GAP_REPLAY_TRACE_PROTOCOL_ID
 from axiom_rift.research.selection_inference import (
     selection_inference_implementation_sha256,
 )
 
 
-VOLATILITY_DURATION_FIXED_HOLD_ALPHA_PPM = 100_000
-VOLATILITY_DURATION_FIXED_HOLD_HOLDING_BARS = 24
-VOLATILITY_DURATION_FIXED_HOLD_STATE_WINDOW = 1_152
-VOLATILITY_DURATION_FIXED_HOLD_VOLATILITY_WINDOW = 96
-VOLATILITY_DURATION_FIXED_HOLD_CONTEXT_PARAMETER = (
+GAP_FIXED_HOLD_ALPHA_PPM = 100_000
+GAP_FIXED_HOLD_MINIMUM_GAP_MINUTES = 30
+GAP_FIXED_HOLD_SELECTOR_QUANTILE_BP = 7_000
+GAP_FIXED_HOLD_CONTEXT_PARAMETER = (
     "historical_context_prior_global_exposure_count"
 )
-VOLATILITY_DURATION_FIXED_HOLD_ORIGINAL_END_PARAMETER = (
+GAP_FIXED_HOLD_ORIGINAL_END_PARAMETER = (
     "original_family_end_global_exposure_count"
 )
-VOLATILITY_DURATION_FIXED_HOLD_PROFILES = (
-    "mature_state_age_24_47",
-    "persistent_state_age_72_143",
+GAP_EVENT_FIXED_HOLD_PROFILES = (
+    "open_gap_30m",
+    "first_bar_response_30m",
 )
-VOLATILITY_LEVEL_DURATION_FIXED_HOLD_PROFILES = (
-    "volatility_level_96_576",
-    "volatility_duration_96_576",
+GAP_PATH_FIXED_HOLD_PROFILES = (
+    "residual_gap_after_first_bar",
+    "gap_fill_fraction_after_first_bar",
 )
-VOLATILITY_DURATION_FIXED_HOLD_COMPARISON_ANCHOR_PROFILE = (
-    "comparison_anchor_none"
-)
-VOLATILITY_DURATION_FIXED_HOLD_CLOCK_CONTRACT = (
+GAP_FIXED_HOLD_COMPARISON_ANCHOR_PROFILE = "comparison_anchor_none"
+GAP_FIXED_HOLD_CLOCK_CONTRACT = (
     "clock:fpmarkets_m5_bar_open_completed_plus_5m_v2"
 )
-VOLATILITY_DURATION_FIXED_HOLD_COST_CONTRACT = (
-    "cost:fpmarkets_completed_bar_spread_proxy_segment_positive_median_min_1_"
-    "unknown_entry_cancel_half_spread_stress_v1"
+GAP_FIXED_HOLD_COST_CONTRACT = (
+    "cost:fpmarkets_completed_bar_spread_proxy_gap_segment_positive_median_"
+    "min_1_unknown_entry_cancel_half_spread_stress_v1"
 )
 _THIS_FILE = Path(__file__).resolve()
 
 
 @dataclass(frozen=True, slots=True)
-class _VolatilityFamilySettings:
+class _GapFamilySettings:
     profiles: tuple[str, str]
     holding_bars: int
-    state_window: int
-    volatility_window: int
-    selector_quantile_bp: int | None
     minimum_train_observations: int
-    score_mode: str
+    feature_mode: str
 
 
-_VOLATILITY_FAMILY_SETTINGS = (
-    _VolatilityFamilySettings(
-        profiles=VOLATILITY_DURATION_FIXED_HOLD_PROFILES,
-        holding_bars=VOLATILITY_DURATION_FIXED_HOLD_HOLDING_BARS,
-        state_window=VOLATILITY_DURATION_FIXED_HOLD_STATE_WINDOW,
-        volatility_window=VOLATILITY_DURATION_FIXED_HOLD_VOLATILITY_WINDOW,
-        selector_quantile_bp=None,
-        minimum_train_observations=500,
-        score_mode="state_age_hazard",
-    ),
-    _VolatilityFamilySettings(
-        profiles=VOLATILITY_LEVEL_DURATION_FIXED_HOLD_PROFILES,
+_GAP_FAMILY_SETTINGS = (
+    _GapFamilySettings(
+        profiles=GAP_EVENT_FIXED_HOLD_PROFILES,
         holding_bars=12,
-        state_window=576,
-        volatility_window=96,
-        selector_quantile_bp=7_000,
-        minimum_train_observations=1_000,
-        score_mode="level_and_signed_duration",
+        minimum_train_observations=500,
+        feature_mode="gap_event",
+    ),
+    _GapFamilySettings(
+        profiles=GAP_PATH_FIXED_HOLD_PROFILES,
+        holding_bars=6,
+        minimum_train_observations=350,
+        feature_mode="post_gap_path",
     ),
 )
 
 
-def _settings_for_profile(profile: str) -> _VolatilityFamilySettings:
+def _settings_for_profile(profile: str) -> _GapFamilySettings:
     matches = tuple(
         settings
-        for settings in _VOLATILITY_FAMILY_SETTINGS
+        for settings in _GAP_FAMILY_SETTINGS
         if profile in settings.profiles
     )
     if len(matches) != 1:
-        raise ValueError("volatility fixed-hold profile is not registered")
+        raise ValueError("gap fixed-hold profile is not registered")
     return matches[0]
 
 
 def _settings_for_configurations(
-    configurations: tuple["VolatilityDurationFixedHoldConfiguration", ...],
-) -> _VolatilityFamilySettings:
+    configurations: tuple["GapFixedHoldConfiguration", ...],
+) -> _GapFamilySettings:
     matches = tuple(
         settings
-        for settings in _VOLATILITY_FAMILY_SETTINGS
+        for settings in _GAP_FAMILY_SETTINGS
         if {item.profile for item in configurations} == set(settings.profiles)
     )
     if len(matches) != 1:
-        raise ValueError("volatility fixed-hold family is not registered")
+        raise ValueError("gap fixed-hold family is not registered")
     return matches[0]
 
 
-def volatility_duration_fixed_hold_implementation_sha256() -> str:
+def gap_fixed_hold_implementation_sha256() -> str:
     return sha256(_THIS_FILE.read_bytes()).hexdigest()
 
 
-def volatility_duration_fixed_hold_loader_sha256() -> str:
+def gap_fixed_hold_loader_sha256() -> str:
     return sha256(Path(data_module.__file__).resolve().read_bytes()).hexdigest()
 
 
-def volatility_duration_fixed_hold_producer_implementation_identities(
-) -> dict[str, str]:
+def gap_fixed_hold_producer_implementation_identities() -> dict[str, str]:
     return {
-        "adapter_sha256": (
-            volatility_duration_fixed_hold_implementation_sha256()
-        ),
+        "adapter_sha256": gap_fixed_hold_implementation_sha256(),
         "discovery_sha256": discovery_implementation_sha256(),
-        "loader_sha256": volatility_duration_fixed_hold_loader_sha256(),
+        "loader_sha256": gap_fixed_hold_loader_sha256(),
         "selection_sha256": selection_inference_implementation_sha256(),
         "trace_engine_sha256": (
             fixed_hold_trace_engine_implementation_sha256()
@@ -176,17 +158,16 @@ def volatility_duration_fixed_hold_producer_implementation_identities(
 
 
 @dataclass(frozen=True, slots=True)
-class VolatilityDurationFixedHoldConfiguration:
+class GapFixedHoldConfiguration:
     ordinal: int
     configuration_id: str
     historical_reference_executable_id: str
     profile: str
     signal_sign: int
-    holding_bars: int = VOLATILITY_DURATION_FIXED_HOLD_HOLDING_BARS
-    state_window: int = VOLATILITY_DURATION_FIXED_HOLD_STATE_WINDOW
-    volatility_window: int = VOLATILITY_DURATION_FIXED_HOLD_VOLATILITY_WINDOW
+    holding_bars: int
+    minimum_gap_minutes: int = GAP_FIXED_HOLD_MINIMUM_GAP_MINUTES
+    selector_quantile_bp: int = GAP_FIXED_HOLD_SELECTOR_QUANTILE_BP
     unknown_entry_action: str = "cancel_before_open"
-    selector_quantile_bp: int | None = None
 
     def __post_init__(self) -> None:
         settings = _settings_for_profile(self.profile)
@@ -194,76 +175,59 @@ class VolatilityDurationFixedHoldConfiguration:
             type(self.ordinal) is not int
             or self.ordinal < 1
             or type(self.configuration_id) is not str
-            or not self.configuration_id
             or not self.configuration_id.isascii()
-            or type(self.signal_sign) is not int
-            or self.signal_sign not in {-1, 1}
-            or type(self.holding_bars) is not int
-            or self.holding_bars != settings.holding_bars
-            or type(self.state_window) is not int
-            or self.state_window != settings.state_window
-            or type(self.volatility_window) is not int
-            or self.volatility_window != settings.volatility_window
-            or type(self.unknown_entry_action) is not str
-            or self.unknown_entry_action != "cancel_before_open"
-            or self.selector_quantile_bp != settings.selector_quantile_bp
             or type(self.historical_reference_executable_id) is not str
             or not self.historical_reference_executable_id.startswith(
                 "executable:"
             )
+            or self.signal_sign not in {-1, 1}
+            or self.holding_bars != settings.holding_bars
+            or self.minimum_gap_minutes != GAP_FIXED_HOLD_MINIMUM_GAP_MINUTES
+            or self.selector_quantile_bp != GAP_FIXED_HOLD_SELECTOR_QUANTILE_BP
+            or self.unknown_entry_action != "cancel_before_open"
         ):
-            raise ValueError("volatility-duration fixed-hold member is invalid")
+            raise ValueError("gap fixed-hold configuration is invalid")
 
     def semantic_parameters(self) -> dict[str, object]:
-        value: dict[str, object] = {
+        return {
             "configuration_id": self.configuration_id,
             "historical_reference_executable_id": (
                 self.historical_reference_executable_id
             ),
             "holding_bars": self.holding_bars,
+            "minimum_gap_minutes": self.minimum_gap_minutes,
             "profile": self.profile,
+            "selector_quantile_bp": self.selector_quantile_bp,
             "signal_sign": self.signal_sign,
-            "state_window": self.state_window,
             "unknown_entry_action": self.unknown_entry_action,
-            "volatility_window": self.volatility_window,
         }
-        if self.selector_quantile_bp is not None:
-            value["selector_quantile_bp"] = self.selector_quantile_bp
-        return value
 
 
 def _configuration_from_member(
     member: HistoricalMemberSpec,
-) -> VolatilityDurationFixedHoldConfiguration:
+) -> GapFixedHoldConfiguration:
     parameters = member.parameter_values()
     expected = {
         "holding_bars",
+        "minimum_gap_minutes",
         "profile",
+        "selector_quantile_bp",
         "signal_sign",
-        "state_window",
         "unknown_entry_action",
-        "volatility_window",
     }
-    if set(parameters) not in (expected, expected | {"selector_quantile_bp"}):
-        raise ValueError(
-            "volatility-duration historical parameter surface is invalid"
-        )
-    if (
-        type(parameters["profile"]) is not str
-        or type(parameters["signal_sign"]) is not int
-        or type(parameters["holding_bars"]) is not int
-        or type(parameters["state_window"]) is not int
-        or type(parameters["unknown_entry_action"]) is not str
-        or type(parameters["volatility_window"]) is not int
-        or (
-            "selector_quantile_bp" in parameters
-            and type(parameters["selector_quantile_bp"]) is not int
+    if set(parameters) != expected or any(
+        type(parameters[name]) is not expected_type
+        for name, expected_type in (
+            ("holding_bars", int),
+            ("minimum_gap_minutes", int),
+            ("profile", str),
+            ("selector_quantile_bp", int),
+            ("signal_sign", int),
+            ("unknown_entry_action", str),
         )
     ):
-        raise ValueError(
-            "volatility-duration historical parameter types are invalid"
-        )
-    return VolatilityDurationFixedHoldConfiguration(
+        raise ValueError("gap historical parameter surface is invalid")
+    return GapFixedHoldConfiguration(
         ordinal=member.ordinal,
         configuration_id=member.configuration_id,
         historical_reference_executable_id=(
@@ -272,18 +236,17 @@ def _configuration_from_member(
         profile=parameters["profile"],
         signal_sign=parameters["signal_sign"],
         holding_bars=parameters["holding_bars"],
-        state_window=parameters["state_window"],
+        minimum_gap_minutes=parameters["minimum_gap_minutes"],
+        selector_quantile_bp=parameters["selector_quantile_bp"],
         unknown_entry_action=parameters["unknown_entry_action"],
-        volatility_window=parameters["volatility_window"],
-        selector_quantile_bp=parameters.get("selector_quantile_bp"),
     )
 
 
-def volatility_duration_fixed_hold_configurations(
+def gap_fixed_hold_configurations(
     historical_family: HistoricalFamilySpec,
-) -> tuple[VolatilityDurationFixedHoldConfiguration, ...]:
+) -> tuple[GapFixedHoldConfiguration, ...]:
     if not isinstance(historical_family, HistoricalFamilySpec):
-        raise TypeError("volatility-duration family is not Writer-bound")
+        raise TypeError("gap family is not Writer-bound")
     values = tuple(
         _configuration_from_member(member)
         for member in historical_family.members
@@ -296,21 +259,18 @@ def volatility_duration_fixed_hold_configurations(
         for signal_sign in (-1, 1)
     }
     if (
-        historical_family.family_size != 4
+        len(values) != 4
         or tuple(value.ordinal for value in values) != (1, 2, 3, 4)
         or profile_signs != expected_profile_signs
     ):
-        raise ValueError(
-            "volatility-duration Writer-bound family is not the exact axis"
-        )
+        raise ValueError("gap Writer-bound family is not an exact surface")
     return values
 
 
 def _local(name: str) -> str:
     return (
-        "axiom_rift.research.volatility_duration_fixed_hold."
-        f"{name}@sha256:"
-        f"{volatility_duration_fixed_hold_implementation_sha256()}"
+        f"axiom_rift.research.gap_fixed_hold.{name}@sha256:"
+        f"{gap_fixed_hold_implementation_sha256()}"
     )
 
 
@@ -321,40 +281,32 @@ def _shared(name: str) -> str:
     )
 
 
-def volatility_duration_fixed_hold_components(
+def gap_fixed_hold_components(
     historical_family: HistoricalFamilySpec,
 ) -> tuple[ComponentSpec, ...]:
-    configurations = volatility_duration_fixed_hold_configurations(
-        historical_family
-    )
+    configurations = gap_fixed_hold_configurations(historical_family)
     settings = _settings_for_configurations(configurations)
-    feature_spec: dict[str, object] = {
-        "availability": "completed_bar_close",
-        "parameter_fields": ["profile", "state_window", "volatility_window"],
-        "profiles": list(settings.profiles),
-        "state_reference": (
-            f"lagged_{settings.state_window}_bar_median_of_"
-            f"{settings.volatility_window}_bar_volatility"
-        ),
-    }
-    if settings.score_mode == "state_age_hazard":
-        feature_spec["age_windows"] = {
-            "mature": [24, 47],
-            "persistent": [72, 143],
-        }
     feature = ComponentSpec(
         display_name=(
-            "causal volatility state-age fixed-hold feature"
-            if settings.score_mode == "state_age_hazard"
-            else "causal volatility level-duration fixed-hold feature"
+            "causal completed-bar gap event"
+            if settings.feature_mode == "gap_event"
+            else "causal completed-bar post-gap path"
         ),
         protocol=(
-            "feature.causal_volatility_state_age.replay.v1"
-            if settings.score_mode == "state_age_hazard"
-            else "feature.causal_volatility_level_duration.replay.v1"
+            "feature.causal_gap_event.replay.v1"
+            if settings.feature_mode == "gap_event"
+            else "feature.causal_post_gap_path.replay.v1"
         ),
-        implementation=_local("compute_volatility_duration_fixed_hold_score"),
-        spec=feature_spec,
+        implementation=_local("compute_gap_fixed_hold_score"),
+        spec={
+            "availability": "first_completed_bar_after_gap",
+            "minimum_gap_minutes": GAP_FIXED_HOLD_MINIMUM_GAP_MINUTES,
+            "non_evaluated_anchor_profile": (
+                GAP_FIXED_HOLD_COMPARISON_ANCHOR_PROFILE
+            ),
+            "parameter_fields": ["minimum_gap_minutes", "profile"],
+            "profiles": list(settings.profiles),
+        },
     )
     label = ComponentSpec(
         display_name="realized fixed-hold after-cost label",
@@ -368,46 +320,26 @@ def volatility_duration_fixed_hold_components(
         },
     )
     model = ComponentSpec(
-        display_name="registered volatility-duration outcome hypothesis",
-        protocol="model.deterministic_volatility_duration.replay.v1",
-        implementation=_local("compute_volatility_duration_fixed_hold_score"),
+        display_name="registered causal gap outcome hypothesis",
+        protocol="model.deterministic_gap_hypothesis.replay.v1",
+        implementation=_local("compute_gap_fixed_hold_score"),
         spec={
             "fit": "none",
             "label_role": "scientific_outcome_never_runtime_input",
-            "score_role": "causal_completed_bar_state",
+            "score_role": "causal_completed_bar_gap_state",
         },
         semantic_dependencies=(feature.identity, label.identity),
     )
     selector = ComponentSpec(
-        display_name=(
-            "fold-isolated event-presence selector"
-            if settings.selector_quantile_bp is None
-            else "fold-isolated absolute-quantile selector"
-        ),
-        protocol=(
-            "selector.fold_train_event_presence.replay.v1"
-            if settings.selector_quantile_bp is None
-            else "selector.fold_train_abs_quantile.replay.v1"
-        ),
-        implementation=(
-            _local("calibrate_volatility_duration_fixed_hold_selector")
-        ),
-        spec=(
-            {
-                "calibration_role": "train_is_only",
-                "minimum_train_events": settings.minimum_train_observations,
-                "threshold": 1,
-            }
-            if settings.selector_quantile_bp is None
-            else {
-                "calibration_role": "train_is_only",
-                "minimum_train_observations": (
-                    settings.minimum_train_observations
-                ),
-                "parameter_fields": ["selector_quantile_bp"],
-                "quantile_method": "higher",
-            }
-        ),
+        display_name="fold-isolated gap selector",
+        protocol="selector.fold_train_abs_quantile.replay.v1",
+        implementation=_local("calibrate_gap_fixed_hold_selector"),
+        spec={
+            "calibration_role": "train_is_only",
+            "minimum_train_observations": settings.minimum_train_observations,
+            "parameter_fields": ["selector_quantile_bp"],
+            "quantile_method": "higher",
+        },
         semantic_dependencies=(model.identity,),
     )
     trade = ComponentSpec(
@@ -434,9 +366,9 @@ def volatility_duration_fixed_hold_components(
         semantic_dependencies=(trade.identity,),
     )
     execution = ComponentSpec(
-        display_name="completed-period spread-proxy execution",
+        display_name="completed-period gap-segment spread-proxy execution",
         protocol="execution.fpmarkets_completed_period_spread_proxy.v2",
-        implementation=_local("causal_volatility_duration_fixed_hold_spread"),
+        implementation=_local("causal_gap_fixed_hold_spread"),
         spec=completed_period_proxy_execution_spec(
             repair_policy=(
                 "same_contiguous_segment_strict_prior_positive_288_bar_"
@@ -453,9 +385,9 @@ def volatility_duration_fixed_hold_components(
         semantic_dependencies=(execution.identity,),
     )
     synthesis = ComponentSpec(
-        display_name="Writer-bound volatility-duration family member",
+        display_name="Writer-bound gap family member",
         protocol="synthesis.historical_fixed_hold_member.v2",
-        implementation=_local("volatility_duration_fixed_hold_executable"),
+        implementation=_local("gap_fixed_hold_executable"),
         spec={
             "exact_member_count": historical_family.family_size,
             "historical_family_identity": historical_family.identity,
@@ -467,11 +399,9 @@ def volatility_duration_fixed_hold_components(
         semantic_dependencies=(risk.identity,),
     )
     portfolio = ComponentSpec(
-        display_name="exact concurrent volatility-duration inference",
+        display_name="exact concurrent gap-family inference",
         protocol="portfolio.concurrent_fixed_hold_family_inference.v2",
-        implementation=_local(
-            "volatility_duration_fixed_hold_protocol_definition"
-        ),
+        implementation=_local("gap_fixed_hold_protocol_definition"),
         spec={
             "historical_context_adjustment_authority": (
                 "context_only_never_adjustment_factor"
@@ -481,8 +411,8 @@ def volatility_duration_fixed_hold_components(
                 "base_seed",
                 "block_lengths",
                 "bootstrap_samples",
-                VOLATILITY_DURATION_FIXED_HOLD_CONTEXT_PARAMETER,
-                VOLATILITY_DURATION_FIXED_HOLD_ORIGINAL_END_PARAMETER,
+                GAP_FIXED_HOLD_CONTEXT_PARAMETER,
+                GAP_FIXED_HOLD_ORIGINAL_END_PARAMETER,
                 "monte_carlo_confidence_ppm",
             ],
             "selection_family_scope": "exact_registered_concurrent_family",
@@ -517,9 +447,7 @@ def _validated_exposure_context(
         or prior_global_exposure_count
         < original_family_end_global_exposure_count
     ):
-        raise ValueError(
-            "volatility-duration historical exposure context is invalid"
-        )
+        raise ValueError("gap historical exposure context is invalid")
     return prior_global_exposure_count, original_family_end_global_exposure_count
 
 
@@ -537,50 +465,44 @@ def _shared_parameters(
         ),
     )
     return {
-        "alpha_ppm": VOLATILITY_DURATION_FIXED_HOLD_ALPHA_PPM,
+        "alpha_ppm": GAP_FIXED_HOLD_ALPHA_PPM,
         "base_seed": SELECTION_SEED,
         "block_lengths": list(SELECTION_BLOCK_LENGTHS),
         "bootstrap_samples": SELECTION_BOOTSTRAP_SAMPLES,
-        VOLATILITY_DURATION_FIXED_HOLD_CONTEXT_PARAMETER: prior,
-        VOLATILITY_DURATION_FIXED_HOLD_ORIGINAL_END_PARAMETER: original_end,
-        "monte_carlo_confidence_ppm": (
-            SELECTION_MONTE_CARLO_CONFIDENCE_PPM
-        ),
+        GAP_FIXED_HOLD_CONTEXT_PARAMETER: prior,
+        GAP_FIXED_HOLD_ORIGINAL_END_PARAMETER: original_end,
+        "monte_carlo_confidence_ppm": SELECTION_MONTE_CARLO_CONFIDENCE_PPM,
     }
 
 
 def _engine_contract() -> str:
     return (
-        "engine:volatility_duration_fixed_hold_v1:"
+        "engine:gap_fixed_hold_v1:"
         f"python{'.'.join(str(value) for value in sys.version_info[:3])}:"
         f"numpy{np.__version__}:pandas{pd.__version__}:scipy{scipy.__version__}:"
-        f"adapter_{volatility_duration_fixed_hold_implementation_sha256()}:"
+        f"adapter_{gap_fixed_hold_implementation_sha256()}:"
         f"trace_engine_{fixed_hold_trace_engine_implementation_sha256()}:"
-        f"loader_{volatility_duration_fixed_hold_loader_sha256()}:"
+        f"loader_{gap_fixed_hold_loader_sha256()}:"
         f"shared_{discovery_implementation_sha256()}:"
         f"selection_{selection_inference_implementation_sha256()}"
     )
 
 
-def volatility_duration_fixed_hold_executable(
-    configuration: VolatilityDurationFixedHoldConfiguration,
+def gap_fixed_hold_executable(
+    configuration: GapFixedHoldConfiguration,
     *,
     historical_family: HistoricalFamilySpec,
     historical_context_prior_global_exposure_count: int,
     original_family_end_global_exposure_count: int,
 ) -> ExecutableSpec:
-    if configuration not in volatility_duration_fixed_hold_configurations(
-        historical_family
-    ):
-        raise ValueError("configuration is outside the Writer-bound family")
+    if configuration not in gap_fixed_hold_configurations(historical_family):
+        raise ValueError("configuration is outside the Writer-bound gap family")
     return ExecutableSpec(
         display_name=(
-            f"{historical_family.original_study_id} prospective fixed-hold "
+            f"{historical_family.original_study_id} prospective gap "
             f"{configuration.configuration_id}"
         ),
-        components=volatility_duration_fixed_hold_components(
-            historical_family
-        ),
+        components=gap_fixed_hold_components(historical_family),
         parameters={
             **configuration.semantic_parameters(),
             **_shared_parameters(
@@ -598,41 +520,27 @@ def volatility_duration_fixed_hold_executable(
             f"split:{ROLLING_SPLIT_SHA256}:"
             "rolling_windows_9_observed_development"
         ),
-        clock_contract=VOLATILITY_DURATION_FIXED_HOLD_CLOCK_CONTRACT,
-        cost_contract=VOLATILITY_DURATION_FIXED_HOLD_COST_CONTRACT,
+        clock_contract=GAP_FIXED_HOLD_CLOCK_CONTRACT,
+        cost_contract=GAP_FIXED_HOLD_COST_CONTRACT,
         engine_contract=_engine_contract(),
     )
 
 
-def volatility_duration_fixed_hold_baseline_executable(
+def gap_fixed_hold_baseline_executable(
     *,
     historical_family: HistoricalFamilySpec,
     historical_context_prior_global_exposure_count: int,
     original_family_end_global_exposure_count: int,
 ) -> ExecutableSpec:
     settings = _settings_for_configurations(
-        volatility_duration_fixed_hold_configurations(historical_family)
+        gap_fixed_hold_configurations(historical_family)
     )
-    family_parameters: dict[str, object] = {
-        "holding_bars": settings.holding_bars,
-        "profile": VOLATILITY_DURATION_FIXED_HOLD_COMPARISON_ANCHOR_PROFILE,
-        "signal_sign": 0,
-        "state_window": settings.state_window,
-        "unknown_entry_action": "cancel_before_open",
-        "volatility_window": settings.volatility_window,
-    }
-    if settings.selector_quantile_bp is not None:
-        family_parameters["selector_quantile_bp"] = (
-            settings.selector_quantile_bp
-        )
     return ExecutableSpec(
         display_name=(
-            f"{historical_family.original_study_id} prospective fixed-hold "
+            f"{historical_family.original_study_id} prospective gap "
             "non-evaluated comparison anchor"
         ),
-        components=volatility_duration_fixed_hold_components(
-            historical_family
-        ),
+        components=gap_fixed_hold_components(historical_family),
         parameters={
             **_shared_parameters(
                 historical_family=historical_family,
@@ -645,26 +553,31 @@ def volatility_duration_fixed_hold_baseline_executable(
             ),
             "configuration_id": "comparison-anchor",
             "historical_reference_executable_id": "none",
-            **family_parameters,
+            "holding_bars": settings.holding_bars,
+            "minimum_gap_minutes": GAP_FIXED_HOLD_MINIMUM_GAP_MINUTES,
+            "profile": GAP_FIXED_HOLD_COMPARISON_ANCHOR_PROFILE,
+            "selector_quantile_bp": GAP_FIXED_HOLD_SELECTOR_QUANTILE_BP,
+            "signal_sign": 0,
+            "unknown_entry_action": "cancel_before_open",
         },
         data_contract=f"data:{OBSERVED_MATERIAL_ID}",
         split_contract=(
             f"split:{ROLLING_SPLIT_SHA256}:"
             "rolling_windows_9_observed_development"
         ),
-        clock_contract=VOLATILITY_DURATION_FIXED_HOLD_CLOCK_CONTRACT,
-        cost_contract=VOLATILITY_DURATION_FIXED_HOLD_COST_CONTRACT,
+        clock_contract=GAP_FIXED_HOLD_CLOCK_CONTRACT,
+        cost_contract=GAP_FIXED_HOLD_COST_CONTRACT,
         engine_contract=_engine_contract(),
     )
 
 
-def volatility_duration_fixed_hold_controlled_chassis(
+def gap_fixed_hold_controlled_chassis(
     *,
     historical_family: HistoricalFamilySpec,
     historical_context_prior_global_exposure_count: int,
     original_family_end_global_exposure_count: int,
 ) -> ControlledStudyChassis:
-    baseline = volatility_duration_fixed_hold_baseline_executable(
+    baseline = gap_fixed_hold_baseline_executable(
         historical_family=historical_family,
         historical_context_prior_global_exposure_count=(
             historical_context_prior_global_exposure_count
@@ -692,12 +605,10 @@ def volatility_duration_fixed_hold_controlled_chassis(
         architecture=ArchitectureChassisSpec.from_executable(baseline),
     )
     payload = chassis.to_identity_payload()
-    for configuration in volatility_duration_fixed_hold_configurations(
-        historical_family
-    ):
+    for configuration in gap_fixed_hold_configurations(historical_family):
         validate_controlled_executable(
             payload,
-            volatility_duration_fixed_hold_executable(
+            gap_fixed_hold_executable(
                 configuration,
                 historical_family=historical_family,
                 historical_context_prior_global_exposure_count=(
@@ -711,14 +622,14 @@ def volatility_duration_fixed_hold_controlled_chassis(
     return chassis
 
 
-def volatility_duration_fixed_hold_executable_map(
+def gap_fixed_hold_executable_map(
     *,
     historical_family: HistoricalFamilySpec,
     historical_context_prior_global_exposure_count: int,
     original_family_end_global_exposure_count: int,
-) -> dict[str, VolatilityDurationFixedHoldConfiguration]:
+) -> dict[str, GapFixedHoldConfiguration]:
     return {
-        volatility_duration_fixed_hold_executable(
+        gap_fixed_hold_executable(
             configuration,
             historical_family=historical_family,
             historical_context_prior_global_exposure_count=(
@@ -728,19 +639,17 @@ def volatility_duration_fixed_hold_executable_map(
                 original_family_end_global_exposure_count
             ),
         ).identity: configuration
-        for configuration in volatility_duration_fixed_hold_configurations(
-            historical_family
-        )
+        for configuration in gap_fixed_hold_configurations(historical_family)
     }
 
 
-def volatility_duration_fixed_hold_protocol_definition(
+def gap_fixed_hold_protocol_definition(
     context: HistoricalFamilyReplayContext,
 ) -> FixedHoldProtocolDefinition:
     if not isinstance(context, HistoricalFamilyReplayContext):
-        raise TypeError("volatility-duration replay context is not typed")
+        raise TypeError("gap replay context is not typed")
     family = context.family
-    configurations = volatility_duration_fixed_hold_configurations(family)
+    configurations = gap_fixed_hold_configurations(family)
     settings = _settings_for_configurations(configurations)
     prior, original_end = _validated_exposure_context(
         historical_family=family,
@@ -750,7 +659,7 @@ def volatility_duration_fixed_hold_protocol_definition(
         ),
     )
     executables = tuple(
-        volatility_duration_fixed_hold_executable(
+        gap_fixed_hold_executable(
             configuration,
             historical_family=family,
             historical_context_prior_global_exposure_count=prior,
@@ -761,13 +670,13 @@ def volatility_duration_fixed_hold_protocol_definition(
     clocks = {executable.clock_contract for executable in executables}
     costs = {executable.cost_contract for executable in executables}
     if len(clocks) != 1 or len(costs) != 1:
-        raise RuntimeError("volatility-duration execution contracts drifted")
+        raise RuntimeError("gap execution contracts drifted")
     return FixedHoldProtocolDefinition(
         family=family,
         prospective_executable_ids=tuple(
             executable.identity for executable in executables
         ),
-        protocol_id=VOLATILITY_DURATION_REPLAY_TRACE_PROTOCOL_ID,
+        protocol_id=GAP_REPLAY_TRACE_PROTOCOL_ID,
         fold_ids=EXPECTED_FOLD_IDS,
         invariance_keys=tuple(sorted(settings.profiles)),
         allowed_regimes=("high", "low", "middle"),
@@ -777,90 +686,77 @@ def volatility_duration_fixed_hold_protocol_definition(
         clock_contract=next(iter(clocks)),
         cost_contract=next(iter(costs)),
         producer_implementation_identities=tuple(
-            sorted(
-                volatility_duration_fixed_hold_producer_implementation_identities().items()
-            )
+            sorted(gap_fixed_hold_producer_implementation_identities().items())
         ),
         historical_context_id=context.family_authority_id,
         historical_prior_global_exposure_count=prior,
         original_family_end_global_exposure_count=original_end,
-        alpha_ppm=VOLATILITY_DURATION_FIXED_HOLD_ALPHA_PPM,
+        alpha_ppm=GAP_FIXED_HOLD_ALPHA_PPM,
         bootstrap_samples=SELECTION_BOOTSTRAP_SAMPLES,
         block_lengths=SELECTION_BLOCK_LENGTHS,
-        monte_carlo_confidence_ppm=(
-            SELECTION_MONTE_CARLO_CONFIDENCE_PPM
-        ),
+        monte_carlo_confidence_ppm=SELECTION_MONTE_CARLO_CONFIDENCE_PPM,
         base_seed=SELECTION_SEED,
     )
 
 
-def compute_volatility_duration_fixed_hold_score(
+def compute_gap_fixed_hold_score(
     frame: pd.DataFrame,
     profile: str,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    settings = _settings_for_profile(profile)
+    _settings_for_profile(profile)
+    time_ns = _time_ns(frame)
+    delta_minutes = np.full(len(frame), np.nan)
+    delta_minutes[1:] = np.diff(time_ns) / 60_000_000_000
+    event = delta_minutes >= GAP_FIXED_HOLD_MINIMUM_GAP_MINUTES
+    opening_price = frame["open"].to_numpy(float)
     close = frame["close"].to_numpy(float)
-    if np.any(~np.isfinite(close)) or np.any(close <= 0):
-        raise ValueError("volatility-duration close is invalid")
+    if (
+        np.any(~np.isfinite(opening_price))
+        or np.any(~np.isfinite(close))
+        or np.any(opening_price <= 0)
+        or np.any(close <= 0)
+    ):
+        raise ValueError("gap fixed-hold price input is invalid")
+    previous_close = np.roll(close, 1)
+    opening_gap = opening_price - previous_close
+    raw = np.full(len(frame), np.nan)
+    if profile == "open_gap_30m":
+        raw[event] = opening_gap[event]
+    elif profile == "first_bar_response_30m":
+        raw[event] = close[event] - opening_price[event]
+    elif profile == "residual_gap_after_first_bar":
+        raw[event] = close[event] - previous_close[event]
+    else:
+        event_count = int(event.sum())
+        raw[event] = np.divide(
+            np.sign(opening_gap[event])
+            * (close[event] - opening_price[event]),
+            np.abs(opening_gap[event]),
+            out=np.full(event_count, np.nan),
+            where=np.abs(opening_gap[event]) > 0,
+        )
     returns = np.full(len(close), np.nan)
     returns[1:] = np.diff(np.log(close))
     volatility = (
         pd.Series(returns)
-        .rolling(
-            settings.volatility_window,
-            min_periods=settings.volatility_window,
-        )
+        .rolling(96, min_periods=96)
         .std(ddof=1)
         .to_numpy(float)
     )
-    reference = (
-        pd.Series(volatility)
-        .shift(1)
-        .rolling(
-            settings.state_window,
-            min_periods=settings.state_window,
-        )
-        .median()
-        .to_numpy(float)
-    )
-    level = (
-        np.divide(
-            volatility,
-            reference,
+    score = (
+        raw
+        if profile == "gap_fill_fraction_after_first_bar"
+        else np.divide(
+            raw,
+            close * volatility,
             out=np.full(len(close), np.nan),
-            where=np.isfinite(reference) & (reference > 0),
+            where=np.isfinite(volatility) & (volatility > 0),
         )
-        - 1
     )
-    if settings.score_mode == "level_and_signed_duration" and profile == (
-        "volatility_level_96_576"
-    ):
-        score = level
-    else:
-        score = np.full(len(close), np.nan)
-        previous_state = 0
-        duration = 0
-        bounds = (
-            (24, 47)
-            if profile == "mature_state_age_24_47"
-            else (72, 143)
-        )
-        for index, value in enumerate(level):
-            if not np.isfinite(value):
-                previous_state = 0
-                duration = 0
-                continue
-            state = 1 if value >= 0 else -1
-            duration = duration + 1 if state == previous_state else 1
-            previous_state = state
-            if settings.score_mode == "level_and_signed_duration":
-                score[index] = state * duration
-            elif bounds[0] <= duration <= bounds[1]:
-                score[index] = state
-    return score, volatility, _consecutive_run(_time_ns(frame))
+    return score, volatility, _consecutive_run(time_ns)
 
 
-def causal_volatility_duration_fixed_hold_spread(
+def causal_gap_fixed_hold_spread(
     spread: np.ndarray,
     time_ns: np.ndarray,
 ) -> np.ndarray:
@@ -871,7 +767,7 @@ def causal_volatility_duration_fixed_hold_spread(
         or np.any(~np.isfinite(values))
         or np.any(values < 0)
     ):
-        raise ValueError("volatility-duration spread is invalid")
+        raise ValueError("gap fixed-hold spread is invalid")
     segment = np.zeros(len(times), np.int64)
     if len(times) > 1:
         segment[1:] = np.cumsum(np.diff(times) != 300_000_000_000)
@@ -883,40 +779,36 @@ def causal_volatility_duration_fixed_hold_spread(
     return np.where(values > 0, values, lagged.to_numpy(float))
 
 
-def calibrate_volatility_duration_fixed_hold_selector(
+def calibrate_gap_fixed_hold_selector(
     score: np.ndarray,
     mask: np.ndarray,
 ) -> float:
-    return _calibrate_volatility_selector(
+    return _calibrate_gap_selector(
         score,
         mask,
-        settings=_VOLATILITY_FAMILY_SETTINGS[0],
+        settings=_GAP_FAMILY_SETTINGS[0],
     )
 
 
-def _calibrate_volatility_selector(
+def _calibrate_gap_selector(
     score: np.ndarray,
     mask: np.ndarray,
     *,
-    settings: _VolatilityFamilySettings,
+    settings: _GapFamilySettings,
 ) -> float:
     values = np.abs(score[mask & np.isfinite(score)])
     if len(values) < settings.minimum_train_observations:
-        raise DiscoveryBoundaryError(
-            "volatility-duration event set is too small"
-        )
-    if settings.selector_quantile_bp is None:
-        return 1.0
+        raise DiscoveryBoundaryError("gap selector event set is too small")
     return float(
         np.quantile(
             values,
-            settings.selector_quantile_bp / 10_000,
+            GAP_FIXED_HOLD_SELECTOR_QUANTILE_BP / 10_000,
             method="higher",
         )
     )
 
 
-def compute_volatility_duration_fixed_hold_family_trace(
+def compute_gap_fixed_hold_family_trace(
     repository_root: str | Path,
     definition: FixedHoldProtocolDefinition,
 ) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
@@ -924,47 +816,41 @@ def compute_volatility_duration_fixed_hold_family_trace(
         not isinstance(definition, FixedHoldProtocolDefinition)
         or not isinstance(definition.family, HistoricalFamilySpec)
     ):
-        raise TypeError("volatility-duration definition is not Writer-bound")
-    configurations = volatility_duration_fixed_hold_configurations(
-        definition.family
-    )
+        raise TypeError("gap definition is not Writer-bound")
+    configurations = gap_fixed_hold_configurations(definition.family)
     settings = _settings_for_configurations(configurations)
 
     def calibrate(score: np.ndarray, mask: np.ndarray) -> float:
-        return _calibrate_volatility_selector(
-            score,
-            mask,
-            settings=settings,
-        )
+        return _calibrate_gap_selector(score, mask, settings=settings)
 
     return compute_fixed_hold_family_trace(
         repository_root,
         definition=definition,
         configurations=configurations,
-        feature_builder=compute_volatility_duration_fixed_hold_score,
+        feature_builder=compute_gap_fixed_hold_score,
         selector_calibrator=calibrate,
-        spread_builder=causal_volatility_duration_fixed_hold_spread,
+        spread_builder=causal_gap_fixed_hold_spread,
     )
 
 
 __all__ = [
-    "VOLATILITY_DURATION_FIXED_HOLD_CONTEXT_PARAMETER",
-    "VOLATILITY_DURATION_FIXED_HOLD_ORIGINAL_END_PARAMETER",
-    "VOLATILITY_DURATION_FIXED_HOLD_PROFILES",
-    "VOLATILITY_LEVEL_DURATION_FIXED_HOLD_PROFILES",
-    "VolatilityDurationFixedHoldConfiguration",
-    "calibrate_volatility_duration_fixed_hold_selector",
-    "causal_volatility_duration_fixed_hold_spread",
-    "compute_volatility_duration_fixed_hold_family_trace",
-    "compute_volatility_duration_fixed_hold_score",
-    "volatility_duration_fixed_hold_baseline_executable",
-    "volatility_duration_fixed_hold_components",
-    "volatility_duration_fixed_hold_configurations",
-    "volatility_duration_fixed_hold_controlled_chassis",
-    "volatility_duration_fixed_hold_executable",
-    "volatility_duration_fixed_hold_executable_map",
-    "volatility_duration_fixed_hold_implementation_sha256",
-    "volatility_duration_fixed_hold_loader_sha256",
-    "volatility_duration_fixed_hold_producer_implementation_identities",
-    "volatility_duration_fixed_hold_protocol_definition",
+    "GAP_EVENT_FIXED_HOLD_PROFILES",
+    "GAP_FIXED_HOLD_CONTEXT_PARAMETER",
+    "GAP_FIXED_HOLD_ORIGINAL_END_PARAMETER",
+    "GAP_PATH_FIXED_HOLD_PROFILES",
+    "GapFixedHoldConfiguration",
+    "calibrate_gap_fixed_hold_selector",
+    "causal_gap_fixed_hold_spread",
+    "compute_gap_fixed_hold_family_trace",
+    "compute_gap_fixed_hold_score",
+    "gap_fixed_hold_baseline_executable",
+    "gap_fixed_hold_components",
+    "gap_fixed_hold_configurations",
+    "gap_fixed_hold_controlled_chassis",
+    "gap_fixed_hold_executable",
+    "gap_fixed_hold_executable_map",
+    "gap_fixed_hold_implementation_sha256",
+    "gap_fixed_hold_loader_sha256",
+    "gap_fixed_hold_producer_implementation_identities",
+    "gap_fixed_hold_protocol_definition",
 ]

@@ -67,6 +67,7 @@ from axiom_rift.research.historical_family_binding import (
 )
 from axiom_rift.research.historical_semantic_transition import (
     HISTORICAL_COST_TIMING_TRANSITION_POLICY,
+    NO_SEMANTIC_TRANSITION_POLICY,
     build_historical_cost_timing_transition,
 )
 from axiom_rift.research.scientific_trace import (
@@ -90,6 +91,10 @@ DRAWDOWN_FIXED_HOLD_ORIGINAL_END_PARAMETER = (
 DRAWDOWN_FIXED_HOLD_PROFILES = (
     "drawdown_depth_288",
     "drawdown_duration_288",
+)
+DRAWDOWN_PHASE_FIXED_HOLD_PROFILES = (
+    "depth_duration_interaction_576",
+    "drawdown_recovery_velocity_12",
 )
 DRAWDOWN_FIXED_HOLD_COMPARISON_ANCHOR_PROFILE = "comparison_anchor_none"
 DRAWDOWN_FIXED_HOLD_CLOCK_CONTRACT = (
@@ -117,6 +122,60 @@ _EXPECTED_CONFIGURATION_IDS = tuple(
     DRAWDOWN_FIXED_HOLD_HISTORICAL_EVALUATION_HASHES
 )
 _THIS_FILE = Path(__file__).resolve()
+
+
+@dataclass(frozen=True, slots=True)
+class _DrawdownFamilySettings:
+    profiles: tuple[str, str]
+    holding_bars: int
+    lookback_bars: int
+    selector_quantile_bp: int
+    score_mode: str
+    historical_transition_required: bool
+
+
+_DRAWDOWN_FAMILY_SETTINGS = (
+    _DrawdownFamilySettings(
+        profiles=DRAWDOWN_FIXED_HOLD_PROFILES,
+        holding_bars=DRAWDOWN_FIXED_HOLD_HOLDING_BARS,
+        lookback_bars=DRAWDOWN_FIXED_HOLD_LOOKBACK_BARS,
+        selector_quantile_bp=DRAWDOWN_FIXED_HOLD_SELECTOR_QUANTILE_BP,
+        score_mode="depth_and_duration",
+        historical_transition_required=True,
+    ),
+    _DrawdownFamilySettings(
+        profiles=DRAWDOWN_PHASE_FIXED_HOLD_PROFILES,
+        holding_bars=12,
+        lookback_bars=576,
+        selector_quantile_bp=8_500,
+        score_mode="phase_interaction_and_recovery_velocity",
+        historical_transition_required=False,
+    ),
+)
+
+
+def _settings_for_profile(profile: str) -> _DrawdownFamilySettings:
+    matches = tuple(
+        settings
+        for settings in _DRAWDOWN_FAMILY_SETTINGS
+        if profile in settings.profiles
+    )
+    if len(matches) != 1:
+        raise ValueError("drawdown fixed-hold profile is not registered")
+    return matches[0]
+
+
+def _settings_for_configurations(
+    configurations: tuple["DrawdownFixedHoldConfiguration", ...],
+) -> _DrawdownFamilySettings:
+    matches = tuple(
+        settings
+        for settings in _DRAWDOWN_FAMILY_SETTINGS
+        if {item.profile for item in configurations} == set(settings.profiles)
+    )
+    if len(matches) != 1:
+        raise ValueError("drawdown fixed-hold family is not registered")
+    return matches[0]
 
 
 def drawdown_fixed_hold_implementation_sha256() -> str:
@@ -151,17 +210,16 @@ class DrawdownFixedHoldConfiguration:
     unknown_entry_action: str = "cancel_before_open"
 
     def __post_init__(self) -> None:
+        settings = _settings_for_profile(self.profile)
         if (
             type(self.ordinal) is not int
             or self.ordinal < 1
             or type(self.configuration_id) is not str
             or not self.configuration_id.isascii()
-            or self.profile not in DRAWDOWN_FIXED_HOLD_PROFILES
             or self.signal_sign not in {-1, 1}
-            or self.holding_bars != DRAWDOWN_FIXED_HOLD_HOLDING_BARS
-            or self.lookback_bars != DRAWDOWN_FIXED_HOLD_LOOKBACK_BARS
-            or self.selector_quantile_bp
-            != DRAWDOWN_FIXED_HOLD_SELECTOR_QUANTILE_BP
+            or self.holding_bars != settings.holding_bars
+            or self.lookback_bars != settings.lookback_bars
+            or self.selector_quantile_bp != settings.selector_quantile_bp
             or self.unknown_entry_action != "cancel_before_open"
             or not self.historical_reference_executable_id.startswith(
                 "executable:"
@@ -212,11 +270,18 @@ def drawdown_fixed_hold_configurations(
         _configuration_from_member(member)
         for member in historical_family.members
     )
+    settings = _settings_for_configurations(values)
+    profile_signs = {(value.profile, value.signal_sign) for value in values}
+    expected_profile_signs = {
+        (profile, signal_sign)
+        for profile in settings.profiles
+        for signal_sign in (-1, 1)
+    }
     if (
         tuple(value.ordinal for value in values)
         != tuple(range(1, len(values) + 1))
-        or tuple(value.configuration_id for value in values)
-        != _EXPECTED_CONFIGURATION_IDS
+        or len(values) != 4
+        or profile_signs != expected_profile_signs
     ):
         raise ValueError("drawdown fixed-hold family membership drifted")
     return values
@@ -239,19 +304,33 @@ def _shared(name: str) -> str:
 def drawdown_fixed_hold_components(
     historical_family: HistoricalFamilySpec,
 ) -> tuple[ComponentSpec, ...]:
-    drawdown_fixed_hold_configurations(historical_family)
+    configurations = drawdown_fixed_hold_configurations(historical_family)
+    settings = _settings_for_configurations(configurations)
     feature = ComponentSpec(
-        display_name="causal completed-bar drawdown state",
-        protocol="feature.causal_drawdown_state.replay.v3",
+        display_name=(
+            "causal completed-bar drawdown state"
+            if settings.score_mode == "depth_and_duration"
+            else "causal completed-bar drawdown phase interaction"
+        ),
+        protocol=(
+            "feature.causal_drawdown_state.replay.v3"
+            if settings.score_mode == "depth_and_duration"
+            else "feature.causal_drawdown_phase.replay.v1"
+        ),
         implementation=_local("compute_drawdown_fixed_hold_score"),
         spec={
             "availability": "completed_bar_close",
-            "lookback_bars": DRAWDOWN_FIXED_HOLD_LOOKBACK_BARS,
+            "lookback_bars": settings.lookback_bars,
             "non_evaluated_anchor_profile": (
                 DRAWDOWN_FIXED_HOLD_COMPARISON_ANCHOR_PROFILE
             ),
             "parameter_fields": ["lookback_bars", "profile"],
-            "profiles": list(DRAWDOWN_FIXED_HOLD_PROFILES),
+            "profiles": list(settings.profiles),
+            **(
+                {}
+                if settings.score_mode == "depth_and_duration"
+                else {"recovery_velocity_bars": 12}
+            ),
         },
     )
     label = ComponentSpec(
@@ -480,6 +559,9 @@ def drawdown_fixed_hold_baseline_executable(
     historical_context_prior_global_exposure_count: int,
     original_family_end_global_exposure_count: int,
 ) -> ExecutableSpec:
+    settings = _settings_for_configurations(
+        drawdown_fixed_hold_configurations(historical_family)
+    )
     return ExecutableSpec(
         display_name=(
             f"{historical_family.original_study_id} prospective drawdown "
@@ -498,10 +580,10 @@ def drawdown_fixed_hold_baseline_executable(
             ),
             "configuration_id": "comparison-anchor",
             "historical_reference_executable_id": "none",
-            "holding_bars": DRAWDOWN_FIXED_HOLD_HOLDING_BARS,
-            "lookback_bars": DRAWDOWN_FIXED_HOLD_LOOKBACK_BARS,
+            "holding_bars": settings.holding_bars,
+            "lookback_bars": settings.lookback_bars,
             "profile": DRAWDOWN_FIXED_HOLD_COMPARISON_ANCHOR_PROFILE,
-            "selector_quantile_bp": DRAWDOWN_FIXED_HOLD_SELECTOR_QUANTILE_BP,
+            "selector_quantile_bp": settings.selector_quantile_bp,
             "signal_sign": 0,
             "unknown_entry_action": "cancel_before_open",
         },
@@ -597,6 +679,7 @@ def drawdown_fixed_hold_protocol_definition(
         raise TypeError("drawdown replay context is not typed")
     family = context.family
     configurations = drawdown_fixed_hold_configurations(family)
+    settings = _settings_for_configurations(configurations)
     prior, original_end = _validated_exposure_context(
         historical_family=family,
         prior_global_exposure_count=context.prior_global_exposure_count,
@@ -624,7 +707,7 @@ def drawdown_fixed_hold_protocol_definition(
         ),
         protocol_id=DRAWDOWN_REPLAY_TRACE_PROTOCOL_ID,
         fold_ids=EXPECTED_FOLD_IDS,
-        invariance_keys=DRAWDOWN_FIXED_HOLD_PROFILES,
+        invariance_keys=tuple(sorted(settings.profiles)),
         allowed_regimes=("high", "low", "middle"),
         dataset_sha256=DATASET_SHA256,
         material_identity=OBSERVED_MATERIAL_ID,
@@ -644,21 +727,32 @@ def drawdown_fixed_hold_protocol_definition(
         block_lengths=SELECTION_BLOCK_LENGTHS,
         monte_carlo_confidence_ppm=SELECTION_MONTE_CARLO_CONFIDENCE_PPM,
         base_seed=SELECTION_SEED,
-        historical_evaluation_artifacts=tuple(
-            (
-                configuration_id,
-                artifact_sha256,
-                HISTORICAL_DRAWDOWN_EVALUATION_SCHEMA,
+        historical_evaluation_artifacts=(
+            tuple(
+                (
+                    configuration_id,
+                    artifact_sha256,
+                    HISTORICAL_DRAWDOWN_EVALUATION_SCHEMA,
+                )
+                for configuration_id, artifact_sha256 in sorted(
+                    DRAWDOWN_FIXED_HOLD_HISTORICAL_EVALUATION_HASHES.items()
+                )
             )
-            for configuration_id, artifact_sha256 in sorted(
-                DRAWDOWN_FIXED_HOLD_HISTORICAL_EVALUATION_HASHES.items()
-            )
+            if settings.historical_transition_required
+            else ()
         ),
-        semantic_transition_policy=HISTORICAL_COST_TIMING_TRANSITION_POLICY,
+        semantic_transition_policy=(
+            HISTORICAL_COST_TIMING_TRANSITION_POLICY
+            if settings.historical_transition_required
+            else NO_SEMANTIC_TRANSITION_POLICY
+        ),
     )
 
 
-def _rolling_peak_age(close: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+def _rolling_peak_age(
+    close: np.ndarray,
+    lookback_bars: int = DRAWDOWN_FIXED_HOLD_LOOKBACK_BARS,
+) -> tuple[np.ndarray, np.ndarray]:
     peak = np.full(len(close), np.nan)
     age = np.full(len(close), np.nan)
     queue: deque[int] = deque()
@@ -666,9 +760,9 @@ def _rolling_peak_age(close: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         while queue and close[queue[-1]] <= value:
             queue.pop()
         queue.append(index)
-        while queue and queue[0] <= index - DRAWDOWN_FIXED_HOLD_LOOKBACK_BARS:
+        while queue and queue[0] <= index - lookback_bars:
             queue.popleft()
-        if index >= DRAWDOWN_FIXED_HOLD_LOOKBACK_BARS - 1:
+        if index >= lookback_bars - 1:
             peak[index] = close[queue[0]]
             age[index] = index - queue[0]
     return peak, age
@@ -678,13 +772,12 @@ def compute_drawdown_fixed_hold_score(
     frame: pd.DataFrame,
     profile: str,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    if profile not in DRAWDOWN_FIXED_HOLD_PROFILES:
-        raise ValueError("drawdown fixed-hold profile is invalid")
+    settings = _settings_for_profile(profile)
     close = frame["close"].to_numpy(float)
     if np.any(~np.isfinite(close)) or np.any(close <= 0):
         raise ValueError("drawdown fixed-hold close is invalid")
-    peak, age = _rolling_peak_age(close)
-    score = (
+    peak, age = _rolling_peak_age(close, settings.lookback_bars)
+    depth = (
         np.divide(
             close,
             peak,
@@ -692,9 +785,16 @@ def compute_drawdown_fixed_hold_score(
             where=np.isfinite(peak) & (peak > 0),
         )
         - 1
-        if profile == "drawdown_depth_288"
-        else -age
     )
+    if profile == "drawdown_depth_288":
+        score = depth
+    elif profile == "drawdown_duration_288":
+        score = -age
+    elif profile == "depth_duration_interaction_576":
+        score = depth * np.log1p(age)
+    else:
+        score = np.full(len(close), np.nan)
+        score[12:] = depth[12:] - depth[:-12]
     returns = np.full(len(close), np.nan)
     returns[1:] = np.diff(np.log(close))
     volatility = (
@@ -733,13 +833,26 @@ def calibrate_drawdown_fixed_hold_selector(
     score: np.ndarray,
     mask: np.ndarray,
 ) -> float:
+    return _calibrate_drawdown_selector(
+        score,
+        mask,
+        settings=_DRAWDOWN_FAMILY_SETTINGS[0],
+    )
+
+
+def _calibrate_drawdown_selector(
+    score: np.ndarray,
+    mask: np.ndarray,
+    *,
+    settings: _DrawdownFamilySettings,
+) -> float:
     values = np.abs(score[mask & np.isfinite(score)])
     if len(values) < 1000:
         raise DiscoveryBoundaryError("drawdown selector is too small")
     return float(
         np.quantile(
             values,
-            DRAWDOWN_FIXED_HOLD_SELECTOR_QUANTILE_BP / 10_000,
+            settings.selector_quantile_bp / 10_000,
             method="higher",
         )
     )
@@ -831,35 +944,48 @@ def compute_drawdown_fixed_hold_family_trace(
         or not isinstance(definition.family, HistoricalFamilySpec)
     ):
         raise TypeError("drawdown definition is not Writer-bound")
-    historical_evaluations = _load_historical_evaluations(
-        definition,
-        evidence_reader,
-        evidence_input_hashes,
-    )
+    configurations = drawdown_fixed_hold_configurations(definition.family)
+    settings = _settings_for_configurations(configurations)
+    semantic_transition_builder = None
+    if settings.historical_transition_required:
+        historical_evaluations = _load_historical_evaluations(
+            definition,
+            evidence_reader,
+            evidence_input_hashes,
+        )
 
-    def semantic_transitions(
-        _repository_root: Path,
-        scoped_definition: FixedHoldProtocolDefinition,
-        windows: tuple[dict[str, object], ...],
-        trade_observations: tuple[dict[str, object], ...],
-        intent_observations: tuple[dict[str, object], ...],
-    ) -> tuple[dict[str, object], ...]:
-        return build_drawdown_historical_semantic_transitions(
-            scoped_definition,
-            windows,
-            trade_observations,
-            intent_observations,
-            historical_evaluations,
+        def semantic_transitions(
+            _repository_root: Path,
+            scoped_definition: FixedHoldProtocolDefinition,
+            windows: tuple[dict[str, object], ...],
+            trade_observations: tuple[dict[str, object], ...],
+            intent_observations: tuple[dict[str, object], ...],
+        ) -> tuple[dict[str, object], ...]:
+            return build_drawdown_historical_semantic_transitions(
+                scoped_definition,
+                windows,
+                trade_observations,
+                intent_observations,
+                historical_evaluations,
+            )
+
+        semantic_transition_builder = semantic_transitions
+
+    def calibrate(score: np.ndarray, mask: np.ndarray) -> float:
+        return _calibrate_drawdown_selector(
+            score,
+            mask,
+            settings=settings,
         )
 
     return compute_fixed_hold_family_trace(
         repository_root,
         definition=definition,
-        configurations=drawdown_fixed_hold_configurations(definition.family),
+        configurations=configurations,
         feature_builder=compute_drawdown_fixed_hold_score,
-        selector_calibrator=calibrate_drawdown_fixed_hold_selector,
+        selector_calibrator=calibrate,
         spread_builder=causal_drawdown_fixed_hold_spread,
-        semantic_transition_builder=semantic_transitions,
+        semantic_transition_builder=semantic_transition_builder,
     )
 
 
@@ -868,6 +994,7 @@ __all__ = [
     "DRAWDOWN_FIXED_HOLD_HISTORICAL_EVALUATION_HASHES",
     "DRAWDOWN_FIXED_HOLD_ORIGINAL_END_PARAMETER",
     "DRAWDOWN_FIXED_HOLD_PROFILES",
+    "DRAWDOWN_PHASE_FIXED_HOLD_PROFILES",
     "DrawdownFixedHoldConfiguration",
     "build_drawdown_historical_semantic_transitions",
     "calibrate_drawdown_fixed_hold_selector",
