@@ -54,12 +54,12 @@ def _local(name: str) -> str:
 
 def _configurations(historical_family: HistoricalFamilySpec):
     configurations = legacy.gap_fixed_hold_configurations(historical_family)
-    if (
-        historical_family.original_study_id != "STU-0046"
-        or {item.profile for item in configurations}
-        != set(legacy.GAP_EVENT_FIXED_HOLD_PROFILES)
+    if {item.profile for item in configurations} != set(
+        legacy.GAP_EVENT_FIXED_HOLD_PROFILES
     ):
-        raise ValueError("gap-event v3 requires the exact STU-0046 family")
+        raise ValueError(
+            "gap-event v3 requires the exact historical gap-event family"
+        )
     return configurations
 
 
@@ -171,7 +171,7 @@ def gap_event_fixed_hold_v3_executable(
     original_family_end_global_exposure_count: int,
 ) -> ExecutableSpec:
     if configuration not in _configurations(historical_family):
-        raise ValueError("configuration is outside the STU-0046 v3 family")
+        raise ValueError("configuration is outside the gap-event v3 family")
     base = legacy.gap_fixed_hold_executable(
         configuration,
         historical_family=historical_family,

@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+from pathlib import Path
+
+from axiom_rift.operations.job_implementation_authority import (
+    hardcoded_control_ids,
+)
 from axiom_rift.core.canonical import parse_canonical
 import numpy as np
 import pytest
+import axiom_rift.research.gap_event_fixed_hold_v3 as v3_module
+import axiom_rift.research.gap_event_fixed_hold_v3_job as v3_job_module
 
 from axiom_rift.research.discovery import DiscoveryBoundaryError
 from axiom_rift.research.gap_event_fixed_hold_v3 import (
@@ -98,3 +105,12 @@ def test_v3_runtime_closure_binds_new_and_frozen_sources() -> None:
     assert "axiom_rift/research/gap_event_fixed_hold_v3.py" in paths
     assert "axiom_rift/research/gap_fixed_hold.py" in paths
     assert "axiom_rift/research/historical_family_stu0046.py" not in paths
+
+
+def test_v3_runtime_sources_use_declarative_control_binding() -> None:
+    assert hardcoded_control_ids(
+        Path(v3_module.__file__).read_bytes()
+    ) == ()
+    assert hardcoded_control_ids(
+        Path(v3_job_module.__file__).read_bytes()
+    ) == ()
