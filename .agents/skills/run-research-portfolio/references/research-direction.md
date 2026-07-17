@@ -118,14 +118,16 @@ The writer, not the operator, derives allowed follow-up actions and layers.
 - Gross-to-net failure: hold signal fixed and test execution or density.
 - Stability or concentration failure: test regime, risk, synthesis, or
   complementary sleeves.
-- Supported evidence: run independent confirmation; do not immediately crown a
-  candidate.
+- Supported evidence: retain independent confirmation debt on that exact axis;
+  do not immediately crown a candidate or monopolize unrelated forest work.
 - Not identifiable: redesign the contrast before tuning.
 - Engineering gap: Repair or preserve the question; grant no scientific credit.
 
 An unrelated high-information-value axis remains valid as a structural forest
 exit. It must differ in primary layer or architecture family and use a
-diversifying Decision action. When several live axes share one boundary,
+diversifying Decision action. A new-axis exit must bind its exact proposed axis
+in the Decision and materialize only that axis in the next snapshot; it does
+not satisfy confirmation debt. When several live axes share one boundary,
 compare and execute them as one preregistered concurrent forest rather than
 serializing them by recency.
 

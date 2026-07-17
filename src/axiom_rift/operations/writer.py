@@ -16820,6 +16820,10 @@ class StateWriter:
                     old_families = {
                         axis["mechanism_family"] for axis in old_axes.values()
                     }
+                    proposed_axis = decision.payload.get("proposed_axis")
+                    proposed_axis_identity = decision.payload.get(
+                        "proposed_axis_identity"
+                    )
                     if (
                         not added
                         or any(
@@ -16833,6 +16837,18 @@ class StateWriter:
                     ):
                         raise TransitionError(
                             "new_mechanism must add a genuinely distinct untouched axis"
+                        )
+                    if proposed_axis is not None and (
+                        not isinstance(proposed_axis, Mapping)
+                        or not isinstance(proposed_axis_identity, str)
+                        or added != {proposed_axis.get("axis_id")}
+                        or new_axes.get(proposed_axis.get("axis_id"))
+                        != dict(proposed_axis)
+                        or proposed_axis.get("axis_identity")
+                        != proposed_axis_identity
+                    ):
+                        raise TransitionError(
+                            "new mechanism differs from its exact proposed axis"
                         )
                     if continuation is not None:
                         added_axes = {
@@ -17978,6 +17994,7 @@ class StateWriter:
                 if not isinstance(diagnosis_id, str)
                 else _index.get("study-diagnosis", diagnosis_id)
             )
+            diagnosis_structural_forest_exit = False
             if isinstance(diagnosis_id, str):
                 if (
                     diagnosis is None
@@ -18027,6 +18044,26 @@ class StateWriter:
                             isinstance(target_architecture_identity, str)
                             and target_architecture_identity
                             != diagnosis.payload.get("system_architecture_family")
+                        )
+                    )
+                )
+                proposed_axis = decision.proposed_axis
+                diagnosis_structural_forest_exit = (
+                    chosen_action == "new_mechanism"
+                    and source_axis is not None
+                    and proposed_axis is not None
+                    and proposed_axis.axis_id not in axes_by_id
+                    and proposed_axis.mechanism_family
+                    not in {
+                        axis.get("mechanism_family")
+                        for axis in axes_by_id.values()
+                    }
+                    and (
+                        proposed_axis.primary_research_layer.value
+                        != source_axis.get("primary_research_layer")
+                        or proposed_axis.system_architecture_family
+                        != diagnosis.payload.get(
+                            "system_architecture_family"
                         )
                     )
                 )
@@ -18088,6 +18125,7 @@ class StateWriter:
                     same_axis_disposition
                     or branch_match
                     or forest_diversion
+                    or diagnosis_structural_forest_exit
                     or engineering_reentry
                     or replay_protocol_revision
                 ):
@@ -18332,7 +18370,10 @@ class StateWriter:
                 if continuation is not None:
                     body["next_action"].update(continuation.to_action_fields())
                     constraint_source_id = continuation.architecture_review_id
-                elif isinstance(diagnosis_id, str):
+                elif (
+                    isinstance(diagnosis_id, str)
+                    and not diagnosis_structural_forest_exit
+                ):
                     body["next_action"]["required_followup_layers"] = list(
                         diagnosis.payload["allowed_research_layers"]
                     )
@@ -18776,6 +18817,332 @@ class StateWriter:
             payload={
                 "manifest": manifest.to_identity_payload(),
                 "manifest_artifact_hash": manifest_artifact_hash,
+            },
+            prepare=prepare,
+        )
+
+    def withdraw_unbound_execution_plan_portfolio_decision(
+        self,
+        *,
+        manifest_artifact_hash: str,
+        operation_id: str,
+    ) -> TransitionResult:
+        """Withdraw one unstarted scientific action misbound to a mutation step."""
+
+        from axiom_rift.research.decision_withdrawal import (
+            PortfolioDecisionWithdrawalReason,
+            PortfolioExecutionPlanWithdrawalManifest,
+        )
+
+        _require_digest(
+            "execution-plan Portfolio Decision withdrawal manifest",
+            manifest_artifact_hash,
+        )
+        try:
+            manifest_bytes = self.evidence.read_verified(manifest_artifact_hash)
+            manifest = PortfolioExecutionPlanWithdrawalManifest.from_bytes(
+                manifest_bytes
+            )
+            report_bytes = self.evidence.read_verified(
+                manifest.report_artifact_hash
+            )
+            proposed_bytes = self.evidence.read_verified(
+                manifest.proposed_snapshot_artifact_hash
+            )
+            proposed = parse_canonical(proposed_bytes)
+            manifest.require_report(report_bytes)
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            raise TransitionError(
+                "execution-plan Portfolio Decision withdrawal lacks exact evidence"
+            ) from exc
+        if (
+            manifest.reason_code
+            is not PortfolioDecisionWithdrawalReason.UNBOUND_STRUCTURAL_EXECUTION_PLAN
+            or not isinstance(proposed, Mapping)
+            or canonical_digest(
+                domain="portfolio-snapshot",
+                payload=dict(proposed),
+            )
+            != manifest.proposed_snapshot_id.removeprefix("portfolio:")
+        ):
+            raise TransitionError(
+                "execution-plan Portfolio Decision withdrawal proposal is malformed"
+            )
+
+        self._require_study_close_delivery_guard()
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError(
+                    "execution-plan Portfolio Decision withdrawal requires control"
+                )
+            science = current["scientific"]
+            mission_id = science.get("active_mission")
+            initiative_id = science.get("active_initiative")
+            if type(mission_id) is not str or type(initiative_id) is not str:
+                raise TransitionError(
+                    "execution-plan Portfolio Decision withdrawal requires active work"
+                )
+            if any(
+                science.get(name) is not None
+                for name in (
+                    "active_batch",
+                    "active_executable",
+                    "active_job",
+                    "active_lineage",
+                    "active_release",
+                    "active_repair",
+                    "active_study",
+                    "active_holdout_evaluation",
+                )
+            ):
+                raise TransitionError(
+                    "execution-plan Portfolio Decision withdrawal cannot bypass work"
+                )
+            next_action = current.get("next_action")
+            decision = index.get("portfolio-decision", manifest.decision_id)
+            decision_operation = index.get(
+                "operation",
+                manifest.decision_operation_id,
+            )
+            decision_operation_result = (
+                None
+                if decision_operation is None
+                else decision_operation.payload.get("result")
+            )
+            snapshot = index.get(
+                "portfolio-snapshot",
+                manifest.portfolio_snapshot_id,
+            )
+            diagnosis = index.get(
+                "study-diagnosis",
+                manifest.study_diagnosis_id,
+            )
+            if (
+                self._portfolio_decision_withdrawal(
+                    index,
+                    manifest.decision_id,
+                )
+                is not None
+            ):
+                raise TransitionError("Portfolio Decision is already withdrawn")
+            chosen_options = (
+                ()
+                if decision is None
+                else tuple(
+                    option
+                    for option in decision.payload.get("options", ())
+                    if isinstance(option, Mapping)
+                    and option.get("option_id")
+                    == decision.payload.get("chosen_option_id")
+                )
+            )
+            old_axes_value = (
+                None if snapshot is None else snapshot.payload.get("axes")
+            )
+            proposed_axes_value = proposed.get("axes")
+            if (
+                type(old_axes_value) is not list
+                or type(proposed_axes_value) is not list
+                or any(not isinstance(axis, Mapping) for axis in old_axes_value)
+                or any(
+                    not isinstance(axis, Mapping)
+                    for axis in proposed_axes_value
+                )
+            ):
+                raise TransitionError(
+                    "execution-plan withdrawal axes are malformed"
+                )
+            old_axes = {
+                axis.get("axis_id"): dict(axis) for axis in old_axes_value
+            }
+            proposed_axes = {
+                axis.get("axis_id"): dict(axis)
+                for axis in proposed_axes_value
+            }
+            if (
+                None in old_axes
+                or None in proposed_axes
+                or len(old_axes) != len(old_axes_value)
+                or len(proposed_axes) != len(proposed_axes_value)
+            ):
+                raise TransitionError(
+                    "execution-plan withdrawal axes are ambiguous"
+                )
+            added = set(proposed_axes) - set(old_axes)
+            chosen = chosen_options[0] if len(chosen_options) == 1 else None
+            target_axis = old_axes.get(manifest.target_axis_id)
+            proposed_axis = proposed_axes.get(manifest.proposed_axis_id)
+            execution_actions = {
+                "complementary_sleeve",
+                "contrast",
+                "deepen",
+                "recombine",
+                "rotate",
+                "synthesize",
+            }
+            scheduler_constraints = (
+                None
+                if decision is None
+                else decision.payload.get("scheduler_constraints")
+            )
+            replay_constraints = self._replay_scheduler_constraints(
+                index,
+                mission_id=mission_id,
+            )
+            intended_study = index.get(
+                "study-open",
+                manifest.intended_study_id,
+            )
+            if (
+                not isinstance(next_action, Mapping)
+                or next_action.get("kind") != "execute_portfolio_decision"
+                or next_action.get("decision_id") != manifest.decision_id
+                or next_action.get("portfolio_snapshot_id")
+                != manifest.portfolio_snapshot_id
+                or next_action.get("target_id") != manifest.target_axis_id
+                or next_action.get("target_axis_identity")
+                != manifest.target_axis_identity
+                or (
+                    next_action.get("study_diagnosis_id")
+                    != manifest.study_diagnosis_id
+                    and not (
+                        self.engineering_fixture
+                        and next_action.get("study_diagnosis_id") is None
+                    )
+                )
+                or current.get("revision")
+                != manifest.decision_authority_revision
+                or current.get("heads", {}).get("journal", {}).get("event_id")
+                != manifest.decision_authority_event_id
+                or decision_operation is None
+                or decision_operation.status != "success"
+                or decision_operation.payload.get("event_kind")
+                != "portfolio_decision_recorded"
+                or not isinstance(decision_operation_result, Mapping)
+                or decision_operation_result.get("decision_id")
+                != manifest.decision_id
+                or decision_operation.authority_sequence
+                != manifest.decision_authority_revision
+                or decision_operation.authority_event_id
+                != manifest.decision_authority_event_id
+                or decision is None
+                or decision.subject != f"Mission:{mission_id}"
+                or decision.payload.get("portfolio_snapshot_id")
+                != manifest.portfolio_snapshot_id
+                or decision.payload.get("study_diagnosis_id")
+                != manifest.study_diagnosis_id
+                or decision.payload.get("proposed_axis") is not None
+                or decision.payload.get("replay_obligation_ids", [])
+                or chosen is None
+                or chosen.get("action") != manifest.chosen_action
+                or manifest.chosen_action not in execution_actions
+                or chosen.get("target_id") != manifest.target_axis_id
+                or decision.payload.get("target_axis_identity")
+                != manifest.target_axis_identity
+                or snapshot is None
+                or snapshot.record_id != manifest.portfolio_snapshot_id
+                or not isinstance(target_axis, Mapping)
+                or target_axis.get("axis_identity")
+                != manifest.target_axis_identity
+                or diagnosis is None
+                or diagnosis.subject != f"Study:{diagnosis.payload.get('study_id')}"
+                or diagnosis.payload.get("mission_id") != mission_id
+                or diagnosis.payload.get("portfolio_snapshot_id")
+                != manifest.portfolio_snapshot_id
+                or proposed.get("schema") != "portfolio_snapshot.v3"
+                or proposed.get("mission_id") != mission_id
+                or added != {manifest.proposed_axis_id}
+                or set(old_axes) - set(proposed_axes)
+                or any(
+                    proposed_axes[axis_id] != axis
+                    for axis_id, axis in old_axes.items()
+                )
+                or not isinstance(proposed_axis, Mapping)
+                or proposed_axis.get("axis_identity")
+                != manifest.proposed_axis_identity
+                or proposed_axis.get("mechanism_family")
+                in {axis.get("mechanism_family") for axis in old_axes.values()}
+                or intended_study is not None
+                or scheduler_constraints != replay_constraints
+            ):
+                raise TransitionError(
+                    "execution-plan withdrawal does not bind its exact failure"
+                )
+            try:
+                durable_manifest_bytes = self.evidence.read_verified(
+                    manifest_artifact_hash
+                )
+                durable_report_bytes = self.evidence.read_verified(
+                    manifest.report_artifact_hash
+                )
+                durable_proposed_bytes = self.evidence.read_verified(
+                    manifest.proposed_snapshot_artifact_hash
+                )
+                durable_manifest = (
+                    PortfolioExecutionPlanWithdrawalManifest.from_bytes(
+                        durable_manifest_bytes
+                    )
+                )
+                durable_manifest.require_report(durable_report_bytes)
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
+                raise RecoveryRequired(
+                    "execution-plan Portfolio Decision evidence changed"
+                ) from exc
+            if (
+                durable_manifest_bytes != manifest_bytes
+                or durable_report_bytes != report_bytes
+                or durable_proposed_bytes != proposed_bytes
+                or durable_manifest != manifest
+            ):
+                raise RecoveryRequired(
+                    "execution-plan Portfolio Decision evidence changed"
+                )
+            replacement_action: dict[str, Any] = {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": manifest.portfolio_snapshot_id,
+                "study_diagnosis_id": manifest.study_diagnosis_id,
+            }
+            if replay_constraints is not None:
+                replacement_action.update(replay_constraints)
+            body = self._body(current)
+            body["next_action"] = replacement_action
+            record_id = canonical_digest(
+                domain="portfolio-decision-withdrawal",
+                payload={
+                    "manifest": manifest.to_identity_payload(),
+                    "manifest_artifact_hash": manifest_artifact_hash,
+                },
+            )
+            record = _record(
+                kind="portfolio-decision-withdrawal",
+                record_id=record_id,
+                subject=f"Mission:{mission_id}",
+                status="withdrawn_pre_execution",
+                fingerprint=decision.fingerprint,
+                payload={
+                    "decision_id": manifest.decision_id,
+                    "manifest": manifest.to_identity_payload(),
+                    "manifest_artifact_hash": manifest_artifact_hash,
+                    "replacement_next_action": replacement_action,
+                },
+                event_stream=(
+                    f"portfolio-decision-status:{manifest.decision_id}"
+                ),
+                event_sequence=1,
+            )
+            return body, [record], {
+                "decision_id": manifest.decision_id,
+                "withdrawal_record_id": record_id,
+            }
+
+        return self._commit(
+            event_kind="portfolio_decision_withdrawn",
+            operation_id=operation_id,
+            subject="Portfolio:active",
+            payload={
+                "manifest_artifact_hash": manifest_artifact_hash,
+                "manifest": manifest.to_identity_payload(),
             },
             prepare=prepare,
         )

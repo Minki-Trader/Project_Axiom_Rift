@@ -150,6 +150,7 @@ from axiom_rift.research.source_authority import (
 from axiom_rift.research.decision_withdrawal import (
     PortfolioDecisionWithdrawalManifest,
     PortfolioDecisionWithdrawalReason,
+    PortfolioExecutionPlanWithdrawalManifest,
     PortfolioStructuralDecisionWithdrawalManifest,
 )
 from axiom_rift.research.axis_protocol_revision import (
@@ -4528,6 +4529,255 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(
             self.writer.read_control()["next_action"]["kind"],  # type: ignore[index]
             "execute_portfolio_decision",
+        )
+
+    def test_new_mechanism_snapshot_matches_its_exact_proposed_axis(self) -> None:
+        self.open_mission_and_initiative()
+        source_axis = PortfolioAxis(
+            axis_id="axis-proposal-source",
+            causal_question="Does the proposal source retain information?",
+            mechanism_family="proposal-source-family",
+        )
+        peer_axis = PortfolioAxis(
+            axis_id="axis-proposal-peer",
+            causal_question="Does the proposal peer retain information?",
+            mechanism_family="proposal-peer-family",
+        )
+        snapshot = PortfolioSnapshot(
+            mission_id="MIS-FIXTURE",
+            axes=(source_axis, peer_axis),
+            opportunity_cost_basis="retain both proposal fixture axes",
+        )
+        self.writer.record_portfolio_snapshot(
+            snapshot=snapshot,
+            operation_id="proposal-base-snapshot",
+        )
+        proposed_axis = PortfolioAxis(
+            axis_id="axis-proposal-exact",
+            causal_question="Does the exact proposed axis add information?",
+            mechanism_family="proposal-exact-family",
+        )
+        options = (
+            DecisionOption(
+                option_id="add-exact-axis",
+                action=PortfolioAction.NEW_MECHANISM,
+                target_id=source_axis.axis_id,
+                expected_information_value="high bounded structural information",
+                opportunity_cost="one fixture Batch",
+            ),
+            DecisionOption(
+                option_id="retain-peer",
+                action=PortfolioAction.CONTRAST,
+                target_id=peer_axis.axis_id,
+                expected_information_value="bounded peer information",
+                opportunity_cost="defer the exact axis",
+                omission_reason="the exact proposed axis has current priority",
+            ),
+        )
+        decision = PortfolioDecision(
+            decision_id="DEC-EXACT-PROPOSED-AXIS",
+            chosen_option_id="add-exact-axis",
+            options=options,
+            rationale="bind structural admission to one exact proposed axis",
+            commitment_batches=1,
+            proposed_axis=proposed_axis,
+        )
+        self.writer.record_portfolio_decision(
+            decision=decision,
+            operation_id="proposal-decision",
+        )
+        forged_axis = PortfolioAxis(
+            axis_id="axis-proposal-forged",
+            causal_question="Does a forged proposal add information?",
+            mechanism_family="proposal-forged-family",
+        )
+        forged = PortfolioSnapshot(
+            mission_id="MIS-FIXTURE",
+            axes=(source_axis, peer_axis, forged_axis),
+            opportunity_cost_basis="attempt a different structural axis",
+        )
+        with self.assertRaisesRegex(TransitionError, "exact proposed axis"):
+            self.writer.record_portfolio_snapshot(
+                snapshot=forged,
+                operation_id="reject-forged-proposal-snapshot",
+            )
+        accepted = PortfolioSnapshot(
+            mission_id="MIS-FIXTURE",
+            axes=(source_axis, peer_axis, proposed_axis),
+            opportunity_cost_basis="materialize the exact structural axis",
+        )
+        self.writer.record_portfolio_snapshot(
+            snapshot=accepted,
+            operation_id="accept-exact-proposal-snapshot",
+        )
+        self.assertEqual(
+            self.writer.read_control()["next_action"],  # type: ignore[index]
+            {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": accepted.identity,
+            },
+        )
+
+    def test_unbound_execution_plan_withdrawal_restores_exact_diagnosis(self) -> None:
+        self.open_mission_and_initiative()
+        source_axis = PortfolioAxis(
+            axis_id="axis-unbound-source",
+            causal_question="Does the unbound source retain information?",
+            mechanism_family="unbound-source-family",
+        )
+        peer_axis = PortfolioAxis(
+            axis_id="axis-unbound-peer",
+            causal_question="Does the unbound peer retain information?",
+            mechanism_family="unbound-peer-family",
+        )
+        snapshot = PortfolioSnapshot(
+            mission_id="MIS-FIXTURE",
+            axes=(source_axis, peer_axis),
+            opportunity_cost_basis="retain both unbound fixture axes",
+        )
+        self.writer.record_portfolio_snapshot(
+            snapshot=snapshot,
+            operation_id="unbound-base-snapshot",
+        )
+        diagnosis_id = "diagnosis:" + "d" * 64
+
+        def seed_diagnosis(current, _index):
+            assert current is not None
+            body = self.writer._body(current)
+            body["next_action"] = {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": snapshot.identity,
+                "study_diagnosis_id": diagnosis_id,
+            }
+            diagnosis = IndexRecord(
+                kind="study-diagnosis",
+                record_id=diagnosis_id,
+                subject="Study:STU-UNBOUND-SOURCE",
+                status="supported_requires_confirmation",
+                fingerprint="d" * 64,
+                payload={
+                    "allowed_actions": ["contrast"],
+                    "allowed_research_layers": [
+                        source_axis.primary_research_layer.value
+                    ],
+                    "evidence_basis": [],
+                    "evidence_state": "supported_requires_confirmation",
+                    "mission_id": "MIS-FIXTURE",
+                    "portfolio_axis_id": source_axis.axis_id,
+                    "portfolio_snapshot_id": snapshot.identity,
+                    "study_id": "STU-UNBOUND-SOURCE",
+                    "system_architecture_family": (
+                        source_axis.system_architecture_family
+                    ),
+                },
+            )
+            return body, [diagnosis], {"diagnosis_id": diagnosis_id}
+
+        self.writer._commit(
+            event_kind="test_diagnosis_seeded",
+            operation_id="seed-unbound-diagnosis",
+            subject="Study:STU-UNBOUND-SOURCE",
+            payload={"diagnosis_id": diagnosis_id},
+            prepare=seed_diagnosis,
+        )
+        options = (
+            DecisionOption(
+                option_id="misuse-contrast-as-mutation",
+                action=PortfolioAction.CONTRAST,
+                target_id=source_axis.axis_id,
+                expected_information_value="nominal structural information",
+                opportunity_cost="one fixture Batch",
+            ),
+            DecisionOption(
+                option_id="retain-peer",
+                action=PortfolioAction.PRESERVE,
+                target_id=peer_axis.axis_id,
+                expected_information_value="bounded peer information",
+                opportunity_cost="defer the intended axis",
+                omission_reason="the nominal contrast was selected",
+            ),
+        )
+        decision = PortfolioDecision(
+            decision_id="DEC-UNBOUND-EXECUTION-PLAN",
+            chosen_option_id="misuse-contrast-as-mutation",
+            options=options,
+            rationale="exercise exact unbound execution-plan correction",
+            commitment_batches=1,
+        )
+        accepted = self.writer.record_portfolio_decision(
+            decision=decision,
+            operation_id="record-unbound-execution-plan",
+        )
+        proposed_axis = PortfolioAxis(
+            axis_id="axis-unbound-proposed",
+            causal_question="Does the intended structural axis add information?",
+            mechanism_family="unbound-proposed-family",
+        )
+        proposed = PortfolioSnapshot(
+            mission_id="MIS-FIXTURE",
+            axes=(source_axis, peer_axis, proposed_axis),
+            opportunity_cost_basis="materialize the intended structural axis",
+        )
+        proposed_artifact = self.writer.evidence.finalize(
+            canonical_bytes(proposed.to_identity_payload())
+        )
+        finding_id = "UNBOUND-EXECUTION-PLAN-001"
+        report = self.writer.evidence.finalize(
+            (
+                "# Unbound Execution Plan Audit\n\n"
+                f"- {finding_id}:\n"
+                f"  decision {decision.identity}\n"
+                "  operation record-unbound-execution-plan\n"
+                f"  authority event {accepted.event_id}\n"
+                f"  base snapshot {snapshot.identity}\n"
+                f"  target axis {source_axis.identity}\n"
+                "  chosen action contrast\n"
+                f"  intended snapshot {proposed.identity}\n"
+                f"  intended axis {proposed_axis.identity}\n"
+                "  intended Study STU-UNBOUND-INTENDED\n"
+                f"  diagnosis {diagnosis_id}\n"
+            ).encode("ascii")
+        )
+        manifest = PortfolioExecutionPlanWithdrawalManifest(
+            report_artifact_hash=report.sha256,
+            report_finding_id=finding_id,
+            decision_id=decision.identity,
+            decision_operation_id="record-unbound-execution-plan",
+            decision_authority_revision=accepted.revision,
+            decision_authority_event_id=accepted.event_id,
+            portfolio_snapshot_id=snapshot.identity,
+            target_axis_id=source_axis.axis_id,
+            target_axis_identity=source_axis.identity,
+            chosen_action="contrast",
+            proposed_snapshot_artifact_hash=proposed_artifact.sha256,
+            proposed_snapshot_id=proposed.identity,
+            proposed_axis_id=proposed_axis.axis_id,
+            proposed_axis_identity=proposed_axis.identity,
+            intended_study_id="STU-UNBOUND-INTENDED",
+            study_diagnosis_id=diagnosis_id,
+            reason_code=(
+                PortfolioDecisionWithdrawalReason
+                .UNBOUND_STRUCTURAL_EXECUTION_PLAN
+            ),
+            reason="contrast has no Study and cannot mutate the Portfolio",
+        )
+        manifest_artifact = self.writer.evidence.finalize(
+            canonical_bytes(manifest.to_identity_payload())
+        )
+        withdrawn = (
+            self.writer.withdraw_unbound_execution_plan_portfolio_decision(
+                manifest_artifact_hash=manifest_artifact.sha256,
+                operation_id="withdraw-unbound-execution-plan",
+            )
+        )
+        self.assertEqual(withdrawn.result["decision_id"], decision.identity)
+        self.assertEqual(
+            self.writer.read_control()["next_action"],  # type: ignore[index]
+            {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": snapshot.identity,
+                "study_diagnosis_id": diagnosis_id,
+            },
         )
 
     def test_protocol_revision_replaces_one_exact_axis_chassis(self) -> None:

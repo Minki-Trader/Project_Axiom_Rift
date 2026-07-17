@@ -410,6 +410,35 @@ class PortfolioAxis:
             ),
         )
 
+    def to_snapshot_payload(self) -> dict[str, CanonicalValue]:
+        """Return the exact immutable axis surface stored in a Portfolio."""
+
+        return {
+            "axis_id": self.axis_id,
+            "axis_identity": self.identity,
+            "architecture_chassis": (
+                None
+                if self.architecture_chassis is None
+                else self.architecture_chassis.to_identity_payload()
+            ),
+            "architecture_chassis_identity": (
+                None
+                if self.architecture_chassis is None
+                else self.architecture_chassis.identity
+            ),
+            "causal_question": self.causal_question,
+            "changed_domains": [layer.value for layer in self.changed_domains],
+            "controlled_domains": [
+                layer.value for layer in self.controlled_domains
+            ],
+            "mechanism_family": self.mechanism_family,
+            "primary_research_layer": self.primary_research_layer.value,
+            "status": self.status,
+            "stop_or_reopen_condition": self.stop_or_reopen_condition,
+            "system_architecture_family": self.system_architecture_family,
+            "why_now": self.why_now,
+        }
+
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class PortfolioSnapshot:
@@ -532,36 +561,7 @@ class PortfolioSnapshot:
 
     def to_identity_payload(self) -> dict[str, CanonicalValue]:
         return {
-            "axes": [
-                {
-                    "axis_id": axis.axis_id,
-                    "axis_identity": axis.identity,
-                    "architecture_chassis": (
-                        None
-                        if axis.architecture_chassis is None
-                        else axis.architecture_chassis.to_identity_payload()
-                    ),
-                    "architecture_chassis_identity": (
-                        None
-                        if axis.architecture_chassis is None
-                        else axis.architecture_chassis.identity
-                    ),
-                    "causal_question": axis.causal_question,
-                    "changed_domains": [
-                        layer.value for layer in axis.changed_domains
-                    ],
-                    "controlled_domains": [
-                        layer.value for layer in axis.controlled_domains
-                    ],
-                    "mechanism_family": axis.mechanism_family,
-                    "primary_research_layer": axis.primary_research_layer.value,
-                    "status": axis.status,
-                    "stop_or_reopen_condition": axis.stop_or_reopen_condition,
-                    "system_architecture_family": axis.system_architecture_family,
-                    "why_now": axis.why_now,
-                }
-                for axis in self.axes
-            ],
+            "axes": [axis.to_snapshot_payload() for axis in self.axes],
             "exhaustion_standard": self.exhaustion_standard_value(),
             "mission_id": self.mission_id,
             "opportunity_cost_basis": self.opportunity_cost_basis,
@@ -772,6 +772,7 @@ class PortfolioDecision:
     commitment_batches: int
     quant_team_review: QuantTeamDecisionReview | None = None
     baseline_executable: ExecutableSpec | None = field(default=None, repr=False)
+    proposed_axis: PortfolioAxis | None = field(default=None, repr=False)
     replay_obligation_ids: tuple[str, ...] = ()
     protocol_revision: AxisProtocolRevisionProposal | None = None
     recent_positive_lineage_id: str | None = None
@@ -837,6 +838,19 @@ class PortfolioDecision:
             raise PortfolioDecisionError(
                 "Portfolio Decision baseline must be an ExecutableSpec"
             )
+        if self.proposed_axis is not None:
+            if not isinstance(self.proposed_axis, PortfolioAxis):
+                raise PortfolioDecisionError(
+                    "Portfolio Decision proposed axis must be typed"
+                )
+            if (
+                self.chosen.action is not PortfolioAction.NEW_MECHANISM
+                or self.proposed_axis.axis_id == self.chosen.target_id
+                or self.baseline_executable is not None
+            ):
+                raise PortfolioDecisionError(
+                    "proposed axis requires a structural new-mechanism Decision"
+                )
         if type(self.replay_obligation_ids) is not tuple:
             raise PortfolioDecisionError(
                 "replay_obligation_ids must be a frozen tuple"
@@ -945,17 +959,24 @@ class PortfolioDecision:
             "rationale": self.rationale,
             "recent_positive_lineage_id": self.recent_positive_lineage_id,
             "schema": (
-                "portfolio_decision.v4"
-                if self.protocol_revision is not None
-                else "portfolio_decision.v3"
-                if self.quant_team_review is not None
+                "portfolio_decision.v5"
+                if self.proposed_axis is not None
                 else (
-                    "portfolio_decision.v1"
-                    if self.baseline_executable is None
-                    else "portfolio_decision.v2"
+                    "portfolio_decision.v4"
+                    if self.protocol_revision is not None
+                    else "portfolio_decision.v3"
+                    if self.quant_team_review is not None
+                    else (
+                        "portfolio_decision.v1"
+                        if self.baseline_executable is None
+                        else "portfolio_decision.v2"
+                    )
                 )
             ),
         }
+        if self.proposed_axis is not None:
+            payload["proposed_axis"] = self.proposed_axis.to_snapshot_payload()
+            payload["proposed_axis_identity"] = self.proposed_axis.identity
         if self.quant_team_review is not None:
             payload["quant_team_review"] = (
                 self.quant_team_review.to_identity_payload()

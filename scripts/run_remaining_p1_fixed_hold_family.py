@@ -44,7 +44,6 @@ from axiom_rift.operations.volatility_duration_fixed_hold_profile import (  # no
     build_volatility_duration_fixed_hold_profile_design,
 )
 from axiom_rift.operations.writer import StateWriter  # noqa: E402
-from axiom_rift.research.portfolio import PortfolioAction  # noqa: E402
 from axiom_rift.research.drawdown_state_replay_job import (  # noqa: E402
     CALLABLE_IDENTITY as DRAWDOWN_CALLABLE_IDENTITY,
     JOB_IMPLEMENTATION_PROTOCOL as DRAWDOWN_JOB_PROTOCOL,
@@ -147,7 +146,7 @@ FAMILY_ROUTES = {
         ))),
         axis_id="axis-stu0046-gap-event-replay-bridge",
         bridge_axis_id=GAP_BRIDGE_AXIS_ID,
-        operation_prefix="p1-stu0046-gap-event-replay-v1-",
+        operation_prefix="p1-stu0046-gap-event-replay-v2-",
         decision_prefix="DEC-P1-STU0046-GAP-EVENT",
         display_name="STU-0046 exact prospective gap-event replay family",
         job_protocol=GAP_JOB_PROTOCOL,
@@ -187,7 +186,7 @@ FAMILY_ROUTES = {
         ))),
         axis_id="axis-stu0047-post-gap-path-replay-bridge",
         bridge_axis_id=GAP_BRIDGE_AXIS_ID,
-        operation_prefix="p1-stu0047-post-gap-path-replay-v1-",
+        operation_prefix="p1-stu0047-post-gap-path-replay-v2-",
         decision_prefix="DEC-P1-STU0047-GAP-PATH",
         display_name="STU-0047 exact prospective post-gap-path replay family",
         job_protocol=GAP_JOB_PROTOCOL,
@@ -227,7 +226,7 @@ FAMILY_ROUTES = {
         ))),
         axis_id="axis-stu0049-drawdown-phase-replay-bridge",
         bridge_axis_id="axis-stu0048-drawdown-state-replay-bridge",
-        operation_prefix="p1-stu0049-drawdown-phase-replay-v1-",
+        operation_prefix="p1-stu0049-drawdown-phase-replay-v2-",
         decision_prefix="DEC-P1-STU0049-DRAWDOWN-PHASE",
         display_name="STU-0049 exact prospective drawdown-phase replay family",
         job_protocol=DRAWDOWN_JOB_PROTOCOL,
@@ -267,7 +266,7 @@ FAMILY_ROUTES = {
         ))),
         axis_id="axis-stu0050-volatility-level-duration-replay-bridge",
         bridge_axis_id="axis-stu0051-volatility-duration-replay-bridge",
-        operation_prefix="p1-stu0050-volatility-level-duration-replay-v1-",
+        operation_prefix="p1-stu0050-volatility-level-duration-replay-v2-",
         decision_prefix="DEC-P1-STU0050-VOLATILITY-LEVEL-DURATION",
         display_name=(
             "STU-0050 exact prospective volatility level-duration replay family"
@@ -324,7 +323,6 @@ def mission_spec(authority: RunAuthority) -> FixedHoldReplayMissionSpec:
     route = authority.route
     return FixedHoldReplayMissionSpec(
         axis_admission=ReplayAxisAdmission.ADD_NEW_MECHANISM,
-        new_axis_action=PortfolioAction.CONTRAST,
         initiative_lifecycle=ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE,
         mission_id=MISSION_ID,
         initiative_id=INITIATIVE_ID,

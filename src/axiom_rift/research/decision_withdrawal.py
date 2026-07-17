@@ -19,10 +19,16 @@ WITHDRAWAL_MANIFEST_SCHEMA = "portfolio_decision_withdrawal_manifest.v1"
 STRUCTURAL_WITHDRAWAL_MANIFEST_SCHEMA = (
     "portfolio_structural_decision_withdrawal_manifest.v1"
 )
+EXECUTION_PLAN_WITHDRAWAL_MANIFEST_SCHEMA = (
+    "portfolio_execution_plan_withdrawal_manifest.v1"
+)
 
 
 class PortfolioDecisionWithdrawalReason(str, Enum):
     SOURCE_AUTHORITY_INVALIDATED = "source_authority_invalidated"
+    UNBOUND_STRUCTURAL_EXECUTION_PLAN = (
+        "unbound_structural_execution_plan"
+    )
     NEW_MECHANISM_DUPLICATES_EXISTING_FAMILY = (
         "new_mechanism_duplicates_existing_family"
     )
@@ -157,6 +163,190 @@ class PortfolioDecisionWithdrawalManifest:
 
     @classmethod
     def from_bytes(cls, document: bytes) -> PortfolioDecisionWithdrawalManifest:
+        return cls.from_mapping(parse_canonical(document))
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PortfolioExecutionPlanWithdrawalManifest:
+    """Exact evidence for an unstarted Decision whose planned step is unbound."""
+
+    report_artifact_hash: str
+    report_finding_id: str
+    decision_id: str
+    decision_operation_id: str
+    decision_authority_revision: int
+    decision_authority_event_id: str
+    portfolio_snapshot_id: str
+    target_axis_id: str
+    target_axis_identity: str
+    chosen_action: str
+    proposed_snapshot_artifact_hash: str
+    proposed_snapshot_id: str
+    proposed_axis_id: str
+    proposed_axis_identity: str
+    intended_study_id: str
+    study_diagnosis_id: str
+    reason_code: PortfolioDecisionWithdrawalReason
+    reason: str
+
+    def __post_init__(self) -> None:
+        _digest("report_artifact_hash", self.report_artifact_hash)
+        _ascii("report_finding_id", self.report_finding_id)
+        _identity("decision_id", self.decision_id, prefix="decision:")
+        _ascii("decision_operation_id", self.decision_operation_id)
+        if (
+            type(self.decision_authority_revision) is not int
+            or self.decision_authority_revision < 1
+        ):
+            raise ValueError("decision authority revision must be positive")
+        _digest(
+            "decision_authority_event_id",
+            self.decision_authority_event_id,
+        )
+        _identity(
+            "portfolio_snapshot_id",
+            self.portfolio_snapshot_id,
+            prefix="portfolio:",
+        )
+        _ascii("target_axis_id", self.target_axis_id)
+        _identity("target_axis_identity", self.target_axis_identity, prefix="axis:")
+        _ascii("chosen_action", self.chosen_action)
+        _digest(
+            "proposed_snapshot_artifact_hash",
+            self.proposed_snapshot_artifact_hash,
+        )
+        _identity(
+            "proposed_snapshot_id",
+            self.proposed_snapshot_id,
+            prefix="portfolio:",
+        )
+        _ascii("proposed_axis_id", self.proposed_axis_id)
+        _identity(
+            "proposed_axis_identity",
+            self.proposed_axis_identity,
+            prefix="axis:",
+        )
+        _ascii("intended_study_id", self.intended_study_id)
+        _identity(
+            "study_diagnosis_id",
+            self.study_diagnosis_id,
+            prefix="diagnosis:",
+        )
+        if (
+            self.reason_code
+            is not PortfolioDecisionWithdrawalReason.UNBOUND_STRUCTURAL_EXECUTION_PLAN
+        ):
+            raise ValueError("execution-plan withdrawal reason is unsupported")
+        _ascii("withdrawal reason", self.reason)
+
+    @property
+    def identity(self) -> str:
+        return "portfolio-execution-plan-withdrawal-manifest:" + canonical_digest(
+            domain="portfolio-execution-plan-withdrawal-manifest",
+            payload=self.to_identity_payload(),
+        )
+
+    def require_report(self, document: bytes) -> None:
+        require_ascii_finding_block(
+            document,
+            finding_id=self.report_finding_id,
+            required_fragments=(
+                self.decision_id,
+                self.decision_operation_id,
+                self.decision_authority_event_id,
+                self.portfolio_snapshot_id,
+                self.target_axis_identity,
+                self.chosen_action,
+                self.proposed_snapshot_id,
+                self.proposed_axis_identity,
+                self.intended_study_id,
+                self.study_diagnosis_id,
+            ),
+        )
+
+    def to_identity_payload(self) -> dict[str, object]:
+        return {
+            "chosen_action": self.chosen_action,
+            "decision_authority_event_id": self.decision_authority_event_id,
+            "decision_authority_revision": self.decision_authority_revision,
+            "decision_id": self.decision_id,
+            "decision_operation_id": self.decision_operation_id,
+            "portfolio_snapshot_id": self.portfolio_snapshot_id,
+            "intended_study_id": self.intended_study_id,
+            "proposed_axis_id": self.proposed_axis_id,
+            "proposed_axis_identity": self.proposed_axis_identity,
+            "proposed_snapshot_artifact_hash": (
+                self.proposed_snapshot_artifact_hash
+            ),
+            "proposed_snapshot_id": self.proposed_snapshot_id,
+            "reason": self.reason,
+            "reason_code": self.reason_code.value,
+            "report_artifact_hash": self.report_artifact_hash,
+            "report_finding_id": self.report_finding_id,
+            "schema": EXECUTION_PLAN_WITHDRAWAL_MANIFEST_SCHEMA,
+            "study_diagnosis_id": self.study_diagnosis_id,
+            "target_axis_id": self.target_axis_id,
+            "target_axis_identity": self.target_axis_identity,
+        }
+
+    @classmethod
+    def from_mapping(
+        cls,
+        value: object,
+    ) -> PortfolioExecutionPlanWithdrawalManifest:
+        fields = {
+            "chosen_action",
+            "decision_authority_event_id",
+            "decision_authority_revision",
+            "decision_id",
+            "decision_operation_id",
+            "intended_study_id",
+            "portfolio_snapshot_id",
+            "proposed_axis_id",
+            "proposed_axis_identity",
+            "proposed_snapshot_artifact_hash",
+            "proposed_snapshot_id",
+            "reason",
+            "reason_code",
+            "report_artifact_hash",
+            "report_finding_id",
+            "schema",
+            "study_diagnosis_id",
+            "target_axis_id",
+            "target_axis_identity",
+        }
+        if not isinstance(value, Mapping) or set(value) != fields:
+            raise ValueError(
+                "execution-plan withdrawal manifest schema is invalid"
+            )
+        if value["schema"] != EXECUTION_PLAN_WITHDRAWAL_MANIFEST_SCHEMA:
+            raise ValueError("execution-plan withdrawal manifest is unsupported")
+        return cls(
+            report_artifact_hash=value["report_artifact_hash"],  # type: ignore[arg-type]
+            report_finding_id=value["report_finding_id"],  # type: ignore[arg-type]
+            decision_id=value["decision_id"],  # type: ignore[arg-type]
+            decision_operation_id=value["decision_operation_id"],  # type: ignore[arg-type]
+            decision_authority_revision=value["decision_authority_revision"],  # type: ignore[arg-type]
+            decision_authority_event_id=value["decision_authority_event_id"],  # type: ignore[arg-type]
+            portfolio_snapshot_id=value["portfolio_snapshot_id"],  # type: ignore[arg-type]
+            target_axis_id=value["target_axis_id"],  # type: ignore[arg-type]
+            target_axis_identity=value["target_axis_identity"],  # type: ignore[arg-type]
+            chosen_action=value["chosen_action"],  # type: ignore[arg-type]
+            proposed_snapshot_artifact_hash=value["proposed_snapshot_artifact_hash"],  # type: ignore[arg-type]
+            proposed_snapshot_id=value["proposed_snapshot_id"],  # type: ignore[arg-type]
+            proposed_axis_id=value["proposed_axis_id"],  # type: ignore[arg-type]
+            proposed_axis_identity=value["proposed_axis_identity"],  # type: ignore[arg-type]
+            intended_study_id=value["intended_study_id"],  # type: ignore[arg-type]
+            study_diagnosis_id=value["study_diagnosis_id"],  # type: ignore[arg-type]
+            reason_code=PortfolioDecisionWithdrawalReason(value["reason_code"]),
+            reason=value["reason"],  # type: ignore[arg-type]
+        )
+
+    @classmethod
+    def from_bytes(
+        cls,
+        document: bytes,
+    ) -> PortfolioExecutionPlanWithdrawalManifest:
         return cls.from_mapping(parse_canonical(document))
 
 
@@ -377,8 +567,10 @@ class PortfolioStructuralDecisionWithdrawalManifest:
 
 
 __all__ = [
+    "EXECUTION_PLAN_WITHDRAWAL_MANIFEST_SCHEMA",
     "PortfolioDecisionWithdrawalManifest",
     "PortfolioDecisionWithdrawalReason",
+    "PortfolioExecutionPlanWithdrawalManifest",
     "PortfolioStructuralDecisionWithdrawalManifest",
     "STRUCTURAL_WITHDRAWAL_MANIFEST_SCHEMA",
     "WITHDRAWAL_MANIFEST_SCHEMA",

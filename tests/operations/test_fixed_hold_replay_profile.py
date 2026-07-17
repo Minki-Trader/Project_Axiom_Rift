@@ -28,12 +28,11 @@ QUESTION_CORE_ID = SemanticQuestionCore.from_question_manifest(QUESTION).identit
 
 
 def _design(*, lifecycle=ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE):
+    replay_axis = SimpleNamespace(axis_id="axis-replay")
     return SimpleNamespace(
         spec=SimpleNamespace(
             initiative_lifecycle=lifecycle,
             axis_admission=ReplayAxisAdmission.ADD_NEW_MECHANISM,
-            new_axis_action=PortfolioAction.NEW_MECHANISM,
-            resolved_new_axis_action=PortfolioAction.NEW_MECHANISM,
             operation_prefix=PREFIX,
             study_id="STU-9002",
         ),
@@ -45,9 +44,11 @@ def _design(*, lifecycle=ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE):
         batch_spec=SimpleNamespace(study_hash="a" * 64),
         base_snapshot_id="portfolio:" + "a" * 64,
         prior_axes=(SimpleNamespace(axis_id="axis-source"),),
-        replay_axis=SimpleNamespace(axis_id="axis-replay"),
+        replay_axis=replay_axis,
         bridge_decision=SimpleNamespace(
             chosen=SimpleNamespace(action=PortfolioAction.NEW_MECHANISM),
+            baseline_executable=None,
+            proposed_axis=replay_axis,
             protocol_revision=None,
         ),
         expanded_snapshot=SimpleNamespace(axes=(1, 2)),

@@ -418,6 +418,14 @@ dispose the diagnosed axis consistently, or make a genuinely structural forest
 exit to a different layer or architecture. Adjacent same-chassis tuning is not
 a structural exit.
 
+A `supported_requires_confirmation` diagnosis keeps confirmation debt on its
+exact axis; it does not grant that recent positive a global scheduler monopoly.
+An unrelated `new_mechanism` exit is valid only when the Decision binds the
+exact proposed axis before mutation and that axis differs from the diagnosed
+source in primary layer or canonical architecture. The written Portfolio
+snapshot must materialize that one proposal exactly. This exit gives no
+confirmation credit to either axis.
+
 ## Architecture Review
 
 When preregistered repeated gaps or negatives accumulate across enough Studies

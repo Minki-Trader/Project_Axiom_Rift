@@ -97,7 +97,9 @@ research_direction:
     kpi_alone_is_authority: false
     engineering_gap_is_scientific_falsification: false
     writer_derives_allowed_actions_and_layers: true
-    next_decision_must_follow_dispose_or_structurally_exit: true
+  next_decision_must_follow_dispose_or_structurally_exit: true
+  supported_confirmation_obligation_is_axis_local_not_global_monopoly: true
+  structural_forest_exit_requires_different_primary_layer_or_architecture: true
   architecture_review:
     thresholds_preregistered_in_initial_portfolio: true
     exact_unreviewed_diagnosis_set_only: true
@@ -159,6 +161,8 @@ portfolio:
   recent_positive_monopoly_allowed: false
   fixed_global_allocation_ratio: null
   material_decision_requires_structurally_diversifying_action: true
+  structural_new_axis_decision_binds_exact_proposed_axis: true
+  proposed_axis_snapshot_materialization_must_be_exact: true
   axis_semantics_immutable_within_mission: true
   axis_and_option_order_is_not_identity: true
   active_study_or_batch_blocks_portfolio_mutation: true
