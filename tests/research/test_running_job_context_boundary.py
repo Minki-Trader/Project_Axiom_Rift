@@ -46,8 +46,14 @@ from axiom_rift.research.portfolio import (
 )
 from axiom_rift.research.replay_obligation import (
     HistoricalReplayObligation,
+    ReplayDeferral,
+    ReplayDeferralBasis,
+    ReplayDeferralBasisKind,
     ReplayExecutionBinding,
     ReplayResolutionScope,
+    ReplayResumeCondition,
+    ReplayResumeConditionKind,
+    ReplayResumeEvidence,
     ReplaySatisfaction,
 )
 from axiom_rift.research.replay_satisfaction_invalidation import (
@@ -311,6 +317,7 @@ def _build_fixed_hold_replay_projection(
     prefix_length: int,
     tamper: str | None = None,
     semantic_lineage: bool = False,
+    resumed_route: bool = False,
 ) -> SimpleNamespace:
     if prefix_length not in {1, 2, 3, 4}:
         raise ValueError("fixture prefix must select one family ordinal")
@@ -649,7 +656,6 @@ def _build_fixed_hold_replay_projection(
         "scientific_claim_delta": 0,
         "scientific_satisfaction_delta": 0,
         "scientific_trial_delta": 0,
-        "terminal_credit_delta": 0,
     }
     invalidation_operation_id = "fixture-invalidation-operation"
     invalidation_operation = IndexRecord(
@@ -716,6 +722,214 @@ def _build_fixed_hold_replay_projection(
         batch,
         *trials,
     ]
+    if resumed_route:
+        prior_binding = ReplayExecutionBinding(
+            obligation_ids=(obligation.identity,),
+            portfolio_decision_id="decision:" + "4" * 64,
+            replay_study_id="STU-PRIOR-REPLAY",
+            replay_executable_id=prospective_ids[-1],
+        )
+        prior_progress_payload = {
+            "binding": prior_binding.to_identity_payload(),
+            "obligation_id": obligation.identity,
+            "prior_status": "pending",
+        }
+        prior_progress = IndexRecord(
+            kind="historical-replay-obligation-progress",
+            record_id="historical-replay-progress:"
+            + canonical_digest(
+                domain="historical-replay-obligation-progress",
+                payload=prior_progress_payload,
+            ),
+            subject=f"Mission:{mission_id}",
+            status="in_progress",
+            fingerprint=prior_binding.identity,
+            payload=prior_progress_payload,
+            event_stream=obligation_stream,
+            event_sequence=4,
+            authority_sequence=4,
+            authority_event_id=f"{4:064x}",
+            authority_offset=400,
+        )
+        prior_progress_operation_id = "fixture-prior-trial-registration"
+        prior_progress_operation = IndexRecord(
+            kind="operation",
+            record_id=prior_progress_operation_id,
+            subject=f"Executable:{prospective_ids[-1]}",
+            status="success",
+            fingerprint=prior_progress_operation_id,
+            payload={"event_kind": "trial_registered", "result": {}},
+            authority_sequence=4,
+            authority_event_id=f"{4:064x}",
+            authority_offset=400,
+        )
+        prior_progress_journal = IndexRecord(
+            kind="journal-event",
+            record_id=f"{4:064x}",
+            subject=f"Executable:{prospective_ids[-1]}",
+            status="trial_registered",
+            fingerprint=f"{4:064x}",
+            payload={"operation_id": prior_progress_operation_id},
+            event_stream="control",
+            event_sequence=4,
+            authority_sequence=4,
+            authority_event_id=f"{4:064x}",
+            authority_offset=400,
+        )
+        resume_condition = ReplayResumeCondition(
+            kind=ReplayResumeConditionKind.REGISTERED_DEVELOPMENT_MATERIAL,
+            protocol_id="python.source.fixture_fixed_hold.v1",
+            original_executable_ids=historical_references,
+            criterion_ids=obligation.criterion_ids,
+        )
+        deferral = ReplayDeferral(
+            obligation_id=obligation.identity,
+            basis=ReplayDeferralBasis(
+                kind=ReplayDeferralBasisKind.STUDY_DIAGNOSIS,
+                record_id="diagnosis:" + "5" * 64,
+                subject_id="STU-PRIOR-REPLAY",
+            ),
+            reason_codes=("fixture_engineering_gap",),
+            resume_conditions=(resume_condition,),
+        )
+        deferral_payload = {
+            "obligation_id": obligation.identity,
+            "prior_status": "in_progress",
+            "resolution": deferral.to_identity_payload(),
+        }
+        deferral_record = IndexRecord(
+            kind="historical-replay-obligation-resolution",
+            record_id=deferral.identity,
+            subject=f"Mission:{mission_id}",
+            status="deferred",
+            fingerprint=deferral.identity.removeprefix(
+                "historical-replay-deferral:"
+            ),
+            payload=deferral_payload,
+            event_stream=obligation_stream,
+            event_sequence=5,
+            authority_sequence=5,
+            authority_event_id=f"{5:064x}",
+            authority_offset=500,
+        )
+        deferral_operation_id = "fixture-replay-deferral"
+        deferral_operation = IndexRecord(
+            kind="operation",
+            record_id=deferral_operation_id,
+            subject=f"Mission:{mission_id}",
+            status="success",
+            fingerprint=deferral_operation_id,
+            payload={
+                "event_kind": "historical_replay_obligations_deferred",
+                "result": {
+                    "deferred_replay_obligation_ids": [obligation.identity]
+                },
+            },
+            authority_sequence=5,
+            authority_event_id=f"{5:064x}",
+            authority_offset=500,
+        )
+        deferral_journal = IndexRecord(
+            kind="journal-event",
+            record_id=f"{5:064x}",
+            subject=f"Mission:{mission_id}",
+            status="historical_replay_obligations_deferred",
+            fingerprint=f"{5:064x}",
+            payload={"operation_id": deferral_operation_id},
+            event_stream="control",
+            event_sequence=5,
+            authority_sequence=5,
+            authority_event_id=f"{5:064x}",
+            authority_offset=500,
+        )
+        evidence = ReplayResumeEvidence(
+            obligation_id=obligation.identity,
+            deferral_id=(
+                "historical-replay-deferral:" + "6" * 64
+                if tamper == "resume_deferral"
+                else deferral.identity
+            ),
+            resume_condition_id=resume_condition.identity,
+            trigger_record_id="development-material:" + "7" * 64,
+        )
+        resume_payload = {
+            "obligation_id": obligation.identity,
+            "prior_status": "deferred",
+            "resume_evidence": evidence.to_identity_payload(),
+            "scientific_claim_delta": 0,
+            "scientific_satisfaction_delta": 0,
+            "scientific_trial_delta": 0,
+        }
+        resume_record = IndexRecord(
+            kind="historical-replay-obligation-resume",
+            record_id=evidence.identity,
+            subject=f"Mission:{mission_id}",
+            status="pending",
+            fingerprint=evidence.identity.removeprefix(
+                "historical-replay-resume-evidence:"
+            ),
+            payload=resume_payload,
+            event_stream=obligation_stream,
+            event_sequence=6,
+            authority_sequence=6,
+            authority_event_id=f"{6:064x}",
+            authority_offset=600,
+        )
+        resume_operation_id = "fixture-replay-resume"
+        resumed_ids = [
+            (
+                "historical-replay-obligation:" + "0" * 64
+                if tamper == "resume_writer"
+                else obligation.identity
+            )
+        ]
+        resume_operation = IndexRecord(
+            kind="operation",
+            record_id=resume_operation_id,
+            subject=f"Mission:{mission_id}",
+            status="success",
+            fingerprint=resume_operation_id,
+            payload={
+                "event_kind": "historical_replay_obligations_resumed",
+                "result": {
+                    "resume_condition_ids": [resume_condition.identity],
+                    "resume_trigger_record_ids": [evidence.trigger_record_id],
+                    "resumed_replay_obligation_ids": resumed_ids,
+                    "scientific_claim_delta": 0,
+                    "scientific_satisfaction_delta": 0,
+                    "scientific_trial_delta": 0,
+                },
+            },
+            authority_sequence=6,
+            authority_event_id=f"{6:064x}",
+            authority_offset=600,
+        )
+        resume_journal = IndexRecord(
+            kind="journal-event",
+            record_id=f"{6:064x}",
+            subject=f"Mission:{mission_id}",
+            status="historical_replay_obligations_resumed",
+            fingerprint=f"{6:064x}",
+            payload={"operation_id": resume_operation_id},
+            event_stream="control",
+            event_sequence=6,
+            authority_sequence=6,
+            authority_event_id=f"{6:064x}",
+            authority_offset=600,
+        )
+        records.extend(
+            (
+                prior_progress,
+                prior_progress_operation,
+                prior_progress_journal,
+                deferral_record,
+                deferral_operation,
+                deferral_journal,
+                resume_record,
+                resume_operation,
+                resume_journal,
+            )
+        )
     include_progress = tamper != "target_pending"
     if include_progress:
         target_executable_id = prospective_ids[-1]
@@ -746,7 +960,7 @@ def _build_fixed_hold_replay_projection(
             fingerprint=binding.identity,
             payload=progress_payload,
             event_stream=obligation_stream,
-            event_sequence=4,
+            event_sequence=7 if resumed_route else 4,
             authority_sequence=11,
             authority_event_id=f"{11:064x}",
             authority_offset=1_100,
@@ -926,6 +1140,7 @@ def _build_v2_fixed_hold_replay_projection(
     *,
     prefix_length: int,
     tamper: str | None = None,
+    same_event_family: bool = False,
 ) -> SimpleNamespace:
     fixture = _build_fixed_hold_replay_projection(
         root,
@@ -972,10 +1187,36 @@ def _build_v2_fixed_hold_replay_projection(
             )
         )
     ]
+    if same_event_family:
+        retained = [
+            record
+            for record in retained
+            if not (
+                (
+                    record.kind == "operation"
+                    and record.record_id == "fixture-invalidation-operation"
+                )
+                or (
+                    record.kind == "journal-event"
+                    and record.status
+                    == "historical_replay_satisfaction_invalidated"
+                )
+            )
+        ]
 
-    family_sequence = 16 if tamper == "v2_family_not_prior" else 3
+    family_sequence = (
+        15
+        if same_event_family
+        else 16
+        if tamper == "v2_family_not_prior"
+        else 3
+    )
     family_event_id = (
-        "6" * 64 if tamper == "v2_family_not_prior" else "3" * 64
+        "f" * 64
+        if same_event_family
+        else "6" * 64
+        if tamper == "v2_family_not_prior"
+        else "3" * 64
     )
     family_offset = family_sequence * 100
     rewritten: list[IndexRecord] = []
@@ -1204,7 +1445,7 @@ def _build_v2_fixed_hold_replay_projection(
         "scientific_satisfaction_delta": 0,
         "scientific_trial_delta": 0,
     }
-    if tamper == "v2_duplicate_family":
+    if tamper == "v2_duplicate_family" or same_event_family:
         invalidation_result["historical_family_authority_id"] = (
             family_record_id
         )
@@ -1883,6 +2124,53 @@ def test_fixed_hold_replay_target_job_requires_exact_in_progress_binding(
     )
 
 
+def test_fixed_hold_replay_target_job_accepts_authenticated_resume_route(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _build_fixed_hold_replay_projection(
+        tmp_path,
+        prefix_length=4,
+        resumed_route=True,
+    )
+    context = _verified_replay_context(tmp_path, monkeypatch, fixture)
+
+    projection = context.project_bound_fixed_hold_replay_context(
+        study_id=fixture.study_id,
+        batch_id=fixture.batch_id,
+        subject_executable_id=fixture.subject_executable_id,
+        expected_family_size=4,
+        parameter_name=None,
+    )
+
+    assert projection.execution_prefix_executable_ids == fixture.prospective_ids
+    assert projection.target_prospective_executable_id == fixture.prospective_ids[-1]
+
+
+@pytest.mark.parametrize("tamper", ("resume_deferral", "resume_writer"))
+def test_fixed_hold_replay_target_job_rejects_forged_resume_route(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tamper: str,
+) -> None:
+    fixture = _build_fixed_hold_replay_projection(
+        tmp_path,
+        prefix_length=4,
+        resumed_route=True,
+        tamper=tamper,
+    )
+    context = _verified_replay_context(tmp_path, monkeypatch, fixture)
+
+    with pytest.raises(RunningJobAuthorityError):
+        context.project_bound_fixed_hold_replay_context(
+            study_id=fixture.study_id,
+            batch_id=fixture.batch_id,
+            subject_executable_id=fixture.subject_executable_id,
+            expected_family_size=4,
+            parameter_name=None,
+        )
+
+
 def test_fixed_hold_replay_runtime_reopens_lineage_bound_study_hash(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1933,12 +2221,35 @@ def test_fixed_hold_replay_v2_uses_prior_family_and_current_validity_head(
     )
 
 
+def test_fixed_hold_replay_v2_accepts_same_event_family_authority(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _build_v2_fixed_hold_replay_projection(
+        tmp_path,
+        prefix_length=4,
+        same_event_family=True,
+    )
+    context = _verified_replay_context(tmp_path, monkeypatch, fixture)
+
+    projection = context.project_bound_fixed_hold_replay_context(
+        study_id=fixture.study_id,
+        batch_id=fixture.batch_id,
+        subject_executable_id=fixture.subject_executable_id,
+        expected_family_size=4,
+        parameter_name=None,
+    )
+
+    assert projection.family_authority_id == fixture.family_authority.identity
+    assert projection.execution_prefix_executable_ids == fixture.prospective_ids
+
+
 @pytest.mark.parametrize(
     ("tamper", "message"),
     (
         ("v2_family_not_prior", "does not predate"),
         ("v2_family_writer", "does not predate"),
-        ("v2_duplicate_family", "duplicated prior family"),
+        ("v2_duplicate_family", "same-event Writer authority"),
         ("v2_satisfaction_writer", "exact scientific satisfaction"),
         ("v2_observation", "stale or unrelated"),
         ("v2_validity_head", "stale or unrelated"),
@@ -1975,7 +2286,7 @@ def test_fixed_hold_replay_v2_rejects_family_and_validity_tampering(
         (3, "family_cross_event", "same-event Writer authority"),
         (1, "target_pending", "fully registered family lacks progress"),
         (4, "wrong_progress_target", "execution binding differs"),
-        (4, "progress_payload", "execution binding differs"),
+        (4, "progress_payload", "progress transition is not exact"),
         (2, "execution_non_prefix", "execution declarations are not an exact prefix"),
         (2, "prior_completion_missing", "completed-member prefix"),
         (2, "prior_decision_missing", "completed-member prefix"),

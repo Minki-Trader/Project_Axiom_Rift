@@ -510,6 +510,28 @@ class EvidenceValidatorRegistry:
             domain=domain,
         )
 
+    def require_registered_protocol(
+        self,
+        *,
+        validator_id: str,
+        domain: str,
+        protocol: str,
+    ) -> None:
+        """Require one immutable validator registration with exact protocol."""
+
+        if type(protocol) is not str or not protocol or not protocol.isascii():
+            raise EvidenceValidationError(
+                "validator protocol requirement is invalid"
+            )
+        registration = self._authorized_registration(
+            validator_id=validator_id,
+            domain=domain,
+        )
+        if registration.integrity.protocol != protocol:
+            raise EvidenceValidationError(
+                "registered validator protocol differs from the required capability"
+            )
+
     def preflight_binding(
         self,
         *,

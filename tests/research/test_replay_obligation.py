@@ -25,6 +25,7 @@ from axiom_rift.research.replay_obligation import (
     highest_pending_priority,
     replay_priority_escalation_from_identity_payload,
     replay_deferral_from_identity_payload,
+    replay_resume_evidence_from_identity_payload,
 )
 
 
@@ -195,6 +196,21 @@ class ReplayObligationTests(unittest.TestCase):
         self.assertEqual(
             evidence.to_identity_payload()["deferral_id"], deferral.identity
         )
+        self.assertEqual(
+            replay_resume_evidence_from_identity_payload(
+                evidence.to_identity_payload()
+            ),
+            evidence,
+        )
+        for field, value in (
+            ("schema", "historical_replay_resume_evidence.v2"),
+            ("deferral_id", "historical-replay-deferral:malformed"),
+            ("unexpected", True),
+        ):
+            forged = dict(evidence.to_identity_payload())
+            forged[field] = value
+            with self.assertRaises(ReplayObligationError):
+                replay_resume_evidence_from_identity_payload(forged)
 
         with self.assertRaisesRegex(ReplayObligationError, "not typed"):
             ReplayResumeCondition(

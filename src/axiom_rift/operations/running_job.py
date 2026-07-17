@@ -42,7 +42,10 @@ from axiom_rift.operations.permits import (
     SubjectKind,
 )
 from axiom_rift.operations.repair_semantic_equivalence import (
+    FIXED_HOLD_AUTHORITY_CORRECTION_FACTS_SCHEMA,
     RepairSemanticEquivalenceError,
+    SEMANTIC_EQUIVALENCE_FACTS_SCHEMA,
+    require_passed_fixed_hold_authority_correction_facts,
     require_passed_semantic_equivalence_facts,
 )
 from axiom_rift.storage.index import (
@@ -271,6 +274,7 @@ def effective_running_job_implementation(
             or binding.get("old_implementation_identity")
             != facts.get("old_implementation_identity")
             or binding.get("new_implementation_identity") != effective
+            or binding.get("executable_id") != executable_id
             or binding.get("claims") != claims
             or measurements != binding.get("measurement_artifact_hashes")
             or binding.get("repair_id") != payload.get("repair_id")
@@ -291,10 +295,23 @@ def effective_running_job_implementation(
                 "semantic-equivalence authority"
             )
         try:
-            require_passed_semantic_equivalence_facts(
-                binding=binding,
-                facts=facts,
-            )
+            if facts.get("schema") == SEMANTIC_EQUIVALENCE_FACTS_SCHEMA:
+                require_passed_semantic_equivalence_facts(
+                    binding=binding,
+                    facts=facts,
+                )
+            elif (
+                facts.get("schema")
+                == FIXED_HOLD_AUTHORITY_CORRECTION_FACTS_SCHEMA
+            ):
+                require_passed_fixed_hold_authority_correction_facts(
+                    binding=binding,
+                    facts=facts,
+                )
+            else:
+                raise RepairSemanticEquivalenceError(
+                    "implementation Repair facts protocol is unsupported"
+                )
         except RepairSemanticEquivalenceError as exc:
             raise RunningJobAuthorityIntegrityError(
                 "production implementation Repair has invalid changed-artifact "

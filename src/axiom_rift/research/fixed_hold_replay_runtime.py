@@ -18,6 +18,11 @@ from typing import Any, Protocol
 
 import axiom_rift.research.validation_v2 as validation_v2_module
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
+from axiom_rift.operations.repair_semantic_equivalence import (
+    IMPLEMENTATION_REPAIR_V2_SCHEMA,
+    fixed_hold_authority_correction_measurement,
+    semantic_equivalence_result_manifest,
+)
 from axiom_rift.operations.validation import (
     validator_execution_dependency_paths,
 )
@@ -110,6 +115,19 @@ class FixedHoldRepairContext(Protocol):
     ) -> AbstractContextManager[
         tuple[dict[str, Any], LocalIndexView]
     ]: ...
+
+    def plan_fixed_hold_authority_correction_repair(
+        self,
+        *,
+        new_implementation_identity: str,
+    ) -> dict[str, Any]: ...
+
+    def resolve_fixed_hold_authority_correction_verification(
+        self,
+        *,
+        new_implementation_identity: str,
+        evidence_hashes: tuple[str, ...],
+    ) -> tuple[str, ...]: ...
 
 
 def _ascii(name: str, value: object) -> str:
@@ -430,17 +448,13 @@ def materialize_running_job_implementation_repair_proof(
     )
     if not isinstance(spec, Mapping) or not isinstance(reproduction, list):
         raise ValueError("implementation Repair provenance is unavailable")
-    verification_results = tuple(
+    requested_verification = tuple(
         sorted(set(verification_evidence_hashes))
     )
-    if not verification_results or len(verification_results) != len(
-        verification_evidence_hashes
-    ):
+    if len(requested_verification) != len(verification_evidence_hashes):
         raise ValueError(
-            "implementation Repair requires unique verification evidence"
+            "implementation Repair verification evidence must be unique"
         )
-    for evidence_hash in verification_results:
-        writer.evidence.read_verified(evidence_hash)
     previous_identity = spec.get("implementation_identity")
     if prior_close is not None:
         previous_identity = prior_close.payload.get(
@@ -454,6 +468,12 @@ def materialize_running_job_implementation_repair_proof(
     )
     if new_identity == previous_identity:
         raise ValueError("implementation Repair did not change source closure")
+    verification_results = (
+        writer.resolve_fixed_hold_authority_correction_verification(
+            new_implementation_identity=new_identity,
+            evidence_hashes=requested_verification,
+        )
+    )
     manifest = parse_canonical(writer.evidence.read_verified(new_identity))
     if (
         not isinstance(manifest, dict)
@@ -461,7 +481,42 @@ def materialize_running_job_implementation_repair_proof(
         or not isinstance(manifest.get("artifact_hashes"), list)
     ):
         raise ValueError("repaired implementation manifest is invalid")
-    new_evidence = sorted({new_identity, *manifest["artifact_hashes"]})
+    plan = writer.plan_fixed_hold_authority_correction_repair(
+        new_implementation_identity=new_identity,
+    )
+    plan_artifact = writer.evidence.finalize(canonical_bytes(plan))
+    measurement_hashes: list[str] = []
+    for pair in plan["changed_source_pair_bindings"]:
+        measurement = writer.evidence.finalize(
+            canonical_bytes(
+                fixed_hold_authority_correction_measurement(
+                    validation_plan_hash=plan_artifact.sha256,
+                    relative_path=pair["relative_path"],
+                    old_artifact_hash=pair["old_artifact_hash"],
+                    new_artifact_hash=pair["new_artifact_hash"],
+                )
+            )
+        )
+        measurement_hashes.append(measurement.sha256)
+    measurements = tuple(sorted(measurement_hashes))
+    result = semantic_equivalence_result_manifest(
+        plan=plan,
+        validation_plan_hash=plan_artifact.sha256,
+        measurement_artifact_hashes=measurements,
+        surface_verdicts={
+            surface_id: "passed" for surface_id in plan["claims"]
+        },
+    )
+    result_artifact = writer.evidence.finalize(canonical_bytes(result))
+    new_evidence = sorted(
+        {
+            new_identity,
+            *manifest["artifact_hashes"],
+            plan_artifact.sha256,
+            result_artifact.sha256,
+            *measurements,
+        }
+    )
     inner_proof = writer.evidence.finalize(
         canonical_bytes(
             {
@@ -474,7 +529,17 @@ def materialize_running_job_implementation_repair_proof(
                 "previous_implementation_identity": previous_identity,
                 "repair_id": repair["id"],
                 "reproduction_evidence_hashes": sorted(reproduction),
-                "schema": "running_job_implementation_repair.v1",
+                "schema": IMPLEMENTATION_REPAIR_V2_SCHEMA,
+                "semantic_equivalence_measurement_artifact_hashes": list(
+                    measurements
+                ),
+                "semantic_equivalence_result_manifest_hash": (
+                    result_artifact.sha256
+                ),
+                "semantic_equivalence_validation_plan_hash": (
+                    plan_artifact.sha256
+                ),
+                "semantic_equivalence_validator_id": plan["validator_id"],
             }
         )
     )
@@ -488,6 +553,7 @@ def materialize_running_job_implementation_repair_proof(
                 "changed_dimension": "implementation",
                 "job_id": job["id"],
                 "new_basis_hash": new_identity,
+                "semantic_equivalence_validator_id": plan["validator_id"],
                 "schema": "fixed_hold_repair_check_plan.v1",
             }
         )

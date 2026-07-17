@@ -57,17 +57,9 @@ def run_fixed_hold_replay_command(
     """Run one explicit stage; omission of ``--stage`` is read-only."""
 
     arguments = parse_fixed_hold_replay_arguments(argv)
-    if arguments.stage is None and arguments.recover:
-        raise RuntimeError("read-only plan does not perform recovery")
-    root = Path(repository_root).resolve()
-    registry = EvidenceValidatorRegistry((ScientificAdjudicationValidatorV2(),))
-    writer = StateWriter(root, validation_registry=registry)
-    require_stable_head(
-        writer,
-        explicit_recovery=bool(arguments.stage and arguments.recover),
-    )
-    design = design_builder(writer)
     if arguments.stage is None:
+        if arguments.recover:
+            raise RuntimeError("read-only plan does not perform recovery")
         if (
             arguments.study_close_event_id is not None
             or arguments.study_close_revision is not None
@@ -75,17 +67,40 @@ def run_fixed_hold_replay_command(
             raise RuntimeError(
                 "Study-close authority arguments require diagnose stage"
             )
-        return dict(read_only_summary(writer, design))
-
-    writer.permit_authority = PermitAuthority(
-        PermitKeyStore(root / "local" / "permit.key").load_or_create()
-    )
-    if arguments.stage == "study-close":
+    elif arguments.stage == "study-close":
         if (
             arguments.study_close_event_id is not None
             or arguments.study_close_revision is not None
         ):
             raise RuntimeError("Study-close stage rejects checkpoint arguments")
+    elif (
+        arguments.study_close_event_id is None
+        or arguments.study_close_revision is None
+    ):
+        raise RuntimeError(
+            "diagnose stage requires exact Study-close event and revision"
+        )
+    root = Path(repository_root).resolve()
+    registry = EvidenceValidatorRegistry(
+        (
+            (ScientificAdjudicationValidatorV2(),)
+            if arguments.stage == "study-close"
+            else ()
+        )
+    )
+    writer = StateWriter(root, validation_registry=registry)
+    require_stable_head(
+        writer,
+        explicit_recovery=bool(arguments.stage and arguments.recover),
+    )
+    design = design_builder(writer)
+    if arguments.stage is None:
+        return dict(read_only_summary(writer, design))
+
+    if arguments.stage == "study-close":
+        writer.permit_authority = PermitAuthority(
+            PermitKeyStore(root / "local" / "permit.key").load_or_create()
+        )
         return run_study_close_stage(
             writer,
             design=design,
@@ -95,13 +110,8 @@ def run_fixed_hold_replay_command(
             explicit_recovery=arguments.recover,
         )
 
-    if (
-        arguments.study_close_event_id is None
-        or arguments.study_close_revision is None
-    ):
-        raise RuntimeError(
-            "diagnose stage requires exact Study-close event and revision"
-        )
+    assert arguments.study_close_event_id is not None
+    assert arguments.study_close_revision is not None
     return run_diagnose_stage(
         writer,
         design=design,

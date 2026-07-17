@@ -360,10 +360,12 @@ basis, names one changed dimension, binds the original reproduction, carries
 disjoint changed and verification evidence, and states `failed` or `repaired`
 without changing scientific semantics. Record a failed attempt with
 `record_failed_repair_attempt`; it keeps the Repair active. Close a successful
-attempt with `close_repair`. An implementation attempt also carries the exact
-`running_job_implementation_repair.v1` closure proof. Fixed-hold replay proof
-materializers require the independent verification evidence hashes and return
-the outer attempt proof accepted by `close_repair`.
+attempt with `close_repair`. A non-production implementation attempt may carry
+the bounded `running_job_implementation_repair.v1` closure proof. A production
+Executable implementation attempt must use the v2 registered protocol below.
+Fixed-hold proof materializers must build that protocol-specific v2 packet,
+bind independent verification evidence, and return the exact outer attempt
+proof accepted by `close_repair`.
 
 For a production Executable-bound implementation Repair, a caller-authored
 `scientific_semantics_changed: false` is never closure authority. First use the

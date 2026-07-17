@@ -45,6 +45,24 @@ SEMANTIC_EQUIVALENCE_RESULT_SCHEMA = (
 SEMANTIC_EQUIVALENCE_FACTS_SCHEMA = (
     "implementation_repair_semantic_equivalence_facts.v3"
 )
+FIXED_HOLD_AUTHORITY_CORRECTION_PROTOCOL = (
+    "fixed_hold_replay_authority_correction_equivalence.v1"
+)
+FIXED_HOLD_AUTHORITY_CORRECTION_METHOD = (
+    "fixed_hold_replay_authority_projection_conformance.v1"
+)
+FIXED_HOLD_AUTHORITY_CORRECTION_FACTS_SCHEMA = (
+    "fixed_hold_replay_authority_correction_equivalence_facts.v1"
+)
+FIXED_HOLD_AUTHORITY_CORRECTION_CASE_IDS = (
+    "cross_event_family_authority_rejected",
+    "exact_resume_ancestry_stream_4_5_6_7_8",
+    "noncanonical_v2_manifest_inventory_rejected",
+    "resume_authority_tampering_rejected",
+    "resume_payload_roundtrip_is_exact",
+    "same_event_family_authority_exact",
+    "zero_delta_transition_payloads_exact",
+)
 PYTHON_AST_EQUIVALENCE_METHOD = "python_source_closure_path_ast.v1"
 PYTHON_SOURCE_OBSERVATION_SCAN_METHOD = (
     "constant_only_python_provenance_scan.v1"
@@ -204,6 +222,38 @@ _RESULT_FIELDS = {
     "surface_results",
     "validation_plan_hash",
     "verdict",
+}
+_FIXED_HOLD_PAIR_RESULT_FIELDS = {
+    "changed_symbols",
+    "new_artifact_hash",
+    "old_artifact_hash",
+    "relative_path",
+}
+_FIXED_HOLD_FACT_FIELDS = {
+    "added_artifact_hashes",
+    "artifact_equivalence_method",
+    "authority_deltas",
+    "changed_source_pair_results",
+    "conformance_case_ids",
+    "covered_surface_ids",
+    "new_implementation_artifact_hashes",
+    "new_implementation_identity",
+    "new_source_closure_hash",
+    "old_implementation_artifact_hashes",
+    "old_implementation_identity",
+    "old_source_closure_hash",
+    "pairing_status",
+    "removed_artifact_hashes",
+    "repair_id",
+    "result_manifest_hash",
+    "schema",
+    "surface_inventory_hash",
+    "source_path_bindings",
+    "source_path_inventory_hash",
+    "unchanged_artifact_hashes",
+    "validation_plan_hash",
+    "validation_protocol",
+    "validator_id",
 }
 
 
@@ -800,19 +850,28 @@ def require_passed_semantic_equivalence_facts(
             payload={"relative_paths": sorted(seen_paths)},
         )
         != source_inventory_hash
-        or set(old_artifacts)
-        != {
-            old_closure,
-            *(item["old_artifact_hash"] for item in normalized_bindings),
-        }
-        or set(new_artifacts)
-        != {
-            new_closure,
-            *(item["new_artifact_hash"] for item in normalized_bindings),
-        }
     ):
         raise RepairSemanticEquivalenceError(
             "semantic-equivalence source closure differs from its path bindings"
+        )
+    old_source_artifacts = {
+        old_closure,
+        *(item["old_artifact_hash"] for item in normalized_bindings),
+    }
+    new_source_artifacts = {
+        new_closure,
+        *(item["new_artifact_hash"] for item in normalized_bindings),
+    }
+    old_non_source = set(old_artifacts) - old_source_artifacts
+    new_non_source = set(new_artifacts) - new_source_artifacts
+    if (
+        not old_source_artifacts.issubset(old_artifacts)
+        or not new_source_artifacts.issubset(new_artifacts)
+        or old_non_source != new_non_source
+        or not old_non_source.issubset(unchanged_artifacts)
+    ):
+        raise RepairSemanticEquivalenceError(
+            "semantic-equivalence non-source artifact closure changed"
         )
     pairs = facts.get("changed_source_pair_results")
     if not isinstance(pairs, list) or len(pairs) != len(normalized_expected):
@@ -863,6 +922,335 @@ def require_passed_semantic_equivalence_facts(
     if result_bindings != normalized_expected:
         raise RepairSemanticEquivalenceError(
             "semantic-equivalence changed source results differ from exact paths"
+        )
+
+
+def require_passed_fixed_hold_authority_correction_facts(
+    *,
+    binding: Mapping[str, Any],
+    facts: Mapping[str, Any],
+) -> None:
+    """Require complete protocol-specific fixed-hold Repair authority."""
+
+    if (
+        not isinstance(binding, Mapping)
+        or set(binding) != _BINDING_FIELDS
+        or binding.get("schema") != SEMANTIC_EQUIVALENCE_BINDING_SCHEMA
+    ):
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction binding authority is invalid"
+        )
+    validator_id = _ascii(
+        "fixed-hold correction validator", binding.get("validator_id")
+    )
+    if not validator_id.startswith("validator:"):
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction validator identity is invalid"
+        )
+    _digest(
+        "fixed-hold correction validator identity",
+        validator_id.removeprefix("validator:"),
+    )
+    claims = _ascii_list("fixed-hold correction claims", binding.get("claims"))
+    old_identity = _digest(
+        "old implementation identity",
+        binding.get("old_implementation_identity"),
+    )
+    new_identity = _digest(
+        "new implementation identity",
+        binding.get("new_implementation_identity"),
+    )
+    if old_identity == new_identity:
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction implementation identity did not change"
+        )
+    (
+        old_artifacts,
+        new_artifacts,
+        unchanged_artifacts,
+        removed_artifacts,
+        added_artifacts,
+    ) = _artifact_partition(
+        old_artifact_hashes=binding.get(
+            "old_implementation_artifact_hashes"
+        ),
+        new_artifact_hashes=binding.get(
+            "new_implementation_artifact_hashes"
+        ),
+    )
+    old_closure = _digest(
+        "old source closure", binding.get("old_source_closure_hash")
+    )
+    new_closure = _digest(
+        "new source closure", binding.get("new_source_closure_hash")
+    )
+    if (
+        old_closure == new_closure
+        or old_closure not in removed_artifacts
+        or new_closure not in added_artifacts
+    ):
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction lacks changed source-closure authority"
+        )
+    repair_id = _typed_id("Repair id", binding.get("repair_id"), "repair:")
+    result_hash = _digest(
+        "fixed-hold correction result", binding.get("result_manifest_hash")
+    )
+    inventory_hash = _digest(
+        "fixed-hold correction surface inventory",
+        binding.get("surface_inventory_hash"),
+    )
+    source_inventory_hash = _digest(
+        "fixed-hold correction source inventory",
+        binding.get("source_path_inventory_hash"),
+    )
+    plan_hash = _digest(
+        "fixed-hold correction validation plan",
+        binding.get("validation_plan_hash"),
+    )
+    measurements = _digest_list(
+        "fixed-hold correction measurements",
+        binding.get("measurement_artifact_hashes"),
+    )
+    declared = _digest_list(
+        "fixed-hold correction declared artifacts",
+        binding.get("declared_artifact_hashes"),
+    )
+    if set(declared) != {
+        plan_hash,
+        result_hash,
+        old_identity,
+        new_identity,
+        *old_artifacts,
+        *new_artifacts,
+        *measurements,
+    }:
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction declared artifact closure is not exact"
+        )
+    expected_changed = binding.get("changed_source_pair_bindings")
+    if not isinstance(expected_changed, list) or not expected_changed:
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction changed source pairs are absent"
+        )
+    normalized_expected: list[dict[str, str]] = []
+    for pair in expected_changed:
+        if (
+            not isinstance(pair, Mapping)
+            or set(pair) != _SOURCE_PAIR_BINDING_FIELDS
+        ):
+            raise RepairSemanticEquivalenceError(
+                "fixed-hold correction changed source pair is invalid"
+            )
+        normalized_expected.append(
+            {
+                "new_artifact_hash": _digest(
+                    "fixed-hold changed new source",
+                    pair.get("new_artifact_hash"),
+                ),
+                "old_artifact_hash": _digest(
+                    "fixed-hold changed old source",
+                    pair.get("old_artifact_hash"),
+                ),
+                "relative_path": _relative_source_path(
+                    "fixed-hold changed source path",
+                    pair.get("relative_path"),
+                ),
+            }
+        )
+    if (
+        normalized_expected
+        != sorted(normalized_expected, key=lambda item: item["relative_path"])
+        or len({item["relative_path"] for item in normalized_expected})
+        != len(normalized_expected)
+        or len(measurements) != len(normalized_expected)
+    ):
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction changed source coverage is incomplete"
+        )
+    if not isinstance(facts, Mapping) or set(facts) != _FIXED_HOLD_FACT_FIELDS:
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction facts schema is invalid"
+        )
+    if (
+        facts.get("schema")
+        != FIXED_HOLD_AUTHORITY_CORRECTION_FACTS_SCHEMA
+        or facts.get("artifact_equivalence_method")
+        != FIXED_HOLD_AUTHORITY_CORRECTION_METHOD
+        or facts.get("validation_protocol")
+        != FIXED_HOLD_AUTHORITY_CORRECTION_PROTOCOL
+        or facts.get("validator_id") != validator_id
+        or facts.get("pairing_status") != "passed"
+        or facts.get("covered_surface_ids") != list(claims)
+        or facts.get("old_implementation_identity") != old_identity
+        or facts.get("new_implementation_identity") != new_identity
+        or facts.get("old_source_closure_hash") != old_closure
+        or facts.get("new_source_closure_hash") != new_closure
+        or facts.get("old_implementation_artifact_hashes")
+        != list(old_artifacts)
+        or facts.get("new_implementation_artifact_hashes")
+        != list(new_artifacts)
+        or facts.get("unchanged_artifact_hashes")
+        != list(unchanged_artifacts)
+        or facts.get("removed_artifact_hashes") != list(removed_artifacts)
+        or facts.get("added_artifact_hashes") != list(added_artifacts)
+        or facts.get("repair_id") != repair_id
+        or facts.get("result_manifest_hash") != result_hash
+        or facts.get("surface_inventory_hash") != inventory_hash
+        or facts.get("source_path_inventory_hash") != source_inventory_hash
+        or facts.get("validation_plan_hash") != plan_hash
+        or facts.get("conformance_case_ids")
+        != list(FIXED_HOLD_AUTHORITY_CORRECTION_CASE_IDS)
+        or facts.get("authority_deltas")
+        != {
+            "candidate": 0,
+            "holdout_reveal": 0,
+            "scientific_claim": 0,
+            "scientific_satisfaction": 0,
+            "scientific_trial": 0,
+        }
+    ):
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction facts differ from their exact binding"
+        )
+    path_bindings = facts.get("source_path_bindings")
+    if not isinstance(path_bindings, list) or not path_bindings:
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction source path bindings are absent"
+        )
+    normalized_bindings: list[dict[str, Any]] = []
+    for item in path_bindings:
+        if (
+            not isinstance(item, Mapping)
+            or set(item) != _SOURCE_PATH_BINDING_FIELDS
+        ):
+            raise RepairSemanticEquivalenceError(
+                "fixed-hold correction source path binding is invalid"
+            )
+        old_artifact = _digest(
+            "fixed-hold source path old artifact",
+            item.get("old_artifact_hash"),
+        )
+        new_artifact = _digest(
+            "fixed-hold source path new artifact",
+            item.get("new_artifact_hash"),
+        )
+        changed = item.get("changed")
+        if type(changed) is not bool or changed != (old_artifact != new_artifact):
+            raise RepairSemanticEquivalenceError(
+                "fixed-hold correction source path role is ambiguous"
+            )
+        normalized_bindings.append(
+            {
+                "changed": changed,
+                "new_artifact_hash": new_artifact,
+                "old_artifact_hash": old_artifact,
+                "relative_path": _relative_source_path(
+                    "fixed-hold source path", item.get("relative_path")
+                ),
+            }
+        )
+    if (
+        normalized_bindings
+        != sorted(normalized_bindings, key=lambda item: item["relative_path"])
+        or len({item["relative_path"] for item in normalized_bindings})
+        != len(normalized_bindings)
+        or canonical_digest(
+            domain="implementation-repair-source-path-inventory",
+            payload={
+                "relative_paths": sorted(
+                    item["relative_path"] for item in normalized_bindings
+                )
+            },
+        )
+        != source_inventory_hash
+    ):
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction source closure differs from path bindings"
+        )
+    old_source_artifacts = {
+        old_closure,
+        *(item["old_artifact_hash"] for item in normalized_bindings),
+    }
+    new_source_artifacts = {
+        new_closure,
+        *(item["new_artifact_hash"] for item in normalized_bindings),
+    }
+    old_non_source = set(old_artifacts) - old_source_artifacts
+    new_non_source = set(new_artifacts) - new_source_artifacts
+    if (
+        not old_source_artifacts.issubset(old_artifacts)
+        or not new_source_artifacts.issubset(new_artifacts)
+        or old_non_source != new_non_source
+        or not old_non_source.issubset(unchanged_artifacts)
+    ):
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction non-source artifact closure changed"
+        )
+    derived_changed = [
+        {
+            "new_artifact_hash": item["new_artifact_hash"],
+            "old_artifact_hash": item["old_artifact_hash"],
+            "relative_path": item["relative_path"],
+        }
+        for item in normalized_bindings
+        if item["changed"]
+    ]
+    if derived_changed != normalized_expected:
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction changed paths differ from their closure"
+        )
+    pair_results = facts.get("changed_source_pair_results")
+    if (
+        not isinstance(pair_results, list)
+        or len(pair_results) != len(normalized_expected)
+    ):
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction pair result coverage is incomplete"
+        )
+    normalized_results: list[dict[str, Any]] = []
+    for item in pair_results:
+        if (
+            not isinstance(item, Mapping)
+            or set(item) != _FIXED_HOLD_PAIR_RESULT_FIELDS
+        ):
+            raise RepairSemanticEquivalenceError(
+                "fixed-hold correction pair result is invalid"
+            )
+        changed_symbols = _ascii_list(
+            "fixed-hold correction changed symbols",
+            item.get("changed_symbols"),
+        )
+        if not changed_symbols:
+            raise RepairSemanticEquivalenceError(
+                "fixed-hold correction pair lacks a changed symbol"
+            )
+        normalized_results.append(
+            {
+                "changed_symbols": list(changed_symbols),
+                "new_artifact_hash": _digest(
+                    "fixed-hold pair new artifact",
+                    item.get("new_artifact_hash"),
+                ),
+                "old_artifact_hash": _digest(
+                    "fixed-hold pair old artifact",
+                    item.get("old_artifact_hash"),
+                ),
+                "relative_path": _relative_source_path(
+                    "fixed-hold pair path", item.get("relative_path")
+                ),
+            }
+        )
+    if [
+        {
+            "new_artifact_hash": item["new_artifact_hash"],
+            "old_artifact_hash": item["old_artifact_hash"],
+            "relative_path": item["relative_path"],
+        }
+        for item in normalized_results
+    ] != normalized_expected:
+        raise RepairSemanticEquivalenceError(
+            "fixed-hold correction pair results differ from exact paths"
         )
 
 
@@ -1164,6 +1552,7 @@ def derive_semantic_surface_inventory(
 def build_semantic_equivalence_plan(
     *,
     validator_id: str,
+    validation_protocol: str = SEMANTIC_EQUIVALENCE_PROTOCOL,
     repair_id: str,
     job_id: str,
     job_hash: str,
@@ -1179,6 +1568,9 @@ def build_semantic_equivalence_plan(
     """Build the exact plan that the Writer recomputes before validation."""
 
     validator = _ascii("semantic-equivalence validator", validator_id)
+    protocol = _ascii(
+        "semantic-equivalence validation protocol", validation_protocol
+    )
     _digest(
         "semantic-equivalence validator identity",
         validator.removeprefix("validator:"),
@@ -1281,7 +1673,7 @@ def build_semantic_equivalence_plan(
         ),
         "old_implementation_identity": old_implementation_identity,
         "old_source_closure_hash": old_closure,
-        "protocol": SEMANTIC_EQUIVALENCE_PROTOCOL,
+        "protocol": protocol,
         "repair_id": repair,
         "schema": SEMANTIC_EQUIVALENCE_PLAN_SCHEMA,
         "surface_inventory": inventory_list,
@@ -1322,6 +1714,25 @@ def semantic_equivalence_measurement(
         "schema": SEMANTIC_EQUIVALENCE_MEASUREMENT_SCHEMA,
         "validation_plan_hash": validation_plan_hash,
     }
+
+
+def fixed_hold_authority_correction_measurement(
+    *,
+    validation_plan_hash: str,
+    relative_path: str,
+    old_artifact_hash: str,
+    new_artifact_hash: str,
+) -> dict[str, Any]:
+    """Declare one exact source pair for the fixed-hold correction validator."""
+
+    measurement = semantic_equivalence_measurement(
+        validation_plan_hash=validation_plan_hash,
+        relative_path=relative_path,
+        old_artifact_hash=old_artifact_hash,
+        new_artifact_hash=new_artifact_hash,
+    )
+    measurement["method"] = FIXED_HOLD_AUTHORITY_CORRECTION_METHOD
+    return measurement
 
 
 def semantic_equivalence_result_manifest(
@@ -1905,6 +2316,10 @@ class ImplementationRepairSemanticEquivalenceValidator:
 
 
 __all__ = [
+    "FIXED_HOLD_AUTHORITY_CORRECTION_CASE_IDS",
+    "FIXED_HOLD_AUTHORITY_CORRECTION_FACTS_SCHEMA",
+    "FIXED_HOLD_AUTHORITY_CORRECTION_METHOD",
+    "FIXED_HOLD_AUTHORITY_CORRECTION_PROTOCOL",
     "IMPLEMENTATION_REPAIR_V2_SCHEMA",
     "ImplementationRepairSemanticEquivalenceValidator",
     "PYTHON_AST_EQUIVALENCE_METHOD",
@@ -1921,6 +2336,8 @@ __all__ = [
     "build_semantic_equivalence_binding",
     "build_semantic_equivalence_plan",
     "derive_semantic_surface_inventory",
+    "fixed_hold_authority_correction_measurement",
+    "require_passed_fixed_hold_authority_correction_facts",
     "require_passed_semantic_equivalence_facts",
     "semantic_equivalence_measurement",
     "semantic_equivalence_result_manifest",

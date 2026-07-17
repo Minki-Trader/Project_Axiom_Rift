@@ -133,11 +133,14 @@ from axiom_rift.operations.repair_protocol import (
     parse_repair_attempt_proof,
 )
 from axiom_rift.operations.repair_semantic_equivalence import (
+    FIXED_HOLD_AUTHORITY_CORRECTION_PROTOCOL,
     IMPLEMENTATION_REPAIR_V2_SCHEMA,
     RepairSemanticEquivalenceError,
+    SEMANTIC_EQUIVALENCE_PROTOCOL,
     SEMANTIC_EQUIVALENCE_VALIDATOR_ID,
     build_semantic_equivalence_binding,
     build_semantic_equivalence_plan,
+    require_passed_fixed_hold_authority_correction_facts,
     require_passed_semantic_equivalence_facts,
 )
 from axiom_rift.operations.runtime_completion import (
@@ -214,6 +217,28 @@ class InjectedCrash(RuntimeError):
 
 class IdenticalFailedRetryError(TransitionError):
     """A failed work fingerprint was retried without new information."""
+
+
+_EXPECTED_FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID = (
+    "validator:7a90f5cc1e74df0ba28264830120a83bd248c6b7a4a47b783ec8a7d9082a8af7"
+)
+
+
+def _fixed_hold_authority_correction_validator_id() -> str:
+    """Lazy-load and pin the one registered production correction capability."""
+
+    from axiom_rift.operations.fixed_hold_repair_equivalence import (
+        FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID,
+    )
+
+    if (
+        FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID
+        != _EXPECTED_FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID
+    ):
+        raise EvidenceValidationError(
+            "fixed-hold correction validator differs from its registered capability"
+        )
+    return FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID
 
 
 _PERMIT_RULES: dict[PermitKind, tuple[frozenset[SubjectKind], frozenset[str]]] = {
@@ -2017,6 +2042,50 @@ class StateWriter:
                     ],
                 )
             )
+            try:
+                repaired_manifest = self._require_job_implementation_evidence(
+                    {
+                        **dict(spec),
+                        "implementation_identity": effective_implementation,
+                    },
+                    _index=index,
+                )
+                from axiom_rift.research.implementation_closure import (
+                    ImplementationClosureError,
+                    require_current_job_source_closure,
+                    require_job_implementation_closure,
+                )
+
+                subject = spec.get("evidence_subject")
+                component_hashes: tuple[str, ...] = ()
+                if (
+                    isinstance(subject, Mapping)
+                    and subject.get("kind") == "Executable"
+                ):
+                    trial = index.get("trial", str(subject.get("id")))
+                    executable = (
+                        None if trial is None else trial.payload.get("executable")
+                    )
+                    if not isinstance(executable, Mapping):
+                        raise ImplementationClosureError(
+                            "repaired Job lost its exact Executable closure"
+                        )
+                    component_hashes = require_job_implementation_closure(
+                        executable_manifest=executable,
+                        job_artifact_hashes=repaired_manifest["artifact_hashes"],
+                        artifact_reader=self.evidence.read_verified,
+                    )
+                require_current_job_source_closure(
+                    callable_identity=str(spec["callable_identity"]),
+                    job_artifact_hashes=repaired_manifest["artifact_hashes"],
+                    artifact_reader=self.evidence.read_verified,
+                    source_root=self.foundation_root / "src",
+                    verified_non_source_artifact_hashes=component_hashes,
+                )
+            except (ImplementationClosureError, TransitionError) as exc:
+                raise RecoveryRequired(
+                    "repaired Job current implementation authority drifted"
+                ) from exc
             attempt_id = (
                 None if close is None else close.payload.get("attempt_record_id")
             )
@@ -24852,14 +24921,23 @@ class StateWriter:
     ) -> tuple[dict[str, Any], str]:
         """Rebuild the exact production Executable Repair plan from authority."""
 
-        if validator_id != SEMANTIC_EQUIVALENCE_VALIDATOR_ID:
-            raise self._semantic_equivalence_repair_error(
-                "validator does not implement the registered equivalence protocol"
+        if validator_id == SEMANTIC_EQUIVALENCE_VALIDATOR_ID:
+            validation_protocol = SEMANTIC_EQUIVALENCE_PROTOCOL
+        else:
+            fixed_validator_id = (
+                _fixed_hold_authority_correction_validator_id()
             )
+            if validator_id == fixed_validator_id:
+                validation_protocol = FIXED_HOLD_AUTHORITY_CORRECTION_PROTOCOL
+            else:
+                raise self._semantic_equivalence_repair_error(
+                    "validator does not implement the registered equivalence protocol"
+                )
         try:
-            self.validation_registry.require_registered(
+            self.validation_registry.require_registered_protocol(
                 validator_id=validator_id,
                 domain="scientific",
+                protocol=validation_protocol,
             )
         except EvidenceValidationError as exc:
             raise self._semantic_equivalence_repair_error(exc) from exc
@@ -24913,6 +24991,7 @@ class StateWriter:
                 )
             plan = build_semantic_equivalence_plan(
                 validator_id=validator_id,
+                validation_protocol=validation_protocol,
                 repair_id=str(repair["id"]),
                 job_id=str(job["id"]),
                 job_hash=str(job["hash"]),
@@ -24985,6 +25064,75 @@ class StateWriter:
                     )
                 )
                 return plan
+
+    def plan_fixed_hold_authority_correction_repair(
+        self,
+        *,
+        new_implementation_identity: str,
+    ) -> dict[str, Any]:
+        """Plan the exact protocol-specific fixed-hold in-place Repair."""
+
+        return self.plan_implementation_repair_semantic_equivalence(
+            new_implementation_identity=new_implementation_identity,
+            validator_id=_fixed_hold_authority_correction_validator_id(),
+        )
+
+    def resolve_fixed_hold_authority_correction_verification(
+        self,
+        *,
+        new_implementation_identity: str,
+        evidence_hashes: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        """Materialize or authenticate one recomputable engineering receipt."""
+
+        from axiom_rift.operations.fixed_hold_repair_equivalence import (
+            fixed_hold_authority_correction_verification_manifest,
+            require_fixed_hold_authority_correction_verification,
+        )
+        fixed_validator_id = _fixed_hold_authority_correction_validator_id()
+
+        _require_digest(
+            "fixed-hold corrected implementation",
+            new_implementation_identity,
+        )
+        self.validation_registry.require_registered_protocol(
+            validator_id=fixed_validator_id,
+            domain="scientific",
+            protocol=FIXED_HOLD_AUTHORITY_CORRECTION_PROTOCOL,
+        )
+        if type(evidence_hashes) is not tuple:
+            raise TransitionError(
+                "fixed-hold correction verification hashes must be a tuple"
+            )
+        if evidence_hashes:
+            if (
+                len(evidence_hashes) != 1
+                or evidence_hashes != tuple(sorted(set(evidence_hashes)))
+            ):
+                raise TransitionError(
+                    "fixed-hold correction requires one exact verification"
+                )
+            evidence_hash = evidence_hashes[0]
+            _require_digest(
+                "fixed-hold correction verification",
+                evidence_hash,
+            )
+            content = self.evidence.read_verified(evidence_hash)
+        else:
+            content = canonical_bytes(
+                fixed_hold_authority_correction_verification_manifest(
+                    new_implementation_identity=new_implementation_identity,
+                )
+            )
+            evidence_hash = self.evidence.finalize(content).sha256
+        try:
+            require_fixed_hold_authority_correction_verification(
+                content,
+                new_implementation_identity=new_implementation_identity,
+            )
+        except EvidenceValidationError as exc:
+            raise TransitionError(str(exc)) from exc
+        return (evidence_hash,)
 
     def _run_implementation_repair_semantic_equivalence(
         self,
@@ -25062,10 +25210,32 @@ class StateWriter:
         expected_claims = tuple(plan["claims"])
         expected_measurements = tuple(sorted(measurement_artifact_hashes))
         try:
-            require_passed_semantic_equivalence_facts(
-                binding=binding,
-                facts=facts,
+            fixed_validator_id = (
+                _fixed_hold_authority_correction_validator_id()
             )
+
+            if (
+                plan.get("validator_id") == SEMANTIC_EQUIVALENCE_VALIDATOR_ID
+                and plan.get("protocol") == SEMANTIC_EQUIVALENCE_PROTOCOL
+            ):
+                require_passed_semantic_equivalence_facts(
+                    binding=binding,
+                    facts=facts,
+                )
+            elif (
+                plan.get("validator_id")
+                == fixed_validator_id
+                and plan.get("protocol")
+                == FIXED_HOLD_AUTHORITY_CORRECTION_PROTOCOL
+            ):
+                require_passed_fixed_hold_authority_correction_facts(
+                    binding=binding,
+                    facts=facts,
+                )
+            else:
+                raise RepairSemanticEquivalenceError(
+                    "implementation Repair validation protocol is unsupported"
+                )
         except RepairSemanticEquivalenceError as exc:
             raise self._semantic_equivalence_repair_error(exc) from exc
         if (

@@ -969,6 +969,44 @@ class ReplayResumeEvidence:
         }
 
 
+def replay_resume_evidence_from_identity_payload(
+    value: Mapping[str, Any],
+) -> ReplayResumeEvidence:
+    """Rehydrate and byte-check one stored replay resume authority."""
+
+    if (
+        not isinstance(value, Mapping)
+        or set(value)
+        != {
+            "deferral_id",
+            "obligation_id",
+            "resume_condition_id",
+            "schema",
+            "trigger_record_id",
+        }
+        or value.get("schema") != "historical_replay_resume_evidence.v1"
+    ):
+        raise ReplayObligationError(
+            "historical replay resume evidence payload is malformed"
+        )
+    try:
+        resume_authority = ReplayResumeEvidence(
+            obligation_id=value["obligation_id"],
+            deferral_id=value["deferral_id"],
+            resume_condition_id=value["resume_condition_id"],
+            trigger_record_id=value["trigger_record_id"],
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ReplayObligationError(
+            "historical replay resume evidence cannot be rebuilt"
+        ) from exc
+    if resume_authority.to_identity_payload() != dict(value):
+        raise ReplayObligationError(
+            "historical replay resume evidence changed on rebuild"
+        )
+    return resume_authority
+
+
 def highest_pending_priority(
     obligations: tuple[HistoricalReplayObligation, ...],
 ) -> ReplayPriority | None:
@@ -1008,4 +1046,5 @@ __all__ = [
     "highest_pending_priority",
     "replay_priority_escalation_from_identity_payload",
     "replay_deferral_from_identity_payload",
+    "replay_resume_evidence_from_identity_payload",
 ]

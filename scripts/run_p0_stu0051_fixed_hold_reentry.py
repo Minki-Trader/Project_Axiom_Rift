@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "src"))
 
+from axiom_rift.core.canonical import canonical_bytes  # noqa: E402
 from axiom_rift.operations.fixed_hold_replay_cli import (  # noqa: E402
     run_fixed_hold_replay_command,
 )
@@ -24,12 +25,20 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (  # noqa: E402
     ReplayAuthorityBoundary,
     ReplayAxisAdmission,
     ReplayInitiativeLifecycle,
+    fixed_hold_replay_repair_operation_ids,
     materialize_replay_implementation_preflight_request,
+)
+from axiom_rift.operations.permits import (  # noqa: E402
+    PermitAuthority,
+    PermitKeyStore,
+    PermitKind,
+    SubjectKind,
 )
 from axiom_rift.operations.replay_workflow_recovery import (  # noqa: E402
     derive_replay_admission_boundary_identity,
 )
 from axiom_rift.operations.validation import (  # noqa: E402
+    EvidenceValidator,
     EvidenceValidatorRegistry,
 )
 from axiom_rift.operations.volatility_duration_fixed_hold_profile import (  # noqa: E402
@@ -47,14 +56,12 @@ from axiom_rift.research.semantic_question import (  # noqa: E402
     SemanticQuestionLineageProposal,
     SemanticQuestionRelation,
 )
-from axiom_rift.research.validation_v2 import (  # noqa: E402
-    ScientificAdjudicationValidatorV2,
-)
 from axiom_rift.research.volatility_duration_fixed_hold_job import (  # noqa: E402
     CALLABLE_IDENTITY,
     JOB_IMPLEMENTATION_PROTOCOL,
     execute_volatility_duration_fixed_hold_job,
     materialize_volatility_duration_fixed_hold_job_implementation,
+    materialize_volatility_duration_fixed_hold_running_job_repair_proof,
     volatility_duration_fixed_hold_job_implementation_sha256,
 )
 
@@ -110,6 +117,24 @@ REPLACEMENT_PREFLIGHT_OPERATION_ID = (
     PREPARATION_OPERATION_PREFIX + "replacement-preflight"
 )
 RESUME_OPERATION_ID = PREPARATION_OPERATION_PREFIX + "resume-replay"
+REPAIR_FAILURE_SCHEMA = "fixed_hold_running_job_failure_reproduction.v1"
+REPAIR_FAILURE_TYPE = "RunningJobAuthorityError"
+REPAIR_FAILURE_MESSAGE = (
+    "fixed-hold correction invalidation manifest is malformed"
+)
+REPAIR_ROOT_CAUSE = (
+    "the fixed-hold context followed only the immediate replay predecessor "
+    "and rejected canonical v2 same-event family authority"
+)
+EXPECTED_REPAIR_OLD_IMPLEMENTATION_IDENTITY = (
+    "921d179ecc580391d144db48ea31d8ef45ddbf5a3330c689e77c9bf55bbdcdc9"
+)
+EXPECTED_REPAIR_NEW_IMPLEMENTATION_IDENTITY = (
+    "7b86dbaf0f6e2e3bf48ba86b80e55eba54d870a2e6f9f5493c931bfd8c8ca730"
+)
+EXPECTED_REPAIR_VALIDATOR_ID = (
+    "validator:7a90f5cc1e74df0ba28264830120a83bd248c6b7a4a47b783ec8a7d9082a8af7"
+)
 
 
 def mission_spec(
@@ -169,13 +194,334 @@ def semantic_question_lineage() -> SemanticQuestionLineageProposal:
     )
 
 
-def _writer() -> StateWriter:
+def _writer(*, include_repair_validator: bool = False) -> StateWriter:
+    validators: list[EvidenceValidator] = []
+    if include_repair_validator:
+        from axiom_rift.operations.fixed_hold_repair_equivalence import (
+            FixedHoldAuthorityCorrectionEquivalenceValidator,
+        )
+
+        validator = FixedHoldAuthorityCorrectionEquivalenceValidator()
+        if validator.validator_id != EXPECTED_REPAIR_VALIDATOR_ID:
+            raise RuntimeError(
+                "fixed-hold Repair validator differs from the registered capability"
+            )
+        validators.append(validator)
     return StateWriter(
         ROOT,
-        validation_registry=EvidenceValidatorRegistry(
-            (ScientificAdjudicationValidatorV2(),)
+        permit_authority=(
+            PermitAuthority(
+                PermitKeyStore(ROOT / "local" / "permit.key").load_or_create()
+            )
+            if include_repair_validator
+            else None
         ),
+        validation_registry=EvidenceValidatorRegistry(tuple(validators)),
     )
+
+
+def _active_replay_member(writer: StateWriter, design):
+    with writer.open_stable_index() as (control, index):
+        science = control.get("scientific")
+        job = (
+            None
+            if not isinstance(science, Mapping)
+            else science.get("active_job")
+        )
+        if not isinstance(job, Mapping):
+            raise RuntimeError("fixed-hold Repair requires one active Job")
+        matches = []
+        for member in design.members:
+            operation = index.get(
+                "operation",
+                design.spec.operation_prefix + member.label + "-declare-job",
+            )
+            result = (
+                None
+                if operation is None
+                else operation.payload.get("result")
+            )
+            if isinstance(result, Mapping) and result.get("job_id") == job.get(
+                "id"
+            ):
+                matches.append(member)
+        if len(matches) != 1:
+            raise RuntimeError(
+                "active Job does not bind one exact fixed-hold replay member"
+            )
+        declaration = index.get("job-declared", str(job["id"]))
+        job_spec = (
+            None
+            if declaration is None
+            else declaration.payload.get("spec")
+        )
+        if not isinstance(job_spec, Mapping):
+            raise RuntimeError("active fixed-hold Job declaration is unavailable")
+        return matches[0], dict(job), dict(job_spec)
+
+
+def _materialize_repair_failure_reproduction(
+    writer: StateWriter,
+    *,
+    design,
+    member,
+    job: Mapping[str, object],
+    job_spec: Mapping[str, object],
+) -> str:
+    with writer.open_stable_index() as (control, index):
+        current_job = control.get("scientific", {}).get("active_job")
+        start = index.get(
+            "operation",
+            design.spec.operation_prefix + member.label + "-start-job",
+        )
+        if (
+            not isinstance(current_job, Mapping)
+            or dict(current_job) != dict(job)
+            or start is None
+            or start.status != "success"
+            or start.payload.get("event_kind") != "job_started"
+        ):
+            raise RuntimeError("fixed-hold Repair reproduction boundary drifted")
+        replay_stream = (
+            "historical-replay-obligation:"
+            + design.spec.target_obligation_id
+        )
+        replay_head = index.event_head(replay_stream)
+        route = []
+        for sequence in (4, 5, 6, 7, 8):
+            record = index.event_record(replay_stream, sequence)
+            if record is None:
+                raise RuntimeError(
+                    "fixed-hold Repair reproduction route is incomplete"
+                )
+            route.append(
+                {
+                    "authority_event_id": record.authority_event_id,
+                    "authority_sequence": record.authority_sequence,
+                    "kind": record.kind,
+                    "record_id": record.record_id,
+                    "stream_sequence": sequence,
+                }
+            )
+        if replay_head is None or replay_head.sequence != 8:
+            raise RuntimeError(
+                "fixed-hold Repair reproduction route head drifted"
+            )
+        payload = {
+            "attempted_operation_id": (
+                design.spec.operation_prefix
+                + member.label
+                + "-complete-job"
+            ),
+            "callable_identity": job_spec.get("callable_identity"),
+            "declared_implementation_identity": job_spec.get(
+                "implementation_identity"
+            ),
+            "engine_entry_record_id": job.get("engine_entry_record_id"),
+            "failure_kind": "engineering",
+            "historical_family_authority_id": (
+                HISTORICAL_FAMILY_AUTHORITY_ID
+            ),
+            "job_hash": job.get("hash"),
+            "job_id": job.get("id"),
+            "observed_exception": {
+                "message": REPAIR_FAILURE_MESSAGE,
+                "type": REPAIR_FAILURE_TYPE,
+            },
+            "replay_obligation_id": design.spec.target_obligation_id,
+            "replay_route": route,
+            "schema": REPAIR_FAILURE_SCHEMA,
+            "scientific_failure_delta": 0,
+            "scientific_trial_delta": 0,
+            "start_record_id": job.get("start_record_id"),
+            "start_operation_authority_event_id": (
+                start.authority_event_id
+            ),
+            "start_operation_authority_sequence": (
+                start.authority_sequence
+            ),
+        }
+    artifact = writer.evidence.finalize(canonical_bytes(payload))
+    return artifact.sha256
+
+
+def repair_running_member(
+    writer: StateWriter,
+) -> Mapping[str, object]:
+    design = build_design(writer)
+    member, job, job_spec = _active_replay_member(writer, design)
+    desired_implementation = (
+        volatility_duration_fixed_hold_job_implementation_sha256()
+    )
+    if (
+        job_spec.get("implementation_identity")
+        != EXPECTED_REPAIR_OLD_IMPLEMENTATION_IDENTITY
+        or desired_implementation
+        != EXPECTED_REPAIR_NEW_IMPLEMENTATION_IDENTITY
+    ):
+        raise RuntimeError(
+            "fixed-hold Repair old-to-new implementation pair drifted"
+        )
+    with writer.open_stable_index() as (control, index):
+        science = control.get("scientific")
+        active_repair = (
+            None
+            if not isinstance(science, Mapping)
+            else science.get("active_repair")
+        )
+        current_job = (
+            None
+            if not isinstance(science, Mapping)
+            else science.get("active_job")
+        )
+        if not isinstance(current_job, Mapping) or current_job.get(
+            "id"
+        ) != job.get("id"):
+            raise RuntimeError("fixed-hold Repair active Job changed concurrently")
+        repair_head = index.event_head(f"job-repair:{job['id']}")
+        prior_close = (
+            None
+            if repair_head is None
+            else index.get(repair_head.record_kind, repair_head.record_id)
+        )
+        prior_effective = (
+            None
+            if prior_close is None
+            else prior_close.payload.get("effective_implementation_identity")
+        )
+        pending_resume = current_job.get("required_repair_resume_record_id")
+        if prior_effective == desired_implementation and active_repair is None:
+            if repair_head is None or prior_close is None:
+                raise RuntimeError(
+                    "fixed-hold Repair close provenance is unavailable"
+                )
+            closed_operations = fixed_hold_replay_repair_operation_ids(
+                design.spec,
+                member,
+                episode=repair_head.sequence,
+            )
+            close_operation = index.get("operation", closed_operations.close)
+            close_result = (
+                None
+                if close_operation is None
+                else close_operation.payload.get("result")
+            )
+            if (
+                close_operation is None
+                or close_operation.status != "success"
+                or close_operation.payload.get("event_kind") != "repair_closed"
+                or not isinstance(close_result, Mapping)
+                or close_result.get("repair_close_record_id")
+                != prior_close.record_id
+                or close_result.get("effective_implementation_identity")
+                != desired_implementation
+            ):
+                raise RuntimeError(
+                    "fixed-hold Repair close operation is unavailable"
+                )
+            return {
+                "effective_implementation_identity": prior_effective,
+                "job_id": job["id"],
+                "mode": (
+                    "repair_closed_pending_resume"
+                    if isinstance(pending_resume, str)
+                    else "repair_already_applied"
+                ),
+                "repair_close_record_id": (
+                    None if prior_close is None else prior_close.record_id
+                ),
+                "resume_operation_id": closed_operations.resume,
+                "schema": "fixed_hold_running_job_repair.v1",
+            }
+        if isinstance(pending_resume, str):
+            raise RuntimeError(
+                "a different fixed-hold Repair must resume before another Repair"
+            )
+        if active_repair is None:
+            if current_job.get("status") != "running":
+                raise RuntimeError("fixed-hold Repair requires a running Job")
+            episode = 1 if repair_head is None else repair_head.sequence + 1
+        else:
+            if (
+                not isinstance(active_repair, Mapping)
+                or current_job.get("status") != "interrupted_repair"
+                or active_repair.get("job_id") != job.get("id")
+                or type(active_repair.get("episode")) is not int
+            ):
+                raise RuntimeError("active fixed-hold Repair is malformed")
+            episode = active_repair["episode"]
+    operations = fixed_hold_replay_repair_operation_ids(
+        design.spec,
+        member,
+        episode=episode,
+    )
+
+    if active_repair is None:
+        reproduction_hash = _materialize_repair_failure_reproduction(
+            writer,
+            design=design,
+            member=member,
+            job=job,
+            job_spec=job_spec,
+        )
+        permit = writer.issue_permit(
+            kind=PermitKind.REPAIR,
+            subject_kind=SubjectKind.JOB,
+            subject_id=str(job["id"]),
+            input_hash=str(job["hash"]),
+            actions=("open_repair",),
+            scope=("job",),
+            expires_at_utc=design.spec.permit_expiry_utc,
+            one_shot=True,
+            operation_id=operations.permit,
+        )
+        opened = writer.open_repair(
+            permit=permit,
+            failure={
+                "failure_kind": "engineering",
+                "interrupted_action": job_spec["callable_identity"],
+                "minimum_reproduction_evidence": [reproduction_hash],
+                "root_cause": REPAIR_ROOT_CAUSE,
+            },
+            operation_id=operations.open,
+        )
+        repair_id = opened.result["repair_id"]
+    else:
+        repair_id = active_repair["id"]
+        with writer.open_stable_index() as (_control, index):
+            opened_operation = index.get("operation", operations.open)
+            opened_result = (
+                None
+                if opened_operation is None
+                else opened_operation.payload.get("result")
+            )
+        if (
+            opened_operation is None
+            or opened_operation.status != "success"
+            or opened_operation.payload.get("event_kind") != "repair_opened"
+            or not isinstance(opened_result, Mapping)
+            or opened_result.get("repair_id") != repair_id
+        ):
+            raise RuntimeError("active fixed-hold Repair operation is unavailable")
+
+    proof_hash = (
+        materialize_volatility_duration_fixed_hold_running_job_repair_proof(
+            writer,
+            verification_evidence_hashes=(),
+        )
+    )
+    closed = writer.close_repair(
+        changed_cause_proof_hash=proof_hash,
+        operation_id=operations.close,
+    )
+    return {
+        **dict(closed.result),
+        "mode": "repair_closed_pending_resume",
+        "proof_hash": proof_hash,
+        "repair_id": repair_id,
+        "resume_operation_id": operations.resume,
+        "schema": "fixed_hold_running_job_repair.v1",
+    }
 
 
 def _replacement_members(writer: StateWriter):
@@ -340,7 +686,14 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--action",
-        choices=("preflight", "resume", "plan", "study-close", "diagnose"),
+        choices=(
+            "preflight",
+            "resume",
+            "repair",
+            "plan",
+            "study-close",
+            "diagnose",
+        ),
         default="plan",
     )
     parser.add_argument("--recover", action="store_true")
@@ -367,6 +720,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         ):
             raise RuntimeError("replacement resume rejects replay-stage arguments")
         summary = resume_replay(_writer())
+    elif arguments.action == "repair":
+        if (
+            arguments.recover
+            or arguments.study_close_event_id is not None
+            or arguments.study_close_revision is not None
+        ):
+            raise RuntimeError("running-Job Repair rejects replay-stage arguments")
+        summary = repair_running_member(
+            _writer(include_repair_validator=True),
+        )
     else:
         replay_arguments: list[str] = []
         if arguments.action != "plan":

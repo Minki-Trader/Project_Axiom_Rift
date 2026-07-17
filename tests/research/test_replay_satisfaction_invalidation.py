@@ -9,6 +9,7 @@ from axiom_rift.research.replay_satisfaction_invalidation import (
     ReplayCompletionValidityObservation,
     ReplayMultiplicityBindingDefect,
     ReplayMultiplicityDefectCode,
+    ReplaySatisfactionInvalidationAuditManifest,
     ReplaySatisfactionInvalidationAuditManifestV2,
     ReplaySelectionFamilyObservation,
     SELECTION_CRITERION_ID,
@@ -137,6 +138,38 @@ def test_registration_hash_binds_member_order() -> None:
         )
 
 
+def _multiplicity_manifest() -> ReplaySatisfactionInvalidationAuditManifest:
+    defect = _defect(
+        EXPECTED_MEMBER_IDS,
+        actual_member_set_mismatch=True,
+    )
+    return ReplaySatisfactionInvalidationAuditManifest(
+        governing_mission_id="MIS-0001",
+        obligation_id="historical-replay-obligation:" + "5" * 64,
+        satisfaction_record_id="historical-replay-satisfaction:" + "6" * 64,
+        satisfaction_event_sequence=2,
+        portfolio_decision_id="decision:" + "7" * 64,
+        replay_study_id="STU-0001",
+        replay_executable_id=EXPECTED_MEMBER_IDS[0],
+        replay_study_close_record_id="8" * 64,
+        study_diagnosis_id="diagnosis:" + "9" * 64,
+        completion_record_ids=tuple(
+            item.completion_record_id for item in defect.observations
+        ),
+        defect=defect,
+    )
+
+
+def test_v1_manifest_rejects_domain_noncanonical_inventory_order() -> None:
+    payload = _multiplicity_manifest().to_identity_payload()
+    payload["completion_record_ids"] = list(
+        reversed(payload["completion_record_ids"])
+    )
+
+    with pytest.raises(ValueError, match="changed on rebuild"):
+        replay_satisfaction_invalidation_manifest_from_mapping(payload)
+
+
 def _validity_observation(
     completion_record_id: str = "4" * 64,
 ) -> ReplayCompletionValidityObservation:
@@ -189,6 +222,35 @@ def test_completion_validity_v2_round_trip_is_sorted_and_generic() -> None:
         "C03-decision-time-causality",
     )
     assert manifest.completion_record_ids == ("4" * 64, "a" * 64)
+
+
+def test_v2_manifest_rejects_domain_noncanonical_inventory_order() -> None:
+    payload = _validity_manifest().to_identity_payload()
+    payload["completion_record_ids"] = list(
+        reversed(payload["completion_record_ids"])
+    )
+
+    with pytest.raises(ValueError, match="changed on rebuild"):
+        replay_satisfaction_invalidation_manifest_from_mapping(payload)
+
+
+def test_v2_manifest_requires_completion_validity_at_construction() -> None:
+    manifest = _multiplicity_manifest()
+
+    with pytest.raises(ValueError, match="requires completion validity"):
+        ReplaySatisfactionInvalidationAuditManifestV2(
+            governing_mission_id=manifest.governing_mission_id,
+            obligation_id=manifest.obligation_id,
+            satisfaction_record_id=manifest.satisfaction_record_id,
+            satisfaction_event_sequence=manifest.satisfaction_event_sequence,
+            portfolio_decision_id=manifest.portfolio_decision_id,
+            replay_study_id=manifest.replay_study_id,
+            replay_executable_id=manifest.replay_executable_id,
+            replay_study_close_record_id=manifest.replay_study_close_record_id,
+            study_diagnosis_id=manifest.study_diagnosis_id,
+            completion_record_ids=manifest.completion_record_ids,
+            defects=(manifest.defect,),
+        )
 
 
 def test_completion_validity_defect_must_belong_to_satisfaction_evidence() -> None:

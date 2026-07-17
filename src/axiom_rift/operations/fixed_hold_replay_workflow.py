@@ -340,6 +340,83 @@ class FixedHoldReplayMember:
 
 
 @dataclass(frozen=True, slots=True)
+class FixedHoldReplayRepairOperationIds:
+    """Exact durable operation namespace for one member Repair episode."""
+
+    permit: str
+    open: str
+    attempt_prefix: str
+    close: str
+    conclude: str
+    resume: str
+
+    def __post_init__(self) -> None:
+        values = (
+            self.permit,
+            self.open,
+            self.attempt_prefix,
+            self.close,
+            self.conclude,
+            self.resume,
+        )
+        for ordinal, value in enumerate(values):
+            _ascii(f"Repair operation identity {ordinal}", value)
+        if len(set(values)) != len(values):
+            raise ValueError("Repair operation identities must be unique")
+
+    def by_role(self) -> dict[str, str]:
+        return {
+            "permit": self.permit,
+            "open": self.open,
+            "attempt_prefix": self.attempt_prefix,
+            "close": self.close,
+            "conclude": self.conclude,
+            "resume": self.resume,
+        }
+
+
+def fixed_hold_replay_repair_operation_ids(
+    spec: FixedHoldReplayMissionSpec,
+    member: FixedHoldReplayMember,
+    *,
+    episode: int,
+) -> FixedHoldReplayRepairOperationIds:
+    """Derive the single canonical operation namespace for a Repair episode."""
+
+    if type(episode) is not int or episode < 1:
+        raise ValueError("Repair episode must be a positive integer")
+    try:
+        operation_prefix = spec.operation_prefix
+        member_label = member.label
+    except AttributeError as exc:
+        raise TypeError(
+            "Repair operation namespace requires a spec and replay member"
+        ) from exc
+    stem = _ascii("Repair operation prefix", operation_prefix) + _ascii(
+        "Repair member label",
+        member_label,
+    )
+    if episode == 1:
+        return FixedHoldReplayRepairOperationIds(
+            permit=stem + "-repair-permit",
+            open=stem + "-open-repair",
+            attempt_prefix=stem + "-repair-attempt-",
+            close=stem + "-close-repair",
+            conclude=stem + "-conclude-repair",
+            resume=stem + "-resume-repaired-job",
+        )
+    base = f"{stem}-repair-episode-{episode:03d}"
+    return FixedHoldReplayRepairOperationIds(
+        permit=base + "-permit",
+        open=base + "-open",
+        attempt_prefix=base + "-attempt-",
+        close=base + "-close",
+        conclude=base + "-conclude",
+        resume=base + "-resume",
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class ReplayImplementationAdmission:
     """One in-memory pre-Study check handed to the Writer boundary."""
 
@@ -1999,24 +2076,11 @@ def _member_repair_chain_complete(
     stem = design.spec.operation_prefix + member.label
 
     def names(episode: int) -> dict[str, str]:
-        if episode == 1:
-            return {
-                "permit": stem + "-repair-permit",
-                "open": stem + "-open-repair",
-                "attempt_prefix": stem + "-repair-attempt-",
-                "close": stem + "-close-repair",
-                "conclude": stem + "-conclude-repair",
-                "resume": stem + "-resume-repaired-job",
-            }
-        base = f"{stem}-repair-episode-{episode:03d}"
-        return {
-            "permit": base + "-permit",
-            "open": base + "-open",
-            "attempt_prefix": base + "-attempt-",
-            "close": base + "-close",
-            "conclude": base + "-conclude",
-            "resume": base + "-resume",
-        }
+        return fixed_hold_replay_repair_operation_ids(
+            design.spec,
+            member,
+            episode=episode,
+        ).by_role()
 
     legacy_names = set(names(1).values())
     numbered_prefix = stem + "-repair-episode-"
@@ -2056,16 +2120,16 @@ def _member_repair_chain_complete(
                 continue
             suffix = operation.record_id[len(numbered_prefix) :]
             ordinal_text, separator, _tail = suffix.partition("-")
+            episode = int(ordinal_text) if ordinal_text.isdigit() else 0
             if (
                 separator != "-"
-                or len(ordinal_text) != 3
-                or not ordinal_text.isdigit()
-                or int(ordinal_text) < 2
+                or episode < 2
+                or ordinal_text != f"{episode:03d}"
             ):
                 raise RuntimeError(
                     "replay Repair episode operation identity is malformed"
                 )
-            episodes.add(int(ordinal_text))
+            episodes.add(episode)
         ordered_episodes = tuple(sorted(episodes))
         if ordered_episodes != tuple(range(1, ordered_episodes[-1] + 1)):
             raise RuntimeError("replay Repair episodes are not contiguous")
@@ -5110,6 +5174,7 @@ __all__ = [
     "FixedHoldReplayDesign",
     "FixedHoldReplayMember",
     "FixedHoldReplayMissionSpec",
+    "FixedHoldReplayRepairOperationIds",
     "ReplayAuthorityBoundary",
     "ReplayAxisAdmission",
     "ReplayInitiativeLifecycle",
@@ -5119,6 +5184,7 @@ __all__ = [
     "activate_current_scientific_protocol",
     "fixed_hold_replay_batch_budget",
     "fixed_hold_replay_job_budget",
+    "fixed_hold_replay_repair_operation_ids",
     "fixed_hold_replay_study_input_hash",
     "inspect_replay_prefix",
     "interpret_fixed_hold_completion",

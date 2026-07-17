@@ -154,6 +154,24 @@ class RunningJobFixedHoldReplayContext:
     target_prospective_executable_id: str
 
 
+def _require_same_event_family_authority(
+    *,
+    family_record: Any,
+    invalidation_authority: tuple[int, str, int],
+    family_authority_id: object,
+) -> None:
+    """Require one family record created by the invalidation event itself."""
+
+    try:
+        same_event = invalidation_authority == authority_key(family_record)
+    except RecordedTransitionAuthorityError as exc:
+        raise RunningJobAuthorityError(str(exc)) from exc
+    if not same_event or family_authority_id != family_record.record_id:
+        raise RunningJobAuthorityError(
+            "fixed-hold correction lacks same-event Writer authority"
+        )
+
+
 def _require_prior_family_authority(
     index: Any,
     *,
@@ -420,8 +438,22 @@ def _require_correction_pending_invalidation(
     except RecordedTransitionAuthorityError as exc:
         raise RunningJobAuthorityError(str(exc)) from exc
     pending_ids = result.get("pending_replay_obligation_ids")
+    expected_result_fields = {
+        "audit_manifest_hash",
+        "candidate_delta",
+        "holdout_reveal_delta",
+        "invalidated_satisfaction_record_id",
+        "pending_replay_obligation_ids",
+        "replay_obligation_id",
+        "scientific_claim_delta",
+        "scientific_satisfaction_delta",
+        "scientific_trial_delta",
+    }
+    if "historical_family_authority_id" in result:
+        expected_result_fields.add("historical_family_authority_id")
     if (
-        result.get("audit_manifest_hash") != audit_hash
+        set(result) != expected_result_fields
+        or result.get("audit_manifest_hash") != audit_hash
         or result.get("invalidated_satisfaction_record_id")
         != manifest.satisfaction_record_id
         or result.get("replay_obligation_id") != obligation.identity
@@ -444,18 +476,11 @@ def _require_correction_pending_invalidation(
             "fixed-hold correction lacks exact zero-delta Writer authority"
         )
     if isinstance(manifest, ReplaySatisfactionInvalidationAuditManifest):
-        try:
-            same_event = invalidation_authority == authority_key(family_record)
-        except RecordedTransitionAuthorityError as exc:
-            raise RunningJobAuthorityError(str(exc)) from exc
-        if (
-            not same_event
-            or result.get("historical_family_authority_id")
-            != family_record.record_id
-        ):
-            raise RunningJobAuthorityError(
-                "fixed-hold correction lacks same-event Writer authority"
-            )
+        _require_same_event_family_authority(
+            family_record=family_record,
+            invalidation_authority=invalidation_authority,
+            family_authority_id=result.get("historical_family_authority_id"),
+        )
         return manifest
 
     if not isinstance(manifest, ReplaySatisfactionInvalidationAuditManifestV2):
@@ -472,15 +497,18 @@ def _require_correction_pending_invalidation(
             "fixed-hold v2 correction lacks one completion-validity defect"
         )
     if "historical_family_authority_id" in result:
-        raise RunningJobAuthorityError(
-            "fixed-hold v2 correction duplicated prior family authority"
+        _require_same_event_family_authority(
+            family_record=family_record,
+            invalidation_authority=invalidation_authority,
+            family_authority_id=result["historical_family_authority_id"],
         )
-    _require_prior_family_authority(
-        index,
-        obligation=obligation,
-        family_record=family_record,
-        invalidation_authority=invalidation_authority,
-    )
+    else:
+        _require_prior_family_authority(
+            index,
+            obligation=obligation,
+            family_record=family_record,
+            invalidation_authority=invalidation_authority,
+        )
 
     satisfaction = _require_v2_scientific_satisfaction(
         index,
@@ -498,6 +526,290 @@ def _require_correction_pending_invalidation(
         invalidation_authority=invalidation_authority,
     )
     return manifest
+
+
+def _require_replay_progress_transition(
+    index: Any,
+    *,
+    obligation: Any,
+    record: Any,
+    require_current_head: bool,
+) -> ReplayExecutionBinding:
+    """Authenticate one exact pending-to-in-progress replay transition."""
+
+    raw_binding = record.payload.get("binding")
+    try:
+        if not isinstance(raw_binding, Mapping):
+            raise ReplayObligationError("replay progress binding is absent")
+        binding = ReplayExecutionBinding(
+            obligation_ids=tuple(raw_binding["obligation_ids"]),
+            portfolio_decision_id=raw_binding["portfolio_decision_id"],
+            replay_study_id=raw_binding["replay_study_id"],
+            replay_executable_id=raw_binding["replay_executable_id"],
+        )
+    except (KeyError, TypeError, ValueError, ReplayObligationError) as exc:
+        raise RunningJobAuthorityError(
+            "fixed-hold replay progress binding is malformed"
+        ) from exc
+    expected_payload = {
+        "binding": binding.to_identity_payload(),
+        "obligation_id": obligation.identity,
+        "prior_status": "pending",
+    }
+    stream = f"historical-replay-obligation:{obligation.identity}"
+    if (
+        binding.obligation_ids != (obligation.identity,)
+        or record.kind != "historical-replay-obligation-progress"
+        or record.record_id
+        != "historical-replay-progress:"
+        + canonical_digest(
+            domain="historical-replay-obligation-progress",
+            payload=expected_payload,
+        )
+        or record.subject != f"Mission:{obligation.governing_mission_id}"
+        or record.status != "in_progress"
+        or record.fingerprint != binding.identity
+        or record.payload != expected_payload
+        or record.event_stream != stream
+        or type(record.event_sequence) is not int
+        or record.event_sequence < 2
+    ):
+        raise RunningJobAuthorityError(
+            "fixed-hold replay progress transition is not exact"
+        )
+    try:
+        require_recorded_transition_authority(
+            index,
+            record=record,
+            expected_event_kinds=frozenset({"trial_registered"}),
+            require_current_head=require_current_head,
+        )
+    except RecordedTransitionAuthorityError as exc:
+        raise RunningJobAuthorityError(str(exc)) from exc
+    return binding
+
+
+def _require_replay_deferral_transition(
+    index: Any,
+    *,
+    obligation: Any,
+    record: Any,
+) -> Any:
+    """Authenticate one exact replay deferral inside a correction route."""
+
+    raw_deferral = record.payload.get("resolution")
+    try:
+        if not isinstance(raw_deferral, Mapping):
+            raise ReplayObligationError("replay deferral payload is absent")
+        deferral = replay_obligation_module.replay_deferral_from_identity_payload(
+            raw_deferral
+        )
+    except (TypeError, ValueError, ReplayObligationError) as exc:
+        raise RunningJobAuthorityError(
+            "fixed-hold replay deferral is malformed"
+        ) from exc
+    prior_status = record.payload.get("prior_status")
+    expected_payload = {
+        "obligation_id": obligation.identity,
+        "prior_status": prior_status,
+        "resolution": deferral.to_identity_payload(),
+    }
+    stream = f"historical-replay-obligation:{obligation.identity}"
+    if (
+        prior_status not in {"pending", "in_progress"}
+        or deferral.obligation_id != obligation.identity
+        or record.kind != "historical-replay-obligation-resolution"
+        or record.record_id != deferral.identity
+        or record.subject != f"Mission:{obligation.governing_mission_id}"
+        or record.status != "deferred"
+        or record.fingerprint
+        != deferral.identity.removeprefix("historical-replay-deferral:")
+        or record.payload != expected_payload
+        or record.event_stream != stream
+    ):
+        raise RunningJobAuthorityError(
+            "fixed-hold replay deferral transition is not exact"
+        )
+    try:
+        _event_kind, result = require_recorded_transition_authority(
+            index,
+            record=record,
+            expected_event_kinds=frozenset(
+                {"historical_replay_obligations_deferred"}
+            ),
+            require_current_head=False,
+        )
+    except RecordedTransitionAuthorityError as exc:
+        raise RunningJobAuthorityError(str(exc)) from exc
+    deferred_ids = result.get("deferred_replay_obligation_ids")
+    if (
+        set(result) != {"deferred_replay_obligation_ids"}
+        or not isinstance(deferred_ids, list)
+        or any(type(item) is not str for item in deferred_ids)
+        or deferred_ids != sorted(set(deferred_ids))
+        or obligation.identity not in deferred_ids
+    ):
+        raise RunningJobAuthorityError(
+            "fixed-hold replay deferral lacks exact Writer authority"
+        )
+    return deferral
+
+
+def _require_replay_resume_transition(
+    index: Any,
+    *,
+    obligation: Any,
+    record: Any,
+    deferral: Any,
+) -> None:
+    """Authenticate one exact deferred-to-pending replay transition."""
+
+    raw_evidence = record.payload.get("resume_evidence")
+    try:
+        if not isinstance(raw_evidence, Mapping):
+            raise ReplayObligationError("replay resume evidence is absent")
+        evidence = (
+            replay_obligation_module
+            .replay_resume_evidence_from_identity_payload(raw_evidence)
+        )
+    except (TypeError, ValueError, ReplayObligationError) as exc:
+        raise RunningJobAuthorityError(
+            "fixed-hold replay resume evidence is malformed"
+        ) from exc
+    expected_payload = {
+        "obligation_id": obligation.identity,
+        "prior_status": "deferred",
+        "resume_evidence": evidence.to_identity_payload(),
+        "scientific_claim_delta": 0,
+        "scientific_satisfaction_delta": 0,
+        "scientific_trial_delta": 0,
+    }
+    stream = f"historical-replay-obligation:{obligation.identity}"
+    if (
+        evidence.obligation_id != obligation.identity
+        or evidence.deferral_id != deferral.identity
+        or evidence.resume_condition_id
+        not in {item.identity for item in deferral.resume_conditions}
+        or record.kind != "historical-replay-obligation-resume"
+        or record.record_id != evidence.identity
+        or record.subject != f"Mission:{obligation.governing_mission_id}"
+        or record.status != "pending"
+        or record.fingerprint
+        != evidence.identity.removeprefix(
+            "historical-replay-resume-evidence:"
+        )
+        or record.payload != expected_payload
+        or record.event_stream != stream
+    ):
+        raise RunningJobAuthorityError(
+            "fixed-hold replay resume transition is not exact"
+        )
+    try:
+        _event_kind, result = require_recorded_transition_authority(
+            index,
+            record=record,
+            expected_event_kinds=frozenset(
+                {"historical_replay_obligations_resumed"}
+            ),
+            require_current_head=False,
+        )
+    except RecordedTransitionAuthorityError as exc:
+        raise RunningJobAuthorityError(str(exc)) from exc
+    expected_result_fields = {
+        "resume_condition_ids",
+        "resume_trigger_record_ids",
+        "resumed_replay_obligation_ids",
+        "scientific_claim_delta",
+        "scientific_satisfaction_delta",
+        "scientific_trial_delta",
+    }
+    inventories = (
+        ("resume_condition_ids", evidence.resume_condition_id),
+        ("resume_trigger_record_ids", evidence.trigger_record_id),
+        ("resumed_replay_obligation_ids", obligation.identity),
+    )
+    if set(result) != expected_result_fields or any(
+        not isinstance(values := result.get(field), list)
+        or any(type(item) is not str for item in values)
+        or values != sorted(set(values))
+        or expected not in values
+        for field, expected in inventories
+    ) or any(
+        result.get(field) != 0
+        for field in (
+            "scientific_claim_delta",
+            "scientific_satisfaction_delta",
+            "scientific_trial_delta",
+        )
+    ):
+        raise RunningJobAuthorityError(
+            "fixed-hold replay resume lacks exact zero-delta Writer authority"
+        )
+
+
+def _require_correction_invalidation_route(
+    index: Any,
+    *,
+    obligation: Any,
+    current_progress: Any,
+) -> Any:
+    """Walk the exact correction, deferral, and resume ancestry."""
+
+    stream = f"historical-replay-obligation:{obligation.identity}"
+    sequence = current_progress.event_sequence
+    cursor = (
+        None
+        if type(sequence) is not int or sequence < 2
+        else index.event_record(stream, sequence - 1)
+    )
+    while cursor is not None:
+        if cursor.kind == "historical-replay-satisfaction-invalidation":
+            return cursor
+        if (
+            cursor.kind != "historical-replay-obligation-resume"
+            or cursor.status != "pending"
+            or type(cursor.event_sequence) is not int
+            or cursor.event_sequence < 3
+        ):
+            break
+        deferral_record = index.event_record(
+            stream,
+            cursor.event_sequence - 1,
+        )
+        if deferral_record is None:
+            break
+        deferral = _require_replay_deferral_transition(
+            index,
+            obligation=obligation,
+            record=deferral_record,
+        )
+        _require_replay_resume_transition(
+            index,
+            obligation=obligation,
+            record=cursor,
+            deferral=deferral,
+        )
+        prior = index.event_record(
+            stream,
+            deferral_record.event_sequence - 1,
+        )
+        if prior is None:
+            break
+        if prior.status == "in_progress":
+            _require_replay_progress_transition(
+                index,
+                obligation=obligation,
+                record=prior,
+                require_current_head=False,
+            )
+            cursor = index.event_record(stream, prior.event_sequence - 1)
+        elif prior.status == "pending":
+            cursor = prior
+        else:
+            break
+    raise RunningJobAuthorityError(
+        "fixed-hold replay execution lost its correction invalidation route"
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -1191,80 +1503,34 @@ class RunningJobExecutionContext:
                 raise RunningJobAuthorityError(
                     "fixed-hold fully registered family lacks progress authority"
                 )
-            binding_payload = current_obligation.payload.get("binding")
-            try:
-                if not isinstance(binding_payload, Mapping):
-                    raise ReplayObligationError(
-                        "replay execution binding is absent"
-                    )
-                binding = ReplayExecutionBinding(
-                    obligation_ids=tuple(
-                        binding_payload.get("obligation_ids", ())
-                    ),
-                    portfolio_decision_id=binding_payload.get(
-                        "portfolio_decision_id"
-                    ),
-                    replay_study_id=binding_payload.get("replay_study_id"),
-                    replay_executable_id=binding_payload.get(
-                        "replay_executable_id"
-                    ),
-                )
-            except (TypeError, ReplayObligationError) as exc:
-                raise RunningJobAuthorityError(
-                    "fixed-hold replay execution binding is malformed"
-                ) from exc
+            binding = _require_replay_progress_transition(
+                index,
+                obligation=obligation,
+                record=current_obligation,
+                require_current_head=True,
+            )
             if (
-                canonical_bytes(binding.to_identity_payload())
-                != canonical_bytes(binding_payload)
-                or binding.obligation_ids != (replay_obligation_id,)
-                or binding.portfolio_decision_id
+                binding.portfolio_decision_id
                 != study_payload.get("portfolio_decision_id")
                 or binding.replay_study_id != study_id
                 or binding.replay_executable_id
                 != target_prospective_executable_id
-                or current_obligation.kind
-                != "historical-replay-obligation-progress"
-                or current_obligation.fingerprint != binding.identity
-                or current_obligation.payload
-                != {
-                    "binding": binding.to_identity_payload(),
-                    "obligation_id": replay_obligation_id,
-                    "prior_status": "pending",
-                }
-                or current_obligation.record_id
-                != "historical-replay-progress:"
-                + canonical_digest(
-                    domain="historical-replay-obligation-progress",
-                    payload=current_obligation.payload,
-                )
             ):
                 raise RunningJobAuthorityError(
                     "fixed-hold replay execution binding differs from its Study"
                 )
-            predecessor = index.event_record(
-                obligation_stream,
-                current_obligation.event_sequence - 1,
+            invalidation = _require_correction_invalidation_route(
+                index,
+                obligation=obligation,
+                current_progress=current_obligation,
             )
-            if predecessor is None:
-                raise RunningJobAuthorityError(
-                    "fixed-hold replay progress predecessor is absent"
-                )
             _require_correction_pending_invalidation(
                 index,
                 obligation=obligation,
-                record=predecessor,
+                record=invalidation,
                 family_record=family_record,
                 require_current_head=False,
             )
-            try:
-                require_recorded_transition_authority(
-                    index,
-                    record=current_obligation,
-                    expected_event_kinds=frozenset({"trial_registered"}),
-                    require_current_head=True,
-                )
-            except RecordedTransitionAuthorityError as exc:
-                raise RunningJobAuthorityError(str(exc)) from exc
         return RunningJobFixedHoldReplayContext(
             family_authority_id=family_authority_id,
             replay_obligation_id=replay_obligation_id,

@@ -425,7 +425,7 @@ class ReplaySatisfactionInvalidationAuditManifest:
             or not isinstance(value.get("completion_record_ids"), list)
         ):
             raise ValueError("replay satisfaction invalidation manifest is malformed")
-        return cls(
+        manifest = cls(
             governing_mission_id=value["governing_mission_id"],  # type: ignore[arg-type]
             obligation_id=value["obligation_id"],  # type: ignore[arg-type]
             satisfaction_record_id=value["satisfaction_record_id"],  # type: ignore[arg-type]
@@ -438,6 +438,11 @@ class ReplaySatisfactionInvalidationAuditManifest:
             completion_record_ids=tuple(value["completion_record_ids"]),  # type: ignore[arg-type]
             defect=ReplayMultiplicityBindingDefect.from_mapping(value["defect"]),
         )
+        if manifest.to_identity_payload() != dict(value):
+            raise ValueError(
+                "replay satisfaction invalidation manifest changed on rebuild"
+            )
+        return manifest
 
     @classmethod
     def from_bytes(
@@ -701,6 +706,13 @@ class ReplaySatisfactionInvalidationAuditManifestV2:
             or len({_defect_kind(item) for item in defects}) != len(defects)
         ):
             raise ValueError("replay satisfaction defects must be a typed union")
+        if not any(
+            isinstance(item, ReplayCompletionValidityDefect)
+            for item in defects
+        ):
+            raise ValueError(
+                "replay satisfaction invalidation v2 requires completion validity"
+            )
         completion_set = set(completions)
         for defect in defects:
             observed_ids = {
@@ -772,7 +784,7 @@ class ReplaySatisfactionInvalidationAuditManifestV2:
             raise ValueError(
                 "replay satisfaction invalidation v2 manifest is malformed"
             )
-        return cls(
+        manifest = cls(
             governing_mission_id=value["governing_mission_id"],  # type: ignore[arg-type]
             obligation_id=value["obligation_id"],  # type: ignore[arg-type]
             satisfaction_record_id=value["satisfaction_record_id"],  # type: ignore[arg-type]
@@ -785,6 +797,11 @@ class ReplaySatisfactionInvalidationAuditManifestV2:
             completion_record_ids=tuple(value["completion_record_ids"]),  # type: ignore[arg-type]
             defects=tuple(_defect_from_mapping(item) for item in value["defects"]),  # type: ignore[arg-type]
         )
+        if manifest.to_identity_payload() != dict(value):
+            raise ValueError(
+                "replay satisfaction invalidation v2 manifest changed on rebuild"
+            )
+        return manifest
 
     @classmethod
     def from_bytes(

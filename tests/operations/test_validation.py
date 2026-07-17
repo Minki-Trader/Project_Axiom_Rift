@@ -426,6 +426,33 @@ class ValidatorBoundaryTests(unittest.TestCase):
                 domain="scientific",
             )
 
+    def test_registered_protocol_is_an_exact_capability(self) -> None:
+        validator = UnreadArtifactValidator()
+        registry = EvidenceValidatorRegistry((validator,))
+        registry.require_registered_protocol(
+            validator_id=validator.validator_id,
+            domain="scientific",
+            protocol=validator.protocol,
+        )
+        with self.assertRaisesRegex(
+            EvidenceValidationError,
+            "protocol differs",
+        ):
+            registry.require_registered_protocol(
+                validator_id=validator.validator_id,
+                domain="scientific",
+                protocol="unrelated_protocol.v1",
+            )
+        with self.assertRaisesRegex(
+            EvidenceValidationError,
+            "protocol requirement is invalid",
+        ):
+            registry.require_registered_protocol(
+                validator_id=validator.validator_id,
+                domain="scientific",
+                protocol="",
+            )
+
     def test_class_method_replacement_and_in_place_code_patch_fail_closed(
         self,
     ) -> None:
