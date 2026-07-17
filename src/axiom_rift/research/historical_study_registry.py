@@ -37,7 +37,11 @@ HISTORICAL_HARDCODED_CONTROL_MODULE_SHA256 = {
     "historical_family_stu0016.py": "5373371cbda260657ec38f2be45f71759c2d5b66ab1e53d1776e9352e50c8e1f",
     "historical_family_stu0017.py": "2f179b35ff70c706a9ce155a40f90c8f9b86dd20e855825482e22deecd08c0fb",
     "historical_family_stu0032.py": "9230ecd8cdfe4e5abf0051f63448b29d10e189ea28f527a4cd7dfc6baefa5a6e",
+    "historical_family_stu0046.py": "f30815a1067252707412968b9530f11eb30ba02d18004cbbeabc19e05db3ff1e",
+    "historical_family_stu0047.py": "8f47c5110376701b8f17e8195b742473839bdedb551676cf5360dc82062327a8",
     "historical_family_stu0048.py": "ffa6af9f93b7598f668b4385caed85af08c7e4fc5b77cd6dc0f16fe0c322435b",
+    "historical_family_stu0049.py": "95bba077e6c2d51bf1828fe76e70b3cf47a07862e13072b4071ed3286a3381e4",
+    "historical_family_stu0050.py": "47be790c4e7d53a793d2b9bb36c034a289970150153a11d4e115b34e7e43c3bc",
     "historical_family_stu0051.py": "803936b35a1b36639351d85931f9cfd1c6d58d708d371bf7c2080c994c37e68a",
     "historical_family_stu0061.py": "215282cdc5a63d11d248817be5dc0e807aa3d882429625e71ba33099ca073ee4",
     "learned_state_study.py": "26ee72e7b13a36b69310c07996d62346e0471dc590c6fa706048940becf1f44b",
@@ -91,9 +95,25 @@ HISTORICAL_FAMILY_IDENTITY_BY_MODULE = {
         "historical-family:"
         "b3e2e15c99781ce0cda56e6468392e227be2d33920658b06ee185db111c5425b"
     ),
+    "historical_family_stu0046.py": (
+        "historical-family:"
+        "d6c7f525a28958eaf221985fbdf84332b584c51c86890fe76e763b510c8653fc"
+    ),
+    "historical_family_stu0047.py": (
+        "historical-family:"
+        "3eda237493baef4701b137cf8536d87f4f0c56f465e1ecc699627f06c42c1db0"
+    ),
     "historical_family_stu0048.py": (
         "historical-family:"
         "445e7a4d8b56830491a4833260d808500537b0cd6b00fd4f8ed985f2d2f3c92e"
+    ),
+    "historical_family_stu0049.py": (
+        "historical-family:"
+        "0ba03f9df484f3f9133ce9c47a9dc8f586994a70e7b1fe9f8a559cb97dfe6ec7"
+    ),
+    "historical_family_stu0050.py": (
+        "historical-family:"
+        "406d25cc8efe00987deb6420edb4ce35d4a86586ef23769a4cb5b4e786564a21"
     ),
     "historical_family_stu0051.py": (
         "historical-family:"
@@ -122,9 +142,25 @@ HISTORICAL_FAMILY_CORE_IDENTITY_BY_MODULE = {
         "historical-family-core:"
         "658594295b68a2617f17740c6f16128ef1f73af31ffe9caf9969c9c8eb526af0"
     ),
+    "historical_family_stu0046.py": (
+        "historical-family-core:"
+        "fdff3d04ef0b10c353d6e29e88e917093075175a5fb612d15c8bae2814e80019"
+    ),
+    "historical_family_stu0047.py": (
+        "historical-family-core:"
+        "1b1dcfc253d766b21c4e8521e9500184ac7629f03d220eff6ca20a9905e799be"
+    ),
     "historical_family_stu0048.py": (
         "historical-family-core:"
         "aaac80b29b829208c71953aa7bfc95c749985b62ba2ba350b26790e26efcf4c6"
+    ),
+    "historical_family_stu0049.py": (
+        "historical-family-core:"
+        "4f8a49d993fdc7a5a5108cb51e8d2d244e63971bc21c8775495cf33ac4a06125"
+    ),
+    "historical_family_stu0050.py": (
+        "historical-family-core:"
+        "06dc95770cd0ef7350e8254e7ad0f41e716e1cf44261e564c415ee4b78c92d0d"
     ),
     "historical_family_stu0051.py": (
         "historical-family-core:"
