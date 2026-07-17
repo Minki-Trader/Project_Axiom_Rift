@@ -67,6 +67,10 @@ def require_borrowed_production_profile(
                 PortfolioAction.ROTATE,
                 PortfolioAction.SYNTHESIZE,
             }
+            or (
+                new_axis_action is not PortfolioAction.NEW_MECHANISM
+                and design.bridge_decision.baseline_executable is None
+            )
             or design.protocol_revision is not None
             or axis_count_after != axis_count_before + 1
         ):

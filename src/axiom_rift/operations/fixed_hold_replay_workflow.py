@@ -117,6 +117,7 @@ from axiom_rift.research.axis_protocol_revision import (
 from axiom_rift.research.portfolio_projection import (
     architecture_surfaces_from_axis_projection,
     component_surface_registry,
+    executable_from_identity_payload,
     portfolio_axes_from_projection,
 )
 from axiom_rift.research.protocol import (
@@ -261,6 +262,9 @@ _NEW_AXIS_DECISION_ACTIONS = frozenset(
         PortfolioAction.ROTATE,
         PortfolioAction.SYNTHESIZE,
     }
+)
+_BASELINE_BOUND_NEW_AXIS_ACTIONS = _NEW_AXIS_DECISION_ACTIONS.difference(
+    {PortfolioAction.NEW_MECHANISM}
 )
 
 
@@ -1025,6 +1029,40 @@ def _require_new_axis_diagnosis_compatibility(
         )
 
 
+def _source_axis_scientific_baseline(
+    index: LocalIndexView,
+    source_axis: PortfolioAxis,
+) -> ExecutableSpec:
+    """Rehydrate the unique current-chassis baseline for one source axis."""
+
+    architecture = source_axis.architecture_chassis
+    if architecture is None:
+        raise RuntimeError("replay source axis lacks a typed chassis")
+    candidates: dict[str, ExecutableSpec] = {}
+    for record in index.records_by_payload_text(
+        "portfolio-decision",
+        "target_axis_identity",
+        source_axis.identity,
+    ):
+        payload = record.payload
+        manifest = payload.get("baseline_executable")
+        if (
+            payload.get("architecture_chassis_identity")
+            != architecture.identity
+            or not isinstance(manifest, Mapping)
+        ):
+            continue
+        executable = executable_from_identity_payload(manifest)
+        if payload.get("baseline_executable_id") != executable.identity:
+            raise RuntimeError("replay source baseline identity drifted")
+        candidates[executable.identity] = executable
+    if len(candidates) != 1:
+        raise RuntimeError(
+            "replay source axis lacks one exact scientific baseline"
+        )
+    return next(iter(candidates.values()))
+
+
 def _accepted_decision_review_mode(
     index: LocalIndexView,
     operation_id: str,
@@ -1470,6 +1508,17 @@ def build_fixed_hold_replay_design(
     if len(bridge_axes) != 1:
         raise RuntimeError("replay bridge axis is not exactly selectable")
     source_axis = bridge_axes[0]
+    source_axis_baseline: ExecutableSpec | None = None
+    resolved_new_axis_action = spec.resolved_new_axis_action
+    if resolved_new_axis_action in _BASELINE_BOUND_NEW_AXIS_ACTIONS:
+        with writer.open_stable_index() as (
+            _baseline_control,
+            baseline_index,
+        ):
+            source_axis_baseline = _source_axis_scientific_baseline(
+                baseline_index,
+                source_axis,
+            )
     replay_axis = PortfolioAxis(
         axis_id=spec.axis_id,
         causal_question=_ascii("replay causal question", causal_question),
@@ -1488,7 +1537,7 @@ def build_fixed_hold_replay_design(
     protocol_revision: AxisProtocolRevisionProposal | None = None
     replacement_axis_overlay_required = False
     if spec.axis_admission is ReplayAxisAdmission.ADD_NEW_MECHANISM:
-        new_axis_action = spec.resolved_new_axis_action
+        new_axis_action = resolved_new_axis_action
         assert new_axis_action is not None
         if accepted_bridge_operation is None:
             with writer.open_stable_index() as (
@@ -1694,6 +1743,7 @@ def build_fixed_hold_replay_design(
             options=bridge_options,
             rationale=bridge_rationale,
             commitment_batches=1,
+            baseline_executable=source_axis_baseline,
             quant_team_review=(
                 None
                 if bridge_review_mode is False
@@ -6253,6 +6303,12 @@ def read_only_summary(
             else design.spec.resolved_new_axis_action.value
         ),
         "base_snapshot_id": design.base_snapshot_id,
+        "bridge_baseline_executable_id": (
+            None
+            if design.bridge_decision is None
+            or design.bridge_decision.baseline_executable is None
+            else design.bridge_decision.baseline_executable.identity
+        ),
         "candidate_eligible": False,
         "current_prefix": completed,
         "diagnose_operation_count": diagnose_end - diagnose_start,

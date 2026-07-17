@@ -30,6 +30,7 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
     _replay_registration_prefix,
     _require_prospective_semantic_lineage_admission,
     _require_scientific_study_close_projection,
+    _source_axis_scientific_baseline,
     _study_close_record,
     _terminal_replay_reconstruction_allowed,
     _workflow_job_declarations,
@@ -139,6 +140,108 @@ class ReplayAdmissionBoundaryIdentityTests(unittest.TestCase):
                 control={},
                 first_operation_id="fixture-replay-open",
             )
+
+
+class SourceAxisScientificBaselineTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.architecture_id = "architecture-family:" + "a" * 64
+        self.axis = SimpleNamespace(
+            identity="axis:" + "b" * 64,
+            architecture_chassis=SimpleNamespace(
+                identity=self.architecture_id,
+            ),
+        )
+
+    def _record(
+        self,
+        executable_id: str,
+        *,
+        architecture_id: str | None = None,
+        recorded_executable_id: str | None = None,
+    ) -> SimpleNamespace:
+        return SimpleNamespace(
+            payload={
+                "architecture_chassis_identity": (
+                    self.architecture_id
+                    if architecture_id is None
+                    else architecture_id
+                ),
+                "baseline_executable": {"fixture_id": executable_id},
+                "baseline_executable_id": (
+                    executable_id
+                    if recorded_executable_id is None
+                    else recorded_executable_id
+                ),
+            }
+        )
+
+    def test_rehydrates_only_the_exact_current_chassis_baseline(self) -> None:
+        executable_id = "executable:" + "c" * 64
+        records = (
+            self._record(
+                "executable:" + "d" * 64,
+                architecture_id="architecture-family:" + "e" * 64,
+            ),
+            self._record(executable_id),
+        )
+        index = SimpleNamespace(
+            records_by_payload_text=Mock(return_value=records)
+        )
+        with patch.object(
+            workflow_module,
+            "executable_from_identity_payload",
+            side_effect=lambda payload: SimpleNamespace(
+                identity=payload["fixture_id"]
+            ),
+        ):
+            actual = _source_axis_scientific_baseline(index, self.axis)
+
+        self.assertEqual(actual.identity, executable_id)
+        index.records_by_payload_text.assert_called_once_with(
+            "portfolio-decision",
+            "target_axis_identity",
+            self.axis.identity,
+        )
+
+    def test_rejects_identity_drift_and_more_than_one_current_baseline(self) -> None:
+        executable_a = "executable:" + "c" * 64
+        executable_b = "executable:" + "d" * 64
+        rehydrate = lambda payload: SimpleNamespace(  # noqa: E731
+            identity=payload["fixture_id"]
+        )
+        drift_index = SimpleNamespace(
+            records_by_payload_text=Mock(
+                return_value=(
+                    self._record(
+                        executable_a,
+                        recorded_executable_id=executable_b,
+                    ),
+                )
+            )
+        )
+        with patch.object(
+            workflow_module,
+            "executable_from_identity_payload",
+            side_effect=rehydrate,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "identity drifted"):
+                _source_axis_scientific_baseline(drift_index, self.axis)
+
+        ambiguous_index = SimpleNamespace(
+            records_by_payload_text=Mock(
+                return_value=(
+                    self._record(executable_a),
+                    self._record(executable_b),
+                )
+            )
+        )
+        with patch.object(
+            workflow_module,
+            "executable_from_identity_payload",
+            side_effect=rehydrate,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "one exact"):
+                _source_axis_scientific_baseline(ambiguous_index, self.axis)
 
 
 def _snapshot_writer(index: object, *, control: dict | None = None):
