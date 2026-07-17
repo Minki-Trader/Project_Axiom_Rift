@@ -36,6 +36,7 @@ HISTORICAL_RAW_EVIDENCESTORE_COMPATIBILITY_PATHS = frozenset(
     {
         "axiom_rift/research/distribution_asymmetry_replay_parity.py",
         "axiom_rift/research/drawdown_state_replay.py",
+        "axiom_rift/research/historical_spread_time_invalidation_builder.py",
         "axiom_rift/research/routed_sleeve_replay_parity.py",
         "axiom_rift/research/volatility_duration_replay.py",
         "axiom_rift/research/volatility_duration_replay_parity.py",

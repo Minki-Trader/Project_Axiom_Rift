@@ -10,6 +10,7 @@ import axiom_rift.research.completed_period_atomic_trace as atomic_trace_module
 import axiom_rift.research.data as data_module
 import axiom_rift.research.discovery as discovery_module
 import axiom_rift.research.drawdown_fixed_hold as replay_module
+import axiom_rift.research.evidence_inputs as evidence_inputs_module
 import axiom_rift.research.fixed_hold_family_trace as fixed_hold_trace_module
 import axiom_rift.research.fixed_hold_historical_projection as historical_projection_module
 import axiom_rift.research.fixed_hold_trace_engine as trace_engine_module
@@ -18,7 +19,6 @@ import axiom_rift.research.historical_family_binding as family_binding_module
 import axiom_rift.research.historical_semantic_transition as transition_module
 import axiom_rift.research.scientific_trace as scientific_trace_module
 import axiom_rift.research.selection_inference as selection_inference_module
-import axiom_rift.storage.evidence as evidence_module
 from axiom_rift.operations.running_job import RunningJobExecution
 from axiom_rift.research.drawdown_fixed_hold import (
     DRAWDOWN_FIXED_HOLD_CONTEXT_PARAMETER,
@@ -32,6 +32,7 @@ from axiom_rift.research.fixed_hold_family_job import (
 from axiom_rift.research.fixed_hold_family_trace import (
     FixedHoldProtocolDefinition,
 )
+from axiom_rift.research.evidence_inputs import VerifiedEvidenceReader
 from axiom_rift.research.fixed_hold_replay_runtime import (
     FixedHoldRepairContext,
     FixedHoldRuntimeContext,
@@ -67,10 +68,14 @@ def _definition(
 def _trace(
     repository_root: Path,
     definition: FixedHoldProtocolDefinition,
+    evidence_reader: VerifiedEvidenceReader,
+    evidence_input_hashes: tuple[str, ...],
 ) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
     return compute_drawdown_fixed_hold_family_trace(
         repository_root,
         definition,
+        evidence_reader,
+        evidence_input_hashes,
     )
 
 
@@ -88,7 +93,7 @@ RUNTIME_ADAPTER = FixedHoldReplayRuntimeAdapter(
                 Path(chassis_module.__file__).resolve(),
                 Path(data_module.__file__).resolve(),
                 Path(discovery_module.__file__).resolve(),
-                Path(evidence_module.__file__).resolve(),
+                Path(evidence_inputs_module.__file__).resolve(),
                 Path(fixed_hold_trace_module.__file__).resolve(),
                 Path(historical_projection_module.__file__).resolve(),
                 Path(trace_engine_module.__file__).resolve(),
@@ -119,7 +124,7 @@ RUNTIME_ADAPTER = FixedHoldReplayRuntimeAdapter(
     expected_family_size=4,
     context_parameter_name=DRAWDOWN_FIXED_HOLD_CONTEXT_PARAMETER,
     bound_definition_builder=_definition,
-    bound_trace_builder=_trace,
+    bound_evidence_trace_builder=_trace,
 )
 
 

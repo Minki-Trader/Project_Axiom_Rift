@@ -361,6 +361,23 @@ class FixedHoldFamilyJobPlan:
             for name in self.expected_outputs()
         }
 
+    def direct_evidence_input_hashes(self) -> tuple[str, ...]:
+        """Return evidence objects this Job opens instead of cache-binds."""
+
+        if not self.produces_family_cache:
+            return ()
+        artifacts = self.definition.historical_artifacts_by_configuration()
+        identities = tuple(
+            _digest(
+                "fixed-hold direct evidence input",
+                artifact["artifact_sha256"],
+            )
+            for artifact in artifacts.values()
+        )
+        if len(identities) != len(set(identities)):
+            raise ValueError("fixed-hold direct evidence inputs must be unique")
+        return tuple(sorted(identities))
+
     def job_input_hashes(
         self,
         *,
@@ -388,6 +405,7 @@ class FixedHoldFamilyJobPlan:
             fixed_hold_shared_trace_implementation_sha256(),
             fixed_hold_trace_implementation_sha256(),
             selection_inference_implementation_sha256(),
+            *self.direct_evidence_input_hashes(),
             *dict(
                 self.definition.producer_implementation_identities
             ).values(),

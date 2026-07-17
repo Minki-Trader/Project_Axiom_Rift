@@ -18,7 +18,6 @@ import numpy as np
 import pandas as pd
 import scipy
 
-from axiom_rift.core.canonical import parse_canonical
 from axiom_rift.core.identity import ComponentSpec, ExecutableSpec
 from axiom_rift.research import data as data_module
 from axiom_rift.research.chassis import (
@@ -42,6 +41,10 @@ from axiom_rift.research.discovery import (
     _consecutive_run,
     _time_ns,
     discovery_implementation_sha256,
+)
+from axiom_rift.research.evidence_inputs import (
+    VerifiedEvidenceReader,
+    read_bound_evidence_inputs,
 )
 from axiom_rift.research.fixed_hold_family_trace import (
     FixedHoldProtocolDefinition,
@@ -72,7 +75,6 @@ from axiom_rift.research.scientific_trace import (
 from axiom_rift.research.selection_inference import (
     selection_inference_implementation_sha256,
 )
-from axiom_rift.storage.evidence import EvidenceStore
 
 
 DRAWDOWN_FIXED_HOLD_ALPHA_PPM = 100_000
@@ -744,20 +746,30 @@ def calibrate_drawdown_fixed_hold_selector(
 
 
 def _load_historical_evaluations(
-    repository_root: Path,
     definition: FixedHoldProtocolDefinition,
+    evidence_reader: VerifiedEvidenceReader,
+    evidence_input_hashes: tuple[str, ...],
 ) -> dict[str, dict[str, Any]]:
-    store = EvidenceStore(repository_root / "local" / "evidence")
     evaluations: dict[str, dict[str, Any]] = {}
     artifacts = definition.historical_artifacts_by_configuration()
     if tuple(sorted(artifacts)) != tuple(sorted(_EXPECTED_CONFIGURATION_IDS)):
         raise RuntimeError("drawdown historical artifact inventory drifted")
+    inputs = read_bound_evidence_inputs(
+        evidence_reader,
+        evidence_input_hashes,
+        expected_bindings=tuple(
+            (
+                str(artifact["artifact_sha256"]),
+                str(artifact["schema"]),
+            )
+            for _, artifact in sorted(artifacts.items())
+        ),
+    )
     for configuration_id, artifact in sorted(artifacts.items()):
         identity = str(artifact["artifact_sha256"])
-        value = parse_canonical(store.read_verified(identity))
+        value = inputs.require_identity(identity).value
         if (
-            not isinstance(value, dict)
-            or value.get("schema") != artifact["schema"]
+            value.get("schema") != artifact["schema"]
             or value.get("schema") != HISTORICAL_DRAWDOWN_EVALUATION_SCHEMA
             or value.get("subject_configuration_id") != configuration_id
         ):
@@ -767,11 +779,11 @@ def _load_historical_evaluations(
 
 
 def build_drawdown_historical_semantic_transitions(
-    repository_root: Path,
     definition: FixedHoldProtocolDefinition,
     windows: tuple[dict[str, object], ...],
     trade_observations: tuple[dict[str, object], ...],
     intent_observations: tuple[dict[str, object], ...],
+    historical_evaluations: dict[str, dict[str, Any]],
 ) -> tuple[dict[str, object], ...]:
     inventory = expected_fixed_hold_family_inventory(definition)
     controls = expected_fixed_hold_control_inventory(definition)
@@ -783,7 +795,6 @@ def build_drawdown_historical_semantic_transitions(
         intents=intent_observations,
         prefix_invariance_mismatch_count=0,
     )
-    historical = _load_historical_evaluations(repository_root, definition)
     artifacts = definition.historical_artifacts_by_configuration()
     transitions: list[dict[str, object]] = []
     for member in inventory:
@@ -799,7 +810,9 @@ def build_drawdown_historical_semantic_transitions(
                 ),
                 historical_artifact_sha256=artifact["artifact_sha256"],
                 historical_artifact_schema=artifact["schema"],
-                historical_evaluation_artifact=historical[configuration_id],
+                historical_evaluation_artifact=(
+                    historical_evaluations[configuration_id]
+                ),
                 corrected_structural_surfaces=projection["structural"],
                 corrected_economic_surfaces=projection["economic"],
             )
@@ -810,12 +823,35 @@ def build_drawdown_historical_semantic_transitions(
 def compute_drawdown_fixed_hold_family_trace(
     repository_root: str | Path,
     definition: FixedHoldProtocolDefinition,
+    evidence_reader: VerifiedEvidenceReader,
+    evidence_input_hashes: tuple[str, ...],
 ) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
     if (
         not isinstance(definition, FixedHoldProtocolDefinition)
         or not isinstance(definition.family, HistoricalFamilySpec)
     ):
         raise TypeError("drawdown definition is not Writer-bound")
+    historical_evaluations = _load_historical_evaluations(
+        definition,
+        evidence_reader,
+        evidence_input_hashes,
+    )
+
+    def semantic_transitions(
+        _repository_root: Path,
+        scoped_definition: FixedHoldProtocolDefinition,
+        windows: tuple[dict[str, object], ...],
+        trade_observations: tuple[dict[str, object], ...],
+        intent_observations: tuple[dict[str, object], ...],
+    ) -> tuple[dict[str, object], ...]:
+        return build_drawdown_historical_semantic_transitions(
+            scoped_definition,
+            windows,
+            trade_observations,
+            intent_observations,
+            historical_evaluations,
+        )
+
     return compute_fixed_hold_family_trace(
         repository_root,
         definition=definition,
@@ -823,9 +859,7 @@ def compute_drawdown_fixed_hold_family_trace(
         feature_builder=compute_drawdown_fixed_hold_score,
         selector_calibrator=calibrate_drawdown_fixed_hold_selector,
         spread_builder=causal_drawdown_fixed_hold_spread,
-        semantic_transition_builder=(
-            build_drawdown_historical_semantic_transitions
-        ),
+        semantic_transition_builder=semantic_transitions,
     )
 
 

@@ -166,6 +166,8 @@ def compute_stu0048_drawdown_family_trace(
     return compute_drawdown_fixed_hold_family_trace(
         repository_root,
         definition,
+        EvidenceStore(Path(repository_root) / "local" / "evidence"),
+        tuple(sorted(STU0048_HISTORICAL_EVALUATION_HASHES.values())),
     )
 
 
@@ -312,6 +314,46 @@ class DrawdownReplayBoundaryTests(unittest.TestCase):
         self.assertIn("historical_family_binding.py", dependency_names)
         self.assertNotIn("historical_family_stu0048.py", dependency_names)
         self.assertNotIn("historical_family_replay.py", dependency_names)
+
+    def test_only_family_producer_declares_direct_historical_evidence(self) -> None:
+        definition = drawdown_replay_protocol_definition(
+            historical_context_prior_global_exposure_count=(
+                HISTORICAL_CONTEXT_COUNT
+            )
+        )
+
+        def plan(executable_id: str):
+            return build_drawdown_replay_job_plan(
+                mission_id="MIS-0006",
+                study_id="STU-test-evidence-inputs",
+                executable_id=executable_id,
+                historical_context_prior_global_exposure_count=(
+                    HISTORICAL_CONTEXT_COUNT
+                ),
+                original_family_end_global_exposure_count=(
+                    DRAWDOWN_REPLAY_ORIGINAL_FAMILY_END_GLOBAL_EXPOSURE_COUNT
+                ),
+                historical_family=WRITER_BOUND_FAMILY,
+                historical_family_authority_id=FAMILY_AUTHORITY_ID,
+                replay_obligation_id=REPLAY_OBLIGATION_ID,
+            )
+
+        evidence_hashes = tuple(
+            sorted(STU0048_HISTORICAL_EVALUATION_HASHES.values())
+        )
+        producer = plan(definition.prospective_executable_ids[0])
+        consumer = plan(definition.prospective_executable_ids[1])
+        self.assertEqual(
+            producer.direct_evidence_input_hashes(),
+            evidence_hashes,
+        )
+        self.assertTrue(
+            set(evidence_hashes).issubset(producer.job_input_hashes())
+        )
+        self.assertEqual(consumer.direct_evidence_input_hashes(), ())
+        self.assertTrue(
+            set(evidence_hashes).isdisjoint(consumer.job_input_hashes())
+        )
 
     def test_family_identity_is_new_exact_and_context_bound(self) -> None:
         definition = drawdown_replay_protocol_definition(

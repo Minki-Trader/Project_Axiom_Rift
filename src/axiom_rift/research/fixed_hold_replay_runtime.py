@@ -48,6 +48,7 @@ from axiom_rift.research.fixed_hold_family_job import (
 from axiom_rift.research.fixed_hold_family_trace import (
     FixedHoldProtocolDefinition,
 )
+from axiom_rift.research.evidence_inputs import VerifiedEvidenceReader
 from axiom_rift.research.historical_family_binding import (
     HistoricalFamilyReplayContext,
     HistoricalFamilySpec,
@@ -67,6 +68,15 @@ BoundDefinitionBuilder = Callable[
 ]
 BoundTraceBuilder = Callable[
     [Path, FixedHoldProtocolDefinition],
+    tuple[dict[str, object], dict[str, dict[str, int]]],
+]
+BoundEvidenceTraceBuilder = Callable[
+    [
+        Path,
+        FixedHoldProtocolDefinition,
+        VerifiedEvidenceReader,
+        tuple[str, ...],
+    ],
     tuple[dict[str, object], dict[str, dict[str, int]]],
 ]
 _THIS_FILE = Path(__file__).resolve()
@@ -161,6 +171,7 @@ class FixedHoldReplayRuntimeAdapter:
     trace_builder: TraceBuilder | None = None
     bound_definition_builder: BoundDefinitionBuilder | None = None
     bound_trace_builder: BoundTraceBuilder | None = None
+    bound_evidence_trace_builder: BoundEvidenceTraceBuilder | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -193,13 +204,36 @@ class FixedHoldReplayRuntimeAdapter:
             raise ValueError(
                 "Component sources must be contained in the runtime closure"
             )
+        legacy_any = any(
+            value is not None
+            for value in (self.definition_builder, self.trace_builder)
+        )
         legacy_builders = callable(self.definition_builder) and callable(
             self.trace_builder
         )
-        bound_builders = callable(self.bound_definition_builder) and callable(
-            self.bound_trace_builder
+        bound_trace_count = sum(
+            callable(value)
+            for value in (
+                self.bound_trace_builder,
+                self.bound_evidence_trace_builder,
+            )
         )
-        if legacy_builders == bound_builders:
+        bound_any = self.bound_definition_builder is not None or any(
+            value is not None
+            for value in (
+                self.bound_trace_builder,
+                self.bound_evidence_trace_builder,
+            )
+        )
+        bound_builders = (
+            callable(self.bound_definition_builder)
+            and bound_trace_count == 1
+        )
+        if (
+            (legacy_any and not legacy_builders)
+            or (bound_any and not bound_builders)
+            or legacy_builders == bound_builders
+        ):
             raise TypeError(
                 "fixed-hold adapter requires exactly one complete builder pair"
             )
@@ -267,10 +301,16 @@ class FixedHoldReplayRuntimeAdapter:
         self,
         repository_root: Path,
         definition: FixedHoldProtocolDefinition,
+        *,
+        evidence_reader: VerifiedEvidenceReader,
+        evidence_input_hashes: tuple[str, ...],
     ) -> tuple[dict[str, object], dict[str, dict[str, int]]]:
         """Compute one trace from the exact already-checked definition."""
 
-        if self.bound_trace_builder is None:
+        if (
+            self.bound_trace_builder is None
+            and self.bound_evidence_trace_builder is None
+        ):
             raise RuntimeError(
                 "historical compatibility adapter is not prospectively executable"
             )
@@ -280,7 +320,27 @@ class FixedHoldReplayRuntimeAdapter:
             or definition.family.family_size != self.expected_family_size
         ):
             raise TypeError("Writer-bound fixed-hold definition is invalid")
-        return self.bound_trace_builder(repository_root, definition)
+        if not callable(getattr(evidence_reader, "read_verified", None)):
+            raise TypeError("fixed-hold evidence reader capability is invalid")
+        if type(evidence_input_hashes) is not tuple:
+            raise TypeError("fixed-hold evidence inputs must be a tuple")
+        if len(evidence_input_hashes) != len(set(evidence_input_hashes)):
+            raise ValueError("fixed-hold evidence inputs are duplicated")
+        if self.bound_evidence_trace_builder is not None:
+            return self.bound_evidence_trace_builder(
+                repository_root,
+                definition,
+                evidence_reader,
+                evidence_input_hashes,
+            )
+        if evidence_input_hashes:
+            raise ValueError(
+                "pure fixed-hold trace builder received direct evidence inputs"
+            )
+        builder = self.bound_trace_builder
+        if builder is None:
+            raise RuntimeError("fixed-hold trace builder is unavailable")
+        return builder(repository_root, definition)
 
 
 def fixed_hold_replay_runtime_dependency_paths(
@@ -832,6 +892,10 @@ def execute_fixed_hold_replay_job(
         neutral, _ = adapter.compute_trace_from_definition(
             root,
             scoped_plan.definition,
+            evidence_reader=running_job_context.evidence,
+            evidence_input_hashes=(
+                scoped_plan.direct_evidence_input_hashes()
+            ),
         )
         family_cache = fixed_hold_family_cache(
             scoped_plan=scoped_plan,
@@ -900,6 +964,7 @@ def execute_fixed_hold_replay_job(
 
 
 __all__ = [
+    "BoundEvidenceTraceBuilder",
     "DefinitionBuilder",
     "FixedHoldRepairContext",
     "FixedHoldReplayRuntimeAdapter",

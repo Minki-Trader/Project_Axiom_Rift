@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.research.evidence_inputs import (
+    read_bound_evidence_inputs,
     read_exact_evidence_inputs,
     read_surface_manifest_evidence_inputs,
 )
@@ -99,6 +100,68 @@ class ResearchEvidenceInputTests(unittest.TestCase):
 
     def _canonical(self, value: object) -> str:
         return self.store.finalize(canonical_bytes(value)).sha256
+
+    def test_identity_bound_inputs_allow_one_schema_for_many_artifacts(self) -> None:
+        first = self._canonical(
+            {"schema": "historical_member.v1", "subject": "first"}
+        )
+        second = self._canonical(
+            {"schema": "historical_member.v1", "subject": "second"}
+        )
+        identities = tuple(sorted((first, second)))
+
+        with patch.object(
+            self.store,
+            "read_verified",
+            wraps=self.store.read_verified,
+        ) as read_verified:
+            inputs = read_bound_evidence_inputs(
+                self.store,
+                identities,
+                expected_bindings=(
+                    (first, "historical_member.v1"),
+                    (second, "historical_member.v1"),
+                ),
+            )
+
+        self.assertEqual(
+            inputs.require_identity(first).value["subject"],
+            "first",
+        )
+        self.assertEqual(
+            inputs.require_identity(second).value["subject"],
+            "second",
+        )
+        self.assertEqual(
+            [call.args[0] for call in read_verified.call_args_list],
+            list(identities),
+        )
+
+    def test_identity_bound_inventory_fails_before_any_evidence_read(self) -> None:
+        first = self._canonical(
+            {"schema": "historical_member.v1", "subject": "first"}
+        )
+        second = self._canonical(
+            {"schema": "historical_member.v1", "subject": "second"}
+        )
+
+        with (
+            patch.object(
+                self.store,
+                "read_verified",
+                wraps=self.store.read_verified,
+            ) as read_verified,
+            self.assertRaisesRegex(ValueError, "differ from expected"),
+        ):
+            read_bound_evidence_inputs(
+                self.store,
+                (first,),
+                expected_bindings=(
+                    (first, "historical_member.v1"),
+                    (second, "historical_member.v1"),
+                ),
+            )
+        read_verified.assert_not_called()
 
     def test_surface_and_manifest_are_read_once_and_bound_exactly(self) -> None:
         surface_hash = self._canonical(

@@ -55,6 +55,21 @@ class ExactEvidenceInputs:
 
 
 @dataclass(frozen=True, slots=True)
+class BoundEvidenceInputs:
+    """Exact identity-bound canonical evidence consumed by one Job."""
+
+    declared_identities: tuple[str, ...]
+    artifacts: tuple[CanonicalEvidenceInput, ...]
+
+    def require_identity(self, identity: str) -> CanonicalEvidenceInput:
+        expected = _sha256_digest("evidence artifact identity", identity)
+        for artifact in self.artifacts:
+            if artifact.artifact_sha256 == expected:
+                return artifact
+        raise ValueError(f"required evidence identity is absent: {expected}")
+
+
+@dataclass(frozen=True, slots=True)
 class SurfaceManifestEvidenceInputs:
     """One surface and one manifest bound to that exact surface identity."""
 
@@ -126,6 +141,73 @@ def read_exact_evidence_inputs(
     )
 
 
+def read_bound_evidence_inputs(
+    store: VerifiedEvidenceReader,
+    identities: tuple[str, ...],
+    *,
+    expected_bindings: tuple[tuple[str, str], ...],
+) -> BoundEvidenceInputs:
+    """Read an exact identity-to-schema evidence inventory once.
+
+    A Job input inventory can also contain semantic digests that are not
+    EvidenceStore objects.  The caller therefore passes the already-separated
+    direct evidence identities.  Their inventory must exactly equal the
+    expected bindings; multiple artifacts may intentionally share one schema.
+    """
+
+    if type(identities) is not tuple:
+        raise TypeError("bound evidence input identities must be a tuple")
+    declared = tuple(
+        _sha256_digest("bound evidence input identity", identity)
+        for identity in identities
+    )
+    if len(declared) != len(set(declared)):
+        raise ValueError("bound evidence input identities must be unique")
+    if type(expected_bindings) is not tuple or not expected_bindings:
+        raise TypeError("expected evidence bindings must be a non-empty tuple")
+
+    schemas_by_identity: dict[str, str] = {}
+    for item in expected_bindings:
+        if type(item) is not tuple or len(item) != 2:
+            raise TypeError("expected evidence binding must be an identity pair")
+        identity = _sha256_digest("expected evidence identity", item[0])
+        schema = _ascii_schema("expected evidence schema", item[1])
+        if identity in schemas_by_identity:
+            raise ValueError("expected evidence identities must be unique")
+        schemas_by_identity[identity] = schema
+
+    if set(declared) != set(schemas_by_identity):
+        raise ValueError(
+            "declared evidence identities differ from expected bindings"
+        )
+
+    artifacts: list[CanonicalEvidenceInput] = []
+    for identity in declared:
+        content = store.read_verified(identity)
+        try:
+            value = parse_canonical(content)
+        except CanonicalJSONError as exc:
+            raise ValueError(
+                "bound evidence input is not canonical JSON"
+            ) from exc
+        if type(value) is not dict:
+            raise ValueError("bound evidence input is not a canonical object")
+        expected_schema = schemas_by_identity[identity]
+        if value.get("schema") != expected_schema:
+            raise ValueError("bound evidence input schema differs from binding")
+        artifacts.append(
+            CanonicalEvidenceInput(
+                artifact_sha256=identity,
+                schema=expected_schema,
+                value=value,
+            )
+        )
+    return BoundEvidenceInputs(
+        declared_identities=declared,
+        artifacts=tuple(artifacts),
+    )
+
+
 def read_surface_manifest_evidence_inputs(
     store: VerifiedEvidenceReader,
     identities: tuple[str, ...],
@@ -168,10 +250,12 @@ def read_surface_manifest_evidence_inputs(
 
 
 __all__ = [
+    "BoundEvidenceInputs",
     "CanonicalEvidenceInput",
     "ExactEvidenceInputs",
     "SurfaceManifestEvidenceInputs",
     "VerifiedEvidenceReader",
+    "read_bound_evidence_inputs",
     "read_exact_evidence_inputs",
     "read_surface_manifest_evidence_inputs",
 ]
