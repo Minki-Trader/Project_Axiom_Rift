@@ -26,6 +26,7 @@ class ReplayLifecycleSpec(Protocol):
     study_id: str
     operation_prefix: str
     target_obligation_id: str
+    replay_obligation_ids: tuple[str, ...]
     initiative_lifecycle: ReplayInitiativeLifecycle
     axis_admission: Any
 
@@ -282,11 +283,7 @@ def terminal_replay_reconstruction_allowed(
         if target_head.status == "satisfied"
         else "deferred_replay_obligation_ids"
     )
-    expected_result_ids = (
-        list(spec.replay_obligation_ids)
-        if scientific_change_return
-        else [spec.target_obligation_id]
-    )
+    expected_result_ids = list(spec.replay_obligation_ids)
     resolution_operation = records[1]
     if (
         not isinstance(resolution_result, Mapping)

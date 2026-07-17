@@ -31,6 +31,7 @@ INITIATIVE_ID = "INI-9001"
 STUDY_ID = "STU-9001"
 PREFIX = "recovery-fixture-"
 OBLIGATION_ID = "historical-replay-obligation:" + "a" * 64
+SECOND_OBLIGATION_ID = "historical-replay-obligation:" + "b" * 64
 
 
 class _Snapshot:
@@ -53,6 +54,7 @@ def _spec(*, lifecycle=ReplayInitiativeLifecycle.OWN_BOUNDED_INITIATIVE):
         axis_admission=ReplayAxisAdmission.ADD_NEW_MECHANISM,
         mission_id=MISSION_ID,
         operation_prefix=PREFIX,
+        replay_obligation_ids=(OBLIGATION_ID,),
         study_id=STUDY_ID,
         target_obligation_id=OBLIGATION_ID,
     )
@@ -123,6 +125,69 @@ class FixedHoldReplayRecoveryTests(unittest.TestCase):
                 spec,
                 terminal,
             )
+        )
+
+    def test_plural_resolution_is_an_exact_terminal_handoff(self) -> None:
+        spec = _spec(
+            lifecycle=ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE
+        )
+        spec.replay_obligation_ids = (
+            OBLIGATION_ID,
+            SECOND_OBLIGATION_ID,
+        )
+        diagnosis_id = "diagnosis:" + "1" * 64
+        diagnosis_operation = _operation(
+            "diagnose-study",
+            "study_diagnosis_recorded",
+            101,
+            {
+                "architecture_review_trigger_id": None,
+                "study_diagnosis_id": diagnosis_id,
+            },
+        )
+        resolution_operation = _operation(
+            "resolve-replay",
+            "historical_replay_obligations_resolved",
+            102,
+            {
+                "satisfied_replay_obligation_ids": [
+                    OBLIGATION_ID,
+                    SECOND_OBLIGATION_ID,
+                ]
+            },
+        )
+        diagnosis = SimpleNamespace(
+            authority_event_id=diagnosis_operation.authority_event_id,
+            authority_sequence=diagnosis_operation.authority_sequence,
+            payload={
+                "mission_id": MISSION_ID,
+                "portfolio_snapshot_id": "portfolio:" + "2" * 64,
+            },
+            subject=f"Study:{STUDY_ID}",
+        )
+        records = {
+            ("operation", PREFIX + "diagnose-study"): diagnosis_operation,
+            ("operation", PREFIX + "resolve-replay"): resolution_operation,
+            ("study-diagnosis", diagnosis_id): diagnosis,
+        }
+        index = SimpleNamespace(
+            get=lambda kind, record_id: records.get((kind, record_id))
+        )
+        terminal = SimpleNamespace(
+            authority_event_id=resolution_operation.authority_event_id,
+            authority_sequence=resolution_operation.authority_sequence,
+            payload={"obligation_id": OBLIGATION_ID},
+            status="satisfied",
+        )
+
+        self.assertTrue(
+            terminal_replay_reconstruction_allowed(index, spec, terminal)
+        )
+        resolution_operation.payload["result"] = {
+            "satisfied_replay_obligation_ids": [OBLIGATION_ID]
+        }
+        self.assertFalse(
+            terminal_replay_reconstruction_allowed(index, spec, terminal)
         )
 
     def test_scientific_change_disposition_is_a_typed_replay_step(self) -> None:
