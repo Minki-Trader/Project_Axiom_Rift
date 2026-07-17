@@ -123,7 +123,9 @@ from axiom_rift.operations.running_job import (
     RunningJobAuthorityError,
     RunningJobAuthorityIntegrityError,
     RunningJobExecution,
-    effective_running_job_implementation,
+)
+from axiom_rift.operations.running_job_repair_projection import (
+    effective_repair_head_implementation,
 )
 from axiom_rift.operations.repair_protocol import (
     EngineeringFailureDisposition,
@@ -1936,7 +1938,7 @@ class StateWriter:
     ) -> tuple[str, str | None]:
         """Project the latest typed in-place implementation Repair."""
         try:
-            return effective_running_job_implementation(
+            return effective_repair_head_implementation(
                 index,
                 job_id=job_id,
                 declared_implementation_identity=(
@@ -2075,13 +2077,24 @@ class StateWriter:
                         job_artifact_hashes=repaired_manifest["artifact_hashes"],
                         artifact_reader=self.evidence.read_verified,
                     )
-                require_current_job_source_closure(
-                    callable_identity=str(spec["callable_identity"]),
-                    job_artifact_hashes=repaired_manifest["artifact_hashes"],
-                    artifact_reader=self.evidence.read_verified,
-                    source_root=self.foundation_root / "src",
-                    verified_non_source_artifact_hashes=component_hashes,
+                subject_kind = (
+                    None
+                    if not isinstance(subject, Mapping)
+                    else subject.get("kind")
                 )
+                if _job_requires_current_source_authority(
+                    engineering_fixture=self.engineering_fixture,
+                    evidence_subject_kind=subject_kind,
+                ):
+                    require_current_job_source_closure(
+                        callable_identity=str(spec["callable_identity"]),
+                        job_artifact_hashes=repaired_manifest[
+                            "artifact_hashes"
+                        ],
+                        artifact_reader=self.evidence.read_verified,
+                        source_root=self.foundation_root / "src",
+                        verified_non_source_artifact_hashes=component_hashes,
+                    )
             except (ImplementationClosureError, TransitionError) as exc:
                 raise RecoveryRequired(
                     "repaired Job current implementation authority drifted"
@@ -6260,6 +6273,7 @@ class StateWriter:
         *,
         study_id: str,
         authority_manifest_digest: str,
+        _include_repair_successors: bool = True,
     ) -> IndexRecord | None:
         study = index.get("study-open", study_id)
         initial_admission_id = (
@@ -6275,23 +6289,56 @@ class StateWriter:
             raise RecoveryRequired(
                 "Study mixes initial and recertified replay admissions"
             )
-        admission_id = (
+        base_admission_id = (
             recertification_head.record_id
             if initial_admission_id is None
             and recertification_head is not None
             else initial_admission_id
         )
-        if admission_id is None:
+        if base_admission_id is None:
             return None
-        admission = (
-            index.get("replay-implementation-admission", admission_id)
-            if isinstance(admission_id, str)
+        base_admission = (
+            index.get("replay-implementation-admission", base_admission_id)
+            if isinstance(base_admission_id, str)
             else None
         )
-        if admission is None:
+        if base_admission is None:
             raise RecoveryRequired(
                 "Study replay implementation admission is unavailable"
             )
+        from axiom_rift.operations.replay_implementation_repair_admission import (
+            ReplayImplementationRepairAdmissionIntegrityError,
+            current_replay_implementation_repair_admission,
+            repair_admission_stream,
+        )
+
+        repair_recertification_stream = repair_admission_stream(study_id)
+        repair_recertification_head = index.event_head(
+            repair_recertification_stream
+        )
+        admission = base_admission
+        if (
+            _include_repair_successors
+            and repair_recertification_head is not None
+        ):
+            validated_base = StateWriter._study_replay_implementation_admission(
+                index,
+                study_id=study_id,
+                authority_manifest_digest=authority_manifest_digest,
+                _include_repair_successors=False,
+            )
+            if validated_base is None:
+                raise RecoveryRequired(
+                    "post-Repair admission lacks an authenticated predecessor"
+                )
+            try:
+                admission = current_replay_implementation_repair_admission(
+                    index,
+                    study_id=study_id,
+                    base_admission=validated_base,
+                )
+            except ReplayImplementationRepairAdmissionIntegrityError as exc:
+                raise RecoveryRequired(str(exc)) from exc
         from axiom_rift.operations.research_protocol_projection import (
             ResearchProtocolProjectionError,
             require_current_research_protocol_activation,
@@ -6391,7 +6438,11 @@ class StateWriter:
                     for manifest in manifests
                 ]
             )
-            if accepted is not None:
+            if (
+                accepted is not None
+                and payload.get("schema")
+                != "replay_implementation_admission.v3"
+            ):
                 require_active_replay_job_replacement_binding(
                     accepted_payload=accepted.payload,
                     active_payload={
@@ -6431,15 +6482,25 @@ class StateWriter:
             or accepted_head is None
             or accepted_head.record_id != accepted.record_id
         )
+        from axiom_rift.operations.replay_implementation_repair_admission import (
+            REPAIR_RECERTIFICATION_ADMISSION_SCHEMA,
+        )
+
         admission_schema = payload.get("schema")
-        recertified = admission_schema == "replay_implementation_admission.v2"
+        legacy_recertified = (
+            admission_schema == "replay_implementation_admission.v2"
+        )
+        repair_recertified = (
+            admission_schema == REPAIR_RECERTIFICATION_ADMISSION_SCHEMA
+        )
+        recertified = legacy_recertified or repair_recertified
         admission_boundary_invalid = bool(
             study is None
             or type(study.authority_sequence) is not int
             or type(protocol_activation.authority_sequence) is not int
             or type(admission.authority_sequence) is not int
             or (
-                recertified
+                legacy_recertified
                 and not (
                     study.authority_sequence
                     < protocol_activation.authority_sequence
@@ -6455,6 +6516,15 @@ class StateWriter:
                     != study.authority_sequence
                     or admission.authority_event_id
                     != study.authority_event_id
+                )
+            )
+            or (
+                repair_recertified
+                and not (
+                    protocol_activation.authority_sequence
+                    < admission.authority_sequence
+                    and study.authority_sequence
+                    < admission.authority_sequence
                 )
             )
         )
@@ -6475,6 +6545,16 @@ class StateWriter:
                 {
                     "recertification_preflight_id",
                     "registered_prefix_executable_ids",
+                }
+            )
+        if repair_recertified:
+            expected_payload_keys.update(
+                {
+                    "predecessor_admission_id",
+                    "repair_close_record_ids",
+                    "repair_executable_id",
+                    "repair_job_id",
+                    "trigger_repair_close_record_id",
                 }
             )
         recertification_invalid = False
@@ -6529,12 +6609,30 @@ class StateWriter:
                 )
             )
             prefix_count = len(prefix) if isinstance(prefix, list) else -1
+            active_recertification_head = (
+                repair_recertification_head
+                if repair_recertified
+                else recertification_head
+            )
+            active_recertification_stream = (
+                repair_recertification_stream
+                if repair_recertified
+                else recertification_stream
+            )
+            active_recertification_sequence = (
+                None
+                if active_recertification_head is None
+                else active_recertification_head.sequence
+            )
             recertification_invalid = (
-                recertification_head is None
-                or recertification_head.sequence != 1
-                or recertification_head.record_id != admission.record_id
-                or admission.event_stream != recertification_stream
-                or admission.event_sequence != 1
+                active_recertification_head is None
+                or (
+                    legacy_recertified
+                    and active_recertification_head.sequence != 1
+                )
+                or active_recertification_head.record_id != admission.record_id
+                or admission.event_stream != active_recertification_stream
+                or admission.event_sequence != active_recertification_sequence
                 or recertification_preflight is None
                 or recertification_preflight.status != "accepted"
                 or recertification_preflight.payload.get("outcome")
@@ -6584,6 +6682,16 @@ class StateWriter:
                 != registration.expected_executable_ids[: len(prefix)]
                 or registration.registered_executable_ids[: len(prefix)]
                 != tuple(prefix)
+                or (
+                    repair_recertified
+                    and (
+                        tuple(prefix) != registration.expected_executable_ids
+                        or recertification_preflight.payload.get(
+                            "repair_close_record_id"
+                        )
+                        != payload.get("trigger_repair_close_record_id")
+                    )
+                )
                 or any(trial is None for trial in registered_trials)
                 or any(
                     trial.authority_sequence >= admission.authority_sequence
@@ -6607,6 +6715,7 @@ class StateWriter:
             not in {
                 "replay_implementation_admission.v1",
                 "replay_implementation_admission.v2",
+                REPAIR_RECERTIFICATION_ADMISSION_SCHEMA,
             }
             or payload.get("study_id") != study_id
             or payload.get("authority_manifest_digest")
@@ -12422,6 +12531,7 @@ class StateWriter:
         *,
         request: Any,
         operation_id: str,
+        repair_close_record_id: str | None = None,
     ) -> TransitionResult:
         """Check one replay family before it spends trial or Job budget.
 
@@ -12429,7 +12539,10 @@ class StateWriter:
         the byte inspector inside the stable-index lock, and writes the result
         itself.  Callers cannot submit an ``accepted`` result.  Rejection is
         operational evidence only and routes the Batch to an unavailable
-        disposition without manufacturing a failed Job.
+        disposition without manufacturing a failed Job.  An exact successful
+        running-Job implementation Repair may use the same evaluator to append
+        a successor family admission after that Job is completed and judged;
+        the completed prefix and predecessor admission are re-derived here.
         """
 
         from axiom_rift.operations.replay_job_implementation_preflight import (
@@ -12455,6 +12568,11 @@ class StateWriter:
         if not isinstance(request, ReplayJobImplementationPreflightRequest):
             raise TransitionError(
                 "replay Job implementation preflight request is not typed"
+            )
+        if repair_close_record_id is not None:
+            _require_digest(
+                "replay implementation Repair close",
+                repair_close_record_id,
             )
 
         def prepare(current: dict[str, Any] | None, index: LocalIndex):
@@ -12495,8 +12613,10 @@ class StateWriter:
             study_id: str | None = None
             surface_batch: IndexRecord | None = None
             surface_study: IndexRecord | None = None
+            current_admission: IndexRecord | None = None
             required_replacement_preflight: IndexRecord | None = None
             registration_inspection: Any | None = None
+            repair_boundary: Any | None = None
             protocol_failure: str | None = None
             protocol_activation: IndexRecord | None = None
             replacement = request.replacement_for_preflight_id
@@ -12575,6 +12695,17 @@ class StateWriter:
                         + batch_id
                     )
                 )
+                current_admission = (
+                    None
+                    if not isinstance(study_id, str)
+                    else self._study_replay_implementation_admission(
+                        index,
+                        study_id=study_id,
+                        authority_manifest_digest=current.get(
+                            "authority", {}
+                        ).get("manifest_digest"),
+                    )
+                )
                 if (
                     batch is None
                     or study is None
@@ -12582,28 +12713,61 @@ class StateWriter:
                     or study.payload.get("replay_obligation_ids")
                     != list(request.replay_obligation_ids)
                     or not isinstance(family_ids, list)
-                    or tuple(family_ids) != request.executable_ids
+                    or len(family_ids) != len(request.executable_ids)
+                    or set(family_ids) != set(request.executable_ids)
                     or not isinstance(action, Mapping)
                     or action.get("kind") != "declare_job"
                     or action.get("batch_id") != batch_id
                     or registration_inspection is None
                     or registration_inspection.expected_executable_ids
                     != request.executable_ids
-                    or self._study_replay_implementation_admission(
-                        index,
-                        study_id=study_id,
-                        authority_manifest_digest=current.get(
-                            "authority", {}
-                        ).get("manifest_digest"),
+                    or (
+                        repair_close_record_id is None
+                        and (
+                            current_admission is not None
+                            or budget_head is not None
+                            or declarations
+                            or existing_preflight_head is not None
+                        )
                     )
-                    is not None
-                    or budget_head is not None
-                    or declarations
-                    or existing_preflight_head is not None
+                    or (
+                        repair_close_record_id is not None
+                        and current_admission is None
+                    )
                 ):
                     raise TransitionError(
                         "replay implementation preflight differs from the active family"
                     )
+                if repair_close_record_id is not None:
+                    assert current_admission is not None
+                    assert study is not None
+                    assert batch is not None
+                    from axiom_rift.operations import (
+                        replay_implementation_repair_admission
+                        as repair_module,
+                    )
+
+                    boundary_inspector = (
+                        repair_module.inspect_replay_implementation_repair_boundary
+                    )
+                    boundary_error = (
+                        repair_module.ReplayImplementationRepairAdmissionError
+                    )
+
+                    try:
+                        repair_boundary = boundary_inspector(
+                            index,
+                            predecessor_admission=current_admission,
+                            study_record=study,
+                            batch_record=batch,
+                            request=request.to_identity_payload(),
+                            registration_inspection=registration_inspection,
+                            trigger_repair_close_record_id=(
+                                repair_close_record_id
+                            ),
+                        )
+                    except boundary_error as exc:
+                        raise TransitionError(str(exc)) from exc
                 if any(
                     item is None
                     or item[1].status
@@ -12643,64 +12807,85 @@ class StateWriter:
                     )
                 except ResearchProtocolProjectionError as exc:
                     raise RecoveryRequired(str(exc)) from exc
-                if (
-                    type(study.authority_sequence) is not int
-                    or type(protocol_activation.authority_sequence) is not int
-                    or study.authority_sequence
-                    >= protocol_activation.authority_sequence
-                ):
-                    raise RecoveryRequired(
-                        "missing replay admission is not inside the legacy "
-                        "pre-activation recertification boundary"
+                if repair_boundary is not None:
+                    assert current_admission is not None
+                    accepted_id = current_admission.payload.get(
+                        "accepted_replacement_preflight_id"
                     )
-                replacement_triggers: list[IndexRecord] = []
-                for _obligation, head_record in selected:
-                    prior = (
+                    required_replacement_preflight = (
                         None
-                        if not isinstance(head_record.event_stream, str)
-                        or type(head_record.event_sequence) is not int
-                        or head_record.event_sequence < 2
-                        else index.event_record(
-                            head_record.event_stream,
-                            head_record.event_sequence - 1,
-                        )
-                    )
-                    resume_evidence = (
-                        None
-                        if prior is None
-                        or prior.kind
-                        != "historical-replay-obligation-resume"
-                        else prior.payload.get("resume_evidence")
-                    )
-                    trigger_id = (
-                        None
-                        if not isinstance(resume_evidence, Mapping)
-                        else resume_evidence.get("trigger_record_id")
-                    )
-                    trigger = (
-                        None
-                        if not isinstance(trigger_id, str)
+                        if accepted_id is None
                         else index.get(
                             "job-implementation-preflight",
-                            trigger_id,
+                            str(accepted_id),
                         )
                     )
-                    if trigger is not None and trigger.payload.get(
-                        "replacement_for_preflight_id"
-                    ) is not None:
-                        replacement_triggers.append(trigger)
-                if replacement_triggers:
-                    trigger_ids = {
-                        record.record_id for record in replacement_triggers
-                    }
-                    if (
-                        len(replacement_triggers) != len(selected)
-                        or len(trigger_ids) != 1
+                    if accepted_id is not None and (
+                        required_replacement_preflight is None
                     ):
-                        raise TransitionError(
-                            "active replay family mixes replacement authorities"
+                        raise RecoveryRequired(
+                            "post-Repair replay admission lost its "
+                            "replacement authority"
                         )
-                    required_replacement_preflight = replacement_triggers[0]
+                else:
+                    if (
+                        type(study.authority_sequence) is not int
+                        or type(protocol_activation.authority_sequence) is not int
+                        or study.authority_sequence
+                        >= protocol_activation.authority_sequence
+                    ):
+                        raise RecoveryRequired(
+                            "missing replay admission is not inside the legacy "
+                            "pre-activation recertification boundary"
+                        )
+                    replacement_triggers: list[IndexRecord] = []
+                    for _obligation, head_record in selected:
+                        prior = (
+                            None
+                            if not isinstance(head_record.event_stream, str)
+                            or type(head_record.event_sequence) is not int
+                            or head_record.event_sequence < 2
+                            else index.event_record(
+                                head_record.event_stream,
+                                head_record.event_sequence - 1,
+                            )
+                        )
+                        resume_evidence = (
+                            None
+                            if prior is None
+                            or prior.kind
+                            != "historical-replay-obligation-resume"
+                            else prior.payload.get("resume_evidence")
+                        )
+                        trigger_id = (
+                            None
+                            if not isinstance(resume_evidence, Mapping)
+                            else resume_evidence.get("trigger_record_id")
+                        )
+                        trigger = (
+                            None
+                            if not isinstance(trigger_id, str)
+                            else index.get(
+                                "job-implementation-preflight",
+                                trigger_id,
+                            )
+                        )
+                        if trigger is not None and trigger.payload.get(
+                            "replacement_for_preflight_id"
+                        ) is not None:
+                            replacement_triggers.append(trigger)
+                    if replacement_triggers:
+                        trigger_ids = {
+                            record.record_id for record in replacement_triggers
+                        }
+                        if (
+                            len(replacement_triggers) != len(selected)
+                            or len(trigger_ids) != 1
+                        ):
+                            raise TransitionError(
+                                "active replay family mixes replacement authorities"
+                            )
+                        required_replacement_preflight = replacement_triggers[0]
             else:
                 replaced_batch_id = (
                     None
@@ -12798,6 +12983,17 @@ class StateWriter:
                 )
             except ReplayJobImplementationPreflightError as exc:
                 raise TransitionError(str(exc)) from exc
+            if repair_boundary is not None and (
+                current_admission is None
+                or current_admission.payload.get("scientific_surface")
+                != scientific_surface
+                or current_admission.payload.get("scientific_surface_hash")
+                != scientific_surface_hash
+            ):
+                raise TransitionError(
+                    "post-Repair recertification changed the admitted "
+                    "scientific surface"
+                )
             scientific_candidate = {
                 "callable_identity": request.callable_identity,
                 "executable_ids": list(request.executable_ids),
@@ -12836,15 +13032,16 @@ class StateWriter:
                         required_replacement_preflight.event_stream
                     )
                 )
-                try:
-                    require_active_replay_job_replacement_binding(
-                        accepted_payload=(
-                            required_replacement_preflight.payload
-                        ),
-                        active_payload=scientific_candidate,
-                    )
-                except ReplayJobImplementationPreflightError as exc:
-                    raise TransitionError(str(exc)) from exc
+                if repair_boundary is None:
+                    try:
+                        require_active_replay_job_replacement_binding(
+                            accepted_payload=(
+                                required_replacement_preflight.payload
+                            ),
+                            active_payload=scientific_candidate,
+                        )
+                    except ReplayJobImplementationPreflightError as exc:
+                        raise TransitionError(str(exc)) from exc
                 if (
                     required_replacement_preflight.status != "accepted"
                     or trigger_head is None
@@ -12868,24 +13065,48 @@ class StateWriter:
                     "before any durable rejection or scientific transition: "
                     f"{result.reason_code}: {result.failure_detail}"
                 ) from exc
+            if repair_boundary is not None and not result.accepted:
+                raise TransitionError(
+                    "post-Repair family recertification failed its independent "
+                    f"implementation preflight: {result.reason_code}: "
+                    f"{result.failure_detail}"
+                )
             payload = {
                 **result.to_record_payload(),
                 "batch_id": batch_id,
                 "scientific_surface": scientific_surface,
                 "scientific_surface_hash": scientific_surface_hash,
                 "study_id": study_id,
+                **(
+                    {}
+                    if repair_boundary is None
+                    else {
+                        "repair_close_record_id": (
+                            repair_boundary.trigger_repair_close_record_id
+                        )
+                    }
+                ),
             }
             fingerprint = _digest(
                 payload,
                 domain="replay-job-implementation-preflight",
             )
             preflight_id = f"job-implementation-preflight:{fingerprint}"
-            stream = (
-                f"replay-job-implementation-preflight-replacement:{replacement}"
-                if replacement is not None
-                else f"replay-job-implementation-preflight-batch:{batch_id}"
-            )
+            if repair_boundary is not None:
+                stream = repair_module.repair_preflight_stream(
+                    repair_boundary.trigger_repair_close_record_id
+                )
+            else:
+                stream = (
+                    f"replay-job-implementation-preflight-replacement:{replacement}"
+                    if replacement is not None
+                    else f"replay-job-implementation-preflight-batch:{batch_id}"
+                )
             head = index.event_head(stream)
+            if repair_boundary is not None and head is not None:
+                raise RecoveryRequired(
+                    "post-Repair implementation preflight stream is not atomic"
+                )
             record = _record(
                 kind="job-implementation-preflight",
                 record_id=preflight_id,
@@ -12936,6 +13157,38 @@ class StateWriter:
                     ),
                     "study_id": study_id,
                 }
+                admission_stream = (
+                    "replay-implementation-admission-study:" + study_id
+                )
+                admission_sequence = 1
+                if repair_boundary is not None:
+                    repair_schema = (
+                        repair_module.REPAIR_RECERTIFICATION_ADMISSION_SCHEMA
+                    )
+                    admission_payload.update(
+                        {
+                            "predecessor_admission_id": (
+                                repair_boundary.predecessor_admission_id
+                            ),
+                            "repair_close_record_ids": list(
+                                repair_boundary.repair_close_record_ids
+                            ),
+                            "repair_executable_id": (
+                                repair_boundary.repair_executable_id
+                            ),
+                            "repair_job_id": repair_boundary.repair_job_id,
+                            "schema": repair_schema,
+                            "trigger_repair_close_record_id": (
+                                repair_boundary.trigger_repair_close_record_id
+                            ),
+                        }
+                    )
+                    admission_stream = (
+                        repair_module.repair_admission_stream(study_id)
+                    )
+                    admission_sequence = (
+                        repair_boundary.admission_event_sequence
+                    )
                 admission_fingerprint = _digest(
                     admission_payload,
                     domain="replay-implementation-admission",
@@ -12950,13 +13203,15 @@ class StateWriter:
                     status="active",
                     fingerprint=admission_fingerprint,
                     payload=admission_payload,
-                    event_stream=(
-                        "replay-implementation-admission-study:" + study_id
-                    ),
-                    event_sequence=1,
+                    event_stream=admission_stream,
+                    event_sequence=admission_sequence,
                 )
             body = self._body(current)
-            if not result.accepted and isinstance(batch_id, str):
+            if (
+                repair_boundary is None
+                and not result.accepted
+                and isinstance(batch_id, str)
+            ):
                 body["next_action"] = {
                     "basis_record_id": preflight_id,
                     "kind": "dispose_batch",
@@ -12977,10 +13232,21 @@ class StateWriter:
             }
 
         return self._commit(
-            event_kind="replay_job_implementation_preflight_recorded",
+            event_kind=(
+                "replay_implementation_repair_recertified"
+                if repair_close_record_id is not None
+                else "replay_job_implementation_preflight_recorded"
+            ),
             operation_id=operation_id,
             subject=f"Mission:{request.mission_id}",
-            payload={"request_identity": request.identity},
+            payload={
+                "request_identity": request.identity,
+                **(
+                    {}
+                    if repair_close_record_id is None
+                    else {"repair_close_record_id": repair_close_record_id}
+                ),
+            },
             prepare=prepare,
         )
 

@@ -22,10 +22,12 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
     _all_member_repair_chains,
     _canonical_statistical_family_ids,
     _decision_action_review_basis,
+    _member_implementation_recertification_boundary,
     _member_repair_chain_complete,
     _protocol_activation_operation_id,
     _projection_payloads,
     _recorded_protocol_activation_operation_ids,
+    _replay_registration_prefix,
     _require_prospective_semantic_lineage_admission,
     _require_scientific_study_close_projection,
     _study_close_record,
@@ -794,6 +796,88 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         control["next_action"]["study_diagnosis_id"] = "diagnosis:" + "c" * 64
         with self.assertRaisesRegex(RuntimeError, "context drifted"):
             _decision_action_review_basis(index, control)
+
+    def test_accepted_decision_context_survives_next_action_advance(self) -> None:
+        operation_id = "accepted-replay-decision"
+        decision_id = "decision:" + "d" * 64
+        diagnosis_id = "diagnosis:" + "e" * 64
+        records = {
+            (
+                "operation",
+                operation_id,
+            ): SimpleNamespace(
+                status="success",
+                payload={
+                    "event_kind": "portfolio_decision_recorded",
+                    "result": {"decision_id": decision_id},
+                },
+            ),
+            (
+                "portfolio-decision",
+                decision_id,
+            ): SimpleNamespace(
+                payload={
+                    "architecture_review_id": None,
+                    "scheduler_constraints": None,
+                    "study_diagnosis_id": diagnosis_id,
+                }
+            ),
+            ("study-diagnosis", diagnosis_id): SimpleNamespace(payload={}),
+        }
+        index = SimpleNamespace(
+            get=lambda kind, record_id: records.get((kind, record_id))
+        )
+
+        actual = _decision_action_review_basis(
+            index,
+            {"next_action": {"batch_id": "batch:" + "f" * 64, "kind": "declare_job"}},
+            accepted_operation_ids=(operation_id,),
+        )
+
+        self.assertEqual(
+            tuple(item.to_identity_payload() for item in actual),
+            ({"kind": "study-diagnosis", "record_id": diagnosis_id},),
+        )
+
+    def test_registration_prefix_rejects_reconstructed_batch_drift(self) -> None:
+        design = self._design()
+        design.batch_spec = SimpleNamespace(identity="batch:" + "f" * 64)
+        stream = f"study-batches:{design.spec.study_id}"
+        durable_batch_id = "batch:" + "0" * 64
+        study = SimpleNamespace(record_id=design.spec.study_id)
+        batch = SimpleNamespace(
+            event_sequence=1,
+            event_stream=stream,
+            kind="batch-open",
+            record_id=durable_batch_id,
+            status="open",
+            subject=f"Study:{design.spec.study_id}",
+        )
+        head = SimpleNamespace(
+            record_id=durable_batch_id,
+            record_kind="batch-open",
+            sequence=1,
+        )
+        index = SimpleNamespace(
+            event_head=lambda requested: head if requested == stream else None,
+            get=lambda kind, record_id: (
+                study
+                if (kind, record_id) == ("study-open", design.spec.study_id)
+                else batch
+                if (kind, record_id) == ("batch-open", durable_batch_id)
+                else None
+            ),
+        )
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "reconstructed replay Batch differs",
+        ):
+            _replay_registration_prefix(
+                SimpleNamespace(),
+                design,
+                _index=index,
+            )
 
     def test_lineage_is_admitted_before_replay_authority(self) -> None:
         spec = self._spec()
@@ -1642,6 +1726,11 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
 
     @patch(
         "axiom_rift.operations.fixed_hold_replay_workflow."
+        "_member_implementation_recertification_boundary",
+        return_value=None,
+    )
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow."
         "_all_member_repair_chains",
     )
     @patch(
@@ -1652,6 +1741,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         self,
         _completion,
         repair_chains,
+        _recertification,
     ) -> None:
         design = self._design()
         member = design.members[0]
@@ -2227,6 +2317,178 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             design.spec.operation_prefix,
         )
         projected.records_by_kind.assert_not_called()
+
+    def test_cause_repair_after_implementation_uses_terminal_head(self) -> None:
+        design = self._design()
+        member = design.members[0]
+        stem = design.spec.operation_prefix + member.label
+        job_id = "job:" + "1" * 64
+        implementation_close_id = "2" * 64
+        cause_close_id = "3" * 64
+        implementation_operation_id = stem + "-close-repair"
+        cause_operation_id = stem + "-repair-episode-002-close"
+
+        def operation(record_id: str, sequence: int, close_id: str):
+            return SimpleNamespace(
+                authority_event_id=f"{sequence:064x}",
+                authority_sequence=sequence,
+                payload={
+                    "event_kind": "repair_closed",
+                    "result": {"repair_close_record_id": close_id},
+                },
+                status="success",
+            )
+
+        implementation_operation = operation(
+            implementation_operation_id,
+            100,
+            implementation_close_id,
+        )
+        cause_operation = operation(
+            cause_operation_id,
+            101,
+            cause_close_id,
+        )
+        implementation_close = SimpleNamespace(
+            authority_event_id=implementation_operation.authority_event_id,
+            authority_sequence=implementation_operation.authority_sequence,
+            payload={
+                "changed_dimension": "implementation",
+                "implementation_changed": True,
+                "job_id": job_id,
+                "scientific_failure_delta": 0,
+                "scientific_trial_delta": 0,
+            },
+            record_id=implementation_close_id,
+            status="repaired",
+            subject=f"Job:{job_id}",
+        )
+        cause_close = SimpleNamespace(
+            authority_event_id=cause_operation.authority_event_id,
+            authority_sequence=cause_operation.authority_sequence,
+            payload={
+                "changed_dimension": "cause",
+                "implementation_changed": False,
+                "job_id": job_id,
+                "scientific_failure_delta": 0,
+                "scientific_trial_delta": 0,
+            },
+            record_id=cause_close_id,
+            status="repaired",
+            subject=f"Job:{job_id}",
+        )
+        records = {
+            implementation_operation_id: implementation_operation,
+            cause_operation_id: cause_operation,
+            implementation_close_id: implementation_close,
+            cause_close_id: cause_close,
+        }
+        index = SimpleNamespace(
+            event_head=lambda stream: (
+                SimpleNamespace(record_id=cause_close_id)
+                if stream == f"job-repair:{job_id}"
+                else None
+            ),
+            get=lambda _kind, record_id: records.get(record_id),
+        )
+        repair_steps = (
+            OperationStep(
+                implementation_operation_id,
+                "repair_closed",
+                STUDY_CLOSE_STAGE,
+            ),
+            OperationStep(
+                cause_operation_id,
+                "repair_closed",
+                STUDY_CLOSE_STAGE,
+            ),
+        )
+
+        self.assertEqual(
+            _member_implementation_recertification_boundary(
+                index,
+                design=design,
+                member=member,
+                repair_steps=repair_steps,
+            ),
+            cause_close_id,
+        )
+
+    def test_recorded_recertification_resumes_from_operation_result(self) -> None:
+        design = self._design()
+        member = design.members[0]
+        stem = design.spec.operation_prefix + member.label
+        job_id = "job:" + "1" * 64
+        close_id = "2" * 64
+        admission_id = "replay-implementation-admission:" + "3" * 64
+        close_operation_id = stem + "-close-repair"
+        recertification_id = stem + "-recertify-replay-implementation"
+        close_operation = SimpleNamespace(
+            authority_event_id="4" * 64,
+            authority_sequence=100,
+            payload={
+                "event_kind": "repair_closed",
+                "result": {"repair_close_record_id": close_id},
+            },
+            status="success",
+        )
+        close = SimpleNamespace(
+            authority_event_id=close_operation.authority_event_id,
+            authority_sequence=close_operation.authority_sequence,
+            payload={
+                "changed_dimension": "implementation",
+                "implementation_changed": True,
+                "job_id": job_id,
+                "scientific_failure_delta": 0,
+                "scientific_trial_delta": 0,
+            },
+            record_id=close_id,
+            status="repaired",
+            subject=f"Job:{job_id}",
+        )
+        recertification = SimpleNamespace(
+            payload={
+                "event_kind": "replay_implementation_repair_recertified",
+                "result": {
+                    "admission_id": admission_id,
+                    "repair_close_record_id": close_id,
+                },
+            },
+            status="success",
+        )
+        admission = SimpleNamespace(
+            payload={"trigger_repair_close_record_id": close_id},
+        )
+        records = {
+            admission_id: admission,
+            close_id: close,
+            close_operation_id: close_operation,
+            recertification_id: recertification,
+        }
+        index = SimpleNamespace(
+            event_head=lambda stream: (
+                SimpleNamespace(record_id=close_id)
+                if stream == f"job-repair:{job_id}"
+                else None
+            ),
+            get=lambda _kind, record_id: records.get(record_id),
+        )
+
+        self.assertEqual(
+            _member_implementation_recertification_boundary(
+                index,
+                design=design,
+                member=member,
+                repair_steps=(
+                    OperationStep(
+                        close_operation_id,
+                        "repair_closed",
+                        STUDY_CLOSE_STAGE,
+                    ),
+                ),
+            ),
+            close_id,
+        )
 
     def test_runnable_replay_context_reads_use_authenticated_snapshots(
         self,

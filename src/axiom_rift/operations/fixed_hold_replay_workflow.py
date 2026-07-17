@@ -650,6 +650,8 @@ def _base_snapshot_id(
 def _decision_action_review_basis(
     index: LocalIndexView,
     control: Mapping[str, Any],
+    *,
+    accepted_operation_ids: Sequence[str] = (),
 ) -> tuple[DecisionBasisRecord, ...]:
     """Project every durable authority the current Decision review must cite."""
 
@@ -657,7 +659,36 @@ def _decision_action_review_basis(
     if not isinstance(action, Mapping):
         return ()
     context = dict(action)
-    if action.get("kind") == "execute_portfolio_decision":
+    durable_context: Mapping[str, Any] | None = None
+    for operation_id in accepted_operation_ids:
+        operation = index.get("operation", operation_id)
+        if operation is None:
+            continue
+        result = operation.payload.get("result")
+        decision_id = (
+            None
+            if not isinstance(result, Mapping)
+            else result.get("decision_id")
+        )
+        decision = (
+            None
+            if not isinstance(decision_id, str)
+            else index.get("portfolio-decision", decision_id)
+        )
+        if (
+            operation.status != "success"
+            or operation.payload.get("event_kind")
+            != "portfolio_decision_recorded"
+            or decision is None
+        ):
+            raise RuntimeError(
+                "accepted replay Decision context is unavailable"
+            )
+        durable_context = decision.payload
+        break
+    if durable_context is None and action.get(
+        "kind"
+    ) == "execute_portfolio_decision":
         decision_id = action.get("decision_id")
         decision = (
             None
@@ -667,6 +698,7 @@ def _decision_action_review_basis(
         if decision is None:
             raise RuntimeError("accepted replay Decision context is unavailable")
         durable_context = decision.payload
+    if durable_context is not None:
         scheduler_context = durable_context.get("scheduler_constraints")
         if scheduler_context is not None and not isinstance(
             scheduler_context,
@@ -680,6 +712,8 @@ def _decision_action_review_basis(
             durable_value = durable_context.get(field)
             active_value = context.get(field)
             if (
+                action.get("kind") == "execute_portfolio_decision"
+                and
                 active_value is not None
                 and durable_value is not None
                 and active_value != durable_value
@@ -692,6 +726,8 @@ def _decision_action_review_basis(
                 durable_value = scheduler_context.get(field)
                 active_value = context.get(field)
                 if (
+                    action.get("kind") == "execute_portfolio_decision"
+                    and
                     active_value is not None
                     and durable_value is not None
                     and active_value != durable_value
@@ -809,7 +845,14 @@ def build_fixed_hold_replay_design(
         snapshot_record = index.get("portfolio-snapshot", base_snapshot_id)
         if snapshot_record is None:
             raise RuntimeError("replay base Portfolio snapshot is absent")
-        decision_action_basis = _decision_action_review_basis(index, _control)
+        decision_action_basis = _decision_action_review_basis(
+            index,
+            _control,
+            accepted_operation_ids=(
+                spec.operation_prefix + "replay-decision",
+                spec.operation_prefix + "bridge-decision",
+            ),
+        )
         raw_axes = snapshot_record.payload.get("axes")
         if not isinstance(raw_axes, list) or any(
             not isinstance(axis, Mapping) for axis in raw_axes
@@ -1679,9 +1722,26 @@ def _replay_registration_prefix(
     batch_identity = getattr(batch_spec, "identity", None)
     if not isinstance(batch_identity, str):
         raise RuntimeError("replay design lacks its typed Batch identity")
-    batch = _index.get("batch-open", batch_identity)
-    if batch is None:
+    batch_head = _index.event_head(
+        f"study-batches:{design.spec.study_id}"
+    )
+    if batch_head is None:
         return 0, None, False, False
+    batch = _index.get(batch_head.record_kind, batch_head.record_id)
+    if (
+        batch is None
+        or batch.kind != "batch-open"
+        or batch.status != "open"
+        or batch.subject != f"Study:{design.spec.study_id}"
+        or batch.event_stream != f"study-batches:{design.spec.study_id}"
+        or batch.event_sequence != batch_head.sequence
+        or batch_head.sequence != 1
+    ):
+        raise RuntimeError("durable replay Batch projection is malformed")
+    if batch.record_id != batch_identity:
+        raise RuntimeError(
+            "reconstructed replay Batch differs from its durable admission"
+        )
     from axiom_rift.operations.replay_study_admission import (
         ReplayStudyAdmissionError,
         inspect_replay_study_registration,
@@ -1708,7 +1768,7 @@ def _replay_registration_prefix(
         operation = _index.get("operation", operation_id)
         if ordinal < inspection.registered_count:
             trial = _index.event_record(
-                f"batch-trials:{design.batch_spec.identity}",
+                f"batch-trials:{batch.record_id}",
                 ordinal + 1,
             )
             material_identity = (
@@ -2420,6 +2480,124 @@ def _all_member_repair_chains(
         }
 
 
+def _member_implementation_recertification_boundary(
+    index: LocalIndexView,
+    *,
+    design: FixedHoldReplayDesign,
+    member: FixedHoldReplayMember,
+    repair_steps: Sequence[OperationStep],
+) -> str | None:
+    """Return the final Repair head when this member changed implementation."""
+
+    recertification_operation_id = (
+        design.spec.operation_prefix
+        + member.label
+        + "-recertify-replay-implementation"
+    )
+    recorded = index.get("operation", recertification_operation_id)
+    if any(
+        step.event_kind == "repair_concluded_unrecovered"
+        for step in repair_steps
+    ):
+        if recorded is not None:
+            raise RuntimeError(
+                "unrecovered Repair cannot recertify family implementation"
+            )
+        return None
+    close_records: list[IndexRecord] = []
+    implementation_changed = False
+    for step in repair_steps:
+        if step.event_kind != "repair_closed":
+            continue
+        operation = index.get("operation", step.operation_id)
+        result = (
+            None if operation is None else operation.payload.get("result")
+        )
+        close_id = (
+            None
+            if not isinstance(result, Mapping)
+            else result.get("repair_close_record_id")
+        )
+        close = (
+            None
+            if not isinstance(close_id, str)
+            else index.get("repair-close", close_id)
+        )
+        if (
+            operation is None
+            or operation.status != "success"
+            or operation.payload.get("event_kind") != "repair_closed"
+            or close is None
+            or close.status != "repaired"
+            or close.subject
+            != f"Job:{close.payload.get('job_id', '')}"
+            or close.authority_sequence != operation.authority_sequence
+            or close.authority_event_id != operation.authority_event_id
+            or close.payload.get("scientific_trial_delta") != 0
+            or close.payload.get("scientific_failure_delta") != 0
+        ):
+            raise RuntimeError(
+                "replay implementation recertification Repair is malformed"
+            )
+        changed_dimension = close.payload.get("changed_dimension")
+        changed = close.payload.get("implementation_changed")
+        if changed_dimension == "implementation":
+            if changed is not True:
+                raise RuntimeError(
+                    "implementation Repair lacks its changed identity marker"
+                )
+            implementation_changed = True
+        elif changed is not False:
+            raise RuntimeError(
+                "non-implementation Repair changes implementation authority"
+            )
+        close_records.append(close)
+    if not implementation_changed:
+        if recorded is not None:
+            raise RuntimeError(
+                "replay recertification exists without implementation Repair"
+            )
+        return None
+    if not close_records:
+        raise RuntimeError(
+            "implementation Repair lacks its terminal Repair head"
+        )
+    trigger = close_records[-1]
+    head = index.event_head(
+        f"job-repair:{trigger.payload.get('job_id', '')}"
+    )
+    if head is None or head.record_id != trigger.record_id:
+        raise RuntimeError(
+            "implementation recertification does not bind the current Repair head"
+        )
+    if recorded is not None:
+        result = recorded.payload.get("result")
+        admission_id = (
+            None
+            if not isinstance(result, Mapping)
+            else result.get("admission_id")
+        )
+        admission = (
+            None
+            if not isinstance(admission_id, str)
+            else index.get("replay-implementation-admission", admission_id)
+        )
+        if (
+            recorded.status != "success"
+            or recorded.payload.get("event_kind")
+            != "replay_implementation_repair_recertified"
+            or result.get("repair_close_record_id")
+            != trigger.record_id
+            or admission is None
+            or admission.payload.get("trigger_repair_close_record_id")
+            != trigger.record_id
+        ):
+            raise RuntimeError(
+                "recorded replay implementation recertification is malformed"
+            )
+    return trigger.record_id
+
+
 def activate_current_scientific_protocol(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
@@ -2732,6 +2910,29 @@ def operation_steps(
         design,
         _index=_index,
     )
+    repair_recertification_close_ids: dict[int, str | None] = {}
+    for member in design.members:
+        if member.ordinal == len(design.members):
+            terminal_recertification = _index.get(
+                "operation",
+                prefix
+                + member.label
+                + "-recertify-replay-implementation",
+            )
+            if terminal_recertification is not None:
+                raise RuntimeError(
+                    "terminal replay member cannot recertify successor work"
+                )
+            repair_recertification_close_ids[member.ordinal] = None
+        else:
+            repair_recertification_close_ids[member.ordinal] = (
+                _member_implementation_recertification_boundary(
+                    _index,
+                    design=design,
+                    member=member,
+                    repair_steps=repair_chains[member.ordinal],
+                )
+            )
     unrecovered_present = any(
         step.event_kind == "repair_concluded_unrecovered"
         for chain in repair_chains.values()
@@ -3050,6 +3251,14 @@ def operation_steps(
                     STUDY_CLOSE_STAGE,
                 )
             )
+            if repair_recertification_close_ids[member.ordinal] is not None:
+                steps.append(
+                    OperationStep(
+                        stem + "-recertify-replay-implementation",
+                        "replay_implementation_repair_recertified",
+                        STUDY_CLOSE_STAGE,
+                    )
+                )
             if unrecovered_repair:
                 break
             if budget_repair_boundary == member.ordinal:
@@ -3886,6 +4095,44 @@ def _apply_study_close_step(
         )
     for member in design.members:
         stem = prefix + member.label
+        if operation_id == stem + "-recertify-replay-implementation":
+            with writer.open_stable_index() as (_control, index):
+                repair_steps = _member_repair_chain_complete(
+                    writer,
+                    design,
+                    member,
+                    _index=index,
+                    _operations=tuple(
+                        index.records_by_kind_prefix(
+                            "operation",
+                            design.spec.operation_prefix,
+                        )
+                    ),
+                )
+                repair_close_record_id = (
+                    _member_implementation_recertification_boundary(
+                        index,
+                        design=design,
+                        member=member,
+                        repair_steps=repair_steps,
+                    )
+                )
+            if repair_close_record_id is None:
+                raise RuntimeError(
+                    "replay implementation recertification lacks its Repair"
+                )
+            request = _materialize_replay_implementation_preflight_request(
+                writer,
+                design,
+                job_implementation_materializer=(
+                    job_implementation_materializer
+                ),
+            )
+            return writer.record_replay_job_implementation_preflight(
+                request=request,
+                operation_id=operation_id,
+                repair_close_record_id=repair_close_record_id,
+            )
         if operation_id == stem + "-register-trial":
             return writer.register_trial(
                 executable=member.executable,
@@ -4864,6 +5111,7 @@ def run_study_close_stage(
         if step.event_kind in {
             "job_completed",
             "replay_job_implementation_preflight_recorded",
+            "replay_implementation_repair_recertified",
             "research_protocol_activated",
         }:
             cursor = _refresh_replay_cursor_plan(writer, design, cursor)

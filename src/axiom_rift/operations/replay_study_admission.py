@@ -217,6 +217,130 @@ def inspect_replay_study_registration(
             registered=(),
             detail=failure,
         )
+    initial_admission_id = study_record.payload.get(
+        "replay_implementation_admission_id"
+    )
+    recertification_stream = (
+        f"replay-implementation-admission-study:{study_id}"
+    )
+    recertification_head = index.event_head(recertification_stream)
+    if initial_admission_id is not None and recertification_head is not None:
+        return _malformed(
+            study_id=study_id,
+            batch_id=batch_id,
+            expected=expected,
+            registered=(),
+            detail="replay Study mixes initial and recertified admissions",
+        )
+    base_admission_id = (
+        initial_admission_id
+        if initial_admission_id is not None
+        else (
+            None
+            if recertification_head is None
+            else recertification_head.record_id
+        )
+    )
+    if base_admission_id is not None:
+        admission = (
+            None
+            if type(base_admission_id) is not str
+            else index.get(
+                "replay-implementation-admission",
+                base_admission_id,
+            )
+        )
+        admission_payload = (
+            None if admission is None else admission.payload
+        )
+        request = (
+            None
+            if not isinstance(admission_payload, Mapping)
+            else admission_payload.get("request")
+        )
+        manifests = (
+            None
+            if not isinstance(request, Mapping)
+            else request.get("executable_manifests")
+        )
+        ordered_ids = (
+            ()
+            if not isinstance(manifests, list)
+            or any(not isinstance(item, Mapping) for item in manifests)
+            else tuple(
+                "executable:"
+                + canonical_digest(domain="executable", payload=item)
+                for item in manifests
+            )
+        )
+        fingerprint = (
+            None
+            if not isinstance(admission_payload, Mapping)
+            else canonical_digest(
+                domain="replay-implementation-admission",
+                payload=admission_payload,
+            )
+        )
+        initial_admission = initial_admission_id is not None
+        expected_schema = (
+            "replay_implementation_admission.v1"
+            if initial_admission
+            else "replay_implementation_admission.v2"
+        )
+        boundary_valid = (
+            admission is not None
+            and (
+                (
+                    initial_admission
+                    and admission.event_stream is None
+                    and admission.event_sequence is None
+                    and admission.authority_sequence
+                    == study_record.authority_sequence
+                    and admission.authority_event_id
+                    == study_record.authority_event_id
+                )
+                or (
+                    not initial_admission
+                    and recertification_head is not None
+                    and recertification_head.sequence == 1
+                    and recertification_head.record_id
+                    == admission.record_id
+                    and admission.event_stream == recertification_stream
+                    and admission.event_sequence == 1
+                    and type(study_record.authority_sequence) is int
+                    and type(admission.authority_sequence) is int
+                    and study_record.authority_sequence
+                    < admission.authority_sequence
+                )
+            )
+        )
+        if (
+            admission is None
+            or admission.kind != "replay-implementation-admission"
+            or admission.status != "active"
+            or admission.subject != f"Study:{study_id}"
+            or admission_payload.get("schema") != expected_schema
+            or admission_payload.get("study_id") != study_id
+            or admission_payload.get("batch_id") != batch_id
+            or admission.fingerprint != fingerprint
+            or admission.record_id
+            != f"replay-implementation-admission:{fingerprint}"
+            or not boundary_valid
+            or not ordered_ids
+            or len(set(ordered_ids)) != len(ordered_ids)
+            or set(ordered_ids) != set(expected)
+        ):
+            return _malformed(
+                study_id=study_id,
+                batch_id=batch_id,
+                expected=expected,
+                registered=(),
+                detail=(
+                    "replay Study initial implementation admission does not "
+                    "bind one exact family execution order"
+                ),
+            )
+        expected = ordered_ids
     replay_obligation_ids = study_record.payload.get("replay_obligation_ids")
     material_identity = study_record.payload.get("material_identity")
     prior_global_multiplicity = study_record.payload.get(
