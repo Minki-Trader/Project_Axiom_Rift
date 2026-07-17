@@ -478,6 +478,59 @@ def deferral_record(
     )
 
 
+def scientific_change_return_record(
+    *,
+    obligation: HistoricalReplayObligation,
+    prior_progress: IndexRecord,
+    replay_study_id: str,
+    replay_executable_id: str,
+    replay_study_close_record_id: str,
+    study_diagnosis_id: str,
+    engineering_completion_record_id: str,
+    engineering_disposition_record_id: str,
+    engineering_disposition_hash: str,
+    resume_condition: str,
+) -> IndexRecord:
+    """Prepare one zero-credit in-progress-to-pending scientific reset."""
+
+    payload = {
+        "candidate_delta": 0,
+        "engineering_completion_record_id": engineering_completion_record_id,
+        "engineering_disposition_hash": engineering_disposition_hash,
+        "engineering_disposition_record_id": engineering_disposition_record_id,
+        "holdout_reveal_delta": 0,
+        "obligation_id": obligation.identity,
+        "prior_progress_record_id": prior_progress.record_id,
+        "prior_status": ReplayObligationStatus.IN_PROGRESS.value,
+        "replay_executable_id": replay_executable_id,
+        "replay_study_close_record_id": replay_study_close_record_id,
+        "replay_study_id": replay_study_id,
+        "resume_condition": resume_condition,
+        "schema": "historical_replay_scientific_change_return.v1",
+        "scientific_claim_delta": 0,
+        "scientific_failure_delta": 0,
+        "scientific_satisfaction_delta": 0,
+        "scientific_trial_delta": 0,
+        "study_diagnosis_id": study_diagnosis_id,
+        "successor_scope": "study",
+        "terminal_credit_delta": 0,
+    }
+    fingerprint = canonical_digest(
+        domain="historical-replay-scientific-change-return",
+        payload=payload,
+    )
+    return _record(
+        kind="historical-replay-scientific-change-return",
+        record_id="historical-replay-scientific-change-return:" + fingerprint,
+        subject=f"Mission:{obligation.governing_mission_id}",
+        status=ReplayObligationStatus.PENDING.value,
+        fingerprint=fingerprint,
+        payload=payload,
+        event_stream=obligation_stream(obligation.identity),
+        event_sequence=(prior_progress.event_sequence or 0) + 1,
+    )
+
+
 def resume_record(
     *,
     obligation: HistoricalReplayObligation,
@@ -4642,6 +4695,467 @@ def prepare_deferral(
     return records, constraints, {
         "deferred_replay_obligation_ids": sorted(deferred_ids)
     }
+
+
+def _scientific_change_basis_record(
+    index: LocalIndex | LocalIndexView,
+    *,
+    diagnosis: IndexRecord,
+    kind: str,
+) -> IndexRecord:
+    basis = diagnosis.payload.get("evidence_basis")
+    matches = (
+        ()
+        if not isinstance(basis, list)
+        else tuple(
+            index.get(kind, item.get("record_id", ""))
+            for item in basis
+            if isinstance(item, Mapping) and item.get("kind") == kind
+        )
+    )
+    if len(matches) != 1 or matches[0] is None:
+        raise ReplayTransitionError(
+            "scientific-change replay return lacks one exact " + kind
+        )
+    return matches[0]
+
+
+def _scientific_change_progress_binding(
+    *,
+    obligation: HistoricalReplayObligation,
+    head: IndexRecord,
+    study_id: str,
+) -> ReplayExecutionBinding:
+    raw = head.payload.get("binding")
+    try:
+        binding = ReplayExecutionBinding(
+            obligation_ids=tuple(raw["obligation_ids"]),
+            portfolio_decision_id=raw["portfolio_decision_id"],
+            replay_study_id=raw["replay_study_id"],
+            replay_executable_id=raw["replay_executable_id"],
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ReplayTransitionError(
+            "scientific-change replay return has a malformed progress binding"
+        ) from exc
+    expected_payload = {
+        "binding": binding.to_identity_payload(),
+        "obligation_id": obligation.identity,
+        "prior_status": ReplayObligationStatus.PENDING.value,
+    }
+    if (
+        head.kind != "historical-replay-obligation-progress"
+        or head.status != ReplayObligationStatus.IN_PROGRESS.value
+        or head.subject != f"Mission:{obligation.governing_mission_id}"
+        or head.fingerprint != binding.identity
+        or head.payload != expected_payload
+        or head.event_stream != obligation_stream(obligation.identity)
+        or type(head.event_sequence) is not int
+        or head.event_sequence < 2
+        or binding.obligation_ids != (obligation.identity,)
+        or binding.replay_study_id != study_id
+    ):
+        raise ReplayTransitionError(
+            "scientific-change replay return lacks exact in-progress authority"
+        )
+    return binding
+
+
+def prepare_scientific_change_return(
+    index: LocalIndex,
+    *,
+    mission_id: str,
+    next_action: Mapping[str, Any],
+    obligation_ids: Sequence[str],
+) -> tuple[list[IndexRecord], dict[str, Any] | None, dict[str, Any]]:
+    """Return a whole stopped family to pending under one typed science exit.
+
+    A Study-scoped ``requires_scientific_change`` disposition cannot be an
+    in-place Repair and cannot scientifically fail unexecuted family members.
+    This transition therefore restores the exact selected family to the replay
+    scheduler with zero scientific or trial credit.
+    """
+
+    selected_ids = tuple(sorted(set(obligation_ids)))
+    study_id = next_action.get("study_id")
+    diagnosis_id = next_action.get("study_diagnosis_id")
+    if (
+        not selected_ids
+        or len(selected_ids) != len(obligation_ids)
+        or any(type(item) is not str for item in selected_ids)
+        or next_action.get("kind")
+        != "resolve_historical_replay_obligations"
+        or next_action.get("replay_obligation_ids") != list(selected_ids)
+        or not isinstance(next_action.get("resume_next_action"), Mapping)
+        or type(study_id) is not str
+        or type(diagnosis_id) is not str
+    ):
+        raise ReplayTransitionError(
+            "scientific-change replay return is not the exact next action"
+        )
+    heads = {
+        obligation.identity: (obligation, head)
+        for obligation, head in obligation_heads(index, mission_id=mission_id)
+    }
+    if any(
+        obligation_id not in heads
+        or heads[obligation_id][1].status
+        != ReplayObligationStatus.IN_PROGRESS.value
+        for obligation_id in selected_ids
+    ):
+        raise ReplayTransitionError(
+            "scientific-change replay return requires the exact in-progress family"
+        )
+    diagnosis = index.get("study-diagnosis", diagnosis_id)
+    study = index.get("study-open", study_id)
+    if diagnosis is None or study is None:
+        raise ReplayTransitionError(
+            "scientific-change replay return lost its Study diagnosis"
+        )
+    basis = diagnosis.payload.get("evidence_basis")
+    if (
+        diagnosis.status != "engineering_gap"
+        or diagnosis.subject != f"Study:{study_id}"
+        or diagnosis.payload.get("schema") != "study_diagnosis.v1"
+        or diagnosis.payload.get("evidence_state") != "engineering_gap"
+        or diagnosis.payload.get("mission_id") != mission_id
+        or diagnosis.payload.get("study_id") != study_id
+        or diagnosis.payload.get("study_outcome") != "not_evaluable"
+        or not isinstance(basis, list)
+        or sorted(
+            item.get("kind")
+            for item in basis
+            if isinstance(item, Mapping)
+        )
+        != [
+            "batch-close",
+            "batch-open",
+            "job-completed",
+            "study-close",
+            "study-kpi",
+        ]
+        or study.status != "open"
+        or study.subject != f"Study:{study_id}"
+        or study.payload.get("mission_id") != mission_id
+        or study.payload.get("replay_obligation_ids") != list(selected_ids)
+    ):
+        raise ReplayTransitionError(
+            "scientific-change replay return diagnosis is not exact"
+        )
+    batch = _scientific_change_basis_record(
+        index, diagnosis=diagnosis, kind="batch-open"
+    )
+    batch_close = _scientific_change_basis_record(
+        index, diagnosis=diagnosis, kind="batch-close"
+    )
+    completion = _scientific_change_basis_record(
+        index, diagnosis=diagnosis, kind="job-completed"
+    )
+    close = _scientific_change_basis_record(
+        index, diagnosis=diagnosis, kind="study-close"
+    )
+    study_kpi = _scientific_change_basis_record(
+        index, diagnosis=diagnosis, kind="study-kpi"
+    )
+    binding_rows: list[
+        tuple[HistoricalReplayObligation, IndexRecord, ReplayExecutionBinding, IndexRecord]
+    ] = []
+    for obligation_id in selected_ids:
+        obligation, head = heads[obligation_id]
+        binding = _scientific_change_progress_binding(
+            obligation=obligation,
+            head=head,
+            study_id=study_id,
+        )
+        trial = index.get("trial", binding.replay_executable_id)
+        if (
+            trial is None
+            or trial.subject != f"Batch:{batch.record_id}"
+            or trial.status != "evaluated"
+            or trial.payload.get("study_id") != study_id
+            or trial.payload.get("replay_obligation_ids") != [obligation_id]
+            or typed_replay_reference_executable_id(
+                trial.payload.get("executable", {})
+            )
+            != obligation.original_executable_id
+        ):
+            raise ReplayTransitionError(
+                "scientific-change replay return lacks an exact family trial"
+            )
+        binding_rows.append((obligation, head, binding, trial))
+    replay_executable_ids = tuple(
+        row[2].replay_executable_id for row in binding_rows
+    )
+    portfolio_decision_ids = {
+        row[2].portfolio_decision_id for row in binding_rows
+    }
+    exact_study_trials = tuple(
+        record
+        for record in index.records_by_subject_status(
+            f"Batch:{batch.record_id}", "evaluated"
+        )
+        if record.kind == "trial"
+        and record.payload.get("study_id") == study_id
+    )
+    if (
+        len(set(replay_executable_ids)) != len(selected_ids)
+        or len(portfolio_decision_ids) != 1
+        or study.payload.get("portfolio_decision_id")
+        not in portfolio_decision_ids
+        or {record.record_id for record in exact_study_trials}
+        != set(replay_executable_ids)
+        or batch.kind != "batch-open"
+        or batch.status != "open"
+        or batch.subject != f"Study:{study_id}"
+        or batch_close.kind != "batch-close"
+        or batch_close.status != "engineering_failure"
+        or batch_close.subject != f"Batch:{batch.record_id}"
+        or batch_close.payload != {"outcome": "engineering_failure"}
+        or close.kind != "study-close"
+        or close.status != "not_evaluable"
+        or close.subject != f"Study:{study_id}"
+        or diagnosis.payload.get("study_close_record_id") != close.record_id
+        or study_kpi.kind != "study-kpi"
+        or study_kpi.status != "not_evaluable"
+        or study_kpi.subject != f"Study:{study_id}"
+        or study_kpi.payload.get("study_id") != study_id
+        or study_kpi.payload.get("outcome") != "not_evaluable"
+        or study_kpi.payload.get("source")
+        != "typed_engineering_failure_completion"
+        or study_kpi.payload.get("unavailable_reason") != "engineering_failure"
+        or study_kpi.payload.get("completion_record_id") != completion.record_id
+    ):
+        raise ReplayTransitionError(
+            "scientific-change replay return family terminal is malformed"
+        )
+    job_id = completion.payload.get("job_id")
+    failure = completion.payload.get("failure")
+    engineering_disposition = completion.payload.get("engineering_disposition")
+    declaration = (
+        None
+        if not isinstance(job_id, str)
+        else index.get("job-declared", job_id)
+    )
+    disposition_hash = (
+        None
+        if not isinstance(failure, Mapping)
+        else failure.get("repair_disposition_hash")
+    )
+    dispositions = (
+        ()
+        if not isinstance(job_id, str)
+        else tuple(
+            record
+            for record in index.records_by_subject_status(
+                f"Job:{job_id}", "requires_scientific_change"
+            )
+            if record.kind == "engineering-failure-disposition"
+        )
+    )
+    disposition = None if len(dispositions) != 1 else dispositions[0]
+    evidence_subject = (
+        None
+        if declaration is None
+        else declaration.payload.get("spec", {}).get("evidence_subject")
+    )
+    completed_executable_id = (
+        None
+        if not isinstance(evidence_subject, Mapping)
+        else evidence_subject.get("id")
+    )
+    resume_condition = (
+        None
+        if not isinstance(engineering_disposition, Mapping)
+        else engineering_disposition.get("resume_condition")
+    )
+    if (
+        completion.status != "failed"
+        or completion.subject != f"Job:{job_id}"
+        or completion.payload.get("scientific") is not None
+        or not isinstance(failure, Mapping)
+        or failure.get("failure_kind") != "engineering"
+        or not isinstance(disposition_hash, str)
+        or not isinstance(engineering_disposition, Mapping)
+        or engineering_disposition.get("schema")
+        != "engineering_failure_disposition.v1"
+        or engineering_disposition.get("disposition")
+        != "requires_scientific_change"
+        or engineering_disposition.get("successor_scope") != "study"
+        or type(resume_condition) is not str
+        or not resume_condition
+        or not resume_condition.isascii()
+        or diagnosis.payload.get("reopen_condition") != resume_condition
+        or declaration is None
+        or declaration.payload.get("mission_id") != mission_id
+        or declaration.payload.get("study_id") != study_id
+        or declaration.payload.get("batch_id") != batch.record_id
+        or completed_executable_id not in replay_executable_ids
+        or disposition is None
+        or disposition.status != "requires_scientific_change"
+        or disposition.subject != f"Job:{job_id}"
+        or disposition.fingerprint != disposition_hash
+        or disposition.payload.get("disposition_hash") != disposition_hash
+        or disposition.payload.get("job_id") != job_id
+        or disposition.payload.get("repair_id") is not None
+        or disposition.payload.get("disposition")
+        != dict(engineering_disposition)
+    ):
+        raise ReplayTransitionError(
+            "scientific-change replay return lacks its typed disposition"
+        )
+    ordered = (
+        study,
+        batch,
+        *tuple(row[1] for row in binding_rows),
+        *tuple(row[3] for row in binding_rows),
+        declaration,
+        disposition,
+        completion,
+        batch_close,
+        close,
+        diagnosis,
+    )
+    if any(type(record.authority_sequence) is not int for record in ordered):
+        raise ReplayTransitionError(
+            "scientific-change replay return lacks Journal order"
+        )
+    trial_and_progress_sequences = tuple(
+        record.authority_sequence
+        for record in (*tuple(row[1] for row in binding_rows), *tuple(row[3] for row in binding_rows))
+    )
+    assert all(isinstance(value, int) for value in trial_and_progress_sequences)
+    if not (
+        study.authority_sequence < batch.authority_sequence
+        <= min(trial_and_progress_sequences)
+        and max(trial_and_progress_sequences) < declaration.authority_sequence
+        < disposition.authority_sequence
+        < completion.authority_sequence
+        < batch_close.authority_sequence
+        < close.authority_sequence
+        < diagnosis.authority_sequence
+    ):
+        raise ReplayTransitionError(
+            "scientific-change replay return authority order is malformed"
+        )
+    records = [
+        scientific_change_return_record(
+            obligation=obligation,
+            prior_progress=head,
+            replay_study_id=study_id,
+            replay_executable_id=binding.replay_executable_id,
+            replay_study_close_record_id=close.record_id,
+            study_diagnosis_id=diagnosis.record_id,
+            engineering_completion_record_id=completion.record_id,
+            engineering_disposition_record_id=disposition.record_id,
+            engineering_disposition_hash=disposition_hash,
+            resume_condition=resume_condition,
+        )
+        for obligation, head, binding, _trial in binding_rows
+    ]
+    constraints = constraints_for_pending_from_index(
+        index,
+        tuple(
+            obligation
+            for obligation, head in heads.values()
+            if head.status == ReplayObligationStatus.PENDING.value
+            or obligation.identity in selected_ids
+        ),
+    )
+    return records, constraints, {
+        "candidate_delta": 0,
+        "engineering_completion_record_id": completion.record_id,
+        "engineering_disposition_hash": disposition_hash,
+        "engineering_disposition_record_id": disposition.record_id,
+        "holdout_reveal_delta": 0,
+        "return_record_ids": [record.record_id for record in records],
+        "returned_replay_obligation_ids": list(selected_ids),
+        "scientific_claim_delta": 0,
+        "scientific_failure_delta": 0,
+        "scientific_satisfaction_delta": 0,
+        "scientific_trial_delta": 0,
+        "study_diagnosis_id": diagnosis.record_id,
+        "study_id": study_id,
+        "terminal_credit_delta": 0,
+    }
+
+
+def require_scientific_change_return_record(
+    index: LocalIndex | LocalIndexView,
+    *,
+    obligation: HistoricalReplayObligation,
+    record: IndexRecord,
+) -> Mapping[str, Any]:
+    """Authenticate a committed scientific-change reset for successor work."""
+
+    payload = record.payload
+    fingerprint = canonical_digest(
+        domain="historical-replay-scientific-change-return",
+        payload=payload,
+    )
+    zero_fields = (
+        "candidate_delta",
+        "holdout_reveal_delta",
+        "scientific_claim_delta",
+        "scientific_failure_delta",
+        "scientific_satisfaction_delta",
+        "scientific_trial_delta",
+        "terminal_credit_delta",
+    )
+    if (
+        record.kind != "historical-replay-scientific-change-return"
+        or record.record_id
+        != "historical-replay-scientific-change-return:" + fingerprint
+        or record.subject != f"Mission:{obligation.governing_mission_id}"
+        or record.status != ReplayObligationStatus.PENDING.value
+        or record.fingerprint != fingerprint
+        or record.event_stream != obligation_stream(obligation.identity)
+        or payload.get("schema")
+        != "historical_replay_scientific_change_return.v1"
+        or payload.get("obligation_id") != obligation.identity
+        or payload.get("prior_status")
+        != ReplayObligationStatus.IN_PROGRESS.value
+        or payload.get("successor_scope") != "study"
+        or type(payload.get("resume_condition")) is not str
+        or not payload["resume_condition"]
+        or not payload["resume_condition"].isascii()
+        or any(payload.get(name) != 0 for name in zero_fields)
+    ):
+        raise ReplayProjectionError(
+            "scientific-change replay return record is malformed"
+        )
+    event_kind, result = _require_recorded_transition_authority(
+        index,
+        obligation=obligation,
+        record=record,
+        expected_event_kinds={
+            "historical_replay_obligations_returned_for_scientific_change"
+        },
+        require_current_head=True,
+    )
+    returned = result.get("returned_replay_obligation_ids")
+    record_ids = result.get("return_record_ids")
+    if (
+        event_kind
+        != "historical_replay_obligations_returned_for_scientific_change"
+        or not isinstance(returned, list)
+        or returned != sorted(set(returned))
+        or obligation.identity not in returned
+        or not isinstance(record_ids, list)
+        or record.record_id not in record_ids
+        or result.get("study_id") != payload.get("replay_study_id")
+        or result.get("study_diagnosis_id") != payload.get("study_diagnosis_id")
+        or result.get("engineering_completion_record_id")
+        != payload.get("engineering_completion_record_id")
+        or result.get("engineering_disposition_record_id")
+        != payload.get("engineering_disposition_record_id")
+        or result.get("engineering_disposition_hash")
+        != payload.get("engineering_disposition_hash")
+        or any(result.get(name) != 0 for name in zero_fields)
+    ):
+        raise ReplayProjectionError(
+            "scientific-change replay return Writer result is malformed"
+        )
+    return payload
 
 
 def prepare_disposition(

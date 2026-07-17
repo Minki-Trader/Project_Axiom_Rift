@@ -183,6 +183,10 @@ def require_replay_initiative_binding(
                     "historical_replay_obligations_deferred",
                     "historical_replay_obligations_disposed",
                     "historical_replay_obligations_resolved",
+                    (
+                        "historical_replay_obligations_"
+                        "returned_for_scientific_change"
+                    ),
                 }
             ),
         )

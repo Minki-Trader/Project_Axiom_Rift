@@ -495,7 +495,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             (
                 "engineering-gap",
                 None,
-                (object(), SimpleNamespace()),
+                (object(), completion),
                 ReplayInterpretation(
                     all_criteria_recomputed=False,
                     close_outcome="not_evaluable",
@@ -569,6 +569,62 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
                 self.assertNotIn(
                     "implementation", diagnosis.reopen_condition.lower()
                 )
+
+    def test_diagnosis_preserves_direct_scientific_change_disposition(
+        self,
+    ) -> None:
+        resume_condition = (
+            "admit a new Study with corrected registered semantics and "
+            "distinct Executable identities"
+        )
+        completion = SimpleNamespace(
+            payload={
+                "engineering_disposition": {
+                    "disposition": "requires_scientific_change",
+                    "resume_condition": resume_condition,
+                    "schema": "engineering_failure_disposition.v1",
+                    "successor_scope": "study",
+                },
+                "scientific": None,
+            }
+        )
+        target = SimpleNamespace(
+            executable=SimpleNamespace(identity="executable:" + "a" * 64)
+        )
+        design = SimpleNamespace(
+            criterion_ids=("criterion-a",),
+            members=(target,),
+            spec=SimpleNamespace(study_id="STU-FIXTURE"),
+            target_member=target,
+        )
+        interpretation = ReplayInterpretation(
+            all_criteria_recomputed=False,
+            close_outcome="not_evaluable",
+            diagnosis_state=workflow_module.EvidenceState.ENGINEERING_GAP,
+            disposition=workflow_module.PortfolioAction.PRESERVE,
+            reason_code="unrecovered_same_protocol_engineering_gap",
+        )
+        with patch.multiple(
+            workflow_module,
+            _implementation_preflight_rejection=Mock(return_value=None),
+            _engineering_failure_member=Mock(
+                return_value=(target, completion)
+            ),
+            _member_completion=Mock(return_value=completion),
+            _study_close_record=Mock(
+                return_value=SimpleNamespace(record_id="b" * 64)
+            ),
+            _workflow_interpretation=Mock(return_value=interpretation),
+        ):
+            diagnosis = workflow_module._diagnosis(object(), design)
+
+        self.assertEqual(diagnosis.reopen_condition, resume_condition)
+        self.assertIn("new prospective Study", diagnosis.counterfactual)
+        self.assertIn(
+            "No unavailable result is treated as scientific rejection",
+            diagnosis.rationale,
+        )
+        self.assertNotIn("same-protocol Repair", diagnosis.counterfactual)
 
     def test_plural_close_names_completion_matching_aggregate_disposition(
         self,
@@ -1485,6 +1541,68 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         self.assertEqual(
             steps[-4].event_kind,
             "historical_replay_obligations_deferred",
+        )
+
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow."
+        "_study_scientific_change_completion",
+        return_value=SimpleNamespace(),
+    )
+    @patch(
+        "axiom_rift.operations.fixed_hold_replay_workflow._member_completion",
+        return_value=None,
+    )
+    def test_operation_plan_returns_scientific_change_family_to_pending(
+        self,
+        _completion,
+        _scientific_change,
+    ) -> None:
+        steps = operation_steps(_empty_workflow_writer(), self._design())
+
+        self.assertEqual(
+            steps[-4].event_kind,
+            (
+                "historical_replay_obligations_"
+                "returned_for_scientific_change"
+            ),
+        )
+
+    def test_diagnosis_applies_typed_scientific_change_return(self) -> None:
+        design = self._design()
+        transition = workflow_module.TransitionResult(
+            event_id="1" * 64,
+            revision=101,
+            reused=False,
+            result={},
+        )
+        writer = SimpleNamespace(
+            return_historical_replay_obligations_for_scientific_change=(
+                Mock(return_value=transition)
+            )
+        )
+        step = OperationStep(
+            design.spec.operation_prefix + "resolve-replay",
+            (
+                "historical_replay_obligations_"
+                "returned_for_scientific_change"
+            ),
+            DIAGNOSE_STAGE,
+        )
+        with patch.object(
+            workflow_module,
+            "_study_scientific_change_completion",
+            return_value=SimpleNamespace(),
+        ):
+            actual = workflow_module._apply_diagnose_step(
+                writer,
+                design=design,
+                step=step,
+            )
+
+        self.assertIs(actual, transition)
+        writer.return_historical_replay_obligations_for_scientific_change.assert_called_once_with(
+            obligation_ids=design.spec.replay_obligation_ids,
+            operation_id=step.operation_id,
         )
 
     @patch(

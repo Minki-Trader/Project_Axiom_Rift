@@ -206,16 +206,26 @@ def terminal_replay_reconstruction_allowed(
 ) -> bool:
     """Permit reconstruction at any exact post-resolution workflow prefix."""
 
-    if target_head.status not in {"satisfied", "deferred"}:
+    scientific_change_return = target_head.status == "pending"
+    if target_head.status not in {"pending", "satisfied", "deferred"}:
         return False
-    resolution_events = {
-        "historical_replay_obligations_disposed",
-        (
-            "historical_replay_obligations_resolved"
-            if target_head.status == "satisfied"
-            else "historical_replay_obligations_deferred"
-        ),
-    }
+    resolution_events = (
+        {
+            (
+                "historical_replay_obligations_"
+                "returned_for_scientific_change"
+            )
+        }
+        if scientific_change_return
+        else {
+            "historical_replay_obligations_disposed",
+            (
+                "historical_replay_obligations_resolved"
+                if target_head.status == "satisfied"
+                else "historical_replay_obligations_deferred"
+            ),
+        }
+    )
     trigger_id = diagnosis_architecture_review_trigger(index, spec)
     expected: tuple[tuple[str, set[str]], ...] = (
         ("diagnose-study", {"study_diagnosis_recorded"}),
@@ -266,14 +276,21 @@ def terminal_replay_reconstruction_allowed(
         return False
     resolution_result = records[1].payload.get("result")
     result_field = (
-        "satisfied_replay_obligation_ids"
+        "returned_replay_obligation_ids"
+        if scientific_change_return
+        else "satisfied_replay_obligation_ids"
         if target_head.status == "satisfied"
         else "deferred_replay_obligation_ids"
+    )
+    expected_result_ids = (
+        list(spec.replay_obligation_ids)
+        if scientific_change_return
+        else [spec.target_obligation_id]
     )
     resolution_operation = records[1]
     if (
         not isinstance(resolution_result, Mapping)
-        or resolution_result.get(result_field) != [spec.target_obligation_id]
+        or resolution_result.get(result_field) != expected_result_ids
         or target_head.payload.get("obligation_id") != spec.target_obligation_id
         or resolution_operation.authority_sequence is None
         or resolution_operation.authority_event_id is None
@@ -507,6 +524,10 @@ def replay_resolution_operation_present(
                 "historical_replay_obligations_deferred",
                 "historical_replay_obligations_disposed",
                 "historical_replay_obligations_resolved",
+                (
+                    "historical_replay_obligations_"
+                    "returned_for_scientific_change"
+                ),
             }
         ),
     ) is not None
@@ -522,7 +543,19 @@ def replay_initiative_binding_phase(
     """Derive execution versus historical handoff from exact durable state."""
 
     if target_head.status in {"pending", "in_progress"}:
-        if replay_resolution_operation_present(index, spec):
+        resolution_present = replay_resolution_operation_present(index, spec)
+        if (
+            target_head.status == "pending"
+            and resolution_present
+            and terminal_replay_reconstruction_allowed(
+                index,
+                spec,
+                target_head,
+                control=control,
+            )
+        ):
+            return ReplayInitiativeBindingPhase.TERMINAL_HANDOFF
+        if resolution_present:
             raise RuntimeError(
                 "reopened replay obligation requires fresh workflow identities"
             )

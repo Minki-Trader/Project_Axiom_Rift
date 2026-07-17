@@ -21006,6 +21006,76 @@ class StateWriter:
             prepare=prepare,
         )
 
+    def return_historical_replay_obligations_for_scientific_change(
+        self,
+        *,
+        obligation_ids: Sequence[str],
+        operation_id: str,
+    ) -> TransitionResult:
+        """Restore an exact stopped family after a typed Study-level change."""
+
+        from axiom_rift.operations.replay_projection import (
+            ReplayProjectionError,
+            ReplayTransitionError,
+            prepare_scientific_change_return,
+        )
+
+        normalized = tuple(sorted(set(obligation_ids)))
+        if (
+            not normalized
+            or len(normalized) != len(obligation_ids)
+            or any(type(item) is not str for item in normalized)
+        ):
+            raise TransitionError(
+                "scientific-change replay return request is invalid"
+            )
+
+        def prepare(current: dict[str, Any] | None, index: LocalIndex):
+            if current is None:
+                raise TransitionError(
+                    "scientific-change replay return requires control"
+                )
+            mission_id = current["scientific"].get("active_mission")
+            next_action = current.get("next_action")
+            if not isinstance(mission_id, str) or not isinstance(
+                next_action, dict
+            ):
+                raise TransitionError(
+                    "scientific-change replay return requires an active Mission"
+                )
+            try:
+                records, constraints, result = prepare_scientific_change_return(
+                    index,
+                    mission_id=mission_id,
+                    next_action=next_action,
+                    obligation_ids=normalized,
+                )
+            except ReplayProjectionError as exc:
+                raise RecoveryRequired(str(exc)) from exc
+            except ReplayTransitionError as exc:
+                raise TransitionError(str(exc)) from exc
+            resume_next_action = next_action.get("resume_next_action")
+            if not isinstance(resume_next_action, dict):
+                raise RecoveryRequired(
+                    "scientific-change replay return lost its resume action"
+                )
+            body = self._body(current)
+            body["next_action"] = self._with_replay_scheduler_constraints(
+                resume_next_action,
+                constraints,
+            )
+            return body, records, result
+
+        return self._commit(
+            event_kind=(
+                "historical_replay_obligations_returned_for_scientific_change"
+            ),
+            operation_id=operation_id,
+            subject="Mission:active",
+            payload={"replay_obligation_ids": list(normalized)},
+            prepare=prepare,
+        )
+
     def dispose_historical_replay_obligations(
         self,
         *,

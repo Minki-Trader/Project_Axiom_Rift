@@ -49,6 +49,16 @@ def _completed_study_handoff(
             return None
         next_action = control.get("next_action")
         scientific = control.get("scientific")
+        diagnosis_id = (
+            next_action.get("study_diagnosis_id")
+            if isinstance(next_action, Mapping)
+            else None
+        )
+        diagnosis = (
+            index.get("study-diagnosis", diagnosis_id)
+            if isinstance(diagnosis_id, str)
+            else None
+        )
     if (
         kpi.record_id != study_id
         or kpi.subject != f"Study:{study_id}"
@@ -63,11 +73,29 @@ def _completed_study_handoff(
         next_action.get("kind") == "diagnose_study"
         and next_action.get("study_id") == study_id
     )
+    diagnosis_resolution_in_progress = (
+        next_action.get("kind")
+        == "resolve_historical_replay_obligations"
+        and next_action.get("study_id") == study_id
+        and isinstance(next_action.get("study_diagnosis_id"), str)
+        and isinstance(next_action.get("resume_next_action"), Mapping)
+    )
+    diagnosis_completed_handoff = (
+        next_action.get("kind") == "portfolio_decision"
+        and isinstance(diagnosis_id, str)
+        and diagnosis is not None
+        and diagnosis.subject == f"Study:{study_id}"
+        and diagnosis.payload.get("study_id") == study_id
+    )
     return {
         "completion_record_id": kpi.payload.get("completion_record_id"),
         "mode": (
             "study_close_pending_diagnosis"
             if pending_diagnosis
+            else "diagnosis_resolution_in_progress"
+            if diagnosis_resolution_in_progress
+            else "diagnosis_completed_handoff"
+            if diagnosis_completed_handoff
             else "completed_study_handoff"
         ),
         "next_action": dict(next_action),
@@ -154,7 +182,11 @@ def run_fixed_hold_replay_command(
             raise RuntimeError(
                 "closed replay Study rejects another execution stage"
             )
-        if handoff.get("mode") != "study_close_pending_diagnosis":
+        if handoff.get("mode") not in {
+            "study_close_pending_diagnosis",
+            "diagnosis_resolution_in_progress",
+            "diagnosis_completed_handoff",
+        }:
             raise RuntimeError("closed replay Study has no pending diagnosis")
     design = design_builder(writer)
     if arguments.stage is None:

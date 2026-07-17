@@ -2068,6 +2068,42 @@ def _engineering_failure_member(
     return None if not failures else failures[0]
 
 
+def _study_scientific_change_completion(
+    writer: StateWriter,
+    design: FixedHoldReplayDesign,
+    *,
+    _index: LocalIndexView | None = None,
+) -> IndexRecord | None:
+    """Identify the exact terminal that requires a new family Study."""
+
+    failure = _engineering_failure_member(
+        writer,
+        design,
+        _index=_index,
+    )
+    if failure is None:
+        return None
+    _member, completion = failure
+    disposition = completion.payload.get("engineering_disposition")
+    if (
+        not isinstance(disposition, Mapping)
+        or disposition.get("disposition") != "requires_scientific_change"
+    ):
+        return None
+    resume_condition = disposition.get("resume_condition")
+    if (
+        disposition.get("schema") != "engineering_failure_disposition.v1"
+        or disposition.get("successor_scope") != "study"
+        or type(resume_condition) is not str
+        or not resume_condition
+        or not resume_condition.isascii()
+    ):
+        raise RuntimeError(
+            "replay scientific-change terminal lacks exact Study successor authority"
+        )
+    return completion
+
+
 def _implementation_preflight_record(
     writer: StateWriter,
     design: FixedHoldReplayDesign,
@@ -3598,6 +3634,14 @@ def operation_steps(
         len(selected_recomputed) == len(_design_selected_members(design))
     )
     some_selected_recomputed = bool(selected_recomputed)
+    scientific_change_return = (
+        _study_scientific_change_completion(
+            writer,
+            design,
+            _index=_index,
+        )
+        is not None
+    )
     base_steps: list[OperationStep] = []
     if (
         design.spec.initiative_lifecycle
@@ -3944,7 +3988,12 @@ def operation_steps(
             OperationStep(
                 prefix + "resolve-replay",
                 (
-                    "historical_replay_obligations_resolved"
+                    (
+                        "historical_replay_obligations_"
+                        "returned_for_scientific_change"
+                    )
+                    if scientific_change_return
+                    else "historical_replay_obligations_resolved"
                     if all_selected_recomputed
                     else "historical_replay_obligations_disposed"
                     if some_selected_recomputed
@@ -5079,13 +5128,20 @@ def _diagnosis(
     engineering_failure = _engineering_failure_member(writer, design)
     completion = _member_completion(writer, design, design.target_member)
     interpretation = _workflow_interpretation(writer, design)
-    state = (
+    scientific = (
         None
         if completion is None
-        else completion.payload.get("scientific", {}).get(
-            "adjudication",
-            {},
-        ).get("state")
+        else completion.payload.get("scientific")
+    )
+    adjudication = (
+        None
+        if not isinstance(scientific, Mapping)
+        else scientific.get("adjudication")
+    )
+    state = (
+        None
+        if not isinstance(adjudication, Mapping)
+        else adjudication.get("state")
     )
     assignment_by_replay_executable = (
         {}
@@ -5133,26 +5189,56 @@ def _diagnosis(
             "same protocol and exact historical family."
         )
     elif engineering_failure is not None:
-        rationale = (
-            (
-                "A typed unrecovered Repair ended the family after "
-                f"{recomputed_selected_count} selected member results were "
-                "validly recomputed. Those results remain usable while only "
-                "the unresolved selected members retain an engineering gap."
+        _failed_member, failed_completion = engineering_failure
+        engineering_disposition = failed_completion.payload.get(
+            "engineering_disposition"
+        )
+        requires_scientific_change = (
+            isinstance(engineering_disposition, Mapping)
+            and engineering_disposition.get("disposition")
+            == "requires_scientific_change"
+        )
+        if requires_scientific_change:
+            rationale = (
+                "A typed engineering disposition established that the "
+                "registered family cannot become evaluable without changing "
+                "its scientific identity. No unavailable result is treated "
+                "as scientific rejection."
             )
-            if recomputed_selected_count
-            else (
-                "A typed unrecovered Repair ended execution without creating "
-                "scientific evidence; this is an engineering gap."
+            counterfactual = (
+                "A new prospective Study with corrected registered semantics "
+                "and distinct Executable identities could evaluate the same "
+                "mechanism without inheriting evidence from this Study."
             )
-        )
-        counterfactual = (
-            "A same-protocol engineering Repair could make the exact family "
-            "evaluable without changing its scientific semantics."
-        )
-        reopen_condition = (
-            "Reopen through the exact same-protocol Repair lineage."
-        )
+            durable_resume = engineering_disposition.get(
+                "resume_condition"
+            )
+            if not isinstance(durable_resume, str) or not durable_resume:
+                raise RuntimeError(
+                    "scientific-change disposition lacks its resume condition"
+                )
+            reopen_condition = durable_resume
+        else:
+            rationale = (
+                (
+                    "A typed unrecovered Repair ended the family after "
+                    f"{recomputed_selected_count} selected member results were "
+                    "validly recomputed. Those results remain usable while only "
+                    "the unresolved selected members retain an engineering gap."
+                )
+                if recomputed_selected_count
+                else (
+                    "A typed unrecovered Repair ended execution without creating "
+                    "scientific evidence; this is an engineering gap."
+                )
+            )
+            counterfactual = (
+                "A same-protocol engineering Repair could make the exact family "
+                "evaluable without changing its scientific semantics."
+            )
+            reopen_condition = (
+                "Reopen through the exact same-protocol Repair lineage."
+            )
     elif interpretation.all_criteria_recomputed:
         rationale = (
             "The exact concurrent family recomputed every original criterion; "
@@ -5679,6 +5765,11 @@ def _apply_diagnose_step(
             operation_id=operation_id,
         )
     if operation_id == prefix + "resolve-replay":
+        if _study_scientific_change_completion(writer, design) is not None:
+            return writer.return_historical_replay_obligations_for_scientific_change(
+                obligation_ids=design.spec.replay_obligation_ids,
+                operation_id=operation_id,
+            )
         if _design_replay_assignments(design) is not None:
             satisfactions, deferrals = _plural_replay_resolutions(
                 writer,
@@ -6093,6 +6184,14 @@ def verify_diagnose_postconditions(
     if completed != len(steps):
         raise RuntimeError("replay diagnosis chain is incomplete")
     with writer.open_stable_index() as (control, index):
+        scientific_change_return = (
+            _study_scientific_change_completion(
+                writer,
+                design,
+                _index=index,
+            )
+            is not None
+        )
         trigger_id = _diagnosis_architecture_review_trigger(index, design.spec)
         obligations = {
             obligation.identity: head
@@ -6169,9 +6268,20 @@ def verify_diagnose_postconditions(
     if (
         control is None
         or target is None
-        or target.status not in {"satisfied", "deferred"}
+        or target.status
+        not in (
+            {"pending"}
+            if scientific_change_return
+            else {"satisfied", "deferred"}
+        )
         or any(
-            head is None or head.status not in {"satisfied", "deferred"}
+            head is None
+            or head.status
+            not in (
+                {"pending"}
+                if scientific_change_return
+                else {"satisfied", "deferred"}
+            )
             for head in selected.values()
         )
         or any(
@@ -6284,6 +6394,10 @@ def run_diagnose_stage(
             "historical_replay_obligations_disposed",
             "historical_replay_obligations_resolved",
             "historical_replay_obligations_deferred",
+            (
+                "historical_replay_obligations_"
+                "returned_for_scientific_change"
+            ),
         }:
             cursor = _refresh_replay_cursor_plan(writer, design, cursor)
     verified = verify_diagnose_postconditions(writer, design)

@@ -14,6 +14,7 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
 )
 from axiom_rift.operations.replay_workflow_recovery import (
     diagnosis_architecture_review_trigger,
+    replay_resolution_operation_present,
     require_borrowed_replay_admission,
     terminal_replay_reconstruction_allowed,
 )
@@ -67,6 +68,63 @@ def _operation(suffix: str, event_kind: str, sequence: int, result: dict):
 
 
 class FixedHoldReplayRecoveryTests(unittest.TestCase):
+    def test_scientific_change_return_is_an_exact_terminal_handoff(self) -> None:
+        spec = _spec(
+            lifecycle=ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE
+        )
+        spec.replay_obligation_ids = (OBLIGATION_ID,)
+        diagnosis_id = "diagnosis:" + "1" * 64
+        diagnosis_operation = _operation(
+            "diagnose-study",
+            "study_diagnosis_recorded",
+            101,
+            {
+                "architecture_review_trigger_id": None,
+                "study_diagnosis_id": diagnosis_id,
+            },
+        )
+        resolution_operation = _operation(
+            "resolve-replay",
+            (
+                "historical_replay_obligations_"
+                "returned_for_scientific_change"
+            ),
+            102,
+            {"returned_replay_obligation_ids": [OBLIGATION_ID]},
+        )
+        diagnosis = SimpleNamespace(
+            authority_event_id=diagnosis_operation.authority_event_id,
+            authority_sequence=diagnosis_operation.authority_sequence,
+            payload={
+                "mission_id": MISSION_ID,
+                "portfolio_snapshot_id": "portfolio:" + "2" * 64,
+            },
+            subject=f"Study:{STUDY_ID}",
+        )
+        records = {
+            ("operation", PREFIX + "diagnose-study"): diagnosis_operation,
+            ("operation", PREFIX + "resolve-replay"): resolution_operation,
+            ("study-diagnosis", diagnosis_id): diagnosis,
+        }
+        index = SimpleNamespace(
+            get=lambda kind, record_id: records.get((kind, record_id))
+        )
+        terminal = SimpleNamespace(
+            authority_event_id=resolution_operation.authority_event_id,
+            authority_sequence=resolution_operation.authority_sequence,
+            payload={"obligation_id": OBLIGATION_ID},
+            status="pending",
+        )
+
+        self.assertTrue(replay_resolution_operation_present(index, spec))
+        self.assertTrue(
+            terminal_replay_reconstruction_allowed(
+                index,
+                spec,
+                terminal,
+            )
+        )
+
     def test_scientific_change_disposition_is_a_typed_replay_step(self) -> None:
         stem = PREFIX + "member-01"
         job_id = "job:" + "a" * 64

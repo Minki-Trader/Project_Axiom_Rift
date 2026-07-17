@@ -174,6 +174,80 @@ class FixedHoldReplayCliTests(unittest.TestCase):
         self.assertIs(diagnose.call_args.kwargs["design"], design)
         self.assertEqual(result, {"mode": "diagnose"})
 
+    def test_closed_study_resumes_partially_completed_diagnosis(self) -> None:
+        writer_instance = Mock()
+        design = object()
+        design_builder = Mock(return_value=design)
+        with (
+            patch.object(cli, "EvidenceValidatorRegistry"),
+            patch.object(cli, "StateWriter", return_value=writer_instance),
+            patch.object(cli, "require_stable_head"),
+            patch.object(
+                cli,
+                "_completed_study_handoff",
+                return_value={"mode": "diagnosis_resolution_in_progress"},
+            ),
+            patch.object(
+                cli,
+                "run_diagnose_stage",
+                return_value={"mode": "diagnose"},
+            ) as diagnose,
+        ):
+            result = cli.run_fixed_hold_replay_command(
+                repository_root=Path.cwd(),
+                design_builder=design_builder,
+                job_runner=Mock(name="job_runner"),
+                job_implementation_materializer=Mock(name="materializer"),
+                study_id="STU-0116",
+                argv=[
+                    "--stage",
+                    "diagnose",
+                    "--study-close-event-id",
+                    "a" * 64,
+                    "--study-close-revision",
+                    "5519",
+                ],
+            )
+        design_builder.assert_called_once_with(writer_instance)
+        diagnose.assert_called_once()
+        self.assertEqual(result, {"mode": "diagnose"})
+
+    def test_closed_study_reverifies_immediate_completed_diagnosis(self) -> None:
+        writer_instance = Mock()
+        design_builder = Mock(return_value=object())
+        with (
+            patch.object(cli, "EvidenceValidatorRegistry"),
+            patch.object(cli, "StateWriter", return_value=writer_instance),
+            patch.object(cli, "require_stable_head"),
+            patch.object(
+                cli,
+                "_completed_study_handoff",
+                return_value={"mode": "diagnosis_completed_handoff"},
+            ),
+            patch.object(
+                cli,
+                "run_diagnose_stage",
+                return_value={"mode": "diagnose", "applied_step_count": 0},
+            ) as diagnose,
+        ):
+            result = cli.run_fixed_hold_replay_command(
+                repository_root=Path.cwd(),
+                design_builder=design_builder,
+                job_runner=Mock(name="job_runner"),
+                job_implementation_materializer=Mock(name="materializer"),
+                study_id="STU-0116",
+                argv=[
+                    "--stage",
+                    "diagnose",
+                    "--study-close-event-id",
+                    "a" * 64,
+                    "--study-close-revision",
+                    "5519",
+                ],
+            )
+        diagnose.assert_called_once()
+        self.assertEqual(result["applied_step_count"], 0)
+
     def test_diagnosed_closed_study_rejects_duplicate_diagnosis(self) -> None:
         design_builder = Mock(name="design_builder")
         with (

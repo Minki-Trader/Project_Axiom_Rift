@@ -26,10 +26,12 @@ from axiom_rift.operations.replay_projection import (
     obligation_heads,
     prepare_disposition,
     prepare_execution_progress,
+    prepare_scientific_change_return,
     prepare_satisfaction_invalidation,
     prepare_sibling_evidence_recertification,
     replay_evidence_record_ids,
     require_recorded_satisfaction,
+    require_scientific_change_return_record,
     require_satisfaction,
     require_satisfaction_invalidation_record,
     require_study_execution_complete,
@@ -511,6 +513,312 @@ class MultiExecutableReplayProjectionTests(unittest.TestCase):
         )
         self.assertEqual(post_family, ())
         self.assertEqual(post_family_records, [])
+
+    def test_study_scientific_change_returns_whole_family_without_credit(
+        self,
+    ) -> None:
+        study_id = "STU-SCIENTIFIC-CHANGE"
+        batch_id = "batch:" + "b" * 64
+        selected_ids = tuple(sorted(item.identity for item in self.obligations))
+
+        def authoritative(record: IndexRecord, sequence: int) -> IndexRecord:
+            return replace(
+                record,
+                authority_sequence=sequence,
+                authority_event_id=f"{sequence:064x}",
+                authority_offset=sequence * 100,
+            )
+
+        study = authoritative(
+            IndexRecord(
+                kind="study-open",
+                record_id=study_id,
+                subject=f"Study:{study_id}",
+                status="open",
+                fingerprint="9" * 64,
+                payload={
+                    "mission_id": MISSION_ID,
+                    "portfolio_decision_id": DECISION_ID,
+                    "replay_obligation_ids": list(selected_ids),
+                },
+            ),
+            10,
+        )
+        batch = authoritative(
+            IndexRecord(
+                kind="batch-open",
+                record_id=batch_id,
+                subject=f"Study:{study_id}",
+                status="open",
+                fingerprint="8" * 64,
+                payload={},
+            ),
+            20,
+        )
+        self.index.put_many((study, batch))
+        executable_ids: list[str] = []
+        for ordinal, obligation in enumerate(self.obligations, start=1):
+            executable_id = f"executable:{ordinal + 200:064x}"
+            executable_ids.append(executable_id)
+            executable = self._executable_payload(
+                obligation.original_executable_id
+            )
+            matched, progress = prepare_execution_progress(
+                self.index,
+                study_record=study,
+                executable_id=executable_id,
+                executable_payload=executable,
+            )
+            sequence = 20 + ordinal
+            self.index.put_many(
+                (
+                    authoritative(progress[0], sequence),
+                    authoritative(
+                        IndexRecord(
+                            kind="trial",
+                            record_id=executable_id,
+                            subject=f"Batch:{batch_id}",
+                            status="evaluated",
+                            fingerprint=executable_id.removeprefix(
+                                "executable:"
+                            ),
+                            payload={
+                                "executable": executable,
+                                "replay_obligation_ids": list(matched),
+                                "study_id": study_id,
+                            },
+                        ),
+                        sequence,
+                    ),
+                )
+            )
+        job_id = "job:" + "7" * 64
+        disposition_hash = "6" * 64
+        disposition_id = "5" * 64
+        completion_id = "4" * 64
+        batch_close_id = "3" * 64
+        close_id = "2" * 64
+        diagnosis_id = "diagnosis:" + "1" * 64
+        resume_condition = (
+            "admit a new Study with feasible registered semantics and "
+            "distinct Executable identities"
+        )
+        engineering_disposition = {
+            "basis_manifest_hash": "a" * 64,
+            "cause_hash": "b" * 64,
+            "disposition": "requires_scientific_change",
+            "job_id": job_id,
+            "rationale": "the registered scientific component must change",
+            "repair_attempt_record_ids": [],
+            "repair_id": None,
+            "resume_condition": resume_condition,
+            "schema": "engineering_failure_disposition.v1",
+            "successor_scope": "study",
+        }
+        declaration = authoritative(
+            IndexRecord(
+                kind="job-declared",
+                record_id=job_id,
+                subject=f"Job:{job_id}",
+                status="declared",
+                fingerprint="d" * 64,
+                payload={
+                    "batch_id": batch_id,
+                    "mission_id": MISSION_ID,
+                    "spec": {
+                        "evidence_subject": {
+                            "id": executable_ids[-1],
+                            "kind": "Executable",
+                        }
+                    },
+                    "study_id": study_id,
+                },
+            ),
+            30,
+        )
+        disposition = authoritative(
+            IndexRecord(
+                kind="engineering-failure-disposition",
+                record_id=disposition_id,
+                subject=f"Job:{job_id}",
+                status="requires_scientific_change",
+                fingerprint=disposition_hash,
+                payload={
+                    "disposition": engineering_disposition,
+                    "disposition_hash": disposition_hash,
+                    "job_id": job_id,
+                    "repair_id": None,
+                },
+            ),
+            31,
+        )
+        completion = authoritative(
+            IndexRecord(
+                kind="job-completed",
+                record_id=completion_id,
+                subject=f"Job:{job_id}",
+                status="failed",
+                fingerprint="c" * 64,
+                payload={
+                    "engineering_disposition": engineering_disposition,
+                    "failure": {
+                        "failure_kind": "engineering",
+                        "repair_disposition_hash": disposition_hash,
+                    },
+                    "job_id": job_id,
+                    "scientific": None,
+                },
+            ),
+            32,
+        )
+        batch_close = authoritative(
+            IndexRecord(
+                kind="batch-close",
+                record_id=batch_close_id,
+                subject=f"Batch:{batch_id}",
+                status="engineering_failure",
+                fingerprint="b" * 64,
+                payload={"outcome": "engineering_failure"},
+            ),
+            33,
+        )
+        close = authoritative(
+            IndexRecord(
+                kind="study-close",
+                record_id=close_id,
+                subject=f"Study:{study_id}",
+                status="not_evaluable",
+                fingerprint="a" * 64,
+                payload={},
+            ),
+            34,
+        )
+        kpi = authoritative(
+            IndexRecord(
+                kind="study-kpi",
+                record_id=study_id,
+                subject=f"Study:{study_id}",
+                status="not_evaluable",
+                fingerprint="9" * 64,
+                payload={
+                    "completion_record_id": completion_id,
+                    "outcome": "not_evaluable",
+                    "source": "typed_engineering_failure_completion",
+                    "study_id": study_id,
+                    "unavailable_reason": "engineering_failure",
+                },
+            ),
+            34,
+        )
+        diagnosis = authoritative(
+            IndexRecord(
+                kind="study-diagnosis",
+                record_id=diagnosis_id,
+                subject=f"Study:{study_id}",
+                status="engineering_gap",
+                fingerprint="8" * 64,
+                payload={
+                    "evidence_basis": [
+                        {"kind": "batch-close", "record_id": batch_close_id},
+                        {"kind": "batch-open", "record_id": batch_id},
+                        {"kind": "job-completed", "record_id": completion_id},
+                        {"kind": "study-close", "record_id": close_id},
+                        {"kind": "study-kpi", "record_id": study_id},
+                    ],
+                    "evidence_state": "engineering_gap",
+                    "mission_id": MISSION_ID,
+                    "reopen_condition": resume_condition,
+                    "schema": "study_diagnosis.v1",
+                    "study_close_record_id": close_id,
+                    "study_id": study_id,
+                    "study_outcome": "not_evaluable",
+                },
+            ),
+            35,
+        )
+        self.index.put_many(
+            (
+                declaration,
+                disposition,
+                completion,
+                batch_close,
+                close,
+                kpi,
+                diagnosis,
+            )
+        )
+        next_action = {
+            "kind": "resolve_historical_replay_obligations",
+            "replay_obligation_ids": list(selected_ids),
+            "resume_next_action": {
+                "kind": "portfolio_decision",
+                "portfolio_snapshot_id": "portfolio:" + "e" * 64,
+                "study_diagnosis_id": diagnosis_id,
+            },
+            "study_diagnosis_id": diagnosis_id,
+            "study_id": study_id,
+        }
+
+        records, constraints, result = prepare_scientific_change_return(
+            self.index,
+            mission_id=MISSION_ID,
+            next_action=next_action,
+            obligation_ids=selected_ids,
+        )
+
+        self.assertEqual(len(records), 4)
+        self.assertTrue(all(record.status == "pending" for record in records))
+        self.assertTrue(all(record.event_sequence == 3 for record in records))
+        self.assertEqual(
+            result["returned_replay_obligation_ids"],
+            list(selected_ids),
+        )
+        for name in (
+            "candidate_delta",
+            "holdout_reveal_delta",
+            "scientific_claim_delta",
+            "scientific_failure_delta",
+            "scientific_satisfaction_delta",
+            "scientific_trial_delta",
+            "terminal_credit_delta",
+        ):
+            self.assertEqual(result[name], 0)
+        self.assertEqual(
+            constraints["pending_replay_obligation_ids"],
+            list(selected_ids),
+        )
+
+        event_kind = (
+            "historical_replay_obligations_"
+            "returned_for_scientific_change"
+        )
+        journal, operation, first = _authenticated_transition_records(
+            records[0],
+            authority_sequence=36,
+            event_kind=event_kind,
+            operation_id="return-scientific-change",
+            result=result,
+        )
+        authority = {
+            "authority_sequence": first.authority_sequence,
+            "authority_event_id": first.authority_event_id,
+            "authority_offset": first.authority_offset,
+        }
+        committed = (first,) + tuple(
+            replace(record, **authority) for record in records[1:]
+        )
+        self.index.put_many((journal, operation, *committed))
+        first_obligation = next(
+            item
+            for item in self.obligations
+            if item.identity == committed[0].payload["obligation_id"]
+        )
+        payload = require_scientific_change_return_record(
+            self.index,
+            obligation=first_obligation,
+            record=committed[0],
+        )
+        self.assertEqual(payload["successor_scope"], "study")
 
     def test_mixed_disposition_is_one_exact_atomic_selected_transition(
         self,
