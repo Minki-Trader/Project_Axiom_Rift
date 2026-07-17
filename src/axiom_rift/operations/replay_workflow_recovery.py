@@ -204,12 +204,40 @@ def terminal_replay_reconstruction_allowed(
     target_head: IndexRecord,
     *,
     control: Mapping[str, Any] | None = None,
+    selected_heads: Mapping[str, IndexRecord] | None = None,
 ) -> bool:
     """Permit reconstruction at any exact post-resolution workflow prefix."""
 
     scientific_change_return = target_head.status == "pending"
     if target_head.status not in {"pending", "satisfied", "deferred"}:
         return False
+    expected_result_ids = list(spec.replay_obligation_ids)
+    if (
+        expected_result_ids != sorted(set(expected_result_ids))
+        or spec.target_obligation_id not in expected_result_ids
+    ):
+        return False
+    if selected_heads is None:
+        if expected_result_ids != [spec.target_obligation_id]:
+            return False
+        exact_heads = {spec.target_obligation_id: target_head}
+    else:
+        exact_heads = {
+            obligation_id: selected_heads.get(obligation_id)
+            for obligation_id in expected_result_ids
+        }
+        selected_target = exact_heads.get(spec.target_obligation_id)
+        if (
+            any(head is None for head in exact_heads.values())
+            or selected_target is None
+            or selected_target.record_id != target_head.record_id
+            or selected_target.status != target_head.status
+            or selected_target.authority_sequence
+            != target_head.authority_sequence
+            or selected_target.authority_event_id
+            != target_head.authority_event_id
+        ):
+            return False
     resolution_events = (
         {
             (
@@ -275,24 +303,71 @@ def terminal_replay_reconstruction_allowed(
         for suffix in forbidden_suffixes
     ):
         return False
-    resolution_result = records[1].payload.get("result")
-    result_field = (
-        "returned_replay_obligation_ids"
-        if scientific_change_return
-        else "satisfied_replay_obligation_ids"
-        if target_head.status == "satisfied"
-        else "deferred_replay_obligation_ids"
-    )
-    expected_result_ids = list(spec.replay_obligation_ids)
     resolution_operation = records[1]
+    resolution_result = resolution_operation.payload.get("result")
+    resolution_event = resolution_operation.payload.get("event_kind")
+    if not isinstance(resolution_result, Mapping):
+        return False
+    if scientific_change_return:
+        if (
+            resolution_event
+            != "historical_replay_obligations_returned_for_scientific_change"
+            or resolution_result.get("returned_replay_obligation_ids")
+            != expected_result_ids
+        ):
+            return False
+        expected_statuses = dict.fromkeys(expected_result_ids, "pending")
+    elif resolution_event == "historical_replay_obligations_resolved":
+        if (
+            resolution_result.get("satisfied_replay_obligation_ids")
+            != expected_result_ids
+            or resolution_result.get("deferred_replay_obligation_ids")
+            not in (None, [])
+        ):
+            return False
+        expected_statuses = dict.fromkeys(expected_result_ids, "satisfied")
+    elif resolution_event == "historical_replay_obligations_deferred":
+        if (
+            resolution_result.get("deferred_replay_obligation_ids")
+            != expected_result_ids
+            or resolution_result.get("satisfied_replay_obligation_ids")
+            not in (None, [])
+        ):
+            return False
+        expected_statuses = dict.fromkeys(expected_result_ids, "deferred")
+    elif resolution_event == "historical_replay_obligations_disposed":
+        satisfied_ids = resolution_result.get("satisfied_replay_obligation_ids")
+        deferred_ids = resolution_result.get("deferred_replay_obligation_ids")
+        if (
+            not isinstance(satisfied_ids, list)
+            or not isinstance(deferred_ids, list)
+            or not satisfied_ids
+            or not deferred_ids
+            or satisfied_ids != sorted(set(satisfied_ids))
+            or deferred_ids != sorted(set(deferred_ids))
+            or set(satisfied_ids).intersection(deferred_ids)
+            or sorted((*satisfied_ids, *deferred_ids)) != expected_result_ids
+        ):
+            return False
+        expected_statuses = {
+            **dict.fromkeys(satisfied_ids, "satisfied"),
+            **dict.fromkeys(deferred_ids, "deferred"),
+        }
+    else:
+        return False
     if (
-        not isinstance(resolution_result, Mapping)
-        or resolution_result.get(result_field) != expected_result_ids
-        or target_head.payload.get("obligation_id") != spec.target_obligation_id
-        or resolution_operation.authority_sequence is None
+        resolution_operation.authority_sequence is None
         or resolution_operation.authority_event_id is None
-        or target_head.authority_sequence != resolution_operation.authority_sequence
-        or target_head.authority_event_id != resolution_operation.authority_event_id
+        or any(
+            head is None
+            or head.status != expected_statuses[obligation_id]
+            or head.payload.get("obligation_id") != obligation_id
+            or head.authority_sequence
+            != resolution_operation.authority_sequence
+            or head.authority_event_id
+            != resolution_operation.authority_event_id
+            for obligation_id, head in exact_heads.items()
+        )
     ):
         return False
     if control is not None:
@@ -536,6 +611,7 @@ def replay_initiative_binding_phase(
     index: LocalIndexView,
     spec: ReplayLifecycleSpec,
     target_head: IndexRecord,
+    selected_heads: Mapping[str, IndexRecord] | None = None,
 ) -> ReplayInitiativeBindingPhase:
     """Derive execution versus historical handoff from exact durable state."""
 
@@ -549,6 +625,7 @@ def replay_initiative_binding_phase(
                 spec,
                 target_head,
                 control=control,
+                selected_heads=selected_heads,
             )
         ):
             return ReplayInitiativeBindingPhase.TERMINAL_HANDOFF
@@ -562,6 +639,7 @@ def replay_initiative_binding_phase(
         spec,
         target_head,
         control=control,
+        selected_heads=selected_heads,
     ):
         return ReplayInitiativeBindingPhase.TERMINAL_HANDOFF
     raise RuntimeError("replay obligation is outside its exact lifecycle")

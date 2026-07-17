@@ -324,6 +324,7 @@ class ReplayInitiativeLifecycleTests(unittest.TestCase):
                 "historical-replay-obligation:" + "a" * 64
             ),
         )
+        spec.replay_obligation_ids = (spec.target_obligation_id,)
         records = {
             (
                 "operation",

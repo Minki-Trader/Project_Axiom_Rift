@@ -1189,6 +1189,11 @@ def build_fixed_hold_replay_design(
                 index=index,
                 spec=spec,
                 target_head=target[1],
+                selected_heads={
+                    obligation_id: pair[1]
+                    for obligation_id in spec.replay_obligation_ids
+                    if (pair := obligations.get(obligation_id)) is not None
+                },
             )
         )
         terminal_reconstruction = (
@@ -3636,6 +3641,11 @@ def operation_steps(
             index=_index,
             spec=design.spec,
             target_head=replay_head,
+            selected_heads={
+                obligation_id: replay_heads[obligation_id]
+                for obligation_id in design.spec.replay_obligation_ids
+                if obligation_id in replay_heads
+            },
         )
     require_replay_initiative_binding(
         control=_control,

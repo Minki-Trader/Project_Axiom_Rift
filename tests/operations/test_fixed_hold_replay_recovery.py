@@ -177,17 +177,138 @@ class FixedHoldReplayRecoveryTests(unittest.TestCase):
             authority_event_id=resolution_operation.authority_event_id,
             authority_sequence=resolution_operation.authority_sequence,
             payload={"obligation_id": OBLIGATION_ID},
+            record_id="historical-replay-satisfaction:" + "8" * 64,
             status="satisfied",
         )
 
         self.assertTrue(
-            terminal_replay_reconstruction_allowed(index, spec, terminal)
+            terminal_replay_reconstruction_allowed(
+                index,
+                spec,
+                terminal,
+                selected_heads={
+                    OBLIGATION_ID: terminal,
+                    SECOND_OBLIGATION_ID: SimpleNamespace(
+                        authority_event_id=(
+                            resolution_operation.authority_event_id
+                        ),
+                        authority_sequence=(
+                            resolution_operation.authority_sequence
+                        ),
+                        payload={"obligation_id": SECOND_OBLIGATION_ID},
+                        record_id="historical-replay-satisfaction:" + "3" * 64,
+                        status="satisfied",
+                    ),
+                },
+            )
         )
         resolution_operation.payload["result"] = {
             "satisfied_replay_obligation_ids": [OBLIGATION_ID]
         }
         self.assertFalse(
-            terminal_replay_reconstruction_allowed(index, spec, terminal)
+            terminal_replay_reconstruction_allowed(
+                index,
+                spec,
+                terminal,
+                selected_heads={
+                    OBLIGATION_ID: terminal,
+                    SECOND_OBLIGATION_ID: SimpleNamespace(
+                        authority_event_id=(
+                            resolution_operation.authority_event_id
+                        ),
+                        authority_sequence=(
+                            resolution_operation.authority_sequence
+                        ),
+                        payload={"obligation_id": SECOND_OBLIGATION_ID},
+                        record_id="historical-replay-satisfaction:" + "3" * 64,
+                        status="satisfied",
+                    ),
+                },
+            )
+        )
+
+    def test_mixed_plural_resolution_authenticates_every_selected_head(
+        self,
+    ) -> None:
+        spec = _spec(
+            lifecycle=ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE
+        )
+        spec.replay_obligation_ids = (
+            OBLIGATION_ID,
+            SECOND_OBLIGATION_ID,
+        )
+        diagnosis_id = "diagnosis:" + "4" * 64
+        diagnosis_operation = _operation(
+            "diagnose-study",
+            "study_diagnosis_recorded",
+            101,
+            {
+                "architecture_review_trigger_id": None,
+                "study_diagnosis_id": diagnosis_id,
+            },
+        )
+        resolution_operation = _operation(
+            "resolve-replay",
+            "historical_replay_obligations_disposed",
+            102,
+            {
+                "deferred_replay_obligation_ids": [SECOND_OBLIGATION_ID],
+                "effective_scope_overlay_ids": [],
+                "satisfied_replay_obligation_ids": [OBLIGATION_ID],
+            },
+        )
+        diagnosis = SimpleNamespace(
+            authority_event_id=diagnosis_operation.authority_event_id,
+            authority_sequence=diagnosis_operation.authority_sequence,
+            payload={
+                "mission_id": MISSION_ID,
+                "portfolio_snapshot_id": "portfolio:" + "5" * 64,
+            },
+            subject=f"Study:{STUDY_ID}",
+        )
+        records = {
+            ("operation", PREFIX + "diagnose-study"): diagnosis_operation,
+            ("operation", PREFIX + "resolve-replay"): resolution_operation,
+            ("study-diagnosis", diagnosis_id): diagnosis,
+        }
+        index = SimpleNamespace(
+            get=lambda kind, record_id: records.get((kind, record_id))
+        )
+        satisfied = SimpleNamespace(
+            authority_event_id=resolution_operation.authority_event_id,
+            authority_sequence=resolution_operation.authority_sequence,
+            payload={"obligation_id": OBLIGATION_ID},
+            record_id="historical-replay-satisfaction:" + "6" * 64,
+            status="satisfied",
+        )
+        deferred = SimpleNamespace(
+            authority_event_id=resolution_operation.authority_event_id,
+            authority_sequence=resolution_operation.authority_sequence,
+            payload={"obligation_id": SECOND_OBLIGATION_ID},
+            record_id="historical-replay-deferral:" + "7" * 64,
+            status="deferred",
+        )
+        selected_heads = {
+            OBLIGATION_ID: satisfied,
+            SECOND_OBLIGATION_ID: deferred,
+        }
+
+        self.assertTrue(
+            terminal_replay_reconstruction_allowed(
+                index,
+                spec,
+                satisfied,
+                selected_heads=selected_heads,
+            )
+        )
+        deferred.authority_sequence = 103
+        self.assertFalse(
+            terminal_replay_reconstruction_allowed(
+                index,
+                spec,
+                satisfied,
+                selected_heads=selected_heads,
+            )
         )
 
     def test_scientific_change_disposition_is_a_typed_replay_step(self) -> None:
