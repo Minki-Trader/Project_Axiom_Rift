@@ -140,7 +140,11 @@ from axiom_rift.operations.content_addressed_correction import (
 from axiom_rift.operations.research_protocol_projection import (
     require_current_research_protocol_activation,
 )
+from axiom_rift.operations.study_close_delivery import (
+    StudyCloseDeliveryObservation,
+)
 from axiom_rift.operations.study_close_git import (
+    capture_study_close_delivery_observation,
     require_study_close_guard_ready,
 )
 from axiom_rift.operations.validation import EvidenceValidatorRegistry
@@ -325,6 +329,7 @@ class ActivationMaterial:
     protocol_ordinal: int
     non_authority_control_sha256: str
     scientific_inventory: Mapping[str, int]
+    study_close_delivery_observation: StudyCloseDeliveryObservation
 
 
 def _git(*arguments: str, check: bool = True) -> subprocess.CompletedProcess[bytes]:
@@ -633,7 +638,11 @@ def _runtime_provenance() -> dict[str, Any]:
     }
 
 
-def _study_close_guard_binding() -> dict[str, Any]:
+def _study_close_guard_binding(
+    *,
+    checkpoint_commit: str,
+    origin_main_commit: str,
+) -> tuple[dict[str, Any], StudyCloseDeliveryObservation]:
     require_study_close_guard_ready(ROOT)
     checkpoint_path = "records/STUDY_CLOSE_DELIVERY_CHECKPOINT.json"
     hook_path = ".githooks/commit-msg"
@@ -654,15 +663,21 @@ def _study_close_guard_binding() -> dict[str, Any]:
     hooks_path = _git_text("config", "--get", "core.hooksPath")
     if hook_mode != "100755" or hooks_path != ".githooks":
         raise ReplayAdmissionActivationError("Study-close Git guard is inactive")
-    return {
+    observation = capture_study_close_delivery_observation(
+        ROOT,
+        expected_main_head=checkpoint_commit,
+        expected_origin_main=origin_main_commit,
+    )
+    return ({
         "checkpoint_path": checkpoint_path,
         "checkpoint_sha256": sha256(checkpoint).hexdigest(),
         "commit_msg_hook_path": hook_path,
         "commit_msg_hook_sha256": sha256(hook.replace(b"\r\n", b"\n")).hexdigest(),
         "core_hooks_path": hooks_path,
+        "delivery_observation": observation.to_payload(),
         "hook_mode": hook_mode,
-        "schema": "study_close_guard_binding.v1",
-    }
+        "schema": "study_close_guard_binding.v2",
+    }, observation)
 
 
 def _reviewed_checkpoint() -> dict[str, Any]:
@@ -752,10 +767,15 @@ def _registry() -> EvidenceValidatorRegistry:
     return EvidenceValidatorRegistry((validator,))
 
 
-def _writer(*, foundation_root: Path | None = None) -> StateWriter:
+def _writer(
+    *,
+    foundation_root: Path | None = None,
+    delivery_observation: StudyCloseDeliveryObservation,
+) -> StateWriter:
     return StateWriter(
         ROOT,
         foundation_root=foundation_root,
+        study_close_delivery_observation=delivery_observation,
         validation_registry=_registry(),
     )
 
@@ -822,7 +842,11 @@ def _baseline_shadow(
 
 
 @contextmanager
-def _writer_for_core(core: CorrectionPlanCore) -> Iterator[StateWriter]:
+def _writer_for_core(
+    core: CorrectionPlanCore,
+    *,
+    delivery_observation: StudyCloseDeliveryObservation,
+) -> Iterator[StateWriter]:
     try:
         control = _canonical_object(
             (ROOT / "state/control.json").read_bytes(),
@@ -832,14 +856,17 @@ def _writer_for_core(core: CorrectionPlanCore) -> Iterator[StateWriter]:
         raise ReplayAdmissionActivationError("current control is unavailable") from exc
     digest = control.get("authority", {}).get("manifest_digest")
     if digest == core.prospective_authority_manifest_digest:
-        yield _writer()
+        yield _writer(delivery_observation=delivery_observation)
         return
     if digest != core.baseline.authority_manifest_digest:
         raise ReplayAdmissionActivationError(
             "control authority is outside the activation plan"
         )
     with _predecessor_foundation(core.authority_files) as foundation:
-        yield _writer(foundation_root=foundation)
+        yield _writer(
+            foundation_root=foundation,
+            delivery_observation=delivery_observation,
+        )
 
 
 def _scientific_inventory(
@@ -870,30 +897,36 @@ def _prior_protocol(
     authority_files: Sequence[AuthorityFileBinding],
 ) -> tuple[str, int, dict[str, int]]:
     with _baseline_shadow(authority_files) as writer:
-        with writer.open_stable_index() as (control, index):
-            head = index.event_head("research-protocol:scientific")
-            record = (
-                None
-                if head is None
-                else index.get(head.record_kind, head.record_id)
+        return _prior_protocol_from_writer(writer)
+
+
+def _prior_protocol_from_writer(
+    writer: StateWriter,
+) -> tuple[str, int, dict[str, int]]:
+    with writer.open_stable_index() as (control, index):
+        head = index.event_head("research-protocol:scientific")
+        record = (
+            None
+            if head is None
+            else index.get(head.record_kind, head.record_id)
+        )
+        if (
+            head is None
+            or record is None
+            or record.kind != "research-protocol-activation"
+            or record.status != "active"
+            or record.event_sequence != head.sequence
+            or type(head.sequence) is not int
+            or head.sequence < 1
+        ):
+            raise ReplayAdmissionActivationError(
+                "prior prospective protocol authority is malformed"
             )
-            if (
-                head is None
-                or record is None
-                or record.kind != "research-protocol-activation"
-                or record.status != "active"
-                or record.event_sequence != head.sequence
-                or type(head.sequence) is not int
-                or head.sequence < 1
-            ):
-                raise ReplayAdmissionActivationError(
-                    "prior prospective protocol authority is malformed"
-                )
-            return (
-                record.record_id,
-                head.sequence,
-                _scientific_inventory(control, index),
-            )
+        return (
+            record.record_id,
+            head.sequence,
+            _scientific_inventory(control, index),
+        )
 
 
 def _non_authority_control_sha256(control: Mapping[str, Any]) -> str:
@@ -931,7 +964,10 @@ def _migration_payload(
     }
 
 
-def _build_material() -> ActivationMaterial:
+def _build_material(
+    *,
+    prior_protocol: tuple[str, int, dict[str, int]] | None = None,
+) -> ActivationMaterial:
     control_document, control = _head_control()
     authority_files, _prospective = _authority_bindings(control)
     checkpoint = _reviewed_checkpoint()
@@ -980,6 +1016,8 @@ def _build_material() -> ActivationMaterial:
     )
     prior_protocol_record_id, prior_ordinal, scientific_inventory = (
         _prior_protocol(authority_files)
+        if prior_protocol is None
+        else prior_protocol
     )
     protocol_ordinal = prior_ordinal + 1
     report_hash = sha256(report_bytes).hexdigest()
@@ -992,7 +1030,10 @@ def _build_material() -> ActivationMaterial:
     migration = _migration_payload(authority_files)
     non_authority_hash = _non_authority_control_sha256(control)
     runtime = _runtime_provenance()
-    study_close_guard = _study_close_guard_binding()
+    study_close_guard, delivery_observation = _study_close_guard_binding(
+        checkpoint_commit=checkpoint["code_checkpoint_commit"],
+        origin_main_commit=checkpoint["origin_main_commit"],
+    )
     core = CorrectionPlanCore(
         operation_namespace=OPERATION_NAMESPACE,
         baseline=baseline,
@@ -1044,17 +1085,24 @@ def _build_material() -> ActivationMaterial:
         protocol_ordinal=protocol_ordinal,
         non_authority_control_sha256=non_authority_hash,
         scientific_inventory=scientific_inventory,
+        study_close_delivery_observation=delivery_observation,
     )
 
 
-def _material_from_core(core: CorrectionPlanCore) -> ActivationMaterial:
+def _material_from_core(
+    core: CorrectionPlanCore,
+    *,
+    prior_protocol: tuple[str, int, dict[str, int]] | None = None,
+) -> ActivationMaterial:
     control_document, baseline_control = _head_control(
         require_worktree_baseline=False
     )
     authority_files, _prospective = _authority_bindings(baseline_control)
     checkpoint = _reviewed_checkpoint()
-    prior_record_id, prior_ordinal, scientific_inventory = _prior_protocol(
-        authority_files
+    prior_record_id, prior_ordinal, scientific_inventory = (
+        _prior_protocol(authority_files)
+        if prior_protocol is None
+        else prior_protocol
     )
     expected_triples = (
         ("authority-migration", "authority_migrated", "Authority:active"),
@@ -1104,7 +1152,12 @@ def _material_from_core(core: CorrectionPlanCore) -> ActivationMaterial:
     control_hash = protocol_binding.get("non_authority_control_sha256")
     expected_control_hash = _non_authority_control_sha256(baseline_control)
     expected_runtime = _runtime_provenance()
-    expected_study_close_guard = _study_close_guard_binding()
+    expected_study_close_guard, delivery_observation = (
+        _study_close_guard_binding(
+            checkpoint_commit=checkpoint["code_checkpoint_commit"],
+            origin_main_commit=checkpoint["origin_main_commit"],
+        )
+    )
     if (
         not isinstance(migration, Mapping)
         or migration != _migration_payload(core.authority_files)
@@ -1171,6 +1224,7 @@ def _material_from_core(core: CorrectionPlanCore) -> ActivationMaterial:
         protocol_ordinal=ordinal,
         non_authority_control_sha256=control_hash,
         scientific_inventory=scientific_inventory,
+        study_close_delivery_observation=delivery_observation,
     )
 
 
@@ -1509,7 +1563,7 @@ def _open_replay_session(
         yield _ActivationReplaySession(writer=shadow, material=material)
 
 
-def _verify_suffix(
+def _structural_suffix(
     material: ActivationMaterial,
     journal_events: Sequence[Mapping[str, Any]],
 ) -> tuple[Mapping[str, Any], ...]:
@@ -1520,17 +1574,37 @@ def _verify_suffix(
     except ContentAddressedCorrectionError as exc:
         raise ReplayAdmissionActivationError(str(exc)) from exc
     del expected
-    with _open_replay_session(material) as replay:
-        replay.verify_prefix(suffix)
-        if len(suffix) == core.event_count:
-            envelope = CorrectionReceiptEnvelope(
-                core=core,
-                event_receipts=tuple(replay.receipts),
-            )
-            try:
-                require_exact_correction_receipts(envelope, suffix)
-            except ContentAddressedCorrectionError as exc:
-                raise ReplayAdmissionActivationError(str(exc)) from exc
+    return suffix
+
+
+def _verify_replay_suffix(
+    replay: _ActivationReplaySession,
+    suffix: Sequence[Mapping[str, Any]],
+) -> None:
+    replay.verify_prefix(suffix)
+    if len(suffix) == replay.material.core.event_count:
+        envelope = CorrectionReceiptEnvelope(
+            core=replay.material.core,
+            event_receipts=tuple(replay.receipts),
+        )
+        try:
+            require_exact_correction_receipts(envelope, suffix)
+        except ContentAddressedCorrectionError as exc:
+            raise ReplayAdmissionActivationError(str(exc)) from exc
+
+
+def _verify_suffix(
+    material: ActivationMaterial,
+    journal_events: Sequence[Mapping[str, Any]],
+    *,
+    replay: _ActivationReplaySession | None = None,
+) -> tuple[Mapping[str, Any], ...]:
+    suffix = _structural_suffix(material, journal_events)
+    if replay is not None:
+        _verify_replay_suffix(replay, suffix)
+        return suffix
+    with _open_replay_session(material) as owned_replay:
+        _verify_replay_suffix(owned_replay, suffix)
     return suffix
 
 
@@ -1714,38 +1788,78 @@ def _current_control() -> dict[str, Any]:
         raise ReplayAdmissionActivationError("current control is unavailable") from exc
 
 
+@contextmanager
+def _prepared_replay(
+    journal_events: Sequence[Mapping[str, Any]],
+) -> Iterator[
+    tuple[
+        ActivationMaterial,
+        _ActivationReplaySession,
+        tuple[Mapping[str, Any], ...],
+    ]
+]:
+    """Build one baseline shadow and retain it for the whole run."""
+
+    durable = _durable_core(journal_events)
+    if durable is None:
+        _document, baseline_control = _head_control()
+        authority_files, _prospective = _authority_bindings(baseline_control)
+    else:
+        authority_files = durable.authority_files
+    with _baseline_shadow(authority_files) as shadow:
+        prior = _prior_protocol_from_writer(shadow)
+        material = (
+            _build_material(prior_protocol=prior)
+            if durable is None
+            else _material_from_core(durable, prior_protocol=prior)
+        )
+        _require_execution_closure(material.core)
+        artifact = shadow.evidence.finalize(material.report_bytes)
+        if shadow.evidence.read_verified(artifact.sha256) != material.report_bytes:
+            raise ReplayAdmissionActivationError(
+                "shadow audit report evidence drifted"
+            )
+        replay = _ActivationReplaySession(writer=shadow, material=material)
+        suffix = _verify_suffix(
+            material,
+            journal_events,
+            replay=replay,
+        )
+        yield material, replay, suffix
+
+
 def _material() -> ActivationMaterial:
     events = _read_journal()
-    durable = _durable_core(events)
-    material = _build_material() if durable is None else _material_from_core(durable)
-    _require_execution_closure(material.core)
-    _verify_suffix(material, events)
-    return material
+    with _prepared_replay(events) as (material, _replay, _suffix):
+        return material
 
 
 def read_only_plan() -> dict[str, Any]:
-    material = _material()
     events = _read_journal()
-    suffix = _verify_suffix(material, events)
-    return {
-        "apply_mutation_performed": False,
-        "authority_replacement_paths": [
-            item.path for item in material.core.authority_replacements
-        ],
-        "event_inventory": [item.to_payload() for item in material.core.events],
-        "existing_prefix_count": len(suffix),
-        "plan_core_hash": material.core.core_hash,
-        "prospective_authority_manifest_digest": (
-            material.core.prospective_authority_manifest_digest
-        ),
-        "schema": "replay_admission_authority_plan.v1",
-    }
+    with _prepared_replay(events) as (material, _replay, suffix):
+        return {
+            "apply_mutation_performed": False,
+            "authority_replacement_paths": [
+                item.path for item in material.core.authority_replacements
+            ],
+            "event_inventory": [
+                item.to_payload() for item in material.core.events
+            ],
+            "existing_prefix_count": len(suffix),
+            "plan_core_hash": material.core.core_hash,
+            "prospective_authority_manifest_digest": (
+                material.core.prospective_authority_manifest_digest
+            ),
+            "schema": "replay_admission_authority_plan.v1",
+        }
 
 
 def _require_final_scientific_inventory(
     material: ActivationMaterial,
 ) -> dict[str, Any]:
-    writer = _writer()
+    writer = _writer(
+        delivery_observation=material.study_close_delivery_observation,
+    )
     with writer.open_stable_index() as (control, index):
         inventory = _scientific_inventory(control, index)
         activation = require_current_research_protocol_activation(
@@ -1782,76 +1896,58 @@ def apply(*, explicit_recovery: bool = False) -> dict[str, Any]:
         )
     if type(explicit_recovery) is not bool:
         raise ReplayAdmissionActivationError("recovery capability must be boolean")
-    material = _material()
-    core = material.core
     events = _read_journal()
-    suffix = _verify_suffix(material, events)
-    require_local_main_correction_boundary(
-        ROOT,
-        core,
-        current_control=_current_control(),
-        journal_events=events,
-        allow_one_event_projection_lag=explicit_recovery,
-    )
-    evidence = EvidenceStore(ROOT / "local/evidence")
-    recovery: dict[str, Any] = {"mode": "stable_head_no_recovery"}
-    with _writer_for_core(core) as writer:
-        try:
-            writer.require_stable_head()
-        except RecoveryRequired:
-            if not explicit_recovery or not suffix:
-                raise
-            writer.require_exact_trailing_event_recovery_boundary(
-                **_exact_recovery_arguments(suffix)
-            )
-            _require_existing_plan_evidence(material, evidence)
-            recovery = {
-                "mode": "explicit_exact_plan_prefix_recovery",
-                **writer.recover_exact_trailing_event(
+    with _prepared_replay(events) as (material, replay, suffix):
+        core = material.core
+        require_local_main_correction_boundary(
+            ROOT,
+            core,
+            current_control=_current_control(),
+            journal_events=events,
+            allow_one_event_projection_lag=explicit_recovery,
+        )
+        evidence = EvidenceStore(ROOT / "local/evidence")
+        recovery: dict[str, Any] = {"mode": "stable_head_no_recovery"}
+        with _writer_for_core(
+            core,
+            delivery_observation=(
+                material.study_close_delivery_observation
+            ),
+        ) as writer:
+            try:
+                writer.require_stable_head()
+            except RecoveryRequired:
+                if not explicit_recovery or not suffix:
+                    raise
+                writer.require_exact_trailing_event_recovery_boundary(
                     **_exact_recovery_arguments(suffix)
-                ),
-            }
-        else:
-            writer.require_study_close_delivery_guard()
-    events = _read_journal()
-    suffix = _verify_suffix(material, events)
-    require_local_main_correction_boundary(
-        ROOT,
-        core,
-        current_control=_current_control(),
-        journal_events=events,
-    )
-    with _writer_for_core(core) as writer:
-        writer.require_stable_head()
-        writer.require_study_close_delivery_guard()
-    if suffix:
-        _require_existing_plan_evidence(material, evidence)
-    _materialize_plan_evidence(material, evidence)
-    # Evidence publication is not a Git capability.  Re-authenticate the full
-    # boundary and Study-close checkpoint before any Journal append.
-    require_local_main_correction_boundary(
-        ROOT,
-        core,
-        current_control=_current_control(),
-        journal_events=events,
-    )
-    with _writer_for_core(core) as writer:
-        writer.require_stable_head()
-        writer.require_study_close_delivery_guard()
+                )
+                _require_existing_plan_evidence(material, evidence)
+                recovery = {
+                    "mode": "explicit_exact_plan_prefix_recovery",
+                    **writer.recover_exact_trailing_event(
+                        **_exact_recovery_arguments(suffix)
+                    ),
+                }
+            else:
+                writer.require_study_close_delivery_guard()
+        if _structural_suffix(material, events) != suffix:
+            raise ReplayAdmissionActivationError(
+                "recovery changed the durable activation suffix"
+            )
+        if suffix:
+            _require_existing_plan_evidence(material, evidence)
+        _materialize_plan_evidence(material, evidence)
 
-    initial_prefix = len(suffix)
-    with _open_replay_session(material) as replay:
-        replay.verify_prefix(suffix)
+        initial_prefix = len(suffix)
         for ordinal in range(initial_prefix + 1, core.event_count + 1):
             _require_execution_closure(core)
-            events = _read_journal()
-            require_local_main_correction_boundary(
-                ROOT,
+            with _writer_for_core(
                 core,
-                current_control=_current_control(),
-                journal_events=events,
-            )
-            with _writer_for_core(core) as writer:
+                delivery_observation=(
+                    material.study_close_delivery_observation
+                ),
+            ) as writer:
                 writer.require_stable_head()
                 writer.require_study_close_delivery_guard()
                 occurred_at_utc = _observe_writer_clock_once(writer)
@@ -1861,7 +1957,7 @@ def apply(*, explicit_recovery: bool = False) -> dict[str, Any]:
                     ROOT,
                     core,
                     current_control=_current_control(),
-                    journal_events=_read_journal(),
+                    journal_events=events,
                 )
                 writer.require_stable_head()
                 writer.require_study_close_delivery_guard()
@@ -1882,7 +1978,7 @@ def apply(*, explicit_recovery: bool = False) -> dict[str, Any]:
                     "activation action did not commit its exact new event"
                 )
             replay.accept_next(actual_event)
-            events = _read_journal()
+            events = (*events, dict(actual_event))
             suffix = tuple(replay.verified_events)
             if (
                 correction_suffix_from_journal(core, events) != suffix
@@ -1891,43 +1987,42 @@ def apply(*, explicit_recovery: bool = False) -> dict[str, Any]:
                 raise ReplayAdmissionActivationError(
                     "activation action did not advance one exact prefix event"
                 )
-            require_local_main_correction_boundary(
-                ROOT,
-                core,
-                current_control=_current_control(),
-                journal_events=events,
+        envelope = _final_envelope(material, suffix, evidence)
+        with _writer_for_core(
+            core,
+            delivery_observation=(
+                material.study_close_delivery_observation
+            ),
+        ) as writer:
+            stable = writer.require_stable_head()
+        final_control = stable["control"]
+        if (
+            final_control.get("authority", {}).get("manifest_digest")
+            != EXPECTED_PROSPECTIVE_AUTHORITY_DIGEST
+            or _non_authority_control_sha256(final_control)
+            != material.non_authority_control_sha256
+        ):
+            raise ReplayAdmissionActivationError(
+                "activation changed non-authority control or missed final authority"
             )
-    envelope = _final_envelope(material, suffix, evidence)
-    with _writer_for_core(core) as writer:
-        stable = writer.require_stable_head()
-    final_control = stable["control"]
-    if (
-        final_control.get("authority", {}).get("manifest_digest")
-        != EXPECTED_PROSPECTIVE_AUTHORITY_DIGEST
-        or _non_authority_control_sha256(final_control)
-        != material.non_authority_control_sha256
-    ):
-        raise ReplayAdmissionActivationError(
-            "activation changed non-authority control or missed final authority"
+        final_inventory = _require_final_scientific_inventory(material)
+        delivery = require_local_main_correction_boundary(
+            ROOT,
+            envelope,
+            current_control=final_control,
+            journal_events=events,
         )
-    final_inventory = _require_final_scientific_inventory(material)
-    delivery = require_local_main_correction_boundary(
-        ROOT,
-        envelope,
-        current_control=final_control,
-        journal_events=_read_journal(),
-    )
-    return {
-        "already_complete": initial_prefix == core.event_count,
-        "applied_event_count": core.event_count - initial_prefix,
-        "final_envelope_artifact_hash": envelope.artifact_hash,
-        "final_prefix_count": len(suffix),
-        "final_scientific_inventory": final_inventory,
-        "local_main_delivery_boundary": delivery,
-        "plan_core_hash": core.core_hash,
-        "recovery": recovery,
-        "schema": "replay_admission_authority_apply.v1",
-    }
+        return {
+            "already_complete": initial_prefix == core.event_count,
+            "applied_event_count": core.event_count - initial_prefix,
+            "final_envelope_artifact_hash": envelope.artifact_hash,
+            "final_prefix_count": len(suffix),
+            "final_scientific_inventory": final_inventory,
+            "local_main_delivery_boundary": delivery,
+            "plan_core_hash": core.core_hash,
+            "recovery": recovery,
+            "schema": "replay_admission_authority_apply.v1",
+        }
 
 
 def parse_arguments() -> argparse.Namespace:

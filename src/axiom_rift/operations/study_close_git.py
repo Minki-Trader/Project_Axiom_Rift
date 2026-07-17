@@ -43,6 +43,7 @@ from axiom_rift.operations.study_close_backfill_git import (
 )
 from axiom_rift.operations.study_close_delivery import (
     StudyCloseCheckpointPlan,
+    StudyCloseDeliveryObservation,
     StudyCloseDeliveryPolicyError,
     StudyCloseGuardCapability,
     canonical_milestone_paths,
@@ -3159,6 +3160,74 @@ def inspect_tracked_study_close_delivery(
     return checkpoint
 
 
+def capture_study_close_delivery_observation(
+    repository_root: str | Path,
+    *,
+    expected_main_head: str,
+    expected_origin_main: str,
+) -> StudyCloseDeliveryObservation:
+    """Capture a correction-bound local delivery proof without network I/O."""
+
+    root = Path(repository_root).resolve()
+    require_study_close_guard_ready(root)
+    if not (root / CHECKPOINT_PATH).is_file():
+        raise StudyCloseDeliveryError(
+            "tracked Study-close checkpoint is unavailable"
+        )
+    checkpoint, checkpoint_commit, main_head = (
+        _inspect_tracked_study_close_delivery(root)
+    )
+    observed_origin = _origin_ref_commit(root)
+    if (
+        main_head != expected_main_head
+        or observed_origin != expected_origin_main
+        or not _ancestor(root, checkpoint_commit, _ORIGIN_REMOTE_REF)
+    ):
+        raise StudyCloseDeliveryError(
+            "plan-bound local Study-close delivery observation differs"
+        )
+    try:
+        return StudyCloseDeliveryObservation(
+            checkpoint_commit=checkpoint_commit,
+            checkpoint_digest=checkpoint.checkpoint_digest,
+            main_head=main_head,
+            remote_commit=observed_origin,
+        )
+    except StudyCloseDeliveryPolicyError as exc:
+        raise StudyCloseDeliveryError(
+            "plan-bound Study-close delivery observation is malformed"
+        ) from exc
+
+
+def require_study_close_delivery_observation(
+    repository_root: str | Path,
+    observation: StudyCloseDeliveryObservation,
+) -> None:
+    """Re-authenticate a local observation without fetching or pushing."""
+
+    if not isinstance(observation, StudyCloseDeliveryObservation):
+        raise StudyCloseDeliveryError(
+            "Study-close delivery observation must be typed"
+        )
+    root = Path(repository_root).resolve()
+    require_study_close_guard_ready(root)
+    checkpoint, checkpoint_commit, main_head = (
+        _inspect_tracked_study_close_delivery(root)
+    )
+    observed_origin = _origin_ref_commit(root)
+    if (
+        checkpoint_commit != observation.checkpoint_commit
+        or checkpoint.checkpoint_digest != observation.checkpoint_digest
+        or main_head != observation.main_head
+        or observation.remote_ref != _ORIGIN_REMOTE_REF
+        or observed_origin != observation.remote_commit
+        or not _ancestor(root, checkpoint_commit, observation.remote_ref)
+    ):
+        raise StudyCloseDeliveryError(
+            "Study-close delivery observation no longer matches local authority"
+        )
+
+
 def require_all_study_close_deliveries(
     repository_root: str | Path,
     *,
@@ -3264,9 +3333,11 @@ __all__ = [
     "prepare_study_close_delivery_checkpoint",
     "prepare_study_close_delivery_checkpoint_maintenance",
     "prepare_study_close_delivery_checkpoint_v2_upgrade",
+    "capture_study_close_delivery_observation",
     "render_projection",
     "require_all_study_close_deliveries",
     "inspect_tracked_study_close_delivery",
+    "require_study_close_delivery_observation",
     "require_local_main",
     "require_study_close_guard_ready",
     "validate_commit_message",

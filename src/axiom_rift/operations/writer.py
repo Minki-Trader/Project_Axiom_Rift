@@ -160,7 +160,10 @@ from axiom_rift.operations.external_dependency import (
     ExternalResumeAction,
     external_plan_from_binding,
 )
-from axiom_rift.operations.study_close_delivery import StudyCloseGuardCapability
+from axiom_rift.operations.study_close_delivery import (
+    StudyCloseDeliveryObservation,
+    StudyCloseGuardCapability,
+)
 from axiom_rift.operations.validation import (
     EngineeringFixtureValidator,
     EngineeringRetryFixtureValidator,
@@ -896,6 +899,7 @@ class StateWriter:
         clock: Callable[[], str] = _now_utc,
         engineering_fixture: bool = False,
         study_close_guard_capability: StudyCloseGuardCapability | None = None,
+        study_close_delivery_observation: StudyCloseDeliveryObservation | None = None,
         foundation_root: str | Path | None = None,
         validation_registry: EvidenceValidatorRegistry | None = None,
     ) -> None:
@@ -920,6 +924,17 @@ class StateWriter:
             raise TransitionError(
                 "Study-close guard capability must be an isolated non-Git fixture"
             )
+        if study_close_delivery_observation is not None and (
+            not isinstance(
+                study_close_delivery_observation,
+                StudyCloseDeliveryObservation,
+            )
+            or engineering_fixture
+            or study_close_guard_capability is not None
+        ):
+            raise TransitionError(
+                "Study-close delivery observation requires a real guarded writer"
+            )
         self.control = ControlStore(self.root / "state" / "control.json")
         self.journal = DurableJournal(self.root / LEGACY_JOURNAL_RELATIVE_PATH)
         self._journal_write_capability = _issue_journal_write_capability()
@@ -930,6 +945,9 @@ class StateWriter:
         self.clock = clock
         self.engineering_fixture = engineering_fixture
         self.study_close_guard_capability = study_close_guard_capability
+        self.study_close_delivery_observation = (
+            study_close_delivery_observation
+        )
         self.validation_registry = (
             validation_registry
             if validation_registry is not None
@@ -21213,12 +21231,23 @@ class StateWriter:
         from axiom_rift.operations.study_close_git import (
             StudyCloseDeliveryError,
             require_all_study_close_deliveries,
+            require_study_close_delivery_observation,
             require_study_close_guard_ready,
         )
 
         try:
             capability = getattr(self, "study_close_guard_capability", None)
-            if capability is None:
+            observation = getattr(
+                self,
+                "study_close_delivery_observation",
+                None,
+            )
+            if observation is not None:
+                require_study_close_delivery_observation(
+                    self.root,
+                    observation,
+                )
+            elif capability is None:
                 require_study_close_guard_ready(self.root)
                 require_all_study_close_deliveries(self.root)
             else:

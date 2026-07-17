@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 import subprocess
@@ -82,11 +83,21 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
         )
         cls.shadow_blob_patcher.start()
         cls.addClassCleanup(cls.shadow_blob_patcher.stop)
-        material = module._build_material()
         timestamp_one = "2026-07-17T12:00:00.000001Z"
         timestamp_two = "2026-07-17T12:00:00.000002Z"
-        with module._open_replay_session(material) as replay:
-            before = replay.writer.journal.read_all()
+        journal_events = module._read_journal()
+        with module._prepared_replay(journal_events) as (
+            material,
+            replay,
+            existing_suffix,
+        ):
+            if existing_suffix:
+                raise AssertionError("canonical activation fixture is not pristine")
+            journal_path = (
+                replay.writer.root / material.core.baseline.journal_path
+            )
+            before_size = journal_path.stat().st_size
+            before_hash = module.sha256(journal_path.read_bytes()).hexdigest()
             with cls._assert_raises_static(Exception):
                 with replay.writer.journal.expect_next_event({}):
                     module._invoke_at(
@@ -98,7 +109,11 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
                             1,
                         ),
                     )
-            cls.preappend_unchanged = replay.writer.journal.read_all() == before
+            cls.preappend_unchanged = (
+                journal_path.stat().st_size == before_size
+                and module.sha256(journal_path.read_bytes()).hexdigest()
+                == before_hash
+            )
             first = replay.preview_next(timestamp_one)
             replay.accept_next(first)
             second = replay.preview_next(timestamp_two)
@@ -137,6 +152,13 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
         )
         core = SimpleNamespace(
             authority_replacements=self.authority_files(),
+            baseline=SimpleNamespace(
+                index_projection_digest="5" * 64,
+                index_record_count=0,
+                journal_event_id="6" * 64,
+                journal_size_bytes=0,
+                journal_start_offset=0,
+            ),
             events=events,
         )
         return module.ActivationMaterial(
@@ -148,6 +170,14 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
             protocol_ordinal=14,
             non_authority_control_sha256="c" * 64,
             scientific_inventory=dict(module.EXPECTED_SCIENTIFIC_INVENTORY),
+            study_close_delivery_observation=(
+                module.StudyCloseDeliveryObservation(
+                    checkpoint_commit="1" * 40,
+                    checkpoint_digest="2" * 64,
+                    main_head="3" * 40,
+                    remote_commit="4" * 40,
+                )
+            ),
         )
 
     def test_frozen_authority_transition_is_exactly_two_changed_contracts(self):
@@ -233,6 +263,9 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
             protocol_ordinal=material.protocol_ordinal,
             non_authority_control_sha256=module._non_authority_control_sha256(baseline),
             scientific_inventory=material.scientific_inventory,
+            study_close_delivery_observation=(
+                material.study_close_delivery_observation
+            ),
         )
         with patch.object(module, "_baseline_control_from_core", return_value=baseline):
             first = module._expected_event_components(material, 1)
@@ -262,11 +295,14 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
         core.baseline = SimpleNamespace(authority_manifest_digest="a" * 64)
         boundary = Mock(side_effect=module.ContentAddressedCorrectionError("blocked"))
         evidence = Mock(side_effect=AssertionError("evidence must not open"))
+
+        @contextmanager
+        def prepared(_events):
+            yield material, Mock(), ()
+
         with patch.object(module, "_SAFE_STARTUP", True), patch.object(
-            module, "_material", return_value=material
+            module, "_prepared_replay", side_effect=prepared
         ), patch.object(module, "_read_journal", return_value=()), patch.object(
-            module, "_verify_suffix", return_value=()
-        ), patch.object(
             module, "_current_control", return_value={}
         ), patch.object(
             module, "require_local_main_correction_boundary", boundary
@@ -278,6 +314,47 @@ class ReplayAdmissionAuthorityActivationTests(unittest.TestCase):
                 module.apply()
         boundary.assert_called_once()
         evidence.assert_not_called()
+
+    def test_prepared_run_reuses_exactly_one_baseline_shadow(self):
+        module = self.module
+        material = self.material()
+        shadow = Mock()
+        artifact = SimpleNamespace(sha256="e" * 64)
+        shadow.evidence.finalize.return_value = artifact
+        shadow.evidence.read_verified.return_value = material.report_bytes
+        entered = []
+
+        @contextmanager
+        def baseline(authority_files):
+            entered.append(tuple(authority_files))
+            yield shadow
+
+        prior = (
+            material.prior_protocol_record_id,
+            material.protocol_ordinal - 1,
+            dict(material.scientific_inventory),
+        )
+        with patch.object(module, "_durable_core", return_value=None), patch.object(
+            module, "_head_control", return_value=(b"control", {})
+        ), patch.object(
+            module,
+            "_authority_bindings",
+            return_value=(self.authority_files(), {}),
+        ), patch.object(module, "_baseline_shadow", side_effect=baseline), patch.object(
+            module, "_prior_protocol_from_writer", return_value=prior
+        ), patch.object(
+            module, "_build_material", return_value=material
+        ) as build, patch.object(
+            module, "_require_execution_closure"
+        ), patch.object(
+            module, "_verify_suffix", return_value=()
+        ) as verify:
+            with module._prepared_replay(()) as prepared:
+                self.assertIs(prepared[0], material)
+
+        self.assertEqual(len(entered), 1)
+        build.assert_called_once_with(prior_protocol=prior)
+        self.assertIs(verify.call_args.kwargs["replay"].writer, shadow)
 
     def test_recovery_arguments_bind_only_the_exact_trailing_event(self):
         module = self.module

@@ -6,9 +6,11 @@ import json
 from pathlib import Path
 import subprocess
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 import pytest
 
+import axiom_rift.operations.content_addressed_correction as correction_module
 from axiom_rift.core.canonical import canonical_bytes
 from axiom_rift.core.identity import canonical_digest
 from axiom_rift.operations.content_addressed_correction import (
@@ -369,9 +371,30 @@ def test_local_guard_allows_unrelated_python_and_rejects_import_load_shadows() -
         _run(root, "add", "authority.txt", "runner.py")
         _run(root, "commit", "-m", "unpublished checkpoint")
 
-        checkpoint = capture_local_correction_checkpoint(
-            root,
-            execution_paths=(root / "runner.py",),
+        real_subprocess_run = subprocess.run
+        checkpoint_git_calls: list[tuple[str, ...]] = []
+
+        def checkpoint_run(*args, **kwargs):
+            checkpoint_git_calls.append(tuple(args[0]))
+            return real_subprocess_run(*args, **kwargs)
+
+        with patch.object(
+            correction_module.subprocess,
+            "run",
+            side_effect=checkpoint_run,
+        ):
+            checkpoint = capture_local_correction_checkpoint(
+                root,
+                execution_paths=(root / "runner.py",),
+            )
+        assert sum(
+            command[1:3] == ("cat-file", "--batch")
+            for command in checkpoint_git_calls
+        ) == 1
+        assert not any(
+            command[1] == "show"
+            or command[1:3] == ("cat-file", "-e")
+            for command in checkpoint_git_calls
         )
         baseline = _baseline(
             journal_bytes=journal_bytes,
@@ -394,11 +417,31 @@ def test_local_guard_allows_unrelated_python_and_rejects_import_load_shadows() -
         )
         base_journal = _journal(core, [])
         (root / "notes.py").write_text("VALUE = 'unrelated'\n", encoding="ascii")
-        result = require_local_main_correction_boundary(
-            root,
-            core,
-            current_control=control,
-            journal_events=base_journal,
+        boundary_git_calls: list[tuple[str, ...]] = []
+
+        def boundary_run(*args, **kwargs):
+            boundary_git_calls.append(tuple(args[0]))
+            return real_subprocess_run(*args, **kwargs)
+
+        with patch.object(
+            correction_module.subprocess,
+            "run",
+            side_effect=boundary_run,
+        ):
+            result = require_local_main_correction_boundary(
+                root,
+                core,
+                current_control=control,
+                journal_events=base_journal,
+            )
+        assert sum(
+            command[1:3] == ("cat-file", "--batch")
+            for command in boundary_git_calls
+        ) == 3
+        assert not any(
+            command[1] == "show"
+            or command[1:3] == ("cat-file", "-e")
+            for command in boundary_git_calls
         )
         assert result["structural_core_prefix_count"] == 0
         assert result["excluded_untracked_non_authority_paths"] == ["notes.py"]

@@ -35,6 +35,91 @@ class StudyCloseGuardCapability(Enum):
 
 
 @dataclass(frozen=True, slots=True)
+class StudyCloseDeliveryObservation:
+    """Plan-bound local proof that the tracked close checkpoint was delivered."""
+
+    checkpoint_commit: str
+    checkpoint_digest: str
+    main_head: str
+    remote_commit: str
+    remote_ref: str = "origin/main"
+    schema: str = "study_close_delivery_observation.v1"
+
+    def __post_init__(self) -> None:
+        hex_characters = frozenset("0123456789abcdef")
+        for name, value in (
+            ("checkpoint commit", self.checkpoint_commit),
+            ("main head", self.main_head),
+            ("remote commit", self.remote_commit),
+        ):
+            if (
+                type(value) is not str
+                or len(value) not in {40, 64}
+                or any(character not in hex_characters for character in value)
+            ):
+                raise StudyCloseDeliveryPolicyError(f"{name} is malformed")
+        if (
+            type(self.checkpoint_digest) is not str
+            or len(self.checkpoint_digest) != 64
+            or any(
+                character not in hex_characters
+                for character in self.checkpoint_digest
+            )
+        ):
+            raise StudyCloseDeliveryPolicyError(
+                "checkpoint digest is malformed"
+            )
+        if self.remote_ref != "origin/main":
+            raise StudyCloseDeliveryPolicyError(
+                "delivery observation remote ref is unsupported"
+            )
+        if self.schema != "study_close_delivery_observation.v1":
+            raise StudyCloseDeliveryPolicyError(
+                "delivery observation schema is unsupported"
+            )
+
+    def to_payload(self) -> dict[str, str]:
+        return {
+            "checkpoint_commit": self.checkpoint_commit,
+            "checkpoint_digest": self.checkpoint_digest,
+            "main_head": self.main_head,
+            "remote_commit": self.remote_commit,
+            "remote_ref": self.remote_ref,
+            "schema": self.schema,
+        }
+
+    @classmethod
+    def from_payload(
+        cls,
+        payload: Mapping[str, Any],
+    ) -> "StudyCloseDeliveryObservation":
+        expected = {
+            "checkpoint_commit",
+            "checkpoint_digest",
+            "main_head",
+            "remote_commit",
+            "remote_ref",
+            "schema",
+        }
+        if not isinstance(payload, Mapping) or set(payload) != expected:
+            raise StudyCloseDeliveryPolicyError(
+                "delivery observation payload is malformed"
+            )
+        if any(type(payload[name]) is not str for name in expected):
+            raise StudyCloseDeliveryPolicyError(
+                "delivery observation fields must be strings"
+            )
+        return cls(
+            checkpoint_commit=payload["checkpoint_commit"],
+            checkpoint_digest=payload["checkpoint_digest"],
+            main_head=payload["main_head"],
+            remote_commit=payload["remote_commit"],
+            remote_ref=payload["remote_ref"],
+            schema=payload["schema"],
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class StudyCloseCheckpointPlan:
     """Read-only exact staging plan and the checkpoint it would render."""
 
@@ -239,6 +324,7 @@ def project_checkpoint_maintenance(
 
 __all__ = [
     "StudyCloseCheckpointPlan",
+    "StudyCloseDeliveryObservation",
     "StudyCloseDeliveryPolicyError",
     "StudyCloseGuardCapability",
     "canonical_milestone_paths",

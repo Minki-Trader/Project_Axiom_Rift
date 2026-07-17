@@ -70,6 +70,24 @@ prospective_validator: validator:5323ccc0517a5c99d9352fba7146e231c69a748cd1f3cd8
     checks self-hash, offsets, index count and digest, reauthenticates Git and
     the Study-close guard before and after evidence, and binds both operation
     ids to one immutable content-addressed core.
+16. The corrected orchestrator still repeated the same 5410-event baseline
+    reconstruction five times, reread the full Journal ten times, and invoked
+    the full Git boundary ten times. One boundary launched hundreds of serial
+    Git processes because every checkpoint and execution blob used separate
+    ``cat-file`` and ``show`` calls. A profiled read-only plan took 250.6
+    seconds and an isolated apply exceeded ten minutes before evidence. The
+    run now retains one independent shadow, reads the root Journal once,
+    advances the verified snapshot with exact Writer events, and uses Git
+    ``cat-file --batch`` for checkpoint, execution, state, and authority
+    objects. The same read-only plan now takes 59.3 seconds, and the Mission
+    skill makes the single-shadow and single-snapshot rule durable.
+17. The activation contract said that apply never pushes, but its nested
+    Study-close guard could fetch and attempt a push when an ignored local
+    receipt was absent. Correction execution now binds a typed read-only
+    observation to the exact code HEAD, tracked checkpoint digest and commit,
+    and plan-bound ``origin/main`` commit. Writer reauthenticates that local
+    observation before each transition without fetch or push. The actual
+    remote remained at the predecessor commit throughout diagnosis.
 
 ## Authority Transition
 
@@ -104,13 +122,17 @@ prospective_validator: validator:5323ccc0517a5c99d9352fba7146e231c69a748cd1f3cd8
 
 - replay admission, correction, and dependent historical runner regression:
   170 passed, 258 subtests passed
-- authority activation unit and full 5410-event shadow replay: 9 passed,
+- authority activation unit and full 5410-event shadow replay: 10 passed,
   3 subtests passed
 - content-addressed correction, authority migration, and Study-close Git guard:
-  69 passed, 1 skipped, 20 subtests passed
+  74 passed, 1 skipped, 27 subtests passed
 - shadow activation proves exactly two events, two replacement evidence
   artifacts, zero protocol evidence artifacts, exact preappend rejection, and
   no canonical control or Journal byte change
+- profiled read-only activation planning fell from 250.6 seconds to 59.3
+  seconds while retaining one full independent baseline reconstruction
+- checkpoint and execution object reads are batch-bound, and the correction
+  delivery observation has a zero-fetch and zero-push regression contract
 - protected TLT work and the 2026-07-15 user audit are excluded from the code
   checkpoint and activation execution closure
 

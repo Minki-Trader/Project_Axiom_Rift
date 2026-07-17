@@ -1288,18 +1288,87 @@ def _git_text(root: Path, *args: str) -> str:
         raise ContentAddressedCorrectionError("Git output is non-ASCII") from exc
 
 
-def _blob(root: Path, ref: str, path: str) -> bytes:
-    content = _git(root, "show", f"{ref}:{path}").stdout
-    if not content:
-        raise ContentAddressedCorrectionError(f"missing Git blob {ref}:{path}")
-    return content
+def _batch_blobs(
+    root: Path,
+    requests: Sequence[tuple[str, str]],
+    *,
+    timeout: int = 120,
+) -> dict[tuple[str, str], bytes | None]:
+    """Read exact Git blobs in one process without weakening missing checks."""
 
+    ordered: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    encoded: list[bytes] = []
+    for ref, candidate in requests:
+        path = _relative("Git blob path", candidate)
+        if not ref or any(character in ref for character in "\r\n\0"):
+            raise ContentAddressedCorrectionError("Git blob reference is malformed")
+        request = (ref, path)
+        if request in seen:
+            continue
+        try:
+            spec = f"{ref}:{path}".encode("ascii")
+        except UnicodeEncodeError as exc:
+            raise ContentAddressedCorrectionError(
+                "Git blob request is non-ASCII"
+            ) from exc
+        ordered.append(request)
+        encoded.append(spec)
+        seen.add(request)
+    if not ordered:
+        return {}
+    try:
+        completed = subprocess.run(
+            ("git", "cat-file", "--batch"),
+            cwd=root,
+            check=True,
+            capture_output=True,
+            input=b"\n".join(encoded) + b"\n",
+            timeout=timeout,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ContentAddressedCorrectionError("Git batch blob read failed") from exc
 
-def _optional_blob(root: Path, ref: str, path: str) -> bytes | None:
-    exists = _git(root, "cat-file", "-e", f"{ref}:{path}", check=False)
-    if exists.returncode:
-        return None
-    return _git(root, "show", f"{ref}:{path}").stdout
+    output = completed.stdout
+    cursor = 0
+    result: dict[tuple[str, str], bytes | None] = {}
+    for request, spec in zip(ordered, encoded, strict=True):
+        header_end = output.find(b"\n", cursor)
+        if header_end < 0:
+            raise ContentAddressedCorrectionError(
+                "Git batch blob response is truncated"
+            )
+        header = output[cursor:header_end]
+        cursor = header_end + 1
+        if header == spec + b" missing":
+            result[request] = None
+            continue
+        fields = header.split(b" ")
+        try:
+            object_id, object_type, raw_size = fields
+            size = int(raw_size.decode("ascii"))
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise ContentAddressedCorrectionError(
+                "Git batch blob header is malformed"
+            ) from exc
+        if (
+            object_type != b"blob"
+            or size < 0
+            or len(object_id) not in {40, 64}
+            or any(character not in b"0123456789abcdef" for character in object_id)
+            or cursor + size >= len(output)
+            or output[cursor + size : cursor + size + 1] != b"\n"
+        ):
+            raise ContentAddressedCorrectionError(
+                "Git batch blob object is malformed"
+            )
+        result[request] = output[cursor : cursor + size]
+        cursor += size + 1
+    if cursor != len(output):
+        raise ContentAddressedCorrectionError(
+            "Git batch blob response has trailing bytes"
+        )
+    return result
 
 
 def _checkpoint_file_inventory(
@@ -1323,7 +1392,7 @@ def _checkpoint_file_inventory(
             "Git checkpoint inventory is non-ASCII"
         ) from exc
     kinds = {"A": "added", "D": "deleted", "M": "modified", "T": "type-changed"}
-    result: list[CodeCheckpointFileBinding] = []
+    changes: list[tuple[str, str]] = []
     for line in output.splitlines():
         fields = line.split("\t")
         if len(fields) != 2 or fields[0] not in kinds:
@@ -1331,12 +1400,23 @@ def _checkpoint_file_inventory(
                 "Git checkpoint inventory contains a rename or foreign status"
             )
         path = _relative("Git checkpoint path", fields[1])
-        predecessor = _optional_blob(root, origin_commit, path)
-        checkpoint = _optional_blob(root, checkpoint_commit, path)
+        changes.append((path, kinds[fields[0]]))
+    blobs = _batch_blobs(
+        root,
+        tuple(
+            request
+            for path, _kind in changes
+            for request in ((origin_commit, path), (checkpoint_commit, path))
+        ),
+    )
+    result: list[CodeCheckpointFileBinding] = []
+    for path, kind in changes:
+        predecessor = blobs[(origin_commit, path)]
+        checkpoint = blobs[(checkpoint_commit, path)]
         result.append(
             CodeCheckpointFileBinding(
                 path=path,
-                change_kind=kinds[fields[0]],
+                change_kind=kind,
                 predecessor_sha256=(
                     None if predecessor is None else sha256(predecessor).hexdigest()
                 ),
@@ -1454,20 +1534,32 @@ def require_local_main_correction_boundary(
     if _git(repository, "diff", "--cached", "--quiet", check=False, timeout=timeout_seconds).returncode:
         raise ContentAddressedCorrectionError("Git index is not empty")
 
+    try:
+        tracked_paths = tuple(
+            path
+            for path in _git(
+                repository,
+                "ls-files",
+                "-z",
+            ).stdout.decode("ascii").split("\0")
+            if path
+        )
+    except UnicodeDecodeError as exc:
+        raise ContentAddressedCorrectionError(
+            "tracked path inventory is non-ASCII"
+        ) from exc
+    tracked_path_set = frozenset(tracked_paths)
+    execution_blobs = _batch_blobs(
+        repository,
+        tuple((head, item.path) for item in plan.execution_files),
+        timeout=timeout_seconds,
+    )
     for item in plan.execution_files:
-        if _git(
-            repository,
-            "ls-files",
-            "--error-unmatch",
-            "--",
-            item.path,
-            check=False,
-            timeout=timeout_seconds,
-        ).returncode:
+        if item.path not in tracked_path_set:
             raise ContentAddressedCorrectionError(
                 "reviewed execution file is not tracked by the checkpoint"
             )
-        head_bytes = _optional_blob(repository, head, item.path)
+        head_bytes = execution_blobs[(head, item.path)]
         try:
             worktree_path = repository / item.path
             if worktree_path.is_symlink() or not worktree_path.is_file():
@@ -1528,20 +1620,6 @@ def require_local_main_correction_boundary(
         )
         return automatic or extension_shadow
 
-    try:
-        tracked_paths = tuple(
-            path
-            for path in _git(
-                repository,
-                "ls-files",
-                "-z",
-            ).stdout.decode("ascii").split("\0")
-            if path
-        )
-    except UnicodeDecodeError as exc:
-        raise ContentAddressedCorrectionError(
-            "tracked path inventory is non-ASCII"
-        ) from exc
     tracked_automatic_load = tuple(
         path for path in tracked_paths if automatic_or_extension_shadow(path)
     )
@@ -1565,8 +1643,40 @@ def require_local_main_correction_boundary(
         "state/control.json": plan.baseline.control_sha256,
         plan.baseline.journal_path: plan.baseline.journal_sha256,
     }
+    boundary_requests = [
+        request
+        for path in expected_baseline
+        for request in (("HEAD", path), ("origin/main", path))
+    ]
+    if plan.baseline.journal_manifest_sha256 is not None:
+        boundary_requests.extend(
+            (
+                ("HEAD", "records/journal/manifest.json"),
+                ("origin/main", "records/journal/manifest.json"),
+            )
+        )
+    boundary_requests.extend(
+        request
+        for item in plan.authority_files
+        for request in (("origin/main", item.path), ("HEAD", item.path))
+    )
+    boundary_blobs = _batch_blobs(
+        repository,
+        tuple(boundary_requests),
+        timeout=timeout_seconds,
+    )
+
+    def required_blob(ref: str, path: str) -> bytes:
+        content = boundary_blobs.get((ref, path))
+        if content is None:
+            raise ContentAddressedCorrectionError(
+                f"missing Git blob {ref}:{path}"
+            )
+        return content
+
     for path, expected_hash in expected_baseline.items():
-        head_bytes, origin_bytes = _blob(repository, "HEAD", path), _blob(repository, "origin/main", path)
+        head_bytes = required_blob("HEAD", path)
+        origin_bytes = required_blob("origin/main", path)
         if head_bytes != origin_bytes or sha256(head_bytes).hexdigest() != expected_hash:
             raise ContentAddressedCorrectionError("control/Journal Git baseline drifted")
 
@@ -1576,8 +1686,8 @@ def require_local_main_correction_boundary(
         if manifest_path.exists():
             raise ContentAddressedCorrectionError("legacy plan has a Journal manifest")
     else:
-        head_bytes = _blob(repository, "HEAD", "records/journal/manifest.json")
-        origin_bytes = _blob(repository, "origin/main", "records/journal/manifest.json")
+        head_bytes = required_blob("HEAD", "records/journal/manifest.json")
+        origin_bytes = required_blob("origin/main", "records/journal/manifest.json")
         try:
             worktree_bytes = manifest_path.read_bytes()
             value = json.loads(worktree_bytes.decode("ascii"))
@@ -1593,8 +1703,8 @@ def require_local_main_correction_boundary(
         manifest = value
 
     for item in plan.authority_files:
-        origin_bytes = _blob(repository, "origin/main", item.path)
-        head_bytes = _blob(repository, "HEAD", item.path)
+        origin_bytes = required_blob("origin/main", item.path)
+        head_bytes = required_blob("HEAD", item.path)
         try:
             current = (repository / item.path).read_bytes()
         except OSError as exc:
@@ -1616,8 +1726,8 @@ def require_local_main_correction_boundary(
     control_path = repository / "state/control.json"
     journal_path = repository / plan.baseline.journal_path
     control_bytes, journal_bytes = control_path.read_bytes(), journal_path.read_bytes()
-    base_control = _blob(repository, "HEAD", "state/control.json")
-    base_journal = _blob(repository, "HEAD", plan.baseline.journal_path)
+    base_control = required_blob("HEAD", "state/control.json")
+    base_journal = required_blob("HEAD", plan.baseline.journal_path)
     try:
         supplied_control_bytes = canonical_bytes(dict(current_control))
         expected_control_bytes = canonical_bytes(

@@ -334,6 +334,15 @@ audit belongs to a coherent engineering or delivery milestone and is not a
 per-Job prerequisite. Do not delay an otherwise permitted bounded scientific
 Job for unrelated slow validation. Test success remains engineering evidence.
 
+For one content-addressed correction run, reconstruct an independent complete
+history baseline at most once and retain its exact replay session. Read the
+canonical Journal snapshot once unless an explicit recovery observes a new
+durable event, advance the in-memory snapshot only with byte-verified Writer
+events, and batch immutable Git object reads. A correction apply may use a
+typed plan-bound local Study-close delivery observation, but it must not fetch
+or push before the exact state suffix has its second local commit; delivery is
+the later single non-force fast-forward push required by the correction plan.
+
 ## Repair
 
 Freeze scientific identity and counts. Record cause, minimum reproduction,

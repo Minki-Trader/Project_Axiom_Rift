@@ -17,6 +17,7 @@ from axiom_rift.operations.study_close_git import (
     StudyCloseDeliveryError,
     StudyCloseGuardCapability,
     audit_all_study_close_deliveries,
+    capture_study_close_delivery_observation,
     check_study_close_delivery_checkpoint_maintenance,
     check_study_close_delivery_checkpoint_v2_upgrade,
     initialize_study_close_delivery_checkpoint,
@@ -26,6 +27,7 @@ from axiom_rift.operations.study_close_git import (
     prepare_study_close_delivery_checkpoint_v2_upgrade,
     render_projection,
     require_all_study_close_deliveries,
+    require_study_close_delivery_observation,
     require_study_close_guard_ready,
     validate_commit_message,
 )
@@ -1595,6 +1597,79 @@ class StudyCloseGitTests(unittest.TestCase):
         writer=object.__new__(StateWriter);writer.root=self.root;writer.engineering_fixture=False
         with patch("axiom_rift.operations.study_close_git.require_study_close_guard_ready") as ready,patch("axiom_rift.operations.study_close_git.require_all_study_close_deliveries") as audit:
             writer._require_study_close_delivery_guard();ready.assert_called_once_with(self.root);audit.assert_called_once_with(self.root)
+
+    def test_plan_bound_delivery_observation_never_fetches_or_pushes(self) -> None:
+        self.initialize_checkpoint()
+        head = subprocess.run(
+            ("git", "rev-parse", "HEAD"),
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        run(
+            self.root,
+            "git",
+            "update-ref",
+            "refs/remotes/origin/main",
+            head,
+        )
+        origin_git = study_close_git._run_origin_git
+        commands: list[tuple[str, ...]] = []
+
+        def local_origin_git(root: Path, *arguments: str):
+            commands.append(tuple(arguments))
+            if arguments[0] in {"fetch", "push"}:
+                raise AssertionError("local observation attempted network delivery")
+            return origin_git(root, *arguments)
+
+        with patch.object(
+            study_close_git,
+            "_run_origin_git",
+            side_effect=local_origin_git,
+        ):
+            observation = capture_study_close_delivery_observation(
+                self.root,
+                expected_main_head=head,
+                expected_origin_main=head,
+            )
+            writer = StateWriter(
+                self.root,
+                study_close_delivery_observation=observation,
+            )
+            with patch(
+                "axiom_rift.operations.study_close_git.require_all_study_close_deliveries",
+                side_effect=AssertionError("observation used the network guard"),
+            ) as network_guard:
+                writer._require_study_close_delivery_guard()
+            network_guard.assert_not_called()
+
+        self.assertTrue(commands)
+        self.assertTrue(
+            all(command[0] == "rev-parse" for command in commands)
+        )
+        parent = subprocess.run(
+            ("git", "rev-parse", "HEAD^"),
+            cwd=self.root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        run(
+            self.root,
+            "git",
+            "update-ref",
+            "refs/remotes/origin/main",
+            parent,
+        )
+        with self.assertRaisesRegex(
+            StudyCloseDeliveryError,
+            "no longer matches",
+        ):
+            require_study_close_delivery_observation(
+                self.root,
+                observation,
+            )
 
     def test_writer_guard_converts_delivery_failure_to_transition_error(self)->None:
         writer=object.__new__(StateWriter);writer.root=self.root;writer.engineering_fixture=False
