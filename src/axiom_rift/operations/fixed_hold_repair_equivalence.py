@@ -436,6 +436,12 @@ FIXED_HOLD_AUTHORITY_CORRECTION_OLD_IMPLEMENTATION_IDENTITY = (
 FIXED_HOLD_AUTHORITY_CORRECTION_NEW_IMPLEMENTATION_IDENTITY = (
     "7b86dbaf0f6e2e3bf48ba86b80e55eba54d870a2e6f9f5493c931bfd8c8ca730"
 )
+FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_OLD_IMPLEMENTATION_IDENTITY = (
+    "71ab6a637226a7e7468a7422937f49b6f64c1fb0db03b1b38db24fb0e182f7c1"
+)
+FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_NEW_IMPLEMENTATION_IDENTITY = (
+    "8c0f4121fdfd0419566258d142cd6272ee8dc80144371adf72e1586c89ebfb8b"
+)
 FIXED_HOLD_AUTHORITY_CORRECTION_VERIFICATION_SCHEMA = (
     "fixed_hold_authority_correction_verification.v1"
 )
@@ -610,6 +616,86 @@ _ALLOWED_CHANGED_SYMBOLS = {
     ),
 }
 
+_DIRECT_ORIGIN_REQUIRED_CHANGED_PATHS = (
+    "axiom_rift/operations/running_job_context.py",
+)
+_DIRECT_ORIGIN_JOB_SOURCE_PATHS = tuple(
+    sorted(
+        set(_FIXED_HOLD_JOB_SOURCE_PATHS).difference(
+            {
+                "axiom_rift/research/volatility_duration_fixed_hold.py",
+                "axiom_rift/research/volatility_duration_fixed_hold_job.py",
+            }
+        )
+        | {
+            "axiom_rift/operations/historical_family_authority_admission.py",
+            "axiom_rift/research/evidence_inputs.py",
+            "axiom_rift/research/gap_fixed_hold.py",
+            "axiom_rift/research/gap_fixed_hold_job.py",
+            "axiom_rift/research/historical_study_registry.py",
+            "axiom_rift/research/replay_member_assignment.py",
+        }
+    )
+)
+_DIRECT_ORIGIN_ALLOWED_CHANGED_SYMBOLS = {
+    "axiom_rift/operations/running_job_context.py": frozenset(
+        {
+            "class:RunningJobExecutionContext.project_bound_fixed_hold_replay_context",
+            "function:_replay_execution_origin_record",
+            "function:_require_correction_invalidation_route",
+            "function:_require_recorded_new_replay_obligation_origin",
+            "function:_require_replay_execution_origin_route",
+            "function:_unique_ascii_list",
+            "module:_NEW_OBLIGATION_RESULT_FIELDS",
+            "module:imports",
+        }
+    ),
+}
+_CORRECTION_PROFILES = {
+    FIXED_HOLD_AUTHORITY_CORRECTION_NEW_IMPLEMENTATION_IDENTITY: {
+        "allowed_changed_symbols": _ALLOWED_CHANGED_SYMBOLS,
+        "old_implementation_identity": (
+            FIXED_HOLD_AUTHORITY_CORRECTION_OLD_IMPLEMENTATION_IDENTITY
+        ),
+        "required_changed_paths": _REQUIRED_CHANGED_PATHS,
+        "source_paths": _FIXED_HOLD_JOB_SOURCE_PATHS,
+    },
+    FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_NEW_IMPLEMENTATION_IDENTITY: {
+        "allowed_changed_symbols": _DIRECT_ORIGIN_ALLOWED_CHANGED_SYMBOLS,
+        "old_implementation_identity": (
+            FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_OLD_IMPLEMENTATION_IDENTITY
+        ),
+        "required_changed_paths": _DIRECT_ORIGIN_REQUIRED_CHANGED_PATHS,
+        "source_paths": _DIRECT_ORIGIN_JOB_SOURCE_PATHS,
+    },
+}
+
+
+def _correction_profile(
+    *,
+    new_implementation_identity: object,
+    old_implementation_identity: object | None = None,
+) -> Mapping[str, Any]:
+    """Select one immutable old/new Repair profile without replacing history."""
+
+    if type(new_implementation_identity) is not str or (
+        old_implementation_identity is not None
+        and type(old_implementation_identity) is not str
+    ):
+        raise EvidenceValidationError(
+            "fixed-hold correction implementation identities are malformed"
+        )
+    profile = _CORRECTION_PROFILES.get(new_implementation_identity)
+    if profile is None or (
+        old_implementation_identity is not None
+        and old_implementation_identity
+        != profile["old_implementation_identity"]
+    ):
+        raise EvidenceValidationError(
+            "fixed-hold implementation pair is not the registered correction"
+        )
+    return profile
+
 
 def _transition_records(record: Any, event_kind: str, result: Mapping[str, Any]):
     from axiom_rift.storage.index import IndexRecord
@@ -646,11 +732,144 @@ def _transition_records(record: Any, event_kind: str, result: Mapping[str, Any])
     )
 
 
+def _exercise_direct_obligation_origin(tamper: str | None) -> None:
+    from axiom_rift.operations.running_job_context import (
+        RunningJobAuthorityError,
+        _require_recorded_new_replay_obligation_origin,
+    )
+    from axiom_rift.research.historical_adjudication import ReplayPriority
+    from axiom_rift.research.replay_obligation import HistoricalReplayObligation
+    from axiom_rift.storage.index import IndexRecord, LocalIndex
+
+    mission_id = "MIS-FIXED-HOLD-DIRECT-ORIGIN"
+    study_id = "STU-FIXED-HOLD-DIRECT-ORIGIN"
+    adjudication_id = "historical-adjudication:" + "1" * 64
+    obligation = HistoricalReplayObligation(
+        governing_mission_id=mission_id,
+        historical_adjudication_id=adjudication_id,
+        replay_priority=ReplayPriority.P1,
+        original_study_id=study_id,
+        original_study_close_record_id="2" * 64,
+        original_completion_record_id="3" * 64,
+        original_executable_id="executable:" + "4" * 64,
+        audit_artifact_hash="5" * 64,
+        validation_plan_hash="6" * 64,
+        measurement_artifact_hash="7" * 64,
+        claim_ids=("claim-direct-origin",),
+        criterion_ids=("criterion-direct-origin",),
+        reason_codes=("prospective_exact_replay_required",),
+    )
+    authority = {
+        "authority_sequence": 11,
+        "authority_event_id": "8" * 64,
+        "authority_offset": 800,
+    }
+    adjudication_payload = {
+        "adjudication": {
+            "candidate_eligible": False,
+            "claims": [{"claim_id": "claim-direct-origin"}],
+            "criteria": [{"criterion_id": "criterion-direct-origin"}],
+        },
+        "audit_artifact_hash": obligation.audit_artifact_hash,
+        "candidate_delta": 0,
+        "completion_record_id": obligation.original_completion_record_id,
+        "disposition": "replay_required",
+        "executable_id": obligation.original_executable_id,
+        "holdout_delta": 0,
+        "measurement_artifact_hash": obligation.measurement_artifact_hash,
+        "reason_codes": list(obligation.reason_codes),
+        "replay_obligation_authority": (
+            "reused_existing" if tamper == "origin" else "derived_new"
+        ),
+        "replay_obligation_id": obligation.identity,
+        "replay_obligation_origin_adjudication_id": adjudication_id,
+        "replay_priority": obligation.replay_priority.value,
+        "schema": "historical_scientific_adjudication.v2",
+        "study_close_record_id": obligation.original_study_close_record_id,
+        "study_id": obligation.original_study_id,
+        "trial_delta": 0,
+        "validation_plan_hash": obligation.validation_plan_hash,
+    }
+    adjudication = IndexRecord(
+        kind="historical-scientific-adjudication",
+        record_id=adjudication_id,
+        subject=f"Study:{study_id}",
+        status="replay_required",
+        fingerprint=adjudication_id.removeprefix("historical-adjudication:"),
+        payload=adjudication_payload,
+        **(
+            {**authority, "authority_event_id": "9" * 64}
+            if tamper == "cross_event"
+            else authority
+        ),
+    )
+    stream = f"historical-replay-obligation:{obligation.identity}"
+    initial = IndexRecord(
+        kind="historical-replay-obligation",
+        record_id=obligation.identity,
+        subject=f"Mission:{mission_id}",
+        status="pending",
+        fingerprint=obligation.identity.removeprefix(
+            "historical-replay-obligation:"
+        ),
+        payload={"obligation": obligation.to_identity_payload()},
+        event_stream=stream,
+        event_sequence=1,
+        **authority,
+    )
+    result = {
+        "adjudication_record_ids": [adjudication_id],
+        "audit_artifact_hash": obligation.audit_artifact_hash,
+        "candidate_delta": 0,
+        "holdout_delta": 0,
+        "replay_obligation_ids": [
+            (
+                "historical-replay-obligation:" + "0" * 64
+                if tamper == "result"
+                else obligation.identity
+            )
+        ],
+        "replay_priority_escalation_ids": [],
+        "reused_replay_obligation_ids": [],
+        "trial_delta": 0,
+    }
+    records = [
+        initial,
+        adjudication,
+        *_transition_records(
+            initial,
+            "historical_scientific_adjudications_recorded",
+            result,
+        ),
+    ]
+    with TemporaryDirectory() as temporary:
+        with LocalIndex(Path(temporary) / "direct-origin.sqlite") as index:
+            index.put_many(records)
+            if tamper is None:
+                _require_recorded_new_replay_obligation_origin(
+                    index,
+                    obligation=obligation,
+                    record=initial,
+                )
+                return
+            try:
+                _require_recorded_new_replay_obligation_origin(
+                    index,
+                    obligation=obligation,
+                    record=initial,
+                )
+            except RunningJobAuthorityError:
+                return
+    raise EvidenceValidationError(
+        "fixed-hold correction accepted tampered direct obligation origin"
+    )
+
+
 def _exercise_resume_route(tamper: str | None) -> None:
     from axiom_rift.operations.running_job_context import (
         RunningJobAuthorityError,
-        _require_correction_invalidation_route,
         _require_replay_progress_transition,
+        _replay_execution_origin_record,
     )
     from axiom_rift.research.replay_obligation import (
         ReplayDeferral,
@@ -865,7 +1084,7 @@ def _exercise_resume_route(tamper: str | None) -> None:
                     record=current_progress,
                     require_current_head=True,
                 )
-                observed = _require_correction_invalidation_route(
+                observed = _replay_execution_origin_record(
                     index,
                     obligation=obligation,
                     current_progress=current_progress,
@@ -876,7 +1095,7 @@ def _exercise_resume_route(tamper: str | None) -> None:
                     )
                 return
             try:
-                _require_correction_invalidation_route(
+                _replay_execution_origin_record(
                     index,
                     obligation=obligation,
                     current_progress=current_progress,
@@ -907,6 +1126,9 @@ def _run_correction_conformance() -> tuple[str, ...]:
     from axiom_rift.storage.index import IndexRecord
 
     passed: set[str] = set()
+    _exercise_direct_obligation_origin(None)
+    for tamper in ("cross_event", "origin", "result"):
+        _exercise_direct_obligation_origin(tamper)
     _exercise_resume_route(None)
     passed.update(
         {
@@ -1078,20 +1300,16 @@ def fixed_hold_authority_correction_verification_manifest(
 ) -> dict[str, Any]:
     """Recompute one typed engineering verification outside the Job closure."""
 
-    if (
-        new_implementation_identity
-        != FIXED_HOLD_AUTHORITY_CORRECTION_NEW_IMPLEMENTATION_IDENTITY
-    ):
-        raise EvidenceValidationError(
-            "fixed-hold verification implementation identity is not the registered correction"
-        )
+    profile = _correction_profile(
+        new_implementation_identity=new_implementation_identity,
+    )
     conformance = _run_correction_conformance()
     source_artifacts = [
         {
             "relative_path": relative_path,
             "sha256": sha256((_SOURCE_ROOT / relative_path).read_bytes()).hexdigest(),
         }
-        for relative_path in _REQUIRED_CHANGED_PATHS
+        for relative_path in profile["required_changed_paths"]
     ]
     return {
         "authority_deltas": {
@@ -1295,16 +1513,16 @@ class FixedHoldAuthorityCorrectionEquivalenceValidator:
 
         old_identity = binding.get("old_implementation_identity")
         new_identity = binding.get("new_implementation_identity")
+        profile = _correction_profile(
+            new_implementation_identity=new_identity,
+            old_implementation_identity=old_identity,
+        )
         if (
             type(old_identity) is not str
             or type(new_identity) is not str
             or old_identity not in opened
             or new_identity not in opened
             or old_identity == new_identity
-            or old_identity
-            != FIXED_HOLD_AUTHORITY_CORRECTION_OLD_IMPLEMENTATION_IDENTITY
-            or new_identity
-            != FIXED_HOLD_AUTHORITY_CORRECTION_NEW_IMPLEMENTATION_IDENTITY
             or plan.get("old_implementation_identity") != old_identity
             or plan.get("new_implementation_identity") != new_identity
         ):
@@ -1387,9 +1605,9 @@ class FixedHoldAuthorityCorrectionEquivalenceValidator:
             or changed_pairs != plan.get("changed_source_pair_bindings")
             or changed_pairs != binding.get("changed_source_pair_bindings")
             or tuple(item["relative_path"] for item in source_bindings)
-            != _FIXED_HOLD_JOB_SOURCE_PATHS
+            != profile["source_paths"]
             or tuple(pair["relative_path"] for pair in changed_pairs)
-            != _REQUIRED_CHANGED_PATHS
+            != profile["required_changed_paths"]
         ):
             raise EvidenceValidationError(
                 "fixed-hold correction source paths differ from the exact protocol"
@@ -1428,7 +1646,9 @@ class FixedHoldAuthorityCorrectionEquivalenceValidator:
         pair_results: list[dict[str, Any]] = []
         for pair in changed_pairs:
             relative_path = pair["relative_path"]
-            expected_symbols = _ALLOWED_CHANGED_SYMBOLS.get(relative_path)
+            expected_symbols = profile["allowed_changed_symbols"].get(
+                relative_path
+            )
             old_bytes = opened[pair["old_artifact_hash"]]
             new_bytes = opened[pair["new_artifact_hash"]]
             changed_symbols = changed_source_symbols(old_bytes, new_bytes)
@@ -1571,6 +1791,8 @@ __all__ = [
     "FIXED_HOLD_AUTHORITY_CORRECTION_VERIFICATION_SCHEMA",
     "FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_DEPENDENCIES",
     "FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID",
+    "FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_NEW_IMPLEMENTATION_IDENTITY",
+    "FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_OLD_IMPLEMENTATION_IDENTITY",
     "FixedHoldAuthorityCorrectionEquivalenceValidator",
     "changed_source_symbols",
     "fixed_hold_authority_correction_verification_manifest",

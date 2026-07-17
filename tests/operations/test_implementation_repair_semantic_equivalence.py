@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import ast
+from contextlib import contextmanager
+from pathlib import Path
 import subprocess
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
+import axiom_rift.operations.fixed_hold_repair_equivalence as fixed_hold_repair_equivalence_module
 from axiom_rift.core.canonical import canonical_bytes, parse_canonical
 from axiom_rift.operations.permits import (
     PermitAuthority,
@@ -16,10 +20,13 @@ from axiom_rift.operations.fixed_hold_repair_equivalence import (
     FIXED_HOLD_AUTHORITY_CORRECTION_OLD_IMPLEMENTATION_IDENTITY,
     FIXED_HOLD_AUTHORITY_CORRECTION_VERIFICATION_SCHEMA,
     FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID,
+    FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_NEW_IMPLEMENTATION_IDENTITY,
+    FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_OLD_IMPLEMENTATION_IDENTITY,
     FixedHoldAuthorityCorrectionEquivalenceValidator,
     _ALLOWED_CHANGED_SYMBOLS,
+    _FIXED_HOLD_JOB_SOURCE_PATHS,
     _REQUIRED_CHANGED_PATHS,
-    _SOURCE_ROOT,
+    _correction_profile,
     fixed_hold_authority_correction_verification_manifest,
 )
 from axiom_rift.operations.repair_semantic_equivalence import (
@@ -566,47 +573,49 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
 
     def _fixed_hold_authority_correction_pair(self) -> tuple[str, str]:
         required = set(_REQUIRED_CHANGED_PATHS)
-        paths = fixed_hold_replay_runtime_dependency_paths(
-            VOLATILITY_RUNTIME_ADAPTER
+        relative_path_list = _FIXED_HOLD_JOB_SOURCE_PATHS
+
+        def git_sources(commit: str) -> dict[str, bytes]:
+            request = "".join(
+                f"{commit}:src/{relative_path}\n"
+                for relative_path in relative_path_list
+            ).encode("ascii")
+            completed = subprocess.run(
+                ("git", "cat-file", "--batch"),
+                cwd=REPO_ROOT,
+                input=request,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
+            cursor = 0
+            sources: dict[str, bytes] = {}
+            for relative_path in relative_path_list:
+                header_end = completed.stdout.index(b"\n", cursor)
+                header = completed.stdout[cursor:header_end].split()
+                self.assertEqual(header[-2], b"blob")
+                size = int(header[-1])
+                start = header_end + 1
+                end = start + size
+                sources[relative_path] = completed.stdout[start:end]
+                self.assertEqual(completed.stdout[end : end + 1], b"\n")
+                cursor = end + 1
+            self.assertEqual(cursor, len(completed.stdout))
+            return sources
+
+        old_sources = git_sources(
+            "e80279e3709a018db14a8567b261ed1d951331dd"
         )
-        relative_path_list = tuple(
-            path.relative_to(_SOURCE_ROOT).as_posix() for path in paths
+        new_sources = git_sources(
+            "6fb3cc3c2857bac609d2adc72e6040d3ff8b4926"
         )
-        request = "".join(
-            "e80279e3709a018db14a8567b261ed1d951331dd:"
-            f"src/{relative_path}\n"
-            for relative_path in relative_path_list
-        ).encode("ascii")
-        completed = subprocess.run(
-            ("git", "cat-file", "--batch"),
-            cwd=REPO_ROOT,
-            input=request,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True,
-        )
-        cursor = 0
-        old_sources: dict[str, bytes] = {}
-        for relative_path in relative_path_list:
-            header_end = completed.stdout.index(b"\n", cursor)
-            header = completed.stdout[cursor:header_end].split()
-            self.assertEqual(header[-2], b"blob")
-            size = int(header[-1])
-            start = header_end + 1
-            end = start + size
-            old_sources[relative_path] = completed.stdout[start:end]
-            self.assertEqual(completed.stdout[end : end + 1], b"\n")
-            cursor = end + 1
-        self.assertEqual(cursor, len(completed.stdout))
-        relative_paths = {
-            path.relative_to(_SOURCE_ROOT).as_posix() for path in paths
-        }
+        self._legacy_fixed_hold_new_sources = new_sources
+        relative_paths = set(relative_path_list)
         self.assertTrue(required.issubset(relative_paths))
         old_dependencies: list[dict[str, str]] = []
         new_dependencies: list[dict[str, str]] = []
-        for path in paths:
-            relative = path.relative_to(_SOURCE_ROOT).as_posix()
-            current = path.read_bytes()
+        for relative in relative_path_list:
+            current = new_sources[relative]
             new_artifact = self.writer.evidence.finalize(current)
             old_document = old_sources[relative]
             old_artifact = self.writer.evidence.finalize(old_document)
@@ -661,6 +670,32 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
             FIXED_HOLD_AUTHORITY_CORRECTION_NEW_IMPLEMENTATION_IDENTITY,
         )
         return old_identity, new_identity
+
+    @contextmanager
+    def _legacy_fixed_hold_source_root(self):
+        sources = self._legacy_fixed_hold_new_sources
+        with TemporaryDirectory() as temporary:
+            source_root = Path(temporary)
+            for relative_path, content in sources.items():
+                target = source_root / relative_path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(content)
+            with patch.object(
+                fixed_hold_repair_equivalence_module,
+                "_SOURCE_ROOT",
+                source_root,
+            ):
+                registered = self.writer.validation_registry
+                self.writer.validation_registry = EvidenceValidatorRegistry(
+                    (
+                        ImplementationRepairSemanticEquivalenceValidator(),
+                        FixedHoldAuthorityCorrectionEquivalenceValidator(),
+                    )
+                )
+                try:
+                    yield
+                finally:
+                    self.writer.validation_registry = registered
 
     def _hash_set_only_implementation_identity(self) -> str:
         source = self.writer.evidence.finalize(
@@ -1249,9 +1284,10 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
             artifacts=artifacts,
             engineering_fixture=False,
         )
-        validated, trace = self.writer.validation_registry.validate(
-            request
-        )
+        with self._legacy_fixed_hold_source_root():
+            validated, trace = self.writer.validation_registry.validate(
+                request
+            )
         self.assertEqual(validated.verdict, "passed")
         self.assertEqual(
             validated.facts["schema"],
@@ -1287,12 +1323,13 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
         _old_identity, new_identity = (
             self._fixed_hold_authority_correction_pair()
         )
-        verification = (
-            self.writer.resolve_fixed_hold_authority_correction_verification(
-                new_implementation_identity=new_identity,
-                evidence_hashes=(),
+        with self._legacy_fixed_hold_source_root():
+            verification = (
+                self.writer.resolve_fixed_hold_authority_correction_verification(
+                    new_implementation_identity=new_identity,
+                    evidence_hashes=(),
+                )
             )
-        )
         self.assertEqual(len(verification), 1)
         manifest = parse_canonical(
             self.writer.evidence.read_verified(verification[0])
@@ -1319,6 +1356,48 @@ class ImplementationRepairSemanticEquivalenceTests(unittest.TestCase):
             self.writer.resolve_fixed_hold_authority_correction_verification(
                 new_implementation_identity=new_identity,
                 evidence_hashes=(unrelated.sha256,),
+            )
+
+    def test_fixed_hold_correction_profiles_preserve_prior_and_direct_origin_pairs(
+        self,
+    ) -> None:
+        prior = _correction_profile(
+            new_implementation_identity=(
+                FIXED_HOLD_AUTHORITY_CORRECTION_NEW_IMPLEMENTATION_IDENTITY
+            ),
+            old_implementation_identity=(
+                FIXED_HOLD_AUTHORITY_CORRECTION_OLD_IMPLEMENTATION_IDENTITY
+            ),
+        )
+        direct = _correction_profile(
+            new_implementation_identity=(
+                FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_NEW_IMPLEMENTATION_IDENTITY
+            ),
+            old_implementation_identity=(
+                FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_OLD_IMPLEMENTATION_IDENTITY
+            ),
+        )
+        self.assertNotEqual(prior, direct)
+        manifest = fixed_hold_authority_correction_verification_manifest(
+            new_implementation_identity=(
+                FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_NEW_IMPLEMENTATION_IDENTITY
+            )
+        )
+        self.assertEqual(
+            [item["relative_path"] for item in manifest["source_artifacts"]],
+            ["axiom_rift/operations/running_job_context.py"],
+        )
+        with self.assertRaisesRegex(
+            EvidenceValidationError,
+            "not the registered correction",
+        ):
+            _correction_profile(
+                new_implementation_identity=(
+                    FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_NEW_IMPLEMENTATION_IDENTITY
+                ),
+                old_implementation_identity=(
+                    FIXED_HOLD_AUTHORITY_CORRECTION_OLD_IMPLEMENTATION_IDENTITY
+                ),
             )
 
     def test_non_source_artifact_drift_fails_in_plan_and_validator(

@@ -2329,6 +2329,93 @@ def _member_unrecovered_repair_operation_id(
     return None if not matches else matches[0]
 
 
+def _member_scientific_change_disposition_step(
+    design: FixedHoldReplayDesign,
+    member: FixedHoldReplayMember,
+    *,
+    _index: LocalIndexView,
+) -> OperationStep | None:
+    """Authenticate a direct engineering exit that requires new science.
+
+    A runtime failure whose only feasible correction changes a registered
+    component is not an in-place Repair.  The Writer already supports that
+    typed disposition directly; the replay plan must preserve its operation
+    between engine entry and Job completion instead of treating it as an
+    undeclared prefix intrusion.
+    """
+
+    stem = design.spec.operation_prefix + member.label
+    operation_id = stem + "-record-scientific-change-disposition"
+    operation = _index.get("operation", operation_id)
+    if operation is None:
+        return None
+    declaration_operation = _index.get(
+        "operation",
+        stem + "-declare-job",
+    )
+    result = operation.payload.get("result")
+    declaration_result = (
+        None
+        if declaration_operation is None
+        else declaration_operation.payload.get("result")
+    )
+    job_id = (
+        None
+        if not isinstance(declaration_result, Mapping)
+        else declaration_result.get("job_id")
+    )
+    disposition_record_id = (
+        None
+        if not isinstance(result, Mapping)
+        else result.get("disposition_record_id")
+    )
+    disposition = (
+        None
+        if not isinstance(disposition_record_id, str)
+        else _index.get(
+            "engineering-failure-disposition",
+            disposition_record_id,
+        )
+    )
+    projected = (
+        None
+        if disposition is None
+        else disposition.payload.get("disposition")
+    )
+    if (
+        operation.status != "success"
+        or operation.payload.get("event_kind")
+        != "engineering_failure_disposition_recorded"
+        or type(operation.authority_sequence) is not int
+        or not isinstance(result, Mapping)
+        or not isinstance(job_id, str)
+        or result.get("job_id") != job_id
+        or result.get("repair_id") is not None
+        or disposition is None
+        or disposition.kind != "engineering-failure-disposition"
+        or disposition.status != "requires_scientific_change"
+        or disposition.subject != f"Job:{job_id}"
+        or disposition.record_id != disposition_record_id
+        or disposition.fingerprint != result.get("disposition_hash")
+        or disposition.authority_sequence != operation.authority_sequence
+        or disposition.authority_event_id != operation.authority_event_id
+        or disposition.payload.get("job_id") != job_id
+        or disposition.payload.get("repair_id") is not None
+        or not isinstance(projected, Mapping)
+        or projected.get("schema") != "engineering_failure_disposition.v1"
+        or projected.get("disposition") != "requires_scientific_change"
+        or projected.get("successor_scope") not in {"executable", "study"}
+    ):
+        raise RuntimeError(
+            "replay scientific-change disposition projection is malformed"
+        )
+    return OperationStep(
+        operation_id,
+        "engineering_failure_disposition_recorded",
+        STUDY_CLOSE_STAGE,
+    )
+
+
 def _scientific_facts(
     completion: IndexRecord,
 ) -> Mapping[str, object] | None:
@@ -3793,6 +3880,15 @@ def operation_steps(
                 item.event_kind == "repair_concluded_unrecovered"
                 for item in repair_steps
             )
+            scientific_change_disposition = (
+                _member_scientific_change_disposition_step(
+                    design,
+                    member,
+                    _index=_index,
+                )
+            )
+            if scientific_change_disposition is not None:
+                steps.append(scientific_change_disposition)
             steps.append(
                 OperationStep(
                     stem + "-complete-job",
@@ -3815,7 +3911,11 @@ def operation_steps(
                     STUDY_CLOSE_STAGE,
                 )
             )
-            if repair_recertification_close_ids[member.ordinal] is not None:
+            if (
+                scientific_change_disposition is None
+                and repair_recertification_close_ids[member.ordinal]
+                is not None
+            ):
                 steps.append(
                     OperationStep(
                         stem + "-recertify-replay-implementation",
@@ -3823,7 +3923,10 @@ def operation_steps(
                         STUDY_CLOSE_STAGE,
                     )
                 )
-            if unrecovered_repair:
+            if (
+                unrecovered_repair
+                or scientific_change_disposition is not None
+            ):
                 break
             if budget_repair_boundary == member.ordinal:
                 steps.append(

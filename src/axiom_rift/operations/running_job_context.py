@@ -57,6 +57,7 @@ from axiom_rift.research.historical_family_binding import (
     historical_family_core_identity,
 )
 from axiom_rift.research.replay_obligation import (
+    HistoricalReplayObligation,
     ReplayExecutionBinding,
     ReplayObligationError,
     ReplayResolutionScope,
@@ -771,13 +772,145 @@ def _require_replay_resume_transition(
         )
 
 
-def _require_correction_invalidation_route(
+_NEW_OBLIGATION_RESULT_FIELDS = {
+    "adjudication_record_ids",
+    "audit_artifact_hash",
+    "candidate_delta",
+    "holdout_delta",
+    "replay_obligation_ids",
+    "replay_priority_escalation_ids",
+    "reused_replay_obligation_ids",
+    "trial_delta",
+}
+
+
+def _unique_ascii_list(value: object) -> list[str] | None:
+    if (
+        not isinstance(value, list)
+        or any(
+            type(item) is not str or not item or not item.isascii()
+            for item in value
+        )
+        or len(value) != len(set(value))
+    ):
+        return None
+    return value
+
+
+def _require_recorded_new_replay_obligation_origin(
+    index: Any,
+    *,
+    obligation: HistoricalReplayObligation,
+    record: Any,
+) -> None:
+    """Authenticate one direct adjudication-to-obligation Writer origin."""
+
+    try:
+        _event_kind, result = require_same_event_operation_result(
+            index,
+            record=record,
+            expected_event_kinds=frozenset(
+                {"historical_scientific_adjudications_recorded"}
+            ),
+        )
+    except RecordedTransitionAuthorityError as exc:
+        raise RunningJobAuthorityError(
+            "new replay obligation lacks same-event Writer authority"
+        ) from exc
+    adjudication_record = index.get(
+        "historical-scientific-adjudication",
+        obligation.historical_adjudication_id,
+    )
+    adjudication_payload = (
+        None if adjudication_record is None else adjudication_record.payload
+    )
+    try:
+        if not isinstance(adjudication_payload, Mapping):
+            raise ReplayObligationError(
+                "historical adjudication payload is absent"
+            )
+        derived = replay_obligation_module.derive_historical_replay_obligation(
+            governing_mission_id=obligation.governing_mission_id,
+            historical_adjudication_id=obligation.historical_adjudication_id,
+            adjudication_payload=adjudication_payload,
+        )
+    except ReplayObligationError as exc:
+        raise RunningJobAuthorityError(
+            "new replay obligation adjudication cannot derive its identity"
+        ) from exc
+    adjudication_ids = _unique_ascii_list(
+        result.get("adjudication_record_ids")
+    )
+    replay_ids = _unique_ascii_list(result.get("replay_obligation_ids"))
+    reused_ids = _unique_ascii_list(
+        result.get("reused_replay_obligation_ids")
+    )
+    escalation_ids = _unique_ascii_list(
+        result.get("replay_priority_escalation_ids")
+    )
+    stream = f"historical-replay-obligation:{obligation.identity}"
+    if (
+        set(result) != _NEW_OBLIGATION_RESULT_FIELDS
+        or adjudication_ids is None
+        or replay_ids is None
+        or reused_ids is None
+        or escalation_ids is None
+        or obligation.historical_adjudication_id not in adjudication_ids
+        or obligation.identity not in replay_ids
+        or result.get("audit_artifact_hash") != obligation.audit_artifact_hash
+        or any(
+            result.get(name) != 0
+            for name in ("candidate_delta", "holdout_delta", "trial_delta")
+        )
+        or record.kind != "historical-replay-obligation"
+        or record.record_id != obligation.identity
+        or record.subject != f"Mission:{obligation.governing_mission_id}"
+        or record.status != "pending"
+        or record.fingerprint
+        != obligation.identity.removeprefix("historical-replay-obligation:")
+        or record.payload != {"obligation": obligation.to_identity_payload()}
+        or record.event_stream != stream
+        or record.event_sequence != 1
+        or index.event_record(stream, 1) != record
+        or index.get("historical-replay-obligation", obligation.identity)
+        != record
+        or adjudication_record is None
+        or adjudication_record.kind != "historical-scientific-adjudication"
+        or adjudication_record.record_id
+        != obligation.historical_adjudication_id
+        or adjudication_record.subject
+        != f"Study:{obligation.original_study_id}"
+        or adjudication_record.status != "replay_required"
+        or adjudication_record.fingerprint
+        != obligation.historical_adjudication_id.removeprefix(
+            "historical-adjudication:"
+        )
+        or authority_key(adjudication_record) != authority_key(record)
+        or adjudication_payload.get("replay_obligation_authority")
+        != "derived_new"
+        or adjudication_payload.get("replay_obligation_id")
+        != obligation.identity
+        or adjudication_payload.get(
+            "replay_obligation_origin_adjudication_id"
+        )
+        != obligation.historical_adjudication_id
+        or adjudication_payload.get("candidate_delta") != 0
+        or adjudication_payload.get("holdout_delta") != 0
+        or adjudication_payload.get("trial_delta") != 0
+        or derived != obligation
+    ):
+        raise RunningJobAuthorityError(
+            "new replay obligation differs from its exact adjudication origin"
+        )
+
+
+def _replay_execution_origin_record(
     index: Any,
     *,
     obligation: Any,
     current_progress: Any,
 ) -> Any:
-    """Walk the exact correction, deferral, and resume ancestry."""
+    """Walk deferral/resume ancestry to its immutable origin record."""
 
     stream = f"historical-replay-obligation:{obligation.identity}"
     sequence = current_progress.event_sequence
@@ -787,7 +920,10 @@ def _require_correction_invalidation_route(
         else index.event_record(stream, sequence - 1)
     )
     while cursor is not None:
-        if cursor.kind == "historical-replay-satisfaction-invalidation":
+        if cursor.kind in {
+            "historical-replay-obligation",
+            "historical-replay-satisfaction-invalidation",
+        }:
             return cursor
         if (
             cursor.kind != "historical-replay-obligation-resume"
@@ -832,7 +968,37 @@ def _require_correction_invalidation_route(
         else:
             break
     raise RunningJobAuthorityError(
-        "fixed-hold replay execution lost its correction invalidation route"
+        "fixed-hold replay execution lost its recorded obligation origin route"
+    )
+
+
+def _require_replay_execution_origin_route(
+    index: Any,
+    *,
+    obligation: Any,
+    current_progress: Any,
+    family_record: Any,
+) -> None:
+    """Authenticate either correction or direct-adjudication ancestry."""
+
+    origin = _replay_execution_origin_record(
+        index,
+        obligation=obligation,
+        current_progress=current_progress,
+    )
+    if origin.kind == "historical-replay-satisfaction-invalidation":
+        _require_correction_pending_invalidation(
+            index,
+            obligation=obligation,
+            record=origin,
+            family_record=family_record,
+            require_current_head=False,
+        )
+        return
+    _require_recorded_new_replay_obligation_origin(
+        index,
+        obligation=obligation,
+        record=origin,
     )
 
 
@@ -1709,17 +1875,11 @@ class RunningJobExecutionContext:
                 raise RunningJobAuthorityError(
                     "fixed-hold replay execution binding differs from its Study"
                 )
-            invalidation = _require_correction_invalidation_route(
+            _require_replay_execution_origin_route(
                 index,
                 obligation=obligation,
                 current_progress=current_obligation,
-            )
-            _require_correction_pending_invalidation(
-                index,
-                obligation=obligation,
-                record=invalidation,
                 family_record=family_record,
-                require_current_head=False,
             )
             for (
                 assignment,
@@ -1775,19 +1935,11 @@ class RunningJobExecutionContext:
                     raise RunningJobAuthorityError(
                         "selected replay progress differs from its assignment"
                     )
-                selected_invalidation = (
-                    _require_correction_invalidation_route(
-                        index,
-                        obligation=selected_obligation,
-                        current_progress=selected_current,
-                    )
-                )
-                _require_correction_pending_invalidation(
+                _require_replay_execution_origin_route(
                     index,
                     obligation=selected_obligation,
-                    record=selected_invalidation,
+                    current_progress=selected_current,
                     family_record=selected_family_record,
-                    require_current_head=False,
                 )
         return RunningJobFixedHoldReplayContext(
             family_authority_id=family_authority_id,

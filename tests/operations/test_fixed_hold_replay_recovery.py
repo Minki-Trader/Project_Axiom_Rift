@@ -67,6 +67,88 @@ def _operation(suffix: str, event_kind: str, sequence: int, result: dict):
 
 
 class FixedHoldReplayRecoveryTests(unittest.TestCase):
+    def test_scientific_change_disposition_is_a_typed_replay_step(self) -> None:
+        stem = PREFIX + "member-01"
+        job_id = "job:" + "a" * 64
+        disposition_hash = "b" * 64
+        disposition_record_id = "c" * 64
+        operation = _operation(
+            "record-scientific-change-disposition",
+            "engineering_failure_disposition_recorded",
+            104,
+            {
+                "cause_hash": "d" * 64,
+                "disposition_hash": disposition_hash,
+                "disposition_record_id": disposition_record_id,
+                "job_id": job_id,
+                "repair_id": None,
+            },
+        )
+        declaration = _operation(
+            "declare-job",
+            "job_declared",
+            101,
+            {"job_hash": "a" * 64, "job_id": job_id},
+        )
+        disposition = SimpleNamespace(
+            authority_event_id=operation.authority_event_id,
+            authority_sequence=operation.authority_sequence,
+            fingerprint=disposition_hash,
+            kind="engineering-failure-disposition",
+            payload={
+                "disposition": {
+                    "disposition": "requires_scientific_change",
+                    "schema": "engineering_failure_disposition.v1",
+                    "successor_scope": "study",
+                },
+                "job_id": job_id,
+                "repair_id": None,
+            },
+            record_id=disposition_record_id,
+            status="requires_scientific_change",
+            subject=f"Job:{job_id}",
+        )
+        records = {
+            ("operation", stem + "-declare-job"): declaration,
+            (
+                "operation",
+                stem + "-record-scientific-change-disposition",
+            ): operation,
+            (
+                "engineering-failure-disposition",
+                disposition_record_id,
+            ): disposition,
+        }
+        index = SimpleNamespace(
+            get=lambda kind, identity: records.get((kind, identity))
+        )
+        design = SimpleNamespace(
+            spec=SimpleNamespace(operation_prefix=PREFIX)
+        )
+        member = SimpleNamespace(label="member-01")
+
+        step = workflow._member_scientific_change_disposition_step(
+            design,
+            member,
+            _index=index,
+        )
+
+        self.assertEqual(
+            step,
+            OperationStep(
+                stem + "-record-scientific-change-disposition",
+                "engineering_failure_disposition_recorded",
+                STUDY_CLOSE_STAGE,
+            ),
+        )
+        disposition.payload["disposition"]["successor_scope"] = None
+        with self.assertRaisesRegex(RuntimeError, "projection is malformed"):
+            workflow._member_scientific_change_disposition_step(
+                design,
+                member,
+                _index=index,
+            )
+
     def test_permit_issue_is_rebound_to_exact_writer_transition(self) -> None:
         payload = {"permit_id": "a" * 64}
         permit = SimpleNamespace(payload=Mock(return_value=payload))

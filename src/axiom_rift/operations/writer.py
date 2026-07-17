@@ -222,7 +222,7 @@ class IdenticalFailedRetryError(TransitionError):
 
 
 _EXPECTED_FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID = (
-    "validator:7a90f5cc1e74df0ba28264830120a83bd248c6b7a4a47b783ec8a7d9082a8af7"
+    "validator:d6d67f483045a228232f317771cdb0450a94e9c0774e9a3fd8c5cc3ae3e69070"
 )
 
 
