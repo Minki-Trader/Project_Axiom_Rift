@@ -2421,6 +2421,7 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
         job_id = "job:" + "1" * 64
         close_id = "2" * 64
         admission_id = "replay-implementation-admission:" + "3" * 64
+        preflight_id = "job-implementation-preflight:" + "5" * 64
         close_operation_id = stem + "-close-repair"
         recertification_id = stem + "-recertify-replay-implementation"
         close_operation = SimpleNamespace(
@@ -2451,13 +2452,18 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
                 "event_kind": "replay_implementation_repair_recertified",
                 "result": {
                     "admission_id": admission_id,
-                    "repair_close_record_id": close_id,
+                    "preflight_id": preflight_id,
+                    "reason_code": None,
+                    "status": "accepted",
                 },
             },
             status="success",
         )
         admission = SimpleNamespace(
-            payload={"trigger_repair_close_record_id": close_id},
+            payload={
+                "recertification_preflight_id": preflight_id,
+                "trigger_repair_close_record_id": close_id,
+            },
         )
         records = {
             admission_id: admission,

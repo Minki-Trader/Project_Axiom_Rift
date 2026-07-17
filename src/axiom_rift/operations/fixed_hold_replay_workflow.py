@@ -2586,9 +2586,11 @@ def _member_implementation_recertification_boundary(
             recorded.status != "success"
             or recorded.payload.get("event_kind")
             != "replay_implementation_repair_recertified"
-            or result.get("repair_close_record_id")
-            != trigger.record_id
+            or result.get("status") != "accepted"
+            or result.get("reason_code") is not None
             or admission is None
+            or admission.payload.get("recertification_preflight_id")
+            != result.get("preflight_id")
             or admission.payload.get("trigger_repair_close_record_id")
             != trigger.record_id
         ):
