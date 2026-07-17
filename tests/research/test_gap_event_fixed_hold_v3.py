@@ -5,6 +5,10 @@ from pathlib import Path
 from axiom_rift.operations.job_implementation_authority import (
     hardcoded_control_ids,
 )
+from axiom_rift.operations.fixed_hold_repair_equivalence import (
+    FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_NEW_IMPLEMENTATION_IDENTITY,
+    fixed_hold_authority_correction_verification_manifest,
+)
 from axiom_rift.core.canonical import parse_canonical
 import numpy as np
 import pytest
@@ -21,6 +25,7 @@ from axiom_rift.research.gap_event_fixed_hold_v3 import (
 from axiom_rift.research.gap_event_fixed_hold_v3_job import (
     build_gap_event_fixed_hold_v3_job_plan,
     gap_event_fixed_hold_v3_job_implementation_artifact,
+    gap_event_fixed_hold_v3_job_implementation_sha256,
 )
 from axiom_rift.research.gap_fixed_hold import gap_fixed_hold_protocol_definition
 from axiom_rift.research.historical_family_binding import (
@@ -114,3 +119,17 @@ def test_v3_runtime_sources_use_declarative_control_binding() -> None:
     assert hardcoded_control_ids(
         Path(v3_job_module.__file__).read_bytes()
     ) == ()
+
+
+def test_v3_runtime_correction_profile_tracks_the_exact_source_closure() -> None:
+    identity = gap_event_fixed_hold_v3_job_implementation_sha256()
+    assert identity == (
+        FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_NEW_IMPLEMENTATION_IDENTITY
+    )
+    verification = fixed_hold_authority_correction_verification_manifest(
+        new_implementation_identity=identity,
+    )
+    assert verification["verdict"] == "passed"
+    assert [item["relative_path"] for item in verification["source_artifacts"]] == [
+        "axiom_rift/operations/running_job_context.py"
+    ]

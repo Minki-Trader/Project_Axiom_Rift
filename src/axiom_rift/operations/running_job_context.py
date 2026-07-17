@@ -923,6 +923,7 @@ def _replay_execution_origin_record(
         if cursor.kind in {
             "historical-replay-obligation",
             "historical-replay-satisfaction-invalidation",
+            "historical-replay-scientific-change-return",
         }:
             return cursor
         if (
@@ -994,6 +995,84 @@ def _require_replay_execution_origin_route(
             family_record=family_record,
             require_current_head=False,
         )
+        return
+    if origin.kind == "historical-replay-scientific-change-return":
+        payload = origin.payload
+        fingerprint = canonical_digest(
+            domain="historical-replay-scientific-change-return",
+            payload=payload,
+        )
+        zero_fields = (
+            "candidate_delta",
+            "holdout_reveal_delta",
+            "scientific_claim_delta",
+            "scientific_failure_delta",
+            "scientific_satisfaction_delta",
+            "scientific_trial_delta",
+            "terminal_credit_delta",
+        )
+        if (
+            origin.record_id
+            != "historical-replay-scientific-change-return:" + fingerprint
+            or origin.subject
+            != f"Mission:{obligation.governing_mission_id}"
+            or origin.status != "pending"
+            or origin.fingerprint != fingerprint
+            or origin.event_stream
+            != f"historical-replay-obligation:{obligation.identity}"
+            or type(origin.event_sequence) is not int
+            or origin.event_sequence < 2
+            or payload.get("schema")
+            != "historical_replay_scientific_change_return.v1"
+            or payload.get("obligation_id") != obligation.identity
+            or payload.get("prior_status") != "in_progress"
+            or payload.get("successor_scope") != "study"
+            or type(payload.get("resume_condition")) is not str
+            or not payload["resume_condition"]
+            or not payload["resume_condition"].isascii()
+            or any(payload.get(name) != 0 for name in zero_fields)
+        ):
+            raise RunningJobAuthorityError(
+                "scientific-change replay return origin is malformed"
+            )
+        try:
+            event_kind, result = require_recorded_transition_authority(
+                index,
+                record=origin,
+                expected_event_kinds=frozenset(
+                    {
+                        "historical_replay_obligations_"
+                        "returned_for_scientific_change"
+                    }
+                ),
+                require_current_head=False,
+            )
+        except RecordedTransitionAuthorityError as exc:
+            raise RunningJobAuthorityError(str(exc)) from exc
+        returned = result.get("returned_replay_obligation_ids")
+        record_ids = result.get("return_record_ids")
+        if (
+            event_kind
+            != "historical_replay_obligations_returned_for_scientific_change"
+            or not isinstance(returned, list)
+            or returned != sorted(set(returned))
+            or obligation.identity not in returned
+            or not isinstance(record_ids, list)
+            or origin.record_id not in record_ids
+            or result.get("study_id") != payload.get("replay_study_id")
+            or result.get("study_diagnosis_id")
+            != payload.get("study_diagnosis_id")
+            or result.get("engineering_completion_record_id")
+            != payload.get("engineering_completion_record_id")
+            or result.get("engineering_disposition_record_id")
+            != payload.get("engineering_disposition_record_id")
+            or result.get("engineering_disposition_hash")
+            != payload.get("engineering_disposition_hash")
+            or any(result.get(name) != 0 for name in zero_fields)
+        ):
+            raise RunningJobAuthorityError(
+                "scientific-change replay return Writer result is malformed"
+            )
         return
     _require_recorded_new_replay_obligation_origin(
         index,

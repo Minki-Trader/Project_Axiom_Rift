@@ -442,6 +442,12 @@ FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_OLD_IMPLEMENTATION_IDENTITY = (
 FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_NEW_IMPLEMENTATION_IDENTITY = (
     "8c0f4121fdfd0419566258d142cd6272ee8dc80144371adf72e1586c89ebfb8b"
 )
+FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_OLD_IMPLEMENTATION_IDENTITY = (
+    "45efe133cce1450d2057d8bb01393efd24051f31de8137f0ce75ed614580aa81"
+)
+FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_NEW_IMPLEMENTATION_IDENTITY = (
+    "18b8145685a60593e64045a0225ba315b318a534ef18d8b21658960b42247bdd"
+)
 FIXED_HOLD_AUTHORITY_CORRECTION_VERIFICATION_SCHEMA = (
     "fixed_hold_authority_correction_verification.v1"
 )
@@ -651,6 +657,25 @@ _DIRECT_ORIGIN_ALLOWED_CHANGED_SYMBOLS = {
         }
     ),
 }
+_SCIENTIFIC_CHANGE_RETURN_JOB_SOURCE_PATHS = tuple(
+    sorted(
+        set(_DIRECT_ORIGIN_JOB_SOURCE_PATHS).difference(
+            {"axiom_rift/research/gap_fixed_hold_job.py"}
+        )
+        | {
+            "axiom_rift/research/gap_event_fixed_hold_v3.py",
+            "axiom_rift/research/gap_event_fixed_hold_v3_job.py",
+        }
+    )
+)
+_SCIENTIFIC_CHANGE_RETURN_ALLOWED_CHANGED_SYMBOLS = {
+    "axiom_rift/operations/running_job_context.py": frozenset(
+        {
+            "function:_replay_execution_origin_record",
+            "function:_require_replay_execution_origin_route",
+        }
+    ),
+}
 _CORRECTION_PROFILES = {
     FIXED_HOLD_AUTHORITY_CORRECTION_NEW_IMPLEMENTATION_IDENTITY: {
         "allowed_changed_symbols": _ALLOWED_CHANGED_SYMBOLS,
@@ -667,6 +692,16 @@ _CORRECTION_PROFILES = {
         ),
         "required_changed_paths": _DIRECT_ORIGIN_REQUIRED_CHANGED_PATHS,
         "source_paths": _DIRECT_ORIGIN_JOB_SOURCE_PATHS,
+    },
+    FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_NEW_IMPLEMENTATION_IDENTITY: {
+        "allowed_changed_symbols": (
+            _SCIENTIFIC_CHANGE_RETURN_ALLOWED_CHANGED_SYMBOLS
+        ),
+        "old_implementation_identity": (
+            FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_OLD_IMPLEMENTATION_IDENTITY
+        ),
+        "required_changed_paths": _DIRECT_ORIGIN_REQUIRED_CHANGED_PATHS,
+        "source_paths": _SCIENTIFIC_CHANGE_RETURN_JOB_SOURCE_PATHS,
     },
 }
 
@@ -1107,6 +1142,162 @@ def _exercise_resume_route(tamper: str | None) -> None:
     )
 
 
+def _exercise_scientific_change_return_route(tamper: str | None) -> None:
+    from axiom_rift.operations.running_job_context import (
+        RunningJobAuthorityError,
+        _require_replay_execution_origin_route,
+    )
+    from axiom_rift.storage.index import IndexRecord, LocalIndex
+
+    obligation_id = "historical-replay-obligation:" + "b" * 64
+    mission_id = "MIS-FIXED-HOLD-CORRECTION"
+
+    class Obligation:
+        identity = obligation_id
+        governing_mission_id = mission_id
+
+    obligation = Obligation()
+    stream = f"historical-replay-obligation:{obligation_id}"
+
+    def authority(sequence: int) -> dict[str, Any]:
+        return {
+            "authority_sequence": sequence,
+            "authority_event_id": f"{sequence:064x}",
+            "authority_offset": sequence * 100,
+        }
+
+    prefix = [
+        IndexRecord(
+            kind=kind,
+            record_id=f"scientific-change-return-prefix-{sequence}",
+            subject=f"Mission:{mission_id}",
+            status=status,
+            fingerprint=f"scientific-change-return-prefix-{sequence}",
+            payload={"fixture_prefix": sequence},
+            event_stream=stream,
+            event_sequence=sequence,
+            **authority(sequence),
+        )
+        for sequence, kind, status in (
+            (1, "historical-replay-obligation", "pending"),
+            (2, "historical-replay-obligation-progress", "in_progress"),
+        )
+    ]
+    return_payload = {
+        "candidate_delta": 0,
+        "engineering_completion_record_id": "c" * 64,
+        "engineering_disposition_hash": "d" * 64,
+        "engineering_disposition_record_id": "e" * 64,
+        "holdout_reveal_delta": 0,
+        "obligation_id": obligation_id,
+        "prior_progress_record_id": prefix[-1].record_id,
+        "prior_status": "in_progress",
+        "replay_executable_id": "executable:" + "f" * 64,
+        "replay_study_close_record_id": "1" * 64,
+        "replay_study_id": "STU-PREVIOUS-CORRECTION",
+        "resume_condition": "admit a corrected successor Study",
+        "schema": "historical_replay_scientific_change_return.v1",
+        "scientific_claim_delta": 0,
+        "scientific_failure_delta": 0,
+        "scientific_satisfaction_delta": 0,
+        "scientific_trial_delta": 1 if tamper == "zero_delta" else 0,
+        "study_diagnosis_id": "diagnosis:" + "2" * 64,
+        "successor_scope": "study",
+        "terminal_credit_delta": 0,
+    }
+    return_fingerprint = canonical_digest(
+        domain="historical-replay-scientific-change-return",
+        payload=return_payload,
+    )
+    returned = IndexRecord(
+        kind="historical-replay-scientific-change-return",
+        record_id=(
+            "historical-replay-scientific-change-return:"
+            + return_fingerprint
+        ),
+        subject=f"Mission:{mission_id}",
+        status="pending",
+        fingerprint=return_fingerprint,
+        payload=return_payload,
+        event_stream=stream,
+        event_sequence=3,
+        **authority(3),
+    )
+    result = {
+        "candidate_delta": 0,
+        "engineering_completion_record_id": return_payload[
+            "engineering_completion_record_id"
+        ],
+        "engineering_disposition_hash": return_payload[
+            "engineering_disposition_hash"
+        ],
+        "engineering_disposition_record_id": return_payload[
+            "engineering_disposition_record_id"
+        ],
+        "holdout_reveal_delta": 0,
+        "return_record_ids": [returned.record_id],
+        "returned_replay_obligation_ids": [
+            (
+                "historical-replay-obligation:" + "0" * 64
+                if tamper == "result"
+                else obligation_id
+            )
+        ],
+        "scientific_claim_delta": 0,
+        "scientific_failure_delta": 0,
+        "scientific_satisfaction_delta": 0,
+        "scientific_trial_delta": 0,
+        "study_diagnosis_id": return_payload["study_diagnosis_id"],
+        "study_id": return_payload["replay_study_id"],
+        "terminal_credit_delta": 0,
+    }
+    current = IndexRecord(
+        kind="historical-replay-obligation-progress",
+        record_id="historical-replay-progress:" + "3" * 64,
+        subject=f"Mission:{mission_id}",
+        status="in_progress",
+        fingerprint="3" * 64,
+        payload={"obligation_id": obligation_id},
+        event_stream=stream,
+        event_sequence=4,
+        **authority(4),
+    )
+    event_kind = (
+        "historical_replay_obligations_deferred"
+        if tamper == "event"
+        else "historical_replay_obligations_returned_for_scientific_change"
+    )
+    records = [
+        *prefix,
+        returned,
+        *_transition_records(returned, event_kind, result),
+        current,
+    ]
+    with TemporaryDirectory() as temporary:
+        with LocalIndex(Path(temporary) / "scientific-return.sqlite") as index:
+            index.put_many(records)
+            if tamper is None:
+                _require_replay_execution_origin_route(
+                    index,
+                    obligation=obligation,
+                    current_progress=current,
+                    family_record=None,
+                )
+                return
+            try:
+                _require_replay_execution_origin_route(
+                    index,
+                    obligation=obligation,
+                    current_progress=current,
+                    family_record=None,
+                )
+            except RunningJobAuthorityError:
+                return
+    raise EvidenceValidationError(
+        "fixed-hold correction accepted tampered scientific-change return"
+    )
+
+
 def _run_correction_conformance() -> tuple[str, ...]:
     from axiom_rift.operations.running_job_context import (
         RunningJobAuthorityError,
@@ -1142,6 +1333,9 @@ def _run_correction_conformance() -> tuple[str, ...]:
         "resume_result_extra",
     ):
         _exercise_resume_route(tamper)
+    _exercise_scientific_change_return_route(None)
+    for tamper in ("event", "result", "zero_delta"):
+        _exercise_scientific_change_return_route(tamper)
     passed.add("resume_authority_tampering_rejected")
 
     evidence = ReplayResumeEvidence(
@@ -1793,6 +1987,8 @@ __all__ = [
     "FIXED_HOLD_AUTHORITY_CORRECTION_VALIDATOR_ID",
     "FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_NEW_IMPLEMENTATION_IDENTITY",
     "FIXED_HOLD_DIRECT_ORIGIN_CORRECTION_OLD_IMPLEMENTATION_IDENTITY",
+    "FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_NEW_IMPLEMENTATION_IDENTITY",
+    "FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_OLD_IMPLEMENTATION_IDENTITY",
     "FixedHoldAuthorityCorrectionEquivalenceValidator",
     "changed_source_symbols",
     "fixed_hold_authority_correction_verification_manifest",

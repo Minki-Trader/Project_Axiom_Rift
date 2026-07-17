@@ -1,0 +1,342 @@
+"""Repair the active STU-0117 Job's scientific-change origin projection."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+import sys
+from typing import Any, Mapping
+
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
+
+from scripts.run_remaining_p1_fixed_hold_family import (  # noqa: E402
+    PERMIT_EXPIRY_UTC,
+)
+from scripts.run_stu0046_gap_event_protocol_revision_v3 import (  # noqa: E402
+    build_design,
+)
+from axiom_rift.core.canonical import canonical_bytes  # noqa: E402
+from axiom_rift.operations.fixed_hold_repair_equivalence import (  # noqa: E402
+    FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_NEW_IMPLEMENTATION_IDENTITY,
+    FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_OLD_IMPLEMENTATION_IDENTITY,
+    FixedHoldAuthorityCorrectionEquivalenceValidator,
+)
+from axiom_rift.operations.fixed_hold_replay_workflow import (  # noqa: E402
+    fixed_hold_replay_repair_operation_ids,
+    require_stable_head,
+)
+from axiom_rift.operations.permits import (  # noqa: E402
+    Permit,
+    PermitAuthority,
+    PermitKeyStore,
+    PermitKind,
+    SubjectKind,
+)
+from axiom_rift.operations.validation import (  # noqa: E402
+    EvidenceValidatorRegistry,
+)
+from axiom_rift.operations.writer import StateWriter  # noqa: E402
+from axiom_rift.research.gap_event_fixed_hold_v3_job import (  # noqa: E402
+    gap_event_fixed_hold_v3_job_implementation_sha256,
+    materialize_gap_event_fixed_hold_v3_running_job_repair_proof,
+)
+from axiom_rift.research.validation_v2 import (  # noqa: E402
+    ScientificAdjudicationValidatorV2,
+)
+
+
+STUDY_ID = "STU-0117"
+PREDECESSOR_REVISION = 5523
+PREDECESSOR_EVENT_ID = (
+    "17f68dfca5da5a7ed0db6e8c3369e796f08a00c7e65503d4f42d5691898c4168"
+)
+FAILURE_MESSAGE = (
+    "fixed-hold replay execution lost its recorded obligation origin route"
+)
+ROOT_CAUSE = (
+    "fixed-hold runtime omitted the typed scientific-change return origin"
+)
+
+
+def _writer() -> StateWriter:
+    registry = EvidenceValidatorRegistry(
+        (
+            ScientificAdjudicationValidatorV2(),
+            FixedHoldAuthorityCorrectionEquivalenceValidator(),
+        )
+    )
+    writer = StateWriter(ROOT, validation_registry=registry)
+    writer.permit_authority = PermitAuthority(
+        PermitKeyStore(ROOT / "local" / "permit.key").load_or_create()
+    )
+    require_stable_head(writer, explicit_recovery=False)
+    return writer
+
+
+def _operation_result(
+    writer: StateWriter,
+    operation_id: str,
+) -> Mapping[str, Any] | None:
+    with writer.open_stable_index() as (_control, index):
+        operation = index.get("operation", operation_id)
+    if operation is None:
+        return None
+    result = operation.payload.get("result")
+    if (
+        operation.status != "success"
+        or not isinstance(result, Mapping)
+    ):
+        raise RuntimeError(f"Repair operation is malformed: {operation_id}")
+    return result
+
+
+def _context(writer: StateWriter) -> dict[str, Any]:
+    design = build_design(
+        writer,
+        predecessor_revision=PREDECESSOR_REVISION,
+        predecessor_event_id=PREDECESSOR_EVENT_ID,
+    )
+    with writer.open_stable_index() as (control, index):
+        science = control.get("scientific")
+        job = None if not isinstance(science, Mapping) else science.get(
+            "active_job"
+        )
+        repair = None if not isinstance(science, Mapping) else science.get(
+            "active_repair"
+        )
+        if (
+            not isinstance(job, Mapping)
+            or science.get("active_study") != STUDY_ID
+            or job.get("status") not in {"running", "interrupted_repair"}
+        ):
+            raise RuntimeError("STU-0117 Repair requires its exact active Job")
+        declaration = index.get("job-declared", str(job["id"]))
+        spec = (
+            None
+            if declaration is None
+            else declaration.payload.get("spec")
+        )
+        subject = None if not isinstance(spec, Mapping) else spec.get(
+            "evidence_subject"
+        )
+        if (
+            not isinstance(subject, Mapping)
+            or subject.get("kind") != "Executable"
+            or not isinstance(subject.get("id"), str)
+        ):
+            raise RuntimeError("STU-0117 Repair lost its Job declaration")
+        member = next(
+            (
+                item
+                for item in design.members
+                if item.executable.identity == subject["id"]
+            ),
+            None,
+        )
+        if member is None:
+            raise RuntimeError("STU-0117 Repair Job is outside its family")
+        assignments = design.replay_assignments
+        assignment = (
+            None
+            if assignments is None
+            else next(
+                (
+                    item
+                    for item in assignments.assignments
+                    if item.replay_executable_id == member.executable.identity
+                ),
+                None,
+            )
+        )
+        if assignment is None:
+            raise RuntimeError("STU-0117 Repair member assignment is absent")
+        stream = (
+            "historical-replay-obligation:"
+            + assignment.obligation_id
+        )
+        head = index.event_head(stream)
+        origin_inventory = []
+        if head is not None:
+            for sequence in range(1, head.sequence + 1):
+                record = index.event_record(stream, sequence)
+                if record is None:
+                    raise RuntimeError("STU-0117 obligation stream has a gap")
+                origin_inventory.append(
+                    {
+                        "event_sequence": sequence,
+                        "kind": record.kind,
+                        "record_id": record.record_id,
+                        "status": record.status,
+                    }
+                )
+    old_identity = spec.get("implementation_identity")
+    new_identity = gap_event_fixed_hold_v3_job_implementation_sha256()
+    if (
+        old_identity
+        != FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_OLD_IMPLEMENTATION_IDENTITY
+        or new_identity
+        != FIXED_HOLD_SCIENTIFIC_CHANGE_RETURN_NEW_IMPLEMENTATION_IDENTITY
+    ):
+        raise RuntimeError("STU-0117 Repair implementation pair drifted")
+    operation_ids = fixed_hold_replay_repair_operation_ids(
+        design.spec,
+        member,
+        episode=1,
+    )
+    return {
+        "control": control,
+        "design": design,
+        "job": dict(job),
+        "member": member,
+        "new_implementation_identity": new_identity,
+        "old_implementation_identity": old_identity,
+        "operation_ids": operation_ids,
+        "origin_inventory": origin_inventory,
+        "repair": None if repair is None else dict(repair),
+        "spec": dict(spec),
+    }
+
+
+def plan_repair(writer: StateWriter) -> dict[str, Any]:
+    context = _context(writer)
+    operation_ids = context["operation_ids"]
+    return {
+        "active_job_id": context["job"]["id"],
+        "active_repair_id": (
+            None
+            if context["repair"] is None
+            else context["repair"]["id"]
+        ),
+        "member_ordinal": context["member"].ordinal,
+        "new_implementation_identity": context[
+            "new_implementation_identity"
+        ],
+        "old_implementation_identity": context[
+            "old_implementation_identity"
+        ],
+        "operation_ids": operation_ids.by_role(),
+        "origin_kinds": [
+            item["kind"] for item in context["origin_inventory"]
+        ],
+        "revision": context["control"]["revision"],
+        "schema": "stu0117_scientific_change_origin_repair_plan.v1",
+    }
+
+
+def apply_repair(writer: StateWriter) -> dict[str, Any]:
+    context = _context(writer)
+    operation_ids = context["operation_ids"]
+    existing_close = _operation_result(writer, operation_ids.close)
+    if existing_close is not None:
+        control = writer.read_control()
+        return {
+            "repair_close_record_id": existing_close[
+                "repair_close_record_id"
+            ],
+            "reused": True,
+            "revision": None if control is None else control["revision"],
+            "schema": "stu0117_scientific_change_origin_repair_result.v1",
+        }
+
+    reproduction = writer.evidence.finalize(
+        canonical_bytes(
+            {
+                "changed_path": (
+                    "axiom_rift/operations/running_job_context.py"
+                ),
+                "exception_type": "RunningJobAuthorityError",
+                "failure_message": FAILURE_MESSAGE,
+                "job_id": context["job"]["id"],
+                "new_implementation_identity": context[
+                    "new_implementation_identity"
+                ],
+                "old_implementation_identity": context[
+                    "old_implementation_identity"
+                ],
+                "origin_inventory": context["origin_inventory"],
+                "root_cause": ROOT_CAUSE,
+                "schema": (
+                    "stu0117_scientific_change_origin_reproduction.v1"
+                ),
+                "scientific_semantics_changed": False,
+                "study_id": STUDY_ID,
+            }
+        )
+    )
+    permit_result = _operation_result(writer, operation_ids.permit)
+    if permit_result is None:
+        permit = writer.issue_permit(
+            kind=PermitKind.REPAIR,
+            subject_kind=SubjectKind.JOB,
+            subject_id=context["job"]["id"],
+            input_hash=context["job"]["hash"],
+            actions=("open_repair",),
+            scope=("job",),
+            expires_at_utc=PERMIT_EXPIRY_UTC,
+            one_shot=True,
+            operation_id=operation_ids.permit,
+        )
+    else:
+        permit_payload = permit_result.get("permit")
+        if not isinstance(permit_payload, Mapping):
+            raise RuntimeError("STU-0117 Repair permit payload is absent")
+        permit = Permit.from_mapping(permit_payload)
+
+    open_result = _operation_result(writer, operation_ids.open)
+    if open_result is None:
+        opened = writer.open_repair(
+            permit=permit,
+            failure={
+                "failure_kind": "engineering",
+                "interrupted_action": context["spec"][
+                    "callable_identity"
+                ],
+                "minimum_reproduction_evidence": [reproduction.sha256],
+                "root_cause": ROOT_CAUSE,
+            },
+            operation_id=operation_ids.open,
+        )
+        repair_id = opened.result["repair_id"]
+    else:
+        repair_id = open_result.get("repair_id")
+        if not isinstance(repair_id, str):
+            raise RuntimeError("STU-0117 active Repair identity is absent")
+
+    proof_hash = materialize_gap_event_fixed_hold_v3_running_job_repair_proof(
+        writer,
+        verification_evidence_hashes=(),
+    )
+    closed = writer.close_repair(
+        changed_cause_proof_hash=proof_hash,
+        operation_id=operation_ids.close,
+    )
+    control = writer.read_control()
+    if control is None:
+        raise RuntimeError("STU-0117 Repair lost control state")
+    return {
+        "effective_implementation_identity": closed.result[
+            "effective_implementation_identity"
+        ],
+        "repair_close_record_id": closed.result["repair_close_record_id"],
+        "repair_id": repair_id,
+        "reused": closed.reused,
+        "revision": control["revision"],
+        "schema": "stu0117_scientific_change_origin_repair_result.v1",
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--apply", action="store_true")
+    arguments = parser.parse_args()
+    writer = _writer()
+    result = apply_repair(writer) if arguments.apply else plan_repair(writer)
+    print(json.dumps(result, ensure_ascii=True, sort_keys=True))
+
+
+if __name__ == "__main__":
+    main()
