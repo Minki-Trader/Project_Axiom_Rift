@@ -839,6 +839,55 @@ class FixedHoldReplayWorkflowTests(unittest.TestCase):
             ({"kind": "study-diagnosis", "record_id": diagnosis_id},),
         )
 
+    def test_accepted_review_recovers_context_lost_from_decision_projection(
+        self,
+    ) -> None:
+        operation_id = "accepted-replay-decision"
+        decision_id = "decision:" + "d" * 64
+        diagnosis_id = "diagnosis:" + "e" * 64
+        snapshot_id = "portfolio:" + "f" * 64
+        basis = [
+            {"kind": "portfolio-snapshot", "record_id": snapshot_id},
+            {"kind": "study-diagnosis", "record_id": diagnosis_id},
+        ]
+        records = {
+            ("operation", operation_id): SimpleNamespace(
+                status="success",
+                payload={
+                    "event_kind": "portfolio_decision_recorded",
+                    "result": {"decision_id": decision_id},
+                },
+            ),
+            ("portfolio-decision", decision_id): SimpleNamespace(
+                payload={
+                    "architecture_review_id": None,
+                    "quant_team_review": {
+                        "assessments": [
+                            {"basis_records": basis},
+                            {"basis_records": basis},
+                        ]
+                    },
+                    "scheduler_constraints": None,
+                    "study_diagnosis_id": None,
+                }
+            ),
+            ("study-diagnosis", diagnosis_id): SimpleNamespace(payload={}),
+        }
+        index = SimpleNamespace(
+            get=lambda kind, record_id: records.get((kind, record_id))
+        )
+
+        actual = _decision_action_review_basis(
+            index,
+            {"next_action": {"kind": "diagnose_study"}},
+            accepted_operation_ids=(operation_id,),
+        )
+
+        self.assertEqual(
+            tuple(item.to_identity_payload() for item in actual),
+            ({"kind": "study-diagnosis", "record_id": diagnosis_id},),
+        )
+
     def test_registration_prefix_rejects_reconstructed_batch_drift(self) -> None:
         design = self._design()
         design.batch_spec = SimpleNamespace(identity="batch:" + "f" * 64)

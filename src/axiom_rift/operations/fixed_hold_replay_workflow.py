@@ -647,6 +647,68 @@ def _base_snapshot_id(
     return snapshot_id
 
 
+_DECISION_ACTION_REVIEW_BASIS_KINDS = frozenset(
+    {
+        "architecture-review",
+        "architecture-review-trigger",
+        "study-diagnosis",
+    }
+)
+
+
+def _accepted_review_action_basis(
+    decision_payload: Mapping[str, Any],
+) -> frozenset[tuple[str, str]] | None:
+    """Recover the exact action context frozen into an accepted review.
+
+    Writer projection fields describe the action that admitted a Decision, but
+    a later structural Decision can legitimately project a null diagnosis even
+    though its immutable quant-team review still carries the prior diagnosis
+    that formed the Decision identity.  Restart reconstruction therefore uses
+    the accepted review itself and treats the convenience projection only as a
+    legacy fallback.
+    """
+
+    review = decision_payload.get("quant_team_review")
+    if review is None:
+        return None
+    assessments = (
+        review.get("assessments") if isinstance(review, Mapping) else None
+    )
+    if not isinstance(assessments, list) or len(assessments) < 2:
+        raise RuntimeError("accepted replay Decision review is malformed")
+    contexts: list[frozenset[tuple[str, str]]] = []
+    for assessment in assessments:
+        basis = (
+            assessment.get("basis_records")
+            if isinstance(assessment, Mapping)
+            else None
+        )
+        if not isinstance(basis, list) or not basis:
+            raise RuntimeError("accepted replay Decision review is malformed")
+        context: set[tuple[str, str]] = set()
+        for item in basis:
+            if not isinstance(item, Mapping):
+                raise RuntimeError("accepted replay Decision review is malformed")
+            kind = item.get("kind")
+            record_id = item.get("record_id")
+            if not isinstance(kind, str):
+                raise RuntimeError("accepted replay Decision review is malformed")
+            if kind not in _DECISION_ACTION_REVIEW_BASIS_KINDS:
+                continue
+            if (
+                not isinstance(record_id, str)
+                or not record_id
+                or not record_id.isascii()
+            ):
+                raise RuntimeError("accepted replay Decision review is malformed")
+            context.add((kind, record_id))
+        contexts.append(frozenset(context))
+    if any(context != contexts[0] for context in contexts[1:]):
+        raise RuntimeError("accepted replay Decision review context is inconsistent")
+    return contexts[0]
+
+
 def _decision_action_review_basis(
     index: LocalIndexView,
     control: Mapping[str, Any],
@@ -660,6 +722,7 @@ def _decision_action_review_basis(
         return ()
     context = dict(action)
     durable_context: Mapping[str, Any] | None = None
+    accepted_review_context: frozenset[tuple[str, str]] | None = None
     for operation_id in accepted_operation_ids:
         operation = index.get("operation", operation_id)
         if operation is None:
@@ -685,6 +748,9 @@ def _decision_action_review_basis(
                 "accepted replay Decision context is unavailable"
             )
         durable_context = decision.payload
+        accepted_review_context = _accepted_review_action_basis(
+            decision.payload
+        )
         break
     if durable_context is None and action.get(
         "kind"
@@ -698,6 +764,9 @@ def _decision_action_review_basis(
         if decision is None:
             raise RuntimeError("accepted replay Decision context is unavailable")
         durable_context = decision.payload
+        accepted_review_context = _accepted_review_action_basis(
+            decision.payload
+        )
     if durable_context is not None:
         scheduler_context = durable_context.get("scheduler_constraints")
         if scheduler_context is not None and not isinstance(
@@ -749,6 +818,14 @@ def _decision_action_review_basis(
         raise RuntimeError(str(exc)) from exc
     if continuation is not None:
         pairs.update(required_quant_team_basis(continuation))
+    if accepted_review_context is not None:
+        if (
+            action.get("kind") == "execute_portfolio_decision"
+            and pairs
+            and pairs != set(accepted_review_context)
+        ):
+            raise RuntimeError("accepted replay Decision context drifted")
+        pairs = set(accepted_review_context)
     if any(index.get(kind, record_id) is None for kind, record_id in pairs):
         raise RuntimeError("replay Decision context authority is unavailable")
     return tuple(
