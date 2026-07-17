@@ -10,6 +10,7 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
     operation_steps,
 )
 from axiom_rift.operations.writer import StateWriter
+from axiom_rift.research.portfolio import PortfolioAction
 from axiom_rift.research.semantic_question import SemanticQuestionCore
 
 
@@ -51,9 +52,21 @@ def require_borrowed_production_profile(
     axis_count_before = len(design.prior_axes)
     axis_count_after = len(design.expanded_snapshot.axes)
     if admission is ReplayAxisAdmission.ADD_NEW_MECHANISM:
+        new_axis_action = design.spec.resolved_new_axis_action
         if (
             design.bridge_decision is None
-            or design.bridge_decision.chosen.action.value != "new_mechanism"
+            or new_axis_action is None
+            or design.bridge_decision.chosen.action
+            is not new_axis_action
+            or new_axis_action
+            not in {
+                PortfolioAction.COMPLEMENTARY_SLEEVE,
+                PortfolioAction.CONTRAST,
+                PortfolioAction.NEW_MECHANISM,
+                PortfolioAction.RECOMBINE,
+                PortfolioAction.ROTATE,
+                PortfolioAction.SYNTHESIZE,
+            }
             or design.protocol_revision is not None
             or axis_count_after != axis_count_before + 1
         ):

@@ -12,6 +12,7 @@ from axiom_rift.operations.fixed_hold_replay_workflow import (
     ReplayInitiativeLifecycle,
 )
 from axiom_rift.operations.strict_operation_chain import OperationStep
+from axiom_rift.research.portfolio import PortfolioAction
 from axiom_rift.research.semantic_question import SemanticQuestionCore
 
 
@@ -31,6 +32,8 @@ def _design(*, lifecycle=ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE):
         spec=SimpleNamespace(
             initiative_lifecycle=lifecycle,
             axis_admission=ReplayAxisAdmission.ADD_NEW_MECHANISM,
+            new_axis_action=PortfolioAction.NEW_MECHANISM,
+            resolved_new_axis_action=PortfolioAction.NEW_MECHANISM,
             operation_prefix=PREFIX,
             study_id="STU-9002",
         ),
@@ -44,7 +47,7 @@ def _design(*, lifecycle=ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE):
         prior_axes=(SimpleNamespace(axis_id="axis-source"),),
         replay_axis=SimpleNamespace(axis_id="axis-replay"),
         bridge_decision=SimpleNamespace(
-            chosen=SimpleNamespace(action=SimpleNamespace(value="new_mechanism")),
+            chosen=SimpleNamespace(action=PortfolioAction.NEW_MECHANISM),
             protocol_revision=None,
         ),
         expanded_snapshot=SimpleNamespace(axes=(1, 2)),

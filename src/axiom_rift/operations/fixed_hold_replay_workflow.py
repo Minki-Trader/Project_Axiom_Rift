@@ -252,6 +252,18 @@ class ReplayAxisAdmission(str, Enum):
     REUSE_EXACT_AXIS = "reuse_exact_axis"
 
 
+_NEW_AXIS_DECISION_ACTIONS = frozenset(
+    {
+        PortfolioAction.COMPLEMENTARY_SLEEVE,
+        PortfolioAction.CONTRAST,
+        PortfolioAction.NEW_MECHANISM,
+        PortfolioAction.RECOMBINE,
+        PortfolioAction.ROTATE,
+        PortfolioAction.SYNTHESIZE,
+    }
+)
+
+
 @dataclass(frozen=True, slots=True)
 class FixedHoldReplayMissionSpec:
     mission_id: str
@@ -273,6 +285,7 @@ class FixedHoldReplayMissionSpec:
     initiative_lifecycle: ReplayInitiativeLifecycle
     axis_admission: ReplayAxisAdmission
     additional_obligation_ids: tuple[str, ...] = ()
+    new_axis_action: PortfolioAction | None = None
 
     def __post_init__(self) -> None:
         for name in (
@@ -300,6 +313,19 @@ class FixedHoldReplayMissionSpec:
             raise ValueError("replay Initiative lifecycle is not typed")
         if not isinstance(self.axis_admission, ReplayAxisAdmission):
             raise ValueError("replay axis admission is not typed")
+        new_axis_action = self.new_axis_action
+        if self.axis_admission is ReplayAxisAdmission.ADD_NEW_MECHANISM:
+            if (
+                new_axis_action is not None
+                and new_axis_action not in _NEW_AXIS_DECISION_ACTIONS
+            ):
+                raise ValueError(
+                    "new replay axis requires a diversifying Portfolio action"
+                )
+        elif new_axis_action is not None:
+            raise ValueError(
+                "existing-axis replay must not declare a new-axis action"
+            )
         same_logical_axis = self.axis_id == self.bridge_axis_id
         if (
             self.axis_admission is ReplayAxisAdmission.ADD_NEW_MECHANISM
@@ -339,6 +365,12 @@ class FixedHoldReplayMissionSpec:
         return tuple(
             sorted((self.target_obligation_id, *self.additional_obligation_ids))
         )
+
+    @property
+    def resolved_new_axis_action(self) -> PortfolioAction | None:
+        if self.axis_admission is not ReplayAxisAdmission.ADD_NEW_MECHANISM:
+            return None
+        return self.new_axis_action or PortfolioAction.NEW_MECHANISM
 
 
 @dataclass(frozen=True, slots=True)
@@ -937,6 +969,62 @@ def _decision_action_review_basis(
     )
 
 
+def _require_new_axis_diagnosis_compatibility(
+    *,
+    control: Mapping[str, Any],
+    index: LocalIndexView,
+    action: PortfolioAction,
+    target_axis: PortfolioAxis,
+    projected_axes: Mapping[str, Mapping[str, Any]],
+) -> None:
+    """Fail before mutation when a new-axis action cannot exit diagnosis."""
+
+    next_action = control.get("next_action")
+    if not isinstance(next_action, Mapping):
+        return
+    diagnosis_id = next_action.get("study_diagnosis_id")
+    if not isinstance(diagnosis_id, str):
+        return
+    diagnosis = index.get("study-diagnosis", diagnosis_id)
+    if diagnosis is None:
+        raise RuntimeError("replay diagnosis authority is unavailable")
+    allowed_actions = set(diagnosis.payload.get("allowed_actions", ()))
+    allowed_layers = set(
+        diagnosis.payload.get("allowed_research_layers", ())
+    )
+    branch_match = (
+        action.value in allowed_actions
+        and (
+            target_axis.primary_research_layer.value in allowed_layers
+            or action is PortfolioAction.NEW_MECHANISM
+        )
+    )
+    source_axis_id = diagnosis.payload.get("portfolio_axis_id")
+    source_axis = projected_axes.get(source_axis_id)
+    forest_diversion = (
+        source_axis is not None
+        and target_axis.axis_id != source_axis_id
+        and action
+        in {
+            PortfolioAction.COMPLEMENTARY_SLEEVE,
+            PortfolioAction.CONTRAST,
+            PortfolioAction.RECOMBINE,
+            PortfolioAction.ROTATE,
+            PortfolioAction.SYNTHESIZE,
+        }
+        and (
+            target_axis.primary_research_layer.value
+            != source_axis.get("primary_research_layer")
+            or target_axis.system_architecture_family
+            != diagnosis.payload.get("system_architecture_family")
+        )
+    )
+    if not (branch_match or forest_diversion):
+        raise RuntimeError(
+            "new replay axis action cannot structurally exit current diagnosis"
+        )
+
+
 def _accepted_decision_review_mode(
     index: LocalIndexView,
     operation_id: str,
@@ -1400,6 +1488,20 @@ def build_fixed_hold_replay_design(
     protocol_revision: AxisProtocolRevisionProposal | None = None
     replacement_axis_overlay_required = False
     if spec.axis_admission is ReplayAxisAdmission.ADD_NEW_MECHANISM:
+        new_axis_action = spec.resolved_new_axis_action
+        assert new_axis_action is not None
+        if accepted_bridge_operation is None:
+            with writer.open_stable_index() as (
+                compatibility_control,
+                compatibility_index,
+            ):
+                _require_new_axis_diagnosis_compatibility(
+                    control=compatibility_control,
+                    index=compatibility_index,
+                    action=new_axis_action,
+                    target_axis=replay_axis,
+                    projected_axes=projected_axes,
+                )
         if replay_axis.mechanism_family in {
             axis.mechanism_family for axis in prior_axes
         }:
@@ -1407,10 +1509,11 @@ def build_fixed_hold_replay_design(
                 "new replay mechanism duplicates an existing Portfolio family"
             )
         expanded_axes = (*prior_axes, replay_axis)
-        bridge_option_id = "add-bounded-replay-bridge"
-        bridge_action = PortfolioAction.NEW_MECHANISM
+        bridge_option_id = "add-bounded-replay-" + new_axis_action.value
+        bridge_action = new_axis_action
         bridge_rationale = (
-            "add one genuinely distinct replay bridge without mutating prior axes"
+            "add one genuinely distinct replay axis through the typed "
+            f"{new_axis_action.value} action without mutating prior axes"
         )
         bridge_alternative = DecisionOption(
             option_id="continue-unrelated-forest",
@@ -1425,7 +1528,8 @@ def build_fixed_hold_replay_design(
             ),
         )
         expanded_basis = (
-            "retain the complete forest and add one distinct replay mechanism"
+            "retain the complete forest and add one distinct replay axis "
+            f"through {new_axis_action.value}"
         )
     elif spec.axis_admission is ReplayAxisAdmission.REUSE_EXACT_AXIS:
         prospective_replay_axis = replace(
@@ -6143,6 +6247,11 @@ def read_only_summary(
         "axis_count_after": len(design.expanded_snapshot.axes),
         "axis_count_before": len(design.prior_axes),
         "axis_admission": design.spec.axis_admission.value,
+        "new_axis_action": (
+            None
+            if design.spec.resolved_new_axis_action is None
+            else design.spec.resolved_new_axis_action.value
+        ),
         "base_snapshot_id": design.base_snapshot_id,
         "candidate_eligible": False,
         "current_prefix": completed,

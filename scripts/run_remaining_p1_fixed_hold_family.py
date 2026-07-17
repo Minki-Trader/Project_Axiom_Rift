@@ -44,6 +44,7 @@ from axiom_rift.operations.volatility_duration_fixed_hold_profile import (  # no
     build_volatility_duration_fixed_hold_profile_design,
 )
 from axiom_rift.operations.writer import StateWriter  # noqa: E402
+from axiom_rift.research.portfolio import PortfolioAction  # noqa: E402
 from axiom_rift.research.drawdown_state_replay_job import (  # noqa: E402
     CALLABLE_IDENTITY as DRAWDOWN_CALLABLE_IDENTITY,
     JOB_IMPLEMENTATION_PROTOCOL as DRAWDOWN_JOB_PROTOCOL,
@@ -323,6 +324,7 @@ def mission_spec(authority: RunAuthority) -> FixedHoldReplayMissionSpec:
     route = authority.route
     return FixedHoldReplayMissionSpec(
         axis_admission=ReplayAxisAdmission.ADD_NEW_MECHANISM,
+        new_axis_action=PortfolioAction.CONTRAST,
         initiative_lifecycle=ReplayInitiativeLifecycle.BORROW_ACTIVE_INITIATIVE,
         mission_id=MISSION_ID,
         initiative_id=INITIATIVE_ID,
